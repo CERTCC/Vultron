@@ -1,6 +1,6 @@
 ---
 status: accepted
-date: 2026-09-02
+date: 2026-10-01
 deciders: Allen D. Householder
 consulted: Claude Opus 4.8
 informed: []
@@ -71,31 +71,41 @@ without letting the Case Actor fabricate state it cannot observe.
 - **Default: participant status is self-declaratory.** A participant asserts its
   own RM and VFD state; no approval is required. This is why they are
   *participant* status items.
-- **`v→V` (vendor aware) MAY be asserted on behalf of the Vendor-role holder**
-  by a Case Manager or Case Owner, because the notification event is itself
-  observable evidence. Any acknowledgement from the vendor of any message sent to
-  it — even a `Read(Invite(Case))` — is sufficient evidence to set `v→V`. The
-  vendor SHOULD also assert it once it joins.
-- **`d→D` (fix deployed) MAY be asserted on behalf of the Deployer-role holder**
-  by a Case Manager or Case Owner under the same externally-evidenced pattern,
-  but only in exceptional circumstances (a MAY, expected to be rare). Deployment
-  is normally self-reported by the Deployer.
+- **On-behalf assertions target existing participants only.** A status
+  update never creates a participant; an on-behalf assertion whose target is
+  not a participant in the case is refused. Joining a case is the Invite flow
+  (ADR-0114), and the Invite is what creates the participant record.
+- **`v→V` (vendor aware) MAY be asserted on behalf of a Vendor-role
+  participant** by a Case Manager or Case Owner, because the notification event
+  is itself observable evidence. Any acknowledgement from the vendor of any
+  message sent to it — even a `Read(Invite(Case))` — is sufficient evidence.
+  The bump changes VF only, never RM.
+- **`d→D` (fix deployed) MAY be asserted on behalf of a Deployer-role
+  participant** by a Case Manager or Case Owner under the same
+  externally-evidenced pattern, but only in exceptional circumstances (a MAY,
+  expected to be rare; for example, a deployer that joined and has since gone
+  quiet). Deployment is normally self-reported by the Deployer. The write is
+  still subject to the cross-machine entailments, so it succeeds only for a
+  deployer whose RM is consistent with deployment.
 - **`f→F` (fix ready) is Vendor-only, always self-reported.** It is not
   externally knowable; no on-behalf assertion is ever permitted.
 - **Role and roster changes require Case Owner approval** via the existing
   CaseActor-routed Offer/Accept pattern (ADR-0026). Nothing here relaxes that.
 
-### The Vendor-participation-implies-V invariant
+### When a vendor participant may be at `v`
 
-A Vendor that is a *participant* in a case is, by definition, aware of the case.
-Therefore:
+A Vendor that has answered its Invite, or that has otherwise acknowledged any
+message about the case, is aware of the case. The Invite creates the vendor's
+participant record at VF `v` before it has answered (ADR-0114), and that record
+is the only place a vendor participant carries `v`. Therefore:
 
-- A Vendor-role participant's only valid VF self-reports are `Vf` and `VF`; a
-  Vendor-role participant can never validly report `v` (unaware).
-- The on-behalf `v→V` assertion (CONCERN-2087) is consequently scoped to a
-  vendor that has been **notified or invited but is not yet — or never becomes —
-  a participant**. It is the mechanism for tracking pre-join awareness. Once a
-  vendor joins, `V` is already implied and self-reporting takes over.
+- A Vendor-role participant never self-reports `v`: its only valid VF
+  self-reports are `Vf` and `VF`.
+- Any reply to the Invite sets `V`.
+- The on-behalf `v→V` assertion is the mechanism for recording awareness of an
+  invited vendor that has not answered: it targets that inert participant
+  record, so the CASE_MANAGER can track pre-join awareness without minting
+  anything.
 
 This invariant is enforceable and always an error to violate, so it belongs in
 the consolidated rule layer (`vultron/core/predicates/`, CONCERN-3020), not
@@ -104,22 +114,24 @@ inline at each assertion site.
 ### Consequences
 
 - Good: the vendor-awareness gap (CONCERN-2087) closes without a general proxy
-  authority for the Case Actor.
+  authority for the Case Actor, and without minting participants.
 - Good: `f→F` remains unforgeable; only the vendor can claim fix readiness.
 - Good: the self-declaratory-vs-owner-authorized boundary is now stated once and
   can be enforced as a rule rather than re-decided per site.
 - Neutral: `v→V`/`d→D` on-behalf assertion is a narrow, evidenced exception, not
-  a general capability; implementations must scope it to the notifying/inviting
-  Case Manager or the Case Owner.
+  a general capability; implementations must scope it to the Case Manager or
+  the Case Owner, and to a target already in the case.
 - Bad: the Vendor-implies-V invariant must be added to the rule layer and every
   existing Vendor VF assertion site checked against it.
 
 ## Validation
 
 - The `v→V` on-behalf assertion path is exercised by a test in which a Case
-  Manager records vendor awareness for a notified-but-not-joined vendor.
-- A rule-layer test asserts a Vendor-role participant cannot hold a VF state with
-  `v` set (valid Vendor VF ∈ {Vf, VF}).
+  Manager records vendor awareness for an invited vendor that has not answered.
+- A test asserts an on-behalf assertion for an actor that is not a participant
+  is refused and leaves the roster unchanged.
+- A rule-layer test asserts a Vendor-role participant cannot self-report a VF
+  state with `v` set (valid Vendor VF self-reports ∈ {Vf, VF}).
 - A test asserts `f→F` is rejected when asserted by any actor other than the
   Vendor-role holder.
 - Spec requirements are amended in `specs/participant-role-management.yaml` and
@@ -135,3 +147,6 @@ inline at each assertion site.
 - ADR-0026 — CaseActor-Routed Actor Suggestion and Invitation Flow (role authority)
 - ADR-0080 — Asking Permission Is a Protocol Message (owner-approval mechanism)
 - ADR-0085 — Case Lifecycle Boundaries (companion decision, close & rejoin)
+- ADR-0114 — Joining a case: the Invite creates the participant record
+- CONCERN-4006 — the on-behalf `d→D` refusal that scoped on-behalf status to
+  existing participants

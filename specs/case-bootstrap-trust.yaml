@@ -308,7 +308,9 @@ groups:
   - id: CBT-04-003
     priority: MUST
     kind: protocol
-    statement: After the late joiner has validated and accepted that invitation, the CASE_MANAGER MAY send `Announce(VulnerabilityCase)`
+    statement: >-
+      After the late joiner has accepted the stub Invite (`Accept(Invite(Actor,
+      VulnerabilityCaseStub))`), the CASE_MANAGER MAY send `Announce(VulnerabilityCase)`
       without a separate `Create(VulnerabilityCase)` bootstrap.
     verification: Integration tests in `test/demo/test_invite_actor_demo.py` confirm that after a late joiner accepts
       `InviteActorToCase`, it correctly processes `Announce(VulnerabilityCase)` from the CASE_MANAGER without an intermediate
@@ -316,6 +318,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: PCR-07-007
+    adr:
+    - ADR-0114
     stories:
     - story_2022_054
     - story_2022_088

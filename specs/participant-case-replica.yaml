@@ -102,17 +102,20 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When a new participant is added to a case (whether at case creation or later), the CASE_MANAGER
-      MUST send `Announce(VulnerabilityCase)` to that participant to deliver their initial
-      case copy.
+      When a participant becomes active (CM-10-004) — at case creation, or on accepting
+      the stub Invite (CM-11-008) — the CASE_MANAGER MUST send
+      `Announce(VulnerabilityCase)` to that participant to deliver its initial case
+      copy. It MUST NOT send one to an inert participant.
     verification: >-
-      Integration tests in `test/demo/test_pcr_bootstrap.py` confirm that
-      adding a participant triggers `Announce(VulnerabilityCase)` from the
+      Integration tests in `test/demo/test_pcr_bootstrap.py` confirm that a
+      participant becoming active triggers `Announce(VulnerabilityCase)` from the
       CASE_MANAGER to that participant as the first message in the bootstrap
-      sequence.
+      sequence, and that an invitee that has not joined receives none.
     relationships:
     - rel_type: implements
       spec_id: CM-06-001
+    adr:
+    - ADR-0114
     stories:
     - story_2022_092
   - id: PCR-02-003
@@ -491,17 +494,22 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The CASE_MANAGER MUST process `RmAcceptInviteToCaseActivity` and record the invitee's
-      RM state transition (VALID → ACCEPTED) in its own DataLayer.
+      The CASE_MANAGER MUST process an invitee's replies and record their effect in its
+      own DataLayer: a reply to the stub Invite as CM-11-001 and CM-11-007 require, and
+      a reply to the full-case Invite as CM-11-011 requires.
     verification: >-
       Integration tests in `test/demo/test_invite_actor_demo.py` confirm that
       after the invitee sends `RmAcceptInviteToCaseActivity`, the CASE_MANAGER's
-      DataLayer records the invitee's RM state as ACCEPTED.
+      DataLayer records the invitee's RM state as RECEIVED, and that each
+      full-case Invite reply moves it as CM-11-011 states.
     relationships:
     - rel_type: refines
       spec_id: PCR-08-001
     - rel_type: refines
       spec_id: PCR-08-003
+    adr:
+    - ADR-0114
+    - ADR-0070
     stories:
     - story_2022_054
     - story_2022_088
@@ -590,24 +598,25 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The invitee's `Accept(Invite)` activity IS the invitee's RM engagement decision.
-      The CASE_MANAGER MUST derive the `RmAcceptInviteToCaseActivity` domain event from
-      this message upon receipt, recording the invitee's RM transition (VALID → ACCEPTED)
-      in its own DataLayer without requiring a separate explicit RM state-change message
-      from the invitee.
+      The invitee's `Accept(Invite(Actor, VulnerabilityCaseStub))` is a join and
+      embargo-consent decision, not an RM engagement decision. The CASE_MANAGER MUST NOT
+      record any RM transition from it (CM-11-001), and MUST record the invitee as
+      RM.ACCEPTED only on receiving `Join(VulnerabilityCase)` from it (CM-11-004).
     rationale: >-
-      PCR-08-009 prohibits the case owner from emitting RM state-change activities on
-      behalf of the invitee but did not state who IS responsible. The invitee's
-      `Accept(Invite)` is the authoritative signal; the CASE_MANAGER is the sole party
-      authorized to record the resulting RM transition.
+      PCR-08-014 prohibits the case owner from emitting RM state-change activities on
+      behalf of the invitee. The invitee's own messages are the authoritative signals,
+      and each carries only the decision it names: accepting the stub joins the case,
+      the full-case Invite reply judges it (CM-11-011), and `Join` engages.
     verification: >-
       Integration tests in `test/demo/test_invite_actor_demo.py` confirm that
-      the CASE_MANAGER records the VALID→ACCEPTED RM transition solely from the
-      invitee's `Accept(Invite)` message, with no additional explicit RM
-      state-change message required.
+      the CASE_MANAGER leaves the invitee at RM.RECEIVED on its stub-Invite
+      `Accept` and records RM.ACCEPTED only after the invitee's
+      `Join(VulnerabilityCase)`.
     relationships:
     - rel_type: refines
       spec_id: PCR-08-009
+    adr:
+    - ADR-0114
     stories:
     - story_2022_054
     - story_2022_006

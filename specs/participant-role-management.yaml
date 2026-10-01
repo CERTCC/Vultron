@@ -281,7 +281,10 @@ groups:
     statement: >-
       Participant status is self-declaratory by default: each participant
       asserts its own RM and VFD state without external approval.  This is why
-      they are *participant* status items (ADR-0084).
+      they are *participant* status items (ADR-0084).  The one write about a
+      participant that the participant does not make is its birth: the
+      CASE_MANAGER creates the record at RM ``RECEIVED`` (and VF ``vf`` for a
+      vendor) when it sends the stub Invite (CM-11-006, ADR-0114).
     rationale: >-
       The self-declaratory model keeps state authority with the role holder.
       Deviations must be narrow, externally evidenced, and explicitly named
@@ -296,13 +299,16 @@ groups:
     priority: MUST_NOT
     kind: project
     statement: >-
-      A participant holding ``CVDRole.VENDOR`` MUST NOT assert a VF state of
-      ``CS_vf.vf`` (vendor-unaware).  Valid Vendor VF states are
-      ``{CS_vf.Vf, CS_vf.VF}`` (ADR-0084).
+      A participant holding ``CVDRole.VENDOR`` MUST NOT self-report a VF state
+      of ``CS_vf.vf`` (vendor-unaware).  Valid Vendor VF self-reports are
+      ``{CS_vf.Vf, CS_vf.VF}``.  The only ``vf`` a vendor participant carries is
+      the one the CASE_MANAGER writes when the stub Invite creates its record
+      (CM-11-006); any reply to that Invite sets ``V`` (CM-11-009) (ADR-0084,
+      ADR-0114).
     rationale: >-
-      A vendor that has joined a case is by definition aware of it.  Allowing
-      a vendor to assert the vendor-unaware state (``vf``) would create an
-      impossible protocol record.
+      A vendor that has answered its Invite, or otherwise acknowledged a message
+      about the case, is aware of it.  Allowing a vendor to self-report the
+      vendor-unaware state would create an impossible protocol record.
     verification: >-
       ``vendor_vf_invariant_ok`` in ``vultron/core/predicates/participants.py``
       enforces this predicate.  It is called once, from ``_vf_violations`` inside
@@ -312,8 +318,11 @@ groups:
       ``CreateParticipantStatusNode`` (BT action path) go through — BTND-10-002
       forbids either node from calling the predicate directly, and
       ``test/architecture/test_participant_status_validation.py`` ratchets that.
+      The CASE_MANAGER's birth write at the stub Invite is the one write that
+      may carry ``vf`` for a vendor.
     adr:
     - ADR-0084
+    - ADR-0114
     tags:
     - protocol
   - id: PRM-06-003
@@ -321,13 +330,16 @@ groups:
     kind: protocol
     statement: >-
       A Case Manager or Case Owner MAY assert ``v→V`` (``CS_vf.Vf``) on behalf
-      of a Vendor-role holder when the notification or invite is evidenced (any
-      vendor acknowledgement — including ``Read(Invite(Case))`` — suffices).
-      Scoped to a vendor notified or invited but not yet — or never — a
-      participant (ADR-0084).
+      of a Vendor-role participant when the notification or invite is evidenced
+      (any vendor acknowledgement — including ``Read(Invite(Case))`` —
+      suffices).  The target MUST already be a participant in the case —
+      typically an inert invitee that has not yet replied — and the write MUST
+      NOT change its RM state (ADR-0084).
     rationale: >-
-      Closes the vendor-awareness gap (CONCERN-2087): a vendor can be marked
-      informed even if it never joins the case, so case history is accurate.
+      Closes the vendor-awareness gap (CONCERN-2087): the case can record that
+      an invited vendor is aware even if it never answers.  The stub Invite
+      creates the record (ADR-0114), so the assertion has a target without
+      minting a participant.
     verification: >-
       ``SvcAddOnBehalfStatusUseCase`` implements this path; the asserting
       actor's CASE_MANAGER or CASE_OWNER role is verified by
@@ -336,22 +348,53 @@ groups:
     - ADR-0084
     tags:
     - protocol
+    stories:
+    - story_2022_061
   - id: PRM-06-004
     priority: MAY
     kind: protocol
     statement: >-
       A Case Manager or Case Owner MAY assert ``d→D`` (``CS_d.D``) on behalf
-      of a Deployer-role holder under the same externally-evidenced pattern
-      (a MAY, expected to be rare; deployment is normally self-reported by the
-      Deployer) (ADR-0084).
+      of a Deployer-role participant under the same externally-evidenced
+      pattern (a MAY, expected to be rare — for example, a deployer that joined
+      and has since gone quiet; deployment is normally self-reported by the
+      Deployer).  The target MUST already be a participant in the case, and the
+      write remains subject to the cross-machine entailments, so it succeeds
+      only for a deployer whose RM state is consistent with deployment
+      (ADR-0084).
     rationale: >-
-      Exceptional circumstances (e.g. the deployer no longer active) require
-      a narrow exception path; the on-behalf restriction keeps it from becoming
-      a general proxy capability.
+      Exceptional circumstances require a narrow exception path; the on-behalf
+      restriction keeps it from becoming a general proxy capability.  A deployer
+      that never joined is not in the case, so the case has nothing to record
+      about it (CONCERN-4006).
     adr:
     - ADR-0084
     tags:
     - protocol
+    stories:
+    - story_2022_061
+  - id: PRM-06-006
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An on-behalf status assertion whose target is not a participant in the
+      case MUST be refused before any write, and MUST NOT create a participant.
+      A status update is never a way into a case; joining is the Invite flow
+      (CM-11, ADR-0114).
+    rationale: >-
+      The on-behalf tree used to mint a participant for an absent target and
+      save it before the status write; for ``d→D`` the RM↔D entailment then
+      refused the write, leaving a stray participant in the case
+      (CONCERN-4006).
+    verification: >-
+      A test asserts an on-behalf assertion for an actor that is not a
+      participant is refused and leaves the case's roster unchanged.
+    adr:
+    - ADR-0084
+    tags:
+    - protocol
+    stories:
+    - story_2022_062
   - id: PRM-06-005
     priority: MUST_NOT
     kind: project

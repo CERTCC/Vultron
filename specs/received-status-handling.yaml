@@ -990,18 +990,19 @@ groups:
     priority: MUST
     kind: project
     statement: >
-      The RM acceptance rule of RSH-06-001 through RSH-06-005 (accept a forward
-      move including a non-adjacent one, refuse a backward move and carry the
-      current value forward, log the anomaly, and post the clarification note
-      where a case context exists) MUST be applied by the CASE_MANAGER to every
-      received-side write of a participant's RM state, whichever wire activity
-      carried the declaration. This includes the report activities
-      `Accept(Offer(VulnerabilityReport))`, `TentativeReject(Offer(VulnerabilityReport))`
-      and `Reject(Offer(VulnerabilityReport))`, and the case activities
-      `Join(VulnerabilityCase)` and `Ignore(VulnerabilityCase)`, not only
-      `Add(ParticipantStatus, CaseParticipant)`. Adjacency-only validation
-      (`is_valid_rm_transition`) MUST NOT be the receive-side acceptance rule
-      for any of these.
+      The RM acceptance rule of RSH-06-001 through RSH-06-005 (accept a forward move
+      including a non-adjacent one, refuse a backward move and carry the current value
+      forward, log the anomaly, and post the clarification note where a case context
+      exists) MUST be applied by the CASE_MANAGER to every received-side write of a
+      participant's RM state, whichever wire activity carried the declaration. This
+      includes the report activities `Accept(Offer(VulnerabilityReport))`,
+      `TentativeReject(Offer(VulnerabilityReport))` and
+      `Reject(Offer(VulnerabilityReport))`, the full-case Invite replies `Accept`,
+      `TentativeReject` and `Reject(Invite(Actor, VulnerabilityCase))` (CM-11-011), and
+      the case activities `Join(VulnerabilityCase)` and `Ignore(VulnerabilityCase)`, not
+      only `Add(ParticipantStatus, CaseParticipant)`. Adjacency-only validation
+      (`is_valid_rm_transition`) MUST NOT be the receive-side acceptance rule for any of
+      these.
     rationale: >
       The acceptance rule belongs to the state machine, not to the message. A
       transition accepted as a status snapshot but refused as the activity that
@@ -1015,6 +1016,7 @@ groups:
       emits the RSH-06-004 note, matching the `Add(ParticipantStatus)` behaviour.
     adr:
     - ADR-0108
+    - ADR-0070
 - id: RSH-07
   title: Conservative Default Authorization Policy for Status Gates
   description: >
@@ -1147,7 +1149,10 @@ groups:
       executes in. The receiving actor's own RM state MUST move on receipt only
       when it is itself the mover: when sender and receiver are the same actor,
       or when CM-23-002 directs the CASE_MANAGER to advance its own participant
-      on Case Owner departure.
+      on Case Owner departure. The one write whose subject is neither is the
+      CASE_MANAGER's creation of an invitee's participant record when, in a
+      received-side tree, it emits the stub Invite (CM-11-006, CM-17-007,
+      CM-16-006): its subject is the invitee.
     rationale: >
       A received activity is an assertion about the sender's state (HP-00-001)
       and participant status is self-declaratory (ADR-0084). BT-17-006 chooses
@@ -1160,6 +1165,7 @@ groups:
       sender's participant reaches the target RM state and the receiving actor's participant is unchanged.
     adr:
     - ADR-0108
+    - ADR-0114
     lint_suppress:
     - missing_story_reference
   - id: RSH-08-002

@@ -283,16 +283,17 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A stub object MUST carry at minimum an `id` field (full URI) and a `type` field; it
-      MAY carry a `summary` field for human-readable context. The stub form is permitted
-      ONLY for `VulnerabilityCase`. For every other object type, a sender that does not
-      inline the full object MUST reference it by URI (or by an ActivityStreams `Link`),
-      not by a partial inline object.
+      A stub object MUST carry at minimum an `id` field (full URI) and a `type` field;
+      it MAY carry a `summary` field for human-readable context. The stub form is
+      permitted ONLY for a case, as the distinct `VulnerabilityCaseStub` type of
+      CM-11-013, and a receiver MUST classify a stub by its `type`. For every other
+      object type, a sender that does not inline the full object MUST reference it by
+      URI (or by an ActivityStreams `Link`), not by a partial inline object.
     rationale: >-
-      The stub form is a narrow affordance, not a substitute for a full object. It serves
-      one need: an invitee must evaluate a case before accepting, and the case cannot be
-      shared until they accept (MV-10-005), so the stub is a transient placeholder that
-      rehydrates once they are admitted. No other type has that need or is implemented.
+      The stub form is a narrow affordance, not a substitute for a full object. It
+      serves one need: an invitee must decide whether to join a case before it may
+      receive the case (MV-10-005), so the stub stands in for the case until the
+      participant is active (CM-10-004). No other type has that need or is implemented.
     note: >-
       Partial inline objects of other types were never designed — a parser fallback
       swallowed their validation failures and handed the parent a raw dict, which
@@ -301,22 +302,27 @@ groups:
       URI in another actor's message into the resolved object. Design discussion:
       `notes/stub-objects.md`.
     verification: >-
-      A unit test confirms that a `VulnerabilityCase` inline object carrying only
-      `id`/`type`(+`summary`) resolves to `as_VulnerabilityCaseStub`, and that a partial
-      inline object of any other recognised wire type is refused under MV-04-003 rather
-      than degraded. Bare URI references and `Link` objects remain accepted in all four
-      positions named by MV-10-002.
+      A unit test confirms that an inline object with `type: VulnerabilityCaseStub`
+      resolves to the stub class, that a sparse inline object with `type:
+      VulnerabilityCase` is validated as a case rather than read as a stub, and that a
+      partial inline object of any other recognised wire type is refused under MV-04-003
+      rather than degraded. Bare URI references and `Link` objects remain accepted in
+      all four positions named by MV-10-002.
     relationships:
     - rel_type: constrains
       spec_id: MV-04-003
     adr:
     - ADR-0090
+    - ADR-0114
     stories:
     - story_2022_039
   - id: MV-10-002
     priority: MUST
     kind: protocol
-    statement: 'A `VulnerabilityCase` stub object is ONLY permitted in the following field positions of an ActivityStreams activity: `actor`, `object`, `target`, and `origin`.'
+    statement: >-
+      A `VulnerabilityCaseStub` object is ONLY permitted in the following field
+      positions of an ActivityStreams activity: `actor`, `object`, `target`, and
+      `origin`.
     rationale: >-
       Scopes the position rule to the one permitted stub type (MV-10-001). A reference in
       any of these positions may also be a bare URI or a `Link`; those forms are always
@@ -327,6 +333,8 @@ groups:
       are treated as full-object validation failures.
     lint_suppress:
     - missing_story_reference
+    adr:
+    - ADR-0114
   - id: MV-10-003
     priority: MUST_NOT
     kind: protocol
@@ -342,27 +350,15 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A participant MUST satisfy BOTH of the following conditions before the case owner delivers
-      full case details to them: 1. `ParticipantStatus.rm_state` is at least `RECEIVED` (the
-      participant has accepted the case invitation and been admitted to the case) 2.
-      `ParticipantStatus.embargo_adherence == True` (participant is a signatory to the active
-      embargo), OR there is no active embargo (`CaseStatus.em_state == NONE`)
-    note: >-
-      Condition 1 previously read `rm_state == ACCEPTED`. That was incorrect and mutually
-      unsatisfiable with the rest of the invitation lifecycle: CM-11-001 records an invitee at
-      `RM.RECEIVED` on `Accept(Invite)`, and CM-11-002 has them reaching `ACCEPTED` only AFTER
-      receiving the full case replica and running triage. Requiring `ACCEPTED` before delivery
-      meant a participant could never obtain the full case they need in order to reach `ACCEPTED`.
-      The condition's own parenthetical ("participant accepted the case invitation") describes
-      `RM.RECEIVED`, confirming the intent was "is admitted to the case", not "has completed triage".
-      The embargo condition (2) is the substantive gate on case content, per MV-10-006 and CM-18.
-      The implementation follows this ordering: `accept_invite_tree` creates the invitee at
-      `RM.RECEIVED`, auto-signs embargo consent when `EM.ACTIVE`, and only then emits
-      `Announce(VulnerabilityCase)` with the full snapshot.
+      A participant MUST be active (CM-10-004) before the CASE_MANAGER delivers full
+      case details to it.
     verification: >-
       Integration tests in `test/demo/test_invite_actor_demo.py` confirm that the case
-      replica is delivered to a new participant only after their `rm_state` reaches
-      `RECEIVED` and embargo consent is auto-signed.
+      replica is delivered to a joining participant only after it has accepted the stub
+      Invite and, when an embargo is active, its consent is `SIGNATORY`, and that an
+      invitee that has not joined receives no case replica.
+    adr:
+    - ADR-0114
     relationships:
     - rel_type: depends_on
       spec_id: MV-10-006
@@ -374,16 +370,19 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When a participant `Accept`s an `Invite(case)` and the case has an active embargo (`CaseStatus.em_state
-      == ACTIVE`), the acceptance MUST imply consent to the active embargo, transitioning
-      that participant's consent state to `SIGNATORY`
+      When a participant accepts the stub Invite (`Accept(Invite(Actor,
+      VulnerabilityCaseStub))`) and the case has an active embargo, the acceptance MUST
+      imply consent to the active embargo, transitioning that participant's consent
+      state to `SIGNATORY` (CM-11-001).
     verification: >-
       Integration tests in `test/demo/test_invite_actor_demo.py` confirm that
-      `AcceptInviteToEmbargoOnCaseReceivedUseCase` transitions the accepting
-      participant's PEC state to `SIGNATORY` when `em_state == ACTIVE`.
+      accepting the stub Invite transitions the accepting participant's PEC state to
+      `SIGNATORY` when an embargo is active.
     relationships:
     - rel_type: depends_on
       spec_id: CM-03-008
+    adr:
+    - ADR-0114
     stories:
     - story_2022_023
     - story_2022_026
