@@ -68,7 +68,7 @@ The party who creates the case is its Case Owner.
 The Case Owner brings the active embargo into being, so it would be incoherent to treat them as not yet bound by it.
 Each Participant's own agreement to the embargo is tracked separately from the case's embargo state, by [Participant Embargo Consent (PEC)](../../behavior_logic/use-cases/embargo-lifecycle.md#which-messages-move-consent).
 The Case Owner starts there as a *Signatory*, and so does a Reporter whose submission accepted the terms, without either having been sent an invitation.
-[Embargo Lifecycle](../../behavior_logic/use-cases/embargo-lifecycle.md) explains how the two scopes fit together, and [§9.3 of the Vultron Protocol Specification](../../../reference/vultron-spec/tracking-models.md#93-what-unbound-means) specifies consent without an invitation.
+[Embargo Lifecycle](../../behavior_logic/use-cases/embargo-lifecycle.md) explains how the two scopes fit together, and [§9.3 What Unbound Means in the Vultron Protocol Specification](../../../reference/vultron-spec/tracking-models.md#93-what-unbound-means) specifies consent without an invitation.
 
 ### When a Counter-Proposal Is Present
 
@@ -108,7 +108,7 @@ As on the other default paths, the two transitions are applied together at case 
 The only difference is where the duration comes from: the protocol, rather than either party.
 
 The protocol default lasts between 72 hours and 5 days; each deployment configures the exact value.
-[§7.2 of the Vultron Protocol Specification](../../../reference/vultron-spec/tracking-models.md#72-transitions-and-guards) states these rules normatively.
+[§7.2 Transitions and Guards in the Vultron Protocol Specification](../../../reference/vultron-spec/tracking-models.md#72-transitions-and-guards) states these rules normatively.
 
 The protocol default is deliberately short.
 Its purpose is not to provide a comfortable embargo; it is to reward publishing a default embargo period.
@@ -339,7 +339,7 @@ Working through several open revisions in order looks like this:
 7. If even the earliest revision is rejected, the later ones would be too, and the existing *Active* embargo stays as it is.
 
 Shortest-wins is a recommendation, not a requirement.
-An implementation may instead leave the choice to the Case Owner or apply its own organizational policy; see [§7.2 of the Vultron Protocol Specification](../../../reference/vultron-spec/tracking-models.md#72-transitions-and-guards).
+An implementation may instead leave the choice to the Case Owner or apply its own organizational policy; see [§7.2 Transitions and Guards in the Vultron Protocol Specification](../../../reference/vultron-spec/tracking-models.md#72-transitions-and-guards).
 
 ## Doing It on the Wire
 

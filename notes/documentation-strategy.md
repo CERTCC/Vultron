@@ -577,10 +577,11 @@ extracted fragment are still verified at the moment of the move — see
 
 Two things make this cheap rather than a tooling problem:
 
-- **The assembly unit is already a lint target.** `index.md` is not
-  `_`-prefixed and is in nav, so it is already in scope. Evaluating page-scoped
-  rules against it means reading its include directives in order — not building
-  an include-graph resolver.
+- **The assembly units are already lint targets.** Each Protocol Specification
+  page (the part and annex pages and `full.md`, #4061) is not `_`-prefixed, so it
+  is already in scope; `full.md` is outside the nav but still a page. Evaluating
+  page-scoped rules against one means reading its include directives in order —
+  not building an include-graph resolver.
 - **There is precedent for suppressing rather than resolving.**
   `.markdownlint-cli2.yaml` disables MD041 ("First line in file should be a top
   level header") with the comment *"Disabled because we use `include-markdown`

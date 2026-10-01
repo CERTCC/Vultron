@@ -11,7 +11,7 @@ level: 100
 
 This glossary is the registry of the names this documentation uses: each term, the aliases to avoid for it, and the ambiguities that recur around it.
 It is not the authority for what a protocol term means.
-[§2 of the Vultron Protocol Specification](vultron-spec/introduction.md#2-terminology-ni) is the normative definition of every protocol term, and the rows below that carry one link to it instead of restating it.
+[§2 Terminology in the Vultron Protocol Specification](vultron-spec/introduction.md#2-terminology-ni) is the normative definition of every protocol term, and the rows below that carry one link to it instead of restating it.
 The [Concept Taxonomy](vultron-taxonomy.md) is the authority for the names of the Vultron concepts themselves — `vultron-core`, `vultron-wire`, capability sets, capability shapes.
 
 The glossary has two parts.
@@ -36,7 +36,7 @@ The second, [Reference Implementation Vocabulary](#reference-implementation-voca
 
 The role names follow the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"}, and are consistent with the International Organization for Standardization (ISO) and International Electrotechnical Commission (IEC) standards [ISO/IEC 29147:2018](https://www.iso.org/standard/72311.html){:target="_blank"} and [ISO/IEC 30111:2019](https://www.iso.org/standard/69725.html){:target="_blank"} except where a row says otherwise.
 Each role corresponds to a `CVDRole` value in the protocol, except where noted.
-The normative role definitions are in [§2.2 of the specification](vultron-spec/introduction.md#22-roles).
+The normative role definitions are in [§2.2 Roles in the specification](vultron-spec/introduction.md#22-roles).
 [Case Model](../topics/case_lifecycle/case_model.md) shows how Cases, Participants, and Reports relate.
 
 | Term | Definition | Aliases to avoid |
@@ -146,7 +146,7 @@ The Case State is the compound of VFD and PXA ([§8.3 Case State as a Compound T
 | **Full-Case Invite** | `Invite(Actor, VulnerabilityCase)`: the **Case Manager**'s request, sent after a participant joins and has been replayed the case ledger, for that participant's judgment of the case. It carries the Case Manager's ledger position as a floor, and its replies `Accept`, `TentativeReject` and `Reject` record RM `VALID`, `INVALID` and `CLOSED` (CM-11-010, CM-11-011, ADR-0070). | Case Invite (ambiguous with **Stub Invite**), validate-report request |
 | **Liberal Accept** | The protocol robustness principle (Postel's Law applied): be conservative in what you send, liberal in what you accept; refuse the narrowest thing that must be refused. | — |
 | **Per-Dimension Adjudication** | The pattern of evaluating each state-machine dimension of a received `ParticipantStatus` independently rather than accepting or refusing the entire snapshot as a unit; allows a valid `vfd` update to proceed even if `rm` is refused (ADR-0061). | All-or-nothing status update |
-| **Stub Object** | A minimal ActivityStreams 2.0 object carrying at least `id` and `type` and no restricted content; used for selective disclosure. The protocol's one stub is the case stub sent with an invitation, defined in [§2.3 Protocol Objects and Messages](vultron-spec/introduction.md#23-protocol-objects-and-messages) and used in [§11.2 of the protocol specification](vultron-spec/interactions.md#112-invitation-and-acceptance-n) | Lazy-loaded object, header-only object, object reference |
+| **Stub Object** | A minimal ActivityStreams 2.0 object carrying at least `id` and `type` and no restricted content; used for selective disclosure. The protocol's one stub is the case stub sent with an invitation, defined in [§2.3 Protocol Objects and Messages](vultron-spec/introduction.md#23-protocol-objects-and-messages) and used in [§11.2 Invitation and Acceptance in the protocol specification](vultron-spec/interactions.md#112-invitation-and-acceptance-n) | Lazy-loaded object, header-only object, object reference |
 
 ---
 
@@ -187,7 +187,7 @@ Conformance is two-dimensional: a **capability set** claim (what protocol machin
 The two are different kinds of thing — a capability set is a property of *software*; a **CVDRole** is a position an actor holds — and are named so they never collide.
 The three named sets carry a **`Case`** prefix precisely to keep them distinct from the similarly-named roles they serve (ADR-0088).
 A conformance claim writes them together as `CapabilitySet [+ ...] / Role [+ ...]`, e.g. `Case Observer + Case Decision + Case Hosting / Coordinator + Case Owner`.
-The obligations of each set are normative in [§12.2 of the specification](vultron-spec/conformance.md#122-capability-sets); the rows below carry the names and the distinctions, not the obligations.
+The obligations of each set are normative in [§12.2 Capability Sets in the specification](vultron-spec/conformance.md#122-capability-sets); the rows below carry the names and the distinctions, not the obligations.
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
@@ -506,7 +506,7 @@ The [Concept Taxonomy](vultron-taxonomy.md) explains the boundary: `vultron/core
 | **Cascading Consequences** | Automated downstream behaviors triggered by primary protocol events via BT subtrees; examples include submit-report → case creation → participant setup → embargo initialization → notifications (anti-pattern: post-BT procedural calls) | Event cascade, automation chain |
 | **Call-Out Point** | A BT node location where automated protocol execution cannot proceed without external input from a human, skill, or LLM agent; implemented as a **Fuzzer Node** stub in the simulator layer | Decision point, human-in-the-loop seam |
 | **Fuzzer Node** | A stub BT node in the legacy simulation (`vultron/bt/`) that stands in for unimplemented real-world decision logic by returning probabilistic SUCCESS/FAILURE; each represents a **Call-Out Point** awaiting a real **capability** | Stub node, random node |
-| **Capability shape** | One of four abstract interface contracts that characterize how a **Call-Out Point** interacts with the protocol; describes the interaction pattern without prescribing the implementation. A concrete **capability** may be a function, a human workflow, or an LLM agent. The four shapes are **Evaluator**, **Retriever**, **Composer**, and **Actuator**, defined in [Annex G of the specification](vultron-spec/annex-g-capability-shapes.md#g1-the-four-capability-shapes). The **Sentinel** pattern is not a capability shape — it is a call-in pattern (ADR-0097). See ADR-0024 and ADR-0097. | Coordination Agent (deprecated), "the five shapes" |
+| **Capability shape** | One of four abstract interface contracts that characterize how a **Call-Out Point** interacts with the protocol; describes the interaction pattern without prescribing the implementation. A concrete **capability** may be a function, a human workflow, or an LLM agent. The four shapes are **Evaluator**, **Retriever**, **Composer**, and **Actuator**, defined in [Annex G Capability Shapes in the specification](vultron-spec/annex-g-capability-shapes.md#g1-the-four-capability-shapes). The **Sentinel** pattern is not a capability shape — it is a call-in pattern (ADR-0097). See ADR-0024 and ADR-0097. | Coordination Agent (deprecated), "the five shapes" |
 | **Capability** | A specific named call-out point with its own blackboard contract (input keys, output keys, and types); implements a **capability shape** for a particular domain context. Example: `EvaluateReportCredibility` is an Evaluator capability. | Call-out node, capability instance |
 | **Capability implementation** | The factory backend fulfilling a **capability** at runtime; may be a Python function, a human workflow, a rules engine, or an LLM agent. The implementation choice is made at deployment time, not at design time. | Backend, factory backend |
 | **Sentinel** | A **call-in integration pattern** (not a **capability shape**): a process that monitors a condition over time and, when it is met, acts on its own initiative. The protocol never consults it, so it has no **Call-Out Point**, no blackboard contract, and no backend factory — which is why it sits outside the capability-shape taxonomy (ADR-0097, BT-18-013). The discriminator is *who initiates*, not whether the information is external: a Sentinel may be a case **Participant** (typically holding **Observer**) that reads case state via `Announce(CaseLedgerEntry)` and acts by sending protocol messages, or operator-side machinery with no case identity that calls one actor's trigger endpoints. Its design questions belong to Agentic Participants (#2450); the issues themselves remain under the Capability Shapes epic (#1147). | Guard agent, check agent, "Sentinel capability", "Sentinel shape", "external-only monitor" |

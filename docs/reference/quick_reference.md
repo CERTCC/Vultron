@@ -51,7 +51,7 @@ PEC is specified in [§9 Participant Embargo Consent (PEC) State Machine](vultro
 
 ## Message Types at a Glance
 
-The complete message set is $M_{i,j} = M^{rm} \cup M^{em} \cup M^{cs} \cup M^{*}$ (28 types), each defined in [§4 of the specification](vultron-spec/layers.md#4-semantic-layer-message-meanings-n).
+The complete message set is $M_{i,j} = M^{rm} \cup M^{em} \cup M^{cs} \cup M^{*}$ (28 types), each defined in [§4 Semantic Layer — Message Meanings in the specification](vultron-spec/layers.md#4-semantic-layer-message-meanings-n).
 Every message is emitted by the Participant whose state changed; the "Response Expected" column shows what the recipient is expected to send back.
 
 | Type | Name | Model | Trigger (emit when) | Response Expected |
@@ -151,7 +151,7 @@ Each substate advances once, in the order shown, and never reverts.
 ## Actor Roles Summary
 
 All Participants share the same message vocabulary and the same five state machines; roles differ in where they start and which messages they typically originate.
-The roles are defined in [§2.2 of the specification](vultron-spec/introduction.md#22-roles); see [States](formal_protocol/states.md) for the per-role reachable state spaces and start states.
+The roles are defined in [§2.2 Roles in the specification](vultron-spec/introduction.md#22-roles); see [States](formal_protocol/states.md) for the per-role reachable state spaces and start states.
 Finder is not a protocol role: an actor that discovers a vulnerability and reports it holds the Reporter role (ADR-0078).
 
 | Role | RM start | Typically sends | Typically receives |

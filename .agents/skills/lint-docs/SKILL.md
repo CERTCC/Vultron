@@ -97,8 +97,9 @@ against them (DF-09-007, ADR-0092):
   `heading-offset` demotes on purpose. `.markdownlint-cli2.yaml` set the
   precedent by disabling MD041 for the same reason.
 - **Page-scoped rules are evaluated against the assembly unit.** That page is
-  already in the target set (`docs/reference/vultron-spec/index.md` is not
-  `_`-prefixed and is in nav). Read its `{% include-markdown %}` directives in
+  already in the target set: every page under `docs/reference/vultron-spec/`,
+  one per part and annex plus the single-page `full.md`, is not `_`-prefixed.
+  Read its `{% include-markdown %}` directives in
   order and assess the page as the reader sees it: one first use per acronym,
   one concept order, one H1. No include-graph resolver, script, or other
   tooling is used for this — the directives are the order.

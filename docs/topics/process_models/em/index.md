@@ -94,7 +94,7 @@ Four actions move a case between EM states: *propose*, *accept*, *reject* and *t
 - An active embargo MUST eventually *terminate*, whether or not a revision is open.
   Termination moves the case to *eXited*.
 
-The normative transitions table is [§7.2 of the Vultron Protocol Specification](../../../reference/vultron-spec/tracking-models.md#72-transitions-and-guards).
+The normative transitions table is [§7.2 Transitions and Guards in the Vultron Protocol Specification](../../../reference/vultron-spec/tracking-models.md#72-transitions-and-guards).
 
 !!! note "EM begins when the case is created"
 
@@ -115,7 +115,7 @@ The two are linked at two points:
 - when the case enters *eXited*, every Participant's consent resets, because there is no longer an embargo to agree to.
 
 [Embargo Lifecycle](../../behavior_logic/use-cases/embargo-lifecycle.md) explains how the case and Participant scopes interact.
-The normative PEC states and transitions are [§9 of the Vultron Protocol Specification](../../../reference/vultron-spec/tracking-models.md#9-participant-embargo-consent-pec-state-machine-n).
+The normative PEC states and transitions are [§9 Participant Embargo Consent (PEC) State Machine in the Vultron Protocol Specification](../../../reference/vultron-spec/tracking-models.md#9-participant-embargo-consent-pec-state-machine-n).
 
 ## In this section
 

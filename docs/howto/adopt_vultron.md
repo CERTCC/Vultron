@@ -32,7 +32,7 @@ You finish with a role profile, a conformance claim for the system you will run,
 ## Step 1: Name the roles you hold
 
 List the cases your program handled in the last year and note the role you held in each.
-Vultron uses the roles the CVD process already uses: Reporter, Vendor, Coordinator, Deployer, CVE Numbering Authority (CNA), and Observer ([§2.2 of the Vultron Protocol Specification](../reference/vultron-spec/introduction.md#22-roles)).
+Vultron uses the roles the CVD process already uses: Reporter, Vendor, Coordinator, Deployer, CVE Numbering Authority (CNA), and Observer ([§2.2 Roles in the Vultron Protocol Specification](../reference/vultron-spec/introduction.md#22-roles)).
 
 Record every role that appears.
 A vendor's product security team is usually a Vendor, sometimes a Reporter, and occasionally a Coordinator for a downstream case.

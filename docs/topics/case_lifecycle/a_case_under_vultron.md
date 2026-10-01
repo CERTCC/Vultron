@@ -18,7 +18,7 @@ If you have not yet read [What Is Vultron?](../background/what-is-vultron.md), s
 
 ## Your seat in the case
 
-A **case** is the coordination context around one vulnerability: the participants, the shared state, the messages they exchange, and any embargo agreement ([§2.1 of the Vultron Protocol Specification](../../reference/vultron-spec/introduction.md#21-actors-participants-and-cases)).
+A **case** is the coordination context around one vulnerability: the participants, the shared state, the messages they exchange, and any embargo agreement ([§2.1 Actors, Participants and Cases in the Vultron Protocol Specification](../../reference/vultron-spec/introduction.md#21-actors-participants-and-cases)).
 You take part in it as a **participant**, through the system your organization runs.
 Vultron does not replace that system.
 It gives it a way to exchange the case with the systems your partners run, in the way that mail servers exchange mail.

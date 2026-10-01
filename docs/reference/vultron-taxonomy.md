@@ -139,7 +139,7 @@ These concepts describe what a Vultron implementation or component can do.
 It is a property of *software*, distinct from a role, which is a position an actor holds in a case.
 A capability is one specific thing a system can do within the Vultron protocol.
 
-The capability sets are defined normatively in [§12.2 of the Vultron Protocol Specification](vultron-spec/conformance.md#122-capability-sets).
+The capability sets are defined normatively in [§12.2 Capability Sets in the Vultron Protocol Specification](vultron-spec/conformance.md#122-capability-sets).
 This page names them and says how they relate to the other concepts; it does not restate their obligations.
 
 | Capability set | What it covers | Normative definition |
@@ -194,7 +194,7 @@ Examples: `Case Observer / Vendor`, `Case Observer + Case Decision + Case Hostin
 
 **The four capability shapes.** The shapes are Evaluator, Retriever, Composer, and Actuator.
 Each is a contract stating what a call-out point accepts and what it returns.
-The contracts are defined in [Annex G of the Vultron Protocol Specification](vultron-spec/annex-g-capability-shapes.md#g1-the-four-capability-shapes), which this page does not restate.
+The contracts are defined in [Annex G Capability Shapes in the Vultron Protocol Specification](vultron-spec/annex-g-capability-shapes.md#g1-the-four-capability-shapes), which this page does not restate.
 
 **Sentinel is not a shape.** A Sentinel is a call-in integration pattern: it monitors a condition and, when the condition fires, acts on its own initiative by calling a Vultron trigger endpoint or sending protocol messages. The behavior engine never consults it, so it has no call-out point node, no blackboard contract, and no backend factory. The classifying criterion is which party initiates (BT-18-013, [ADR-0097](../adr/0097-capability-layer-four-shapes-and-core-declared-contracts.md)).
 
@@ -228,7 +228,7 @@ A capability shape defines the contract. A concrete implementation that satisfie
 Roles are not properties of systems. They are assignments within a case.
 
 **Two categories of roles.**
-Both are defined in [§2.2 of the Vultron Protocol Specification](vultron-spec/introduction.md#22-roles) and developed in [§12.3 Role Taxonomy](vultron-spec/conformance.md#123-role-taxonomy); this page names them and does not restate the definitions.
+Both are defined in [§2.2 Roles in the Vultron Protocol Specification](vultron-spec/introduction.md#22-roles) and developed in [§12.3 Role Taxonomy](vultron-spec/conformance.md#123-role-taxonomy); this page names them and does not restate the definitions.
 
 **Process roles** — Reporter, Vendor, Deployer, Coordinator, CVE Numbering Authority (CNA), and Observer — define what an actor does within a case and which protocol transitions it is authorized to drive ([§12.3.1 Process Roles](vultron-spec/conformance.md#1231-process-roles), [§12.4 Role-Specific Normative Requirements](vultron-spec/conformance.md#124-role-specific-normative-requirements)).
 
