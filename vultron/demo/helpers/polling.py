@@ -640,6 +640,7 @@ def _poll_datalayer_for(
     poll_interval: float,
     log_msg: str,
     error_msg: str,
+    id_fn: Callable[[str, dict], str] | None = None,
 ) -> str:
     """Poll the client's own DataLayer until *discriminator_fn* matches.
 
@@ -660,9 +661,12 @@ def _poll_datalayer_for(
         log_msg: ``%``-style format string with a single ``%s`` placeholder
             for the matched object ID; logged at INFO on a successful find.
         error_msg: Message for the ``AssertionError`` raised on timeout.
+        id_fn: Maps a match's raw ID and data to the ID returned; the raw ID
+            itself when omitted.  A record that wraps another object (a
+            received-activity archive) returns the wrapped object's ID.
 
     Returns:
-        The raw ID string of the first matching object.
+        The ID of the first matching object, as *id_fn* derives it.
 
     Raises:
         AssertionError: If no matching object is found within *timeout_seconds*.
@@ -676,7 +680,11 @@ def _poll_datalayer_for(
                     if not isinstance(obj_data, dict):
                         continue
                     if discriminator_fn(obj_data):
-                        obj_id = str(raw_id)
+                        obj_id = (
+                            id_fn(str(raw_id), obj_data)
+                            if id_fn is not None
+                            else str(raw_id)
+                        )
                         logger.info(log_msg, obj_id)
                         return obj_id
         except Exception:  # noqa: BLE001, S110  # ruff-baseline #3326
@@ -690,17 +698,41 @@ def _poll_datalayer_for(
 # ---------------------------------------------------------------------------
 
 
+def _received_activity(obj_data: dict) -> dict | None:
+    """The activity a received-activity archive record wraps, if it is one.
+
+    A receiver holds a received activity only as intake's
+    ``ReceivedActivityRecord`` (CLP-10-017, ADR-0111), never under the
+    sender's id, so a poll for something an actor *received* reads the record.
+    """
+    if obj_data.get("type") != "ReceivedActivityRecord":
+        return None
+    activity = obj_data.get("activity")
+    return activity if isinstance(activity, dict) else None
+
+
+def _received_activity_id(_raw_id: str, obj_data: dict) -> str:
+    """The sender's id for the activity a received-activity record wraps."""
+    activity = _received_activity(obj_data) or {}
+    return str(
+        activity.get("id")
+        or obj_data.get("activityId")
+        or obj_data.get("activity_id")
+    )
+
+
 def _is_case_invite_for(obj_data: dict, case_id: str, invitee_id: str) -> bool:
-    """Return True if *obj_data* is an Invite(Actor, Case) for *invitee_id*/*case_id*."""
-    if obj_data.get("type") != "Invite":
+    """Return True if *obj_data* archives an Invite(Actor, Case) for *invitee_id*/*case_id*."""
+    invite = _received_activity(obj_data)
+    if invite is None or invite.get("type") != "Invite":
         return False
-    target_raw = obj_data.get("target")
+    target_raw = invite.get("target")
     target_id = (
         target_raw.get("id") if isinstance(target_raw, dict) else target_raw
     )
     if target_id != case_id:
         return False
-    inner = obj_data.get("object")
+    inner = invite.get("object")
     inner_id = inner.get("id") if isinstance(inner, dict) else inner
     return inner_id == invitee_id
 
@@ -714,11 +746,13 @@ def find_case_invite_for_actor(
 ) -> str:
     """Poll until the CaseActor's Invite(Actor, Case) for *invitee_id* arrives.
 
-    In the ADR-0026 flow the CaseActor emits the Invite to the suggested actor
-    after the Case Owner accepts; the invitee must then send Accept(Invite) to
+    The CASE_MANAGER emits every case Invite — after the Case Owner accepts a
+    recommendation (ADR-0026) and on the owner's direct invite alike
+    (CM-17-007, ADR-0109); the invitee must then send Accept(Invite) to
     trigger the trust-bootstrap Announce(VulnerabilityCase) that seeds its case
     replica (MV-10-003/MV-10-004).  This helper polls the invitee's DataLayer
-    for that Invite so the demo can drive the accept step.
+    for that Invite — held as intake's received-activity record — so the demo
+    can drive the accept step.
 
     Args:
         client: DataLayerClient connected to the invitee container.
@@ -738,6 +772,7 @@ def find_case_invite_for_actor(
         discriminator_fn=lambda obj: _is_case_invite_for(
             obj, case_id, invitee_id
         ),
+        id_fn=_received_activity_id,
         timeout_seconds=timeout_seconds,
         poll_interval=poll_interval,
         log_msg=f"Found Invite for actor {invitee_id} on case {case_id}: %s",
