@@ -26,7 +26,9 @@ The parts are listed in reading order, and each page holds the sections listed b
 - [Conformance](conformance.md): §12 Conformance.
 - [Considerations and References](considerations.md): §13 IANA and Namespace Considerations, §14 Security Considerations, and §15 References.
 
-{% include-markdown "./_annexes.md" %}
+## Annexes
+
+The annexes illustrate and explain the protocol, and nothing in them is normative.
 
 Annexes A and B trace Coordinated Vulnerability Disclosure (CVD) cases from first contact to closure.
 

@@ -54,7 +54,7 @@ The [parts and annexes](index.md#parts) publish the same text one part per page,
 
 {% include-markdown "./_references.md" %}
 
-{% include-markdown "./_annexes.md" %}
+{% include-markdown "./_annexes-intro.md" %}
 
 {% include-markdown "./_annex-a.md" heading-offset=1 %}
 
