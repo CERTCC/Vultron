@@ -1081,15 +1081,18 @@ groups:
     kind: protocol
     statement: >-
       After CM-11-008, the CASE_MANAGER MUST send the participant
-      `Invite(Actor, VulnerabilityCase)` — the full-case Invite — referencing the
-      case by ID and carrying the `log_index` and `entry_hash` of its own ledger
-      tail when it issued the Invite.
+      `Invite(Actor, VulnerabilityCase)` — the full-case Invite — queued after
+      the last replayed ledger entry, referencing the case by ID and carrying
+      the `log_index` and `entry_hash` of its own ledger tail when it issued
+      the Invite.
     rationale: >-
-      The participant already holds the case from the replica, so the Invite
-      only asks the question; its ledger position is the floor the participant
-      must reach before answering (ADR-0070).
-    verification: A test confirms the full-case Invite is sent after the replay
-      begins and carries the CASE_MANAGER's ledger tail position.
+      The participant already holds the case from the Announce, so the Invite
+      only asks the question and carries no copy of the case. Delivery to each
+      recipient is ordered (ADR-0112), so queuing the Invite after the replay
+      means it arrives once the participant can answer it; its ledger position
+      is the floor the participant must reach before answering (ADR-0070).
+    verification: A test confirms the full-case Invite is queued after the last
+      replayed ledger entry and carries the CASE_MANAGER's ledger tail position.
     adr:
     - ADR-0070
     stories:

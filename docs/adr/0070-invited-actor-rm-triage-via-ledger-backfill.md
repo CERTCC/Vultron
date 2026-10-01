@@ -61,12 +61,17 @@ actually shown, in a shape that collides with nothing.
 
 ### The full-case Invite
 
-After the CASE_MANAGER has processed `Accept(Invite(stub))`, sent the case and
-started the ledger replay (ADR-0114), it sends the participant
-`Invite(Actor, VulnerabilityCase)`. The Invite references the case by ID — the
-participant already holds the case from the replica — and carries the
-CASE_MANAGER's **ledger position** when it issued the Invite: the `log_index`
-and `entry_hash` of its ledger tail.
+After the CASE_MANAGER has processed `Accept(Invite(stub))`, it sends the
+participant, in this order: `Announce(VulnerabilityCase)`, the ledger replay
+(ADR-0114), and then `Invite(Actor, VulnerabilityCase)`. The Invite references
+the case by ID and carries no copy of it, because the participant already holds
+the case from the Announce. It carries the CASE_MANAGER's **ledger position**
+when it issued the Invite: the `log_index` and `entry_hash` of its ledger tail.
+
+The Invite is queued after the last replayed entry. Delivery to each recipient
+is ordered (ADR-0112), so the question arrives just as the participant becomes
+able to answer it, and nobody waits on anyone: the participant is not holding
+an unanswerable question while the history streams in.
 
 The full-case Invite and the stub Invite differ in shape because the stub is
 its own type (ADR-0114).
