@@ -70,6 +70,7 @@ from py_trees.common import Status
 from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
 from pydantic import BaseModel
 
+from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
 from vultron.core.behaviors.call_out_point import CallOutBackendFactory
 from vultron.core.behaviors.node_logger import node_logger
 
@@ -198,8 +199,6 @@ def _default_draft_advisory_artifact_factory(
     # a real actor uses before a Composer agent is wired in.  The probabilistic
     # DraftAdvisoryArtifact fuzzer node lives in the simulation layer and is
     # injected via ``call_out=PUBLICATION_STOCHASTIC``.
-    from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
-
     return AlwaysSucceed(name)
 
 
@@ -209,8 +208,6 @@ def _default_review_advisory_draft_factory(
     # Core DETERMINISTIC default (ADR-0025, BT-23-002); the auto-approve
     # happy-path backend.  STOCHASTIC ReviewAdvisoryDraft is injected via
     # ``call_out=PUBLICATION_STOCHASTIC``.
-    from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
-
     return AlwaysSucceed(name)
 
 
@@ -219,8 +216,6 @@ def _default_revise_advisory_draft_factory(
 ) -> py_trees.behaviour.Behaviour:
     # Core DETERMINISTIC default (ADR-0025, BT-23-002).  STOCHASTIC
     # ReviseAdvisoryDraft is injected via ``call_out=PUBLICATION_STOCHASTIC``.
-    from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
-
     return AlwaysSucceed(name)
 
 
@@ -229,8 +224,6 @@ def _default_submit_advisory_artifact_factory(
 ) -> py_trees.behaviour.Behaviour:
     # Core DETERMINISTIC default (ADR-0025, BT-23-002).  STOCHASTIC
     # SubmitAdvisoryArtifact is injected via ``call_out=PUBLICATION_STOCHASTIC``.
-    from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
-
     return AlwaysSucceed(name)
 
 

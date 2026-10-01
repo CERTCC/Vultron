@@ -14,6 +14,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+import inspect
 import sys
 
 import vultron.bt.base.fuzzer as btz
@@ -200,8 +201,6 @@ CurrentEmbargoAcceptable = fuzzer(
 
 
 def main():
-    import inspect
-
     # get all the classes in this module
     classes = inspect.getmembers(sys.modules[__name__], inspect.isclass)
 

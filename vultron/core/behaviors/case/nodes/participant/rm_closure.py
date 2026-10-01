@@ -28,6 +28,7 @@ closure path overrides the transition table (ADR-0114).
 import py_trees
 from py_trees.common import Status
 
+from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.participant.common import (
     report_unshaped_status,
     resolve_participant_state_from_dl,
@@ -110,8 +111,6 @@ class RMClosureWriter:
             it already is); ``FAILURE`` when its RM state cannot be read or a
             step is refused.
         """
-        from vultron.core.behaviors.bridge import BTBridge
-
         try:
             current_rm, _, _ = resolve_participant_state_from_dl(
                 datalayer, participant_id

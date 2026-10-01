@@ -182,7 +182,7 @@ def case_manager_admits_proposal_guard(
     # reaches ``sync`` through ``accept_invite``, and ``sync`` imports the
     # embargo nodes for its teardown replay — the same embargo/nodes <-> sync
     # cycle as ``_commit_emission`` (notes/lint-tooling.md).
-    from vultron.core.behaviors.case.nodes.role_gates import (  # #3950
+    from vultron.core.behaviors.case.nodes.role_gates import (  # noqa: PLC0415  # ruff-baseline #3950
         create_case_manager_gated_tree,
     )
 
@@ -360,7 +360,7 @@ class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
         # Deferred import: ``sync`` imports the embargo nodes for its teardown
         # replay (``announce_tree``), so a module-level import here is a cycle
         # (embargo/nodes <-> sync, notes/lint-tooling.md).
-        from vultron.core.behaviors.sync.commit_tree import (  # #3950
+        from vultron.core.behaviors.sync.commit_tree import (  # noqa: PLC0415  # ruff-baseline #3950
             commit_emitted_activity,
         )
 

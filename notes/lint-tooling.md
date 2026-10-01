@@ -172,9 +172,9 @@ future violations too; baselining does not.
 
 ### Exclusions worth knowing about
 
-**`PLC0415` (`import-outside-top-level`) is excluded in the configuration that
-issue #3352 landed, and that entry is deleted, not kept — #3949 removes it
-and places the markers, and #3950 drains them.** Its ADR-0094 row was provisional and
+**`PLC0415` (`import-outside-top-level`) was excluded in the configuration that
+issue #3352 landed, and #3949 deleted that entry and placed the markers; #3950
+drains them.** Its ADR-0094 row was provisional and
 pointed at #3350, which asked whether CS-05-002's "last resort" described the
 design or an aspiration. The planning measurement answered it: hoisting every
 function-local import in `vultron/` to module level and importing every module
@@ -194,12 +194,20 @@ CS-05-005, CS-05-006):
   is that issue for every cycle in the table). The marker count is the cycle
   backlog, and `RUF100` drains it.
 
+A hoist that closes a cycle fails only when the cycle is entered at one
+particular module, so neither pytest's collection order nor one process's import
+order proves it safe. `test/architecture/test_every_module_imports_fresh.py`
+(integration tier) imports every `vultron/` module as the first member of its
+import cycle to load, so a hoist that closes a cycle fails there, whichever
+module a deployment happens to import first. It is also how to check whether a
+marker is still needed: hoist the import and run that test.
+
 The cycles the measurement found, grouped so the structural work has a map:
 
 | Cycle | Files carrying the deferred import |
 |---|---|
 | persistence ports | `vultron/core/ports/case_persistence.py` (PEP 562 `__getattr__` re-export of `case_outbox`) |
-| publication trees ↔ call-out bundles | `vultron/core/behaviors/report/publication_tree.py`, `publish_artifact_tree.py` |
+| publication trees ↔ call-out bundles | `vultron/core/behaviors/report/publication_tree.py` (`publish_artifact_tree.py`'s imports hoist cleanly once this one stays deferred) |
 | hypercube ↔ its pattern modules | `vultron/core/case_states/patterns/info.py`, `potential_actions.py` |
 | BT node → use-case helper (BTND-04-003 `KNOWN_VIOLATIONS`) | `vultron/core/behaviors/case/nodes/announce.py` |
 | embargo tree and nodes ↔ status/sync node packages | `vultron/core/behaviors/embargo/trigger_tree.py` (↔ `status/nodes`), `embargo/nodes/teardown.py` (↔ `sync/nodes`), `embargo/nodes/relay.py` (↔ `sync/commit_tree`, and ↔ `case/nodes/role_gates` because `case/nodes/__init__` reaches `sync`) |

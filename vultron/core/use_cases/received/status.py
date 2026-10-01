@@ -6,11 +6,27 @@ from typing import TYPE_CHECKING
 import py_trees
 from py_trees.common import Status
 
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.status.add_case_status_tree import (
+    add_case_status_tree,
+)
+from vultron.core.behaviors.status.add_participant_status_tree import (
+    add_participant_status_tree,
+)
+from vultron.core.behaviors.status.nodes import (
+    CASE_STATUS_ALREADY_PRESENT,
+)
+from vultron.core.behaviors.status.nodes.dimension_filter import (
+    FilterParticipantStatusDimensionsNode,
+)
 from vultron.core.models.events.status import (
     AddCaseStatusToCaseReceivedEvent,
     AddParticipantStatusToParticipantReceivedEvent,
     CreateCaseStatusReceivedEvent,
     CreateParticipantStatusReceivedEvent,
+)
+from vultron.core.models.fault_classes import (
+    VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
 )
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
@@ -50,10 +66,6 @@ def _filter_node_wholly_refused(tree: py_trees.behaviour.Behaviour) -> bool:
     sender-not-a-participant or authorization failures are
     different failure modes that do not indicate the assertion was wholly refused.
     """
-    from vultron.core.behaviors.status.nodes.dimension_filter import (
-        FilterParticipantStatusDimensionsNode,
-    )
-
     return node_failed(tree, FilterParticipantStatusDimensionsNode)
 
 
@@ -113,14 +125,6 @@ class AddCaseStatusToCaseReceivedUseCase:
                 "Add(CaseStatus) is missing its status id or case id"
             )
 
-        from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.status.add_case_status_tree import (
-            add_case_status_tree,
-        )
-        from vultron.core.behaviors.status.nodes import (
-            CASE_STATUS_ALREADY_PRESENT,
-        )
-
         call_out_kwargs = (
             {"call_out": self._call_out} if self._call_out is not None else {}
         )
@@ -162,10 +166,6 @@ class AddCaseStatusToCaseReceivedUseCase:
                 verdict.reason,
             )
             if self._trigger_activity is not None and request.actor_id:
-                from vultron.core.models.fault_classes import (
-                    VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
-                )
-
                 self._trigger_activity.emit_processing_fault(
                     actor=resolve_receiving_actor_id(
                         self._dl, request.receiving_actor_id
@@ -254,11 +254,6 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             self._dl, request.receiving_actor_id
         )
 
-        from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.status.add_participant_status_tree import (
-            add_participant_status_tree,
-        )
-
         # Resolve case_id for the guarded-commit subtree (pre-flight lookup).
         case_id = self._resolve_case_id_for_log_cascade()
 
@@ -300,10 +295,6 @@ class AddParticipantStatusToParticipantReceivedUseCase:
                 verdict.reason,
             )
             if self._trigger_activity is not None and request.actor_id:
-                from vultron.core.models.fault_classes import (
-                    VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
-                )
-
                 self._trigger_activity.emit_processing_fault(
                     actor=receiving_actor_id,
                     failed_activity_id=request.activity_id,

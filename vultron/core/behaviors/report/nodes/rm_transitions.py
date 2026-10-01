@@ -43,6 +43,7 @@ rather than looking the case up itself; the single lookup site is
 from py_trees.common import Status
 from py_trees.ports import PortInformation
 
+from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.participant.status import (
     CreateParticipantStatusNode,
 )
@@ -307,8 +308,6 @@ class TransitionRMtoValid(DataLayerActionWithPorts):
             self.feedback_message = "case_id not found in blackboard"
             self.logger.error("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
-
-        from vultron.core.behaviors.bridge import BTBridge
 
         result = BTBridge(datalayer=self.datalayer).execute_with_setup(
             self._status_node,

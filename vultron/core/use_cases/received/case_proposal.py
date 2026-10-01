@@ -52,6 +52,15 @@ from vultron.core.behaviors.case.accept_case_proposal_received_tree import (
 from vultron.core.behaviors.case.case_proposal_received_tree import (
     create_case_proposal_received_tree,
 )
+from vultron.core.behaviors.case.nodes.proposal_admission_actions import (
+    RecordProposalDeclineNode,
+)
+from vultron.core.behaviors.case.nodes.proposal_admission_conditions import (
+    CheckDeclineRecordExistsNode,
+)
+from vultron.core.behaviors.case.nodes.proposal_retry_marker import (
+    CheckMarkerExistsNode,
+)
 from vultron.core.behaviors.case.reject_case_proposal_received_tree import (
     RecordCaseProposalRejectionNode,
     create_reject_case_proposal_received_tree,
@@ -288,16 +297,6 @@ class CreateCaseProposalReceivedUseCase:
         FAILED and the ones after it INVALID, so the first guard that
         succeeded names the arm.
         """
-        from vultron.core.behaviors.case.nodes.proposal_admission_actions import (
-            RecordProposalDeclineNode,
-        )
-        from vultron.core.behaviors.case.nodes.proposal_admission_conditions import (
-            CheckDeclineRecordExistsNode,
-        )
-        from vultron.core.behaviors.case.nodes.proposal_retry_marker import (
-            CheckMarkerExistsNode,
-        )
-
         if node_succeeded(tree, CheckMarkerExistsNode):
             # CP-05-005: Accept already sent; the retry runner owns the Create.
             return HandlerResult.skipped(

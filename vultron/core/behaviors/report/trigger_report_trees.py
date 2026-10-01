@@ -41,6 +41,9 @@ from typing import TYPE_CHECKING
 
 import py_trees
 
+from vultron.core.behaviors.call_out.bundles.close_report import (
+    CLOSE_REPORT_DETERMINISTIC,
+)
 from vultron.core.behaviors.case.nodes.vfd_role_guards import (
     CheckIsCaseOwnerNode,
 )
@@ -237,10 +240,6 @@ def create_close_case_trigger_tree(
     Returns:
         Root node of the ``CloseCaseTriggerBT`` Sequence.
     """
-    from vultron.core.behaviors.call_out.bundles.close_report import (
-        CLOSE_REPORT_DETERMINISTIC,
-    )
-
     bundle = call_out if call_out is not None else CLOSE_REPORT_DETERMINISTIC
     pre_close_node = bundle.pre_close_action_factory("PreCloseAction")
 

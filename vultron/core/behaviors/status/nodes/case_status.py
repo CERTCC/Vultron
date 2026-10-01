@@ -28,6 +28,7 @@ from typing import Any, cast
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
@@ -36,6 +37,9 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.behaviors.idempotency import SilentIdempotencyGuardMixin
 from vultron.core.behaviors.status.nodes.cs_dimension_filter import (
     BB_CASE_STATUS_DIM_FILTER,
+)
+from vultron.core.behaviors.sync.commit_tree import (
+    create_commit_log_entry_tree,
 )
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_status import CaseStatus
@@ -326,11 +330,6 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts):
             "published": datetime.now(tz=UTC).isoformat(),
             "object": status_dict,
         }
-
-        from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.sync.commit_tree import (
-            create_commit_log_entry_tree,
-        )
 
         commit_tree = create_commit_log_entry_tree(
             case_id=self.case_id,

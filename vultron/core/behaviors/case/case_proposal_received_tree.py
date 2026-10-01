@@ -94,6 +94,12 @@ from typing import TYPE_CHECKING
 import py_trees
 
 from vultron.config.actor import ActorConfig
+from vultron.core.behaviors.call_out.bundles.case_proposal import (
+    CASE_PROPOSAL_DETERMINISTIC,
+)
+from vultron.core.behaviors.case.embargo_tree import (
+    InitializeDefaultEmbargoNode,
+)
 from vultron.core.behaviors.case.nodes.proposal_admission_actions import (
     EmitRejectCaseProposalNode,
     RecordProposalAdmissionNode,
@@ -303,13 +309,6 @@ def create_case_proposal_received_tree(
     Returns:
         A py_trees Selector behaviour ready for ``BTBridge.execute_with_setup``.
     """
-    from vultron.core.behaviors.call_out.bundles.case_proposal import (
-        CASE_PROPOSAL_DETERMINISTIC,
-    )
-    from vultron.core.behaviors.case.embargo_tree import (
-        InitializeDefaultEmbargoNode,
-    )
-
     bundle = call_out if call_out is not None else CASE_PROPOSAL_DETERMINISTIC
 
     offer_id, offer_actor_id = _offer_provenance_from_proposal(proposal_dict)

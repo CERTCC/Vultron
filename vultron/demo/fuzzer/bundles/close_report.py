@@ -32,23 +32,19 @@ from vultron.core.behaviors.call_out.bundles.close_report import (
     CLOSE_REPORT_DETERMINISTIC,
     CloseReportCallOutBundle,
 )
+from vultron.demo.fuzzer.report_management.close_report import (
+    OtherCloseCriteriaMet,
+    PreCloseAction,
+)
 
 
 def _stochastic_other_close_criteria(
     name: str,
 ) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.close_report import (
-        OtherCloseCriteriaMet,
-    )
-
     return OtherCloseCriteriaMet(name)
 
 
 def _stochastic_pre_close_action(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.close_report import (
-        PreCloseAction,
-    )
-
     return PreCloseAction(name)
 
 

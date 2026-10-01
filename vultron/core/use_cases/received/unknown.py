@@ -2,6 +2,7 @@
 
 import logging
 
+from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.models.events.unknown import (
     UnknownReceivedEvent,
     UnresolvableObjectReceivedEvent,
@@ -59,8 +60,9 @@ class UnresolvableObjectUseCase:
         self._request = request
 
     def execute(self) -> HandlerResult:
-        from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.inbox.dead_letter_tree import (
+        # Cycle break: dead_letter_tree -> inbox pipeline nodes -> semantic
+        # registry -> this module.
+        from vultron.core.behaviors.inbox.dead_letter_tree import (  # noqa: PLC0415  # ruff-baseline #3950
             create_store_dead_letter_tree,
         )
 
