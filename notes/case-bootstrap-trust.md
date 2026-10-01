@@ -119,6 +119,9 @@ The two actor-id fields on `VultronReportCaseLink` were named
 through them was flagged — yet both values are public ActivityPub URIs.
 Name an actor-id field for the role it records, not for the trust relation;
 the old keys stay readable as validation aliases so a pre-rename row loads.
+The aliases are load-bearing: `VultronReportCaseLink` is a `CoreRecord`, which
+ignores unknown keys rather than refusing them, so a plain rename would have
+read every old row back with both trust anchors silently `None`.
 
 ---
 

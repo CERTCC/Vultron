@@ -64,8 +64,9 @@ def test_resaving_pre_rename_row_migrates_its_keys(dl) -> None:
 
     dl.save(link)
 
-    assert dl.read(link.id_) == link
-    stored = Record.from_obj(link).data_
+    row = dl.get("ReportCaseLink", link.id_)
+    assert isinstance(row, dict)
+    stored = row["data_"]
     assert "trusted_case_creator_id" not in stored
     assert "trusted_case_actor_id" not in stored
     assert stored["case_creator_id"] == CREATOR_ID

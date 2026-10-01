@@ -30,6 +30,11 @@ from vultron.core.states.rm import RM
 # resolved through those attributes was flagged.  The old keys stay readable
 # as validation aliases so a link persisted before the rename still loads;
 # a dump writes only the new field names, so a re-saved row migrates itself.
+# The aliases are load-bearing: ``CoreRecord`` does not forbid extras, so
+# without them an old key would be ignored and the CBT-01-006 trust anchors
+# would silently read back as ``None``.  If a row somehow carries both
+# spellings, the new name wins (it is listed first) — the old key can only
+# be stale, since nothing writes it after the rename.
 _LEGACY_CASE_CREATOR_FIELD = "trusted_case_creator_id"
 _LEGACY_CASE_MANAGER_FIELD = "trusted_case_actor_id"
 
