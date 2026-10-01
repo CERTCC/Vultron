@@ -38,6 +38,7 @@ import logging
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
+from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.participant.common import (
     resolve_participant_state_from_dl,
 )
@@ -328,8 +329,6 @@ class TransitionCStoFixDeployed(DataLayerActionWithPorts):
         assert self.datalayer is not None
 
         try:
-            from vultron.core.behaviors.bridge import BTBridge
-
             result = BTBridge(datalayer=self.datalayer).execute_with_setup(
                 tree=self._fix_deployed_node,
                 actor_id=self._actor_id,

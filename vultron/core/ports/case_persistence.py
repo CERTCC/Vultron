@@ -136,7 +136,7 @@ __all__ = ["CasePersistence", "CaseOutboxPersistence"]
 
 def __getattr__(name: str) -> type:
     if name == "CaseOutboxPersistence":
-        from vultron.core.ports.case_outbox import (
+        from vultron.core.ports.case_outbox import (  # noqa: PLC0415  # ruff-baseline #3950
             CaseOutboxPersistence,
         )
 

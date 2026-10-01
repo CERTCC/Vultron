@@ -43,7 +43,12 @@ from vultron.adapters.driving.fastapi.inbox_storage import (
     _store_inbox_activity,
     _store_nested_inbox_object,
 )
-from vultron.core.behaviors.inbox import InboxOutcome, InboxOutcomeStatus
+from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
+from vultron.core.behaviors.inbox import (
+    InboxOutcome,
+    InboxOutcomeStatus,
+    process_payload,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events import VultronEvent
 from vultron.core.models.use_case_result import HandlerResult
@@ -423,9 +428,6 @@ async def run_inbox_pipeline(
         dispatcher: Optional per-app dispatcher.
         emitter: Optional per-app ActivityEmitter.
     """
-    from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
-    from vultron.core.behaviors.inbox import process_payload
-
     ingress = FastAPIIngressAdapter(dl=actor_dl)
     dispatch_adp = FastAPIDispatchAdapter(
         dl=actor_dl, actor_id=actor_id, dispatcher=dispatcher

@@ -18,6 +18,7 @@ import argparse
 import os
 import subprocess
 import sys
+from collections import Counter
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -558,8 +559,6 @@ def get_git_churn() -> list[str]:
         if result.returncode == 0:
             files = [f.strip() for f in result.stdout.split("\n") if f.strip()]
             # Count occurrences
-            from collections import Counter
-
             counts = Counter(files)
             churn = sorted(counts.items(), key=lambda x: x[1], reverse=True)
             return [

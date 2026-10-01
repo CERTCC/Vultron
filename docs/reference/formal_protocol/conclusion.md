@@ -69,6 +69,7 @@ stateDiagram-v2
     V --> D : d (#8640;RD)
     A --> D : d (#8640;RD)
     D --> A : a (#8640;RA)
+    R --> C : c (#8640;RC)
     A --> C : c (#8640;RC)
     D --> C : c (#8640;RC)
     I --> C : c (#8640;RC)

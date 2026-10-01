@@ -3,6 +3,10 @@
 import logging
 from typing import TYPE_CHECKING
 
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.update_tree import (
+    create_update_case_received_tree,
+)
 from vultron.core.models.events.case import UpdateCaseReceivedEvent
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
@@ -42,11 +46,6 @@ class UpdateCaseReceivedUseCase:
             return HandlerResult.refused(
                 "Update(VulnerabilityCase) has no case id"
             )
-
-        from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.case.update_tree import (
-            create_update_case_received_tree,
-        )
 
         # The tree contains a CheckIsCaseManagerNode gate, so it MUST run
         # under the *receiving* actor's identity, not the sender's (BT-17-005).

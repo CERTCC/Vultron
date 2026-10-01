@@ -158,7 +158,7 @@ Like One"):
   authority decision. It lives in the neutral layer, so `behaviors/` may import
   it directly (no `behaviors → use_cases` hop, BTND-04-003).
 - **`_find_case_actor_id(dl, case_id)`** — "what address do I route to?" Takes a
-  case *id* and adds one bootstrap path: the `trusted_case_actor_id` recorded on
+  case *id* and adds one bootstrap path: the `case_manager_id` recorded on
   a completed `ReportCaseLink`, which answers before the local replica has a
   roster to read. Use it for addressing (`to:` / `cc:`) — PCR-08-007,
   PCR-08-008.

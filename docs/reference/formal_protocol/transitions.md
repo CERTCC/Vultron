@@ -120,7 +120,7 @@ corresponding sender state transition.
 | $\{R,I\},*,*$ | $\xrightarrow{v} V,-,-$ |                          $RV$                           |
 | $\{V,A\},*,*$ | $\xrightarrow{d} D,-,-$ |                          $RD$                           |
 | $\{V,D\},*,*$ | $\xrightarrow{a} A,-,-$ |                          $RA$                           |
-| $\{I,D,A\},*,*$ | $\xrightarrow{c} C,-,-$ |                          $RC$                           |
+| $\{R,I,D,A\},*,*$ | $\xrightarrow{c} C,-,-$ |                          $RC$                           |
 | $*,*,*$ | $-,-,-$ |                          $RE$                           |
 | $*,*,*$ | $-,-,-$ |                          $RK$                           |
 

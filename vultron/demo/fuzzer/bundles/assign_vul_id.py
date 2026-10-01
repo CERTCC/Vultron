@@ -32,19 +32,17 @@ from vultron.core.behaviors.call_out.bundles.assign_vul_id import (
     ASSIGN_VUL_ID_DETERMINISTIC,
     AssignVulIdCallOutBundle,
 )
+from vultron.demo.fuzzer.report_management.assign_vul_id import (
+    IdAssignable,
+    InScope,
+)
 
 
 def _stochastic_id_assignable(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.assign_vul_id import (
-        IdAssignable,
-    )
-
     return IdAssignable(name)
 
 
 def _stochastic_in_scope(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.assign_vul_id import InScope
-
     return InScope(name)
 
 

@@ -28,6 +28,8 @@ argument to :func:`get_datalayer` to override the config value, e.g. for
 
 import logging
 
+from vultron.config import get_config
+
 from .datalayer import SqliteDataLayer
 from .engine import dispose_actor_engines, reset_store_claimants
 from .schema import QueueEntry, VultronObjectRecord
@@ -83,8 +85,6 @@ def get_datalayer(actor_id: str, db_url: str | None = None) -> SqliteDataLayer:
     Raises:
         ValueError: If *actor_id* is empty.
     """
-    from vultron.config import get_config
-
     if not actor_id:
         raise ValueError(
             "get_datalayer requires a canonical actor URI; there is no "

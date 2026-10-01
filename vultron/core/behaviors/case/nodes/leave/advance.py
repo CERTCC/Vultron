@@ -26,8 +26,8 @@ import logging
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.case.nodes.participant.status import (
-    CreateParticipantStatusNode,
+from vultron.core.behaviors.case.nodes.participant.rm_closure import (
+    RMClosureWriter,
 )
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.models.case_participant import CaseParticipant
@@ -45,7 +45,10 @@ class AdvanceParticipantToRMClosedNode(DataLayerActionWithPorts):
     Reads the leaving actor's :class:`~vultron.core.models.case_participant
     .CaseParticipant` record from the DataLayer and appends a new
     :class:`~vultron.core.models.participant_status.ParticipantStatus` entry
-    with ``rm_state=RM.CLOSED``.  Idempotent: if the participant is already at
+    for each ordinary RM transition from its current rung to ``RM.CLOSED``
+    (:class:`RMClosureWriter`): one entry from Received, Invalid, Accepted or
+    Deferred, and ``DEFERRED`` then ``CLOSED`` from Valid (CM-23-012,
+    RMB-14-005).  Idempotent: if the participant is already at
     ``RM.CLOSED``, the node returns ``SUCCESS`` without creating a duplicate
     entry.
 
@@ -65,17 +68,10 @@ class AdvanceParticipantToRMClosedNode(DataLayerActionWithPorts):
         super().__init__(name=_name)
         self._leaving_actor_id = leaving_actor_id
         self._case_id = case_id
-        # Pre-build status node (BTND-10-004: no construction in update()).
-        # Sanctioned override (CM-23-012, resolving #3106): force_rm_state=True.
-        self._status_node = CreateParticipantStatusNode(
-            actor_id=leaving_actor_id,
-            rm_state=RM.CLOSED,
-            vf_state=None,
-            d_state=None,
-            pxa_state=None,
-            name=f"{_name}.CreateParticipantStatus",
-            force_rm_state=True,
-        )
+        # Pre-build the status writers (BTND-10-004: no construction in
+        # update()).  The closure is written as ordinary RM transitions, so a
+        # Leave from VALID is V -> D -> C (RMB-14-005, CM-23-012).
+        self._closure = RMClosureWriter(name=_name)
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -118,23 +114,20 @@ class AdvanceParticipantToRMClosedNode(DataLayerActionWithPorts):
                 )
                 return Status.SUCCESS
 
-        from vultron.core.behaviors.bridge import BTBridge
-
-        # Use the DataLayer's own actor_id so BTBridge doesn't clone an empty
-        # store for _leaving_actor_id. The write is attributed to the leaving
-        # actor via _status_node._actor_id set in __init__ (ADR-0089).
-        bt_result = BTBridge(datalayer=self.datalayer).execute_with_setup(
-            tree=self._status_node,
-            actor_id=self.datalayer.actor_id,
-            case_id=self._case_id,
+        closed = self._closure.close(
+            self,
+            self.datalayer,
+            participant_id,
+            self._case_id,
+            actor_id=self._leaving_actor_id,
         )
-        if bt_result.status != Status.SUCCESS:
+        if closed != Status.SUCCESS:
             self.logger.warning(
-                "%s: failed to create RM.CLOSED ParticipantStatus for"
-                " actor '%s' in case '%s'",
+                "%s: failed to close RM for actor '%s' in case '%s': %s",
                 self.name,
                 self._leaving_actor_id,
                 self._case_id,
+                self.feedback_message,
             )
             return Status.FAILURE
 
@@ -154,7 +147,8 @@ class AdvanceCaseActorToRMClosedNode(DataLayerActionWithPorts):
     Reads the Case Actor's :class:`~vultron.core.models.case_participant
     .CaseParticipant` record from the DataLayer and appends a new
     :class:`~vultron.core.models.participant_status.ParticipantStatus` entry
-    with ``rm_state=RM.CLOSED``.  Only executed on the owner Leave path, as
+    for each ordinary RM transition to ``RM.CLOSED`` (:class:`RMClosureWriter`,
+    RMB-14-005).  Only executed on the owner Leave path, as
     the penultimate step before emitting the ``case_fully_closed`` ledger entry
     (CM-23-002 step 2; ADR-0051).
 
@@ -172,17 +166,10 @@ class AdvanceCaseActorToRMClosedNode(DataLayerActionWithPorts):
         super().__init__(name=_name)
         self._case_actor_id = case_actor_id
         self._case_id = case_id
-        # Pre-build status node (BTND-10-004: no construction in update()).
-        # Sanctioned override (CM-23-012, resolving #3106): force_rm_state=True.
-        self._status_node = CreateParticipantStatusNode(
-            actor_id=case_actor_id,
-            rm_state=RM.CLOSED,
-            vf_state=None,
-            d_state=None,
-            pxa_state=None,
-            name=f"{_name}.CreateParticipantStatus",
-            force_rm_state=True,
-        )
+        # Pre-build the status writers (BTND-10-004: no construction in
+        # update()).  The closure is written as ordinary RM transitions, so a
+        # Leave from VALID is V -> D -> C (RMB-14-005, CM-23-012).
+        self._closure = RMClosureWriter(name=_name)
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -223,23 +210,20 @@ class AdvanceCaseActorToRMClosedNode(DataLayerActionWithPorts):
                 )
                 return Status.SUCCESS
 
-        from vultron.core.behaviors.bridge import BTBridge
-
-        # Use the DataLayer's own actor_id so BTBridge doesn't clone an empty
-        # store for _case_actor_id. The write is attributed to the case actor
-        # via _status_node._actor_id set in __init__ (ADR-0089).
-        bt_result = BTBridge(datalayer=self.datalayer).execute_with_setup(
-            tree=self._status_node,
-            actor_id=self.datalayer.actor_id,
-            case_id=self._case_id,
+        closed = self._closure.close(
+            self,
+            self.datalayer,
+            participant_id,
+            self._case_id,
+            actor_id=self._case_actor_id,
         )
-        if bt_result.status != Status.SUCCESS:
+        if closed != Status.SUCCESS:
             self.logger.warning(
-                "%s: failed to create RM.CLOSED ParticipantStatus for"
-                " case actor '%s' in case '%s'",
+                "%s: failed to close RM for case actor '%s' in case '%s': %s",
                 self.name,
                 self._case_actor_id,
                 self._case_id,
+                self.feedback_message,
             )
             return Status.FAILURE
 

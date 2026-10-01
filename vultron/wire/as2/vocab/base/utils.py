@@ -20,6 +20,7 @@ import uuid
 from typing import Any
 
 from vultron.primitives import is_blank_string
+from vultron.wire.as2.vocab import VOCABULARY
 
 URN_UUID_PREFIX = "urn:uuid:"
 
@@ -139,20 +140,14 @@ def _print_examples(d) -> None:
 
 def print_object_examples() -> None:
     """Print out empty examples of the classes in the given module"""
-    from vultron.wire.as2.vocab import VOCABULARY
-
     _print_examples(VOCABULARY)
 
 
 def print_activity_examples():
     """Print out empty examples of the classes in the given module"""
-    from vultron.wire.as2.vocab import VOCABULARY
-
     _print_examples(VOCABULARY)
 
 
 def print_link_examples():
     """Print out empty examples of the classes in the given module"""
-    from vultron.wire.as2.vocab import VOCABULARY
-
     _print_examples(VOCABULARY)

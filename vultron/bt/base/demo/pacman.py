@@ -15,6 +15,7 @@
 This is a demo of the bt tree library. It is a stub implementation of a bot that plays Pacman.
 """
 
+import argparse
 import logging
 import random
 import sys
@@ -257,8 +258,6 @@ def main(args):
 
 
 def _parse_args():
-    import argparse
-
     parser = argparse.ArgumentParser(description="Pacman Bot Demo")
     parser.add_argument(
         "--print-tree",

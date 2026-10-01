@@ -8,8 +8,19 @@ if TYPE_CHECKING:
     from vultron.core.models.case import VulnerabilityCase
     from vultron.core.ports.wire_render import WireRenderPort
 
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.embargo.announce_teardown_tree import (
+    accept_invite_to_embargo_tree,
+    add_embargo_to_case_tree,
+    invite_to_embargo_on_case_tree,
+    reject_invite_to_embargo_tree,
+    remove_embargo_from_case_tree,
+)
 from vultron.core.behaviors.embargo.nodes import (
     EmbargoProposalNotYetRecordedNode,
+)
+from vultron.core.behaviors.embargo.nodes.proposal import (
+    ALREADY_DECLINED_PREFIX,
 )
 from vultron.core.behaviors.embargo.proposal_index import (
     record_embargo_proposal_index,
@@ -60,6 +71,9 @@ from vultron.core.use_cases.received._bt_verdict import (
     node_failed,
     not_case_manager_refusal,
     verdict_from_bt,
+)
+from vultron.core.use_cases.triggers._helpers import (
+    _prepare_delegated_context,
 )
 from vultron.errors import VultronNotFoundError
 
@@ -265,11 +279,6 @@ class AddEmbargoEventToCaseReceivedUseCase:
         self._sync_port = sync_port
 
     def execute(self) -> HandlerResult:
-        from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.embargo.announce_teardown_tree import (
-            add_embargo_to_case_tree,
-        )
-
         request = self._request
         embargo_id = request.embargo_id
         case_id = request.case_id
@@ -325,11 +334,6 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
         self._sync_port = sync_port
 
     def execute(self) -> HandlerResult:
-        from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.embargo.announce_teardown_tree import (
-            remove_embargo_from_case_tree,
-        )
-
         request = self._request
         embargo_id = request.embargo_id
         case_id = request.case_id
@@ -411,11 +415,6 @@ class InviteToEmbargoOnCaseReceivedUseCase:
         self._trigger_activity = trigger_activity
 
     def execute(self) -> HandlerResult:
-        from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.embargo.announce_teardown_tree import (
-            invite_to_embargo_on_case_tree,
-        )
-
         request = self._request
         case_id = request.context_id or ""
         invite_id = request.activity_id
@@ -588,7 +587,6 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         # keep the entry idempotent — a repeated late-Accept does not double-log.
         if not has_pec_change:
             return
-        from vultron.core.behaviors.bridge import BTBridge
 
         tree = create_commit_log_entry_tree(
             case_id=case_id,
@@ -680,10 +678,6 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
                 and active_embargo_id
                 and accepting_actor_id
             ):
-                from vultron.core.use_cases.triggers._helpers import (
-                    _prepare_delegated_context,
-                )
-
                 actor_id, _ = _prepare_delegated_context(
                     self._dl, case_id, receiving_actor_id
                 )
@@ -741,11 +735,6 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             )
 
     def execute(self) -> HandlerResult:
-        from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.embargo.announce_teardown_tree import (
-            accept_invite_to_embargo_tree,
-        )
-
         request = self._request
         embargo_id = request.embargo_id
         if embargo_id is None:
@@ -890,14 +879,6 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
         self._trigger_activity = trigger_activity
 
     def execute(self) -> HandlerResult:
-        from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.embargo.announce_teardown_tree import (
-            reject_invite_to_embargo_tree,
-        )
-        from vultron.core.behaviors.embargo.nodes.proposal import (
-            ALREADY_DECLINED_PREFIX,
-        )
-
         request = self._request
         rejecting_actor_id = request.actor_id
         invite_id = request.invite_id

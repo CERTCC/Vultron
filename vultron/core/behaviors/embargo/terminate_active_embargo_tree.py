@@ -45,6 +45,9 @@ from typing import TYPE_CHECKING
 
 import py_trees
 
+from vultron.core.behaviors.call_out.bundles.embargo import (
+    EMBARGO_DETERMINISTIC,
+)
 from vultron.core.behaviors.embargo.nodes import HasActiveEmbargoNode
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
 
@@ -92,10 +95,6 @@ def create_terminate_active_embargo_tree(
     Returns:
         Root node of the terminate-active-embargo behavior tree.
     """
-    from vultron.core.behaviors.call_out.bundles.embargo import (
-        EMBARGO_DETERMINISTIC,
-    )
-
     bundle = call_out if call_out is not None else EMBARGO_DETERMINISTIC
 
     reason_selector = py_trees.composites.Selector(

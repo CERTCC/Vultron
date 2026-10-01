@@ -389,7 +389,7 @@ class TestWaitForParticipantPxaState:
     def test_returns_immediately_when_already_public_aware(self):
         participant = _public_aware_participant(_PXA_RECEIVER_ID)
         with patch(
-            "vultron.demo.helpers.verification._fetch_participant",
+            "vultron.demo.helpers.polling._fetch_participant",
             return_value=participant,
         ):
             wait_for_participant_pxa_state(
@@ -422,7 +422,7 @@ class TestWaitForParticipantPxaState:
             return public_participant
 
         with patch(
-            "vultron.demo.helpers.verification._fetch_participant",
+            "vultron.demo.helpers.polling._fetch_participant",
             side_effect=_fetch,
         ):
             wait_for_participant_pxa_state(
@@ -445,7 +445,7 @@ class TestWaitForParticipantPxaState:
         none_participant.participant_statuses = [none_status]
 
         with patch(
-            "vultron.demo.helpers.verification._fetch_participant",
+            "vultron.demo.helpers.polling._fetch_participant",
             return_value=none_participant,
         ):
             with pytest.raises(AssertionError, match="Timed out"):
@@ -601,7 +601,7 @@ class TestVerifyPubliclyDisclosedPollsEveryReplica:
 
         with (
             patch(
-                "vultron.demo.helpers.verification._fetch_participant",
+                "vultron.demo.helpers.polling._fetch_participant",
                 side_effect=_fetch,
             ),
             patch(
@@ -671,7 +671,7 @@ class TestWaitForInitializedCase:
 
     def _run(self, client: _LateInitializedCaseClient) -> as_VulnerabilityCase:
         with patch(
-            "vultron.demo.utils.case_actor_id_for_report",
+            "vultron.demo.helpers.polling.case_actor_id_for_report",
             return_value=_IC_CASE_ACTOR_ID,
         ):
             return wait_for_initialized_case(
@@ -709,7 +709,7 @@ class TestWaitForInitializedCase:
         client = _LateInitializedCaseClient(delay=10**6)
         with pytest.raises(AssertionError, match="Timed out"):
             with patch(
-                "vultron.demo.utils.case_actor_id_for_report",
+                "vultron.demo.helpers.polling.case_actor_id_for_report",
                 return_value=_IC_CASE_ACTOR_ID,
             ):
                 wait_for_initialized_case(
@@ -729,7 +729,7 @@ class TestWaitForInitializedCase:
         client = _LateInitializedCaseClient(delay=0)
         with (
             patch(
-                "vultron.demo.utils.case_actor_id_for_report",
+                "vultron.demo.helpers.polling.case_actor_id_for_report",
                 return_value=_IC_CASE_ACTOR_ID,
             ),
             patch(

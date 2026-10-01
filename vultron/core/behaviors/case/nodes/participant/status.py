@@ -117,30 +117,20 @@ class CreateParticipantStatusNode(
         Args:
             force_rm_state: Skip the RM adjacency rule for this write.
 
-                **Do not add new users.** Set only by the three case-closure
-                call sites that advance a *single departing actor* to
-                ``RM.CLOSED`` regardless of the rung its RM machine is on:
-                ``sync/nodes/close_case_effect.py`` (the received close fan-out)
-                and ``case/nodes/leave/advance.py`` (twice).  ``RM.CLOSED`` is reachable
-                by adjacency only from ``ACCEPTED``, ``INVALID`` or ``DEFERRED``,
-                so from any earlier rung this write is non-adjacent — which is
-                why the RM adjacency rule (BTND-10-001) is suppressed here.
+                **Do not add new users.**  Set only by the bootstrap writes
+                that record a participant's *first* status at a rung other
+                than ``RECEIVED``: ``proposal_reporter.py``,
+                ``participant/owner.py`` and ``participant/participant_add.py``.
+                A first record has no predecessor, so the RM adjacency rule
+                (BTND-10-001) has nothing to check it against; every *other*
+                rule (VF/D/PXA, role gates, entailments) still applies.
 
-                This override is *sanctioned*, not a workaround (CM-23-012,
-                resolving Concern #3106): a ``Leave`` is the departing actor's
-                own authoritative, self-declaratory closure act (ADR-0084), so
-                advancing that actor to ``RM.CLOSED`` regardless of rung is
-                legitimate self-declaration rather than an externally imposed
-                jump.  The emit-side adjacency rule is a report-handling
-                invariant that a case-level ``Leave`` legitimately overrides;
-                every *other* rule (VF/D/PXA, role gates, entailments) still
-                applies.
-
-                Closure NEVER force-advances a non-leaving ("bystander")
-                participant: each site targets one named actor, and bystanders
-                retain their last RM state when the case closes around them
-                (CM-23-012).  Do not read this exemption as "closure may write
-                whatever it likes."
+                Closure never uses this override.  A ``Leave`` and the received
+                close fan-out reach ``RM.CLOSED`` through ordinary transitions
+                (RMB-14-004/005, ADR-0114) via ``RMClosureWriter``, which routes
+                a participant on ``VALID`` through ``DEFERRED`` (VP-02-004).
+                Closure NEVER advances a non-leaving ("bystander") participant
+                (CM-23-012).
 
                 The other two guard-bypassing sites (``develop_fix.py``,
                 ``deploy_fix.py``) pass ``rm_state=None`` and so need no

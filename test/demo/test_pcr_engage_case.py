@@ -303,7 +303,7 @@ def _bootstrap_and_engage(
     for link in owner_dl.list_objects("ReportCaseLink"):
         if isinstance(link, VultronReportCaseLink):
             link.case_id = case_id
-            link.trusted_case_actor_id = owner_actor_id
+            link.case_manager_id = owner_actor_id
             owner_dl.save(link)
             break
 

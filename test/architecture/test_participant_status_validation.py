@@ -168,23 +168,18 @@ _SHARED_EVALUATOR = "participant_transition_violations"
 # ---------------------------------------------------------------------------
 # force_rm_state override — (path_relative_to_repo_root, occurrences)
 #
-# These sites advance a single departing actor to RM.CLOSED regardless of the
-# rung its RM machine is on.  RM.CLOSED is reachable by adjacency only from
-# ACCEPTED, INVALID or DEFERRED, so each is a non-adjacent RM write that the
-# emit-side adjacency rule (BTND-10-001) would otherwise refuse.  This is a
-# sanctioned self-declared-Leave override (CM-23-012, resolving #3106): a Leave
-# is the departing actor's own authoritative closure act (ADR-0084), and the
-# override never touches a non-leaving (bystander) participant.
+# Only bootstrap writes remain: each records a participant's *first* status at
+# a rung other than RECEIVED, so the record has no predecessor the adjacency
+# rule (BTND-10-001) could check it against.
 #
-# This list MUST only shrink.  Do not add entries: a new site would be forcing
-# RM.CLOSED on some actor without a self-declared Leave to justify it.
+# Closure is not here.  A Leave and the received close fan-out reach RM.CLOSED
+# through ordinary RM transitions (RMB-14-004/005, ADR-0114; #4044 retired the
+# three closure sites), and test/architecture/test_rm_closure_no_force.py pins
+# that no closure write carries the override.
+#
+# This list MUST only shrink.  Do not add entries.
 # ---------------------------------------------------------------------------
 _RM_FORCE_QUARANTINE: dict[str, int] = {
-    "vultron/core/behaviors/sync/nodes/close_case_effect.py": 1,
-    # Relocated, not added: these are the same two sites, moved when leave.py
-    # was split into the leave/ package (ISSUE-2505 pushed it past the
-    # 500-line BTND-07-004 cap). The count is unchanged.
-    "vultron/core/behaviors/case/nodes/leave/advance.py": 2,
     # Bootstrap writes: initial participant status at non-adjacent states
     # (issue #3206 — routed through CreateParticipantStatusNode, bypassing
     # the adjacency rule for the first write as allowed by BTND-10-001).

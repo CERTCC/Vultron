@@ -23,6 +23,7 @@ continue to work without modification.
 Submodules:
 - ``ack_conditions``: Received-side AckReport condition nodes
 - ``conditions``: Validation and prioritization condition nodes
+- ``close_conditions``: Report-closure guard nodes
 - ``rm_transitions``: Report-management transition action nodes
 - ``case_creation``: Case creation and Create(Case) activity nodes
 - ``participant``: Case participant RM transition action nodes
@@ -40,6 +41,9 @@ from vultron.core.behaviors.report.nodes.ack_conditions import (
 from vultron.core.behaviors.report.nodes.case_creation import (
     CreateCaseActivity,
     CreateCaseNode,
+)
+from vultron.core.behaviors.report.nodes.close_conditions import (
+    CheckReportClosable,
 )
 from vultron.core.behaviors.report.nodes.conditions import (
     CheckParticipantExists,
@@ -103,6 +107,8 @@ __all__ = [
     "EvaluateReportValidity",
     "EvaluateCasePriority",
     "CheckParticipantExists",
+    # close_conditions
+    "CheckReportClosable",
     # rm_transitions
     "_ReportPhaseRMTransition",
     "TransitionRMtoValid",

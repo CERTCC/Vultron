@@ -232,13 +232,27 @@ def resolve_transition_context_or_report(
     try:
         return resolve_participant_transition_context(dl, case, participant_id)
     except VultronValidationError as exc:
-        node.feedback_message = (
-            f"Participant '{participant_id}' status is not core-shaped:"
-            f" {exc} (ARCH-15-001)"
-        )
-        log = node_logger(node)
-        log.warning("%s: %s", node.name, node.feedback_message)
-        return Status.FAILURE
+        return report_unshaped_status(node, participant_id, exc)
+
+
+def report_unshaped_status(
+    node: py_trees.behaviour.Behaviour,
+    participant_id: str,
+    exc: VultronValidationError,
+) -> Status:
+    """Report a participant status that is not core-shaped as ``FAILURE``.
+
+    The single wording for ARCH-15-001 shape faults raised by
+    ``resolve_participant_state_from_dl``, shared by every node that reads a
+    participant's state before writing it (CS-22-001).
+    """
+    node.feedback_message = (
+        f"Participant '{participant_id}' status is not core-shaped:"
+        f" {exc} (ARCH-15-001)"
+    )
+    log = node_logger(node)
+    log.warning("%s: %s", node.name, node.feedback_message)
+    return Status.FAILURE
 
 
 def validate_participant_status_write(
@@ -270,9 +284,9 @@ def validate_participant_status_write(
 
     Args:
         validate_rm_transition: Passed through to the evaluator.  ``False`` only
-            for the enumerated sanctioned self-declared-Leave override
-            (``force_rm_state``, CM-23-012); every other caller leaves the full
-            rule set in force.
+            for the enumerated bootstrap writes (``force_rm_state``); every
+            other caller, closure included (RMB-14-005), leaves the full rule
+            set in force.
 
     Returns:
         ``Status.FAILURE`` when the write is refused, ``None`` when it is legal

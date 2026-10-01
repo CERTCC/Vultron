@@ -37,7 +37,7 @@ rather than a disagreement to reconcile.
 The states divide into three groups. Start and Received precede any assessment.
 Invalid and Valid record the outcome of triage. Deferred, Accepted and Closed
 record what the participant decided to do about a report it considers valid —
-except Invalid, which can also be closed directly.
+except that Received and Invalid can also be closed directly.
 
 !!! info "See also"
     - [Report Management Process Model](../../topics/process_models/rm/index.md)
@@ -55,6 +55,7 @@ does not change any other participant's RM state.
 | Start | receive | receipt of `RS` | Received |
 | Received | validate | `RV` | Valid |
 | Received | invalidate | `RI` | Invalid |
+| Received | close | `RC` | Closed |
 | Invalid | validate | `RV` | Valid |
 | Valid | accept | `RA` | Accepted |
 | Valid | defer | `RD` | Deferred |
@@ -64,12 +65,12 @@ does not change any other participant's RM state.
 | Deferred | close | `RC` | Closed |
 | Accepted | close | `RC` | Closed |
 
-These eleven transitions are the complete set. Three consequences are worth
-stating, because each is a plausible assumption that does not hold:
+These twelve transitions are the complete set.
+Three consequences are worth stating, because each is a plausible assumption that does not hold:
 
-- **A report cannot be closed from every state.** Only Invalid, Deferred and
-  Accepted are closable. A participant at Start, Received or Valid MUST reach one
-  of those states before it can close.
+- **A report cannot be closed from every state.** Only Received, Invalid, Deferred and Accepted are closable.
+  A participant at Start or Valid MUST reach one of those states before it can close.
+  A `Reject` sent from Received is the Received → Closed transition, and a participant at Valid that leaves a case is recorded as Valid → Deferred → Closed.
 - **Valid does not return to Invalid.** Invalidation is available only from
   Received. Once a participant has assessed a report as valid it does not
   re-invalidate it; if it decides to stop work, it defers or closes.
