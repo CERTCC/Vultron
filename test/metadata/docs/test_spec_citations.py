@@ -62,6 +62,14 @@ def test_docs_cite_spec_sections_by_number_and_name() -> None:
         "Vultron Protocol Specification §8",
         "Vultron Protocol Specification, §6",
         "see §6",
+        "§6—9",
+        "§6 of this specification",
+        "§6 in this spec",
+        "§6 above",
+        "§6, below",
+        "§6 here",
+        "(§6)",
+        "transitions table (§7.2)",
     ],
 )
 def test_bare_number_fails(tmp_path: Path, text: str) -> None:
@@ -93,6 +101,66 @@ def test_cited_number_must_match_its_anchor(tmp_path: Path) -> None:
     assert _faults_for(tmp_path, "§4.8 Knowledge Model", target) == [
         "cites §4.8 but links #47-knowledge-model"
     ]
+
+
+@pytest.mark.parametrize(
+    ("text", "anchor", "reason"),
+    [
+        (
+            "§1.2 Foo",
+            "12-conformance-n",
+            "cites §1.2 but links #12-conformance-n",
+        ),
+        (
+            "Section 4.8 Knowledge Model",
+            "47-knowledge-model",
+            "cites §4.8 but links #47-knowledge-model",
+        ),
+        (
+            "Annex G Capability Shapes",
+            "annex-f-behavior-trees-i",
+            "cites Annex G but links #annex-f-behavior-trees-i",
+        ),
+        (
+            "Annex G Capability Shapes",
+            "g1-the-four-capability-shapes",
+            "cites Annex G but links #g1-the-four-capability-shapes",
+        ),
+    ],
+)
+def test_cited_section_must_be_the_anchored_one(
+    tmp_path: Path, text: str, anchor: str, reason: str
+) -> None:
+    target = f"../reference/vultron-spec/page.md#{anchor}"
+    assert _faults_for(tmp_path, text, target) == [reason]
+
+
+@pytest.mark.parametrize(
+    ("text", "anchor"),
+    [
+        ("§12 Conformance", "12-conformance-n"),
+        ("§14 Security Considerations", "14-security-considerations-ni"),
+        (
+            "§4 Semantic Layer — Message Meanings",
+            "4-semantic-layer-message-meanings-n",
+        ),
+        (
+            "§9.4 Deadlines and the Pocket Veto in the Vultron Protocol "
+            "Specification",
+            "94-deadlines-and-the-pocket-veto",
+        ),
+        ("Annex G Capability Shapes", "annex-g-capability-shapes-i"),
+        (
+            "Annex G.1 The Four Capability Shapes",
+            "g1-the-four-capability-shapes",
+        ),
+    ],
+)
+def test_cited_section_matching_its_anchor_passes(
+    tmp_path: Path, text: str, anchor: str
+) -> None:
+    target = f"../reference/vultron-spec/page.md#{anchor}"
+    assert _faults_for(tmp_path, text, target) == []
 
 
 def test_unnumbered_anchor_is_not_compared(tmp_path: Path) -> None:
@@ -140,12 +208,13 @@ def test_absolute_urls_and_fenced_code_are_ignored(tmp_path: Path) -> None:
         tmp_path,
         "howto/page.md",
         f"````markdown\n```\n[§6]({SPEC_PAGE})\n```\n````\n"
+        f"!!! note\n    ~~~\n    [§6]({SPEC_PAGE})\n    ~~~\n"
         "[§6](https://example.org/reference/vultron-spec/tracking-models.md)\n"
         f"[§6 Report Management (RM) State Machine]({SPEC_PAGE})\n",
     )
     links = spec_links(tmp_path)
     assert [(link.line, link.text) for link in links] == [
-        (7, "§6 Report Management (RM) State Machine")
+        (11, "§6 Report Management (RM) State Machine")
     ]
 
 

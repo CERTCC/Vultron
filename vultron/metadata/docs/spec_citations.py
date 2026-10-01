@@ -24,14 +24,24 @@ ones whose text is a bare number, and the ones whose cited number disagrees with
 the numbered anchor they link to. :func:`check_spec_citations` combines the two
 and refuses an empty link set: a check that inspects nothing and reports success
 is worse than no check (DF-09-009).
+
+The link reader here is separate from :mod:`vultron.metadata.docs.page_links`
+on purpose: that module returns only the resolved page each link points at,
+while this check needs each link's text, line and anchor. Fences are read by
+the shared :func:`~vultron.metadata.markdown_tables.fenced_lines`. The gate is
+the pytest test ``test/metadata/docs/test_spec_citations.py``, which the
+unit suite runs on every change; it has no CLI of its own.
 """
 
 from __future__ import annotations
 
 import posixpath
 import re
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
+
+from vultron.metadata.markdown_tables import fenced_lines
 
 SPEC_DIR = "reference/vultron-spec"
 """``docs/``-relative directory holding the Protocol Specification pages."""
@@ -40,16 +50,22 @@ _LINK_RE = re.compile(
     r"(?<!!)\[([^\]\n]+)\]\(\s*(<[^>\n]+>|[^)\s]+)"
     r"(?:\s+(?:\"[^\"]*\"|'[^']*'))?\s*\)"
 )
-_FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _NUM = r"\d+(?:\.\d+)*"
 _REF = (
     rf"(?:§{{1,2}}\s?{_NUM}|[Ss]ections?\s+{_NUM}|Annex(?:es)?\s+[A-G])"
-    rf"(?:\s*(?:[–-]|,|and|to|through)\s*(?:§{{1,2}}\s?)?(?:{_NUM}|[A-G]))*"
+    rf"(?:\s*(?:[–—-]|,|and|to|through)\s*(?:§{{1,2}}\s?)?(?:{_NUM}|[A-G]))*"
 )
 _BARE_RE = re.compile(
-    rf"^(?:.*?\S,?\s+)?{_REF}[.,;:]?(?:\s+(?:of|in)\s+the\s+.*)?$"
+    rf"^(?:.*?(?:\S,?\s+|\())?{_REF}\)?[.,;:]?"
+    r"(?:,?\s+(?:(?:of|in)\s+(?:the|this)\s+.*|above|below|here))?$"
 )
-_CITED_NUMBER_RE = re.compile(rf"^(?:.*?\s)?§\s?({_NUM})(?:\s|$)")
+_CITED_RE = re.compile(
+    rf"^(?:.*?\s)?(?:§\s?(?P<num>{_NUM})|[Ss]ection\s+(?P<sec>{_NUM})"
+    r"|Annex\s+(?P<annex>[A-G](?:\.\d+)*))(?P<name>\s.*)?$"
+)
+_ANNEX_ANCHOR_RE = re.compile(r"^(?:annex-[a-g]-|[a-g]\d+-)")
+_STATUS_TAG_RE = re.compile(r"-(?:n|i|ni)$")
+"""Slug of a heading's ``[N]``, ``[I]`` or ``[N/I]`` status marker."""
 
 
 class NoSpecLinksError(ValueError):
@@ -121,23 +137,15 @@ def spec_links(docs_root: Path) -> list[SpecLink]:
     found: list[SpecLink] = []
     for page in sorted(docs_root.rglob("*.md")):
         docs_path = page.relative_to(docs_root).as_posix()
-        fence: str | None = None
-        lines = page.read_text(encoding="utf-8").splitlines()
-        for number, line in enumerate(lines, 1):
-            opened = _FENCE_RE.match(line)
-            if opened:
-                marker = opened.group(1)
-                if fence is None:
-                    fence = marker
-                elif marker[0] == fence[0] and len(marker) >= len(fence):
-                    fence = None
-                continue
-            if fence is not None:
+        text = page.read_text(encoding="utf-8")
+        fenced = fenced_lines(text)
+        for number, line in enumerate(text.splitlines(), 1):
+            if number in fenced:
                 continue
             for match in _LINK_RE.finditer(line):
-                text, target = match.group(1), match.group(2).strip("<>")
+                label, target = match.group(1), match.group(2).strip("<>")
                 if _targets_spec(docs_path, target):
-                    found.append(SpecLink(docs_path, number, text, target))
+                    found.append(SpecLink(docs_path, number, label, target))
     return found
 
 
@@ -145,13 +153,61 @@ def _plain(text: str) -> str:
     return text.replace("`", "").strip()
 
 
+def _slug(text: str) -> str:
+    """Slugify *text* the way the default Python-Markdown ``toc`` slugify does."""
+    ascii_text = (
+        unicodedata.normalize("NFKD", text)
+        .encode("ascii", "ignore")
+        .decode("ascii")
+    )
+    return re.sub(
+        r"[-\s]+", "-", re.sub(r"[^\w\s-]", "", ascii_text).strip().lower()
+    )
+
+
+def _anchor_fault(text: str, anchor: str) -> str | None:
+    """Return why *text* disagrees with the numbered *anchor*, or ``None``.
+
+    The cited number must open the anchor's slug and the cited name must
+    start with the rest of it, so "§1.2 Foo" is refused at ``#12-conformance``
+    although the dot-free digits agree. An anchor on an unnumbered heading
+    is not compared.
+    """
+    cited = _CITED_RE.match(text)
+    if cited is None:
+        return None
+    annex = cited.group("annex")
+    if annex is not None:
+        if not _ANNEX_ANCHOR_RE.match(anchor):
+            return None
+        letter, _, rest = annex.lower().partition(".")
+        prefix = (
+            f"{letter}{rest.replace('.', '')}-"
+            if rest
+            else (f"annex-{letter}-")
+        )
+        label = f"Annex {annex}"
+    else:
+        number = cited.group("num") or cited.group("sec")
+        if not anchor[:1].isdigit():
+            return None
+        prefix = number.replace(".", "") + "-"
+        label = f"§{number}"
+    heading = _STATUS_TAG_RE.sub("", anchor.removeprefix(prefix))
+    if anchor.startswith(prefix) and _slug(
+        cited.group("name") or ""
+    ).startswith(heading):
+        return None
+    return f"cites {label} but links #{anchor}"
+
+
 def citation_faults(links: list[SpecLink]) -> list[CitationFault]:
     """Return the citation faults among *links*.
 
     A link is at fault when its text cites a number without the section name
     ("§6", "§9 of the specification", "Vultron Protocol Specification §8"), or
-    when the section number it cites is not the number of the anchor it links
-    to ("§4.8" pointing at ``#47-...``).
+    when the section it cites is not the one its anchor names ("§4.8" pointing
+    at ``#47-...``, or "§1.2 Foo" pointing at ``#12-conformance``).
     """
     faults: list[CitationFault] = []
     for link in links:
@@ -161,16 +217,9 @@ def citation_faults(links: list[SpecLink]) -> list[CitationFault]:
                 CitationFault(link, "cites a number without its name")
             )
             continue
-        cited = _CITED_NUMBER_RE.match(text)
-        anchor = link.target.partition("#")[2]
-        if cited and anchor[:1].isdigit():
-            slug = cited.group(1).replace(".", "") + "-"
-            if not anchor.startswith(slug):
-                faults.append(
-                    CitationFault(
-                        link, f"cites §{cited.group(1)} but links #{anchor}"
-                    )
-                )
+        reason = _anchor_fault(text, link.target.partition("#")[2])
+        if reason is not None:
+            faults.append(CitationFault(link, reason))
     return faults
 
 

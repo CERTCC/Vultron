@@ -13,7 +13,7 @@ It is for readers who want the formal model behind the [EM process model](index.
 The [formal protocol](../../../reference/formal_protocol/index.md) builds on the definitions given here.
 
 The normative EM states and transitions are specified in [§7 Embargo Management (EM) State Machine in the Vultron Protocol Specification](../../../reference/vultron-spec/tracking-models.md#7-embargo-management-em-state-machine-n).
-The [states table (§7.1)](../../../reference/vultron-spec/tracking-models.md#71-states) and the [transitions table (§7.2)](../../../reference/vultron-spec/tracking-models.md#72-transitions-and-guards) are the authority.
+The states table in [§7.1 States](../../../reference/vultron-spec/tracking-models.md#71-states) and the transitions table in [§7.2 Transitions and Guards](../../../reference/vultron-spec/tracking-models.md#72-transitions-and-guards) are the authority.
 This page restates them in DFA notation and adds what the specification does not carry: the symbol set, a right-linear grammar, a regular expression for every possible history, and the shortest histories.
 
 {% include-markdown "./_em_state_names.md" %}

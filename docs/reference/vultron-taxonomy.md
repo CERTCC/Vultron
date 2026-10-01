@@ -194,7 +194,7 @@ Examples: `Case Observer / Vendor`, `Case Observer + Case Decision + Case Hostin
 
 **The four capability shapes.** The shapes are Evaluator, Retriever, Composer, and Actuator.
 Each is a contract stating what a call-out point accepts and what it returns.
-The contracts are defined in [Annex G Capability Shapes in the Vultron Protocol Specification](vultron-spec/annex-g-capability-shapes.md#g1-the-four-capability-shapes), which this page does not restate.
+The contracts are defined in [Annex G.1 The Four Capability Shapes in the Vultron Protocol Specification](vultron-spec/annex-g-capability-shapes.md#g1-the-four-capability-shapes), which this page does not restate.
 
 **Sentinel is not a shape.** A Sentinel is a call-in integration pattern: it monitors a condition and, when the condition fires, acts on its own initiative by calling a Vultron trigger endpoint or sending protocol messages. The behavior engine never consults it, so it has no call-out point node, no blackboard contract, and no backend factory. The classifying criterion is which party initiates (BT-18-013, [ADR-0097](../adr/0097-capability-layer-four-shapes-and-core-declared-contracts.md)).
 
