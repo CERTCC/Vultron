@@ -157,6 +157,7 @@ class TestInviteToEmbargoRoutingGuard:
             embargo,
             context=self.CASE_ID,
             actor=self.AUTHOR_ID,
+            to=[self.CASE_ACTOR_ID],
             id_=f"{self.CASE_ID}/proposals/nostamp",
         )
         dl.create(proposal)
@@ -190,6 +191,7 @@ class TestInviteToEmbargoRoutingGuard:
             embargo,
             context=self.CASE_ID,
             actor=self.AUTHOR_ID,
+            to=[self.CASE_ACTOR_ID],
             id_=f"{self.CASE_ID}/proposals/1",
         )
         dl.create(proposal)
@@ -222,6 +224,7 @@ class TestInviteToEmbargoRoutingGuard:
             embargo,
             context=self.CASE_ID,
             actor=self.AUTHOR_ID,
+            to=[self.INVITEE_ID],
             id_=f"{self.CASE_ID}/proposals/1",
         )
         dl.create(proposal)

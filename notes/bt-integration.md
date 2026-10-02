@@ -232,15 +232,19 @@ Read a subject **from the message**, never from the receiving actor. For an
 (EP-09-010, ADR-0113): every emitter sends one recipient (a participant to the
 CASE_MANAGER; the CASE_MANAGER to one participant per relayed Invite), so an
 Invite naming several recipients or none is refused as a misrouting, never
-resolved by membership or guessed at. The earlier "addressee membership"
-resolution in `resolve_invitee_id()` (`vultron/core/use_cases/received/embargo.py`)
-was built for a multi-recipient shape nothing emits, and its fallback to the
-receiving actor put the deadline on the enforcer's own record; #3963 retires it.
+resolved by membership or guessed at. `resolve_invitee_id()`
+(`vultron/core/use_cases/received/embargo.py`) returns the sole recipient in its
+canonical spelling and raises `VultronProtocolViolationError` naming the
+recipient count, which the use case reports as `REFUSED`. A proposal addressed
+to the CASE_MANAGER names the manager as that sole recipient, but the manager
+adjudicates it and is never its invitee, so its own record gets no RSVP
+deadline: a fallback to the receiving actor is what put the deadline on the
+enforcer's own record (ISSUE-2762).
 Where a message legitimately names several recipients (the report `Offer`),
 test membership with `is_addressed_to()` (`vultron/core/predicates/addressing.py`),
 never a bare `in`: `to:`/`cc:` arrive as the sender wrote them, so a trailing
 slash misses an exact match while the receiver is canonical (#2667); see
-`_is_primary_submit_report_recipient()` in `received/report.py`. Full rule:
+`_not_primary_recipient_reason()` in `received/report.py`. Full rule:
 `vultron/core/AGENTS.md` § "A Message Subject Is Never
 `resolve_receiving_actor_id()`".
 

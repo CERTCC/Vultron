@@ -1076,36 +1076,40 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      Subject-identity resolution (CLP-10-015) MUST be by **addressee
-      membership**, not by position in the `to:` list. When the receiving actor
-      is among the recipients it is the subject; when exactly one recipient
-      exists and it is not this store's actor, that recipient is the subject;
-      when several recipients exist and none is this store's actor the case is
-      ambiguous and the resolver MUST warn and degrade rather than select
-      `to[0]`.
+      Subject-identity resolution (CLP-10-015) MUST NOT select a subject by
+      position in the `to:` list and MUST NOT fall back to the receiving actor.
+      Where a message names its subject as its sole `to:` recipient (the
+      invitee of an `Invite(EmbargoEvent)`, EP-09-010), the resolver MUST take
+      that recipient and refuse a message naming none or several. Where the
+      protocol addresses a message to several recipients (`Offer(Report)`),
+      the receiver MUST test its own membership with a trailing-slash-tolerant
+      comparison (HP-09-001), not an exact match.
     rationale: >-
       Selecting `to[0]` positionally makes a multi-recipient message resolve to
-      the same subject in every replica — inviting the wrong participant
-      everywhere except the one store where `to[0]` happens to be correct.
-      Preferring the receiving actor when it is a recipient is what makes a
-      multi-recipient invitation correct in *each* recipient's own replica, and
-      it is canonical by construction because `inbox_handler` normalises the
-      receiving actor against `activity.to` (HP-09-001). Degrading with a WARNING
-      on genuine ambiguity preserves the canonical ledger commit that rides in
-      the same single tree (ADR-0022) rather than dropping the message. Source:
-      ISSUE-2762, ADR-0022.
+      the same subject in every replica. Falling back to the receiving actor
+      when `to:` names nobody, or nobody local, put the RSVP deadline on the
+      enforcer's own record (ISSUE-2762). Every embargo Invite emitter sends
+      one recipient (EP-09-002), so membership resolution for a
+      several-recipient Invite was built for a shape nothing emits; refusing it
+      names the defect where guessing hid it (ADR-0113). Source: ISSUE-2762,
+      ADR-0022, ADR-0113.
     verification: >-
-      Inspection of `resolve_invitee_id()` in
-      `vultron/core/use_cases/received/embargo.py` confirms resolution is by
-      addressee membership with the ordered fallbacks above, mirroring
-      `_is_primary_submit_report_recipient` in `received/report.py`.
+      `TestInviteeIsTheAddressee` and `TestInviteeIdProperty` in
+      `test/core/use_cases/received/test_embargo_invite_lapse.py` assert that
+      an `Invite(EmbargoEvent)` naming no recipient or two is refused with the
+      count in the reason and that a trailing-slash sole recipient resolves to
+      its canonical id; `_not_primary_recipient_reason()` in
+      `received/report.py` tests membership with `is_addressed_to()`.
     relationships:
     - rel_type: refines
       spec_id: CLP-10-015
+    - rel_type: depends_on
+      spec_id: EP-09-010
     tags:
     - protocol
     adr:
     - ADR-0022
+    - ADR-0113
   - id: CLP-10-017
     priority: MUST
     kind: project

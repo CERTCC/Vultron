@@ -143,27 +143,19 @@ class InviteToEmbargoOnCaseReceivedEvent(VultronEvent):
 
     @property
     def invitee_id(self) -> str | None:
-        """The sole actor being invited to the embargo, when there is one.
+        """The Invite's sole ``to`` recipient; ``None`` for none or several.
 
-        This is a *different* question from ``receiving_actor_id``, which is
-        the actor whose replica the message is being applied to.  Per ADR-0022
-        the invitee is leaf-node data threaded into the tree, never the BT's
-        execution identity, so it MUST be read from the message rather than
-        inferred from which store the message landed in.
+        The invitee of an ``Invite(EmbargoEvent)`` is its sole ``to``
+        recipient (EP-09-010).  This is a *different* question from
+        ``receiving_actor_id``, the actor whose replica the message is being
+        applied to: per ADR-0022 the invitee is leaf-node data read from the
+        message, never inferred from which store the message landed in.
 
-        Returns ``None`` in two cases, and callers MUST NOT quietly substitute
-        another identity in either:
-
-        * no ``to:`` recipient at all — an OX-08-001 violation upstream;
-        * more than one ``to:`` recipient — with several addressees the
-          invitee is *replica-relative*, so only the receiving side can say
-          which one this store is applying the invitation to.  Picking the
-          first would give every recipient after the first a PEC transition
-          and RSVP deadline on someone else's record (CM-28-001, CM-28-003).
-
-        Received-side callers should therefore use
+        ``None`` means the Invite is a misrouting — no recipient (an
+        OX-08-001 violation upstream) or several — and callers MUST NOT
+        substitute another identity.  Received-side callers use
         ``vultron.core.use_cases.received.embargo.resolve_invitee_id()``,
-        which resolves the multi-recipient case by addressee membership.
+        which refuses such an Invite with the recipient count.
 
         Note this is *not* the same derivation as
         ``AcceptInviteActorToCaseReceivedEvent.invitee_id``, which reads the

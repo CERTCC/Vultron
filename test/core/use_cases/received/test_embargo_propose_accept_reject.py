@@ -168,6 +168,7 @@ class TestEmbargoProposalLifecycle:
             embargo,
             context="https://example.org/cases/case_em2",
             actor="https://example.org/users/vendor",
+            to=["https://example.org/users/vendor"],
             id_="https://example.org/cases/case_em2/embargo_proposals/1",
         )
 
@@ -576,7 +577,8 @@ def _make_pxa_case(
 ):
     """Return (case, embargo, proposal) with pxa_state set.
 
-    *to* addresses the proposal; omitted, it carries no recipients.
+    *to* addresses the proposal; omitted, it goes to *coordinator_id*,
+    since an Invite naming no recipient is refused (EP-09-010).
     """
     from vultron.core.states.cs import CS_pxa
     from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
@@ -600,7 +602,7 @@ def _make_pxa_case(
         context=case.id_,
         actor=coordinator_id,
         id_=f"{case_id}/proposals/p1",
-        to=to,
+        to=to if to is not None else [coordinator_id],
     )
     dl.create(case)
     dl.create(embargo)
@@ -735,6 +737,7 @@ class TestInviteToEmbargoReceivedPxaGuard:
             embargo,
             context=case,
             actor=coordinator_id,
+            to=[coordinator_id],
             id_=f"{case_id}/proposals/p1",
         )
         dl.create(proposal)

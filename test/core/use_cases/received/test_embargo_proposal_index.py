@@ -130,6 +130,7 @@ class TestInviteToEmbargoRecordsIndex:
             embargo,
             context=case.id_,
             actor=actor_id,
+            to=[actor_id],
         )
         raw_event = extract_event(proposal)
         event = cast(
@@ -177,6 +178,7 @@ class TestInviteToEmbargoRecordsIndex:
             embargo,
             context=case.id_,
             actor=actor_id,
+            to=[actor_id],
         )
         raw_event = extract_event(proposal)
         event = cast(
