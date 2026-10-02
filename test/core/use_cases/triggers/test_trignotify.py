@@ -29,6 +29,7 @@ from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -279,6 +280,7 @@ class TestCaseTriggerToField:
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            sync_port=SyncActivityAdapter(self.dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -304,6 +306,7 @@ class TestCaseTriggerToField:
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            sync_port=SyncActivityAdapter(self.dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -328,6 +331,7 @@ class TestCaseTriggerToField:
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            sync_port=SyncActivityAdapter(self.dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -360,6 +364,7 @@ class TestCaseTriggerToField:
                 self.dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                sync_port=SyncActivityAdapter(self.dl),
                 wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
@@ -401,6 +406,7 @@ class TestEmbargoTriggerToField:
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            sync_port=SyncActivityAdapter(self.dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -439,6 +445,7 @@ class TestEmbargoTriggerToField:
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            sync_port=SyncActivityAdapter(self.dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -471,6 +478,7 @@ class TestEmbargoTriggerToField:
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            sync_port=SyncActivityAdapter(self.dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -509,6 +517,7 @@ class TestEmbargoTriggerToField:
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            sync_port=SyncActivityAdapter(self.dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
@@ -541,6 +550,7 @@ class TestEmbargoTriggerToField:
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            sync_port=SyncActivityAdapter(self.dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -650,6 +660,7 @@ class TestReportTriggerToField:
                 self.dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                sync_port=SyncActivityAdapter(self.dl),
                 wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
@@ -668,6 +679,7 @@ class TestReportTriggerToField:
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            sync_port=SyncActivityAdapter(self.dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -694,6 +706,7 @@ class TestReportTriggerToField:
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            sync_port=SyncActivityAdapter(self.dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -734,6 +747,7 @@ class TestReportTriggerToField:
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            sync_port=SyncActivityAdapter(self.dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -770,6 +784,7 @@ class TestReportTriggerToField:
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            sync_port=SyncActivityAdapter(self.dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
@@ -806,6 +821,7 @@ class TestReportTriggerToField:
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            sync_port=SyncActivityAdapter(self.dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
@@ -852,5 +868,6 @@ class TestReportTriggerToField:
                 self.dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
+                sync_port=SyncActivityAdapter(self.dl),
                 wire_render_port=As2WireRenderAdapter(),
             ).execute()

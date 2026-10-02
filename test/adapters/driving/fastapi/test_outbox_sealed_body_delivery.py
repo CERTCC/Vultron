@@ -203,7 +203,9 @@ def test_ledger_snapshot_equals_delivered_body_end_to_end(dl):
         dl.create(obj)
 
     result = BTBridge(
-        datalayer=dl, trigger_activity=TriggerActivityAdapter(dl)
+        datalayer=dl,
+        trigger_activity=TriggerActivityAdapter(dl),
+        sync_port=SyncActivityAdapter(dl),
     ).execute_with_setup(
         tree=EmitInviteActorToCaseNode(case_id=case_id, invitee_id=_INVITEE),
         actor_id=_ACTOR,

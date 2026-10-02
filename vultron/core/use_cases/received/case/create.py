@@ -8,6 +8,7 @@ from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.services.case_replica_seeding import (
     store_embedded_participants,
@@ -40,10 +41,12 @@ class CreateCaseReceivedUseCase:
         self,
         dl: CasePersistence,
         request: CreateCaseReceivedEvent,
+        sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
+        self._sync_port = sync_port
         self._request: CreateCaseReceivedEvent = request
 
     def execute(self) -> HandlerResult:

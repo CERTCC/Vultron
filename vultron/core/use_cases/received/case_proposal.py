@@ -335,10 +335,12 @@ class AcceptCaseProposalReceivedUseCase:
         self,
         dl: CasePersistence,
         request: AcceptCaseProposalReceivedEvent,
+        sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
+        self._sync_port = sync_port
         self._request: AcceptCaseProposalReceivedEvent = request
 
     def execute(self) -> HandlerResult:
@@ -366,7 +368,9 @@ class AcceptCaseProposalReceivedUseCase:
             case_actor_id=case_actor_id,
         )
         result = BTBridge(
-            datalayer=self._dl, wire_render_port=self._wire_render_port
+            datalayer=self._dl,
+            wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
         ).execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
@@ -411,10 +415,12 @@ class RejectCaseProposalReceivedUseCase:
         self,
         dl: CasePersistence,
         request: RejectCaseProposalReceivedEvent,
+        sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
+        self._sync_port = sync_port
         self._request: RejectCaseProposalReceivedEvent = request
 
     def execute(self) -> HandlerResult:
@@ -445,7 +451,9 @@ class RejectCaseProposalReceivedUseCase:
             rejection_reason=rejection_reason,
         )
         result = BTBridge(
-            datalayer=self._dl, wire_render_port=self._wire_render_port
+            datalayer=self._dl,
+            wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
         ).execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,

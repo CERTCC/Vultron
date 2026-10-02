@@ -35,6 +35,7 @@ import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -118,6 +119,7 @@ def _run(dl: SqliteDataLayer, node) -> Status:
     bridge = BTBridge(
         datalayer=dl,
         trigger_activity=TriggerActivityAdapter(dl),
+        sync_port=SyncActivityAdapter(dl),
     )
     return bridge.execute_with_setup(tree=node, actor_id=CASE_ACTOR_ID).status
 

@@ -40,6 +40,7 @@ import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -192,6 +193,7 @@ def _run_tree(
         trigger_activity=(
             TriggerActivityAdapter(dl) if with_trigger_port else None
         ),
+        sync_port=SyncActivityAdapter(dl),
     ).execute_with_setup(
         tree=tree,
         actor_id=_CASE_ACTOR_URI,
@@ -807,9 +809,11 @@ class TestTheGateIsKeyedOnTheProposalNotTheReport:
                 Status.SUCCESS
             )
             assert len(_cases(_dl)) == 1
-            _dl.outbox_pop()
-            _dl.outbox_pop()
-            assert _dl.outbox_list() == []
+            # Drain the first admission's mail: its Create and Accept, plus
+            # the Announce(CaseLedgerEntry) fan-out of every entry it
+            # committed (SYNC-02-003).
+            while _dl.outbox_list():
+                _dl.outbox_pop()
 
             # A different proposal, from a different actor, naming the same
             # report. The deployment's policy refuses it.
@@ -847,6 +851,7 @@ class TestTheGateIsKeyedOnTheProposalNotTheReport:
                     datalayer=_dl,
                     wire_render_port=As2WireRenderAdapter(),
                     trigger_activity=TriggerActivityAdapter(_dl),
+                    sync_port=SyncActivityAdapter(_dl),
                 )
                 .execute_with_setup(
                     tree=tree,

@@ -36,6 +36,7 @@ import py_trees
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -209,6 +210,7 @@ class TestWriteCreateCaseMarkerNode:
             datalayer=dl,
             wire_render_port=As2WireRenderAdapter(),
             trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
         ).execute_with_setup(tree=tree, actor_id=actor_id)
         return result.status
 
@@ -459,9 +461,10 @@ class TestWriteCreateCaseMarkerNode:
         )
         client.accept_activity_id = "https://example.org/activities/a-001"
 
-        result = BTBridge(datalayer=dl).execute_with_setup(
-            tree=tree, actor_id=_CASE_ACTOR_URI
-        )
+        result = BTBridge(
+            datalayer=dl,
+            sync_port=SyncActivityAdapter(dl),
+        ).execute_with_setup(tree=tree, actor_id=_CASE_ACTOR_URI)
         assert result.status == py_trees.common.Status.FAILURE
 
     def test_fails_when_accept_activity_id_missing(self):
@@ -481,9 +484,10 @@ class TestWriteCreateCaseMarkerNode:
         client.register_key(key="case_id", access=py_trees.common.Access.WRITE)
         client.case_id = "https://example.org/cases/c-001"
 
-        result = BTBridge(datalayer=dl).execute_with_setup(
-            tree=tree, actor_id=_CASE_ACTOR_URI
-        )
+        result = BTBridge(
+            datalayer=dl,
+            sync_port=SyncActivityAdapter(dl),
+        ).execute_with_setup(tree=tree, actor_id=_CASE_ACTOR_URI)
         assert result.status == py_trees.common.Status.FAILURE
 
     def test_fails_when_datalayer_save_raises(self):
@@ -522,9 +526,10 @@ class TestClearCreateCaseMarkerNode:
         tree = py_trees.composites.Sequence(
             name="TestSeq", memory=False, children=[node]
         )
-        result = BTBridge(datalayer=dl).execute_with_setup(
-            tree=tree, actor_id=actor_id
-        )
+        result = BTBridge(
+            datalayer=dl,
+            sync_port=SyncActivityAdapter(dl),
+        ).execute_with_setup(tree=tree, actor_id=actor_id)
         return result.status
 
     def test_removes_existing_marker(self):
@@ -605,6 +610,7 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
             event,
             wire_render_port=As2WireRenderAdapter(),
             trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         marker_id = PendingCreateCaseActivity.build_id(_PROPOSAL_URI)
@@ -638,6 +644,7 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
                 event,
                 wire_render_port=As2WireRenderAdapter(),
                 trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
 
         marker_id = PendingCreateCaseActivity.build_id(_PROPOSAL_URI)
@@ -674,6 +681,7 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
                 event,
                 wire_render_port=As2WireRenderAdapter(),
                 trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
 
         marker_id = PendingCreateCaseActivity.build_id(_PROPOSAL_URI)
@@ -724,6 +732,7 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
                 event,
                 wire_render_port=As2WireRenderAdapter(),
                 trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
 
         marker_id = PendingCreateCaseActivity.build_id(_PROPOSAL_URI)
@@ -817,6 +826,7 @@ def _run_full_bt(
         actor_config=actor_config,
         wire_render_port=As2WireRenderAdapter(),
         trigger_activity=TriggerActivityAdapter(dl),
+        sync_port=SyncActivityAdapter(dl),
     ).execute()
 
 
@@ -1583,6 +1593,7 @@ class TestADR0041EmbargoInit:
                 actor_config=config,
                 wire_render_port=As2WireRenderAdapter(),
                 trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
             expected[report_id] = policy or timedelta(days=5)
 
@@ -1766,9 +1777,10 @@ class TestCM14005ReporterSignatory:
 
         from vultron.core.behaviors.bridge import BTBridge
 
-        result = BTBridge(datalayer=dl).execute_with_setup(
-            tree=tree, actor_id=_CASE_ACTOR_URI
-        )
+        result = BTBridge(
+            datalayer=dl,
+            sync_port=SyncActivityAdapter(dl),
+        ).execute_with_setup(tree=tree, actor_id=_CASE_ACTOR_URI)
         assert result.status == py_trees.common.Status.SUCCESS, (
             "SeedReporterSignatoryNode must return SUCCESS when no active"
             " embargo (AC-3, best-effort)"
@@ -2117,6 +2129,7 @@ class TestADR0041InlineParticipantsPayload:
                 event,
                 wire_render_port=As2WireRenderAdapter(),
                 trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
 
         marker_id = PendingCreateCaseActivity.build_id(_PROPOSAL_URI)
@@ -2166,6 +2179,7 @@ class TestADR0041InlineParticipantsPayload:
                 event,
                 wire_render_port=As2WireRenderAdapter(),
                 trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
 
         marker_id = PendingCreateCaseActivity.build_id(_PROPOSAL_URI)
@@ -2915,9 +2929,10 @@ def test_store_proposal_report_keeps_the_reporter(caplog):
         inline_report=cast(Any, proposal.object_),
     )
     py_trees.blackboard.Blackboard.storage.clear()
-    result = BTBridge(datalayer=dl).execute_with_setup(
-        tree=node, actor_id=_CASE_ACTOR_URI
-    )
+    result = BTBridge(
+        datalayer=dl,
+        sync_port=SyncActivityAdapter(dl),
+    ).execute_with_setup(tree=node, actor_id=_CASE_ACTOR_URI)
     assert result.status == py_trees.common.Status.SUCCESS
 
     stored = dl.read(_REPORT_URI_2482)
@@ -2952,9 +2967,10 @@ def test_store_proposal_report_falls_back_to_the_wire_dict(caplog):
         proposal_dict=proposal.model_dump(serialize_as_any=True),
     )
     py_trees.blackboard.Blackboard.storage.clear()
-    result = BTBridge(datalayer=dl).execute_with_setup(
-        tree=node, actor_id=_CASE_ACTOR_URI
-    )
+    result = BTBridge(
+        datalayer=dl,
+        sync_port=SyncActivityAdapter(dl),
+    ).execute_with_setup(tree=node, actor_id=_CASE_ACTOR_URI)
     assert result.status == py_trees.common.Status.SUCCESS
     assert isinstance(dl.read(_REPORT_URI_2482), VulnerabilityReport)
 
@@ -3160,6 +3176,7 @@ class TestEP04SenderProposalAtCaseCreation:
             event,
             wire_render_port=As2WireRenderAdapter(),
             trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
         (case,) = [
             c
@@ -3528,6 +3545,7 @@ class TestEP04SenderProposalAtCaseCreation:
             event,
             wire_render_port=As2WireRenderAdapter(),
             trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert result.disposition == HandlerDisposition.APPLIED, result

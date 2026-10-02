@@ -28,6 +28,7 @@ import py_trees
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -37,6 +38,7 @@ from vultron.core.behaviors.call_out.bundles.case_proposal import (
 )
 from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.pending_create_case_activity import (
     PendingCreateCaseActivity,
 )
@@ -50,6 +52,7 @@ from vultron.core.use_cases.received.case_proposal import (
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
+    as_Announce,
     as_Create,
     as_Reject,
 )
@@ -89,6 +92,7 @@ def _run_create_proposal(dl, proposal, make_payload, **use_case_kwargs):
     event = make_payload(activity)
     event = event.model_copy(update={"receiving_actor_id": _CASE_ACTOR_URI})
     use_case_kwargs.setdefault("trigger_activity", TriggerActivityAdapter(dl))
+    use_case_kwargs.setdefault("sync_port", SyncActivityAdapter(dl))
     return CreateCaseProposalReceivedUseCase(
         dl, event, wire_render_port=As2WireRenderAdapter(), **use_case_kwargs
     ).execute()
@@ -122,6 +126,7 @@ class TestCreateCaseProposalReceivedUseCase:
             event,
             wire_render_port=As2WireRenderAdapter(),
             trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         # AC-1: VulnerabilityCase was created
@@ -164,9 +169,23 @@ class TestCreateCaseProposalReceivedUseCase:
             "Expected one Create(VulnerabilityCase) activity"
         )
 
-        # Both activities appear in the outbox
-        outbox = dl.outbox_list()
-        assert len(outbox) == 2, f"Expected 2 outbox items, got {len(outbox)}"
+        # Both activities appear in the outbox, beside the ledger fan-out:
+        # the CASE_MANAGER announces each entry it commits (SYNC-02-003).
+        queued = [dl.read(item) for item in dl.outbox_list()]
+        protocol = [
+            a
+            for a in queued
+            if not (
+                isinstance(a, as_Announce)
+                and isinstance(a.object_, CaseLedgerEntry)
+            )
+        ]
+        assert sorted(type(a).__name__ for a in protocol) == sorted(
+            [type(accept_obj).__name__, type(creates[0]).__name__]
+        ), f"Expected Accept and Create in the outbox, got {protocol!r}"
+        assert len(protocol) < len(queued), (
+            "ledger entries were not fanned out"
+        )
 
     def test_execute_report_linked_to_case(self, make_payload):
         """The report from the proposal is linked to the created case."""
@@ -190,6 +209,7 @@ class TestCreateCaseProposalReceivedUseCase:
             event,
             wire_render_port=As2WireRenderAdapter(),
             trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         case_rows = dl.list_objects("VulnerabilityCase")
@@ -230,6 +250,7 @@ class TestCreateCaseProposalReceivedUseCase:
                 event,
                 wire_render_port=As2WireRenderAdapter(),
                 trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
 
             # The BT runs under the store owner's identity; case creation fires.
@@ -266,6 +287,7 @@ class TestCreateCaseProposalReceivedUseCase:
             event,
             wire_render_port=As2WireRenderAdapter(),
             trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         accept_rows = dl.list_objects("Accept")
@@ -500,7 +522,11 @@ class TestAcceptCaseProposalReceivedUseCase:
         event = make_payload(activity)
         event = event.model_copy(update={"receiving_actor_id": _VENDOR_URI})
 
-        AcceptCaseProposalReceivedUseCase(dl, event).execute()
+        AcceptCaseProposalReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
 
         stored_link = dl.read(VultronReportCaseLink.build_id(report_id))
         assert isinstance(stored_link, VultronReportCaseLink)
@@ -525,7 +551,11 @@ class TestAcceptCaseProposalReceivedUseCase:
         event = event.model_copy(update={"receiving_actor_id": _VENDOR_URI})
 
         # Should not raise
-        AcceptCaseProposalReceivedUseCase(dl, event).execute()
+        AcceptCaseProposalReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
 
     def test_execute_skips_when_no_inner_object_id(self, make_payload):
         """Missing report_id (inner_object_id) logs a warning and returns early."""
@@ -544,7 +574,11 @@ class TestAcceptCaseProposalReceivedUseCase:
         event = event.model_copy(update={"receiving_actor_id": _VENDOR_URI})
 
         # Should not raise even without a valid inner_object_id
-        AcceptCaseProposalReceivedUseCase(dl, event).execute()
+        AcceptCaseProposalReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
 
     def test_execute_uses_store_owner_when_no_receiving_actor_id(
         self, make_payload
@@ -576,7 +610,11 @@ class TestAcceptCaseProposalReceivedUseCase:
         event = make_payload(activity)
         event = event.model_copy(update={"receiving_actor_id": None})
 
-        AcceptCaseProposalReceivedUseCase(dl, event).execute()
+        AcceptCaseProposalReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
 
         stored_link = dl.read(VultronReportCaseLink.build_id(report_id))
         assert isinstance(stored_link, VultronReportCaseLink)
@@ -616,7 +654,11 @@ class TestRejectCaseProposalReceivedUseCase:
         event = make_payload(activity)
         event = event.model_copy(update={"receiving_actor_id": _VENDOR_URI})
 
-        RejectCaseProposalReceivedUseCase(dl, event).execute()
+        RejectCaseProposalReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
 
         stored_link = dl.read(VultronReportCaseLink.build_id(report_id))
         assert isinstance(stored_link, VultronReportCaseLink)
@@ -653,7 +695,11 @@ class TestRejectCaseProposalReceivedUseCase:
         event = make_payload(activity)
         event = event.model_copy(update={"receiving_actor_id": _VENDOR_URI})
 
-        RejectCaseProposalReceivedUseCase(dl, event).execute()
+        RejectCaseProposalReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
 
         stored_link = dl.read(VultronReportCaseLink.build_id(report_id))
         assert isinstance(stored_link, VultronReportCaseLink)
@@ -679,7 +725,11 @@ class TestRejectCaseProposalReceivedUseCase:
         event = event.model_copy(update={"receiving_actor_id": _VENDOR_URI})
 
         # Should not raise even when no VultronReportCaseLink exists
-        RejectCaseProposalReceivedUseCase(dl, event).execute()
+        RejectCaseProposalReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
 
     def test_execute_logs_rejection(self, make_payload, caplog):
         """Rejection is surfaced via a warning-level log message (CP-06-004)."""
@@ -697,7 +747,11 @@ class TestRejectCaseProposalReceivedUseCase:
         event = event.model_copy(update={"receiving_actor_id": _VENDOR_URI})
 
         with caplog.at_level(logging.WARNING, logger="vultron"):
-            RejectCaseProposalReceivedUseCase(dl, event).execute()
+            RejectCaseProposalReceivedUseCase(
+                dl,
+                event,
+                sync_port=SyncActivityAdapter(dl),
+            ).execute()
 
         assert any(
             "reject" in record.message.lower() for record in caplog.records
@@ -733,7 +787,11 @@ class TestRejectCaseProposalReceivedUseCase:
         event = make_payload(activity)
         event = event.model_copy(update={"receiving_actor_id": None})
 
-        RejectCaseProposalReceivedUseCase(dl, event).execute()
+        RejectCaseProposalReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
 
         stored_link = dl.read(VultronReportCaseLink.build_id(report_id))
         assert isinstance(stored_link, VultronReportCaseLink)
@@ -855,7 +913,9 @@ class TestCaseProposalDisposition:
             update={"receiving_actor_id": _CASE_ACTOR_URI, "object_": None}
         )
         result = CreateCaseProposalReceivedUseCase(
-            self._case_actor_dl(), event
+            self._case_actor_dl(),
+            event,
+            sync_port=SyncActivityAdapter(self._case_actor_dl()),
         ).execute()
         assert result.disposition == HandlerDisposition.REFUSED
 
@@ -884,7 +944,11 @@ class TestCaseProposalDisposition:
             update={"receiving_actor_id": _CASE_ACTOR_URI}
         )
         with pytest.raises(VultronWiringError):
-            CreateCaseProposalReceivedUseCase(dl, event).execute()
+            CreateCaseProposalReceivedUseCase(
+                dl,
+                event,
+                sync_port=SyncActivityAdapter(dl),
+            ).execute()
         assert list(dl.list_objects("VulnerabilityCase")) == []
 
     @pytest.mark.spec("HP-01-003")
@@ -893,7 +957,11 @@ class TestCaseProposalDisposition:
         proposal = _make_proposal()
         _seed_vendor_link(dl, proposal)
         event = _vendor_event(make_payload, as_Accept, proposal)
-        result = AcceptCaseProposalReceivedUseCase(dl, event).execute()
+        result = AcceptCaseProposalReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
         assert result.disposition == HandlerDisposition.APPLIED
 
     @pytest.mark.spec("HP-01-003")
@@ -901,7 +969,11 @@ class TestCaseProposalDisposition:
         """No link to record the answer on (a relay): nothing changed."""
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_VENDOR_URI)
         event = _vendor_event(make_payload, as_Accept, _make_proposal())
-        result = AcceptCaseProposalReceivedUseCase(dl, event).execute()
+        result = AcceptCaseProposalReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
         assert result.disposition == HandlerDisposition.SKIPPED
         assert (
             result.reason is not None
@@ -914,7 +986,11 @@ class TestCaseProposalDisposition:
         event = _vendor_event(
             make_payload, as_Accept, "https://example.org/proposals/bare"
         )
-        result = AcceptCaseProposalReceivedUseCase(dl, event).execute()
+        result = AcceptCaseProposalReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
         assert result.disposition == HandlerDisposition.REFUSED
 
     @pytest.mark.spec("HP-01-003")
@@ -923,7 +999,11 @@ class TestCaseProposalDisposition:
         proposal = _make_proposal()
         _seed_vendor_link(dl, proposal)
         event = _vendor_event(make_payload, as_Reject, proposal)
-        result = RejectCaseProposalReceivedUseCase(dl, event).execute()
+        result = RejectCaseProposalReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
         assert result.disposition == HandlerDisposition.APPLIED
 
     @pytest.mark.spec("HP-01-003")
@@ -931,7 +1011,11 @@ class TestCaseProposalDisposition:
         """No link to record the answer on (a relay): nothing changed."""
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_VENDOR_URI)
         event = _vendor_event(make_payload, as_Reject, _make_proposal())
-        result = RejectCaseProposalReceivedUseCase(dl, event).execute()
+        result = RejectCaseProposalReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
         assert result.disposition == HandlerDisposition.SKIPPED
         assert (
             result.reason is not None
@@ -944,7 +1028,11 @@ class TestCaseProposalDisposition:
         event = _vendor_event(
             make_payload, as_Reject, "https://example.org/proposals/bare"
         )
-        result = RejectCaseProposalReceivedUseCase(dl, event).execute()
+        result = RejectCaseProposalReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
         assert result.disposition == HandlerDisposition.REFUSED
 
 
