@@ -48,6 +48,7 @@ receiver can tell whether an entry belongs at the end of the history it already
 holds. The first entry in a
 case names the **genesis hash**, a value derived from the case object itself,
 so the chain is anchored to the case it describes.
+The hash is computed from the case id, its creation time and its owner (`attributed_to`), so a case its owner creates and one the CASE_MANAGER creates from the owner's proposal start from the same anchor ([CLP-08-002](../../reference/specs/protocol.md#clp-08-002), [ADR-0117](../../adr/0117-genesis-hash-is-anchored-to-the-case-owner.md)).
 
 ---
 

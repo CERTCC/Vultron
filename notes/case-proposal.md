@@ -10,6 +10,7 @@ related_specs:
   - specs/case-management.yaml
   - specs/embargo-policy.yaml
   - specs/semantic-extraction.yaml
+  - specs/case-ledger-processing.yaml
 related_notes:
   - notes/activitystreams-semantics.md
   - notes/case-communication-model.md
@@ -18,6 +19,8 @@ related_notes:
   - notes/bt-pitfalls.md
   - notes/call-out-configuration.md
   - notes/demo-scenario-authoring.md
+  - notes/case-ledger-authority.md
+  - notes/datalayer-design.md
 relevant_packages:
   - vultron/wire/as2/vocab/objects
   - vultron/core/models/events
@@ -167,6 +170,12 @@ that was never adjudicated, admitting it through the AC-1 duplicate-reuse path.
 proposal-keyed evidence that replaces it: it exists from before the case does,
 which is what lets the guard recognise a half-built case as this proposal's.
 
+The two decision records name the actor owed the answer `proposer_uri`, and the
+`PendingCreateCaseActivity` marker names the actor owed the `Create`
+`owner_uri` (CS-12-001); both were stored as `vendor_uri` before #4128, and a
+row still carrying that key is refused with a reason naming the store reset
+([datalayer-design](datalayer-design.md) § "Renaming a Stored Field").
+
 **3. "Told them" comes from the record, not the outbox.** `outbox_pop` removes a
 `Reject` on delivery while its stored copy remains, so a delivered refusal is
 indistinguishable from one never queued. Reading the outbox therefore re-emits a
@@ -253,7 +262,10 @@ perform the following natively — no back-fill, no prologue:
 1. Create `VulnerabilityCase` with `attributed_to` = the proposing actor (the
    report receiver, who is the case owner; CP-09-001). The CASE_MANAGER records
    that it *created* the case as the `actor` of `Create(VulnerabilityCase)`, not
-   in `attributed_to`
+   in `attributed_to`. The genesis hash follows `attributed_to` too: the case's
+   own validator computes it from the owner, so the CASE_MANAGER passes none and
+   the case hashes as if the owner had created it (CLP-08-002, ADR-0117; see
+   [case-ledger-authority](case-ledger-authority.md))
 2. Add the report receiver as `CASE_OWNER` participant at `RM.RECEIVED`
 3. Add reporter as participant at `RM.ACCEPTED`
 4. Initialize default embargo

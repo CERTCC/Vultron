@@ -90,7 +90,7 @@ def _build_marker(
     return PendingCreateCaseActivity(
         proposal_id=_PROPOSAL_ID,
         case_actor_id=_CASE_ACTOR_ID,
-        vendor_uri=_VENDOR_URI,
+        owner_uri=_VENDOR_URI,
         create_activity_payload=act.model_dump(by_alias=True),
     )
 
@@ -329,7 +329,7 @@ class TestRetryMultipleMarkers:
         marker_2 = PendingCreateCaseActivity(
             proposal_id=proposal_id_2,
             case_actor_id=_CASE_ACTOR_ID,
-            vendor_uri=_VENDOR_URI,
+            owner_uri=_VENDOR_URI,
             create_activity_payload=activity_2.model_dump(by_alias=True),
         )
         dl.save(marker_1)
@@ -364,7 +364,7 @@ class TestRetryMultipleMarkers:
         marker_b = PendingCreateCaseActivity(
             proposal_id="https://vendor.test/proposals/p-b01",
             case_actor_id=actor_b,
-            vendor_uri=_VENDOR_URI,
+            owner_uri=_VENDOR_URI,
             create_activity_payload=activity_b.model_dump(by_alias=True),
         )
         dl_a.save(marker_a)
@@ -398,7 +398,7 @@ class TestRetryFullScenario:
         marker = PendingCreateCaseActivity(
             proposal_id=_PROPOSAL_ID,
             case_actor_id=_CASE_ACTOR_ID,
-            vendor_uri=_VENDOR_URI,
+            owner_uri=_VENDOR_URI,
             create_activity_payload=activity.model_dump(by_alias=True),
         )
         dl.save(marker)

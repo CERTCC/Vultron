@@ -348,8 +348,7 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
         marker = PendingCreateCaseActivity(
             proposal_id=self._proposal_id,
             case_actor_id=self.actor_id,
-            # Stored field keeps its pre-rename name (#4128).
-            vendor_uri=self._owner_uri,
+            owner_uri=self._owner_uri,
             create_activity_payload=payload,
         )
 

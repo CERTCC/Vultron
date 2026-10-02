@@ -213,15 +213,24 @@ def from_row(
        ``as_Offer``), coerce via ``model_validate`` so that callers always
        receive the most precise type without manual coercion.
     """
-    wire_obj: PersistableModel | None
     try:
         core_cls = core_class_for_row_type(row.type_)
     except KeyError:
-        # No core counterpart (AS2 Activity types) → wire vocabulary path.
-        wire_obj = wire_object_from_row(row)
-        if wire_obj is None:
+        # No core counterpart (AS2 Activity types, CoreRecord bookkeeping
+        # rows) → wire vocabulary path.
+        try:
+            obj = wire_object_from_row(row)
+        except WIRE_ROW_FAILURES as exc:
+            # dl.read() reports the row absent; say why, or an operator sees
+            # only "not found" — e.g. a record stored under a field name a
+            # later rename retired, whose refusal names the store reset (#4128).
+            logger.warning(
+                "Row %r (type %r) failed validation (%s); reading it as absent.",
+                row.id_,
+                row.type_,
+                exc,
+            )
             return None
-        obj = wire_obj
     else:
         try:
             obj = cast(PersistableModel, core_cls.model_validate(row.data))
@@ -250,8 +259,9 @@ def from_row(
                 row.id_,
                 exc,
             )
-            wire_obj = wire_object_from_row(row)
-            if wire_obj is None:
+            try:
+                wire_obj = wire_object_from_row(row)
+            except WIRE_ROW_FAILURES:
                 # Under ADR-0099 detail 3 a paired type's wire class *is* its
                 # core class, so there is no looser fallback left to try.
                 # dl.read() will report the row absent; say why, loudly, or
@@ -272,15 +282,22 @@ def from_row(
     return coerce_to_semantic_class(obj)
 
 
-def wire_object_from_row(
-    row: VultronObjectRecord,
-) -> PersistableModel | None:
-    """Reconstruct *row* through the wire vocabulary, or ``None``."""
+WIRE_ROW_FAILURES: tuple[type[Exception], ...] = (
+    ValueError,
+    ValidationError,
+    VultronValidationError,
+)
+"""What :func:`wire_object_from_row` raises for a row that does not validate."""
+
+
+def wire_object_from_row(row: VultronObjectRecord) -> PersistableModel:
+    """Reconstruct *row* through the wire vocabulary.
+
+    Raises one of :data:`WIRE_ROW_FAILURES` when the stored data does not
+    validate; the caller decides how to report the row absent.
+    """
     rec = Record(id_=row.id_, type_=row.type_, data_=row.data)
-    try:
-        return cast(PersistableModel, record_to_object(rec))
-    except (ValueError, ValidationError, VultronValidationError):
-        return None
+    return cast(PersistableModel, record_to_object(rec))
 
 
 def project_wire_row_to_core(

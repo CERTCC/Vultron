@@ -528,7 +528,7 @@ class TestAnsweredProposalsAreNotReAdjudicated:
                 id_=PendingCreateCaseActivity.build_id(_PROPOSAL_URI),
                 proposal_id=_PROPOSAL_URI,
                 case_actor_id=_CASE_ACTOR_URI,
-                vendor_uri=_VENDOR_URI,
+                owner_uri=_VENDOR_URI,
                 create_activity_payload={},
             )
         )
@@ -606,7 +606,7 @@ class TestDeclineReasonReachesTheProposer:
             CaseProposalDeclineRecord(
                 proposal_id=_PROPOSAL_URI,
                 case_actor_id=_CASE_ACTOR_URI,
-                vendor_uri=_VENDOR_URI,
+                proposer_uri=_VENDOR_URI,
                 reason="proposing actor is not on the admission list",
             )
         )

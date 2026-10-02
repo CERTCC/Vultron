@@ -33,6 +33,7 @@ from vultron.adapters.driven.datalayer_sqlite.hydration import (
     core_class_for_row_type,
 )
 from vultron.adapters.driven.datalayer_sqlite.schema import VultronObjectRecord
+from vultron.adapters.driven.db_record import Record
 from vultron.core.models.actor import VultronOrganization, VultronService
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -255,6 +256,41 @@ def test_saved_core_service_reads_back_as_itself(dl):
     result = dl.read(service.id_)
     assert type(result) is VultronService
     assert result == service
+
+
+@pytest.mark.spec("DL-05-006")
+def test_service_row_that_fails_validation_reads_absent_and_says_why(
+    dl, caplog
+):
+    """A ``"Service"`` row has no unique core class, so it reads through the
+    wire path; when it fails validation it reads absent *and* the reason is
+    logged, as on the core path (#4108, #2232).
+    """
+    service_id = "https://example.org/actors/svc-pre-4027"
+    dl.create(
+        Record(
+            id_=service_id,
+            type_="Service",
+            data_={
+                "id": service_id,
+                "type": "Service",
+                "name": "svc",
+                # A pre-#4027 actor row: the policy stored as a URL reference.
+                "embargoPolicy": "https://example.org/policies/p1",
+            },
+        )
+    )
+
+    with caplog.at_level("WARNING"):
+        assert dl.read(service_id) is None
+
+    warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+    assert len(warnings) == 1
+    message = warnings[0].getMessage()
+    assert repr(service_id) in message
+    assert "'Service'" in message
+    assert "embargoPolicy" in message
+    assert "must be reset" in message
 
 
 @pytest.mark.spec("DL-05-006")
