@@ -168,7 +168,8 @@ Earliest-Expiration First (EP-08)".
 ## Implementation: `InitializeDefaultEmbargoNode`
 
 `InitializeDefaultEmbargoNode` (in `vultron/core/behaviors/case/embargo_tree.py`;
-the leaf nodes it composes live in `vultron/core/behaviors/case/nodes/embargo.py`)
+the leaf nodes it composes live in
+`vultron/core/behaviors/case/nodes/embargo_resolution.py` and `embargo.py`)
 implements the default path by delegating to `EmbargoLifecycle.propose_embargo()`
 followed by an internal accept, landing the case at `EM.ACTIVE` atomically. The
 intermediate `EM.PROPOSED` state is never persisted or externally observable
@@ -224,7 +225,8 @@ What replaced it:
 | Deterministic actor default (EP-04-010) | `actor_default_duration()` (same module) reads the one `embargo_policy` field of the CASE_OWNER's profile (EP-01-001), so there is never a choice among records |
 | Actor default is the CASE_OWNER's own policy (EP-04-003, CP-01-010) | `ResolveEmbargoDurationNode` reads the inline profile on the blackboard (`owner_profile`) and fails unless its id is `case.attributed_to`, which names the CASE_OWNER on every creation path (CM-02-008, CP-09-001) |
 | Distinct blackboard names (EP-04-010) | `actor_default_embargo_duration`, `protocol_default_embargo_duration`, and the resolved `initial_embargo_duration` (duration plus source) |
-| P/X/A refusal before anything is created (EP-04-008) | `CaseNotEmbargoEligibleNode`, the first arm of the `InitializeDefaultEmbargoNode` Selector |
+| Initialization runs once per case (EP-04-012) | `CaseEmbargoAlreadyInitializedNode`, the first arm of the `InitializeDefaultEmbargoNode` Selector — see "Initialization Runs Once Per Case" below |
+| P/X/A refusal before anything is created (EP-04-008) | `CaseNotEmbargoEligibleNode`, the second arm of the `InitializeDefaultEmbargoNode` Selector |
 
 **Whose policy is the actor default.** At creation the case has two actors with
 terms: the CASE_OWNER and the reporter. The CASE_OWNER is the actor that received
@@ -273,18 +275,8 @@ in-memory stores are unaffected. An inbound inline actor carrying a URL-string
 `embargoPolicy` is refused at the parse edge on every activity type, for the
 same reason.
 
-**Initialization runs once per case.** `InitializeDefaultEmbargoNode`'s first
-arm (`CaseEmbargoAlreadyInitializedNode`) succeeds when the case already
-carries an active embargo. Without it a second `Create(CaseProposal)` for the
-same report — which the CaseActor answers by reusing the case (CP-05-006) —
-re-ran the creation arm: the default path stored an orphan `EmbargoEvent`, and
-the contested path registered the losing candidate as a *second* pending
-revision, one per delivery. The vendor side stopped feeding it duplicates at
-the same time: `CheckProposalAlreadySentForReport` now treats an *answered*
-`ReportCaseLink` (case linked) as "already proposed", not only a pending one,
-so a re-delivered Offer no longer re-proposes (#3393).
-
-The refusal arm is a *negative* condition — SUCCESS means "not eligible, stop" —
+The P/X/A refusal arm (`CaseNotEmbargoEligibleNode`) is a *negative*
+condition — SUCCESS means "not eligible, stop" —
 rather than a Success fallback after the creation sequence. A fallback would turn
 any failure in creation into a silent "no embargo"; with the refusal arm first,
 creation failures still propagate. The refusal arm itself returns FAILURE only
@@ -374,7 +366,16 @@ on the report ("a proposal for the same report"); the rationale is the lost-repl
 recovery, and amending the statement's key is #3977's question.
 
 So the subtree needs a guard that answers "did creation-time initialization
-already run on this case?", and EP-04-012 fixes what the evidence is:
+already run on this case?" — `CaseEmbargoAlreadyInitializedNode`, the first arm
+of `InitializeDefaultEmbargoNode`. Without it the creation arm re-ran on the
+reused case: the default path stored an orphan `EmbargoEvent`, and the contested
+path registered the losing candidate as a *second* pending revision, one per
+delivery (#3393). The vendor side stopped feeding it duplicates at the same
+time: `CheckProposalAlreadySentForReport` treats an *answered* `ReportCaseLink`
+(case linked) as "already proposed", not only a pending one, so a re-delivered
+Offer no longer re-proposes.
+
+EP-04-012 fixes what the guard's evidence is:
 
 | Evidence | Reads an exited embargo as | Reads a half-built case as |
 |---|---|---|
