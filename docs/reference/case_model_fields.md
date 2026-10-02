@@ -32,7 +32,7 @@ Defined in `vultron/core/models/case.py`.
 | `pending_embargo_proposal_index` | Map: embargo URI → the proposal activity that offered it |
 | `recommendation_recommender_index` | Map: actor-recommendation URI → the participant who made it |
 | `case_activity` | Activity IDs recorded against this case (not the case ledger — see `genesis_hash`) |
-| `genesis_hash` | SHA-256 hash binding the ledger to this case's origin identity |
+| `genesis_hash` | SHA-256 hash binding the ledger to this case's origin identity: the case id, creation time and owner (`attributed_to`), computed once when the case is created and carried unchanged by every replica ([CLP-08-002](specs/protocol.md#clp-08-002)) |
 | `parent_cases`, `child_cases`, `sibling_cases` | URIs of related cases, held as IDs only (ADR-0017); no protocol flow sets them yet |
 
 ## `CaseActor`
