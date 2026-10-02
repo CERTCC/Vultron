@@ -17,10 +17,10 @@
 
 The first steps of ``InitializeDefaultEmbargoNode``: recognise a case whose
 EM state has left ``NONE`` — creation-time initialization already ran — so a
-repeated proposal initializes nothing twice (EP-04-012), decide whether a case may receive an embargo at all
-(EP-04-008), then resolve the duration it is created with (EP-04-005 through
-EP-04-007, EP-04-010).  The remaining leaf nodes live in the sibling
-``embargo.py``.
+repeated proposal initializes nothing twice (EP-04-012), decide whether a
+case may receive an embargo at all (EP-04-008), then resolve the duration it
+is created with (EP-04-005 through EP-04-007, EP-04-010).  The remaining
+leaf nodes live in the sibling ``embargo.py``.
 
 Per specs/embargo-policy.yaml EP-04 and ADR-0096.
 """

@@ -276,8 +276,8 @@ in-memory stores are unaffected. An inbound inline actor carrying a URL-string
 same reason.
 
 The P/X/A refusal arm (`CaseNotEmbargoEligibleNode`) is a *negative*
-condition — SUCCESS means "not eligible, stop" —
-rather than a Success fallback after the creation sequence. A fallback would turn
+condition — SUCCESS means "not eligible, stop" — rather than a Success
+fallback after the creation sequence. A fallback would turn
 any failure in creation into a silent "no embargo"; with the refusal arm first,
 creation failures still propagate. The refusal arm itself returns FAILURE only
 for "eligible": a missing case or unreadable store *raises*, because FAILURE

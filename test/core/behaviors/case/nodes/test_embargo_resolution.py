@@ -724,6 +724,23 @@ class TestCaseEmbargoAlreadyInitializedNode:
             for record in caplog.records
         )
 
+    def test_missing_case_raises_rather_than_admitting(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """The real ``ReadEmStateNode`` returns FAILURE for an absent case;
+        the guard turns it into a raise, which ``BTBridge`` reports."""
+        absent = "https://example.org/cases/absent"
+        result = bt_scenario.run(
+            CaseEmbargoAlreadyInitializedNode(),
+            actor_id=ACTOR_ID,
+            case_id=absent,
+        )
+
+        assert result.status == Status.FAILURE
+        assert "BtNodePreconditionError" in result.feedback_message
+        assert "cannot read the EM state" in result.feedback_message
+        assert absent in result.feedback_message
+
     def test_missing_datalayer_raises_rather_than_admitting(self) -> None:
         node = CaseEmbargoAlreadyInitializedNode()
         assert node.datalayer is None
