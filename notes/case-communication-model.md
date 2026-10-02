@@ -32,11 +32,14 @@ related_notes:
   - notes/use-case-protocol.md
   - notes/protocol-asks.md
   - notes/case-joining.md
+  - notes/received-status-authorization.md
 relevant_packages:
   - vultron/core/use_cases/triggers
   - vultron/core/use_cases/received
   - vultron/core/behaviors/case
   - vultron/core/behaviors/note
+  - vultron/core/behaviors/embargo
+  - vultron/core/behaviors/sync
 ---
 
 # Case Communication Model
@@ -378,6 +381,44 @@ that receives a peer's proposal *directly* is seeing a misrouting: it stores the
 activity and writes nothing (RSH-08-003). Neither path gets parse-and-respond
 handling. The protocol interactions the behavioural specs define (EV/EC/EJ)
 still happen — relayed — and the ledger records them; it does not replace them.
+
+### What the participant and its replica do (built in #3915)
+
+The participant side has two halves, and only the first runs on receipt:
+
+- **The Invite addressed to it.** The participant stores the Invite and the
+  `EmbargoEvent` it carries, then answers `Accept` or `Reject` to the
+  CASE_MANAGER through its response decision (EMB-15). It writes no EM and no
+  consent state (EP-09-003). `CanAnswerEmbargoInviteNode` gates the answer:
+  only the Invite's sole recipient answers (EP-09-010), and only once it holds
+  the case and the embargo, since the answer goes to the case's CASE_MANAGER
+  and carries the Invite whole; an invitee missing either keeps the Invite and
+  logs a WARNING. `SendEmbargoInviteAnswerNode` fails by raising, so a broken
+  accept never falls through to the reject arm.
+- **The ledger entries.** Every state change arrives as an
+  `Announce(CaseLedgerEntry)` and is applied by one slot of
+  `AnnounceLogEntryReceivedBT`, each through `EmbargoLifecycle` in `OBSERVED`
+  mode (EP-09-007, RSH-08-004):
+
+| Entry (`event_type`) | Slot | Replica effect |
+|---|---|---|
+| proposal (`invite_to_embargo_on_case`, not a relay) | `EmbargoProposal` | stores B, `propose_embargo` (→ `PROPOSED`/`REVISE`), index recorded, proposer's consent |
+| relayed Invite (same type, `actor` the CASE_MANAGER, `attributedTo` someone else) | `EmbargoInviteRelay` | invitee PEC `INVITE` where legal, RSVP deadline stored |
+| `accept_invite_to_embargo_on_case` | `EmbargoAcceptance` | the answerer's consent; the owner's Accept activates B |
+| `reject_invite_to_embargo_on_case` | `EmbargoRejection` | the answerer declines; the owner's Reject returns EM to A and forgets B |
+| `remove_embargo_event_from_case` | teardown | unchanged |
+
+The proposal and a relayed Invite share one event type and are told apart by
+`is_relayed_embargo_invite()`: an entry is a relay only when its `actor` is the
+case's CASE_MANAGER and `attributedTo` names somebody else, so a sender that
+puts a third party in `attributedTo` is still read as a proposal (PCR-08-010).
+Each apply node stores the `EmbargoEvent` from the entry's snapshot before it
+calls `EmbargoLifecycle`, so `active_embargo` never names a record the replica
+cannot read (EMB-18-003). A replica without the case skips; one with the case
+that cannot reconstruct the embargo fails, which blocks persisting the entry
+(SYNC-12-001). `test/architecture/test_embargo_relay_entries_are_replayed.py`
+is the ratchet, and `test_embargo_relay_replay.py` drives the cycle across
+per-actor stores (TB-06-007).
 
 The owner MAY decide without waiting for answers and SHOULD wait for some to
 gauge consensus; the protocol defines no quorum (EP-09-005, EP-09-006). The

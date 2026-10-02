@@ -178,14 +178,15 @@ unconditionally therefore faults on precisely the participants a revision most
 concerns. The `INVITE` write belongs to the CASE_MANAGER's commit of each Invite
 emission — built in #3913 as `RelayEmbargoInviteToEachNode._invite_where_legal()`
 (`vultron/core/behaviors/embargo/nodes/relay.py`) — and to the replay node that
-reconstructs it on replicas (#3915); *that* is where the state check lives. The
-check is `CaseParticipant.apply_pec_transition_if_legal()`: the one sanctioned
-"apply where legal" shape, which asks `accepts_pec_trigger()` first and then
-routes through `apply_pec_transition()`, so an illegal trigger is a recorded
-no-op rather than a fault and every other caller stays fail-closed.
-`UpdateParticipantEmbargoPecNode(where_legal=True)` — the participant replica's
-on-receipt write, retained until #3915 gates it off (RSH-08-004) — uses the same
-method.
+reconstructs it on replicas, `ApplyEmbargoInviteFromLedgerNode`
+(`vultron/core/behaviors/embargo/nodes/relay_effect.py`, #3915); *that* is
+where the state check lives. The check is
+`CaseParticipant.apply_pec_transition_if_legal()`: the one sanctioned "apply
+where legal" shape, which asks `accepts_pec_trigger()` first and then routes
+through `apply_pec_transition()`, so an illegal trigger is a recorded no-op
+rather than a fault and every other caller stays fail-closed. Both stores reach
+it through `EmbargoLifecycle.record_embargo_invite()`, and the participant
+replica writes no consent on receipt at all (EP-09-003).
 
 Two further rules from the same decision matter to consent:
 
@@ -440,10 +441,9 @@ enforcement cannot fire and nothing raises: the invitee has no deadline to lapse
 against, and the record that *did* receive one is not the one being checked.
 
 The failure is silent in both directions, which is why it survived for a
-release: `OptionalLookupParticipantNode` is lenient by design and
-`UpdateParticipantEmbargoPecNode` returns SUCCESS when no participant is on the
-blackboard. CM-28-003 makes the CASE_MANAGER the enforcement authority for invite
-expiry, so deriving the invitee from the receiving actor puts the deadline on
+release: the participant lookup on that path was lenient by design and the PEC
+write returned SUCCESS when no participant was found. CM-28-003 makes the
+CASE_MANAGER the enforcement authority for invite expiry, so deriving the invitee from the receiving actor puts the deadline on
 the enforcer's own record and disarms exactly the actor responsible for acting
 on it.
 
