@@ -30,12 +30,13 @@ import logging
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
+from vultron.core.behaviors.case.report_author import report_author_id
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.report import VulnerabilityReport
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
+from vultron.errors import BtNodePreconditionError, VultronNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -121,8 +122,9 @@ class SeedReporterSignatoryNode(DataLayerActionWithPorts):
 
     def _resolve_reporter_uri(self, report_id: str) -> str | None:
         assert self.datalayer is not None
-        raw_report = self.datalayer.read(report_id)
-        if not isinstance(raw_report, VulnerabilityReport):
+        try:
+            return report_author_id(self.datalayer, report_id)
+        except VultronNotFoundError:
             logger.warning(
                 "%s: report '%s' not found, so the reporter cannot be"
                 " identified — skipping reporter SIGNATORY seed"
@@ -133,17 +135,14 @@ class SeedReporterSignatoryNode(DataLayerActionWithPorts):
                 self.name,
                 report_id,
             )
-            return None
-        reporter_uri = getattr(raw_report, "attributed_to", None)
-        if not isinstance(reporter_uri, str) or not reporter_uri:
+        except BtNodePreconditionError:
             logger.warning(
                 "%s: report '%s' has no attributed_to — skipping reporter"
                 " SIGNATORY seed (best-effort)",
                 self.name,
                 report_id,
             )
-            return None
-        return reporter_uri
+        return None
 
     def _resolve_participant(
         self, case_id: str, reporter_uri: str

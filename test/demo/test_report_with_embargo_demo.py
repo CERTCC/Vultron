@@ -13,7 +13,7 @@
 
 """The report-with-embargo exchange demo: the negotiated path (EP-04-003).
 
-Each run ends at a different creation-time outcome, so each is asserted on its
+Each run ends at a different settled outcome, so each is asserted on its
 own rather than only on "no ERROR SUMMARY" — a demo whose checks silently
 stopped running would otherwise still pass (#2241).
 """
@@ -58,6 +58,7 @@ def demo_env(client):
 @pytest.mark.spec("EP-04-006")
 @pytest.mark.spec("EP-04-007")
 @pytest.mark.spec("EP-04-009")
+@pytest.mark.spec("EP-04-011")
 @pytest.mark.parametrize(
     "demo_fn, verified",
     [
@@ -71,8 +72,8 @@ def demo_env(client):
         (
             demo.demo_reporter_proposes_longer,
             [
-                "Receiver's default is the active embargo",
-                "Shortest-wins: active",
+                "Reporter's terms are the active embargo",
+                "Accepted revision settled the case",
             ],
         ),
         (

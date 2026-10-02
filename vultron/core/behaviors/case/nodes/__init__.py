@@ -91,6 +91,10 @@ from vultron.core.behaviors.case.nodes.embargo_resolution import (
     CaseNotEmbargoEligibleNode,
     ResolveEmbargoDurationNode,
 )
+
+# RelayCreationTimeRevisionNode is imported from its own module,
+# ``embargo_revision_relay``: re-exporting it here closes an import cycle
+# through the embargo relay emit, which imports the case role gates.
 from vultron.core.behaviors.case.nodes.embargo_revision import (
     RegisterLongerProposalAsRevisionNode,
 )
