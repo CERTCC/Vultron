@@ -10,6 +10,9 @@ import json
 import logging
 from typing import Any, cast
 
+from vultron.wire.as2.case_proposal_envelope import (
+    refuse_malformed_case_proposal_envelope,
+)
 from vultron.wire.as2.errors import (
     VultronParseError,
     VultronParseMissingPublishedError,
@@ -122,6 +125,8 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
         VultronParseUnknownTypeError: If the `type` value is not in the vocabulary.
         VultronParseValidationError: If Pydantic validation fails, including
             when a recognised inline object fails its own class's validation,
+            if a ``Create(CaseProposal)`` does not carry its proposer's inline
+            actor profile (CP-01-010),
             or if the body cannot be re-serialized as strict JSON to seal it
             as received evidence (VM-08-002).
     """
@@ -224,6 +229,10 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
         raise
     except Exception as exc:
         raise VultronParseValidationError(str(exc)) from exc
+
+    # A schema-valid envelope can still be one this receiver cannot act on;
+    # the Create(CaseProposal) checks are the CP-01-010 refusals.
+    refuse_malformed_case_proposal_envelope(activity)
 
     activity.seal_received_evidence(evidence_json)
     return activity

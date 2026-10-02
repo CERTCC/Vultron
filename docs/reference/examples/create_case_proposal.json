@@ -1,26 +1,45 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Create",
-  "id": "urn:uuid:df2aaf2a-f749-48c3-84f2-49c01676a6cc",
-  "name": "https://vultron.example/organizations/vendorco Create urn:uuid:ea080f31-9351-4d2c-8094-10a8a1c1b6d3",
+  "id": "urn:uuid:adf8e223-4c9d-4d49-9748-21861f6188bb",
+  "name": "VendorCo Create urn:uuid:210d4319-618e-4300-835a-836f30f6db3c",
   "to": [
     "https://example.org/case-actors/alpha"
   ],
-  "actor": "https://vultron.example/organizations/vendorco",
+  "actor": {
+    "id": "https://vultron.example/organizations/vendorco",
+    "type": "Organization",
+    "name": "VendorCo",
+    "published": "2026-10-01T21:21:49+00:00",
+    "updated": "2026-10-01T21:21:49+00:00",
+    "inbox": "https://vultron.example/organizations/vendorco/inbox",
+    "outbox": "https://vultron.example/organizations/vendorco/outbox",
+    "embargoPolicy": {
+      "id": "https://vultron.example/organizations/vendorco/embargo-policy",
+      "type": "EmbargoPolicy",
+      "published": "2026-10-01T21:21:49+00:00",
+      "updated": "2026-10-01T21:21:49+00:00",
+      "actorId": "https://vultron.example/organizations/vendorco",
+      "inbox": "https://vultron.example/organizations/vendorco/inbox",
+      "preferredDuration": "P45D",
+      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+    },
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+  },
   "object": {
     "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "type": "CaseProposal",
-    "id": "urn:uuid:ea080f31-9351-4d2c-8094-10a8a1c1b6d3",
-    "published": "2026-09-30T16:00:59+00:00",
-    "updated": "2026-09-30T16:00:59+00:00",
+    "id": "urn:uuid:210d4319-618e-4300-835a-836f30f6db3c",
+    "published": "2026-10-01T21:21:49+00:00",
+    "updated": "2026-10-01T21:21:49+00:00",
     "summary": "Request case initialization for a new vulnerability.",
     "attributedTo": "https://vultron.example/organizations/vendorco",
     "object": {
-      "id": "https://demo.vultron.local/VulnerabilityReport/fa9cabf8-70ff-4eb5-9182-8c210f77a57b",
+      "id": "https://demo.vultron.local/VulnerabilityReport/0de6c460-c7f1-4ff2-a760-e9f81a414840",
       "type": "VulnerabilityReport",
       "name": "FDR-8675309",
-      "published": "2026-09-30T16:00:59+00:00",
-      "updated": "2026-09-30T16:00:59+00:00",
+      "published": "2026-10-01T21:21:49+00:00",
+      "updated": "2026-10-01T21:21:49+00:00",
       "content": "I found a vulnerability!",
       "attributedTo": "https://vultron.example/users/finndervul",
       "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"

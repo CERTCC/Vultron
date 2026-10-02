@@ -54,14 +54,13 @@ def resolve_case_owner_id(
 ) -> str | None:
     """Return the actor ID of the CASE_OWNER participant, or None.
 
-    ``VulnerabilityCase.attributed_to`` is *not* a substitute here.  In the
-    Case Owner's own store the two agree (CM-02-008), but in the CaseActor's
-    store ``attributed_to`` names the **CaseActor** — it authored that case
-    (CM-22-001, CP-05-003, ADR-0041/ADR-0023).  Reading ``attributed_to`` there
-    and calling the result "the Case Owner" addresses the CaseActor's own
-    messages to itself, which is how the fcvcv ADR-0026 chain stalled: the
-    ``Offer(CaseParticipant)`` never reached the owner, so
-    ``accept-actor-recommendation`` had nothing to accept and returned 422.
+    ``VulnerabilityCase.attributed_to`` is *not* a substitute here.  On every
+    creation path the two agree at creation (CM-02-008, CP-09-001), but a
+    store can hold a case whose ``attributed_to`` names the **CaseActor**.
+    Reading ``attributed_to`` there and calling the result "the Case Owner"
+    addresses the CaseActor's own messages to itself, which stalls the fcvcv
+    ADR-0026 chain: the ``Offer(CaseParticipant)`` never reaches the owner, so
+    ``accept-actor-recommendation`` has nothing to accept and returns 422.
 
     Role membership is the authoritative record of ownership: CM-21-002 keeps
     ``attributed_to`` in sync with it precisely *because* role-gated nodes

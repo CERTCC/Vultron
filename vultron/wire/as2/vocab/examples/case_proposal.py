@@ -18,6 +18,10 @@ and ``Reject(as_CaseProposal)`` activities as specified in ADR-0023 and
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from datetime import timedelta
+
+from vultron.core.models.actor import VultronOrganization
+from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Create,
@@ -52,15 +56,36 @@ def make_case_proposal() -> as_CaseProposal:
     )
 
 
+def vendor_profile() -> VultronOrganization:
+    """The vendor's full actor profile, with its published embargo policy.
+
+    ``Create(as_CaseProposal)`` carries this inline as its ``actor``: it is
+    where the case-actor service reads the Case Owner's actor default from
+    (EP-01-001, CP-01-010).
+    """
+    return VultronOrganization(
+        id_=_VENDOR.id_,
+        name=_VENDOR.name,
+        embargo_policy=EmbargoPolicy(
+            id_=EmbargoPolicy.build_id(_VENDOR.id_),
+            actor_id=_VENDOR.id_,
+            inbox=f"{_VENDOR.id_}/inbox",
+            preferred_duration=timedelta(days=45),
+        ),
+    )
+
+
 def create_case_proposal() -> as_Create:
     """Build ``Create(as_CaseProposal)`` — CP-03-001.
 
     Sent by the vendor actor to the case-actor service's inbox to request
-    case initialization (CP-04-001).
+    case initialization (CP-04-001).  The ``actor`` is the vendor's full
+    profile inline, not its URI, so its embargo policy travels with the
+    proposal (CP-01-010).
     """
     proposal = make_case_proposal()
     return as_Create(
-        actor=_VENDOR.id_,
+        actor=vendor_profile(),
         object_=proposal,
         to=[_CASE_ACTOR_URI],
     )

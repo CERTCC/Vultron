@@ -33,8 +33,13 @@ from vultron.core.behaviors.helpers import (
     DataLayerAction,
     DataLayerActionWithPorts,
 )
-from vultron.core.models._helpers import project_wire_snapshot_to_core
+from vultron.core.models._helpers import (
+    _new_urn,
+    now_utc,
+    project_wire_snapshot_to_core,
+)
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger import compute_genesis_hash
 from vultron.core.models.report import VulnerabilityReport
 from vultron.errors import VultronAlreadyExistsError
 
@@ -64,17 +69,36 @@ class LoadExistingCaseNode(RequireCaseForReport):
 class CreateCaseFromProposalNode(DataLayerActionWithPorts):
     """Create a VulnerabilityCase from the proposal and write case_id to blackboard.
 
-    The case-actor service is the ``attributed_to`` author of the new case,
-    preserving AS2 "I created this" semantics (CP-05-003, ADR-0023).
+    The new case is attributed to the **proposing actor** — the report
+    receiver, who becomes the CASE_OWNER — never to the CASE_MANAGER that
+    creates it (CP-09-001, CM-22-001, CM-02-008).  ``attributed_to`` is the
+    case's owner field: the update gate, embargo consent and answers, and
+    teardown authorization all read it (CM-13-001), and ownership transfer
+    rewrites it (CM-21-002), so naming the CASE_MANAGER there would make
+    every one of those checks treat it as the owner.  The CASE_MANAGER's
+    authorship is carried where AS2 puts it instead: it is the ``actor`` of
+    the ``Create(VulnerabilityCase)`` it emits (CP-05-003).
+
+    *owner_id* is the actor that sent the ``Create(as_CaseProposal)``, the one
+    ``AddVendorOwnerParticipantNode`` records as CASE_OWNER, so the owner field
+    and the CASE_OWNER participant cannot name different actors.  The proposal's
+    ``attributed_to`` names the same actor (CP-01-010).
+
+    The genesis hash is bound to the CaseActor that creates the case, not to
+    its owner (CLP-08-002).  ``VulnerabilityCase`` would otherwise derive it
+    from ``attributed_to``, so it is computed here from the executing actor and
+    passed in.
     """
 
     def __init__(
         self,
         report_id: str | None,
+        owner_id: str,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._report_id = report_id
+        self._owner_id = owner_id
 
     OUTPUT_PORTS: dict[str, PortInformation] = {
         "case_id": PortInformation(data_type=str, required=True),
@@ -87,10 +111,20 @@ class CreateCaseFromProposalNode(DataLayerActionWithPorts):
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
-        assert self.datalayer is not None
-        assert self.actor_id is not None
+        assert self.datalayer is not None and self.actor_id is not None
 
-        case = VulnerabilityCase(attributed_to=self.actor_id)
+        case_id = _new_urn()
+        published = now_utc()
+        case = VulnerabilityCase(
+            id_=case_id,
+            published=published,
+            attributed_to=self._owner_id,
+            genesis_hash=compute_genesis_hash(
+                case_id=case_id,
+                created_at=published,
+                case_actor_id=self.actor_id,
+            ),
+        )
         if self._report_id is not None:
             case.vulnerability_reports.append(self._report_id)
 
@@ -103,9 +137,10 @@ class CreateCaseFromProposalNode(DataLayerActionWithPorts):
 
         self._set_output("case_id", case.id_)
         logger.info(
-            "%s: Created VulnerabilityCase '%s' from proposal",
+            "%s: Created VulnerabilityCase '%s' from proposal, owned by '%s'",
             self.name,
             case.id_,
+            self._owner_id,
         )
         return Status.SUCCESS
 
