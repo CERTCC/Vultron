@@ -188,7 +188,7 @@ a draft-review-submit pipeline is Production Collapse 4 (ADR-0030 / BT-20-004).
 
 **Output schema**: `PublicationIntentDecision(publish_exploit, publish_fix,
 publish_report, rationale)` (Pydantic BaseModel) in
-`vultron/core/behaviors/report/publication_tree.py`
+`vultron/core/behaviors/report/publication_intent.py`
 
 **Spec requirements**: BT-20-002 (see
 `specs/behavior-tree-integration.yaml`) and ADR-0028

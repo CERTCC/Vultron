@@ -149,7 +149,7 @@ def link_report_case_links(dl: CasePersistence, case) -> None:
 
         dl.save(link.model_copy(update={"case_id": case.id_}))
         logger.info(
-            "AnnounceVulnerabilityCase: linked report '%s' to case '%s'",
+            "link_report_case_links: linked report '%s' to case '%s'",
             report_id,
             case.id_,
         )
