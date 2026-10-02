@@ -578,7 +578,8 @@ groups:
       The pending revision that EP-04-003 registers at case creation MUST follow the same
       relay as any other revision proposal (EP-09). The CASE_MANAGER MUST propose it on behalf
       of the party whose terms lost the shortest-wins comparison, with that party in
-      `attributedTo`, MUST commit it as a proposal entry, MUST record it in the open-proposal
+      `attributedTo`, MUST commit it as a proposal entry — the committed relayed Invite is that
+      entry, and no separate proposal entry is committed — MUST record it in the open-proposal
       record so that the owner's default selection (EP-08-002) can reach it, and MUST relay it
       as an `Invite(EmbargoEvent)` to the other party. The party whose terms lost is the
       proposer and is not invited (EP-09-002).
@@ -589,8 +590,7 @@ groups:
       revision is a revision like any other; the only thing special about it is who proposes
       it, and CM-24 already covers the CASE_MANAGER proposing on a participant's behalf.
     note: >-
-      Before this rule `propose_embargo` appended the loser to `proposed_embargoes` but never
-      to `pending_embargo_proposal_index`. Which party lost is known at registration:
+      Which party lost is known at registration:
       `initial_embargo_duration.source` on the blackboard names whether the sender's proposal
       or the actor default became active. When
       the reporter's longer terms lost, the reporter is the proposer and the case owner is
@@ -1211,32 +1211,36 @@ groups:
     statement: >-
       After committing a revision proposal, the CASE_MANAGER MUST emit an
       `Invite(EmbargoEvent)` for the revision to every case participant whose RM state
-      is not `RM.CLOSED`, except the proposer, with `actor` set to the CASE_MANAGER's ID
-      and `attributedTo` set to the proposer's ID (CM-24-001, CM-24-002), and MUST
-      commit each emission as a ledger entry. The CASE_MANAGER MUST NOT invite the
-      proposer.
+      is not `RM.CLOSED`, except the proposer and except the executing CASE_MANAGER
+      itself, with `actor` set to the CASE_MANAGER's ID and `attributedTo` set to the
+      proposer's ID (CM-24-001, CM-24-002), and MUST commit each emission as a ledger
+      entry. The CASE_MANAGER MUST NOT invite the proposer or itself. The
+      CASE_MANAGER role carries no embargo stake of its own: consent MUST NOT be
+      solicited or recorded for the role, and when the actor holding it also holds
+      `CVDRole.CASE_OWNER`, that actor's consent is its decision as owner (EP-09-005).
     rationale: >-
-      Participants answer an Invite addressed to them, never a proposal they saw in the
-      ledger (EP-09-003), so without the relay nobody but the proposer would ever be asked.
-      The relay is the case-Invite relay (PCR-08-007) applied to embargoes. Proposing terms
-      is consenting to them (ADR-0093), so an Invite to the proposer asks a question already
-      answered, and the response call-out could let a proposer decline its own open proposal,
-      a state the protocol has no name for.
+      Participants answer only an Invite addressed to them (EP-09-003), so without the
+      relay nobody but the proposer would be asked. Proposing terms is consenting to
+      them (ADR-0093), so the proposer is not invited. The CASE_MANAGER is the Case
+      Owner's delegate that routes communications and manages ledger entries, with no
+      view of its own on the embargo, and a container never mails an actor it hosts
+      (ADR-0109).
     note: >-
       Excluding the proposer costs one filter: the proposer's identity is on the
       activity just adjudicated. The emit runs on the container that hosts the
       CASE_MANAGER and is committed in the emitting tree (CM-24-004, ADR-0109). Every
-      participant on the case whose RM state is not `RM.CLOSED` is a recipient, whatever
-      its consent state and whether or not it has joined: an embargo Invite is not case
-      content and reaches an inert participant (CM-10-007). A participant not yet bound
-      is invited into the revised terms, a signatory is asked whether it accepts them
-      (EP-09-004).
+      other participant on the case whose RM state is not `RM.CLOSED` is a recipient,
+      whatever its consent state and whether or not it has joined: an embargo Invite is
+      not case content and reaches an inert participant (CM-10-007). A participant not
+      yet bound is invited into the revised terms, a signatory is asked whether it
+      accepts them (EP-09-004).
     verification: >-
-      A test runs the received Invite path as the CASE_MANAGER on a case with the proposer and
-      two other participants and asserts the CASE_MANAGER's outbox holds one Invite per
-      non-proposer participant, each with `actor` the CASE_MANAGER and `attributedTo` the
-      proposer, and none addressed to the proposer. Until the implementation lands the test is
-      a strict `xfail` naming its tracking issue.
+      `test/core/behaviors/embargo/nodes/test_relay.py::TestCollectEmbargoInviteRecipientsNode::test_excludes_the_proposer_and_the_manager_itself`
+      and `test/core/use_cases/received/test_embargo_revision_relay.py::test_case_manager_invites_every_participant_except_the_proposer`
+      run the relay as the CASE_MANAGER and assert one Invite per participant other than the
+      proposer and the manager, each with `actor` the CASE_MANAGER and `attributedTo` the
+      proposer; `TestRelayEmbargoInviteToEachNode::test_each_emission_is_committed_as_a_canonical_entry` in the same node test file asserts each emission
+      is committed.
     relationships:
     - rel_type: refines
       spec_id: CM-24-001

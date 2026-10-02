@@ -405,12 +405,23 @@ groups:
   - id: ARCH-12-006
     priority: MUST
     kind: project
-    statement: Actor `inbox` and `outbox` fields MUST be typed `str | None` on the core actor types, carrying only
-      the URI of the inbox or outbox endpoint. AS2 `OrderedCollection` wrapping is a wire-only serialization concern and MUST
-      NOT appear in core-branch actor types.
-    rationale: Domain logic only ever needs to route to the inbox URI; the full collection shape is an AS2 protocol concern,
-      not a domain concern. This resolves the most structurally irreconcilable field-type conflict that blocked the original
-      ARCH-12 from_core()/to_core() approach.
+    statement: >-
+      Actor `inbox` and `outbox` fields MUST be typed `str` on the core actor types,
+      carrying only the URI of the inbox or outbox endpoint, and MUST never be `None` or
+      empty: an absent, `None` or blank endpoint MUST be derived from the actor's `id_`.
+      AS2 `OrderedCollection` wrapping is a wire-only serialization concern and MUST NOT
+      appear in core-branch actor types.
+    rationale: >-
+      Domain logic only ever needs to route to the inbox URI; the full collection shape
+      is an AS2 protocol concern, not a domain concern. ActivityPub requires every actor
+      to have both endpoints, so an actor without one is not a valid actor, and deriving
+      the endpoint from the id keeps the field total without a `None` check at every
+      route.
+    verification: >-
+      `test/wire/as2/vocab/base/test_actor_endpoints.py::test_core_actor_reduces_every_arrival_shape_to_the_url`
+      asserts every arrival shape of an endpoint reduces to its URI on the core actor,
+      and `test_core_actor_never_holds_an_empty_endpoint` in the same file asserts an
+      absent, `None` or blank endpoint is derived from the actor id.
   - id: ARCH-12-007
     priority: MUST
     kind: project
@@ -1333,6 +1344,35 @@ groups:
       `CoreObject` subclass serializes only AS2 property names — no Python snake_case field names reach the wire.
     adr:
     - ADR-0099
+  - id: ARCH-23-007
+    priority: MUST
+    kind: project
+    statement: >-
+      A derived actor endpoint collection — an actor's `inbox` or `outbox`
+      `OrderedCollection` built from a bare URI or from the actor's `id` — MUST carry no
+      `published` or `updated` timestamp. A timestamp that arrives on an inbound endpoint
+      collection MUST be carried as received.
+    rationale: >-
+      A derived endpoint is an address, not an object this process authored, so it has
+      no creation time to state (ADR-0103 stamps what this process authors and leaves an
+      inbound omission absent; a derived address is neither). Stamping it from the clock
+      made a stored actor read back unequal to itself whenever a wall-clock second passed
+      between write and read, because the core actor keeps only the URI (ARCH-12-006) and
+      each read minted a new stamp (#3732).
+    verification: >-
+      In `test/wire/as2/vocab/base/test_actor_endpoints.py`,
+      `test_endpoint_without_arrived_stamp_carries_no_clock_stamp` and
+      `test_constructed_actor_endpoints_carry_no_clock_stamp` assert a derived endpoint
+      carries no stamp, `test_endpoint_collection_keeps_the_time_it_arrived_with` asserts
+      an arrived stamp is carried, and `test_actor_round_trips_across_a_clock_tick`
+      asserts a stored actor round-trips across a clock tick.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-23-003
+    - rel_type: depends_on
+      spec_id: ARCH-12-006
+    adr:
+    - ADR-0103
 - id: ARCH-24
   title: Case-Authority Determination
   specs:

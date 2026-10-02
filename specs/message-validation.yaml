@@ -283,8 +283,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A stub object MUST carry at minimum an `id` field (full URI) and a `type` field;
-      it MAY carry a `summary` field for human-readable context. The stub form is
+      A stub object MUST carry at minimum an `id` field (full URI), a `type` field and
+      a non-empty `summary` field giving human-readable context, and a receiver MUST
+      refuse a stub whose `summary` is absent or blank. The stub form is
       permitted ONLY for a case, as the distinct `VulnerabilityCaseStub` type of
       CM-11-013, and a receiver MUST classify a stub by its `type`. For every other
       object type, a sender that does not inline the full object MUST reference it by
@@ -294,6 +295,8 @@ groups:
       serves one need: an invitee must decide whether to join a case before it may
       receive the case (MV-10-005), so the stub stands in for the case until the
       participant is active (CM-10-004). No other type has that need or is implemented.
+      The summary is what tells the invitee what it is being asked to join; what it
+      says is the sender's choice (CM-17-010), and #4165 owns emitting it.
     note: >-
       Partial inline objects of other types were never designed — a parser fallback
       swallowed their validation failures and handed the parent a raw dict, which
@@ -306,7 +309,8 @@ groups:
       resolves to the stub class, that a sparse inline object with `type:
       VulnerabilityCase` is validated as a case rather than read as a stub, and that a
       partial inline object of any other recognised wire type is refused under MV-04-003
-      rather than degraded. Bare URI references and `Link` objects remain accepted in
+      rather than degraded; and that a stub with an absent or blank `summary` is
+      refused at message validation. Bare URI references and `Link` objects remain accepted in
       all four positions named by MV-10-002.
     relationships:
     - rel_type: constrains
