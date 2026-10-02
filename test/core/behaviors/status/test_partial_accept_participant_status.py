@@ -45,6 +45,7 @@ import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -385,6 +386,7 @@ def _run_tree(
         datalayer=dl,
         trigger_activity=TriggerActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(dl),
     )
     tree = add_participant_status_tree(request=event, case_id=CASE_ID)
     if capture is not None:
@@ -830,7 +832,9 @@ class TestLedgerApplyRmRatchet:
         event = _announce_event(entry)
 
         bridge = BTBridge(
-            datalayer=dl, wire_render_port=As2WireRenderAdapter()
+            datalayer=dl,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         )
         result = bridge.execute_with_setup(
             tree=ApplyParticipantStatusFromLedgerNode(
@@ -878,7 +882,9 @@ class TestLedgerApplyRmRatchet:
         event = _announce_event(entry)
 
         bridge = BTBridge(
-            datalayer=dl, wire_render_port=As2WireRenderAdapter()
+            datalayer=dl,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         )
         result = bridge.execute_with_setup(
             tree=ApplyParticipantStatusFromLedgerNode(
@@ -933,7 +939,9 @@ class TestLedgerApplyRmRatchet:
         event = _announce_event(entry)
 
         bridge = BTBridge(
-            datalayer=dl, wire_render_port=As2WireRenderAdapter()
+            datalayer=dl,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         )
         result = bridge.execute_with_setup(
             tree=ApplyParticipantStatusFromLedgerNode(

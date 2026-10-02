@@ -56,7 +56,7 @@ from vultron.core.participants.recipients import (
 )
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
-from vultron.errors import VultronError
+from vultron.errors import VultronError, VultronWiringError
 
 logger = logging.getLogger(__name__)
 
@@ -202,6 +202,10 @@ class SendLogEntryToEachNode(DataLayerActionWithPorts):
     gate is recomputed over the whole case in step 2, not read from
     ``fanout_withheld``, because a collector may filter peers (e.g. RM.CLOSED)
     before it gates.
+
+    A missing sync port is a wiring fault and raises ``VultronWiringError``.
+    It used to skip at DEBUG and return ``SUCCESS``, which committed an entry
+    no replica would ever receive (SYNC-02-003, BT-14-001; #4113).
     """
 
     def __init__(self, name: str | None = None) -> None:
@@ -278,12 +282,10 @@ class SendLogEntryToEachNode(DataLayerActionWithPorts):
         entry = cast(CaseLedgerEntry, self.log_entry)
         recipients = cast(list[str], self.fanout_recipients)
         if self._sync_port is None:
-            self.logger.debug(
-                "%s: sync_port not injected; skipping fan-out for '%s'",
-                self.name,
-                entry.id_,
+            raise VultronWiringError(
+                f"{self.name}: sync_port must be injected to fan out"
+                f" log entry '{entry.id_}' (SYNC-02-003)"
             )
-            return Status.SUCCESS
 
         if self.datalayer is not None:
             try:

@@ -147,7 +147,9 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
             request=request,
         )
         bridge = BTBridge(
-            datalayer=self._dl, wire_render_port=self._wire_render_port
+            datalayer=self._dl,
+            wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
         )
         result = bridge.execute_with_setup(
             tree=tree,

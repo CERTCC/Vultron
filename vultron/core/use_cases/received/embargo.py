@@ -229,10 +229,12 @@ class CreateEmbargoEventReceivedUseCase:
         self,
         dl: CasePersistence,
         request: CreateEmbargoEventReceivedEvent,
+        sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
+        self._sync_port = sync_port
         self._request: CreateEmbargoEventReceivedEvent = request
 
     def execute(self) -> HandlerResult:
@@ -277,7 +279,11 @@ class AddEmbargoEventToCaseReceivedUseCase:
             embargo_id=embargo_id,
         )
         bridge = BTBridge(
-            datalayer=self._dl, wire_render_port=self._wire_render_port
+            datalayer=self._dl,
+            wire_render_port=self._wire_render_port,
+            # The commit fans the entry out to every participant replica
+            # (EP-09-007, RSH-08-004); without the port nothing replays it.
+            sync_port=self._sync_port,
         )
         result = bridge.execute_with_setup(
             tree=tree,
@@ -288,7 +294,6 @@ class AddEmbargoEventToCaseReceivedUseCase:
                 self._dl, request.receiving_actor_id
             ),
             activity=request,
-            sync_port=self._sync_port,
         )
 
         verdict = verdict_from_bt(tree, result, label="AddEmbargoToCaseBT")
@@ -339,13 +344,14 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
             case_id=case_id, embargo_id=embargo_id
         )
         bridge = BTBridge(
-            datalayer=self._dl, wire_render_port=self._wire_render_port
+            datalayer=self._dl,
+            wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
         )
         result = bridge.execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
             activity=request,
-            sync_port=self._sync_port,
         )
 
         verdict = verdict_from_bt(
@@ -366,10 +372,12 @@ class AnnounceEmbargoEventToCaseReceivedUseCase:
         self,
         dl: CasePersistence,
         request: AnnounceEmbargoEventToCaseReceivedEvent,
+        sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
+        self._sync_port = sync_port
         self._request: AnnounceEmbargoEventToCaseReceivedEvent = request
 
     def execute(self) -> HandlerResult:
@@ -508,12 +516,12 @@ class InviteToEmbargoOnCaseReceivedUseCase:
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
         )
         result = bridge.execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
             activity=request,
-            sync_port=self._sync_port,
         )
 
         verdict = verdict_from_bt(
@@ -613,11 +621,12 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             },
         )
         result = BTBridge(
-            datalayer=self._dl, wire_render_port=self._wire_render_port
+            datalayer=self._dl,
+            wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
         ).execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
-            sync_port=self._sync_port,
         )
         # The lapse is already applied to the replica; an unrecorded lapse
         # would diverge the replicas silently (CM-28-009).
@@ -628,11 +637,12 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
     ) -> None:
         tree = embargo_admission_backfill_tree(case_id)
         result = BTBridge(
-            datalayer=self._dl, wire_render_port=self._wire_render_port
+            datalayer=self._dl,
+            wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
         ).execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
-            sync_port=self._sync_port,
         )
         applied_or_raise(tree, result, label="EmbargoAdmissionBackfillBT")
 
@@ -851,13 +861,14 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             invite_id=invite_id,
         )
         bridge = BTBridge(
-            datalayer=self._dl, wire_render_port=self._wire_render_port
+            datalayer=self._dl,
+            wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
         )
         result = bridge.execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
             activity=request,
-            sync_port=self._sync_port,
         )
 
         verdict = verdict_from_bt(
@@ -937,6 +948,9 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
+            # The commit fans the entry out to every participant replica
+            # (EP-09-007, RSH-08-004); without the port nothing replays it.
+            sync_port=self._sync_port,
         )
         result = bridge.execute_with_setup(
             tree=tree,
@@ -947,9 +961,6 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
                 self._dl, request.receiving_actor_id
             ),
             activity=request,
-            # The commit fans the entry out to every participant replica
-            # (EP-09-007, RSH-08-004); without the port nothing replays it.
-            sync_port=self._sync_port,
         )
 
         verdict = verdict_from_bt(

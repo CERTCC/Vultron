@@ -59,6 +59,7 @@ from vultron.core.use_cases.received._bt_verdict import (
 from vultron.enums.roles import serialize_roles
 
 if TYPE_CHECKING:
+    from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
     from vultron.core.ports.wire_render import WireRenderPort
 
@@ -87,10 +88,12 @@ class OfferCaseParticipantReceivedUseCase:
         dl: CasePersistence,
         request: OfferCaseParticipantReceivedEvent,
         trigger_activity: "TriggerActivityPort | None" = None,
+        sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
+        self._sync_port = sync_port
         self._request = request
         self._trigger_activity = trigger_activity
 
@@ -120,6 +123,7 @@ class OfferCaseParticipantReceivedUseCase:
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
         )
         result = bridge.execute_with_setup(
             tree, actor_id=local_actor_id, activity=request
@@ -234,10 +238,12 @@ class AcceptOfferCaseParticipantReceivedUseCase:
         dl: CasePersistence,
         request: AcceptOfferCaseParticipantReceivedEvent,
         trigger_activity: "TriggerActivityPort | None" = None,
+        sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
+        self._sync_port = sync_port
         self._request = request
         self._trigger_activity = trigger_activity
 
@@ -304,6 +310,7 @@ class AcceptOfferCaseParticipantReceivedUseCase:
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
         )
         result = bridge.execute_with_setup(
             tree, actor_id=local_actor_id, activity=request
@@ -339,10 +346,12 @@ class RejectOfferCaseParticipantReceivedUseCase:
         dl: CasePersistence,
         request: RejectOfferCaseParticipantReceivedEvent,
         trigger_activity: "TriggerActivityPort | None" = None,
+        sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
+        self._sync_port = sync_port
         self._request = request
         self._trigger_activity = trigger_activity
 
@@ -398,6 +407,7 @@ class RejectOfferCaseParticipantReceivedUseCase:
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
         )
         result = bridge.execute_with_setup(
             tree, actor_id=local_actor_id, activity=request

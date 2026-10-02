@@ -28,6 +28,7 @@ import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.status.nodes.lifecycle import (
@@ -132,7 +133,9 @@ def populated_dl(dl, participant, status_obj):
 @pytest.fixture
 def populated_bridge(populated_dl):
     return BTBridge(
-        datalayer=populated_dl, wire_render_port=As2WireRenderAdapter()
+        datalayer=populated_dl,
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(populated_dl),
     )
 
 
@@ -196,7 +199,9 @@ class TestPublicDisclosureSkipConditionNode:
         self, dl: SqliteDataLayer, status_obj: as_ParticipantStatus
     ) -> tuple[BTBridge, _PublicDisclosureSkipConditionNode]:
         bridge = BTBridge(
-            datalayer=dl, wire_render_port=As2WireRenderAdapter()
+            datalayer=dl,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         )
         node = _PublicDisclosureSkipConditionNode(
             status_obj=status_obj,
@@ -348,6 +353,7 @@ class TestPublicDisclosureBranchNodeProposedEmPath:
             datalayer=dl,
             trigger_activity=factory,
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         )
         node = PublicDisclosureBranchNode(
             status_obj=public_aware_status,
@@ -496,6 +502,7 @@ class TestEmitCloseCaseNode:
             datalayer=populated_dl,
             trigger_activity=factory,
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(populated_dl),
         )
         node = EmitCloseCaseNode(case_id=CASE_ID)
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
@@ -521,6 +528,7 @@ class TestEmitCloseCaseNode:
             datalayer=populated_dl,
             trigger_activity=factory,
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(populated_dl),
         )
         node = EmitCloseCaseNode(case_id=CASE_ID)
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)

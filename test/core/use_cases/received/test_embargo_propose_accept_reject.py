@@ -22,6 +22,7 @@ from test.core.use_cases.received.conftest import (
     seed_store_owner_as_case_manager,
 )
 from vultron.adapters.driven.db_record import StorableRecord
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -232,7 +233,10 @@ class TestEmbargoProposalLifecycle:
         event = make_payload(accept, receiving_actor_id=coordinator_id)
 
         result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 
@@ -292,7 +296,10 @@ class TestEmbargoProposalLifecycle:
 
         with caplog.at_level(logging.WARNING):
             AcceptInviteToEmbargoOnCaseReceivedUseCase(
-                dl, event, wire_render_port=As2WireRenderAdapter()
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
 
         assert any("state-sync override" in r.message for r in caplog.records)
@@ -354,7 +361,10 @@ class TestEmbargoProposalLifecycle:
         event = make_payload(accept, receiving_actor_id=coordinator_id)
 
         result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 
@@ -417,7 +427,10 @@ class TestEmbargoProposalLifecycle:
         event = make_payload(accept, receiving_actor_id=coordinator_id)
 
         result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 
@@ -793,6 +806,7 @@ class TestInviteToEmbargoReceivedPxaGuard:
             event,
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 
@@ -920,7 +934,10 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
         )
         event = make_payload(accept, receiving_actor_id=coordinator_id)
         result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 

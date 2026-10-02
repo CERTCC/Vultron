@@ -78,10 +78,12 @@ class CreateCaseStatusReceivedUseCase:
         self,
         dl: CasePersistence,
         request: CreateCaseStatusReceivedEvent,
+        sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
+        self._sync_port = sync_port
         self._request: CreateCaseStatusReceivedEvent = request
 
     def execute(self) -> HandlerResult:
@@ -103,10 +105,12 @@ class AddCaseStatusToCaseReceivedUseCase:
         request: AddCaseStatusToCaseReceivedEvent,
         trigger_activity: "TriggerActivityPort | None" = None,
         call_out: "StatusAuthorizationCallOutBundle | None" = None,
+        sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
+        self._sync_port = sync_port
         self._request: AddCaseStatusToCaseReceivedEvent = request
         self._trigger_activity = trigger_activity
         self._call_out = call_out
@@ -131,6 +135,7 @@ class AddCaseStatusToCaseReceivedUseCase:
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
         )
         result = bridge.execute_with_setup(
             tree=tree,
@@ -181,10 +186,12 @@ class CreateParticipantStatusReceivedUseCase:
         self,
         dl: CasePersistence,
         request: CreateParticipantStatusReceivedEvent,
+        sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
+        self._sync_port = sync_port
         self._request: CreateParticipantStatusReceivedEvent = request
 
     def execute(self) -> HandlerResult:
@@ -267,12 +274,12 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
         )
         result = bridge.execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
             activity=request,
-            sync_port=self._sync_port,
         )
 
         verdict = verdict_from_bt(tree, result, label="AddParticipantStatusBT")

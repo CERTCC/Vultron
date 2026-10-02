@@ -52,7 +52,11 @@ from vultron.core.behaviors.blackboard_scope import (
 )
 from vultron.core.behaviors.store_scope import port_for_store, store_for_actor
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.errors import VultronError, VultronWiringError
+from vultron.errors import (
+    VultronBTInternalError,
+    VultronError,
+    VultronWiringError,
+)
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -90,7 +94,10 @@ class BTExecutionResult:
       ``SUCCESS``) and is never flagged.
     - Nodes that run a sub-tree through their own ``BTBridge`` discard the inner
       result's flag and return a bare ``Status.FAILURE``, so a crash inside a
-      nested subtree is not visible in the outer result.
+      nested subtree is not visible in the outer result.  The exception is
+      ``CommitCaseLedgerEntryNode``, which raises ``VultronBTInternalError``
+      when its nested commit reports one, so a missing sync port on a
+      received commit is not read as a refusal (#4113).
     """
 
     status: Status
@@ -466,13 +473,17 @@ class BTBridge:
             internal_error: Classification, as described above.  A
                 ``VultronWiringError`` is always internal: a missing DataLayer
                 or port is our composition fault, not the protocol's, whatever
-                base class it shares (#2255).
+                base class it shares (#2255).  A ``VultronBTInternalError`` is
+                internal too: a node raises it to carry a nested bridge's
+                ``internal_error`` across the hop (#4113).
 
         Returns:
             A FAILURE ``BTExecutionResult`` carrying the composed message as
             both ``feedback_message`` and the sole entry in ``errors``.
         """
-        internal_error = internal_error or isinstance(e, VultronWiringError)
+        internal_error = internal_error or isinstance(
+            e, (VultronWiringError, VultronBTInternalError)
+        )
         if internal_error:
             error_msg = (
                 f"{prefix} with internal error: {type(e).__name__}: {e}"

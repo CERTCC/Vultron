@@ -41,6 +41,7 @@ import py_trees
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -85,6 +86,9 @@ class BTTestScenario:
             is_leader=lambda: is_leader,
             trigger_activity=TriggerActivityAdapter(self.dl),
             wire_render_port=As2WireRenderAdapter(),
+            # Every committed entry is fanned out, so a scenario that reaches
+            # a commit needs the port (SYNC-02-003, #4113).
+            sync_port=SyncActivityAdapter(self.dl),
         )
 
     # ------------------------------------------------------------------

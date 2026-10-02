@@ -16,6 +16,7 @@ from vultron.core.behaviors.sync.nodes import (
     CheckLedgerFreshnessNode,
     CreateLogEntryNode,
     DeclineForeignLedgerCommitNode,
+    RequireSyncPortNode,
 )
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models._helpers import now_utc
@@ -101,7 +102,11 @@ def _make_entry(log_index: int, prev_hash: str):
 @pytest.mark.spec("CLP-02-001")
 @pytest.mark.spec("BT-05-006")
 def test_create_commit_log_entry_tree_guards_the_mint():
-    """The four commit nodes sit behind the ledger-authority guard (ADR-0073)."""
+    """The commit nodes sit behind the ledger-authority guard (ADR-0073).
+
+    The port guard runs first in the mint, before anything is written
+    (SYNC-02-003, #4113).
+    """
     tree = create_commit_log_entry_tree(
         case_id=CASE_ID,
         object_id="https://example.org/activities/act-1",
@@ -111,9 +116,10 @@ def test_create_commit_log_entry_tree_guards_the_mint():
     guard, mint = tree.children
     assert isinstance(guard, DeclineForeignLedgerCommitNode)
     assert mint.name == "MintAndFanOutLogEntry"
-    freshness_node = mint.children[0]
+    port_guard, freshness_node = mint.children[:2]
+    assert isinstance(port_guard, RequireSyncPortNode)
     assert isinstance(freshness_node, CheckLedgerFreshnessNode)
-    assert len(mint.children) == 5
+    assert len(mint.children) == 6
 
 
 @pytest.mark.spec("CLP-02-001")
@@ -148,6 +154,35 @@ def test_commit_tree_persists_entry_and_fans_out(bridge, datalayer, case_obj):
     sync_port.send_announce_log_entry.assert_called_once()
     call_kwargs = sync_port.send_announce_log_entry.call_args.kwargs
     assert call_kwargs["to"] == [PEER_ID]
+
+
+@pytest.mark.spec("SYNC-02-003")
+@pytest.mark.spec("BT-14-001")
+def test_commit_tree_without_sync_port_is_a_wiring_fault(
+    bridge, datalayer, case_obj
+):
+    """A commit with no sync port fails loudly, before minting (#4113).
+
+    An entry persisted but never announced reaches the replicas only through
+    catch-up replay.  That is the silent skip BT-14-001 rules out, and a
+    missing port is a composition fault, so the bridge reports an internal
+    error naming the port rather than SUCCESS, and no entry is written.
+    """
+    tree = create_commit_log_entry_tree(
+        case_id=CASE_ID,
+        object_id="https://example.org/activities/act-1",
+        event_type="case_created",
+        payload_snapshot=_canonical_note_snapshot(
+            PEER_ID, "https://example.org/notes/note-1"
+        ),
+    )
+
+    result = bridge.execute_with_setup(tree=tree, actor_id=OWNER_ACTOR_ID)
+
+    assert result.status == Status.FAILURE
+    assert result.internal_error is True
+    assert "sync_port" in result.feedback_message
+    assert datalayer.list_objects("CaseLedgerEntry") == []
 
 
 @pytest.mark.spec("SYNC-01-002")
