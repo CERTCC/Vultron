@@ -203,6 +203,51 @@ class TestCollectEmbargoInviteRecipientsNode:
         assert sorted(_collected_recipients()) == sorted([OTHER_A, OTHER_B])
 
     @pytest.mark.executes_as(MANAGER)
+    @pytest.mark.spec("CM-10-007")
+    def test_reaches_inert_participants_but_not_a_closed_one(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """An Invite asks for consent, so inert participants get it (#4046).
+
+        OTHER_A has not joined and OTHER_B is not SIGNATORY — both inert, both
+        invited.  A participant at RM.CLOSED receives nothing further.
+        """
+        from vultron.core.models.dimensions import RmDimension
+        from vultron.core.models.participant_status import ParticipantStatus
+        from vultron.core.states.rm import RM
+
+        closed_actor = "https://example.org/actors/relay-closed"
+        case = _seed_case(
+            bt_scenario,
+            participants={OTHER_A: PEC.UNBOUND, OTHER_B: PEC.INVITED},
+        )
+        unjoined = _participant(OTHER_A).model_copy(update={"joined": False})
+        closed = CaseParticipant(
+            id_=f"{CASE_ID}/participants/relay-closed",
+            attributed_to=closed_actor,
+            context=CASE_ID,
+            participant_statuses=[
+                ParticipantStatus(
+                    context=CASE_ID,
+                    attributed_to=closed_actor,
+                    rm=RmDimension(state=RM.CLOSED),
+                )
+            ],
+        )
+        bt_scenario.dl.save(unjoined)
+        bt_scenario.dl.save(closed)
+        case.add_participant(closed)
+        bt_scenario.dl.save(case)
+
+        result = bt_scenario.run(
+            CollectEmbargoInviteRecipientsNode(
+                case_id=CASE_ID, proposer_id=PROPOSER
+            )
+        )
+        assert result.status == Status.SUCCESS
+        assert sorted(_collected_recipients()) == sorted([OTHER_A, OTHER_B])
+
+    @pytest.mark.executes_as(MANAGER)
     def test_a_proposal_from_the_manager_itself_invites_everyone_else(
         self, bt_scenario: BTTestScenario
     ) -> None:
