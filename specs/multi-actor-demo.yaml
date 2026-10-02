@@ -1219,43 +1219,45 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The Coordinator MUST invite Finder to the case using the `invite-actor-to-case`
-      trigger after case creation. Finder MUST accept the invitation and become a
-      full SIGNATORY participant with a case replica in their DataLayer before
-      Vendor is invited.
+      The Coordinator MUST NOT invite the Finder to the case. The Finder is the
+      reporter, so the CASE_MANAGER seats it as a SIGNATORY participant when it
+      creates the case (CM-22-002, CM-14-005). The scenario MUST confirm that
+      the Finder is a participant and holds a case replica before the Vendor
+      is invited.
+    rationale: >-
+      The reporter's consent is implicit in submitting the report (CM-14-005),
+      so an Invite/Accept exchange for the Finder would record an invitation
+      that never occurred (CM-18-003).
     preconditions:
     - description: >-
         DEMOMA-12-002 postconditions satisfied: VulnerabilityCase exists,
         Coordinator RM=ACCEPTED, CVDRole=CASE_OWNER, EM.ACTIVE, trust bootstrap
-        Create(VulnerabilityCase) already delivered to Finder (CBT-01-001);
-        Finder has trusted CaseActor identity but is not yet a formal case
-        participant (no Invite/Accept exchange has occurred)
+        Create(VulnerabilityCase) already delivered to Finder (CBT-01-001)
     steps:
     - order: 1
-      actor: coordinator
-      action: POST invite-actor-to-case trigger for Finder
+      actor: demo_script
+      action: >-
+        Wait until the Coordinator's case lists the Finder and the
+        Coordinator as participants
       expected: >-
-        Invite(Actor, VulnerabilityCaseStub) sent from CaseActor (not Coordinator)
-        to Finder inbox (PCR-08-007); invitation record present in Finder
-        DataLayer
+        Finder present as a participant seated at case creation, with no
+        Invite/Accept exchange (the case-actor log's single
+        invite_actor_to_case entry, the Vendor's, is checked by
+        DEMOMA-12-009(2))
     - order: 2
       actor: demo_script
       action: >-
-        Poll Finder DataLayer until Invite(Actor, VulnerabilityCaseStub) is visible
-      expected: Invitation record present in Finder replica
-    - order: 3
-      actor: finder
-      action: POST accept-case-invite trigger directed to CaseActor (PCR-08-008)
-      expected: >-
-        Finder transitions to SIGNATORY (MV-10-006); CaseActor emits
-        Announce(VulnerabilityCase) to seed Finder replica (PCR-02-002)
+        Verify the case is active and the Finder holds a case replica
+      expected: Finder holds a case replica with EM.ACTIVE
     postconditions:
     - description: >-
-        Finder is SIGNATORY with a seeded case replica; Vendor invitation has
-        not yet been issued
+        Finder is SIGNATORY with a case replica; Vendor invitation has not
+        yet been issued
     relationships:
     - rel_type: refines
-      spec_id: CM-20-001
+      spec_id: CM-22-002
+    - rel_type: refines
+      spec_id: CM-14-005
   - id: DEMOMA-12-004
     priority: MUST
     kind: project
@@ -1270,8 +1272,8 @@ groups:
       is required for determinism (per DEMOMA-11-009 pattern).
     preconditions:
     - description: >-
-        Finder is SIGNATORY (DEMOMA-12-003 postconditions satisfied);
-        Vendor is not yet a case participant
+        Finder is SIGNATORY with a case replica (DEMOMA-12-003 postconditions
+        satisfied); Vendor is not yet a case participant
     steps:
     - order: 1
       actor: coordinator
@@ -1356,8 +1358,9 @@ groups:
       The FCV per-scenario invariant test file MUST assert the following
       scenario-specific checks in addition to the universal library checks:
       (1) `validate_report` event present in case-actor log,
-      (2) `invite_actor_to_case` present at least twice (Finder invitation +
-      Vendor invitation), (3) `close_case` present, (4) CS transitions VFd
+      (2) `invite_actor_to_case` present exactly once (the Vendor invitation;
+      the Finder is seated, not invited, per DEMOMA-12-003),
+      (3) `close_case` present, (4) CS transitions VFd
       and VFD observed in `add_participant_status_to_participant` entries for
       the Vendor actor and public-aware (P) transition observed in
       `add_participant_status_to_participant` entries for the Coordinator actor,
@@ -2165,8 +2168,9 @@ groups:
       The FCV scenario expected-event-types list MUST include
       `invite_actor_to_case` and `accept_invite_actor_to_case` in addition
       to the universal types (DEMOMA-16-001), because the Coordinator
-      invites both the Finder and the Vendor into the case, and both Finder
-      and Vendor explicitly accept via the `accept-case-invite` trigger.
+      invites the Vendor into the case and the Vendor explicitly accepts via
+      the `accept-case-invite` trigger. The Finder is seated as reporter at
+      case creation and is not invited (DEMOMA-12-003).
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-16-001
@@ -2309,8 +2313,9 @@ groups:
       The FCVD scenario expected-event-types list MUST include
       `invite_actor_to_case` and `accept_invite_actor_to_case` in addition to
       the universal types (DEMOMA-16-001), because the Coordinator invites
-      Finder, Vendor, and Deployer into the case, and all three explicitly accept
-      via the `accept-case-invite` trigger.
+      the Vendor and the Deployer into the case, and both explicitly accept via
+      the `accept-case-invite` trigger. The Finder is seated as reporter at case
+      creation (CM-22-002) and is not invited.
     rationale: >-
       FCVD exercises a four-actor coordination chain with one full invitation
       cycle per non-case-owner actor; `invite_actor_to_case` and
@@ -4044,9 +4049,10 @@ groups:
       The FCVD implementation MUST ship a dedicated per-scenario case-ledger
       invariant test file (`test/ci/invariants/test_fcvd_invariants.py`) using
       the shared invariant library; the file MUST assert the scenario-specific
-      checks: (1) `invite_actor_to_case` present at least three times (Finder,
-      Vendor, Deployer invitations), (2) `accept_invite_actor_to_case` present at
-      least three times, (3) `add_participant_status_to_participant` entries show
+      checks: (1) `invite_actor_to_case` present at least twice (Vendor and
+      Deployer invitations; the Finder is seated as reporter at case creation,
+      CM-22-002, and is not invited), (2) `accept_invite_actor_to_case` present
+      at least twice, (3) `add_participant_status_to_participant` entries show
       VFd (not VFD) for Vendor and VFD for Deployer, and (4) the Deployer replica
       holds the full case history from genesis.
     rationale: >-
