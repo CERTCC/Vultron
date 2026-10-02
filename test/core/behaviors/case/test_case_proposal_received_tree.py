@@ -1647,8 +1647,8 @@ class TestADR0041EmbargoInit:
     def test_vendor_owner_seeded_as_signatory(self, make_payload):
         """CM-13: vendor (CASE_OWNER) is SIGNATORY on the active embargo.
 
-        ``InitializeDefaultEmbargoNode``'s ``SeedOwnerAsSignatoryNode`` is the
-        one path that seeds it: it reads the owner from the case's
+        ``InitializeDefaultEmbargoNode``'s ``InitializeCreationEmbargoNode``
+        is the one path that seeds it: it reads the owner from the case's
         ``attributed_to`` (CP-09-001), not from the executing CaseActor, which
         is not a participant here and once left an ACTIVE embargo with no
         signatory.

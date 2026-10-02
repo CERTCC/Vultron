@@ -773,10 +773,12 @@ class BTBridge:
                 # node owns "clean up when the Sequence aborts", so the bridge
                 # does, exactly once, for every outcome.
                 "ledger_payload_object_override",
-                # Published by RegisterLongerProposalAsRevisionNode, read by
-                # RelayCreationTimeRevisionNode (EP-04-011).  The writer ticks
+                # Published by ResolveCreationTimeRevisionNode and
+                # InitializeCreationEmbargoNode, read by the latter and by
+                # RelayCreationTimeRevisionNode (EP-04-011).  The writers tick
                 # only on the creation arm, so a redelivery that skips that arm
-                # would otherwise hand the relay the previous execution's value.
+                # would otherwise hand a reader the previous execution's value.
+                "creation_time_revision_candidate",
                 "creation_time_revision",
                 # The executing actor's identity is execution-scoped too, and for
                 # a sharper reason than the ports above.  Every node base in

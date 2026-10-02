@@ -13,7 +13,7 @@
 
 """Relay the creation-time revision to the party whose terms won (EP-04-011).
 
-``RegisterLongerProposalAsRevisionNode`` registers the shortest-wins loser as a
+``InitializeCreationEmbargoNode`` registers the shortest-wins loser as a
 pending revision inside ``InitializeDefaultEmbargoNode`` and publishes it as a
 :class:`CreationTimeRevision`.  :class:`RelayCreationTimeRevisionNode` sends it
 like any other revision (EP-09, ADR-0113) once the case tree has finished its
@@ -58,7 +58,7 @@ logger = logging.getLogger(__name__)
 class RelayCreationTimeRevisionNode(RelayEmbargoInviteToEachNode):
     """Relay the creation-time revision to the party whose terms won (EP-04-011).
 
-    The #3913 relay emit, fed from what ``RegisterLongerProposalAsRevisionNode``
+    The #3913 relay emit, fed from what ``InitializeCreationEmbargoNode``
     published rather than from a received proposal: the CASE_MANAGER emits
     ``Invite(EmbargoEvent)`` as ``actor`` with the losing party in
     ``attributedTo`` (CM-24-001, CM-24-002), under the proposal id the

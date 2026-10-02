@@ -307,12 +307,17 @@ groups:
       be persisted or observable externally.
     verification: >-
       The `initialize_creation_embargo` service tests confirm that the creation-time operation
-      hands the store one case write, at `EM.ACTIVE` with the embargo attached, and that a
-      refused P/X/A check, an unheld embargo or a case that has left `EM.NONE` writes nothing.
-      Participant consent records are written after that case write and are not part of it.
+      hands the store one commit (`save_many`) holding the case at `EM.ACTIVE` with the embargo
+      attached, the participant consent records, the case owner's SIGNATORY seed and, for a
+      contested creation, the revision's `EmbargoEvent` with the case at `EM.REVISE`; that a
+      refused P/X/A check, an unheld embargo, a missing owner record or a case that has left
+      `EM.NONE` writes nothing; and that a failed commit writes nothing and a rerun completes.
       `TestCreationTimeEmbargoIsOneWrite` refuses the ACCEPT step after PROPOSE has been applied
       and asserts the stored case stays at `EM.NONE`, and that a rerun then reaches `EM.ACTIVE`
       with an attached embargo (EP-04-012, #4123).
+      `TestCreationTimeEmbargoCommitsItsEffectsWithIt` faults the owner-seed write and the
+      revision write in turn and asserts the case stays at `EM.NONE` and that a rerun seeds
+      the owner and registers the revision (#4142).
   - id: EP-04-003
     priority: MUST
     kind: protocol
@@ -597,7 +602,7 @@ groups:
       the bootstrap `Create`, and a record already naming the Invite would read to the winner
       as an Invite it had already answered.
     verification: >-
-      A marker test of `RegisterLongerProposalAsRevisionNode` asserts that a contested
+      A marker test of `InitializeDefaultEmbargoNode` asserts that a contested
       creation registers the loser as an open proposal without indexing it. Tree tests of
       the case-proposal received tree assert the relayed `Invite(EmbargoEvent)` for both
       directions — `actor` the CASE_MANAGER, `attributedTo` the losing party, queued to the

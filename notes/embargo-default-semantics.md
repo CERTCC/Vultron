@@ -15,7 +15,8 @@ description: >
   initialization and indexed only once sent (EP-04-011, CM-14-007, ADR-0113);
   why creation-time initialization runs once per case with the EM state, not
   the active-embargo reference, as the evidence (EP-04-012); why a rerun on a
-  half-built case reuses the minted event's case-derived id; and why the actor
+  half-built case reuses the minted event's case-derived id; why everything
+  after activation commits with it in one `save_many`; and why the actor
   default is the CASE_OWNER's profile policy, carried inline on the case proposal
   (CP-01-009, CP-01-010).
 related_specs:
@@ -321,7 +322,10 @@ knew it existed. The creation-time revision is now a revision like any other and
 follows the relay in `embargo-lifecycle.md` § "Embargo Negotiation Relays Through
 the CASE_MANAGER", in two steps that sit at two different places in the tree:
 
-- **Registered, not indexed.** `RegisterLongerProposalAsRevisionNode` mints the
+- **Registered, not indexed.** `ResolveCreationTimeRevisionNode` selects the
+  longer proposal before anything is written and publishes it as
+  `creation_time_revision_candidate`; `InitializeCreationEmbargoNode` registers
+  it in the activation's commit, then mints the
   id the relayed `Invite` will carry but writes no
   `pending_embargo_proposal_index` entry: the bootstrap `Create(VulnerabilityCase)`
   is rendered later in the tree with the case whole, and an entry already naming
@@ -329,7 +333,7 @@ the CASE_MANAGER", in two steps that sit at two different places in the tree:
   (`EmbargoProposalNotYetRecordedNode`) read the Invite as already answered and
   skip it. It publishes a `CreationTimeRevision` — case, embargo, that id, and whose terms lost
   (`initial_embargo_duration.source`) — on `creation_time_revision`. It writes
-  `None` first whenever it ticks, and `BTBridge` scopes the key to one execution
+  `None` first whenever it ticks, and `BTBridge` scopes both keys to one execution
   (as it does `ledger_payload_object_override`, #3101), because the registration
   ticks only on the creation arm: a redelivery that finds the case already
   initialized never reaches it, and would otherwise hand the relay the previous
@@ -373,7 +377,7 @@ replays the committed Invite attributed to it (#4099). That replay writes no ind
 for any other actor, for the same idempotency reason the registration does not.
 
 The sender's event arrives under the sender's id, and an id is a sender-supplied
-value. `persist_creation_time_embargo` (`nodes/embargo.py`) therefore refuses a
+value. `persist_creation_time_embargo` (`embargo_lifecycle/creation.py`) refuses a
 stored twin under that id that is not this embargo — about this case, ending when
 this one ends — instead of swallowing `VultronAlreadyExistsError` as a replay the
 way a freshly minted id allowed; otherwise a colliding id would bind the case to a
@@ -476,10 +480,22 @@ the order of two. `InitializeCreationEmbargoNode` calls
 creation arm used to call `propose_embargo` and then, in a second node,
 `activate_embargo`: a failure between the two saves left the case at
 `PROPOSED`, which this guard reads as initialized, so the case never got an
-active embargo (#4123). A failure in a node *after* the activation write
-(signatory seeding, revision registration), or in the participant consent
-writes that follow the case save, still leaves the case past `NONE` with the
-rest of the arm undone; that is tracked in #4142.
+active embargo (#4123).
+
+The same holds for everything after the activation. The consent records, the
+owner's `SIGNATORY` seed (CM-14-003) and a contested creation's revision
+(`ACTIVE → REVISE`, EP-04-003) used to be written by the service and by two
+nodes after the case was saved `ACTIVE`; a failure there left the owner
+unseeded or the revision unregistered, and this guard then refused the rerun
+that would have finished them (#4142). `initialize_creation_embargo` now does
+all of it and commits it through one `save_many`, the atomic write CM-21-004
+already relies on. The shared consent helpers save each record they touch and
+re-read a record an earlier helper changed (the owner is both the proposer and
+the seeded signatory on its own creation path), so the operation runs them
+against `StagedCasePersistence` (`embargo_lifecycle/staged_persistence.py`): it
+stages every save, answers every read from what it staged, refuses any query it
+could not answer faithfully, and flushes once. Any failure before or in that
+flush leaves the case at `NONE`, which this guard admits.
 
 A rerun at `NONE` must also not store a *second* creation-time event (#4117).
 A run can stop after `CreateEmbargoEventNode` stored its event and before EM

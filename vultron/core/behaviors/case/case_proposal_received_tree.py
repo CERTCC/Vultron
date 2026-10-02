@@ -232,7 +232,7 @@ def create_case_proposal_received_tree(
       5. ``AddReporterParticipantNode`` — reporter added at RM.ACCEPTED
          (ADR-0041 AC-2)
       6. ``InitializeDefaultEmbargoNode`` — default embargo initialized
-         (ADR-0041 AC-3); its ``SeedOwnerAsSignatoryNode`` seeds the case
+         (ADR-0041 AC-3); its ``InitializeCreationEmbargoNode`` seeds the case
          owner (``attributed_to``, the CASE_OWNER) as embargo SIGNATORY
          (CM-14-003)
       7. ``SeedReporterSignatoryNode`` — reporter seeded as embargo
@@ -352,9 +352,9 @@ def create_case_proposal_received_tree(
             # ADR-0041 AC-2: add reporter at RM.ACCEPTED
             AddReporterParticipantNode(report_id=report_id),
             # ADR-0041 AC-3: initialize default embargo.  Its
-            # SeedOwnerAsSignatoryNode seeds the case owner — the CASE_OWNER
-            # this case is attributed to — as SIGNATORY (CM-14-003), the one
-            # owner-seeding path.
+            # InitializeCreationEmbargoNode seeds the case owner — the
+            # CASE_OWNER this case is attributed to — as SIGNATORY
+            # (CM-14-003), the one owner-seeding path.
             InitializeDefaultEmbargoNode(actor_config=actor_config),
             # CM-14-005: seed the reporter as embargo SIGNATORY.
             # Reporter consent is implicit in submitting the report (ADR-0048);

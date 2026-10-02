@@ -35,7 +35,6 @@ from vultron.core.behaviors.case.embargo_tree import (
 from vultron.core.behaviors.case.nodes.embargo import (
     CreateEmbargoEventNode,
     InitializeCreationEmbargoNode,
-    SeedOwnerAsSignatoryNode,
 )
 from vultron.core.behaviors.case.nodes.embargo_resolution import (
     CaseEmbargoAlreadyInitializedNode,
@@ -43,7 +42,7 @@ from vultron.core.behaviors.case.nodes.embargo_resolution import (
     ResolveEmbargoDurationNode,
 )
 from vultron.core.behaviors.case.nodes.embargo_revision import (
-    RegisterLongerProposalAsRevisionNode,
+    ResolveCreationTimeRevisionNode,
 )
 from vultron.core.behaviors.case.participant_tree import (
     CreateCaseOwnerParticipant,
@@ -335,9 +334,8 @@ class TestInitializeDefaultEmbargoNode:
         assert [type(child) for child in creation_arm.children] == [
             ResolveEmbargoDurationNode,
             CreateEmbargoEventNode,
+            ResolveCreationTimeRevisionNode,
             InitializeCreationEmbargoNode,
-            SeedOwnerAsSignatoryNode,
-            RegisterLongerProposalAsRevisionNode,
         ]
 
     def test_advance_em_state_delegates_to_embargo_lifecycle(
@@ -491,52 +489,6 @@ class TestInitializeCreationEmbargoNodeAC1:
         assert _as_id(after.active_embargo) == attached.id_
 
 
-class TestSeedOwnerAsSignatoryNode:
-    """SeedOwnerAsSignatoryNode is idempotent when participant is already SIGNATORY."""
-
-    def test_already_signatory_is_idempotent(
-        self,
-        bt_scenario: BTTestScenario,
-        actor: CaseActor,
-        actor_id: str,
-        case_obj: VulnerabilityCase,
-    ) -> None:
-        """AC-5: SIGNATORY participant stays SIGNATORY without raising.
-
-        SeedOwnerAsSignatoryNode guards against ACCEPT from SIGNATORY
-        (which would raise VultronInvalidStateTransitionError). The node
-        must succeed idempotently when the participant is already SIGNATORY.
-        """
-        bt_scenario.run(
-            CreateCaseOwnerParticipant(),
-            actor_id=actor_id,
-            case_id=case_obj.id_,
-        )
-
-        bt_scenario.run(
-            InitializeDefaultEmbargoNode(),
-            actor_id=actor_id,
-            owner_profile=_profile(actor_id),
-            case_id=case_obj.id_,
-        )
-
-        stored_case = cast(Any, bt_scenario.dl.read(case_obj.id_))
-        participant_id = stored_case.actor_participant_index.get(actor_id)
-        participant = cast(Any, bt_scenario.dl.read(participant_id))
-        assert participant.embargo_consent_state == PEC.SIGNATORY
-
-        result = bt_scenario.run(
-            SeedOwnerAsSignatoryNode(),
-            actor_id=actor_id,
-            case_id=case_obj.id_,
-            default_embargo_initialized=True,
-        )
-        assert result.status == Status.SUCCESS
-
-        refreshed = cast(Any, bt_scenario.dl.read(participant_id))
-        assert refreshed.embargo_consent_state == PEC.SIGNATORY
-
-
 _CASE_MANAGER_ID = "https://example.org/case-actors/svc-1"
 _OWNER_ID = "https://example.org/actors/vendor"
 
@@ -639,4 +591,8 @@ class TestCaseManagerInitializesTheOwnersEmbargo:
             )
 
         assert result.status == Status.FAILURE
-        assert "has no participant record" in caplog.text
+        assert f"for owner '{_OWNER_ID}' not found" in caplog.text
+        # Refused before the activation, so the case is left for a rerun.
+        stored_case = cast(Any, scenario.dl.read(case.id_))
+        assert stored_case.current_status.em.state == EM.NONE
+        assert stored_case.active_embargo is None

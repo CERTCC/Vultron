@@ -11,22 +11,24 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Register the losing side of shortest-wins as a pending revision (EP-04-003).
+"""Select the losing side of shortest-wins as a pending revision (EP-04-003).
 
 When both the sender and the case owner carried a proposal at case creation,
 ``ResolveEmbargoDurationNode`` made the shorter one active.  EP-04-003 says the
 longer SHOULD be registered as a pending revision, so the party that wanted
 more can negotiate the contested tail inside the agreed embargo rather than
-losing it outright (ADR-0096).  ``RegisterLongerProposalAsRevisionNode`` is
-the last leaf of ``InitializeDefaultEmbargoNode``; it does nothing when there
-was no contest.
+losing it outright (ADR-0096).  ``ResolveCreationTimeRevisionNode`` picks that
+longer proposal before anything is written and publishes it as
+``creation_time_revision_candidate``; ``InitializeCreationEmbargoNode``
+registers it in the same commit that activates the embargo, so a failure can
+never leave the case active with the revision missing (EP-04-012, #4142).
 
 The revision then follows the relay like any other (EP-04-011, ADR-0113): the
-registration mints the id its ``Invite`` will carry and publishes it, and
-``RelayCreationTimeRevisionNode`` (``embargo_revision_relay``) emits that
-``Invite`` on the losing party's behalf, and indexes it for the owner's default
-selection (EP-08-002), only once the initialization sequence is complete
-(CM-14-007).
+registration mints the id its ``Invite`` will carry and publishes it as
+``creation_time_revision``, and ``RelayCreationTimeRevisionNode``
+(``embargo_revision_relay``) emits that ``Invite`` on the losing party's
+behalf, and indexes it for the owner's default selection (EP-08-002), only
+once the initialization sequence is complete (CM-14-007).
 """
 
 import logging
@@ -35,9 +37,6 @@ from datetime import timedelta
 from py_trees.common import Status
 from pydantic import BaseModel, ConfigDict
 
-from vultron.core.behaviors.case.nodes.embargo import (
-    persist_creation_time_embargo,
-)
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
@@ -48,13 +47,13 @@ from vultron.core.services.embargo_duration import (
     EmbargoDurationSource,
     InitialEmbargoDuration,
 )
-from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
-from vultron.errors import BtNodePreconditionError, VultronError
+from vultron.errors import BtNodePreconditionError
 from vultron.primitives import NonEmptyString
 
 logger = logging.getLogger(__name__)
 
 REVISION_KEY = "creation_time_revision"
+CANDIDATE_KEY = "creation_time_revision_candidate"
 
 
 class CreationTimeRevision(BaseModel):
@@ -78,28 +77,46 @@ class CreationTimeRevision(BaseModel):
     losing_source: EmbargoDurationSource
 
 
-class RegisterLongerProposalAsRevisionNode(DataLayerActionWithPorts):
-    """Propose the longer of the two creation-time candidates as a revision.
+class CreationTimeRevisionCandidate(BaseModel):
+    """The longer creation-time proposal, selected but not yet registered.
+
+    ``embargo`` is the ``EmbargoEvent`` to store and propose; ``losing_source``
+    is as on :class:`CreationTimeRevision`.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    embargo: EmbargoEvent
+    losing_source: EmbargoDurationSource
+
+    def registered(self, case_id: str) -> CreationTimeRevision:
+        """Name the registered revision and mint the id its Invite carries."""
+        return CreationTimeRevision(
+            case_id=case_id,
+            embargo_id=self.embargo.id_,
+            proposal_id=_new_urn(),
+            losing_source=self.losing_source,
+        )
+
+
+class ResolveCreationTimeRevisionNode(DataLayerActionWithPorts):
+    """Select the longer of the two creation-time candidates as a revision.
 
     Reads what ``ResolveEmbargoDurationNode`` published.  Exactly one of two
     contests can have happened:
 
     - the **sender's** proposal won and the owner's actor default was longer:
-      a fresh ``EmbargoEvent`` for the actor default is created on the case;
+      a fresh ``EmbargoEvent`` for the actor default is the candidate;
     - the **actor default** won and the sender's proposal was longer: the
-      sender's own ``EmbargoEvent`` is registered, its ``context`` rewritten
-      to the case (EP-04-004, EP-04-009).
+      sender's own ``EmbargoEvent`` is, its ``context`` rewritten to the case
+      (EP-04-004, EP-04-009).
 
-    Either way ``EmbargoLifecycle.propose_embargo`` drives ``ACTIVE → REVISE``
-    (EMB-18-001); a proposal changes no participant's consent (ADR-0093).  A
-    tie, a protocol-default outcome, or a lone candidate registers nothing.
-
-    A registered revision is published, under a freshly minted proposal id, as
-    ``creation_time_revision`` for
-    :class:`RelayCreationTimeRevisionNode` (EP-04-011).  The key is written
-    (``None``) first whenever this node ticks, and ``BTBridge`` scopes it to
-    one execution, so the relay never reads a revision an earlier execution
-    left on the process-global blackboard (BT-17-003).
+    A tie, a protocol-default outcome, or a lone candidate selects nothing.
+    The node writes nothing to the store: ``InitializeCreationEmbargoNode``
+    stores and proposes the candidate in the commit that activates the
+    embargo (EP-04-002, EP-04-012).  The output is written (``None`` when
+    there is no contest) whenever this node ticks, and ``BTBridge`` scopes it
+    to one execution, so no later execution reads it (BT-17-003).
     """
 
     def __init__(self, name: str | None = None) -> None:
@@ -123,8 +140,8 @@ class RegisterLongerProposalAsRevisionNode(DataLayerActionWithPorts):
     }
 
     OUTPUT_PORTS: dict[str, PortInformation] = {
-        REVISION_KEY: PortInformation(
-            data_type=CreationTimeRevision | None, required=True
+        CANDIDATE_KEY: PortInformation(
+            data_type=CreationTimeRevisionCandidate | None, required=True
         ),
     }
 
@@ -133,7 +150,7 @@ class RegisterLongerProposalAsRevisionNode(DataLayerActionWithPorts):
         return {
             key: f"/{key}"
             for key in (
-                REVISION_KEY,
+                CANDIDATE_KEY,
                 "case_id",
                 "initial_embargo_duration",
                 "actor_default_embargo_duration",
@@ -169,7 +186,7 @@ class RegisterLongerProposalAsRevisionNode(DataLayerActionWithPorts):
                 return None
             if not isinstance(sender_event, EmbargoEvent):
                 # The duration was compared but the event it was read from is
-                # missing: registering nothing here would report SUCCESS for a
+                # missing: selecting nothing here would report SUCCESS for a
                 # revision that never happened (BT-HELPER-01).
                 raise BtNodePreconditionError(
                     f"{self.name}: sender_proposed_embargo_duration is on the"
@@ -181,12 +198,7 @@ class RegisterLongerProposalAsRevisionNode(DataLayerActionWithPorts):
         return None
 
     def update(self) -> Status:
-        self._set_output(REVISION_KEY, None)
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        assert self.datalayer is not None
-        assert self.actor_id is not None
-
+        self._set_output(CANDIDATE_KEY, None)
         case_id = self._try_get_input("case_id")
         resolved = self._try_get_input("initial_embargo_duration")
         if not isinstance(case_id, str) or not isinstance(
@@ -201,54 +213,31 @@ class RegisterLongerProposalAsRevisionNode(DataLayerActionWithPorts):
 
         try:
             loser = self._losing_candidate(case_id, resolved)
-            if loser is None:
-                return Status.SUCCESS
-            # ``propose_embargo`` requires the event to exist first; should the
-            # proposal then be refused, the stored event is an orphan the
-            # FAILURE below names, not a silent leftover.  A stored twin under
-            # the sender's id that is not this embargo is refused outright.
-            persist_creation_time_embargo(self.datalayer, loser, case_id)
-            result = EmbargoLifecycle(
-                persistence=self.datalayer
-            ).propose_embargo(
-                case_id=case_id,
-                embargo_id=loser.id_,
-                actor_id=self.actor_id,
-            )
-            revision = self._publish_revision(case_id, loser.id_, resolved)
-        except VultronError as exc:
-            self.feedback_message = (
-                f"{self.name}: could not register the longer proposal as a"
-                f" revision on case '{case_id}': {exc}"
-            )
+        except BtNodePreconditionError as exc:
+            self.feedback_message = str(exc)
             self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
+        if loser is None:
+            return Status.SUCCESS
 
+        losing_source = (
+            EmbargoDurationSource.ACTOR_DEFAULT
+            if resolved.source is EmbargoDurationSource.SENDER_PROPOSAL
+            else EmbargoDurationSource.SENDER_PROPOSAL
+        )
         self.logger.info(
-            "Registered the longer creation-time proposal '%s' as a pending"
-            " revision on case '%s' (EM %s → %s; active terms came from %s;"
-            " EP-04-003)",
+            "Selected the longer creation-time proposal '%s' (from %s) as the"
+            " pending revision for case '%s'; active terms came from %s"
+            " (EP-04-003)",
             loser.id_,
+            losing_source.value,
             case_id,
-            result.em_before,
-            result.em_after,
             resolved.source.value,
         )
-        self._set_output(REVISION_KEY, revision)
-        return Status.SUCCESS
-
-    @staticmethod
-    def _publish_revision(
-        case_id: str, embargo_id: str, resolved: InitialEmbargoDuration
-    ) -> CreationTimeRevision:
-        """Name the revision and the id its future Invite will carry."""
-        return CreationTimeRevision(
-            case_id=case_id,
-            embargo_id=embargo_id,
-            proposal_id=_new_urn(),
-            losing_source=(
-                EmbargoDurationSource.ACTOR_DEFAULT
-                if resolved.source is EmbargoDurationSource.SENDER_PROPOSAL
-                else EmbargoDurationSource.SENDER_PROPOSAL
+        self._set_output(
+            CANDIDATE_KEY,
+            CreationTimeRevisionCandidate(
+                embargo=loser, losing_source=losing_source
             ),
         )
+        return Status.SUCCESS

@@ -20,6 +20,7 @@ the embargo the case is actually created with, not a blackboard value.
 """
 
 import logging
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
@@ -50,6 +51,7 @@ from vultron.core.models._helpers import _as_id, from_now_utc
 from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.core.services.embargo_duration import (
@@ -59,8 +61,10 @@ from vultron.core.services.embargo_duration import (
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM, EM_Trigger
+from vultron.core.states.participant_embargo_consent import PEC
 from vultron.errors import (
     BtNodePreconditionError,
+    VultronError,
     VultronInvalidStateTransitionError,
     VultronValidationError,
 )
@@ -1172,3 +1176,209 @@ class TestCreationTimeEmbargoIsOneWrite:
         _assert_duration(
             _active_embargo(bt_scenario), PROTOCOL_DEFAULT, before, after
         )
+
+
+def _owner_participant(bt_scenario: BTTestScenario) -> CaseParticipant:
+    case = cast(VulnerabilityCase, bt_scenario.dl.read(CASE_ID))
+    participant = bt_scenario.dl.read(case.actor_participant_index[ACTOR_ID])
+    assert isinstance(participant, CaseParticipant)
+    return participant
+
+
+@pytest.mark.spec("EP-04-002")
+@pytest.mark.spec("EP-04-012")
+class TestCreationTimeEmbargoCommitsItsEffectsWithIt:
+    """Owner seed and revision commit with the activation (#4142).
+
+    A store fault on either write used to come after the case was saved
+    ``ACTIVE``: the owner was left unseeded or the revision unregistered, and
+    the once-per-case guard then refused the rerun that would have finished
+    them.  Now the fault leaves the case at ``EM.NONE`` and the rerun
+    completes every effect.
+    """
+
+    SENDER_EVENT_ID = "https://example.org/embargoes/sender-terms"
+
+    def _fail_writes_of(
+        self,
+        bt_scenario: BTTestScenario,
+        monkeypatch: pytest.MonkeyPatch,
+        faulty: Callable[[Any], bool],
+    ) -> None:
+        """Make every store write that includes a *faulty* object raise.
+
+        ``save_many`` raises before writing anything, as its one transaction
+        rolls back (CM-21-004).
+        """
+        dl = bt_scenario.dl
+        save, save_many, create = dl.save, dl.save_many, dl.create
+
+        def check(objs: list[Any]) -> None:
+            if any(faulty(obj) for obj in objs):
+                raise VultronError("forced store fault")
+
+        def failing_save(obj: Any) -> None:
+            check([obj])
+            save(obj)
+
+        def failing_save_many(objs: list[Any]) -> None:
+            check(objs)
+            save_many(objs)
+
+        def failing_create(obj: Any) -> None:
+            check([obj])
+            create(obj)
+
+        monkeypatch.setattr(dl, "save", failing_save)
+        monkeypatch.setattr(dl, "save_many", failing_save_many)
+        monkeypatch.setattr(dl, "create", failing_create)
+
+    def _run_contest(self, bt_scenario: BTTestScenario) -> Status:
+        """The sender's shorter terms win; the owner's default is the loser."""
+        status, _, _ = _run(
+            bt_scenario,
+            owner_policy=ACTOR_DEFAULT,
+            sender_proposal=SENDER_PROPOSAL,
+            sender_proposed_embargo=EmbargoEvent(
+                id_=self.SENDER_EVENT_ID,
+                context=REPORT_ID,
+                end_time=from_now_utc(SENDER_PROPOSAL),
+            ),
+        )
+        return status
+
+    @pytest.mark.spec("CM-14-003")
+    def test_a_failed_owner_seed_leaves_the_case_at_none(
+        self,
+        bt_scenario: BTTestScenario,
+        case_obj: VulnerabilityCase,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        with monkeypatch.context() as patch:
+            self._fail_writes_of(
+                bt_scenario,
+                patch,
+                lambda obj: isinstance(obj, CaseParticipant),
+            )
+            status, _, _ = _run(bt_scenario)
+
+        assert status == Status.FAILURE
+        assert _em_state(bt_scenario) == EM.NONE
+        assert _active_embargo(bt_scenario) is None
+        assert _owner_participant(bt_scenario).accepted_embargo_ids == []
+
+    @pytest.mark.spec("CM-14-003")
+    def test_a_rerun_after_a_failed_owner_seed_seeds_the_owner(
+        self,
+        bt_scenario: BTTestScenario,
+        case_obj: VulnerabilityCase,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        with monkeypatch.context() as patch:
+            self._fail_writes_of(
+                bt_scenario,
+                patch,
+                lambda obj: isinstance(obj, CaseParticipant),
+            )
+            _run(bt_scenario)
+
+        status, _, _ = _run(bt_scenario)
+
+        assert status == Status.SUCCESS
+        active = _active_embargo(bt_scenario)
+        assert active is not None
+        owner = _owner_participant(bt_scenario)
+        assert owner.embargo_consent_state == PEC.SIGNATORY
+        assert owner.accepted_embargo_ids == [active.id_]
+
+    @pytest.mark.spec("EP-04-003")
+    def test_a_failed_revision_write_leaves_the_case_at_none(
+        self,
+        bt_scenario: BTTestScenario,
+        case_obj: VulnerabilityCase,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        with monkeypatch.context() as patch:
+            self._fail_writes_of(
+                bt_scenario,
+                patch,
+                lambda obj: (
+                    isinstance(obj, EmbargoEvent)
+                    and obj.id_ != self.SENDER_EVENT_ID
+                ),
+            )
+            status = self._run_contest(bt_scenario)
+
+        assert status == Status.FAILURE
+        assert _em_state(bt_scenario) == EM.NONE
+        assert _active_embargo(bt_scenario) is None
+        case = cast(VulnerabilityCase, bt_scenario.dl.read(CASE_ID))
+        assert case.proposed_embargoes == []
+        assert _owner_participant(bt_scenario).accepted_embargo_ids == []
+
+    @pytest.mark.spec("EP-04-003")
+    def test_a_rerun_after_a_failed_revision_write_registers_it(
+        self,
+        bt_scenario: BTTestScenario,
+        case_obj: VulnerabilityCase,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        with monkeypatch.context() as patch:
+            self._fail_writes_of(
+                bt_scenario,
+                patch,
+                lambda obj: (
+                    isinstance(obj, EmbargoEvent)
+                    and obj.id_ != self.SENDER_EVENT_ID
+                ),
+            )
+            self._run_contest(bt_scenario)
+
+        status = self._run_contest(bt_scenario)
+
+        assert status == Status.SUCCESS
+        assert _em_state(bt_scenario) == EM.REVISE
+        case = cast(VulnerabilityCase, bt_scenario.dl.read(CASE_ID))
+        assert case.active_embargo_id == self.SENDER_EVENT_ID
+        (revision_id,) = case.proposed_embargoes
+        revision = bt_scenario.dl.read(revision_id)
+        assert isinstance(revision, EmbargoEvent)
+        assert revision.context == CASE_ID
+        # The owner ran the tree, so it is both the seeded signatory of the
+        # active terms and the proposer of the revision (MSM-07-005): one
+        # record carries both, through the one commit.
+        owner = _owner_participant(bt_scenario)
+        assert owner.embargo_consent_state == PEC.SIGNATORY
+        assert set(owner.accepted_embargo_ids) == {
+            self.SENDER_EVENT_ID,
+            revision_id,
+        }
+
+    def test_the_whole_initialization_is_one_store_write(
+        self,
+        bt_scenario: BTTestScenario,
+        case_obj: VulnerabilityCase,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Past the event creation, nothing but one ``save_many`` writes."""
+        dl = bt_scenario.dl
+        save, save_many = dl.save, dl.save_many
+        writes: list[list[str]] = []
+
+        def recording_save(obj: Any) -> None:
+            writes.append([type(obj).__name__])
+            save(obj)
+
+        def recording_save_many(objs: list[Any]) -> None:
+            writes.append(sorted(type(obj).__name__ for obj in objs))
+            save_many(objs)
+
+        monkeypatch.setattr(dl, "save", recording_save)
+        monkeypatch.setattr(dl, "save_many", recording_save_many)
+
+        assert self._run_contest(bt_scenario) == Status.SUCCESS
+
+        participant = type(_owner_participant(bt_scenario)).__name__
+        assert writes == [
+            sorted(["VulnerabilityCase", participant, "EmbargoEvent"])
+        ]

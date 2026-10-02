@@ -11,37 +11,45 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""initialize_creation_embargo (creation.py): propose + activate, one write.
+"""initialize_creation_embargo (creation.py): propose + activate, one commit.
 
 At case creation the PROPOSE and ACCEPT triggers are applied together and
-only ``EM.ACTIVE`` is persisted (EP-04-002); any refusal leaves the case at
-``EM.NONE`` so a redelivered proposal can finish it (EP-04-012, #4123).
+only ``EM.ACTIVE`` is persisted (EP-04-002).  The consent records, the owner's
+SIGNATORY seed and a contested creation's revision commit with it, so any
+refusal or fault leaves the case at ``EM.NONE`` for a redelivered proposal to
+finish (EP-04-012, #4123, #4142).
 """
 
-from typing import Any, cast
+from typing import cast
 
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.protocols import PersistableModel
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.errors import (
+    VultronError,
     VultronInvalidStateTransitionError,
     VultronNotFoundError,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 from .conftest import (
     UNHELD_EMBARGO_ID,
     _accepted_ids_of,
+    _force_pec,
     _make_actor,
     _make_case,
     _make_embargo,
     _pec_of,
+    _record_save_many,
 )
 
 pytestmark = [pytest.mark.spec("EP-04-002"), pytest.mark.spec("EP-04-012")]
@@ -58,29 +66,41 @@ def _assert_untouched(dl: SqliteDataLayer, case_id: str) -> None:
     assert case.proposed_embargoes == []
 
 
-def test_none_to_active_in_one_case_write(
+def test_none_to_active_in_one_commit(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     owner, dl = owner_and_dl
-    case, _ = _make_case(dl, owner.id_)
+    case, (owner_p,) = _make_case(dl, owner.id_)
     embargo = _make_embargo(dl, case.id_)
     saved_states: list[EM] = []
-    save = dl.save
+    commits: list[list[str]] = []
+    save, save_many = dl.save, dl.save_many
 
-    def recording_save(obj: Any) -> Any:
-        if isinstance(obj, VulnerabilityCase):
-            saved_states.append(obj.current_status.em.state)
-        return save(obj)
+    def recording_save(obj: PersistableModel) -> None:
+        commits.append([obj.id_])
+        save(obj)
+
+    def recording_save_many(objs: list[PersistableModel]) -> None:
+        commits.append([obj.id_ for obj in objs])
+        saved_states.extend(
+            obj.current_status.em.state
+            for obj in objs
+            if isinstance(obj, VulnerabilityCase)
+        )
+        save_many(objs)
 
     monkeypatch.setattr(dl, "save", recording_save)
+    monkeypatch.setattr(dl, "save_many", recording_save_many)
 
     result = EmbargoLifecycle(persistence=dl).initialize_creation_embargo(
         case_id=case.id_, embargo_id=embargo.id_, actor_id=owner.id_
     )
 
-    # EM.PROPOSED is never handed to the store (EP-04-002).
+    # EM.PROPOSED is never handed to the store (EP-04-002), and the owner's
+    # consent goes in the same commit as the case (#4142).
     assert saved_states == [EM.ACTIVE]
+    assert commits == [[case.id_, owner_p.id_]]
     assert (result.em_before, result.em_after) == (EM.NONE, EM.ACTIVE)
     stored = _stored_case(dl, case.id_)
     assert stored.current_status.em.state == EM.ACTIVE
@@ -114,15 +134,20 @@ def test_consent_matches_propose_then_activate(
     assert _pec_of(dl, other_p.id_) == PEC.UNBOUND.value
 
 
-def test_a_proposer_with_no_participant_record_records_no_consent(
+@pytest.mark.spec("CM-14-003")
+def test_a_non_participant_proposer_still_has_the_owner_seeded(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """The CASE_MANAGER on the creation path need not be a participant."""
+    """The CASE_MANAGER on the creation path need not be a participant.
+
+    It records no consent of its own; the owner is read from the case
+    (``attributed_to``) and seeded SIGNATORY of the terms it set.
+    """
     owner, dl = owner_and_dl
     case, (owner_p,) = _make_case(dl, owner.id_)
     embargo = _make_embargo(dl, case.id_)
 
-    EmbargoLifecycle(persistence=dl).initialize_creation_embargo(
+    result = EmbargoLifecycle(persistence=dl).initialize_creation_embargo(
         case_id=case.id_,
         embargo_id=embargo.id_,
         actor_id="https://example.org/actors/not-a-participant",
@@ -130,7 +155,54 @@ def test_a_proposer_with_no_participant_record_records_no_consent(
 
     assert _stored_case(dl, case.id_).active_embargo_id == embargo.id_
     owner_record = cast(CaseParticipant, dl.read(owner_p.id_))
-    assert owner_record.accepted_embargo_ids == []
+    assert owner_record.accepted_embargo_ids == [embargo.id_]
+    assert owner_record.embargo_consent_state == PEC.SIGNATORY.value
+    assert [c.participant_id for c in result.participant_changes] == [
+        owner_p.id_
+    ]
+
+
+@pytest.mark.spec("CM-14-003")
+@pytest.mark.spec("CM-13-005")
+def test_an_owner_already_signatory_stays_signatory(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """Seeding is idempotent: no ``ACCEPT`` from SIGNATORY, no raise."""
+    owner, dl = owner_and_dl
+    case, (owner_p,) = _make_case(dl, owner.id_)
+    _force_pec(dl, owner_p.id_, PEC.SIGNATORY)
+    embargo = _make_embargo(dl, case.id_)
+
+    EmbargoLifecycle(persistence=dl).initialize_creation_embargo(
+        case_id=case.id_, embargo_id=embargo.id_, actor_id=owner.id_
+    )
+
+    assert _pec_of(dl, owner_p.id_) == PEC.SIGNATORY.value
+    assert _accepted_ids_of(dl, owner_p.id_) == [embargo.id_]
+
+
+@pytest.mark.spec("CM-14-002")
+@pytest.mark.parametrize("unseedable", ["no_owner", "no_record"])
+def test_an_owner_without_a_participant_record_is_refused_unchanged(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer], unseedable: str
+) -> None:
+    """No owner to seed is a broken precondition, refused before any write."""
+    owner, dl = owner_and_dl
+    case, (owner_p,) = _make_case(dl, owner.id_)
+    if unseedable == "no_owner":
+        case.attributed_to = None
+    else:
+        case.actor_participant_index = {}
+    dl.save(case)
+    embargo = _make_embargo(dl, case.id_)
+
+    with pytest.raises(VultronNotFoundError, match="for owner"):
+        EmbargoLifecycle(persistence=dl).initialize_creation_embargo(
+            case_id=case.id_, embargo_id=embargo.id_, actor_id=owner.id_
+        )
+
+    _assert_untouched(dl, case.id_)
+    assert _accepted_ids_of(dl, owner_p.id_) == []
 
 
 @pytest.mark.parametrize(
@@ -229,3 +301,132 @@ def test_an_unheld_embargo_is_refused_before_any_write(
 
     _assert_untouched(dl, case.id_)
     assert _accepted_ids_of(dl, owner_p.id_) == []
+
+
+# -- the post-activation effects commit with the activation (#4142) ----------
+
+
+def _fail_save_many(
+    dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The one transaction fails, as ``save_many`` does: nothing is written."""
+
+    def failing_save_many(objs: list[PersistableModel]) -> None:
+        raise VultronError("forced store fault")
+
+    monkeypatch.setattr(dl, "save_many", failing_save_many)
+
+
+def test_a_failed_commit_writes_nothing_and_a_rerun_completes(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    owner, dl = owner_and_dl
+    case, (owner_p,) = _make_case(dl, owner.id_)
+    embargo = _make_embargo(dl, case.id_)
+
+    with monkeypatch.context() as patch:
+        _fail_save_many(dl, patch)
+        with pytest.raises(VultronError, match="forced store fault"):
+            EmbargoLifecycle(persistence=dl).initialize_creation_embargo(
+                case_id=case.id_, embargo_id=embargo.id_, actor_id=owner.id_
+            )
+
+    _assert_untouched(dl, case.id_)
+    assert _accepted_ids_of(dl, owner_p.id_) == []
+
+    EmbargoLifecycle(persistence=dl).initialize_creation_embargo(
+        case_id=case.id_, embargo_id=embargo.id_, actor_id=owner.id_
+    )
+
+    assert _stored_case(dl, case.id_).active_embargo_id == embargo.id_
+    assert _pec_of(dl, owner_p.id_) == PEC.SIGNATORY.value
+
+
+def _revision(case_id: str, days: int = 90) -> as_EmbargoEvent:
+    """A losing creation-time proposal, not yet stored."""
+    return as_EmbargoEvent(context=case_id, end_time=days_from_now_utc(days))
+
+
+@pytest.mark.spec("EP-04-003")
+def test_a_revision_is_stored_and_proposed_in_the_same_commit(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    owner, dl = owner_and_dl
+    case, (owner_p,) = _make_case(dl, owner.id_)
+    embargo = _make_embargo(dl, case.id_)
+    revision = _revision(case.id_)
+    batches = _record_save_many(dl, monkeypatch)
+
+    result = EmbargoLifecycle(persistence=dl).initialize_creation_embargo(
+        case_id=case.id_,
+        embargo_id=embargo.id_,
+        actor_id=owner.id_,
+        revision=revision,
+    )
+
+    assert [{obj.id_ for obj in batch} for batch in batches] == [
+        {case.id_, owner_p.id_, revision.id_}
+    ]
+    assert (result.em_before, result.em_after) == (EM.NONE, EM.REVISE)
+    stored = _stored_case(dl, case.id_)
+    assert stored.current_status.em.state == EM.REVISE
+    assert stored.active_embargo_id == embargo.id_
+    assert stored.proposed_embargoes == [revision.id_]
+    assert isinstance(dl.read(revision.id_), as_EmbargoEvent)
+    # The owner both proposed the revision and is seeded on the active
+    # terms: one record carries both through the commit (MSM-07-005).
+    assert _pec_of(dl, owner_p.id_) == PEC.SIGNATORY.value
+    assert _accepted_ids_of(dl, owner_p.id_) == [embargo.id_, revision.id_]
+
+
+@pytest.mark.spec("EP-04-003")
+def test_a_failed_revision_commit_leaves_the_revision_unstored(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_)
+    embargo = _make_embargo(dl, case.id_)
+    revision = _revision(case.id_)
+
+    with monkeypatch.context() as patch:
+        _fail_save_many(dl, patch)
+        with pytest.raises(VultronError, match="forced store fault"):
+            EmbargoLifecycle(persistence=dl).initialize_creation_embargo(
+                case_id=case.id_,
+                embargo_id=embargo.id_,
+                actor_id=owner.id_,
+                revision=revision,
+            )
+
+    _assert_untouched(dl, case.id_)
+    assert dl.read(revision.id_) is None
+
+
+@pytest.mark.spec("EP-04-004")
+def test_a_revision_id_held_by_other_terms_is_refused_unchanged(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """A stored twin that is not this revision is refused, not overwritten."""
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_)
+    embargo = _make_embargo(dl, case.id_)
+    held = _make_embargo(dl, case.id_, days=10)
+    revision = as_EmbargoEvent(
+        id_=held.id_, context=case.id_, end_time=days_from_now_utc(90)
+    )
+
+    with pytest.raises(VultronError, match="already held"):
+        EmbargoLifecycle(persistence=dl).initialize_creation_embargo(
+            case_id=case.id_,
+            embargo_id=embargo.id_,
+            actor_id=owner.id_,
+            revision=revision,
+        )
+
+    _assert_untouched(dl, case.id_)
+    stored_held = dl.read(held.id_)
+    assert isinstance(stored_held, as_EmbargoEvent)
+    assert stored_held.end_time == held.end_time
