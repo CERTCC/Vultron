@@ -187,7 +187,6 @@ class TestEmbargoTermRevise:
         )
 
         py_trees.blackboard.Blackboard.enable_activity_stream()
-        py_trees.blackboard.Blackboard.storage.clear()
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
@@ -237,7 +236,6 @@ class TestEmbargoTermRevise:
         )
 
         py_trees.blackboard.Blackboard.enable_activity_stream()
-        py_trees.blackboard.Blackboard.storage.clear()
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",

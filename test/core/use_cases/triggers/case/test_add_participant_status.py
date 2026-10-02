@@ -474,7 +474,6 @@ class TestCreateParticipantStatusNode:
         )
 
         py_trees.blackboard.Blackboard.enable_activity_stream()
-        py_trees.blackboard.Blackboard.storage.clear()
 
         self.actor = as_Service(name="Reporter")
         actor_id = self.actor.id_
@@ -524,7 +523,6 @@ class TestCreateParticipantStatusNode:
             self.dl.close()
             reset_datalayer(actor_id)
             reset_datalayer(self.case_actor.id_)
-        py_trees.blackboard.Blackboard.storage.clear()
 
     def _run_node(self, **kwargs):
         """Build and execute a tree containing only CreateParticipantStatusNode."""
@@ -2080,7 +2078,6 @@ class TestCreateParticipantStatusNodeCrossMachineOnBypassPath:
         )
 
         py_trees.blackboard.Blackboard.enable_activity_stream()
-        py_trees.blackboard.Blackboard.storage.clear()
 
         self.actor = as_Service(name="Vendor Bypass")
         actor_id = self.actor.id_
@@ -2124,7 +2121,6 @@ class TestCreateParticipantStatusNodeCrossMachineOnBypassPath:
             self.dl.close()
             reset_datalayer(actor_id)
             reset_datalayer(self.case_actor.id_)
-        py_trees.blackboard.Blackboard.storage.clear()
 
     def _run_node(self, **kwargs):
         from vultron.core.behaviors.case.nodes.participant import (

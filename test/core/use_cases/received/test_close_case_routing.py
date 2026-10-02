@@ -18,8 +18,6 @@ Pins the pre-flight guard (CLP-10-003): only the CaseActor writes a
 
 from __future__ import annotations
 
-import pytest
-
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
@@ -48,15 +46,6 @@ CASE_ID = "https://example.org/cases/c-close-test"
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
-
-
-@pytest.fixture(autouse=True)
-def _clear_blackboard():
-    import py_trees
-
-    py_trees.blackboard.Blackboard.storage.clear()
-    yield
-    py_trees.blackboard.Blackboard.storage.clear()
 
 
 def _make_dl(actor_id: str = CASE_ACTOR_ID) -> SqliteDataLayer:

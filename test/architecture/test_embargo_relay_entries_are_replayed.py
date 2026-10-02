@@ -137,13 +137,6 @@ OUTSIDE_THE_RELAY: dict[str, str] = {
 }
 
 
-@pytest.fixture(autouse=True)
-def clear_blackboard():
-    py_trees.blackboard.Blackboard.storage.clear()
-    yield
-    py_trees.blackboard.Blackboard.storage.clear()
-
-
 def _effect_slot_conditions() -> list[_ActivityEventNode]:
     """The positive event conditions of the announce tree's effect slots.
 

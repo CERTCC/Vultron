@@ -110,12 +110,6 @@ STATUS_ID = "https://example.org/cases/case-01/participants/vendor/statuses/s1"
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture(autouse=True)
-def clear_blackboard():
-    """Clear py_trees global blackboard storage between tests."""
-    py_trees.blackboard.Blackboard.storage.clear()
-
-
 @pytest.fixture
 def executing_actor_id(request):
     """The actor whose identity this test's tree runs under.

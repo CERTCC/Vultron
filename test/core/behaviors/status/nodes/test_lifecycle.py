@@ -66,11 +66,6 @@ STATUS_ID = "https://example.org/cases/case-01/statuses/s1"
 EMBARGO_ID = "https://example.org/cases/case-01/embargo_events/e1"
 
 
-@pytest.fixture(autouse=True)
-def clear_blackboard():
-    py_trees.blackboard.Blackboard.storage.clear()
-
-
 @pytest.fixture
 def dl():
     # ACTOR_ID's own store: the trees in this module execute as ACTOR_ID, and a

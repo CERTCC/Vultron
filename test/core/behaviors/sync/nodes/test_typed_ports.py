@@ -431,8 +431,8 @@ class TestLedgerPortDeclarations:
 @pytest.mark.spec("BTND-03-011")
 class TestLedgerPortInputEnforcement:
     # py_trees' blackboard storage is a process-global singleton; the repo-wide
-    # autouse `clear_py_trees_blackboard` in test/core/behaviors/conftest.py
-    # clears it around every test in this tree (TB-06-005).
+    # autouse `clear_py_trees_blackboard` in test/conftest.py
+    # clears it around every test (TB-06-005).
 
     @pytest.mark.parametrize("decl", LEDGER_READERS, ids=decl_id)
     def test_wrong_type_raises_type_error(self, decl: PortDecl) -> None:

@@ -20,7 +20,6 @@ leaf has been replaced by the draft-review-submit pipeline (ADR-0030 / BT-20-004
 """
 
 import py_trees
-import pytest
 from py_trees.common import Access, Status
 
 from vultron.core.behaviors.report.publication_intent import (
@@ -33,14 +32,6 @@ from vultron.core.behaviors.report.publication_tree import (
 from vultron.demo.fuzzer.bundles.publication import PublicationCallOutBundle
 
 CASE_ID = "https://example.org/cases/test-001"
-
-
-@pytest.fixture(autouse=True)
-def clear_blackboard():
-    """Clear py_trees global blackboard state between tests."""
-    py_trees.blackboard.Blackboard.storage.clear()
-    yield
-    py_trees.blackboard.Blackboard.storage.clear()
 
 
 class _RecordingPrepare(py_trees.behaviour.Behaviour):

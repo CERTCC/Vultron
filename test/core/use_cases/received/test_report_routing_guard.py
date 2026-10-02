@@ -75,15 +75,6 @@ CASE_ID = "https://example.org/cases/c-routing-guard-test"
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture(autouse=True)
-def _clear_blackboard():
-    import py_trees
-
-    py_trees.blackboard.Blackboard.storage.clear()
-    yield
-    py_trees.blackboard.Blackboard.storage.clear()
-
-
 def _make_dl(
     receiving_rm: RM = RM.RECEIVED,
     sender_rm: RM = RM.RECEIVED,

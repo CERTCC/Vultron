@@ -573,61 +573,56 @@ class TestStatusUseCases:
         Absent-stamp path (CLP-10-005): resolve_receiving_actor_id falls back to
         dl.actor_id (vendor), so the status is appended rather than dropped.
         """
-        import py_trees
 
-        py_trees.blackboard.Blackboard.storage.clear()
-        try:
-            vendor_id = "https://example.org/users/vendor-nostamp"
-            dl = SqliteDataLayer("sqlite:///:memory:", actor_id=vendor_id)
+        vendor_id = "https://example.org/users/vendor-nostamp"
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=vendor_id)
 
-            participant = as_CaseParticipant(
-                id_="https://example.org/cases/case_ps_nostamp/participants/p",
-                context="https://example.org/cases/case_ps_nostamp",
-                attributed_to=vendor_id,
-            )
-            pstatus = as_ParticipantStatus(
-                id_=(
-                    "https://example.org/cases/case_ps_nostamp"
-                    "/participants/p/statuses/s"
-                ),
-                context="https://example.org/cases/case_ps_nostamp",
-            )
-            case = as_VulnerabilityCase(
-                id_="https://example.org/cases/case_ps_nostamp",
-                name="PS No-Stamp Test",
-            )
-            case.case_participants.append(participant.id_)
-            case.actor_participant_index[vendor_id] = participant.id_
-            dl.create(participant)
-            dl.create(pstatus)
-            dl.create(case)
+        participant = as_CaseParticipant(
+            id_="https://example.org/cases/case_ps_nostamp/participants/p",
+            context="https://example.org/cases/case_ps_nostamp",
+            attributed_to=vendor_id,
+        )
+        pstatus = as_ParticipantStatus(
+            id_=(
+                "https://example.org/cases/case_ps_nostamp"
+                "/participants/p/statuses/s"
+            ),
+            context="https://example.org/cases/case_ps_nostamp",
+        )
+        case = as_VulnerabilityCase(
+            id_="https://example.org/cases/case_ps_nostamp",
+            name="PS No-Stamp Test",
+        )
+        case.case_participants.append(participant.id_)
+        case.actor_participant_index[vendor_id] = participant.id_
+        dl.create(participant)
+        dl.create(pstatus)
+        dl.create(case)
 
-            activity = add_status_to_participant_activity(
-                pstatus,
-                target=participant,
-                actor=vendor_id,
-                context=case,
-            )
-            event = make_payload(activity, receiving_actor_id=None)
+        activity = add_status_to_participant_activity(
+            pstatus,
+            target=participant,
+            actor=vendor_id,
+            context=case,
+        )
+        event = make_payload(activity, receiving_actor_id=None)
 
-            AddParticipantStatusToParticipantReceivedUseCase(
-                dl,
-                event,
-                wire_render_port=As2WireRenderAdapter(),
-            ).execute()
+        AddParticipantStatusToParticipantReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
 
-            refreshed = dl.read(participant.id_)
-            assert refreshed is not None
-            refreshed = cast(as_CaseParticipant, refreshed)
-            status_ids = [
-                getattr(s, "id_", s) for s in refreshed.participant_statuses
-            ]
-            assert pstatus.id_ in status_ids, (
-                "Status must be appended even when receiving_actor_id is absent"
-                " (store-owner fallback, CLP-10-005)"
-            )
-        finally:
-            py_trees.blackboard.Blackboard.storage.clear()
+        refreshed = dl.read(participant.id_)
+        assert refreshed is not None
+        refreshed = cast(as_CaseParticipant, refreshed)
+        status_ids = [
+            getattr(s, "id_", s) for s in refreshed.participant_statuses
+        ]
+        assert pstatus.id_ in status_ids, (
+            "Status must be appended even when receiving_actor_id is absent"
+            " (store-owner fallback, CLP-10-005)"
+        )
 
     def test_add_case_status_to_case_rejects_empty_status_id(self, caplog):
         """execute() logs a warning and returns early when status_id is empty string."""

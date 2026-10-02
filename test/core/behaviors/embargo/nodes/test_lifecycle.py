@@ -111,11 +111,6 @@ def _make_factory() -> MagicMock:
     return factory
 
 
-@pytest.fixture(autouse=True)
-def clear_blackboard():
-    py_trees.blackboard.Blackboard.storage.clear()
-
-
 # ---------------------------------------------------------------------------
 # terminate_embargo_bt — shared factory (BT-19-001, BT-19-002)
 # ---------------------------------------------------------------------------

@@ -76,11 +76,13 @@ def _make_event(semantic_type=MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY):
 
 
 @pytest.fixture(autouse=True)
-def _clear_blackboard():
-    """Reset the py_trees blackboard between tests."""
+def _enable_activity_stream():
+    """Re-enable the blackboard activity stream after each test.
+
+    The root ``clear_py_trees_blackboard`` fixture clears the storage.
+    """
     yield
     py_trees.blackboard.Blackboard.enable_activity_stream()
-    py_trees.blackboard.Blackboard.storage.clear()
 
 
 def _run_node(

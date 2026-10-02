@@ -204,15 +204,6 @@ def _configure_case_actor_url(monkeypatch):
     reload_config()
 
 
-@pytest.fixture(autouse=True)
-def _clear_blackboard():
-    import py_trees
-
-    py_trees.blackboard.Blackboard.storage.clear()
-    yield
-    py_trees.blackboard.Blackboard.storage.clear()
-
-
 # ---------------------------------------------------------------------------
 # Layer 1 — Trigger emits to the CaseActor's outbox
 # ---------------------------------------------------------------------------

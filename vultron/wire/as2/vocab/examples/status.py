@@ -11,8 +11,6 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from datetime import UTC, datetime
-
 from vultron.core.models.dimensions import (
     EmDimension,
     PxaDimension,
@@ -32,13 +30,15 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Add,
     as_Create,
 )
-from vultron.wire.as2.vocab.examples._base import case, vendor
+from vultron.wire.as2.vocab.examples._base import (
+    _example_stamp,
+    case,
+    vendor,
+)
 from vultron.wire.as2.vocab.objects.case_status import (
     as_CaseStatus,
     as_ParticipantStatus,
 )
-
-_EXAMPLE_TIMESTAMP = datetime(2026, 6, 1, 19, 12, tzinfo=UTC)
 
 
 def case_status() -> as_CaseStatus:
@@ -47,8 +47,7 @@ def case_status() -> as_CaseStatus:
         context="https://vultron.example/cases/1",
         em=EmDimension(state=EM.EMBARGO_MANAGEMENT_NONE),
         pxa=PxaDimension(state=CS_pxa.pxa),
-        published=_EXAMPLE_TIMESTAMP,
-        updated=_EXAMPLE_TIMESTAMP,
+        **_example_stamp(),
     )
     return status
 
@@ -82,8 +81,7 @@ def participant_status() -> as_ParticipantStatus:
         rm=RmDimension(state=RM.RECEIVED),
         vf=VfDimension(state=CS_vf.Vf),
         case_status=case_status(),
-        published=_EXAMPLE_TIMESTAMP,
-        updated=_EXAMPLE_TIMESTAMP,
+        **_example_stamp(),
     )
     return status
 
