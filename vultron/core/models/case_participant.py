@@ -193,8 +193,8 @@ class CaseParticipant(CoreObject):
 
         The read-only twin of :meth:`apply_pec_transition`, for a caller that
         applies a trigger only where CM-18-003 allows it — a relayed embargo
-        Invite moves a participant to ``INVITED`` from ``UNBOUND``, ``LAPSED``
-        or ``DECLINED`` and leaves a ``SIGNATORY`` or an already-``INVITED``
+        Invite moves a participant to ``INVITED`` from ``UNBOUND``, ``LAPSED``,
+        ``DECLINED`` or ``EXPIRED`` and leaves a ``SIGNATORY`` or an already-``INVITED``
         participant untouched (EP-09-004).  Asking first, rather than catching
         the machine's refusal, keeps the write path fail-closed for every
         caller that does not opt into the no-op.
@@ -220,6 +220,23 @@ class CaseParticipant(CoreObject):
         if not self.accepts_pec_trigger(trigger):
             return False
         self.apply_pec_transition(trigger)
+        return True
+
+    def sign_embargo(self, embargo_id: str) -> bool:
+        """Sign *embargo_id*, the embargo in force; True when now SIGNATORY.
+
+        The one seeding shape for a participant that consents to the active
+        embargo without an answer of its own (CM-14-005, CM-10-001): apply
+        ``ACCEPT`` where CM-18-003 allows it, and record *embargo_id* only when
+        the participant is ``SIGNATORY`` afterwards.  A ``DECLINED`` or
+        terminal ``UNBOUND_EXITED`` participant is left unsigned and gains no
+        id, so the content gate (CM-10-004) never admits an actor whose state
+        says it is not bound (ADR-0117).  The caller persists the record.
+        """
+        self.apply_pec_transition_if_legal(PEC_Trigger.ACCEPT)
+        if self.embargo_consent_state != PEC.SIGNATORY.value:
+            return False
+        self.add_accepted_embargo(embargo_id)
         return True
 
     def add_accepted_embargo(self, embargo_id: str) -> bool:

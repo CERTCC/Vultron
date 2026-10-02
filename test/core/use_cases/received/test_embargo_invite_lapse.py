@@ -30,6 +30,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.rsvp_deadline import INVITE_EXPIRED_EVENT_TYPE
 from vultron.core.models.use_case_result import HandlerDisposition
@@ -1714,6 +1715,62 @@ class TestLateAcceptHandling:
         assert isinstance(participant, CaseParticipant)
         assert participant.embargo_consent_state == PEC.UNBOUND_EXITED
 
+    @pytest.mark.spec("EMB-17-004")
+    @pytest.mark.spec("CM-28-004")
+    def test_late_accept_with_no_embargo_leaves_the_invitee_expired(
+        self, make_payload
+    ):
+        """Late Accept with EM NONE → expiry recorded, then an ack no-op.
+
+        Nothing is in force, so the late Accept has nothing to sign: the
+        overdue invitee is recorded as EXPIRED, with one expiry ledger entry,
+        and stays EXPIRED so a later embargo may re-invite it (ADR-0117).
+        """
+        dl = _make_dl(actor_id=_COORD)
+        case_id = "https://example.org/cases/ea-none"
+        embargo_id = "https://example.org/cases/ea-none/embargos/e1"
+
+        case, embargo, _participant_id = _make_active_embargo_case(
+            dl,
+            case_id,
+            embargo_id,
+            invitee_pec=PEC.INVITED,
+            invitee_deadline=_PAST,
+        )
+        case.append_case_status(em_state=EM.NONE)
+        case.set_embargo(None)
+        dl.save(case)
+
+        proposal = em_propose_embargo_activity(
+            embargo=embargo,
+            context=case.id_,
+            actor=_COORD,
+            id_=f"{case_id}/proposals/p1",
+        )
+        dl.create(proposal)
+
+        event = _make_accept_event(proposal, case, _INVITEE, make_payload)
+        AcceptInviteToEmbargoOnCaseReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        fresh_case = dl.read(case_id)
+        assert isinstance(fresh_case, CoreCase)
+        participant = dl.read(fresh_case.actor_participant_index[_INVITEE])
+        assert isinstance(participant, CaseParticipant)
+        assert participant.embargo_consent_state == PEC.EXPIRED
+        expiry_entries = [
+            obj
+            for obj in dl.list_objects("CaseLedgerEntry")
+            if isinstance(obj, CaseLedgerEntry)
+            and obj.case_id == case_id
+            and obj.event_type == INVITE_EXPIRED_EVENT_TYPE
+        ]
+        assert len(expiry_entries) == 1
+
     def test_late_accept_honored_when_em_revise_with_matching_embargo(
         self, make_payload
     ):
@@ -1873,7 +1930,6 @@ class TestLateAcceptHandling:
 
     def test_expiry_creates_distinct_ledger_entry(self, make_payload):
         """Late Accept after expiry creates a ledger entry distinct from Reject (CM-28-009)."""
-        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 
         dl = _make_dl(actor_id=_COORD)
         case_id = "https://example.org/cases/ea6"
@@ -2064,7 +2120,6 @@ class TestLapseIsTheManagersAlone:
     @pytest.mark.spec("CM-28-014")
     def test_non_manager_commits_no_lapse_entry(self, make_payload):
         """A replica that sees a late Accept writes no lapse entry."""
-        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 
         dl = _make_dl(actor_id=_OTHER)
         case_id = "https://example.org/cases/lapse-replica"

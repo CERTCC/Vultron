@@ -61,10 +61,7 @@ Six triggers drive the machine.
 | Expired | decline | Declined |
 | any state but Unbound (exited) | exit | Unbound (exited) |
 
-Equivalently, by trigger: invite is valid from Unbound, Lapsed, Declined and Expired;
-accept is valid from Unbound, Invited, Lapsed and Expired; decline is valid from
-Unbound, Invited, Lapsed, Signatory and Expired; revise is valid only from Signatory;
-expire is valid only from Invited; exit is valid from every state except Unbound (exited).
+Equivalently, by trigger: invite is valid from Unbound, Lapsed, Declined and Expired; accept is valid from Unbound, Invited, Lapsed and Expired; decline is valid from Unbound, Invited, Lapsed, Signatory and Expired; revise is valid only from Signatory; expire is valid only from Invited; exit is valid from every state except Unbound (exited).
 
 None of Lapsed, Declined and Expired is terminal.
 A participant in any of them can be invited again, which is what makes renegotiation possible.
@@ -161,18 +158,14 @@ deadline would — whether it came from the invitation's explicit `endTime` or f
 the policy window — the CASE_MANAGER MUST clamp it down to the embargo's end.
 
 An invitee must be able to answer while there is still something to answer about.
-Invite a participant to a 24-hour embargo with no explicit `endTime` and a 7-day
-policy window records their inaction as an expiry on day 7 — six days after the
-embargo ended. This is why the minimum window above is relative rather than
-absolute: a 12-hour embargo grants a 12-hour answer window, and that is not an
-unreasonably short deadline when 12 hours is the whole embargo.
+Invite a participant to a 24-hour embargo with no explicit `endTime` and a 7-day policy window records their inaction as an expiry on day 7 — six days after the embargo ended.
+This is why the minimum window above is relative rather than absolute: a 12-hour embargo grants a 12-hour answer window, and that is not an unreasonably short deadline when 12 hours is the whole embargo.
 
-**A late acceptance is not refused.** The CASE_MANAGER MUST NOT refuse a late
-accept on deadline grounds. Three cases apply. If the terms it accepts are still
-current, the CASE_MANAGER records the consent: an Expired participant becomes Signatory directly, and a Declined one is invited again first, because accept is not valid from Declined. If the terms are stale, the
-CASE_MANAGER sends a fresh invitation carrying the current terms. If no embargo
-remains, the CASE_MANAGER records the accept as a no-op; the participant keeps its
-place in the case either way.
+**A late acceptance is not refused.** The CASE_MANAGER MUST NOT refuse a late accept on deadline grounds.
+Three cases apply.
+If the terms it accepts are still current, the CASE_MANAGER records the consent: an Expired participant becomes Signatory directly, and a Declined one is invited again first, because accept is not valid from Declined.
+If the terms are stale, the CASE_MANAGER sends a fresh invitation carrying the current terms.
+If no embargo remains, the CASE_MANAGER records the accept as a no-op; the participant keeps its place in the case either way.
 
 **An expiry and a refusal reach different states.** Silence records Expired; an explicit decline records Declined.
 The case history distinguishes them too — it holds the decline that was sent, or the CASE_MANAGER's record of the expiry — but every reader of the consent state can tell them apart without consulting it.
@@ -183,11 +176,8 @@ Both can be invited again; only Expired accepts a late accept directly.
 Embargo consent gates case **content**. It does not gate the negotiation about the
 embargo itself.
 
-The CASE_MANAGER MUST deliver embargo meta-protocol messages — invitations, the
-accepts and rejects answering them, and terminations — to every participant,
-including those at Declined, Expired and Lapsed. A participant cannot agree to revised
-terms it was never told about, and one that declined the original terms may well
-accept the revision.
+The CASE_MANAGER MUST deliver embargo meta-protocol messages — invitations, the accepts and rejects answering them, and terminations — to every participant, including those at Declined, Expired and Lapsed.
+A participant cannot agree to revised terms it was never told about, and one that declined the original terms may well accept the revision.
 
 Only case content — report details, fix status, sensitive notes — is gated on
 Signatory status ([§9.7 Gating Full Case Delivery](tracking-models.md#97-gating-full-case-delivery)).

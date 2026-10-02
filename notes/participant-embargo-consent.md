@@ -239,6 +239,18 @@ activity they sent, and the CASE_MANAGER records the conclusion. This is why PEC
 transitions do not require a dedicated wire message partition in the formal set —
 the signal is already in the EM wire activities.
 
+### A Participant Refuses a P/X/A Revision with ER, Never ET
+
+*Spec: EMB-03-003, EMB-01-002, HP-01-005. Decision: ADR-0117.*
+
+A participant that is neither the case owner nor the CASE_MANAGER and receives a
+revision Invite while P/X/A is set answers it with ER to the CASE_MANAGER. It
+does not emit ET and does not move its own EM state: termination is the owner's
+decision, or the delegated CASE_MANAGER's (EP-09-003, EP-09-008, CM-24). The ER
+duty binds only the addressee; a store that is neither the sender nor in `to` or
+`cc` refuses the copy at the door (`unaddressed_copy_refusal()`) and answers
+nothing. This is the one statement of the rule in this note.
+
 ---
 
 ## `UNBOUND` Means Not Bound by Any Embargo Terms

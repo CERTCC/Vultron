@@ -825,10 +825,10 @@ groups:
       (2) for any rejecting participant the effect depends on which embargo the
       Reject names: rejecting the case's *active* embargo MUST apply the PEC
       DECLINE trigger (consent withdrawal; valid from INVITED, UNBOUND, LAPSED,
-      or SIGNATORY); rejecting a *proposed* embargo that is not active MUST
+      EXPIRED, or SIGNATORY); rejecting a *proposed* embargo that is not active MUST
       remove that id from the participant's `accepted_embargo_ids` if present,
-      MUST apply DECLINE to a participant not yet SIGNATORY (INVITED, UNBOUND,
-      or LAPSED → DECLINED), and MUST leave a SIGNATORY's state unchanged — a
+      MUST apply DECLINE to a participant not yet SIGNATORY (INVITED,
+      UNBOUND, LAPSED, or EXPIRED → DECLINED), and MUST leave a SIGNATORY's state unchanged — a
       signatory's rejection of a proposed revision refuses those terms; it is not
       withdrawal from the embargo in force. When no embargo is in force (EM
       PROPOSED) a Reject of a proposal is a decline from any state, SIGNATORY
@@ -874,7 +874,8 @@ groups:
       unchanged); if B ends later than A, implementations MUST apply the PEC
       REVISE trigger to every SIGNATORY whose `accepted_embargo_ids` lacks B,
       advancing them to LAPSED. In either arm, a participant in any other state
-      (INVITED, UNBOUND, or LAPSED) whose `accepted_embargo_ids` already contains
+      (INVITED, UNBOUND, LAPSED, or EXPIRED) whose `accepted_embargo_ids`
+      already contains
       B MUST advance to SIGNATORY via the PEC ACCEPT trigger, because it has
       accepted the embargo now in force. Only signatories to A are carried over:
       a participant LAPSED before B activates stays LAPSED until it is re-invited

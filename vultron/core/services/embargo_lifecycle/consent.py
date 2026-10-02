@@ -23,6 +23,7 @@ EP-04-008).
 import logging
 from datetime import datetime
 
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.services.embargo_lifecycle.pec import _PecEffectsMixin
 from vultron.core.services.embargo_lifecycle.results import (
@@ -372,6 +373,19 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
             participant_changes=participant_changes,
             is_expired=is_expired,
         )
+
+    def exit_participant_consent(
+        self, case: VulnerabilityCase
+    ) -> list[ParticipantPECChange]:
+        """Move every participant of *case* to the terminal UNBOUND_EXITED.
+
+        The termination cascade (MSM-07-006, ADR-0117) as a public operation
+        for the teardown nodes, which apply it to a case whose EM state they
+        have already moved; :meth:`terminate_active_embargo` runs the same
+        :meth:`_cascade_pec_exit`, so the two paths share one loop
+        (CS-22-001).  Idempotent: a participant already exited is skipped.
+        """
+        return self._cascade_pec_exit(case)
 
     def assert_embargo_eligible(self, *, case_id: str, operation: str) -> None:
         """Raise unless the case is still embargo-eligible (P/X/A all clear).

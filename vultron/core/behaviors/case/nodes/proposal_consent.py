@@ -35,7 +35,7 @@ from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
+from vultron.core.states.participant_embargo_consent import PEC_Trigger
 from vultron.errors import BtNodePreconditionError, VultronNotFoundError
 
 logger = logging.getLogger(__name__)
@@ -51,18 +51,19 @@ def _seed_participant_as_signatory(
     """Seed *participant* as embargo SIGNATORY on *stored_case*'s active embargo.
 
     Used by ``SeedReporterSignatoryNode`` (CM-14-005). Uses
-    ``apply_pec_transition(PEC_Trigger.ACCEPT)`` — the authoritative
-    consent-write path (CM-18-005, ADR-0048) — to update both the PEC state
-    machine and ``ParticipantStatus.consent`` atomically. The idempotency
-    guard (``!= PEC.SIGNATORY``) prevents double-transitions on retries.
+    :meth:`CaseParticipant.sign_embargo` — ``ACCEPT`` through the
+    authoritative consent-write path (CM-18-005, ADR-0048) where CM-18-003
+    allows it — so a retry against a ``SIGNATORY`` changes nothing, and a
+    ``DECLINED`` or terminal ``UNBOUND_EXITED`` participant is neither
+    signed nor given the id (ADR-0117).
     """
     # `active_embargo_id`, not the field: it may hold the whole EmbargoEvent
     # when a received case carried one (AKM-03-001), and this list holds ids.
     embargo_id = stored_case.active_embargo_id
-    if participant.embargo_consent_state not in (PEC.SIGNATORY, PEC.DECLINED):
-        participant.apply_pec_transition(PEC_Trigger.ACCEPT)
     if embargo_id:
-        participant.add_accepted_embargo(embargo_id)
+        participant.sign_embargo(embargo_id)
+    else:
+        participant.apply_pec_transition_if_legal(PEC_Trigger.ACCEPT)
     datalayer.save(participant)
     logger.info(
         "Seeded %s as embargo SIGNATORY in case '%s' (%s)",

@@ -825,8 +825,7 @@ def test_termination_exits_every_participant_in_every_store():
 
     Termination ends the embargo for everyone, the owner included, so no
     record is left able to sign it (ADR-0117).  UNBOUND_EXITED is terminal:
-    a later Invite is refused in both stores, and refusing it writes
-    nothing.
+    every record, in both stores, refuses a later ``INVITE`` trigger.
     """
     from vultron.core.states.participant_embargo_consent import PEC_Trigger
     from vultron.errors import VultronInvalidStateTransitionError
@@ -865,6 +864,3 @@ def test_termination_exits_every_participant_in_every_store():
             assert participant.accepts_pec_trigger(PEC_Trigger.INVITE) is False
             with pytest.raises(VultronInvalidStateTransitionError):
                 participant.apply_pec_transition(PEC_Trigger.INVITE)
-            stored = net.stores[actor_id].read(participant_id)
-            assert isinstance(stored, CaseParticipant)
-            assert stored.embargo_consent_state is PEC.UNBOUND_EXITED

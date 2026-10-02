@@ -1228,7 +1228,7 @@ groups:
       unanswered, the CASE_MANAGER MUST close the Invite as an expired ask and
       MUST NOT change the invitee's participant state: the record stays inert at
       `RM.RECEIVED`, and its embargo consent stays `INVITED` — the CM-28-004
-      lapse-to-`DECLINED` rule applies to an `Invite(EmbargoEvent)`, not to the
+      expiry-to-`EXPIRED` rule applies to an `Invite(EmbargoEvent)`, not to the
       embargo terms a stub Invite carries. Case-wide closure checks ("all
       participants closed") MUST count only participants that have joined: those
       seated by the case initialization sequence (CM-14-001) and those that have
@@ -4151,6 +4151,7 @@ groups:
       spec_id: CM-18-003
     adr:
     - ADR-0065
+    - ADR-0117
     stories:
     - story_2022_027
     - story_2022_014

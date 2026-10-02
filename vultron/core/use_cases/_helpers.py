@@ -418,12 +418,12 @@ def exit_case_participant_embargo_consent(
     ``CaseParticipant`` objects in ``case.case_participants`` (regression
     #609).
 
-    The cascade itself lives in
-    :meth:`~vultron.core.services.embargo_lifecycle.EmbargoLifecycle._cascade_pec_exit`,
-    which ``terminate_active_embargo`` runs; this helper is its entry point
-    for the teardown nodes, so the two paths share one loop (CS-22-001).
+    The cascade itself is
+    :meth:`~vultron.core.services.embargo_lifecycle.EmbargoLifecycle.exit_participant_consent`,
+    the loop ``terminate_active_embargo`` also runs; this helper is its entry
+    point for the teardown nodes, so the two paths share one loop (CS-22-001).
     """
-    EmbargoLifecycle(persistence=dl)._cascade_pec_exit(case)
+    EmbargoLifecycle(persistence=dl).exit_participant_consent(case)
 
 
 def _log_label(uri: str) -> str:

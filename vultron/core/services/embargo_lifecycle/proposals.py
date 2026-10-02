@@ -26,8 +26,8 @@ import logging
 
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.dimensions import EmDimension
-from vultron.core.services.embargo_lifecycle.pec import (
-    _PecEffectsMixin,
+from vultron.core.services.embargo_lifecycle.pec_activation import (
+    _PecActivationMixin,
 )
 from vultron.core.services.embargo_lifecycle.results import (
     EmbargoLifecycleResult,
@@ -66,7 +66,7 @@ def _assert_abandonable(
         )
 
 
-class _ProposalOperationsMixin(_PecEffectsMixin):
+class _ProposalOperationsMixin(_PecActivationMixin):
     """``propose_embargo`` and ``abandon_embargo_proposals``."""
 
     def propose_embargo(

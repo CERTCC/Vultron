@@ -26,8 +26,8 @@ import logging
 
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.dimensions import EmDimension
-from vultron.core.services.embargo_lifecycle.pec import (
-    _PecEffectsMixin,
+from vultron.core.services.embargo_lifecycle.pec_activation import (
+    _PecActivationMixin,
 )
 from vultron.core.services.embargo_lifecycle.results import (
     EmbargoLifecycleResult,
@@ -39,7 +39,7 @@ from vultron.core.states.em import EM, EM_Trigger
 logger = logging.getLogger(__name__)
 
 
-class _AnswerOperationsMixin(_PecEffectsMixin):
+class _AnswerOperationsMixin(_PecActivationMixin):
     """``accept_embargo_invite`` and ``reject_embargo_invite``."""
 
     def accept_embargo_invite(

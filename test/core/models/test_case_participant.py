@@ -514,3 +514,33 @@ class TestAcceptsPecTrigger:
         )
         assert p.accepts_pec_trigger(PEC_Trigger.INVITE) is True
         assert p.accepts_pec_trigger(PEC_Trigger.REVISE) is False
+
+
+# ---------------------------------------------------------------------------
+# sign_embargo (CM-14-005, CM-10-001, ADR-0117)
+# ---------------------------------------------------------------------------
+
+_EMBARGO = "https://example.org/embargoes/em-001"
+
+
+@pytest.mark.parametrize(
+    "start",
+    [PEC.UNBOUND, PEC.INVITED, PEC.LAPSED, PEC.EXPIRED, PEC.SIGNATORY],
+)
+def test_sign_embargo_signs_and_records_the_id(start):
+    p = _make(embargo_consent_state=start)
+
+    assert p.sign_embargo(_EMBARGO) is True
+
+    assert p.embargo_consent_state == PEC.SIGNATORY
+    assert p.accepted_embargo_ids == [_EMBARGO]
+
+
+@pytest.mark.parametrize("start", [PEC.DECLINED, PEC.UNBOUND_EXITED])
+def test_sign_embargo_leaves_an_unsignable_participant_without_the_id(start):
+    p = _make(embargo_consent_state=start)
+
+    assert p.sign_embargo(_EMBARGO) is False
+
+    assert p.embargo_consent_state == start
+    assert p.accepted_embargo_ids == []

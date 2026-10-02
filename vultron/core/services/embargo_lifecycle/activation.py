@@ -25,8 +25,8 @@ import logging
 
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.dimensions import EmDimension
-from vultron.core.services.embargo_lifecycle.pec import (
-    _PecEffectsMixin,
+from vultron.core.services.embargo_lifecycle.pec_activation import (
+    _PecActivationMixin,
 )
 from vultron.core.services.embargo_lifecycle.results import (
     EmbargoLifecycleResult,
@@ -38,7 +38,7 @@ from vultron.errors import VultronInvalidStateTransitionError
 logger = logging.getLogger(__name__)
 
 
-class _ActivationOperationsMixin(_PecEffectsMixin):
+class _ActivationOperationsMixin(_PecActivationMixin):
     """``terminate_active_embargo`` and ``activate_embargo``."""
 
     def terminate_active_embargo(
