@@ -26,9 +26,10 @@ Subtrees defined here:
 
 - ``InitializeDefaultEmbargoNode`` — composed subtree for initial embargo
   set-up on case creation.  A case with P/X/A set gets no embargo and stays
-  EM.NONE (EP-04-008); any other case runs the five leaf steps: resolve
-  duration, create event, advance EM state, attach embargo to case, and seed
-  owner as SIGNATORY.
+  EM.NONE (EP-04-008); any other case runs the leaf steps: resolve
+  duration, create event, advance EM state to ACTIVE with the embargo
+  attached (one write, EP-04-002), seed owner as SIGNATORY, and register a
+  longer creation-time proposal as a pending revision (EP-04-003).
 
 Consumed by ``case_proposal_received_tree.py``.
 
@@ -41,9 +42,8 @@ import py_trees
 
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.case.nodes.embargo import (
-    AdvanceEMStateToActiveNode,
-    AttachEmbargoToCaseNode,
     CreateEmbargoEventNode,
+    InitializeCreationEmbargoNode,
     SeedOwnerAsSignatoryNode,
 )
 from vultron.core.behaviors.case.nodes.embargo_resolution import (
@@ -93,8 +93,9 @@ class InitializeDefaultEmbargoNode(py_trees.composites.Selector):
                     children=[
                         ResolveEmbargoDurationNode(actor_config=actor_config),
                         CreateEmbargoEventNode(),
-                        AdvanceEMStateToActiveNode(),
-                        AttachEmbargoToCaseNode(),
+                        # EP-04-002: propose and activate are one write, so
+                        # EM.PROPOSED is never persisted.
+                        InitializeCreationEmbargoNode(),
                         SeedOwnerAsSignatoryNode(),
                         # EP-04-003: the longer creation-time candidate becomes
                         # a pending revision (ACTIVE → REVISE) when both

@@ -53,10 +53,7 @@ from vultron.core.services.embargo_duration import (
     EmbargoDurationSource,
     InitialEmbargoDuration,
 )
-from vultron.core.services.embargo_lifecycle import (
-    EmbargoLifecycle,
-    TransitionMode,
-)
+from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.states.em import EM
 from vultron.errors import (
     VultronAlreadyExistsError,
@@ -281,8 +278,24 @@ class CreateEmbargoEventNode(DataLayerActionWithPorts):
         )
 
 
-class AdvanceEMStateToActiveNode(DataLayerActionWithPorts):
-    """Advance EM state via EmbargoLifecycle propose+accept sequence."""
+class InitializeCreationEmbargoNode(DataLayerActionWithPorts):
+    """Take the case's creation-time embargo from ``EM.NONE`` to ``EM.ACTIVE``.
+
+    One write: ``EmbargoLifecycle.initialize_creation_embargo`` applies the
+    PROPOSE and ACCEPT triggers together, attaches the embargo as
+    ``active_embargo`` and saves the case once, so ``EM.PROPOSED`` is never
+    persisted (EP-04-002).  A failure before that write leaves the case at
+    ``EM.NONE``, which the once-per-case guard lets a redelivered proposal
+    finish (EP-04-012).  Proposing and then activating in two nodes saved the
+    case at ``PROPOSED`` in between, and a failure there stranded it (#4123).
+
+    The transition itself is validated by the lifecycle service, not by an
+    upstream guard (CSB-16, EMB-18-001).  The once-per-case guard ahead of
+    this node takes every case past ``EM.NONE``, so a case that reaches it
+    with an embargo already attached is inconsistent: the service refuses
+    it and the node fails, rather than report an initialization it did not
+    make (ARCH-15).
+    """
 
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
@@ -331,16 +344,6 @@ class AdvanceEMStateToActiveNode(DataLayerActionWithPorts):
         if failure is not None:
             return failure  # Regime 1 (ADR-0087)
 
-        if _as_id(stored_case.active_embargo) is not None:
-            self.logger.debug(
-                "%s: Case '%s' already has active_embargo '%s' — skipping EM advance",
-                self.name,
-                case_id,
-                _as_id(stored_case.active_embargo),
-            )
-            self._set_output("default_embargo_initialized", False)
-            return Status.SUCCESS
-
         # The creation-time embargo is the owner's to set: either the owner
         # creates the case itself, or the CASE_MANAGER creates it on the
         # owner's behalf from a proposal (CP-09-001, CP-09-003) — the case is
@@ -356,114 +359,21 @@ class AdvanceEMStateToActiveNode(DataLayerActionWithPorts):
             self.logger.error("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
-        status = self._propose_with_em_io(case_id, embargo_id)
-        if status != Status.SUCCESS:
-            return status
-
-        self._set_output("default_embargo_initialized", True)
-        return Status.SUCCESS
-
-    def _propose_with_em_io(self, case_id: str, embargo_id: str) -> Status:
-        """Run propose_embargo via EmbargoLifecycle service."""
-        assert (
-            self.datalayer is not None
-        )  # caller guards; here for type narrowing
-        assert self.actor_id is not None
-
-        lifecycle = EmbargoLifecycle(persistence=self.datalayer)
         try:
-            lifecycle.propose_embargo(
+            EmbargoLifecycle(
+                persistence=self.datalayer
+            ).initialize_creation_embargo(
                 case_id=case_id,
                 embargo_id=embargo_id,
                 actor_id=self.actor_id,
-                transition_mode=TransitionMode.STRICT,
             )
         except VultronError as exc:
-            self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
-                "%s: Failed to propose embargo '%s' for case '%s': %s",
-                self.name,
-                embargo_id,
-                case_id,
-                exc,
+            self.feedback_message = (
+                f"{self.name}: failed to initialize embargo '{embargo_id}'"
+                f" for case '{case_id}': {exc}"
             )
+            self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
-        return Status.SUCCESS
-
-
-class AttachEmbargoToCaseNode(DataLayerActionWithPorts):
-    """Ensure case.active_embargo references the initialized embargo event."""
-
-    def __init__(self, name: str | None = None) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **DataLayerActionWithPorts.INPUT_PORTS,
-        "case_id": PortInformation(data_type=str, required=True),
-        "default_embargo_initialized": PortInformation(
-            data_type=object, required=True
-        ),
-        "default_embargo_id": PortInformation(data_type=str, required=True),
-    }
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {
-            "case_id": "/case_id",
-            "default_embargo_initialized": "/default_embargo_initialized",
-            "default_embargo_id": "/default_embargo_id",
-        }
-
-    def initialise(self) -> None:
-        super().initialise()
-        self.bb_case_id: str = self.get_input("case_id")
-        self.bb_default_embargo_id: str = self.get_input("default_embargo_id")
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-
-        case_id = self.bb_case_id
-        embargo_id = self.bb_default_embargo_id
-
-        stored_case, failure = self._require_case(case_id)
-        if failure is not None:
-            return failure  # Regime 1 (ADR-0087)
-
-        active_embargo_id = _as_id(stored_case.active_embargo)
-        if active_embargo_id is None:
-            lifecycle = EmbargoLifecycle(persistence=self.datalayer)
-            try:
-                lifecycle.activate_embargo(
-                    case_id=case_id,
-                    embargo_id=embargo_id,
-                    actor_id=self.actor_id,
-                )
-            except VultronError as exc:
-                self.feedback_message = str(exc)
-                self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
-                    "%s: Failed to activate embargo '%s' on case '%s': %s",
-                    self.name,
-                    embargo_id,
-                    case_id,
-                    exc,
-                )
-                return Status.FAILURE
-            self.logger.info(
-                "Attached embargo '%s' to case '%s' as active_embargo",
-                embargo_id,
-                case_id,
-            )
-            return Status.SUCCESS
-
-        if active_embargo_id != embargo_id:
-            self.logger.debug(
-                "%s: Keeping existing active_embargo '%s' for case '%s'"
-                " (new embargo '%s' left unattached)",
-                self.name,
-                active_embargo_id,
-                case_id,
-                embargo_id,
-            )
+        self._set_output("default_embargo_initialized", True)
         return Status.SUCCESS

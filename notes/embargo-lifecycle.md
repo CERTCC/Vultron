@@ -105,6 +105,9 @@ class EmbargoLifecycle:
     def activate_embargo(
         self, *, case_id, embargo_id, actor_id=None, transition_mode=STRICT
     ) -> EmbargoLifecycleResult: ...
+    def initialize_creation_embargo(
+        self, *, case_id, embargo_id, actor_id=None
+    ) -> EmbargoLifecycleResult: ...  # NONE → ACTIVE, one write (EP-04-002)
     def record_participant_consent(
         self, *, case_id, actor_id, pec_trigger, embargo_id=None
     ) -> EmbargoLifecycleResult: ...
@@ -159,9 +162,10 @@ first:
   teardown — stores the `EmbargoEvent` its entry carries before calling
   `EmbargoLifecycle` (#3915), and fails, blocking the persist (SYNC-12-001),
   when the entry names the embargo by id only and the replica lacks it.
-- **The activation writers** — `accept_embargo_invite()` and
-  `activate_embargo()`, the only paths that *activate* an embargo (EM state
-  plus `active_embargo`). Both compute their EP-05-001 arm through
+- **The activation writers** — `accept_embargo_invite()`,
+  `activate_embargo()` and the creation-time `initialize_creation_embargo()`,
+  the only paths that *activate* an embargo (EM state plus `active_embargo`).
+  All three compute their EP-05-001 arm through
   `EmbargoLifecycle._activation_arm()` before any write: it reads the
   activated record, and on a revision the replaced one too, so a bare id from
   an inbox (which stores only the first level of nesting: `Accept(Invite(A))`

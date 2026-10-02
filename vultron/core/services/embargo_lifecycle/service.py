@@ -27,12 +27,16 @@ from vultron.core.services.embargo_lifecycle.answers import (
 from vultron.core.services.embargo_lifecycle.consent import (
     _ConsentOperationsMixin,
 )
+from vultron.core.services.embargo_lifecycle.creation import (
+    _CreationOperationsMixin,
+)
 from vultron.core.services.embargo_lifecycle.proposals import (
     _ProposalOperationsMixin,
 )
 
 
 class EmbargoLifecycle(
+    _CreationOperationsMixin,
     _ProposalOperationsMixin,
     _AnswerOperationsMixin,
     _ActivationOperationsMixin,
@@ -50,12 +54,13 @@ class EmbargoLifecycle(
     instance once at construction.  ``SqliteDataLayer`` satisfies the protocol
     structurally.
 
-    Public operations (all support ``STRICT`` and ``OBSERVED`` modes):
+    Public operations (``STRICT`` and ``OBSERVED`` modes unless noted):
         - :meth:`propose_embargo`
         - :meth:`accept_embargo_invite`
         - :meth:`reject_embargo_invite`
         - :meth:`terminate_active_embargo`
         - :meth:`activate_embargo`
+        - :meth:`initialize_creation_embargo` (STRICT only; one write, EP-04-002)
         - :meth:`record_participant_consent` (no EM transition; no mode param)
         - :meth:`record_embargo_rejection` (no EM transition; no mode param)
         - :meth:`record_embargo_invite` (no EM transition; no mode param)

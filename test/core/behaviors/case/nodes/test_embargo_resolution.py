@@ -58,8 +58,12 @@ from vultron.core.services.embargo_duration import (
 )
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.states.cs import CS_pxa
-from vultron.core.states.em import EM
-from vultron.errors import BtNodePreconditionError, VultronValidationError
+from vultron.core.states.em import EM, EM_Trigger
+from vultron.errors import (
+    BtNodePreconditionError,
+    VultronInvalidStateTransitionError,
+    VultronValidationError,
+)
 
 ACTOR_ID = "https://example.org/actors/vendor"
 CASE_ID = "https://example.org/cases/case-resolution"
@@ -827,13 +831,13 @@ class TestCaseEmbargoAlreadyInitializedNode:
     ) -> list[EmbargoEvent]:
         """Run the creation arm until its event is stored, then stop it.
 
-        ``AdvanceEMStateToActiveNode`` fails, as a crash or a failure after the
+        ``InitializeCreationEmbargoNode`` fails, as a crash or a failure after the
         event was written would: the case is left at ``EM.NONE`` with the
         creation-time event already stored and nothing referencing it.
         """
         with monkeypatch.context() as patch:
             patch.setattr(
-                embargo_nodes_module.AdvanceEMStateToActiveNode,
+                embargo_nodes_module.InitializeCreationEmbargoNode,
                 "update",
                 lambda self: Status.FAILURE,
             )
@@ -1109,3 +1113,62 @@ class TestCaseEmbargoAlreadyInitializedNode:
         assert "invalid em_state value" in result.feedback_message
         assert list(bt_scenario.dl.list_objects("EmbargoEvent")) == []
         assert _em_state(bt_scenario) == EM.NONE
+
+
+@pytest.mark.spec("EP-04-002")
+@pytest.mark.spec("EP-04-012")
+class TestCreationTimeEmbargoIsOneWrite:
+    """Propose and activate at case creation persist as one write (#4123)."""
+
+    def _fail_activation(
+        self, bt_scenario: BTTestScenario, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Run the creation arm with activation refused after PROPOSE.
+
+        The ACCEPT step is refused once the PROPOSE step has been applied —
+        the point at which the two-write sequence had already saved the case
+        at ``EM.PROPOSED``.
+        """
+        drive = EmbargoLifecycle._drive_em_transition
+        applied: list[EM_Trigger] = []
+
+        def refuse_accept(self: EmbargoLifecycle, **kwargs: Any) -> EM:
+            if kwargs["trigger"] == EM_Trigger.ACCEPT:
+                raise VultronInvalidStateTransitionError("forced failure")
+            applied.append(kwargs["trigger"])
+            return drive(self, **kwargs)
+
+        with monkeypatch.context() as patch:
+            patch.setattr(
+                EmbargoLifecycle, "_drive_em_transition", refuse_accept
+            )
+            status, _, _ = _run(bt_scenario)
+        assert status == Status.FAILURE
+        assert applied == [EM_Trigger.PROPOSE]
+
+    def test_a_failure_before_activation_leaves_the_case_at_none(
+        self,
+        bt_scenario: BTTestScenario,
+        case_obj: VulnerabilityCase,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        self._fail_activation(bt_scenario, monkeypatch)
+
+        assert _em_state(bt_scenario) == EM.NONE
+        assert _active_embargo(bt_scenario) is None
+
+    def test_a_rerun_after_a_failed_activation_completes_initialization(
+        self,
+        bt_scenario: BTTestScenario,
+        case_obj: VulnerabilityCase,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        self._fail_activation(bt_scenario, monkeypatch)
+
+        status, before, after = _run(bt_scenario)
+
+        assert status == Status.SUCCESS
+        assert _em_state(bt_scenario) == EM.ACTIVE
+        _assert_duration(
+            _active_embargo(bt_scenario), PROTOCOL_DEFAULT, before, after
+        )

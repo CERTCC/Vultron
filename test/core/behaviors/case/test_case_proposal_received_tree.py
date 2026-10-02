@@ -3563,6 +3563,52 @@ class TestEP04SenderProposalAtCaseCreation:
             e.id_ for e in dl.list_objects("EmbargoEvent")
         } == events_before
 
+    @pytest.mark.spec("EP-04-002")
+    @pytest.mark.spec("EP-04-012")
+    @pytest.mark.spec("CP-05-006")
+    def test_a_redelivery_after_a_failed_activation_finishes_the_embargo(
+        self, make_payload, monkeypatch
+    ):
+        """AC-2 of #4123 through the whole received tree.
+
+        The first delivery fails between PROPOSE and ACCEPT, which leaves
+        the case at ``EM.NONE`` (EP-04-002).  Redelivering the same
+        ``Create(CaseProposal)`` reuses the case (CP-05-006) and reaches the
+        creation arm, because the guard reads only a state past ``NONE`` as
+        already initialized (EP-04-012): the case ends ``EM.ACTIVE`` with the
+        embargo attached.
+        """
+        from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
+        from vultron.core.states.em import EM_Trigger
+        from vultron.errors import VultronInvalidStateTransitionError
+
+        drive = EmbargoLifecycle._drive_em_transition
+
+        def _refuse_accept(self, **kwargs):
+            if kwargs["trigger"] is EM_Trigger.ACCEPT:
+                raise VultronInvalidStateTransitionError("forced failure")
+            return drive(self, **kwargs)
+
+        dl = self._store()
+        monkeypatch.setattr(
+            EmbargoLifecycle, "_drive_em_transition", _refuse_accept
+        )
+        first, terms = self._run(
+            make_payload, dl, sender_days=self._SENDER_END_DAYS
+        )
+        assert first.current_status.em.state == EM.NONE
+        assert first.active_embargo_id is None
+
+        # The same activity again: the redelivery carries the same terms.
+        monkeypatch.setattr(EmbargoLifecycle, "_drive_em_transition", drive)
+        again, _ = self._run(
+            make_payload, dl, sender_days=self._SENDER_END_DAYS, terms=terms
+        )
+
+        assert again.id_ == first.id_
+        assert again.current_status.em.state == EM.ACTIVE
+        assert again.active_embargo_id == terms.id_
+
     @pytest.mark.spec("EP-04-004")
     def test_an_expired_proposal_is_no_proposal(self, make_payload):
         """Terms that have already run out do not stop the case; the owner's
