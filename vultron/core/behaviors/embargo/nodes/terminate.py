@@ -34,8 +34,8 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.models.pending_assertion import (
-    get_pending_assertion_store,
     record_pending_assertion,
+    suppressed_repeat_reason,
 )
 from vultron.errors import VultronWiringError
 
@@ -49,9 +49,9 @@ class TeardownAskPendingNode(DataLayerConditionWithPorts):
     arriving twice, or a second threat dimension — would otherwise queue a
     second ``Remove(EmbargoEvent)`` for an embargo the CASE_MANAGER has not
     answered yet (SYNC-11-002).  The trigger path makes the same check in
-    ``SvcEmbargoTriggerBase._suppressed_duplicate()``; both read one store
-    through ``pending_for_subject()``, so an ask from either path suppresses
-    a repeat from the other.
+    ``SvcEmbargoTriggerBase._suppressed_duplicate()``; both go through
+    ``suppressed_repeat_reason()``, so an ask from either path suppresses a
+    repeat from the other.
 
     FAILURE (ask) when nothing is pending, the entry was cleared by the
     manager's announced commit (SYNC-11-003), or it timed out (SYNC-11-005).
@@ -82,21 +82,16 @@ class TeardownAskPendingNode(DataLayerConditionWithPorts):
                 f"{self.name}: no executing actor to look up a pending"
                 f" teardown ask on case '{self._case_id}'"
             )
-        pending = get_pending_assertion_store(
-            self.actor_id
-        ).pending_for_subject(
-            self._case_id, EMBARGO_TEARDOWN_EVENT_TYPE, self.embargo_id
+        reason = suppressed_repeat_reason(
+            self.actor_id,
+            self._case_id,
+            EMBARGO_TEARDOWN_EVENT_TYPE,
+            self.embargo_id,
         )
-        if pending is None:
+        if reason is None:
             return Status.FAILURE
-        self.feedback_message = (
-            f"actor '{self.actor_id}' already asked the CASE_MANAGER to end"
-            f" embargo '{self.embargo_id}' on case '{self._case_id}'"
-            f" (activity_id={pending.object_id}, pending since"
-            f" {pending.emitted_at.isoformat()}) — duplicate suppressed, not"
-            " re-emitted (SYNC-11-002)"
-        )
-        self.logger.info("%s: %s", self.name, self.feedback_message)
+        self.feedback_message = reason
+        self.logger.info("%s: %s", self.name, reason)
         return Status.SUCCESS
 
 
@@ -117,8 +112,12 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
     rather than mailing the manager an ask from itself.
 
     Returns FAILURE (BT-14-001) when the factory is unavailable, a required
-    blackboard key is missing, or dispatch raises an exception.
-    Returns SUCCESS when the activity is created and queued.
+    blackboard key is missing, the outbox write fails, or dispatch raises an
+    exception — the manager-as-executor :class:`VultronWiringError` included,
+    which the bridge reports by type.  Returns SUCCESS when the activity is
+    created, queued and recorded.  A failure to record the queued ask
+    escapes ``update()`` rather than reporting a success the next repeat
+    would not be suppressed by (BT-HELPER-01).
     """
 
     def __init__(self, case_id: str, name: str | None = None) -> None:

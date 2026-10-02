@@ -520,8 +520,7 @@ puts `TeardownAskPendingNode` ahead of `SendTerminateEmbargoActivityNode`,
 whose `_on_queued` hook records the queued ask with the same event type and
 the ended embargo as subject. A repeat P/X/A signal inside the window queues
 no second ask, and the trigger and the cascade suppress each other (#4147).
-It builds its teardown with
-`pxa_embargo_teardown_bt`: terminate an active
+It builds its teardown with `pxa_embargo_teardown_bt`: terminate an active
 embargo, else abandon the open proposals with `reject_proposed_embargo_bt`
 (EMB-16-001, #4145). Ratchet:
 `test/architecture/test_embargo_trigger_writes_are_case_manager_gated.py`.

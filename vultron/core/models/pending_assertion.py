@@ -336,6 +336,35 @@ def record_pending_assertion(
     )
 
 
+def suppressed_repeat_reason(
+    actor_id: str,
+    case_id: str,
+    event_type: str,
+    subject_id: str,
+) -> str | None:
+    """Why a repeat ask about *subject_id* is suppressed, or ``None``.
+
+    The one check every asker makes before sending (SYNC-11-002): the embargo
+    triggers' ``SvcEmbargoTriggerBase._suppressed_duplicate()`` and the
+    cascade's ``TeardownAskPendingNode`` read the same store with the same
+    key, so an ask from either path suppresses a repeat from the other.
+    ``None`` means nothing is pending: never asked, cleared by the announced
+    commit (SYNC-11-003), or timed out (SYNC-11-005).
+    """
+    pending = get_pending_assertion_store(actor_id).pending_for_subject(
+        case_id, event_type, subject_id
+    )
+    if pending is None:
+        return None
+    return (
+        f"actor '{actor_id}' already asked the CASE_MANAGER for"
+        f" '{event_type}' about '{subject_id}' on case '{case_id}'"
+        f" (activity_id={pending.object_id}, pending since"
+        f" {pending.emitted_at.isoformat()}) — duplicate suppressed, not"
+        " re-emitted (SYNC-11-002)"
+    )
+
+
 def _reset_stores() -> None:
     """Clear the global per-actor store registry.
 

@@ -223,12 +223,14 @@ state (EP-09-008). Both clients record through one helper,
 `record_pending_assertion()` in `vultron/core/models/pending_assertion.py`
 (SYNC-11-002, ASK-04-008). The received-side teardown ask the P/X/A cascade
 sends records through it as well, from the send node's `_on_queued` hook, and
-checks `pending_for_subject()` in a guard node ahead of the send (#4147). An embargo repeat carries a fresh activity id, so
-its entry also carries a `subject_id` — the terms a proposal offers, the
-proposal an answer names, the embargo a teardown ends — and
-`SvcEmbargoTriggerBase._suppressed_duplicate()` checks
-`pending_for_subject()` before the tree runs: a repeat inside the window is
-reported with no activity and queues nothing. The store stays what it is — a
+a guard node ahead of the send makes the triggers' suppression check through
+the shared `suppressed_repeat_reason()` (#4147). An embargo repeat carries a
+fresh activity id, so its entry also carries a `subject_id` — the terms a
+proposal offers, the proposal an answer names, the embargo a teardown ends —
+and `SvcEmbargoTriggerBase._suppressed_duplicate()` checks
+`pending_for_subject()` (through `suppressed_repeat_reason()`) before the tree
+runs: a repeat inside the window is reported with no activity and queues
+nothing. The store stays what it is — a
 duplicate suppressor that never holds case state (CLP-06-002). An announced
 commit clears the entry (SYNC-11-003); a refused proposal is never committed,
 so the received CASE_MANAGER's `Reject` of it closes the entry instead
