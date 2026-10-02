@@ -70,7 +70,7 @@ first item and the *SHOULD* in the second is derived from the reasoning
 given in the [CS model](../cs/cs_model.md)
 , where we describe the CS model's transition function.
 Embargo termination is the set of transitions described in the [EM formal model](formal_model.md#terminate-embargo).
-When an embargo terminates, every Participant's [embargo consent](../../behavior_logic/use-cases/embargo-lifecycle.md#which-messages-move-consent) resets to *Unbound*, because there is no longer an embargo to agree to ([§7.3 Relationship to Embargo Consent in the Vultron Protocol Specification](../../../reference/vultron-spec/tracking-models.md#73-relationship-to-embargo-consent)).
+When an embargo terminates, every Participant's [embargo consent](../../behavior_logic/use-cases/embargo-lifecycle.md#which-messages-move-consent) moves to the terminal *Unbound (exited)*, because there is no longer an embargo to agree to, and a terminated embargo cannot be re-joined ([§7.3 Relationship to Embargo Consent in the Vultron Protocol Specification](../../../reference/vultron-spec/tracking-models.md#73-relationship-to-embargo-consent)).
 A Participant who wants to be bound by a later embargo must agree to it afresh.
 
 ## Waiting for All Vendors to Reach *Fix Ready* May Be Impractical
