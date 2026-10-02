@@ -184,6 +184,12 @@ read when `invite_rsvp_deadline` is set and passed; the three EMB-17 branches
 (honor, re-invite, no-op) are implemented in
 `AcceptInviteToEmbargoOnCaseReceivedUseCase`.
 
+[ADR-0113](0113-embargo-revision-negotiation-relays-through-the-case-manager.md) has since moved who computes and enforces the deadline, and issue #3961 implemented that.
+The CASE_MANAGER now stamps `Invite.end_time` on every Invite it relays, using the window, floor and ceiling defined here, and records it when it commits the Invite (CM-28-012, CM-28-013).
+Replicas take the deadline from the ledger entry, and no receiver stores a deadline it derived on receipt.
+Only the CASE_MANAGER evaluates lapse, behind its role gate, and it commits the lapse as a distinct ledger entry that replicas replay (CM-28-014).
+The receive-side clamp described above is now reached only by a misrouted or foreign Invite.
+
 ## Pros and Cons of the Options
 
 ### Activity-level `Invite.end_time`
