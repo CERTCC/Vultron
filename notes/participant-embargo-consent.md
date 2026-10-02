@@ -20,6 +20,7 @@ related_notes:
   - notes/protocol-asks.md
   - notes/sync-ledger-replication.md
   - notes/case-joining.md
+  - notes/bt-integration.md
 relevant_packages:
   - transitions
   - vultron/bt/embargo_management

@@ -8,6 +8,7 @@ from pydantic import field_validator
 
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
+from vultron.core.predicates.addressing import normalise_actor_id
 
 logger = logging.getLogger(__name__)
 
@@ -134,16 +135,24 @@ class InviteToEmbargoOnCaseReceivedEvent(VultronEvent):
 
     @property
     def to_recipients(self) -> list[str]:
-        """The activity's ``to:`` addressees, in declaration order.
+        """The activity's distinct ``to:`` addressees, in declaration order.
 
-        Falsy entries are dropped.  An empty list means the activity carries
-        no recipient at all, which is an OX-08-001 violation upstream.
+        Each is given in its canonical spelling (no trailing slash, #2667),
+        and two entries naming the same actor count once, so ``[X, X + "/"]``
+        is one recipient, not two.  Falsy entries are dropped.  An empty list
+        means the activity carries no recipient at all, which is an OX-08-001
+        violation upstream.
         """
-        return [recipient for recipient in self.activity.to or [] if recipient]
+        canonical = (
+            normalise_actor_id(recipient)
+            for recipient in self.activity.to or []
+            if recipient
+        )
+        return list(dict.fromkeys(canonical))
 
     @property
     def invitee_id(self) -> str | None:
-        """The Invite's sole ``to`` recipient; ``None`` for none or several.
+        """The Invite's sole distinct ``to`` recipient; ``None`` otherwise.
 
         The invitee of an ``Invite(EmbargoEvent)`` is its sole ``to``
         recipient (EP-09-010).  This is a *different* question from

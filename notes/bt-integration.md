@@ -23,6 +23,7 @@ related_notes:
   - notes/use-case-behavior-trees.md
   - notes/testing-pitfalls.md
   - notes/inbox-orchestration.md
+  - notes/participant-embargo-consent.md
 relevant_packages:
   - py_trees
   - vultron/bt
@@ -238,8 +239,7 @@ canonical spelling and raises `VultronProtocolViolationError` naming the
 recipient count, which the use case reports as `REFUSED`. A proposal addressed
 to the CASE_MANAGER names the manager as that sole recipient, but the manager
 adjudicates it and is never its invitee, so its own record gets no RSVP
-deadline: a fallback to the receiving actor is what put the deadline on the
-enforcer's own record (ISSUE-2762).
+deadline (CM-28-003, ISSUE-2762).
 Where a message legitimately names several recipients (the report `Offer`),
 test membership with `is_addressed_to()` (`vultron/core/predicates/addressing.py`),
 never a bare `in`: `to:`/`cc:` arrive as the sender wrote them, so a trailing

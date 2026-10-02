@@ -1076,31 +1076,22 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      Subject-identity resolution (CLP-10-015) MUST NOT select a subject by
-      position in the `to:` list and MUST NOT fall back to the receiving actor.
-      Where a message names its subject as its sole `to:` recipient (the
-      invitee of an `Invite(EmbargoEvent)`, EP-09-010), the resolver MUST take
-      that recipient and refuse a message naming none or several. Where the
-      protocol addresses a message to several recipients (`Offer(Report)`,
-      whose eligibility is read from `to:` per HP-09-001), the receiver MUST
-      test its own membership with a trailing-slash-tolerant comparison
-      (`is_addressed_to()`, ISSUE-2667), not an exact match.
+      Subject-identity resolution (CLP-10-015) MUST NOT select a subject by its
+      position in the `to:` list.
+    note: >-
+      Where a message names its subject as its sole `to:` recipient, there is
+      no position to choose: the invitee of an `Invite(EmbargoEvent)` is that
+      recipient, and an Invite naming none or several is refused (EP-09-010).
     rationale: >-
-      Selecting `to[0]` positionally makes a multi-recipient message resolve to
-      the same subject in every replica. Falling back to the receiving actor
-      when `to:` names nobody, or nobody local, put the RSVP deadline on the
-      enforcer's own record (ISSUE-2762). Every embargo Invite emitter sends
-      one recipient (EP-09-002), so membership resolution for a
-      several-recipient Invite was built for a shape nothing emits; refusing it
-      names the defect where guessing hid it (ADR-0113). Source: ISSUE-2762,
-      ADR-0022, ADR-0113.
+      A positional pick resolves a several-recipient message to the same
+      subject in every replica, so each recipient after the first would apply
+      the message to someone else's record. Source: ISSUE-2762, ADR-0022.
     verification: >-
-      `TestInviteeIsTheAddressee` and `TestInviteeIdProperty` in
-      `test/core/use_cases/received/test_embargo_invite_lapse.py` assert that
-      an `Invite(EmbargoEvent)` naming no recipient or two is refused with the
-      count in the reason and that a trailing-slash sole recipient resolves to
-      its canonical id; `_not_primary_recipient_reason()` in
-      `received/report.py` tests membership with `is_addressed_to()`.
+      `test_multi_recipient_invite_is_refused_at_a_recipient` in
+      `test/core/use_cases/received/test_embargo_invite_lapse.py` delivers an
+      `Invite(EmbargoEvent)` whose second recipient is the receiving actor and
+      asserts it is refused with nothing written, rather than resolved to
+      either recipient.
     relationships:
     - rel_type: refines
       spec_id: CLP-10-015
@@ -1222,6 +1213,31 @@ groups:
       spec_id: CLP-10-005
     - rel_type: refines
       spec_id: ARCH-18-001
+  - id: CLP-10-021
+    priority: MUST
+    kind: project
+    statement: >-
+      A received-side use case that tests whether a message is addressed to
+      the receiving actor MUST compare actor ids with a trailing-slash-tolerant
+      comparison (`is_addressed_to()` or `same_actor_id()` in
+      `vultron/core/predicates/addressing.py`), never an exact string match.
+    rationale: >-
+      `to:` and `cc:` arrive as the sender wrote them while the receiving actor
+      is canonical, so an exact match misses a recipient spelled with a
+      trailing slash and refuses mail that was addressed to this actor.
+      `Offer(Report)` is genuinely several-recipient and reads its eligibility
+      from `to:` (HP-09-001). Source: ISSUE-2667.
+    verification: >-
+      `test_submit_report_trailing_slash_recipient_creates_case` in
+      `test/core/use_cases/received/test_submit_report_received.py` addresses
+      an `Offer(Report)` to the receiver with a trailing slash and asserts the
+      case is created; `test/core/predicates/test_addressing.py` pins the
+      comparison.
+    relationships:
+    - rel_type: refines
+      spec_id: HP-09-001
+    tags:
+    - protocol
 - id: CLP-11
   title: Protocol Request/Reply State Detection
   description: Requirements for querying whether a protocol-level request/reply pair

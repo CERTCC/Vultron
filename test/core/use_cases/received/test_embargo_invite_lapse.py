@@ -38,10 +38,14 @@ from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
     InviteToEmbargoOnCaseReceivedUseCase,
     RejectInviteToEmbargoOnCaseReceivedUseCase,
+    _store_invite_deadline,
     resolve_invitee_id,
 )
 from vultron.enums.roles import CVDRole
-from vultron.errors import VultronProtocolViolationError
+from vultron.errors import (
+    VultronNotFoundError,
+    VultronProtocolViolationError,
+)
 from vultron.wire.as2.factories import (
     em_accept_embargo_activity,
     em_propose_embargo_activity,
@@ -543,6 +547,7 @@ class TestInviteeIsTheAddressee:
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert "names 0 'to' recipients" in (result.reason or "")
+        assert dl.read(invite.id_) is None
         invitee = self._read_participant(dl, invitee_p_id)
         assert invitee.embargo_consent_state == PEC.UNBOUND
         assert invitee.invite_rsvp_deadline is None
@@ -590,6 +595,7 @@ class TestInviteeIsTheAddressee:
 
     @pytest.mark.spec("EP-09-010")
     @pytest.mark.spec("HP-01-005")
+    @pytest.mark.spec("CLP-10-016")
     def test_multi_recipient_invite_is_refused_at_a_recipient(
         self, make_payload
     ):
@@ -628,6 +634,7 @@ class TestInviteeIsTheAddressee:
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert "names 2 'to' recipients" in (result.reason or "")
+        assert dl.read(invite.id_) is None
         assert _answers_in_outbox(dl, _INVITEE) == []
         for participant_id in (invitee_p_id, other_p_id, coord_p_id):
             participant = self._read_participant(dl, participant_id)
@@ -637,8 +644,9 @@ class TestInviteeIsTheAddressee:
     def test_trailing_slash_recipient_is_this_replica(self, make_payload):
         """A recipient spelled with a trailing slash still names this replica.
 
-        The sole recipient resolves in its canonical spelling (#2667), so the participant lookup hits ``actor_participant_index``
-        rather than missing on the slash.
+        The sole recipient resolves in its canonical spelling (#2667), so the
+        participant lookup hits ``actor_participant_index`` rather than
+        missing on the slash.
         """
         dl = _make_dl(actor_id=_INVITEE)
         case_id = "https://example.org/cases/addressee-slash"
@@ -747,24 +755,68 @@ class TestInviteeIsTheAddressee:
         coord = self._read_participant(dl, coord_p_id)
         assert coord.invite_rsvp_deadline is None
 
+    @pytest.mark.spec("CM-28-003")
+    def test_slashed_manager_id_still_takes_no_deadline(self):
+        """The manager is told apart by actor, not by its exact spelling."""
+        dl = _make_dl(actor_id=_COORD)
+        case_id = "https://example.org/cases/addressee-manager-slash"
+        embargo_id = f"{case_id}/embargos/e"
+        _, _, coord_p_id, _ = self._seed_case(dl, case_id, embargo_id)
+        case = dl.read_case(case_id)
+        assert case is not None
+        case.actor_participant_index[_COORD + "/"] = coord_p_id
+        dl.save(case)
+
+        _store_invite_deadline(dl, case_id, _COORD + "/", _FUTURE)
+
+        assert (
+            self._read_participant(dl, coord_p_id).invite_rsvp_deadline is None
+        )
+
+    @pytest.mark.spec("CM-24-006")
+    def test_case_with_no_manager_is_a_fault_not_a_deadline(self):
+        """With no CASE_MANAGER there is no enforcer: storing a deadline fails.
+
+        The guard tells the enforcer from the invitee, so a held case whose
+        roster names no manager is an error rather than a silent write
+        (CM-24-006, CM-28-003).
+        """
+        dl = _make_dl(actor_id=_INVITEE)
+        case_id = "https://example.org/cases/addressee-no-manager"
+        case = VulnerabilityCase(
+            id_=case_id, name="No Manager", attributed_to=_COORD
+        )
+        invitee_cp = WireCP(
+            attributed_to=_INVITEE,
+            context=case_id,
+            case_roles=[CVDRole.VENDOR],
+        )
+        dl.create(case)
+        dl.create(invitee_cp)
+        case.actor_participant_index[_INVITEE] = invitee_cp.id_
+        dl.save(case)
+
+        with pytest.raises(VultronNotFoundError, match="CASE_MANAGER of case"):
+            _store_invite_deadline(dl, case_id, _INVITEE, _FUTURE)
+        assert (
+            self._read_participant(dl, invitee_cp.id_).invite_rsvp_deadline
+            is None
+        )
+
     def test_unresolvable_addressee_warns_rather_than_silently_skipping(
         self, make_payload, caplog
     ):
-        """A named subject that resolves to no participant is not silent.
+        """A misrouted copy in a third store says so rather than skipping.
 
-        ``to:`` is sender-supplied and never canonicalised, so a short id or a
-        trailing slash misses ``actor_participant_index``.  The participant
-        replica's ``CanAnswerEmbargoInviteNode`` skips an Invite it cannot
-        answer; when a subject *was* named it must say so rather than skip
-        silently.
+        The participant replica's ``CanAnswerEmbargoInviteNode`` skips an
+        Invite it is not the invitee of; when the Invite *does* name an
+        invitee it must say whose it is rather than skip silently.
 
-        That check is the participant replica's arm of the tree —
-        the CASE_MANAGER relays from its roster and never resolves ``to:`` —
-        so the Invite lands in a participant's store.  A store other than
-        the named invitee's, because ``inbox_handler`` canonicalises the
-        receiving actor against ``to:`` (HP-09-001) and would repair the
-        slash; a misrouted copy in a third participant's store is where the
-        raw, sender-supplied subject reaches the lookup.
+        That check is the participant replica's arm of the tree — the
+        CASE_MANAGER relays from its roster — so the Invite lands in a third
+        participant's store.  The invitee is written with a trailing slash:
+        the resolver canonicalises it (#2667), so the warning names the
+        invitee as the case's roster spells it.
         """
         dl = _make_dl(actor_id=_OTHER)
         case_id = "https://example.org/cases/addressee7"
@@ -791,7 +843,8 @@ class TestInviteeIsTheAddressee:
         ).execute()
 
         assert any(
-            "is not the invitee" in record.message for record in caplog.records
+            f"is not the invitee '{_INVITEE}'" in record.message
+            for record in caplog.records
         )
         # Nothing is written to any real participant, and nothing answers.
         assert _answers_in_outbox(dl, _OTHER) == []
@@ -1212,7 +1265,7 @@ class TestInviteeIdProperty:
         assert event.to_recipients == [_INVITEE]
         assert event.invitee_id == _INVITEE
 
-    def test_multiple_recipients_are_ambiguous(self, make_payload):
+    def test_multiple_recipients_are_a_misrouting(self, make_payload):
         event = self._event(make_payload, [_INVITEE, _OTHER])
         assert event.to_recipients == [_INVITEE, _OTHER]
         # A misrouting (EP-09-010): no invitee, never a guess.
@@ -1222,6 +1275,19 @@ class TestInviteeIdProperty:
         event = self._event(make_payload, None)
         assert event.to_recipients == []
         assert event.invitee_id is None
+
+    @pytest.mark.spec("EP-09-010")
+    @pytest.mark.parametrize(
+        "to",
+        [[_INVITEE, _INVITEE], [_INVITEE, _INVITEE + "/"]],
+        ids=["repeated", "two-spellings"],
+    )
+    def test_one_actor_named_twice_is_one_recipient(self, make_payload, to):
+        """Two entries naming one actor are one recipient, not a misrouting."""
+        event = self._event(make_payload, to)
+        assert event.to_recipients == [_INVITEE]
+        assert event.invitee_id == _INVITEE
+        assert resolve_invitee_id(event, "invite") == _INVITEE
 
     def test_falsy_recipients_are_dropped(self, make_payload):
         event = self._event(make_payload, ["", _INVITEE])

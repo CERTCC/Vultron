@@ -1466,7 +1466,11 @@ groups:
       (EP-09-002). A proposal is addressed to the CASE_MANAGER alone (PCR-08-001), so it
       too names exactly one `to` recipient and is refused when it names none or several;
       that recipient is its adjudicator under EP-09-001, not its invitee, so the
-      CASE_MANAGER's own record takes no RSVP deadline from it (CM-28-003).
+      CASE_MANAGER's own record takes no RSVP deadline from it (CM-28-003). The refusal
+      comes before the P/X/A check, so a misrouted Invite on a public, exploited or attacked
+      case gets no ER: EMB-01-002's ER answers a proposal its receiver was sent, and a
+      misrouting is not accepted either way. Two spellings of one actor in `to` (a trailing
+      slash) name one recipient.
     rationale: >-
       Every emitter sends a single-recipient Invite — a participant to the CASE_MANAGER, the
       CASE_MANAGER to one participant per relayed Invite (EP-09-002) — so the multi-recipient

@@ -690,6 +690,51 @@ class TestInviteToEmbargoReceivedPxaGuard:
         # ER activity must be in the outbox
         _sole_queued_reject(dl)
 
+    @pytest.mark.spec("EP-09-010")
+    @pytest.mark.spec("HP-01-005")
+    @pytest.mark.parametrize(
+        ("to", "count"),
+        [([], 0), (["coord", "other"], 2)],
+        ids=["no-recipient", "two-recipients"],
+    )
+    def test_misrouted_ep_on_pxa_case_is_refused_without_er(
+        self, make_payload, to, count
+    ):
+        """A misrouted EP is refused before the P/X/A check answers it.
+
+        EMB-01-002's ER answers a proposal this receiver was sent; an Invite
+        naming no recipient or several is a misrouting (EP-09-010), so it is
+        refused with the count and no ER goes back.  Nothing is accepted, so
+        EMB-01-002's MUST NOT still holds.
+        """
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=self.COORD_ID)
+        case_id = f"{self.CASE_ID}/misrouted/{count}"
+        recipients = {
+            "coord": self.COORD_ID,
+            "other": "https://example.org/actors/other-pxa",
+        }
+        _case, _embargo, proposal = _make_pxa_case(
+            dl,
+            case_id=case_id,
+            coordinator_id=self.COORD_ID,
+            embargo_id=f"{case_id}/embargo_events/e1",
+            pxa_state_name="Pxa",
+            em_state=EM.NONE,
+            to=[recipients[name] for name in to],
+        )
+
+        event = make_payload(proposal, receiving_actor_id=self.COORD_ID)
+        result = InviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert f"names {count} 'to' recipients" in (result.reason or "")
+        assert "EMB-01-002" not in (result.reason or "")
+        assert dl.outbox_list() == []
+
     def test_pxa_clear_allows_ep_processing(self, make_payload):
         """invite_to_embargo_on_case runs normally when pxa_state is clear."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer

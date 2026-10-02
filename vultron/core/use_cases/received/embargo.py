@@ -48,7 +48,7 @@ from vultron.core.models.use_case_result import (
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.predicates.addressing import normalise_actor_id
+from vultron.core.predicates.addressing import same_actor_id
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
@@ -114,7 +114,7 @@ def resolve_invitee_id(
     participant per relayed Invite (EP-09-002) — so an Invite naming none or
     several is a misrouting, refused rather than guessed at (EP-09-010).  The
     recipient is returned in its canonical spelling, so a trailing slash still
-    names the actor (#2667).
+    names the actor (#2667), and two spellings of one actor are one recipient.
 
     Raises:
         VultronProtocolViolationError: ``to`` names no recipient or more
@@ -128,7 +128,7 @@ def resolve_invitee_id(
             " its sole recipient, so it is refused as a misrouting"
             " (EP-09-010, OX-08-001)"
         )
-    return normalise_actor_id(invitee_id)
+    return invitee_id
 
 
 def _resolve_case_for_embargo_acceptance(
@@ -204,7 +204,13 @@ def _store_invite_deadline(
     expiry is never the record expiry is evaluated on (CM-28-003).
     """
     case = dl.read_case(case_id)
-    if case is None or actor_id == resolve_case_manager_id(case, dl):
+    if case is None:
+        return
+    manager_id = resolve_case_manager_id(case, dl)
+    if manager_id is None:
+        # No enforcer to tell from the invitee (CM-24-006, CM-28-003).
+        raise VultronNotFoundError("CASE_MANAGER of case", case_id)
+    if same_actor_id(actor_id, manager_id):
         return
     participant_id = case.actor_participant_index.get(actor_id)
     if not participant_id:
@@ -455,12 +461,19 @@ class InviteToEmbargoOnCaseReceivedUseCase:
 
         # The invitee is a subject the message names, not the actor whose
         # replica this is (ADR-0022): the Invite's sole `to` recipient.  An
-        # Invite naming none or several is a misrouting, refused before any
-        # other check answers it (EP-09-010, HP-01-005).
+        # Invite naming none or several is a misrouting, refused before the
+        # P/X/A check answers it (EP-09-010, HP-01-005).
         try:
             invitee_id = resolve_invitee_id(request, invite_id)
         except VultronProtocolViolationError as exc:
-            logger.warning("invite_to_embargo_on_case: %s", exc)
+            logger.warning(
+                "invite_to_embargo_on_case: refusing invite '%s' from actor"
+                " '%s' at receiving actor '%s': %s",
+                invite_id,
+                request.actor_id,
+                request.receiving_actor_id,
+                exc,
+            )
             return HandlerResult.refused(str(exc))
 
         receiving_actor_id = resolve_receiving_actor_id(
