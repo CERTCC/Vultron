@@ -33,10 +33,6 @@ import py_trees
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable
 
-from vultron.core.behaviors.embargo.trigger_tree import (
-    reject_proposed_embargo_bt,
-    terminate_embargo_bt,
-)
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
@@ -45,6 +41,7 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.behaviors.status.nodes.threat_termination import (  # noqa: F401
     ThreatTerminationBranchNode,
     _ThreatTerminationSkipConditionNode,
+    pxa_embargo_teardown_bt,
     read_pxa_state,
 )
 from vultron.core.models.case import VulnerabilityCase
@@ -194,20 +191,10 @@ class PublicDisclosureBranchNode(py_trees.composites.Selector):
                 py_trees.behaviours.Success(name="TeardownSkipped")
             )
         else:
-            reject_proposed_subtree = reject_proposed_embargo_bt(
-                case_id=case_id,
-                result_out=result_out,
-            )
-            terminate_subtree = terminate_embargo_bt(
-                case_id=case_id,
-                result_out=result_out,
-            )
-            # Selector: try terminate (ACTIVE/REVISE) first; if it fails because
-            # there is no active embargo, try reject (PROPOSED).
-            teardown_subtree = py_trees.composites.Selector(
-                name="TeardownSelector",
-                memory=False,
-                children=[terminate_subtree, reject_proposed_subtree],
+            # Terminate (ACTIVE/REVISE) first; with no active embargo,
+            # abandon the open proposals (PROPOSED, EMB-16-001).
+            teardown_subtree = pxa_embargo_teardown_bt(
+                case_id=case_id, result_out=result_out
             )
         self.add_children(
             [

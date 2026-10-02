@@ -16,7 +16,9 @@
 """EmbargoTeardownAuthorizationGate threat-termination BT node for add_case_status_tree.
 
 Provides :class:`ThreatTerminationBranchNode` which fires embargo teardown
-when a CaseStatus signals a threat (CS.P, CS.X, or CS.A set).
+when a CaseStatus signals a threat (CS.P, CS.X, or CS.A set): an active
+embargo is terminated, and while EM is ``PROPOSED`` every open proposal is
+abandoned instead (EMB-16-001, #4145).
 
 Per RSH-03-001 to RSH-03-003, ADR-0046.
 """
@@ -27,7 +29,10 @@ from typing import cast
 import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
+from vultron.core.behaviors.embargo.trigger_tree import (
+    reject_proposed_embargo_bt,
+    terminate_embargo_bt,
+)
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.protocols import PersistableModel
@@ -70,6 +75,26 @@ def resolve_pxa_threat_state(case_status: object) -> CS_pxa | None:
     return cast(CS_pxa, pxa_state)
 
 
+def pxa_embargo_teardown_bt(
+    *, case_id: str, result_out: dict[str, object]
+) -> py_trees.behaviour.Behaviour:
+    """The embargo teardown a P/X/A signal calls for, by EM state.
+
+    A ``Selector`` that terminates an active embargo (ACTIVE/REVISE,
+    EMB-07-001/002) and otherwise abandons every open proposal (PROPOSED,
+    EMB-16-001).  Each subtree checks its own EM precondition first, so at
+    most one of them writes, and only as the CASE_MANAGER (EP-09-008).
+    """
+    return py_trees.composites.Selector(
+        name="TeardownSelector",
+        memory=False,
+        children=[
+            terminate_embargo_bt(case_id=case_id, result_out=result_out),
+            reject_proposed_embargo_bt(case_id=case_id, result_out=result_out),
+        ],
+    )
+
+
 class _ThreatTerminationSkipConditionNode(DataLayerConditionWithPorts):
     """Inner guard for :class:`ThreatTerminationBranchNode`.
 
@@ -77,10 +102,12 @@ class _ThreatTerminationSkipConditionNode(DataLayerConditionWithPorts):
     - The resolved CaseStatus has no pxa state, OR
     - The pxa state is ``pxa`` (all-lowercase — no P, X, or A set), OR
     - DataLayer or case_id is unavailable, OR
-    - The case has no active embargo (nothing to terminate).
+    - The case has neither an active embargo nor an open proposal (nothing
+      to terminate or abandon).
 
     Returns FAILURE (proceed to teardown) when the pxa state indicates at
-    least one of P=True, X=True, or A=True AND an active embargo exists.
+    least one of P=True, X=True, or A=True AND an active embargo or an open
+    proposal exists (EMB-16-001).
 
     Per RSH-03-001 to RSH-03-003.
     """
@@ -141,14 +168,17 @@ class _ThreatTerminationSkipConditionNode(DataLayerConditionWithPorts):
             return Status.SUCCESS
 
         # Lenient guard (ADR-0087): returns FAILURE only to *signal* that an
-        # active embargo must be terminated on threat; every other path is
-        # SUCCESS ("nothing to terminate"). An unresolvable case cannot have an
-        # active embargo to terminate, so SUCCESS is correct (allowlist).
+        # active embargo must be terminated, or the open proposals abandoned,
+        # on threat; every other path is SUCCESS ("nothing to tear down"). An
+        # unresolvable case holds neither, so SUCCESS is correct (allowlist).
         case = self.datalayer.read_case(self.case_id)
         if case is None:
             return Status.SUCCESS
 
-        if _as_id(case.active_embargo) is None:
+        if (
+            _as_id(case.active_embargo) is None
+            and not case.proposed_embargo_ids
+        ):
             return Status.SUCCESS
 
         return Status.FAILURE
@@ -159,18 +189,20 @@ class ThreatTerminationBranchNode(py_trees.composites.Selector):
 
     Fires when the CaseStatus has at least one of P=True, X=True, or A=True
     (any ``CS_pxa`` state other than ``pxa``) AND the case has an active
-    embargo.
+    embargo or an open proposal.
 
     Does NOT gate on sender role (RSH-03-002) — authorization was
     already verified at StatusAdoptionGate before this node is reached.
 
-    Delegates to ``terminate_embargo_bt`` (BT-19-002).  Skips silently
-    (returns SUCCESS) when teardown conditions are not met.
+    Delegates to :func:`pxa_embargo_teardown_bt`: ``terminate_embargo_bt``
+    for an active embargo (BT-19-002), ``reject_proposed_embargo_bt`` while
+    EM is ``PROPOSED`` (EMB-16-001).  Skips silently (returns SUCCESS) when
+    teardown conditions are not met.
 
     Implemented as a ``py_trees.composites.Selector`` (memory=False):
 
     - Child 1 ``_ThreatTerminationSkipConditionNode``: SUCCESS → skip.
-    - Child 2 ``TerminateEmbargoBT``: SUCCESS on teardown; FAILURE on routing
+    - Child 2 ``TeardownSelector``: SUCCESS on teardown; FAILURE on routing
       prerequisites absent or dispatch failure (BT-14-001).
 
     Per RSH-03-001 to RSH-03-003, ADR-0046.
@@ -186,10 +218,7 @@ class ThreatTerminationBranchNode(py_trees.composites.Selector):
         super().__init__(name=name or self.__class__.__name__, memory=False)
         result_out: dict[str, object] = {}
         terminate_subtree = (
-            terminate_embargo_bt(
-                case_id=case_id,
-                result_out=result_out,
-            )
+            pxa_embargo_teardown_bt(case_id=case_id, result_out=result_out)
             if case_id is not None
             else py_trees.behaviours.Success(name="TerminateEmbargoSkipped")
         )
@@ -207,6 +236,7 @@ class ThreatTerminationBranchNode(py_trees.composites.Selector):
 
 
 __all__ = [
+    "pxa_embargo_teardown_bt",
     "resolve_pxa_threat_state",
     "_ThreatTerminationSkipConditionNode",
     "ThreatTerminationBranchNode",

@@ -29,12 +29,14 @@ from vultron.core.behaviors.case_status_snapshot import (
     EmitCaseStatusUpdateNode,
 )
 from vultron.core.behaviors.embargo.nodes import (
+    AbandonEmbargoProposalsLifecycleNode,
     AcceptEmbargoLifecycleNode,
+    CommitEmbargoAbandonmentNode,
     CommitEmbargoDecisionNode,
     CommitEmbargoTeardownNode,
     ProposeEmbargoLifecycleNode,
     RejectEmbargoLifecycleNode,
-    RejectProposedEmbargoLifecycleNode,
+    SendAbandonmentRejectsNode,
     TerminateEmbargoLifecycleNode,
 )
 from vultron.core.behaviors.embargo.trigger_tree import (
@@ -186,47 +188,32 @@ class TestRejectEmbargoTriggerBt:
         _assert_manager_arm_order(tree, RejectEmbargoLifecycleNode)
 
 
+@pytest.mark.spec("RSH-04-002")
+@pytest.mark.spec("EP-09-008")
+@pytest.mark.spec("EMB-16-001")
 class TestRejectProposedEmbargoBt:
-    @pytest.mark.spec("RSH-04-002")
-    def test_emit_node_present(self, result_out):
+    def test_manager_arm_writes_commits_then_declares(self, result_out):
         tree = reject_proposed_embargo_bt(
             case_id=CASE_ID,
             result_out=result_out,
         )
-        all_nodes = _collect_nodes(tree)
-        node_types = [type(n).__name__ for n in all_nodes]
-        assert "EmitCaseStatusUpdateNode" in node_types, (
-            "EmitCaseStatusUpdateNode must be present in reject_proposed_embargo_bt (RSH-04-002)"
+        _assert_manager_arm_order(
+            tree,
+            AbandonEmbargoProposalsLifecycleNode,
+            CommitEmbargoAbandonmentNode,
         )
 
-    @pytest.mark.spec("RSH-04-002")
-    def test_emit_node_after_lifecycle_node(self, result_out):
+    def test_non_manager_arm_only_asks_the_manager(self, result_out):
         tree = reject_proposed_embargo_bt(
             case_id=CASE_ID,
             result_out=result_out,
         )
-        children = _top_level_children(tree)
-        lifecycle_idx = next(
-            (
-                i
-                for i, c in enumerate(children)
-                if isinstance(c, RejectProposedEmbargoLifecycleNode)
-            ),
-            None,
-        )
-        emit_idx = next(
-            (
-                i
-                for i, c in enumerate(children)
-                if isinstance(c, EmitCaseStatusUpdateNode)
-            ),
-            None,
-        )
-        assert lifecycle_idx is not None
-        assert emit_idx is not None
-        assert emit_idx == lifecycle_idx + 1, (
-            "EmitCaseStatusUpdateNode must immediately follow RejectProposedEmbargoLifecycleNode"
-        )
+        other = _arm(tree, "AskCaseManager")
+        assert any(isinstance(n, SendAbandonmentRejectsNode) for n in other)
+        manager = _arm(tree, "AsCaseManager")
+        assert not any(
+            isinstance(n, SendAbandonmentRejectsNode) for n in manager
+        ), "the manager commits its ER; it never mails it (CLP-10-001)"
 
 
 @pytest.mark.spec("RSH-04-002")

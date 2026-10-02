@@ -21,6 +21,7 @@ from nodes.lifecycle.
 Per DEMOMA-07-003 steps 4–5.
 """
 
+from typing import cast
 from unittest.mock import MagicMock
 
 import py_trees
@@ -29,6 +30,9 @@ from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.status.nodes.lifecycle import (
@@ -37,6 +41,7 @@ from vultron.core.behaviors.status.nodes.lifecycle import (
     _PublicDisclosureSkipConditionNode,
 )
 from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import (
@@ -45,6 +50,7 @@ from vultron.core.models.dimensions import (
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.enums.roles import CVDRole
+from vultron.wire.as2.factories import em_propose_embargo_activity
 from vultron.wire.as2.vocab.objects.case_status import (
     as_CaseStatus,
     as_ParticipantStatus,
@@ -305,27 +311,33 @@ class TestPublicDisclosureSkipConditionNode:
 class TestPublicDisclosureBranchNodeProposedEmPath:
     """Integration tests: CS.P/X/A fires while EM is PROPOSED.
 
-    Per EMB-16-001 the BranchNode must route to reject_proposed_embargo_bt
-    (not terminate_embargo_bt), transitioning EM from PROPOSED to NONE and
-    queuing an ER reject activity to the Case Manager.
+    Per EMB-16-001 the BranchNode routes to reject_proposed_embargo_bt (not
+    terminate_embargo_bt).  Abandoning the proposal writes shared EM state,
+    so only the CASE_MANAGER makes it (EP-09-008, #4131): the owner's run
+    asks the manager with an ER, and the manager's run drives EM
+    ``PROPOSED → NONE``.  Each run executes in its own actor's store.
     """
 
     def _setup(
         self,
         public_aware_status: as_ParticipantStatus,
         *,
-        reject_activity_id: str = "https://example.org/activities/reject-01",
+        store_actor: str = ACTOR_ID,
     ) -> tuple[SqliteDataLayer, BTBridge, PublicDisclosureBranchNode]:
-        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_ID)
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=store_actor)
 
         embargo = as_EmbargoEvent(
             id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now_utc(45)
+        )
+        invite = em_propose_embargo_activity(
+            embargo, context=CASE_ID, actor=ACTOR_ID, to=[CASE_MANAGER_ID]
         )
         case = VulnerabilityCase(
             id_=CASE_ID, name="Test Case", attributed_to=ACTOR_ID
         )
         case.append_case_status(em_state=EM.PROPOSED)
         case.proposed_embargoes = [embargo.id_]
+        case.pending_embargo_proposal_index = {embargo.id_: invite.id_}
 
         participant = CaseParticipant(
             id_=PARTICIPANT_ID,
@@ -342,16 +354,14 @@ class TestPublicDisclosureBranchNodeProposedEmPath:
         case.add_participant(participant)
         case.add_participant(cm_participant)
         dl.create(embargo)
+        dl.create(invite)
         dl.create(case)
         dl.create(participant)
         dl.create(cm_participant)
 
-        factory = MagicMock()
-        factory.reject_embargo.return_value = (reject_activity_id, {})
-
         bridge = BTBridge(
             datalayer=dl,
-            trigger_activity=factory,
+            trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
         )
@@ -362,45 +372,37 @@ class TestPublicDisclosureBranchNodeProposedEmPath:
         )
         return dl, bridge, node
 
-    # AC-5: full integration — EM PROPOSED + P fires → EM→NONE + ER queued
-    def test_proposed_em_pxa_routes_to_reject_path_and_succeeds(
-        self, public_aware_status
-    ):
-        """EM PROPOSED + CS.P → BranchNode succeeds; EM transitions to NONE.
-
-        Per EMB-16-001: reject_proposed_embargo_bt arm must execute, driving
-        EM PROPOSED → NONE via reject_embargo_invite().
-        """
-        reject_id = "https://example.org/activities/reject-01"
+    @pytest.mark.spec("EMB-16-001")
+    @pytest.mark.spec("EP-09-008")
+    def test_as_the_case_manager_em_returns_to_none(self, public_aware_status):
         dl, bridge, node = self._setup(
-            public_aware_status, reject_activity_id=reject_id
+            public_aware_status, store_actor=CASE_MANAGER_ID
         )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.SUCCESS
-
-        # AC-5: EM must have transitioned to NONE after the BT ran
-        from vultron.core.models.case import VulnerabilityCase
 
         updated_case = dl.read(CASE_ID)
         assert isinstance(updated_case, VulnerabilityCase)
         assert updated_case.current_status.em.state == EM.NONE
+        assert updated_case.proposed_embargo_ids == []
 
-    def test_proposed_em_pxa_queues_reject_activity_to_outbox(
+    @pytest.mark.spec("EMB-16-001")
+    @pytest.mark.spec("EP-09-008")
+    @pytest.mark.spec("PCR-08-001")
+    def test_the_owner_asks_the_case_manager_and_writes_no_em_state(
         self, public_aware_status
     ):
-        """EM PROPOSED + CS.P → reject activity queued in actor outbox.
+        dl, bridge, node = self._setup(public_aware_status)
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.SUCCESS
 
-        Per EMB-16-001: SendRejectEmbargoActivityNode must call
-        factory.reject_embargo() and record the result in the outbox.
-        """
-        reject_id = "https://example.org/activities/reject-01"
-        dl, bridge, node = self._setup(
-            public_aware_status, reject_activity_id=reject_id
-        )
-        bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
-
-        outbox = dl.outbox_list()
-        assert reject_id in outbox
+        updated_case = dl.read(CASE_ID)
+        assert isinstance(updated_case, VulnerabilityCase)
+        assert updated_case.current_status.em.state == EM.PROPOSED
+        queued = [cast(VultronActivity, dl.read(i)) for i in dl.outbox_list()]
+        assert [(a.type_, a.to) for a in queued] == [
+            ("Reject", [CASE_MANAGER_ID])
+        ]
 
 
 # ---------------------------------------------------------------------------

@@ -577,7 +577,7 @@ A shared BT node, `EmitCaseStatusUpdateNode`, performs the canonical write:
 
 This node is wired **after** every EM lifecycle node in each BT tree factory
 (Propose, Accept, Reject, Terminate, and cascade variants such as
-`RejectProposedEmbargoLifecycleNode` and `ApplyEmbargoTeardownNode`).
+`AbandonEmbargoProposalsLifecycleNode` and `ApplyEmbargoTeardownNode`).
 
 ### Causality (important)
 
@@ -610,7 +610,7 @@ changes. The inbound adoption path was refactored onto `EmitCaseStatusUpdateNode
 | `AcceptEmbargoLifecycleNode` (trigger) | PROPOSED → ACTIVE | Implemented (#2857) |
 | `RejectEmbargoLifecycleNode` (trigger) | PROPOSED → NONE | Implemented (#2857) |
 | `TerminateEmbargoLifecycleNode` (trigger) | ACTIVE/REVISE → EXITED | Implemented (#2857) |
-| `RejectProposedEmbargoLifecycleNode` (cascade) | PROPOSED → NONE | Implemented (#2857) |
+| `AbandonEmbargoProposalsLifecycleNode` (cascade, CASE_MANAGER only) | PROPOSED → NONE | Implemented (#2857, #4131) |
 | `ApplyEmbargoTeardownNode` (sync/announce) | ACTIVE/REVISE → EXITED | Implemented (#2857) |
 
 ---

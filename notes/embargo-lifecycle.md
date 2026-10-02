@@ -499,11 +499,27 @@ in two mutually exclusive arms built by `_by_role()`
   (`close_refused_embargo_proposal`).
 
 The receive-side cascades that end an embargo (`ThreatTerminationBranchNode`,
-`PublicDisclosureBranchNode`'s ET arm) reach the same `terminate_embargo_bt`,
-so they too tear down only at the CASE_MANAGER and a non-manager receiver
-asks. `reject_proposed_embargo_bt` (the P/X/A abandonment of a proposal) is
-not yet gated — #4131. Ratchet:
+`PublicDisclosureBranchNode`) reach the same `terminate_embargo_bt`, so they
+too tear down only at the CASE_MANAGER and a non-manager receiver asks. Both
+build their teardown with `pxa_embargo_teardown_bt`: terminate an active
+embargo, else abandon the open proposals with `reject_proposed_embargo_bt`
+(EMB-16-001, #4145). Ratchet:
 `test/architecture/test_embargo_trigger_writes_are_case_manager_gated.py`.
+
+**The P/X/A abandonment decides every open proposal (EMB-16-001, #4131).**
+`P → N` leaves nothing open, so the earliest-expiring order of EP-08-002 does
+not apply: the CASE_MANAGER drops every proposal
+(`abandon_embargo_proposals`, STRICT) and commits one
+`Reject(Invite(EmbargoEvent))` per proposal under the
+`reject_invite_to_embargo_on_case_abandoned` event type (MSM-02-006). The
+entry is addressed to nobody: every replica learns it from the ledger, whose
+`EmbargoAbandonment` announce slot drops the proposal in OBSERVED mode
+(`ApplyEmbargoAbandonmentFromLedgerNode`). The replica does not repeat the
+owner check a received `Reject` makes: the entry is the manager's decision,
+as a teardown already decides every open proposal (EP-08-004). A
+non-manager asks with one `Reject` per proposal to the manager, which needs
+each proposal's Invite from `pending_embargo_proposal_index`. A replica that
+holds the proposal but not its Invite id fails closed and asks nothing.
 Participant self-status (RM) keeps its local write — the participant is the
 authority on its own progress. ADR-0108 was amended to match.
 

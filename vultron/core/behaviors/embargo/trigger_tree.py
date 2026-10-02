@@ -49,8 +49,10 @@ from vultron.core.behaviors.case_status_snapshot import (
 from vultron.core.behaviors.embargo.nodes import (
     EMBARGO_INVITE_EVENT_TYPE,
     EMBARGO_TEARDOWN_EVENT_TYPE,
+    AbandonEmbargoProposalsLifecycleNode,
     AcceptEmbargoLifecycleNode,
     CollectEmbargoInviteRecipientsNode,
+    CommitEmbargoAbandonmentNode,
     CommitEmbargoDecisionNode,
     CommitEmbargoTeardownNode,
     EmbargoActivityBuilder,
@@ -61,11 +63,10 @@ from vultron.core.behaviors.embargo.nodes import (
     ProposeEmbargoLifecycleNode,
     ReadEmbargoIdNode,
     ReadEmStateNode,
-    ReadProposedEmbargoIdNode,
+    ReadOpenEmbargoProposalsNode,
     RejectEmbargoLifecycleNode,
-    RejectProposedEmbargoLifecycleNode,
     RelayEmbargoInviteToEachNode,
-    SendRejectEmbargoActivityNode,
+    SendAbandonmentRejectsNode,
     SendTerminateEmbargoActivityNode,
     TerminateEmbargoLifecycleNode,
     ValidateEmbargoProposalStateNode,
@@ -351,23 +352,25 @@ def reject_proposed_embargo_bt(
     case_id: str,
     result_out: dict[str, object],
 ) -> py_trees.behaviour.Behaviour:
-    """Shared BT for abandoning a proposed embargo (EMB-16-001).
+    """Shared BT for abandoning the open embargo proposals (EMB-16-001).
 
-    Used by :class:`PublicDisclosureBranchNode` when CS.P/X/A fires while the
-    case EM state is PROPOSED.  Mirrors the routing-guard ordering of
-    :func:`terminate_embargo_bt`:
+    Used through ``pxa_embargo_teardown_bt`` (``ThreatTerminationBranchNode``,
+    ``PublicDisclosureBranchNode``) when CS.P/X/A fires while the case EM
+    state is PROPOSED: no proposal can be accepted any more
+    (EMB-02-002), so every open one is abandoned.  Mirrors the routing-guard
+    ordering of :func:`terminate_embargo_bt`:
 
-    1. ``ReadEmStateNode`` — read EM state into ``result_out["em_before"]``
-       (AC-1: EM-state reads go through ``Read*StateNode``).
-    2. ``IsProposedEmbargoNode`` — guard: EM must be PROPOSED; FAILURE otherwise.
-    3. ``ReadProposedEmbargoIdNode`` — read embargo_id from proposed_embargoes.
-    4. ``ResolveCaseManagerNode`` — routing guard; FAILURE = no state change.
-    5. ``RejectProposedEmbargoLifecycleNode`` — EM state mutation (PROPOSED → NONE).
-    6. ``SendRejectEmbargoActivityNode`` — queue ER to Case Manager.
-
-    Both the routing guard (step 4) and state mutation (step 5) are ordered per
-    BT-19-001/BT-19-002 so that routing prerequisites are always verified before
-    the DataLayer state change is committed.
+    1. ``ReadEmStateNode`` / ``IsProposedEmbargoNode`` — EM must be PROPOSED.
+    2. ``ReadOpenEmbargoProposalsNode`` — map each open proposal to the Invite
+       its ER answers; FAILURE before anything moves when one has none.
+    3. ``ResolveCaseManagerNode`` — routing guard; FAILURE = no state change.
+    4. As the CASE_MANAGER (EP-09-008): ``AbandonEmbargoProposalsLifecycleNode``
+       drives ``PROPOSED → NONE``, then one ER per proposal is committed as an
+       ``EMBARGO_ABANDONMENT_EVENT_TYPE`` entry the ``EmbargoAbandonment``
+       slot replays (EP-09-007), addressed to nobody (CLP-10-001), then the
+       ``Add(CaseStatus)`` declaration.
+    5. As any other participant: no EM write; one ER per proposal is queued
+       to the CASE_MANAGER as a request (PCR-08-001).
     """
     return py_trees.composites.Sequence(
         name="RejectProposedEmbargoBT",
@@ -375,14 +378,20 @@ def reject_proposed_embargo_bt(
         children=[
             ReadEmStateNode(case_id=case_id, result_out=result_out),
             IsProposedEmbargoNode(case_id=case_id, result_out=result_out),
-            ReadProposedEmbargoIdNode(case_id=case_id),
+            ReadOpenEmbargoProposalsNode(case_id=case_id),
             ResolveCaseManagerNode(case_id=case_id),
-            RejectProposedEmbargoLifecycleNode(
-                case_id=case_id,
-                result_out=result_out,
+            *_by_role(
+                "AbandonProposedEmbargo",
+                case_id,
+                as_case_manager=[
+                    AbandonEmbargoProposalsLifecycleNode(
+                        case_id=case_id, result_out=result_out
+                    ),
+                    CommitEmbargoAbandonmentNode(case_id=case_id),
+                    _make_emit_node(case_id),
+                ],
+                otherwise=[SendAbandonmentRejectsNode(case_id=case_id)],
             ),
-            _make_emit_node(case_id),
-            SendRejectEmbargoActivityNode(case_id=case_id),
         ],
     )
 

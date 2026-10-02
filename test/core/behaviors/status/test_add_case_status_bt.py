@@ -61,6 +61,7 @@ from vultron.core.behaviors.status.nodes.lifecycle import (
     ThreatTerminationBranchNode,
 )
 from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
@@ -1305,6 +1306,91 @@ class TestThreatTerminationBranchNode:
         updated = cast(VulnerabilityCase, dl.read(CASE_ID))
         assert updated.current_status.em.state == EM.ACTIVE
         assert updated.active_embargo is not None
+
+
+PROPOSED_EMBARGO_ID = f"{CASE_ID}/embargo_events/p1"
+
+
+class TestThreatTerminationBranchNodeProposedEm:
+    """EMB-16-001: a P/X/A signal while EM is ``PROPOSED`` abandons the
+    open proposals.  Only the CASE_MANAGER writes EM (EP-09-008, #4131);
+    any other receiver asks the manager.  Each run uses its actor's store.
+    """
+
+    def _setup(
+        self, store_actor: str
+    ) -> tuple[SqliteDataLayer, BTBridge, ThreatTerminationBranchNode]:
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.factories import em_propose_embargo_activity
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=store_actor)
+        embargo = as_EmbargoEvent(
+            id_=PROPOSED_EMBARGO_ID,
+            context=CASE_ID,
+            end_time=days_from_now_utc(45),
+        )
+        invite = em_propose_embargo_activity(
+            embargo, context=CASE_ID, actor=ACTOR_ID, to=[CASE_MANAGER_ID]
+        )
+        cm_participant = CaseParticipant(
+            id_=CM_PARTICIPANT_ID,
+            context=CASE_ID,
+            attributed_to=CASE_MANAGER_ID,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        case = VulnerabilityCase(
+            id_=CASE_ID, name="Proposed Case", attributed_to=ACTOR_ID
+        )
+        case.add_participant(cm_participant)
+        case.append_case_status(em_state=EM.PROPOSED)
+        case.proposed_embargoes = [embargo.id_]
+        case.pending_embargo_proposal_index = {embargo.id_: invite.id_}
+        status_obj = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
+        object.__setattr__(status_obj, "pxa_state", CS_pxa.Pxa)
+        for obj in (embargo, invite, cm_participant, case, status_obj):
+            dl.create(obj)
+
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        )
+        node = ThreatTerminationBranchNode(
+            status_obj=status_obj, case_id=CASE_ID
+        )
+        return dl, bridge, node
+
+    @pytest.mark.spec("EMB-16-001")
+    @pytest.mark.spec("EP-09-008")
+    def test_as_the_case_manager_em_returns_to_none(self):
+        dl, bridge, node = self._setup(CASE_MANAGER_ID)
+
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+
+        assert result.status == Status.SUCCESS
+        updated = cast(VulnerabilityCase, dl.read(CASE_ID))
+        assert updated.current_status.em.state == EM.NONE
+        assert updated.proposed_embargo_ids == []
+
+    @pytest.mark.spec("EMB-16-001")
+    @pytest.mark.spec("EP-09-008")
+    def test_a_non_manager_asks_the_case_manager_and_writes_no_em(self):
+        dl, bridge, node = self._setup(ACTOR_ID)
+
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+
+        assert result.status == Status.SUCCESS
+        updated = cast(VulnerabilityCase, dl.read(CASE_ID))
+        assert updated.current_status.em.state == EM.PROPOSED
+        assert updated.proposed_embargo_ids == [PROPOSED_EMBARGO_ID]
+        queued = [cast(VultronActivity, dl.read(i)) for i in dl.outbox_list()]
+        assert [(a.type_, a.to) for a in queued] == [
+            ("Reject", [CASE_MANAGER_ID])
+        ]
 
 
 # ---------------------------------------------------------------------------
