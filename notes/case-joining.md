@@ -4,7 +4,9 @@ status: active
 description: >
   How an actor goes from invited to participating, what the case records at
   each step, what an inert participant may receive, and what the old model got
-  wrong. Source: CONCERN-4006 planning session (2026-10-01).
+  wrong; how removal and reinstatement withdraw and restore entitlement without
+  touching membership (ADR-0116). Sources: CONCERN-4006 and CONCERN-2257
+  planning sessions (2026-10-01).
 related_specs:
   - specs/case-management.yaml
   - specs/participant-role-management.yaml
@@ -12,6 +14,7 @@ related_specs:
   - specs/vultron-as2-mapping.yaml
   - specs/participant-case-replica.yaml
   - specs/sync-ledger-replication.yaml
+  - specs/received-status-handling.yaml
   - specs/case-ledger-processing.yaml
   - specs/embargo-policy.yaml
 related_notes:
@@ -25,6 +28,8 @@ relevant_packages:
   - vultron/core/behaviors/case/nodes/invite_participant.py
   - vultron/core/behaviors/case/nodes/invite_ledger_backfill.py
   - vultron/core/behaviors/case/nodes/on_behalf_guards.py
+  - vultron/core/behaviors/case/nodes/case_participant_received.py
+  - vultron/core/behaviors/case/nodes/accept_invite.py
   - vultron/core/models/case.py
   - vultron/core/states/rm.py
   - vultron/wire/as2/vocab/objects/vulnerability_case.py
@@ -34,7 +39,8 @@ relevant_packages:
 # Joining a Case — Stub Invite, Inert Participant, Full-Case Invite
 
 The decisions are ADR-0114 (joining, inert participants, the stub type, the
-`R → C` transition) and ADR-0070 (judging the case). This note keeps the flow in
+`R → C` transition), ADR-0070 (judging the case) and ADR-0116 (removal and
+reinstatement). This note keeps the flow in
 one place and records what the earlier model got wrong, because each piece of that model
 was internally consistent and the error only showed once all of them were laid
 side by side.
@@ -59,17 +65,21 @@ stub, because accepting a stub is not a judgement of the case.
 
 **Active** means: seated by the case initialization sequence (the Case Owner,
 the CASE_MANAGER and the reporter, who are never sent a stub) or accepted the
-stub Invite, and — only when an embargo is active — `SIGNATORY` to it.
-"Inert until SIGNATORY" is wrong, because many cases have no active embargo:
-one not yet established, or one already exited.
+stub Invite, has not been removed, and — only when an embargo is active —
+`SIGNATORY` to it. "Inert until SIGNATORY" is wrong, because many cases have
+no active embargo: one not yet established, or one already exited.
 
 One predicate decides it: `VulnerabilityCase.is_active_participant()`, read
 from the replicated `CaseParticipant` record (`joined`,
-`embargo_consent_state`) and the case's `active_embargo`, so a replica reaches
-the same answer as the CASE_MANAGER. Every case-content send picks recipients
-through `vultron/core/participants/recipients.py`: `case_content_recipients()`
-for case content, `invitation_recipients()` for the stub and embargo Invites
-(inert participants included, RM `CLOSED` excluded). A roster entry whose
+`embargo_consent_state`, and the removal fact once #4079 lands) and the case's
+`active_embargo`, so a replica reaches the same answer as the CASE_MANAGER.
+Being active is computed, never stored (CM-31-002): whether an embargo is
+active is case state the record cannot see, and a participant-level "joined"
+property would read as "active" at a send site. Every case-content send picks
+recipients through `vultron/core/participants/recipients.py`:
+`case_content_recipients()` for case content, `invitation_recipients()` for the
+stub and embargo Invites (inert participants included, RM `CLOSED` excluded,
+and removed participants excluded once #4084 lands). A roster entry whose
 record cannot be read gets nothing (CM-10-007).
 
 RM `CLOSED` is not part of "active". ADR-0114 says a closed participant
@@ -122,6 +132,33 @@ its authority to *commit* comes from its role (CLP-09), not from being active.
 - **Visibility.** The birth of an invitee's record is a ledger entry, so active
   participants see invitees — including ones that declined or never answered —
   in their replica of the roster.
+
+## Removal and reinstatement
+
+Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
+
+| Step | Message | Ledger | Effect |
+|---|---|---|---|
+| 1 | Case Owner sends `Remove(CaseParticipant, target=Case)` to the CASE_MANAGER | the received `Remove` is the one entry | removal fact set; participant leaves `activeParticipants` |
+| 2 | CASE_MANAGER sends the removed party a direct `Remove(CaseParticipant)` naming it | not ledgered | notice only |
+| 3 | Removal entry fans out, the removed party included | — | each replica applies the fact by replay; it is the removed party's last entry |
+| 4 | Embargo terminated or shortened while it is removed | not sent to it | direct `Remove(EmbargoEvent)` or `Announce(EmbargoEvent)`; its paused replica applies it |
+| 5 | Case Owner sends `Add(CaseParticipant, target=Case)` | the received `Add` is the one entry | fact cleared; backfill from the removal entry on (CM-10-006) |
+
+- **Only the Case Owner asks.** The CASE_MANAGER refuses a request from anyone
+  else, and a removal of itself or of the Case Owner. It never removes on its
+  own initiative. Self-removal is `Leave(VulnerabilityCase)`.
+- **Consent is untouched.** A removed `SIGNATORY` stays bound. So does a
+  participant that left the case: both get the direct embargo-ending notices
+  (CM-31-009), the only messages a removed participant receives besides the
+  removal itself.
+- **`Add(CaseParticipant)` only reinstates.** It is refused for a participant
+  that is not removed or never joined. The CASE_MANAGER no longer emits `Add`
+  after a stub-Invite acceptance; replicas learn of a new member from the
+  `Accept(Invite)` entry (CM-31-012).
+- **Catch-up follows the active check.** A participant reinstated into a case
+  whose embargo it has not accepted stays inert; it is sent that embargo's
+  Invite, and its backfill waits for its consent.
 
 ## What the old model got wrong
 
@@ -183,15 +220,20 @@ message is designed: we accept offers and invitations, never bare objects.
 ## Pitfalls
 
 - **Roster membership is not "accepted" and not "entitled to content."** Ask
-  whether the participant is active: it accepted the stub Invite, and — only
-  while an embargo is active — is `SIGNATORY` to it. The check lives in the
-  shared recipient selection, never at a send site (CM-10-004, CM-10-005).
+  whether the participant is active: it accepted the stub Invite, has not been
+  removed, and — only while an embargo is active — is `SIGNATORY` to it. The
+  check lives in the shared recipient selection, never at a send site
+  (CM-10-004, CM-10-005).
 - **A joined participant never answers the original `Offer(VulnerabilityReport)`**
   and never runs `validate-report`/`invalidate-report`/`reject-report` for the
   case's report; it judges the case by answering the full-case Invite
   (CM-11-005, ADR-0070).
 - **A status update never creates a participant.** An on-behalf assertion whose
   target is not a participant is refused before any write (PRM-06-006).
+- **Removal is not deletion and not a consent state.** Do not drop a removed
+  participant from `case_participants`, and do not model removal as a PEC
+  value: an embargo reset would erase it, and with no embargo the content gate
+  ignores consent entirely.
 - **Do not hold the ledger replay until the full-case Invite is accepted.** A
   participant is active once it accepts the stub; the history is part of what
   it judges, and a participant that finds the case `INVALID` keeps receiving
