@@ -113,11 +113,13 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
 
     Returns FAILURE (BT-14-001) when the factory is unavailable, a required
     blackboard key is missing, the outbox write fails, or dispatch raises an
-    exception — the manager-as-executor :class:`VultronWiringError` included,
-    which the bridge reports by type.  Returns SUCCESS when the activity is
-    created, queued and recorded.  A failure to record the queued ask
-    escapes ``update()`` rather than reporting a success the next repeat
-    would not be suppressed by (BT-HELPER-01).
+    exception.  Returns SUCCESS when the activity is created, queued and
+    recorded.
+
+    Raises :class:`VultronWiringError` when the executing actor is the
+    manager; the bridge reports it by type.  A failure to record the queued
+    ask also escapes ``update()`` rather than reporting a success the next
+    repeat would not be suppressed by (BT-HELPER-01).
     """
 
     def __init__(self, case_id: str, name: str | None = None) -> None:

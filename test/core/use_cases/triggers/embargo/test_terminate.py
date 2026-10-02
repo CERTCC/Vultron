@@ -4,6 +4,7 @@ from typing import cast
 
 import py_trees
 import pytest
+from py_trees.common import Status
 
 from test.support.ledger import committed_event_types
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -12,7 +13,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.embargo.nodes import (
     EMBARGO_TEARDOWN_EVENT_TYPE,
     ask_case_manager_to_terminate_once,
@@ -239,12 +240,12 @@ def _run_cascade_ask(
     actor_id: str,
     case: VulnerabilityCase,
     manager_id: str,
-) -> None:
+) -> BTExecutionResult:
     """Run the received P/X/A cascade's ask, as ThreatTerminationBranchNode
     does for a non-manager receiver."""
     py_trees.blackboard.Blackboard.storage["/embargo_id"] = case.active_embargo
     py_trees.blackboard.Blackboard.storage["/case_manager_id"] = manager_id
-    BTBridge(
+    return BTBridge(
         datalayer=dl,
         trigger_activity=TriggerActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
@@ -272,9 +273,14 @@ def test_a_trigger_ask_suppresses_the_cascades_repeat(
     case, _, _ = _build_active_embargo_case(finder_dl, owner.id_, finder.id_)
     _terminate(finder_dl, finder.id_, case.id_)
     queued = finder_dl.outbox_list()
+    assert len(queued) == 1
 
-    _run_cascade_ask(finder_dl, finder.id_, case, owner.id_)
+    result = _run_cascade_ask(finder_dl, finder.id_, case, owner.id_)
 
+    # SUCCESS with nothing new queued is the suppression arm: the send arm
+    # either queues an ask or fails the tree (BT-14-001).
+    assert result.status == Status.SUCCESS
+    assert not result.internal_error
     assert finder_dl.outbox_list() == queued
 
 
@@ -285,7 +291,8 @@ def test_a_cascade_ask_suppresses_the_triggers_repeat(
     finder, finder_dl = finder_actor_and_dl
     owner = _persist_actor(finder_dl, "Vendor Co")
     case, _, _ = _build_active_embargo_case(finder_dl, owner.id_, finder.id_)
-    _run_cascade_ask(finder_dl, finder.id_, case, owner.id_)
+    first = _run_cascade_ask(finder_dl, finder.id_, case, owner.id_)
+    assert first.status == Status.SUCCESS
     queued = finder_dl.outbox_list()
     assert len(queued) == 1
 

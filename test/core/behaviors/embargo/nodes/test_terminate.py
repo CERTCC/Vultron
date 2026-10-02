@@ -253,6 +253,33 @@ class TestTeardownAsk:
         assert result.status == Status.FAILURE
         assert _pending_ask(_VENDOR_ID) is None
 
+    @pytest.mark.spec("SYNC-11-002")
+    def test_a_failed_record_after_the_queued_ask_escapes(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The ask is already queued, but an unrecorded ask would not
+        suppress the next repeat, so the node does not report SUCCESS: the
+        error escapes ``update()`` and the bridge flags it (BT-HELPER-01)."""
+
+        def _boom(*_args: object, **_kwargs: object) -> None:
+            raise RuntimeError("store down")
+
+        monkeypatch.setattr(
+            "vultron.core.behaviors.embargo.nodes.terminate"
+            ".record_pending_assertion",
+            _boom,
+        )
+        dl, result = _run(
+            SendTerminateEmbargoActivityNode(case_id=CASE_ID),
+            _VENDOR_ID,
+            _factory(),
+        )
+
+        assert dl.outbox_list() == [_ASK_ID]
+        assert result.status == Status.FAILURE
+        assert result.internal_error
+        assert _pending_ask(_VENDOR_ID) is None
+
     @pytest.mark.spec("SYNC-11-004")
     def test_the_manager_reaching_the_ask_is_a_wiring_fault(self) -> None:
         """The manager's arm commits the teardown itself: it never asks

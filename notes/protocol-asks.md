@@ -219,7 +219,7 @@ not survive N simultaneous Invites of one event type — the ask-kind registry
 **The pending-assertion store has a second client.** Embargo triggers that do
 not hold the CASE_MANAGER role emit their proposal, answer or termination to
 the manager and record it in the pending-assertion store; they write no EM
-state (EP-09-008). Both clients record through one helper,
+state (EP-09-008). Every asker records through one helper,
 `record_pending_assertion()` in `vultron/core/models/pending_assertion.py`
 (SYNC-11-002, ASK-04-008). The received-side teardown ask the P/X/A cascade
 sends records through it as well, from the send node's `_on_queued` hook, and
