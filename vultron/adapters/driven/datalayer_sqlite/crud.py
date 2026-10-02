@@ -18,7 +18,8 @@
 import logging
 from typing import Any, cast
 
-from sqlmodel import select
+from sqlalchemy import String, type_coerce, update as sa_update
+from sqlmodel import col, select
 
 from vultron.adapters.driven.db_record import (
     Record,
@@ -173,6 +174,91 @@ def save(
             dl._actor_id,
             participant_status_summary(rec.data_),
         )
+
+
+def save_if_unchanged(
+    dl: "Any",  # SqliteDataLayer
+    obj: PersistableModel,
+    expected: PersistableModel,
+) -> bool:
+    """Replace the stored record for ``obj.id_`` only if it still equals *expected*.
+
+    A read-modify-write through :func:`save` has no guard on its window:
+    another writer that saves the same record between the read and the save
+    loses its update without anyone being told (#4102).  This is the
+    compare-and-set that closes the window.  It refuses — returns ``False``
+    and writes nothing — in either of two cases:
+
+    * the record stored *now* is not the one the caller read
+      (*expected*), compared as the stored form both would take, so a
+      concurrent write that landed before this call is detected; or
+    * the row changes between this call's own read and its write.  The write
+      is one conditional ``UPDATE`` keyed on the row's stored text as this
+      call read it, so a write committed by another connection in between
+      (a file-backed store opens one per ``Session``) matches no row.
+
+    A missing record also refuses: there is nothing for *expected* to equal,
+    and a record deleted under the caller is a concurrent write too.
+
+    The first comparison is of the record as read — hydrated, then
+    serialized back.  A plain reference collapses back to its id on
+    re-serialization, so a change to the row it names does not refuse.  Two
+    cases can refuse even though this row's own text is unchanged: a
+    reference whose hydrated value is kept inline (its type is in
+    ``_KEEP_INLINE_NESTED_TYPES``, or the field is in the model's
+    ``inline_required_refs``) whose referenced row changed, and a referenced
+    row that appears or disappears between the caller's read and this call.
+    Both err toward a spurious refusal, never a lost write, and a re-reading
+    caller recovers; the actor profile, today's only caller, references no
+    other row.
+
+    Args:
+        dl: The SqliteDataLayer instance.
+        obj: The replacement record.
+        expected: The record as the caller read it.  Its ``id_`` MUST equal
+            ``obj.id_``.
+
+    Returns:
+        ``True`` when *obj* was written; ``False`` when the stored record had
+        changed and nothing was written.
+
+    Raises:
+        ValueError: *obj* and *expected* name different records.
+    """
+    if obj.id_ != expected.id_:
+        raise ValueError(
+            f"save_if_unchanged: replacement {obj.id_!r} and expected"
+            f" {expected.id_!r} are different records"
+        )
+    rec = object_to_record(obj)
+    expected_data = object_to_record(expected).data_
+    stored_text = type_coerce(VultronObjectRecord.data, String)
+    with dl._session() as session:
+        found = session.exec(
+            select(
+                VultronObjectRecord, stored_text.label("stored_text")
+            ).where(VultronObjectRecord.id_ == rec.id_)
+        ).first()
+        if found is None:
+            return False
+        row, read_text = found
+        current = dl._from_row(row)
+        if current is None or object_to_record(current).data_ != expected_data:
+            return False
+        result = session.connection().execute(
+            sa_update(VultronObjectRecord)
+            .where(
+                col(VultronObjectRecord.id_) == rec.id_,
+                stored_text == read_text,
+            )
+            .values(type_=rec.type_, data=rec.data_)
+        )
+        if result.rowcount != 1:
+            session.rollback()
+            return False
+        session.commit()
+    logger.debug("DataLayer compare-and-set saved %s '%s'", rec.type_, rec.id_)
+    return True
 
 
 def save_many(
