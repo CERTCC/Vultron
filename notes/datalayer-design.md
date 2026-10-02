@@ -585,5 +585,6 @@ silently `None` (when it is optional) or as a bare "field required" for a name
 the operator never wrote. The SQLite read path logs the validation reason at
 WARNING when it reads such a row as absent, for core-registered and
 bookkeeping row types alike, so `dl.read()` returning `None` always has a
-logged cause. Ship an operator note with the PR: a file-backed store must be
-reset (`docker compose down -v`); an in-memory store is unaffected.
+logged cause. Because no row survives the rename, every PR that renames a
+stored field carries an operator note saying a file-backed store must be reset
+(`docker compose down -v`); an in-memory store is unaffected.

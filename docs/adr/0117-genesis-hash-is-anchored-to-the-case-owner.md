@@ -28,12 +28,14 @@ The question: **which actor id anchors a case's genesis hash?**
 
 - One case, one genesis hash, whichever actor runs the creation code.
 - One formula in the code, so a new creation path cannot pick the wrong anchor without anyone noticing.
-- A replica carries the sender's hash; it never recomputes it (ADR-0103).
+- A replica keeps the hash it receives, and one that receives none derives it from the carried `(id, published, attributedTo)` (ADR-0103), so the sender's anchor and the replica's derivation must be the same formula.
 
 ## Considered Options
 
-1. **Anchor to the CaseActor.** Every creation path passes the CaseActor id or an explicit hash, and the validator stops defaulting from `attributed_to`.
-2. **Anchor to the case owner.** CLP-08-002 names the owner (`VulnerabilityCase.attributed_to`), and the validator's owner-based default is the single definition.
+1. **Anchor to the CaseActor.**
+   Every creation path passes the CaseActor id or an explicit hash, and the validator stops defaulting from `attributed_to`.
+2. **Anchor to the case owner.**
+   CLP-08-002 names the owner (`VulnerabilityCase.attributed_to`), and the validator's owner-based default is the single definition.
 
 ## Decision Outcome
 
@@ -45,13 +47,17 @@ The formula lives in `compute_genesis_hash`, and the `VulnerabilityCase` validat
 A creator sets `attributed_to` and lets construction compute the hash.
 `CreateCaseFromProposalNode` passes no hash of its own.
 A received case keeps the `genesisHash` it arrived with.
+A received case that carries no `genesisHash` gets one from the same validator, computed from the `attributedTo` and `published` it carries.
 
 ### Consequences
 
 - Good, because a case's genesis no longer depends on which actor ran the creation code.
+- Good, because a replica that derives a missing hash from the carried case (ADR-0103) now agrees with the sender on the proposal path too; under the CaseActor anchor the replica would have derived a different value.
 - Good, because a new creation path that sets `attributed_to` gets the right hash with no further work, and nothing has to remember to pass one.
-- Neutral, because ownership transfer rewrites `attributed_to` (CM-21-002) but not the stored hash. The anchor is the owner *at creation*, which is what CLP-08-002 says.
-- Bad, because a ledger started under the old proposal-path anchor no longer matches what a verifier recomputes from the case. The project has no backwards-compatibility requirement, so such stores are reset rather than migrated.
+- Neutral, because ownership transfer rewrites `attributed_to` (CM-21-002) but not the stored hash.
+  The anchor is the owner *at creation*, which is what CLP-08-002 says.
+- Bad, because a ledger started under the old proposal-path anchor no longer matches what a verifier recomputes from the case.
+  The project has no backwards-compatibility requirement, so such stores are reset rather than migrated.
 
 ## Validation
 

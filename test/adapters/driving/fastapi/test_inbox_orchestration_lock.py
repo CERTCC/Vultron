@@ -59,6 +59,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 _CASE_ACTOR_ID = "https://example.org/actors/case-actor-lock-test"
 _PEER_ID = "https://example.org/actors/peer-lock-test"
 _CASE_ID = "https://example.org/cases/case-lock-test"
+_OWNER_ID = "https://example.org/actors/owner-lock-test"
 
 
 @pytest.fixture(autouse=True)
@@ -100,7 +101,7 @@ def seeded_dl(dl):
     genesis_hash = compute_genesis_hash(
         case_id=_CASE_ID,
         created_at=created_at,
-        owner_actor_id=_CASE_ACTOR_ID,
+        owner_actor_id=_OWNER_ID,
     )
     case = as_VulnerabilityCase(id_=_CASE_ID, name="lock-test-case")
     object.__setattr__(case, "genesis_hash", genesis_hash)

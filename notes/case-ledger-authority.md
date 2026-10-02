@@ -630,8 +630,10 @@ The anchor is the owner, not the CaseActor, on every creation path
 from the owner's `CaseProposal` hashes exactly as one the owner created itself.
 There is one formula: `compute_genesis_hash`, called by the `VulnerabilityCase`
 construction validator when no hash is supplied. A creator sets
-`attributed_to` and passes no hash; a replica keeps the `genesisHash` it
-received and never recomputes it.
+`attributed_to` and passes no hash. A replica keeps the `genesisHash` it
+received; a received case that carries none derives it through the same
+validator from its carried `attributedTo` and `published` (ADR-0103), which
+the owner anchor makes agree with the sender.
 
 ### Current Threat Model
 

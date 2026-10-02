@@ -62,6 +62,9 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 
 _CASE_ACTOR_BASE = "http://case-actor-sync-901.test"
 _PEER_BASE = "http://peer-sync-901.test"
+# The case owner the hand-set genesis hash is anchored to (CLP-08-002); these
+# cases carry no `attributed_to`, so the anchor is only a hash input here.
+_OWNER_ID = "http://vendor-sync-901.test/actors/vendor"
 
 
 def _actor_slug(actor_id: str) -> str:
@@ -164,7 +167,7 @@ def test_sync_single_peer_happy_path_replication(two_app_setup) -> None:
         compute_genesis_hash(
             case_id=case.id_,
             created_at=datetime.now(UTC),
-            owner_actor_id=case_actor_id,
+            owner_actor_id=_OWNER_ID,
         ),
     )
     case_actor_participant = as_CaseParticipant(
@@ -427,7 +430,7 @@ def test_sync_duplicate_delivery_idempotency(
         compute_genesis_hash(
             case_id=case.id_,
             created_at=datetime.now(UTC),
-            owner_actor_id=case_actor_id,
+            owner_actor_id=_OWNER_ID,
         ),
     )
     case_actor_participant = as_CaseParticipant(

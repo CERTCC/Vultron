@@ -96,8 +96,10 @@ def compute_genesis_hash(
 
     This is the one formula.  ``VulnerabilityCase`` calls it from its
     construction validator whenever no ``genesis_hash`` is supplied, so every
-    creation path that sets ``attributed_to`` gets the same value; a replica
-    carries the sender's hash and never recomputes it.
+    creation path that sets ``attributed_to`` gets the same value.  A replica
+    keeps the hash it receives; a received case that carries none derives it
+    here from its carried ``id``, ``published`` and ``attributedTo``
+    (ADR-0103), which the owner anchor makes agree with the sender.
 
     This anchors each case ledger to its origin identity and timestamp,
     replacing the former global zero-hash sentinel (CLP-08-001,
