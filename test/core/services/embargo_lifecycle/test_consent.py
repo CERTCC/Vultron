@@ -308,3 +308,79 @@ def test_record_embargo_invite_raises_for_an_unknown_invitee(
         EmbargoLifecycle(persistence=dl).record_embargo_invite(
             case_id=case.id_, invitee_id="https://example.org/users/nobody"
         )
+
+
+# ---------------------------------------------------------------------------
+# record_invite_lapse — a replica applies the manager's lapse (CM-28-014)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("CM-28-014")
+def test_record_invite_lapse_declines_an_invited_participant(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    owner, dl = owner_and_dl
+    invitee = _make_actor(dl, "Lapsed")
+    case, participants = _make_case(dl, owner.id_, [invitee.id_])
+    _seed_consent(dl, participants[1].id_, PEC.INVITED, [])
+
+    result = EmbargoLifecycle(persistence=dl).record_invite_lapse(
+        case_id=case.id_, actor_id=invitee.id_
+    )
+
+    assert result.em_before == result.em_after
+    assert [c.pec_after for c in result.participant_changes] == [
+        PEC.DECLINED.value
+    ]
+    assert _pec_of(dl, participants[1].id_) == PEC.DECLINED
+
+
+@pytest.mark.spec("CM-28-014")
+@pytest.mark.parametrize("state", [PEC.DECLINED, PEC.SIGNATORY, PEC.UNBOUND])
+def test_record_invite_lapse_of_a_participant_not_invited_changes_nothing(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer], state: PEC
+) -> None:
+    """Replay is idempotent, and a lapse never touches an answered invite."""
+    owner, dl = owner_and_dl
+    invitee = _make_actor(dl, "Answered")
+    case, participants = _make_case(dl, owner.id_, [invitee.id_])
+    _seed_consent(dl, participants[1].id_, state, [])
+
+    result = EmbargoLifecycle(persistence=dl).record_invite_lapse(
+        case_id=case.id_, actor_id=invitee.id_
+    )
+
+    assert result.participant_changes == []
+    assert _pec_of(dl, participants[1].id_) == state
+
+
+@pytest.mark.spec("CM-28-014")
+def test_record_invite_lapse_evaluates_no_deadline(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """A replica applies the decision even if its own clock disagrees."""
+    owner, dl = owner_and_dl
+    invitee = _make_actor(dl, "FutureDeadline")
+    case, participants = _make_case(dl, owner.id_, [invitee.id_])
+    _seed_consent(dl, participants[1].id_, PEC.INVITED, [])
+    record = cast(CaseParticipant, dl.read(participants[1].id_))
+    record.invite_rsvp_deadline = days_from_now_utc(7)
+    dl.save(record)
+
+    EmbargoLifecycle(persistence=dl).record_invite_lapse(
+        case_id=case.id_, actor_id=invitee.id_
+    )
+
+    assert _pec_of(dl, participants[1].id_) == PEC.DECLINED
+
+
+def test_record_invite_lapse_raises_for_an_unknown_invitee(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_)
+
+    with pytest.raises(VultronNotFoundError):
+        EmbargoLifecycle(persistence=dl).record_invite_lapse(
+            case_id=case.id_, actor_id="https://example.org/users/nobody"
+        )

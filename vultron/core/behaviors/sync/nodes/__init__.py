@@ -67,6 +67,7 @@ from vultron.core.behaviors.sync.nodes.event_conditions import (
     IsEmbargoInviteRelayEventNode,
     IsEmbargoProposalEventNode,
     IsInviteAcceptEventNode,
+    IsInviteLapsedEventNode,
     IsOwnershipTransferEventNode,
     IsParticipantStatusEventNode,
     IsRejectEmbargoInviteEventNode,
@@ -141,6 +142,7 @@ __all__ = [
     "IsEmbargoInviteRelayEventNode",
     "IsAcceptEmbargoInviteEventNode",
     "IsRejectEmbargoInviteEventNode",
+    "IsInviteLapsedEventNode",
     # effects
     "ApplyNoteFromLedgerNode",
     "ApplyInviteAcceptFromLedgerNode",

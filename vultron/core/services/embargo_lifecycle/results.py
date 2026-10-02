@@ -20,7 +20,7 @@ entries) is what every operation returns.
 
 from enum import StrEnum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from vultron.core.states.em import EM
 
@@ -86,3 +86,25 @@ class EmbargoLifecycleResult(BaseModel):
         default_factory=list
     )
     is_lapsed: bool = False
+
+
+class InviteLapseAssessment(BaseModel):
+    """What the RSVP deadline says about one invitee's answer, read only.
+
+    Returned by :meth:`EmbargoLifecycle.assess_invite_lapse`, which writes
+    nothing, so the CASE_MANAGER can commit the lapse entry *before* applying
+    it (CLP-10-006): a commit that fails leaves nothing applied for a retry to
+    mistake for an already-recorded lapse.
+
+    Attributes:
+        is_lapsed: The deadline has passed and the invitee is not
+            ``SIGNATORY`` — the late answer routes through EMB-17.
+        declines: The invitee is still ``INVITED``, so the lapse applies
+            ``DECLINE`` and is recorded as a ledger entry (CM-28-009).
+            Implies *is_lapsed*.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    is_lapsed: bool
+    declines: bool

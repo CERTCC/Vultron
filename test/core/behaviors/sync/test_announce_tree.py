@@ -531,15 +531,6 @@ class TestAnnounceLogEntryAppliesEmbargoInviteRelay:
         assert updated.invite_rsvp_deadline is not None
         assert updated.embargo_consent_state == PEC.INVITED
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "CM-28-014: no replica apply node exists for "
-            "invite_to_embargo_on_case_lapsed, so a lapse the CASE_MANAGER "
-            "recorded reaches no replica. Tracked by #3961 (Concern #3918, "
-            "ADR-0113)."
-        ),
-    )
     @pytest.mark.spec("CM-28-014")
     def test_replica_reads_declined_from_lapse_entry(
         self, bridge, datalayer, case_actor, case_obj

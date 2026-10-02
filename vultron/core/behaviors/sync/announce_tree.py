@@ -15,6 +15,7 @@ from vultron.core.behaviors.embargo.nodes import (
     ApplyEmbargoProposalFromLedgerNode,
     ApplyEmbargoRejectionFromLedgerNode,
     ApplyEmbargoTeardownNode,
+    ApplyInviteLapseFromLedgerNode,
 )
 from vultron.core.behaviors.sync.nodes import (
     ApplyInviteAcceptFromLedgerNode,
@@ -32,6 +33,7 @@ from vultron.core.behaviors.sync.nodes import (
     IsEmbargoInviteRelayEventNode,
     IsEmbargoProposalEventNode,
     IsInviteAcceptEventNode,
+    IsInviteLapsedEventNode,
     IsOfferOwnershipTransferEventNode,
     IsOwnershipTransferEventNode,
     IsParticipantStatusEventNode,
@@ -82,10 +84,11 @@ def _event_effect_slot(
 
 
 def _embargo_relay_effect_slots() -> list[py_trees.behaviour.Behaviour]:
-    """The revision relay's four replay slots (EP-09-007, RSH-08-004, ADR-0113).
+    """The revision relay's five replay slots (EP-09-007, RSH-08-004, ADR-0113).
 
-    The proposal the CASE_MANAGER received, each Invite it relayed, and each
-    ``Accept``/``Reject`` of an Invite — the owner's decision included.
+    The proposal the CASE_MANAGER received, each Invite it relayed, each
+    ``Accept``/``Reject`` of an Invite — the owner's decision included — and
+    each invite lapse the CASE_MANAGER evaluated (CM-28-014).
     """
     return [
         _event_effect_slot(
@@ -107,6 +110,11 @@ def _embargo_relay_effect_slots() -> list[py_trees.behaviour.Behaviour]:
             "EmbargoRejection",
             IsRejectEmbargoInviteEventNode,
             ApplyEmbargoRejectionFromLedgerNode,
+        ),
+        _event_effect_slot(
+            "InviteLapse",
+            IsInviteLapsedEventNode,
+            ApplyInviteLapseFromLedgerNode,
         ),
     ]
 

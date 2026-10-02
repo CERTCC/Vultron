@@ -17,20 +17,21 @@ from vultron.core.behaviors.embargo.announce_teardown_tree import (
     reject_invite_to_embargo_tree,
     remove_embargo_from_case_tree,
 )
+from vultron.core.behaviors.embargo.lapse_tree import create_invite_lapse_tree
 from vultron.core.behaviors.embargo.nodes import (
     EmbargoProposalNotYetRecordedNode,
 )
+from vultron.core.behaviors.embargo.nodes.lapse import IS_LAPSED_KEY
 from vultron.core.behaviors.embargo.nodes.proposal import (
     ALREADY_DECLINED_PREFIX,
 )
 from vultron.core.behaviors.embargo.proposal_index import (
     record_embargo_proposal_index,
 )
-from vultron.core.behaviors.sync.commit_tree import (
-    create_commit_log_entry_tree,
+from vultron.core.behaviors.embargo.rsvp_stamp import (
+    stamp_invite_rsvp_deadline,
 )
 from vultron.core.models._helpers import _as_id, claimed_published_iso
-from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedEvent,
@@ -48,7 +49,6 @@ from vultron.core.models.use_case_result import (
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.predicates.addressing import same_actor_id
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
@@ -83,6 +83,7 @@ from vultron.errors import (
 )
 
 if TYPE_CHECKING:
+    from vultron.config.actor import ActorConfig
     from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
 
@@ -174,40 +175,6 @@ def resolve_proposer_id(
         attributed_to,
     )
     return request.actor_id
-
-
-def _store_invite_deadline(
-    dl: CasePersistence,
-    case_id: str,
-    actor_id: str,
-    rsvp_deadline: datetime,
-) -> None:
-    """Store RSVP deadline on the invitee's record for lazy lapse detection.
-
-    A proposal addressed to the CASE_MANAGER names it as the sole recipient,
-    but the manager adjudicates that Invite and is never its invitee
-    (EP-09-010): its record gets no deadline, so the enforcer of invite
-    expiry is never the record expiry is evaluated on (CM-28-003).
-    """
-    case = dl.read_case(case_id)
-    if case is None:
-        return
-    manager_id = resolve_case_manager_id(case, dl)
-    if manager_id is None:
-        # No enforcer to tell from the invitee (CM-24-006, CM-28-003).
-        raise VultronNotFoundError("CASE_MANAGER of case", case_id)
-    if same_actor_id(actor_id, manager_id):
-        return
-    participant_id = case.actor_participant_index.get(actor_id)
-    if not participant_id:
-        return
-    participant = dl.read(participant_id)
-    if not isinstance(participant, CaseParticipant):
-        return
-    if participant.invite_rsvp_deadline == rsvp_deadline:
-        return
-    participant.invite_rsvp_deadline = rsvp_deadline
-    dl.save(participant)
 
 
 class CreateEmbargoEventReceivedUseCase:
@@ -383,12 +350,14 @@ class InviteToEmbargoOnCaseReceivedUseCase:
         sync_port: "SyncActivityPort | None" = None,
         trigger_activity: "TriggerActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
+        actor_config: "ActorConfig | None" = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
         self._request: InviteToEmbargoOnCaseReceivedEvent = request
         self._sync_port = sync_port
         self._trigger_activity = trigger_activity
+        self._actor_config = actor_config
 
     def execute(self) -> HandlerResult:
         request = self._request
@@ -462,6 +431,7 @@ class InviteToEmbargoOnCaseReceivedUseCase:
                 if isinstance(request.object_, EmbargoEvent)
                 else None
             ),
+            actor_config=self._actor_config,
         )
         bridge = BTBridge(
             datalayer=self._dl,
@@ -506,14 +476,9 @@ class InviteToEmbargoOnCaseReceivedUseCase:
                     invite_id,
                     case_id,
                 )
-
-        # Store RSVP deadline on the invitee's participant record so
-        # detect_and_apply_lapse() can check it without reading the stored
-        # invite activity (CM-28, EP-07-001).
-        if case_id and request.rsvp_deadline:
-            _store_invite_deadline(
-                self._dl, case_id, invitee_id, request.rsvp_deadline
-            )
+        # No deadline is stored on receipt: the CASE_MANAGER recorded the one
+        # it stamped at its relay's commit, and a replica records that value
+        # from the committed entry (CM-28-013).
         return verdict
 
 
@@ -525,14 +490,16 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         sync_port: "SyncActivityPort | None" = None,
         trigger_activity: "TriggerActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
+        actor_config: "ActorConfig | None" = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
         self._request: AcceptInviteToEmbargoOnCaseReceivedEvent = request
         self._sync_port = sync_port
         self._trigger_activity = trigger_activity
+        self._actor_config = actor_config
 
-    def _commit_lapse_ledger_entry(
+    def _invite_lapsed(
         self,
         *,
         case_id: str,
@@ -540,48 +507,34 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         embargo_id: str,
         accepting_actor_id: str,
         receiving_actor_id: str,
-        has_pec_change: bool,
-    ) -> None:
-        # CM-28-009: only commit when a PEC transition was actually applied to
-        # keep the entry idempotent — a repeated late-Accept does not double-log.
-        if not has_pec_change:
-            return
+    ) -> bool:
+        """Evaluate, as the CASE_MANAGER only, whether the invite lapsed.
 
-        tree = create_commit_log_entry_tree(
+        Runs :func:`create_invite_lapse_tree`, which applies the lapse and
+        commits its entry behind the role gate (CM-28-014); a store that is
+        not the CASE_MANAGER evaluates nothing and reads ``False``.  The
+        snapshot's ``published`` is the late Accept's own claimed time
+        (``include_activity=True`` on the registry entry guarantees the
+        activity; the fallback is defence in depth).
+        """
+        result_out: dict[str, object] = {}
+        tree = create_invite_lapse_tree(
             case_id=case_id,
-            object_id=invite_id or case_id,
-            event_type="invite_to_embargo_on_case_lapsed",
-            payload_snapshot={
-                "type": "Lapse",
-                "actor": accepting_actor_id,
-                "context": case_id,
-                # The lapse is CaseActor-synthesised (CM-28-009) but the
-                # snapshot is attributed to the accepting participant, so its
-                # claimed time must come from that participant's own clock —
-                # the triggering Accept — not the CaseActor's.  Mixing the two
-                # inside one actor's claimed stream is what CLP-15-003 reads as
-                # a regression.  ``include_activity=True`` on the
-                # ACCEPT_INVITE_TO_EMBARGO_ON_CASE registry entry guarantees the
-                # activity is present; the fallback is defence in depth.
-                "published": claimed_published_iso(self._request.activity),
-                "object": {
-                    "type": "Invite",
-                    "id": invite_id or case_id,
-                    "object": {"type": "EmbargoEvent", "id": embargo_id},
-                },
-            },
+            invitee_id=accepting_actor_id,
+            invite_id=invite_id or case_id,
+            embargo_id=embargo_id,
+            published=claimed_published_iso(self._request.activity),
+            now=datetime.now(tz=UTC),
+            result_out=result_out,
         )
         result = BTBridge(
             datalayer=self._dl,
             wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
-        ).execute_with_setup(
-            tree=tree,
-            actor_id=receiving_actor_id,
-        )
-        # The lapse is already applied to the replica; an unrecorded lapse
-        # would diverge the replicas silently (CM-28-009).
-        applied_or_raise(tree, result, label="CommitLapseLedgerEntryBT")
+        ).execute_with_setup(tree=tree, actor_id=receiving_actor_id)
+        # An applied lapse left unrecorded diverges the replicas (CM-28-009).
+        applied_or_raise(tree, result, label="EvaluateInviteLapseBT")
+        return bool(result_out.get(IS_LAPSED_KEY))
 
     def _backfill_admitted(
         self, *, case_id: str, receiving_actor_id: str
@@ -660,18 +613,34 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
                 actor_id, _ = _prepare_delegated_context(
                     self._dl, case_id, receiving_actor_id
                 )
+                # The re-invite is a fresh ask, so it carries a fresh deadline
+                # the manager records (ASK-03-004, CM-28-012, CM-28-013);
+                # the lapsed one would lapse it again on the next answer.
+                try:
+                    stamp = stamp_invite_rsvp_deadline(
+                        self._dl, active_embargo_id, self._actor_config
+                    )
+                except VultronNotFoundError as exc:
+                    # The case names this embargo as active, so a missing
+                    # record is the manager's own store's fault (ADR-0087).
+                    raise RuntimeError(
+                        f"cannot stamp the re-invite to embargo"
+                        f" '{active_embargo_id}' on case '{case_id}': {exc}"
+                    ) from exc
                 new_invite_id, _ = self._trigger_activity.propose_embargo(
                     embargo_id=active_embargo_id,
                     case_id=case_id,
                     actor=actor_id,
                     to=[accepting_actor_id],
+                    rsvp_deadline=stamp.rsvp_deadline,
+                    published=stamp.published,
+                    min_rsvp_window=stamp.min_rsvp_window,
                 )
                 add_activity_to_outbox(actor_id, new_invite_id, self._dl)
-                service.record_participant_consent(
+                service.record_embargo_invite(
                     case_id=case_id,
-                    actor_id=accepting_actor_id,
-                    pec_trigger=PEC_Trigger.INVITE,
-                    embargo_id=active_embargo_id,
+                    invitee_id=accepting_actor_id,
+                    rsvp_deadline=stamp.rsvp_deadline,
                 )
                 logger.info(
                     "accept_invite_to_embargo_on_case: late Accept for"
@@ -769,32 +738,21 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
                 " acceptance rejected"
             )
 
-        # Lazy lapse detection (AC-2 of #2212, CM-28, EP-07-001).
-        now = datetime.now(tz=UTC)
-        service = EmbargoLifecycle(persistence=self._dl)
-        lapse_result = service.detect_and_apply_lapse(
+        # Lazy lapse detection, the CASE_MANAGER's alone (CM-28-003,
+        # CM-28-014); a lapsed answer routes via EMB-17.
+        if self._invite_lapsed(
             case_id=case_id,
-            actor_id=accepting_actor_id,
-            now=now,
-        )
-
-        if lapse_result.is_lapsed:
-            # CM-28-009: author a distinct ledger entry for the lapse event
-            # (CM-28-005) then route via EMB-17 compatibility branches.
-            self._commit_lapse_ledger_entry(
-                case_id=case_id,
-                invite_id=invite_id,
-                embargo_id=embargo_id,
-                accepting_actor_id=accepting_actor_id,
-                receiving_actor_id=receiving_actor_id,
-                has_pec_change=bool(lapse_result.participant_changes),
-            )
+            invite_id=invite_id,
+            embargo_id=embargo_id,
+            accepting_actor_id=accepting_actor_id,
+            receiving_actor_id=receiving_actor_id,
+        ):
             self._handle_emb17_routing(
                 case_id=case_id,
                 embargo_id=embargo_id,
                 accepting_actor_id=accepting_actor_id,
                 receiving_actor_id=receiving_actor_id,
-                service=service,
+                service=EmbargoLifecycle(persistence=self._dl),
             )
             return HandlerResult.applied()
 

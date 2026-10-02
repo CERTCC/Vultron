@@ -51,6 +51,7 @@ import logging
 
 import py_trees
 
+from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
     create_participant_replica_gated_tree,
@@ -243,6 +244,7 @@ def invite_to_embargo_on_case_tree(
     embargo_id: str,
     proposer_id: str,
     embargo: EmbargoEvent | None = None,
+    actor_config: ActorConfig | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for receiving an embargo proposal or invitation (EP / EV).
 
@@ -298,6 +300,9 @@ def invite_to_embargo_on_case_tree(
         embargo: The inline ``EmbargoEvent`` the message carries, persisted
             by the intake in whichever store receives the Invite (CLP-10-017);
             ``None`` when the message named its object by bare URI.
+        actor_config: The executing CASE_MANAGER's configuration; its RSVP
+            windows set each relayed Invite's ``endTime`` (CM-28-012).
+            ``None`` applies the ``ActorConfig`` defaults.
 
     Returns:
         Root node of the ``InviteToEmbargoOnCaseBT`` Sequence.
@@ -323,6 +328,7 @@ def invite_to_embargo_on_case_tree(
             case_id=case_id,
             embargo_id=embargo_id,
             proposer_id=proposer_id,
+            actor_config=actor_config,
         ),
     ]
     root = create_receive_activity_tree(

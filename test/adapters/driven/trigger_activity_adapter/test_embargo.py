@@ -14,8 +14,12 @@
 """Unit tests for TriggerActivityAdapter embargo-domain methods."""
 
 import json
+from datetime import UTC, datetime, timedelta
+
+import pytest
 
 from vultron.core.models._helpers import days_from_now_utc
+from vultron.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 _ACTOR = "https://example.org/actors/coordinator"
@@ -110,6 +114,54 @@ class TestProposeEmbargo:
         assert activity_id == given
         assert json.loads(blob)["id"] == given
         assert dl.read(given) is not None
+
+    @pytest.mark.spec("CM-28-012")
+    def test_a_given_rsvp_deadline_is_the_invites_end_time(self, adapter, dl):
+        """The relaying manager's stamp reaches the wire as ``endTime``."""
+        embargo = _make_embargo(dl)
+        published = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
+        deadline = published + timedelta(days=7)
+
+        _, blob = adapter.propose_embargo(
+            embargo_id=embargo.id_,
+            case_id=_CASE_ID,
+            actor=_ACTOR,
+            to=[_PEER],
+            rsvp_deadline=deadline,
+            published=published,
+        )
+
+        body = json.loads(blob)
+        assert datetime.fromisoformat(body["endTime"]) == deadline
+        assert datetime.fromisoformat(body["published"]) == published
+
+    def test_a_deadline_inside_the_given_floor_is_refused(self, adapter, dl):
+        """The forwarded floor is the one the factory validates (EP-07-002)."""
+        embargo = _make_embargo(dl)
+        published = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
+
+        with pytest.raises(
+            VultronActivityConstructionError, match="EP-07-002"
+        ):
+            adapter.propose_embargo(
+                embargo_id=embargo.id_,
+                case_id=_CASE_ID,
+                actor=_ACTOR,
+                to=[_PEER],
+                rsvp_deadline=published + timedelta(days=2),
+                published=published,
+                min_rsvp_window=timedelta(days=3),
+            )
+
+    def test_no_deadline_given_means_no_end_time(self, adapter, dl):
+        """A participant's own proposal carries no manager stamp."""
+        embargo = _make_embargo(dl)
+
+        _, blob = adapter.propose_embargo(
+            embargo_id=embargo.id_, case_id=_CASE_ID, actor=_ACTOR
+        )
+
+        assert "endTime" not in json.loads(blob)
 
 
 class TestAcceptEmbargo:

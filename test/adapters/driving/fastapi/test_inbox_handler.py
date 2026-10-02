@@ -715,8 +715,10 @@ def test_resolve_actor_config_delegates_to_load_actor_config(monkeypatch):
     assert result.auto_create_case is False
 
 
-def test_submit_report_port_factory_injects_actor_config(monkeypatch):
-    """_submit_report_port_factory returns actor_config from load_actor_config.
+def test_trigger_activity_with_actor_config_port_factory_injects_actor_config(
+    monkeypatch,
+):
+    """_trigger_activity_with_actor_config_port_factory returns actor_config from load_actor_config.
 
     When load_actor_config() is available, the factory must include an
     ``actor_config`` key so that ``SubmitReportReceivedUseCase`` can
@@ -733,7 +735,7 @@ def test_submit_report_port_factory_injects_actor_config(monkeypatch):
         "sqlite:///:memory:",
         actor_id="https://test.example/api/v2/actors/test-actor",
     )
-    kwargs = pf._submit_report_port_factory(real_dl)
+    kwargs = pf._trigger_activity_with_actor_config_port_factory(real_dl)
 
     assert "actor_config" in kwargs, "factory must include actor_config"
     assert isinstance(kwargs["actor_config"], ActorConfig)
@@ -743,10 +745,10 @@ def test_submit_report_port_factory_injects_actor_config(monkeypatch):
     assert set(kwargs) == {"actor_config", "trigger_activity"}
 
 
-def test_submit_report_port_factory_omits_actor_config_when_unavailable(
+def test_trigger_activity_with_actor_config_port_factory_omits_actor_config_when_unavailable(
     monkeypatch,
 ):
-    """_submit_report_port_factory omits actor_config when SeedConfig fails.
+    """_trigger_activity_with_actor_config_port_factory omits actor_config when SeedConfig fails.
 
     When SeedConfig cannot be loaded (e.g. env vars absent), the factory
     must still return trigger_activity and must NOT include an
@@ -760,13 +762,13 @@ def test_submit_report_port_factory_omits_actor_config_when_unavailable(
         "sqlite:///:memory:",
         actor_id="https://test.example/api/v2/actors/test-actor",
     )
-    kwargs = pf._submit_report_port_factory(real_dl)
+    kwargs = pf._trigger_activity_with_actor_config_port_factory(real_dl)
 
     assert set(kwargs) == {"trigger_activity"}
 
 
 def test_make_dispatcher_submit_report_uses_actor_config_factory(monkeypatch):
-    """make_dispatcher() must register _submit_report_port_factory for SUBMIT_REPORT.
+    """make_dispatcher() must register _trigger_activity_with_actor_config_port_factory for SUBMIT_REPORT.
 
     SUBMIT_REPORT has its own set, _SUBMIT_REPORT_SEMANTICS (issue #1319), so
     it is wired to the factory that also injects actor_config.  The sync port
@@ -1040,6 +1042,50 @@ def test_make_dispatcher_case_proposal_uses_actor_config_factory(monkeypatch):
     actor_config = kwargs.get("actor_config")
     assert isinstance(actor_config, ActorConfig)
     assert actor_config.default_case_roles == [CVDRole.COORDINATOR]
+
+
+@pytest.mark.parametrize(
+    "sem",
+    [
+        MessageSemantics.INVITE_TO_EMBARGO_ON_CASE,
+        MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
+    ],
+)
+def test_make_dispatcher_embargo_invite_gets_actor_config(monkeypatch, sem):
+    """The two embargo-invite semantics get the trigger port and ActorConfig.
+
+    The CASE_MANAGER stamps each relayed Invite, and the EMB-17-003 re-invite,
+    with an RSVP deadline drawn from its configured windows (CM-28-012,
+    EP-07-002), so a lost registration would silently fall back to defaults.
+    """
+    from datetime import timedelta
+
+    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
+    from vultron.adapters.driven.trigger_activity_adapter import (
+        TriggerActivityAdapter,
+    )
+    from vultron.config.actor import ActorConfig
+
+    captured: dict = {}
+
+    def fake_get_dispatcher(use_case_map, port_factories=None):
+        captured["port_factories"] = port_factories
+        return Mock()
+
+    monkeypatch.setattr(ih, "get_dispatcher", fake_get_dispatcher)
+    fake = ActorConfig(default_rsvp_window=timedelta(days=10))
+    monkeypatch.setattr(pf, "_resolve_actor_config", lambda: fake)
+
+    ih.make_dispatcher()
+
+    kwargs = captured["port_factories"][sem](
+        SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+    )
+    assert kwargs["actor_config"] is fake
+    assert isinstance(kwargs["trigger_activity"], TriggerActivityAdapter)
 
 
 def test_make_dispatcher_ac2_auto_create_false_no_case_via_dispatcher(
