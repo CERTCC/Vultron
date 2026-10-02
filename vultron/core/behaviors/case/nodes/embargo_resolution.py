@@ -30,7 +30,7 @@ from datetime import timedelta
 from py_trees.common import Status
 
 from vultron.config.actor import ActorConfig
-from vultron.core.behaviors.embargo.nodes.em_state import ReadEmStateNode
+from vultron.core.behaviors.embargo.nodes.em_state import read_case_em_state
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
@@ -124,18 +124,15 @@ class CaseEmbargoAlreadyInitializedNode(DataLayerConditionWithPorts):
         case_id = _refusal_arm_case_id(
             self, "tell whether the case's embargo was already initialized"
         )
-        result_out: dict[str, object] = {}
-        read_node = ReadEmStateNode(case_id=case_id, result_out=result_out)
-        read_node.datalayer = self.datalayer
-        read_node.update()
-        em_state = result_out.get("em_before")
-        if not isinstance(em_state, EM):
-            cause = result_out.get("error") or read_node.feedback_message
+        assert self.datalayer is not None  # _refusal_arm_case_id checked it
+        try:
+            em_state = read_case_em_state(self.datalayer, case_id)
+        except BtNodePreconditionError as exc:
             raise BtNodePreconditionError(
                 f"{self.name}: cannot read the EM state of case '{case_id}'"
-                f" ({cause}); the creation-time embargo cannot be initialized"
+                f" ({exc}); the creation-time embargo cannot be initialized"
                 " for a case that cannot be read"
-            )
+            ) from exc
         if em_state == EM.NONE:
             return Status.FAILURE
         self.logger.info(

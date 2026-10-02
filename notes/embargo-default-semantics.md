@@ -275,7 +275,7 @@ in-memory stores are unaffected. An inbound inline actor carrying a URL-string
 `embargoPolicy` is refused at the parse edge on every activity type, for the
 same reason.
 
-The P/X/A refusal arm (`CaseNotEmbargoEligibleNode`) is a *negative*
+**The P/X/A refusal arm.** `CaseNotEmbargoEligibleNode` is a *negative*
 condition — SUCCESS means "not eligible, stop" — rather than a Success
 fallback after the creation sequence. A fallback would turn
 any failure in creation into a silent "no embargo"; with the refusal arm first,

@@ -32,11 +32,11 @@ from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.case.embargo_tree import (
     InitializeDefaultEmbargoNode,
 )
-from vultron.core.behaviors.case.nodes import embargo_resolution
 from vultron.core.behaviors.case.nodes.embargo_resolution import (
     CaseEmbargoAlreadyInitializedNode,
     CaseNotEmbargoEligibleNode,
 )
+from vultron.core.behaviors.embargo.nodes import em_state as em_state_module
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.case import VulnerabilityCase
@@ -762,16 +762,16 @@ class TestCaseEmbargoAlreadyInitializedNode:
             ) -> None:
                 self._result_out = result_out
                 self.datalayer: object = None
-                self.feedback_message = "unreadable"
+                self.feedback_message = "invalid em_state value"
 
             def update(self) -> Status:
                 self._result_out["error"] = VultronValidationError(
-                    "invalid em_state value"
+                    self.feedback_message
                 )
                 return Status.FAILURE
 
         monkeypatch.setattr(
-            embargo_resolution, "ReadEmStateNode", _UnreadableEmState
+            em_state_module, "ReadEmStateNode", _UnreadableEmState
         )
 
         result = bt_scenario.run(
