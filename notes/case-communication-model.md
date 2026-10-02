@@ -348,7 +348,8 @@ is retired; #3964 removes it from `_prepare_delegated_context()`.
 ## Embargo Relay: the Ledger Carries State, It Never Asks (EP-09, ADR-0113)
 
 The case Invite above is one instance of a general shape, and every embargo
-proposal — the first one for a case or a revision — is the second. A
+proposal — the first one for a case or a revision — is the second (EP-09-001):
+the rule is not only about revisions. A
 participant addresses its proposal to the CASE_MANAGER only (PCR-08-001). The
 CASE_MANAGER adjudicates it, moves the canonical case (`NONE → PROPOSED` or
 `ACTIVE → REVISE`), commits the proposal, and *then* relays it: one
@@ -380,6 +381,9 @@ per other participant, its `Accept`/`Reject` is addressed to nobody, and its
 `notes/embargo-lifecycle.md` § "A trigger writes shared EM state only as the
 CASE_MANAGER"). The manager's commit is also the acknowledgement the
 behavioural specs call EK (EP-09-009).
+Only the CASE_MANAGER evaluates invite lapse; it commits the lapse entry behind
+the role gate, and a replica learns a lapse from that entry and never computes
+one (CM-28-014).
 
 The rule this pins down, because it kept getting mixed up: **an
 `Announce(CaseLedgerEntry)` is a channel for case state, not a protocol
@@ -639,6 +643,11 @@ and the handler turns that skip into `REFUSED` — the message was the manager's
 to act on and reached the wrong party (HP-01-005, #3752). The CASE_MANAGER's
 own inbox delivery — which arrives because the trigger tree emitted to
 `case_manager_id` (CLP-10-001) — is the only path to a canonical write.
+
+A test of a gated path MUST seed a `CVDRole.CASE_MANAGER` holder and pass it as
+`receiving_actor_id` (BT-17-005). A test that seeds no role holder never
+reaches the gated effects: the skip arm succeeds and the test passes for the
+wrong reason.
 
 ### Why the `Announce(CaseLedgerEntry)` envelope is not a payload
 

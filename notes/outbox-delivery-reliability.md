@@ -174,6 +174,18 @@ Sources: #3602, #3878; CI runs 35917721682 (`fvcv-handoff`) and 33648494945
 
 ---
 
+## Retry Caps That Compose into an Unbounded Total (OX-13-001, OX-13-002)
+
+Before shipping a delivery retry change, check that
+`inner_retries × per_pass_cap × requeue_cadence` yields a finite total delivery
+budget. A bounded inner retry (`max_retries + 1 = 4`) combined with a per-pass-local
+error count (reset on every drain invocation) and an unconditional requeue is
+unbounded: the composition is `4 × ∞`. The fix is a persisted per-activity
+total-attempt counter with a give-up condition (OX-13-001, OX-13-002, ADR-0066;
+CONCERN-2302).
+
+---
+
 ## Coordination Notes
 
 - **#2202 AC-7**: that issue consolidates demo-side timeout constants. Once

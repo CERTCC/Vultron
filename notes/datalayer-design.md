@@ -30,6 +30,10 @@ relevant_packages:
 Operating rules summary: `vultron/core/ports/AGENTS.md`.
 Specs: `specs/datalayer.yaml` (DL-01 through DL-04).
 
+`dl.read()` returns core objects, never wire objects (ADR-0034), and core
+must not re-read a stored wire activity to recover its semantics (ADR-0035; see
+"Activity Read-Back" below).
+
 ## DataLayer vs. CasePersistence
 
 The repository distinguishes between two layers of persistence contract:
