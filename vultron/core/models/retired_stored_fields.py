@@ -34,6 +34,7 @@ from pydantic import model_validator
 from pydantic.alias_generators import to_camel
 
 from vultron.core.models.base import CoreRecord
+from vultron.errors import Violation, VultronValidationError
 
 
 class RetiredStoredField(NamedTuple):
@@ -52,20 +53,50 @@ class RetiredFieldsRecord(CoreRecord):
 
     retired_stored_fields: ClassVar[Mapping[str, RetiredStoredField]] = {}
 
+    @classmethod
+    def __pydantic_init_subclass__(cls, **kwargs: Any) -> None:
+        """Refuse a retirement table that does not describe this model.
+
+        Runs once the subclass's fields are complete, so ``model_fields`` is
+        this class's own.  A replacement that names no declared field would
+        send the operator to a field that does not exist, and an old key that
+        is still declared would refuse every row the model writes.
+        """
+        super().__pydantic_init_subclass__(**kwargs)
+        fields = cls.model_fields
+        for old, field in cls.retired_stored_fields.items():
+            if old in fields:
+                raise TypeError(
+                    f"{cls.__name__} retires {old!r} but still declares it"
+                )
+            if field.replacement not in fields:
+                raise TypeError(
+                    f"{cls.__name__} retires {old!r} in favour of"
+                    f" {field.replacement!r}, which it does not declare"
+                )
+
     @model_validator(mode="before")
     @classmethod
     def _refuse_retired_stored_fields(cls, data: Any) -> Any:
         if not isinstance(data, dict):
             return data
-        for old, field in cls.retired_stored_fields.items():
-            for key in (old, to_camel(old)):
-                if key in data:
-                    raise ValueError(
-                        f"{cls.__name__} carries {key!r}, the stored shape"
-                        f" before {field.retired_by} renamed it to"
-                        f" {field.replacement!r}; no conversion is made, so"
-                        " a store written before the rename must be reset"
-                    )
+        violations = [
+            Violation(
+                f"{key!r} is the stored shape before {field.retired_by}"
+                f" renamed it to {field.replacement!r}",
+                (field.replacement,),
+            )
+            for old, field in cls.retired_stored_fields.items()
+            for key in (old, to_camel(old))
+            if key in data
+        ]
+        if violations:
+            raise VultronValidationError(
+                f"{cls.__name__} carries a retired stored field; no"
+                " conversion is made, so a store written before the rename"
+                " must be reset",
+                violations=violations,
+            )
         return data
 
 

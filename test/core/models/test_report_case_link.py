@@ -76,6 +76,19 @@ def test_a_retired_key_is_refused_beside_its_replacement() -> None:
         )
 
 
+def test_a_row_carrying_both_retired_keys_reports_both() -> None:
+    with pytest.raises(ValidationError, match="2 violation") as excinfo:
+        VultronReportCaseLink.model_validate(
+            {
+                "report_id": REPORT_ID,
+                "trusted_case_creator_id": CREATOR_ID,
+                "trusted_case_actor_id": MANAGER_ID,
+            }
+        )
+    assert "'trusted_case_creator_id'" in str(excinfo.value)
+    assert "'trusted_case_actor_id'" in str(excinfo.value)
+
+
 def test_dump_round_trips_under_the_new_keys() -> None:
     link = VultronReportCaseLink(
         report_id=REPORT_ID,

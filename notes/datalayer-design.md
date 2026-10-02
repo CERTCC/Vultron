@@ -574,7 +574,10 @@ no read alias (`AliasChoices`) and no conversion: the model declares the old key
 in `retired_stored_fields` via `RetiredFieldsRecord`
 (`vultron/core/models/retired_stored_fields.py`), and a row that still carries
 it, in either the field-name or camelCase spelling, fails to load with a
-message naming the old shape and saying the store must be reset (#4128).
+message naming the old shape and saying the store must be reset (#4128). Every
+retired key the row carries is reported, not only the first (EH-07-001), and a
+retirement table whose replacement the model does not declare, or whose old key
+it still declares, fails at class definition.
 
 The declaration is what makes the refusal legible. `CoreRecord` ignores unknown
 keys, so an undeclared rename reads an old row back either with the new field

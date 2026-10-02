@@ -117,3 +117,50 @@ def test_non_dict_input_passes_through_to_normal_validation() -> None:
     record = _Renamed(new_name="x")
 
     assert _Renamed.model_validate(record) == record
+
+
+@pytest.mark.spec("EH-07-001")
+@pytest.mark.usefixtures("isolated_core_registries")
+def test_every_retired_key_present_is_reported_not_only_the_first() -> None:
+    class _TwiceRenamed(RetiredFieldsRecord):
+        first: str | None = None
+        second: str | None = None
+        retired_stored_fields: ClassVar[Mapping[str, RetiredStoredField]] = {
+            "old_first": RetiredStoredField("first", "#1"),
+            "old_second": RetiredStoredField("second", "#2"),
+        }
+
+    with pytest.raises(ValidationError, match="must be reset") as excinfo:
+        _TwiceRenamed.model_validate({"old_first": "a", "oldSecond": "b"})
+
+    message = str(excinfo.value)
+    assert "2 violation(s)" in message
+    assert "'old_first'" in message and "'first'" in message
+    assert "'oldSecond'" in message and "'second'" in message
+
+
+@pytest.mark.usefixtures("isolated_core_registries")
+def test_a_replacement_the_model_does_not_declare_is_refused_at_definition() -> (
+    None
+):
+    with pytest.raises(TypeError, match="does not declare"):
+
+        class _Typo(RetiredFieldsRecord):
+            new_name: str
+            retired_stored_fields: ClassVar[
+                Mapping[str, RetiredStoredField]
+            ] = {"old_name": RetiredStoredField("new_nmae", "#0")}
+
+
+@pytest.mark.usefixtures("isolated_core_registries")
+def test_a_retired_key_the_model_still_declares_is_refused_at_definition() -> (
+    None
+):
+    with pytest.raises(TypeError, match="still declares"):
+
+        class _StillThere(RetiredFieldsRecord):
+            old_name: str
+            new_name: str
+            retired_stored_fields: ClassVar[
+                Mapping[str, RetiredStoredField]
+            ] = {"old_name": RetiredStoredField("new_name", "#0")}

@@ -560,21 +560,24 @@ groups:
     priority: MUST
     kind: protocol
     statement: The per-case genesis hash MUST be derived as `SHA-256(case_id + "|"
-      + created_at.isoformat() + "|" + owner_actor_id)`, where `case_id` is the canonical
-      case URI, `created_at` is the case creation UTC timestamp in ISO 8601 format,
-      and `owner_actor_id` is the actor id of the case owner, the value of `VulnerabilityCase.attributed_to`
-      when the case is created. The same derivation applies on every creation path,
+      + created_at.isoformat() + "|" + owner_actor_id)`, where `case_id` is the
+      canonical case URI, `created_at` is the case creation UTC timestamp in ISO
+      8601 format, and `owner_actor_id` is the actor id of the case owner, the
+      value of `VulnerabilityCase.attributed_to` when the case is created. The
+      same derivation applies on every creation path,
       including a case the CASE_MANAGER creates from the owner's `CaseProposal`.
     rationale: Including all three values cryptographically anchors the chain's starting
       point to the specific case's origin identity and timestamp, allowing any party
       who knows the case metadata to independently verify the ledger's genesis. The
-      owner is the anchor because the CaseActor that may create the case is the owner's
-      delegated proxy, so a case created by its owner and one created for the owner
+      owner is the anchor because the CaseActor that may create the case is the
+      owner's delegated proxy, so a case created by its owner and one created for
+      the owner
       from a `CaseProposal` (CP-09-001, CM-02-008) start from the same identity. The
       decision is recorded in ADR-0117.
     verification: A unit test confirms that `compute_genesis_hash(case_id, created_at,
-      owner_actor_id)` returns the SHA-256 hex digest of the concatenated string `case_id
-      + "|" + created_at.isoformat() + "|" + owner_actor_id`. A unit test confirms
+      owner_actor_id)` returns the SHA-256 hex digest of the concatenated string
+      `case_id + "|" + created_at.isoformat() + "|" + owner_actor_id`. A unit
+      test confirms
       that a case created from a `CaseProposal` and a case its owner constructs with
       the same `case_id`, `created_at` and owner carry the same hash, and that the
       owner's replica built from the `Create(VulnerabilityCase)` keeps the sender's
