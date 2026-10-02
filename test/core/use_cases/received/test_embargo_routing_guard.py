@@ -278,10 +278,14 @@ class TestAcceptInviteToEmbargoRoutingGuard:
         )
         dl.create(proposal)
 
+        # Addressed to the CaseActor with a copy to the non-CaseActor, so
+        # both pass the door check (HP-01-005) and the role gate decides.
         accept = em_accept_embargo_activity(
             proposal,
             context=case.id_,
             actor=self.COORD_ID,
+            to=[self.CASE_ACTOR_ID],
+            cc=["https://example.org/actors/other-vendor"],
         )
 
         return dl, case_actor, case, accept
@@ -408,6 +412,8 @@ class TestRemoveEmbargoRoutingGuard:
             embargo,
             origin=self.CASE_ID,
             actor=self.AUTHOR_ID,
+            to=[self.CASE_ACTOR_ID],
+            cc=[self.OTHER_ACTOR_ID],
         )
 
         event = make_payload(
@@ -440,6 +446,8 @@ class TestRemoveEmbargoRoutingGuard:
             embargo,
             origin=self.CASE_ID,
             actor=self.AUTHOR_ID,
+            to=[self.CASE_ACTOR_ID],
+            cc=[self.OTHER_ACTOR_ID],
         )
 
         event = make_payload(
@@ -471,6 +479,8 @@ class TestRemoveEmbargoRoutingGuard:
             embargo,
             origin=self.CASE_ID,
             actor=self.AUTHOR_ID,
+            to=[self.CASE_ACTOR_ID],
+            cc=[self.OTHER_ACTOR_ID],
         )
 
         event = make_payload(remove_activity, receiving_actor_id=None)

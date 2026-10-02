@@ -522,7 +522,10 @@ class TestReceivedRejectPrunesOpenProposals:
 
         def received_reject_by(actor_id: str):
             reject = em_reject_embargo_activity(
-                proposal=proposal, context=case.id_, actor=actor_id
+                proposal=proposal,
+                context=case.id_,
+                actor=actor_id,
+                to=[self._REPLICA],
             )
             return cast(
                 RejectInviteToEmbargoOnCaseReceivedEvent,

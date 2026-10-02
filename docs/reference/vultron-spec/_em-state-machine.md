@@ -109,8 +109,8 @@ than to the idea of an embargo:
 - **Leaving Revised for Active with longer terms** lapses consent.
   Every participant at Signatory that has not accepted the revised terms moves to Lapsed: their agreement covered the previous, shorter terms.
   Entering Revised changes nothing, and a revision that ends no later than the terms it replaces carries every signatory over.
-- **Entering Exited** resets consent. Every participant returns to Unbound:
-  with no embargo in scope, there is nothing to consent to.
+- **Entering Exited** ends consent.
+  Every participant moves to the terminal Unbound (exited): with no embargo in scope, there is nothing to consent to, and Exited has no way back.
 
 [§10.2 Embargo Revision and Termination Cascades](interactions.md#102-embargo-revision-and-termination-cascades) specifies both
 cascades.

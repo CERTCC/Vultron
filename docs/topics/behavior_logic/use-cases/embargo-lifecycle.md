@@ -22,7 +22,7 @@ The case carries **one** embargo, and each Participant carries its **own stance*
 | Scope | What it tracks | States |
 |---|---|---|
 | Embargo Management (EM) | The case's embargo — one per case | `NONE`, `PROPOSED`, `ACTIVE`, `REVISE`, `EXITED` |
-| Participant Embargo Consent (PEC) | One Participant's commitment to it | `UNBOUND`, `INVITED`, `SIGNATORY`, `LAPSED`, `DECLINED` |
+| Participant Embargo Consent (PEC) | One Participant's commitment to it | `UNBOUND`, `INVITED`, `SIGNATORY`, `LAPSED`, `DECLINED`, `EXPIRED`, `UNBOUND_EXITED` |
 
 The distinction is not bookkeeping.
 "The case is under embargo" and "this Participant is bound by it" are different facts, and a case routinely holds both at once: an active embargo with one Participant who declined it.
@@ -88,14 +88,14 @@ Every Participant Embargo Consent transition is a side effect of an EM activity,
 
 | Activity | Effect on the case's EM state | Effect on consent |
 |---|---|---|
-| Embargo Proposal (EP), `Invite(Event)` on the case | `NONE` to `PROPOSED`; a further proposal leaves it `PROPOSED` | the invited Participant moves from `UNBOUND`, `DECLINED` or `LAPSED` to `INVITED` (MSM-07-002) |
+| Embargo Proposal (EP), `Invite(Event)` on the case | `NONE` to `PROPOSED`; a further proposal leaves it `PROPOSED` | the invited Participant moves from `UNBOUND`, `DECLINED`, `LAPSED` or `EXPIRED` to `INVITED` (MSM-07-002) |
 | Embargo Acceptance (EA), `Accept(Invite(Event))` | from the case owner: `PROPOSED` to `ACTIVE` | the accepting Participant records the terms and moves to `SIGNATORY` (MSM-07-003) |
 | Embargo Revision Acceptance (EC), `Accept(Invite(Event))` | from the case owner: `REVISE` to `ACTIVE` with the revised terms | a non-owner accepting a proposed revision records it and stays `SIGNATORY` to the terms in force; when the owner activates a revision that ends later than the old terms, every `SIGNATORY` that has not accepted it moves to `LAPSED`, and a revision that ends no later carries every signatory over (MSM-07-003, MSM-07-005) |
 | Embargo Rejection (ER), `Reject(Invite(Event))` | from the case owner: `PROPOSED` to `NONE` once no other proposal is open; while another is, the case stays `PROPOSED` (EP-08-001, EP-08-003) | the rejecting Participant moves to `DECLINED` (MSM-07-004) |
 | Embargo Revision Rejection (EJ), `Reject(Invite(Event))` | from the case owner: `REVISE` back to `ACTIVE` once no other revision is open, and the prior terms stand; once public disclosure, a public exploit or an attack is known, the owner's rejection of the last open revision ends the embargo instead (ET, EMB-04-002) | none: a signatory that refuses proposed terms remains a signatory to the terms in force, the owner included (MSM-07-004) |
 | Embargo Revision (EV) | `ACTIVE` to `REVISE` | none; the proposer is recorded as having accepted the terms it proposed (MSM-07-005, EP-05-002) |
-| Embargo Termination (ET) | `ACTIVE` or `REVISE` to `EXITED` | every Participant returns to `UNBOUND`, with no further message (MSM-07-006) |
-| Invitation deadline passes | none | `INVITED` moves to `DECLINED`, recorded in the case ledger (MSM-07-007) |
+| Embargo Termination (ET) | `ACTIVE` or `REVISE` to `EXITED` | every Participant moves to the terminal `UNBOUND_EXITED`, with no further message (MSM-07-006) |
+| Invitation deadline passes | none | `INVITED` moves to `EXPIRED`, recorded in the case ledger (MSM-07-007) |
 
 One activity can therefore move both scopes at once: an Accept from the case owner activates the embargo *and* makes the owner a signatory.
 
@@ -171,8 +171,8 @@ They are notification and integration hooks that fire after the transition and c
 
 ## Inaction is an answer
 
-An `Invite(EmbargoEvent)` carries a respond-by instant, and silence past it is treated as a refusal — the **pocket veto**.
-A Participant at `INVITED` that does not answer within the window moves to `DECLINED`.
+An `Invite(EmbargoEvent)` carries a respond-by instant, and silence past it ends the invitation — the **pocket veto**.
+A Participant at `INVITED` that does not answer within the window moves to `EXPIRED`, not `DECLINED`: silence is not a decision, and `DECLINED` records only an explicit refusal (CM-28-004, [ADR-0118](../../../adr/0118-pec-expired-and-unbound-exited-states.md)).
 
 The window has two forms and they are one mechanism, not two ([ADR-0065](../../../adr/0065-embargo-invite-rsvp-deadline.md)).
 When the invitation carries an explicit `Invite.end_time`, that value governs (CM-28-002).
@@ -193,7 +193,7 @@ The case manager instead asks whether the accepted embargo is still the case's c
 
 | What the late Accept refers to | What the case manager does |
 |---|---|
-| The case's current embargo | Honor it; record the Participant as SIGNATORY, exactly as for an on-time Accept (EMB-17-002) |
+| The case's current embargo | Honor it; record the Participant as SIGNATORY, exactly as for an on-time Accept — directly from `EXPIRED`, after a fresh invitation from `DECLINED` (EMB-17-002) |
 | A superseded embargo | Send a fresh invitation carrying the current terms. Do **not** record consent to terms the actor never saw (EMB-17-003, EMB-17-005) |
 | An embargo the case no longer has | Acknowledge as a no-op. Do not invite, and do not remove the actor from the case (EMB-17-004, EMB-17-007, EMB-17-008) |
 
@@ -211,7 +211,7 @@ Teardown is the exception worth naming, because its addressing is prescribed.
 The `Announce(EmbargoEvent)` that follows a teardown must be authored by the actor holding `CVDRole.CASE_MANAGER` and addressed to every Participant *except* the announcing actor — never to the case manager itself (EMB-19-001).
 When the case manager is the only Participant, the announcement is skipped rather than sent with an empty recipient list (EMB-19-002).
 
-On entering `EM.EXITED`, Participant consent states are reset to reflect that the embargo has ended (EMB-13-001).
+On entering `EM.EXITED`, every Participant's consent moves to the terminal `UNBOUND_EXITED`, which no later invitation can leave (EMB-13-001, MSM-07-006).
 The embargo is over for everyone at once, which is the one thing about the EM scope that is genuinely global.
 
 ---

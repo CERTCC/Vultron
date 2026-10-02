@@ -225,7 +225,7 @@ domain fact — the ARCH-09-001 core violations):
   str]` (embargo_id → proposal_id) added to `VulnerabilityCase`; populated on
   receive (`InviteToEmbargoOnCaseReceivedUseCase`) and trigger
   (`SvcProposeEmbargoUseCase._handle_result`). All `dl.read(invite_id)` and
-  `list_objects("Invite")` semantic reads in `received/embargo.py`,
+  `list_objects("Invite")` semantic reads in `received/embargo/`,
   `triggers/_helpers.py`, and `dispatcher.py` removed. `Invite` removed from
   DL-05-004 exemptions.
 - ~~*actor/participant*~~: migrated (#1520). `recommendation_recommender_index:

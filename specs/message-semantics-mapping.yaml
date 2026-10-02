@@ -706,12 +706,13 @@ groups:
     participant explicitly accepted or rejected the *current* active embargo?" Unlike
     RM state (self-reported by the participant) and VF/D state (self-reported by
     vendor/deployer), PEC state is set by the CASE_MANAGER (CM-28-003) based on observed
-    participant behavior — incoming Accept/Reject wire activities, timer-enforced lapses,
-    and cascades from shared EM state changes. The five states are UNBOUND (participant
-    not bound by any embargo terms), INVITED (awaiting response), SIGNATORY (accepted
-    current terms), LAPSED (terms changed since last acceptance), and DECLINED
-    (explicitly refused or timed out without responding). Normative authority:
-    specs/case-management.yaml CM-18. Decisions: ADR-0048, ADR-0091.
+    participant behavior — incoming Accept/Reject wire activities, timer-enforced
+    invitation expiry, and cascades from shared EM state changes. The seven states are
+    UNBOUND (participant not bound by any embargo terms), INVITED (awaiting response),
+    SIGNATORY (accepted current terms), LAPSED (terms changed since last acceptance),
+    DECLINED (explicitly refused), EXPIRED (invited, timed out without responding), and
+    the terminal UNBOUND_EXITED (the embargo was terminated). Normative authority:
+    specs/case-management.yaml CM-18. Decisions: ADR-0048, ADR-0091, ADR-0118.
   specs:
   - id: MSM-07-001
     priority: MUST
@@ -740,17 +741,18 @@ groups:
     kind: project
     statement: >-
       The wire activity INVITE_TO_EMBARGO_ON_CASE (EP wire form:
-      Invite(Event)[context=VulnerabilityCase]) MUST apply the PEC INVITE trigger to
-      the invited participant, advancing their consent state from UNBOUND, DECLINED,
-      or LAPSED to INVITED.
+      Invite(Event)[context=VulnerabilityCase]) MUST apply the PEC INVITE trigger to the invited
+      participant, advancing their consent state from UNBOUND, DECLINED, LAPSED, or EXPIRED to
+      INVITED.
     rationale: >-
-      An embargo proposal is an invitation to consent; the EP wire activity conveys
-      the invitation and the PEC machine records each participant's position. Participants
-      already in SIGNATORY are unaffected by EP; INVITE is a no-op from SIGNATORY
-      (CM-18-004). The PEC trigger is applied via EmbargoLifecycle.record_participant_consent()
-      inside the InviteToEmbargoOnCaseReceivedUseCase received-side handler.
+      An embargo proposal is an invitation to consent; the EP wire activity conveys the invitation
+      and the PEC machine records each participant's position. Participants already in SIGNATORY are
+      unaffected by EP; INVITE is a no-op from SIGNATORY (CM-18-004), and a participant at the
+      terminal UNBOUND_EXITED cannot be invited at all (CM-18-003, ADR-0118). The PEC trigger is
+      applied via EmbargoLifecycle.record_participant_consent() inside the
+      InviteToEmbargoOnCaseReceivedUseCase received-side handler.
     verification: >-
-      Inspection of vultron/core/use_cases/received/embargo.py and
+      Inspection of vultron/core/use_cases/received/embargo/invite.py and
       vultron/core/services/embargo_lifecycle/ confirms that processing
       INVITE_TO_EMBARGO_ON_CASE applies PEC_Trigger.INVITE to each named invitee
       via record_participant_consent().
@@ -823,10 +825,10 @@ groups:
       (2) for any rejecting participant the effect depends on which embargo the
       Reject names: rejecting the case's *active* embargo MUST apply the PEC
       DECLINE trigger (consent withdrawal; valid from INVITED, UNBOUND, LAPSED,
-      or SIGNATORY); rejecting a *proposed* embargo that is not active MUST
+      EXPIRED, or SIGNATORY); rejecting a *proposed* embargo that is not active MUST
       remove that id from the participant's `accepted_embargo_ids` if present,
-      MUST apply DECLINE to a participant not yet SIGNATORY (INVITED, UNBOUND,
-      or LAPSED → DECLINED), and MUST leave a SIGNATORY's state unchanged — a
+      MUST apply DECLINE to a participant not yet SIGNATORY (INVITED,
+      UNBOUND, LAPSED, or EXPIRED → DECLINED), and MUST leave a SIGNATORY's state unchanged — a
       signatory's rejection of a proposed revision refuses those terms; it is not
       withdrawal from the embargo in force. When no embargo is in force (EM
       PROPOSED) a Reject of a proposal is a decline from any state, SIGNATORY
@@ -847,7 +849,7 @@ groups:
       whether the proposal replaces it. The owner's own EJ is a decision to keep
       the standing embargo and therefore cannot be a decline of it.
     verification: >-
-      Inspection of vultron/core/use_cases/received/embargo.py and
+      Inspection of vultron/core/use_cases/received/embargo/reject.py and
       vultron/core/services/embargo_lifecycle/answers.py confirms
       RejectInviteToEmbargoOnCaseReceivedUseCase applies EmbargoLifecycle, which
       applies DECLINE to the rejecting actor only when the rejected embargo is the
@@ -872,7 +874,8 @@ groups:
       unchanged); if B ends later than A, implementations MUST apply the PEC
       REVISE trigger to every SIGNATORY whose `accepted_embargo_ids` lacks B,
       advancing them to LAPSED. In either arm, a participant in any other state
-      (INVITED, UNBOUND, or LAPSED) whose `accepted_embargo_ids` already contains
+      (INVITED, UNBOUND, LAPSED, or EXPIRED) whose `accepted_embargo_ids`
+      already contains
       B MUST advance to SIGNATORY via the PEC ACCEPT trigger, because it has
       accepted the embargo now in force. Only signatories to A are carried over:
       a participant LAPSED before B activates stays LAPSED until it is re-invited
@@ -891,14 +894,14 @@ groups:
       in force and every signatory to it is still bound by it, so nothing about
       their consent has changed (ADR-0093). Agreeing to N days is agreeing to
       every shorter period — the containment that makes shortest-wins safe
-      (EP-04-003) and lets termination reset consent without asking — so a
+      (EP-04-003) and lets termination exit consent without asking — so a
       shorter revision asks nothing new of an existing signatory and carries
       them over. Longer terms ask for more than they promised, so only those
       who accepted B are bound by B. Only the owner's acceptance changes the
       embargo on the case; other participants' accepts and rejects are recorded
       per embargo and inform that decision. Running the cascade in the observed
       path too keeps every replica's consent record in step with the
-      CASE_MANAGER's, as the termination reset already does.
+      CASE_MANAGER's, as the termination exit cascade already does.
     verification: >-
       Inspection of vultron/core/services/embargo_lifecycle/ confirms that
       propose_embargo() applies no PEC cascade and records the proposer's
@@ -919,22 +922,23 @@ groups:
     kind: project
     statement: >-
       When the shared EM state transitions to EXITED (driven by an ET /
-      REMOVE_EMBARGO_EVENT_FROM_CASE wire activity), implementations MUST
-      automatically apply the PEC RESET trigger to every participant, advancing
-      all consent states to UNBOUND. No separate outbound wire activity is
-      emitted for these per-participant PEC transitions; the cascade is an
-      internal side-effect of the EM termination.
+      REMOVE_EMBARGO_EVENT_FROM_CASE wire activity), implementations MUST automatically apply the
+      PEC EXIT trigger to every participant not already at UNBOUND_EXITED, advancing all consent
+      states to the terminal UNBOUND_EXITED. No separate outbound wire activity is emitted for these
+      per-participant PEC transitions; the cascade is an internal side-effect of the EM termination.
     rationale: >-
-      UNBOUND is the correct state when no embargo is in scope (ADR-0048, ADR-0091).
-      Terminating the embargo removes it from scope for all participants, so
-      their per-participant consent records must reflect that absence. The RESET
-      cascade is performed by EmbargoLifecycle._cascade_pec_reset() inside
-      terminate_active_embargo().
+      EM EXITED has no outgoing transition, so a participant whose embargo was terminated can never
+      be invited to it again; its consent record says so by holding the terminal UNBOUND_EXITED
+      rather than the re-invitable initial UNBOUND (ADR-0118, amending ADR-0048 and ADR-0091). The
+      EXIT cascade is performed by EmbargoLifecycle._cascade_pec_exit() inside
+      terminate_active_embargo(), on the CASE_MANAGER and, through the teardown replay, on every
+      replica.
     verification: >-
       Inspection of vultron/core/services/embargo_lifecycle/ confirms that
-      terminate_active_embargo() calls _cascade_pec_reset() and that all
-      participants reach UNBOUND. Unit tests in
-      test/core/services/embargo_lifecycle/ assert the cascade.
+      terminate_active_embargo() calls _cascade_pec_exit() and that all participants reach
+      UNBOUND_EXITED. Unit tests in test/core/services/embargo_lifecycle/ assert the cascade, and a
+      per-actor-store test asserts every record reads UNBOUND_EXITED on the CASE_MANAGER and on a
+      replica.
     relationships:
     - rel_type: derives_from
       spec_id: CM-18-003
@@ -944,27 +948,23 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The timer-based pocket-veto transition — INVITED to DECLINED after the
-      invitation deadline passes — MUST be enforced lazily with no outbound wire
-      message emitted for the PEC state change itself. LAPSED has no timer path
-      (CM-18-002): a lapsed participant is re-invited, and the deadline attaches
-      to that invitation.
-      The CASE_MANAGER MUST author a case-ledger entry recording the lapse (CM-28-005)
-      so the consent change is visible in the canonical ledger, but no additional
-      protocol wire activity is required.
+      The timer-based pocket-veto transition — INVITED to EXPIRED after the invitation deadline
+      passes — MUST be enforced lazily with no outbound wire message emitted for the PEC state
+      change itself. LAPSED has no timer path (CM-18-002): a lapsed participant is re-invited, and
+      the deadline attaches to that invitation. The CASE_MANAGER MUST author a case-ledger entry
+      recording the expiry (CM-28-005) so the consent change is visible in the canonical ledger, but
+      no additional protocol wire activity is required.
     rationale: >-
-      Inaction cannot produce an outbound message because there is no actor-observable
-      event to report. The lapse is a derived conclusion from (invite_rsvp_deadline,
-      now); the ledger entry is the record of that conclusion, not a message sent
-      by the lapsing participant. Requiring a wire message would demand the system
-      speak on behalf of a participant who has said nothing, which contradicts the
-      Actor Knowledge Model (AKM).
+      Inaction cannot produce an outbound message because there is no actor-observable event to
+      report. The expiry is a derived conclusion from (invite_rsvp_deadline, now); the ledger entry
+      is the record of that conclusion, not a message sent by the silent participant. Requiring a
+      wire message would demand the system speak on behalf of a participant who has said nothing,
+      which contradicts the Actor Knowledge Model (AKM).
     verification: >-
-      Inspection of vultron/core/services/embargo_lifecycle/ confirms
-      detect_and_apply_lapse() applies PEC_Trigger.DECLINE without emitting
-      an outbound wire activity, and that a CASE_MANAGER-authored ledger entry
-      is written per CM-28-005, and that detect_and_apply_lapse() applies it
-      only to a participant in INVITED.
+      Inspection of vultron/core/services/embargo_lifecycle/ confirms detect_and_apply_expiry()
+      applies PEC_Trigger.EXPIRE without emitting an outbound wire activity, that a
+      CASE_MANAGER-authored ledger entry is written per CM-28-005, and that
+      detect_and_apply_expiry() applies it only to a participant in INVITED.
     relationships:
     - rel_type: derives_from
       spec_id: CM-18-002

@@ -644,7 +644,7 @@ with no upper bound at all. So:
 > on day 7. The embargo ended at hour 24.
 
 The participant is asked to consent to an embargo that is already over, and their
-inaction is recorded as a decline six days after it stopped mattering. The same
+inaction is recorded as an expiry six days after it stopped mattering. The same
 thing happened on day 28 of a 30-day embargo with an ordinary published actor
 default — without any protocol default in the picture.
 

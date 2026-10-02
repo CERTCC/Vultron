@@ -46,9 +46,22 @@ from vultron.errors import VultronValidationError
 logger = logging.getLogger(__name__)
 
 #: PEC states from which an ``ACCEPT`` advances a participant to ``SIGNATORY``
-#: (CM-18-003); ``DECLINED`` is deliberately absent.
+#: (CM-18-003); ``DECLINED`` and the terminal ``UNBOUND_EXITED`` are
+#: deliberately absent.  ``EXPIRED`` is present: a late Accept of the embargo
+#: in force is honoured (EMB-17-002, ADR-0118).
 _ACCEPTABLE_STATES = frozenset(
-    {PEC.UNBOUND.value, PEC.INVITED.value, PEC.LAPSED.value}
+    {
+        PEC.UNBOUND.value,
+        PEC.INVITED.value,
+        PEC.LAPSED.value,
+        PEC.EXPIRED.value,
+    }
+)
+
+#: PEC states whose acceptance records nothing, ``accepted_embargo_ids``
+#: included: ``ACCEPT`` is not legal from them (CM-18-003).
+_ACCEPT_RECORDS_NOTHING = frozenset(
+    {PEC.DECLINED.value, PEC.UNBOUND_EXITED.value}
 )
 
 
@@ -127,7 +140,9 @@ class _PecEffectsMixin(_ActivationArmMixin):
         all, list included: ``ACCEPT`` is not legal from ``DECLINED``
         (CM-18-003), and an id on the list of an actor whose state disowns it
         would let the list-based content gate (CM-10-004) admit an actor that
-        has declined.  It is re-invited first (``DECLINED → INVITED``).
+        has declined.  It is re-invited first (``DECLINED → INVITED``).  A
+        participant at the terminal ``UNBOUND_EXITED`` records nothing for the
+        same reason, and can never be re-invited (ADR-0118).
         """
         resolved = self._participant_for_actor(case, actor_id, "acceptance")
         if resolved is None:
@@ -135,12 +150,12 @@ class _PecEffectsMixin(_ActivationArmMixin):
         participant_id, participant = resolved
 
         pec_before = participant.embargo_consent_state
-        if pec_before == PEC.DECLINED.value:
+        if pec_before in _ACCEPT_RECORDS_NOTHING:
             logger.info(
-                "Actor '%s' is DECLINED on case '%s'; its acceptance of"
-                " embargo '%s' binds nothing until it is re-invited"
-                " (CM-18-003)",
+                "Actor '%s' is %s on case '%s'; its acceptance of"
+                " embargo '%s' binds nothing (CM-18-003)",
                 actor_id,
+                pec_before,
                 _as_id(case),
                 embargo_id,
             )
@@ -172,7 +187,9 @@ class _PecEffectsMixin(_ActivationArmMixin):
         """Record *actor_id*'s rejection of *embargo_id* (MSM-07-004).
 
         Drops the id from ``accepted_embargo_ids`` and applies ``DECLINE``
-        to a participant not already ``DECLINED``.  With *withdrawal* set the
+        to a participant not already ``DECLINED`` — an ``EXPIRED`` one
+        included, since a late explicit Reject is an answer (ADR-0118) — and
+        not at the terminal ``UNBOUND_EXITED``.  With *withdrawal* set the
         Reject names the case's *active* embargo, so ``DECLINE`` applies from
         every state including ``SIGNATORY`` (consent withdrawal, ADR-0093).
         Without it the Reject names a *proposed* embargo: a ``SIGNATORY``
@@ -197,7 +214,9 @@ class _PecEffectsMixin(_ActivationArmMixin):
         pec_before = participant.embargo_consent_state
         changed = False
 
-        keeps_state = pec_before == PEC.DECLINED.value or (
+        # DECLINED is idempotent and the terminal UNBOUND_EXITED refuses every
+        # trigger (ADR-0118); neither moves, and the list is still cleaned.
+        keeps_state = pec_before in _ACCEPT_RECORDS_NOTHING or (
             not withdrawal and pec_before == PEC.SIGNATORY.value
         )
         if not keeps_state:
@@ -301,7 +320,7 @@ class _PecEffectsMixin(_ActivationArmMixin):
         (:meth:`_advance_holders_of`) needs the activated id on the
         participant's own ``accepted_embargo_ids``, which only its own
         acceptance puts there; the lapse demotes a ``SIGNATORY`` that never
-        accepted the longer terms; and the reset is the termination.  Whether
+        accepted the longer terms; and the exit is the termination.  Whether
         the participant has joined, or has recorded RM ``CLOSED``, does not
         enter into it — a closed signatory that never accepted longer terms
         lapses like any other, so it is not left ``SIGNATORY`` to terms it
@@ -317,20 +336,25 @@ class _PecEffectsMixin(_ActivationArmMixin):
             changes.append(_pec_change(participant_id, state, participant))
         return changes
 
-    def _cascade_pec_reset(
+    def _cascade_pec_exit(
         self, case: VulnerabilityCase
     ) -> list[ParticipantPECChange]:
-        """Reset all participants' PEC state to UNBOUND.
+        """Move every participant's PEC state to the terminal UNBOUND_EXITED.
 
-        Called when an embargo is terminated.  Returns a list of
-        :class:`ParticipantPECChange` for every participant that was updated.
-        Inert participants are reset too: with no embargo there is nothing
-        left for any record to consent to (CM-18-001).
+        Called when an embargo is terminated (EM ``EXITED``, MSM-07-006).
+        ``EXIT`` applies from every state, the initial ``UNBOUND`` included,
+        and nothing leaves ``UNBOUND_EXITED`` (ADR-0118); a participant
+        already there is skipped, so a replayed teardown changes nothing.
+        Returns a list of :class:`ParticipantPECChange` for every participant
+        that was updated.  Inert participants exit too: with no embargo there
+        is nothing left for any record to consent to (CM-18-001).
         """
         return self._cascade_pec(
             case,
-            trigger=PEC_Trigger.RESET,
-            select=lambda p: p.embargo_consent_state != PEC.UNBOUND.value,
+            trigger=PEC_Trigger.EXIT,
+            select=lambda p: (
+                p.embargo_consent_state != PEC.UNBOUND_EXITED.value
+            ),
         )
 
     def _cascade_pec_revise(
@@ -356,134 +380,3 @@ class _PecEffectsMixin(_ActivationArmMixin):
                 and revised_embargo_id not in p.accepted_embargo_ids
             ),
         )
-
-    def _carry_signatories_over(
-        self, case: VulnerabilityCase, *, revised_embargo_id: str
-    ) -> None:
-        """Record *revised_embargo_id* on every SIGNATORY's accepted list.
-
-        The shorter arm of EP-05-001: a revision ending no later than the
-        embargo it replaces asks nothing new of an existing signatory
-        (agreeing to N days is agreeing to every shorter period), so its
-        consent carries over by containment (CM-10-001) with no state change.
-        Only a ``SIGNATORY`` is carried over, so the containment argument is
-        always about consent the participant itself gave.
-        """
-        for _participant_id, participant in self._each_participant(case):
-            if participant.embargo_consent_state != PEC.SIGNATORY.value:
-                continue
-            if participant.add_accepted_embargo(revised_embargo_id):
-                self._persistence.save(participant)
-
-    def _reevaluate_consent_at_activation(
-        self,
-        case: VulnerabilityCase,
-        *,
-        revised_embargo_id: str,
-        ends_no_later: bool,
-    ) -> list[ParticipantPECChange]:
-        """Re-evaluate every participant's consent when A is replaced by B.
-
-        The EP-05-001 / MSM-07-005 cascade, run when the case owner activates
-        revision *revised_embargo_id* in place of the previous active embargo
-        (``REVISE → ACTIVE`` with ``active_embargo`` changing); *ends_no_later*
-        is :meth:`_revision_ends_no_later`'s answer, taken before the case was
-        mutated:
-
-        - B ends no later than A: every signatory to A is carried over as a
-          signatory to B (:meth:`_carry_signatories_over`); nobody lapses.
-        - B ends later than A: every ``SIGNATORY`` whose list lacks B moves
-          to ``LAPSED`` (:meth:`_cascade_pec_revise`); those with B stay.
-        - Either arm: a participant in any other state (``INVITED``,
-          ``UNBOUND``, ``LAPSED``) whose list already holds B advances to
-          ``SIGNATORY`` via ``ACCEPT`` — it accepted the embargo now in force.
-        """
-        changes: list[ParticipantPECChange] = []
-        if ends_no_later:
-            self._carry_signatories_over(
-                case, revised_embargo_id=revised_embargo_id
-            )
-        else:
-            changes.extend(
-                self._cascade_pec_revise(
-                    case, revised_embargo_id=revised_embargo_id
-                )
-            )
-        changes.extend(self._advance_holders_of(case, revised_embargo_id))
-        logger.info(
-            "Re-evaluated consent on case '%s' against embargo '%s' (%s);"
-            " %d participant state change(s)",
-            _as_id(case),
-            revised_embargo_id,
-            (
-                "shorter or equal — signatories carried over"
-                if ends_no_later
-                else "longer — non-accepting signatories lapsed"
-            ),
-            len(changes),
-        )
-        return changes
-
-    def _advance_holders_of(
-        self, case: VulnerabilityCase, embargo_id: str
-    ) -> list[ParticipantPECChange]:
-        """Advance every non-signatory whose list already holds *embargo_id*.
-
-        Run whenever *embargo_id* becomes the embargo in force — a first
-        activation as much as a replacement: a participant in ``UNBOUND``,
-        ``INVITED`` or ``LAPSED`` that holds the id accepted these terms
-        before they were active (a proposer, MSM-07-005; an early acceptor of
-        a revision, MSM-07-003) and is a signatory to them now
-        (EP-05-001).  ``DECLINED`` is never advanced (CM-18-003).
-        """
-        return self._cascade_pec(
-            case,
-            trigger=PEC_Trigger.ACCEPT,
-            select=lambda p: (
-                p.embargo_consent_state in _ACCEPTABLE_STATES
-                and embargo_id in p.accepted_embargo_ids
-            ),
-        )
-
-    def _consent_at_activation(
-        self,
-        case: VulnerabilityCase,
-        *,
-        embargo_id: str,
-        ends_no_later: bool | None,
-    ) -> list[ParticipantPECChange]:
-        """Every participant's consent once *embargo_id* is the embargo in force.
-
-        The one consent effect of an activation, shared by the owner path of
-        ``accept_embargo_invite`` and by ``activate_embargo`` so the two
-        cannot drift.  *ends_no_later* is ``None`` for a first activation
-        (``PROPOSED → ACTIVE``, nothing replaced) and otherwise
-        :meth:`_revision_ends_no_later`'s answer for the embargo replaced,
-        taken before the case was mutated.
-
-        - Replacing A with B is the owner's acceptance of B: the owner's record
-          gains B first, so the owner is never lapsed by its own activation;
-          then :meth:`_reevaluate_consent_at_activation` carries signatories
-          over or lapses the non-acceptors (EP-05-001, MSM-07-005).
-        - On every activation, first or replacement, every non-signatory that
-          already holds B advances (:meth:`_advance_holders_of`) — without
-          it a participant that proposed the first embargo would hold the
-          active id while its state said otherwise, and the content gate
-          (CM-10-004) and ``embargo_adherence`` would disagree.
-        """
-        if ends_no_later is None:
-            return self._advance_holders_of(case, embargo_id)
-        changes: list[ParticipantPECChange] = []
-        owner_id = _as_id(case.attributed_to)
-        if owner_id is not None and owner_id in case.actor_participant_index:
-            changes.extend(
-                self._record_actor_pec_acceptance(case, owner_id, embargo_id)
-            )
-        changes.extend(
-            self._reevaluate_consent_at_activation(
-                case,
-                revised_embargo_id=embargo_id,
-                ends_no_later=ends_no_later,
-            )
-        )
-        return changes

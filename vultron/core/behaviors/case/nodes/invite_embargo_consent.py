@@ -33,7 +33,6 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 
 logger = logging.getLogger(__name__)
 
@@ -133,12 +132,9 @@ class _SignEmbargoConsentLeafNode(DataLayerActionWithPorts):
             )
             return Status.FAILURE
 
-        participant.add_accepted_embargo(active_embargo_id)
-        if participant.embargo_consent_state not in (
-            PEC.SIGNATORY,
-            PEC.DECLINED,
-        ):
-            participant.apply_pec_transition(PEC_Trigger.ACCEPT)
+        # A SIGNATORY stays; a DECLINED or terminal UNBOUND_EXITED
+        # participant is not signed and gains no id (ADR-0118).
+        participant.sign_embargo(active_embargo_id)
         self.logger.info(
             "%s: signed embargo consent for invitee '%s' (embargo in force,"
             " CM-10-001)",

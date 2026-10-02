@@ -373,6 +373,20 @@ class TestApplyPecTransition:
         assert status.consent.state == PEC.SIGNATORY
         assert status.embargo_adherence is True
 
+    @pytest.mark.spec("CM-18-008", "CM-18-003")
+    @pytest.mark.parametrize("state", list(PEC))
+    def test_embargo_adherence_is_true_only_at_signatory(self, state):
+        """embargo_adherence reads SIGNATORY alone; UNBOUND_EXITED is False.
+
+        A participant whose embargo was terminated sits at the terminal
+        UNBOUND_EXITED (ADR-0118) and is bound by nothing, exactly like
+        EXPIRED, LAPSED and DECLINED.
+        """
+        p = _make(embargo_consent_state=state)
+        status = p.participant_status
+        assert status is not None
+        assert status.embargo_adherence is (state is PEC.SIGNATORY)
+
     def test_ac4_non_signatory_consent_state_preserved(self):
         """AC-4: DECLINED state is faithfully preserved in the snapshot.
 
@@ -465,11 +479,13 @@ class TestAcceptsPecTrigger:
             (PEC.UNBOUND, True),
             (PEC.LAPSED, True),
             (PEC.DECLINED, True),
+            (PEC.EXPIRED, True),
             (PEC.INVITED, False),
             (PEC.SIGNATORY, False),
+            (PEC.UNBOUND_EXITED, False),
         ],
     )
-    def test_invite_is_legal_only_from_unbound_lapsed_or_declined(
+    def test_invite_is_legal_only_from_unbound_lapsed_declined_or_expired(
         self, state, accepts
     ):
         from vultron.core.states.participant_embargo_consent import PEC_Trigger
@@ -498,3 +514,33 @@ class TestAcceptsPecTrigger:
         )
         assert p.accepts_pec_trigger(PEC_Trigger.INVITE) is True
         assert p.accepts_pec_trigger(PEC_Trigger.REVISE) is False
+
+
+# ---------------------------------------------------------------------------
+# sign_embargo (CM-14-005, CM-10-001, ADR-0118)
+# ---------------------------------------------------------------------------
+
+_EMBARGO = "https://example.org/embargoes/em-001"
+
+
+@pytest.mark.parametrize(
+    "start",
+    [PEC.UNBOUND, PEC.INVITED, PEC.LAPSED, PEC.EXPIRED, PEC.SIGNATORY],
+)
+def test_sign_embargo_signs_and_records_the_id(start):
+    p = _make(embargo_consent_state=start)
+
+    assert p.sign_embargo(_EMBARGO) is True
+
+    assert p.embargo_consent_state == PEC.SIGNATORY
+    assert p.accepted_embargo_ids == [_EMBARGO]
+
+
+@pytest.mark.parametrize("start", [PEC.DECLINED, PEC.UNBOUND_EXITED])
+def test_sign_embargo_leaves_an_unsignable_participant_without_the_id(start):
+    p = _make(embargo_consent_state=start)
+
+    assert p.sign_embargo(_EMBARGO) is False
+
+    assert p.embargo_consent_state == start
+    assert p.accepted_embargo_ids == []

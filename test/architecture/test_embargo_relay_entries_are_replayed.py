@@ -55,6 +55,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.base import MessageSemantics
+from vultron.core.models.rsvp_deadline import INVITE_EXPIRED_EVENT_TYPE
 from vultron.enums.roles import CVDRole
 
 MANAGER = "https://example.org/actors/case-manager"
@@ -125,9 +126,9 @@ OUTSIDE_THE_RELAY: dict[str, str] = {
         "committed, not yet replayed — #3814 (ledger replay for every"
         " committed event type)"
     ),
-    "invite_to_embargo_on_case_lapsed": (
+    INVITE_EXPIRED_EVENT_TYPE: (
         "committed on a late Accept, replay owned by #3961 (RSVP deadline"
-        " and lapse)"
+        " and invite expiry)"
     ),
     MessageSemantics.CREATE_EMBARGO_EVENT.value: "stores an object; commits nothing",
     MessageSemantics.ANNOUNCE_EMBARGO_EVENT_TO_CASE.value: (

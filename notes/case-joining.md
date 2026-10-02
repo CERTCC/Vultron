@@ -115,7 +115,7 @@ its authority to *commit* comes from its role (CLP-09), not from being active.
 - **Unanswered stub Invite.** It carries a reply deadline; on expiry the
   *Invite* closes as an expired ask and the record stays inert at `RECEIVED`
   (CM-11-014). The CASE_MANAGER never closes an invitee's RM for it, and consent
-  stays `INVITED`: the lapse-to-`DECLINED` rule (CM-28-004) is for an expired
+  stays `INVITED`: the expiry-to-`EXPIRED` rule (CM-28-004) is for an expired
   `Invite(EmbargoEvent)`, not for the terms a stub carries.
   "All participants closed" counts only participants that joined.
 - **Re-invite.** Same record, fresh stub Invite, new deadline. Refused for a

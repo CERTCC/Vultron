@@ -105,7 +105,7 @@ Defined in `vultron/core/models/dimensions.py` (ADR-0036).
 | `RmDimension` | Report Management (RM) | Start → Received → … → Closed | `ParticipantStatus` |
 | `VfDimension` | Vendor-awareness / Fix-readiness (VF) | vf → Vf → VF | `ParticipantStatus` (VENDOR only) |
 | `DDimension` | Fix-deployment (D) | d → D | `ParticipantStatus` (DEPLOYER only) |
-| `PecDimension` | Participant Embargo Consent (PEC) | UNBOUND / INVITED / SIGNATORY / LAPSED / DECLINED | `ParticipantStatus` |
+| `PecDimension` | Participant Embargo Consent (PEC) | UNBOUND / INVITED / SIGNATORY / LAPSED / DECLINED / EXPIRED / UNBOUND_EXITED | `ParticipantStatus` |
 
 ## `CVDRole`
 

@@ -125,7 +125,10 @@ def make_embargo_case_with_actor(
     """Return (dl, case_actor, case, embargo) for embargo received-side tests.
 
     Also creates ``as_CaseParticipant`` objects so actor → participant lookups
-    in the embargo handlers succeed.
+    in the embargo handlers succeed. Every participant is recorded in both
+    ``case_participants`` (the authoritative membership, CM-19-001) and
+    ``actor_participant_index``, so the PEC cascades that walk the membership
+    list reach every participant, as they do in production.
     """
     from vultron.wire.as2.vocab.objects.case_participant import (
         as_CaseParticipant,
@@ -158,6 +161,7 @@ def make_embargo_case_with_actor(
         id_=p1_id, context=case_id, attributed_to=author_id
     )
     dl.create(p1)
+    case.case_participants.append(p1_id)
 
     for pid in extra_participants or []:
         short = pid.rsplit("/", 1)[-1]
@@ -165,6 +169,7 @@ def make_embargo_case_with_actor(
         case.actor_participant_index[pid] = pn_id
         pn = as_CaseParticipant(id_=pn_id, context=case_id, attributed_to=pid)
         dl.create(pn)
+        case.case_participants.append(pn_id)
 
     dl.create(case)
     case_manager_participant = as_CaseParticipant(
