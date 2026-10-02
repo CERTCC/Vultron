@@ -25,8 +25,8 @@ case with the CASE_MANAGER, a Case Owner, a joined vendor that is
 - CM-31-007 — replicas apply the removal from its ledger entry.
 - CM-31-008 — removal leaves embargo consent untouched.
 - CM-31-009 — a removed signatory is told when the embargo is terminated.
-- CM-31-010 — a paused replica ignores an embargo-ending notice from a
-  non-manager.
+- CM-31-010 — a paused replica applies the CASE_MANAGER's embargo-ending
+  notice and ignores one from a non-manager.
 - CM-31-011 — ``Add(CaseParticipant)`` reinstates, and only reinstates.
 - CM-31-012 — no ``Add(CaseParticipant)`` after a stub-Invite acceptance.
 - CM-31-013 — a removed participant is not sent an embargo Invite.
@@ -50,15 +50,24 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.core.models._helpers import _as_id, days_from_now_utc
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.participant_status import (
+    ParticipantStatus,
+    PecDimension,
+    RmDimension,
+)
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
 )
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     add_participant_to_case_activity,
@@ -79,6 +88,7 @@ MANAGER = "https://example.org/actors/case-actor-removal"
 OWNER = "https://example.org/actors/owner-removal"
 VENDOR = "https://example.org/actors/vendor-removal"
 OTHER = "https://example.org/actors/other-removal"
+STRANGER = "https://example.org/actors/stranger-removal"
 EMBARGO_ID = f"{CASE_ID}/embargo_events/active"
 
 # The issue implementing each CM-31 requirement (ADR-0116).
@@ -92,6 +102,8 @@ _TRACKED_BY = {
     "CM-31-008": 4080,
     "CM-31-009": 4083,
     "CM-31-010": 4083,
+    # The non-manager half is the general RSH-08-003 replica gate.
+    "RSH-08-003": 3814,
     "CM-31-011": 4081,
     "CM-31-012": 4081,
     "CM-31-013": 4084,
@@ -123,7 +135,12 @@ class _RemovalCase:
         return participant
 
     def route(self, activity: Any) -> HandlerResult:
-        return route_received(self.dl, activity, receiving_actor_id=MANAGER)
+        return route_received(
+            self.dl,
+            activity,
+            receiving_actor_id=MANAGER,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+        )
 
     def remove(self, actor_id: str, *, by: str = OWNER) -> HandlerResult:
         return self.route(
@@ -148,15 +165,23 @@ class _RemovalCase:
             and actor_id in [_as_id(t) for t in getattr(obj, "to", None) or []]
         ]
 
+    def active_ids(self) -> set[str]:
+        dumped = self.read_case().model_dump(by_alias=True, mode="json")
+        return {getattr(p, "id_", p) for p in dumped["activeParticipants"]}
+
 
 def _participant_id(actor_id: str) -> str:
     return f"{CASE_ID}/participants/{actor_id.rsplit('/', 1)[-1]}"
 
 
 def _record(
-    actor_id: str, roles: list[CVDRole], pec: PEC = PEC.SIGNATORY
+    actor_id: str,
+    roles: list[CVDRole],
+    pec: PEC = PEC.SIGNATORY,
+    *,
+    rm: RM | None = None,
 ) -> CaseParticipant:
-    return CaseParticipant(
+    record = CaseParticipant(
         id_=_participant_id(actor_id),
         attributed_to=actor_id,
         context=CASE_ID,
@@ -164,9 +189,21 @@ def _record(
         embargo_consent_state=pec,
         accepted_embargo_ids=[EMBARGO_ID] if pec is PEC.SIGNATORY else [],
     )
+    if rm is None:
+        return record
+    status = ParticipantStatus(
+        context=CASE_ID,
+        attributed_to=actor_id,
+        rm=RmDimension(state=rm),
+        consent=PecDimension(state=pec),
+        cvd_role=roles,
+    )
+    return record.model_copy(update={"participant_statuses": [status]})
 
 
-def _seed(dl: SqliteDataLayer) -> as_VulnerabilityCase:
+def _seed(
+    dl: SqliteDataLayer, *, vendor_rm: RM | None = None
+) -> as_VulnerabilityCase:
     case = as_VulnerabilityCase(
         id_=CASE_ID, name="CASE-REMOVAL", attributed_to=OWNER
     )
@@ -179,7 +216,9 @@ def _seed(dl: SqliteDataLayer) -> as_VulnerabilityCase:
         (VENDOR, [CVDRole.VENDOR]),
         (OTHER, [CVDRole.VENDOR]),
     ):
-        record = _record(actor_id, roles)
+        record = _record(
+            actor_id, roles, rm=vendor_rm if actor_id == VENDOR else None
+        )
         dl.create(record)
         case.case_participants.append(record.id_)
         case.actor_participant_index[actor_id] = record.id_
@@ -211,6 +250,7 @@ def test_removal_keeps_the_record_on_the_roster(removal_case) -> None:
         getattr(p, "id_", p) for p in case.case_participants
     ]
     assert case.actor_participant_index.get(VENDOR) == _participant_id(VENDOR)
+    assert _participant_id(VENDOR) not in removal_case.active_ids()
 
 
 @pytest.mark.xfail(strict=True, reason=_planned("CM-31-003"))
@@ -227,7 +267,7 @@ def test_case_publishes_active_participants_and_round_trips(
 
     dumped = case.model_dump(by_alias=True, mode="json")
     assert "activeParticipants" in dumped
-    active = {getattr(p, "id_", p) for p in dumped["activeParticipants"]}
+    active = removal_case.active_ids()
     assert {_participant_id(VENDOR), _participant_id(OTHER)} <= active
     assert as_VulnerabilityCase.model_validate(dumped) == case
 
@@ -260,6 +300,26 @@ def test_removal_is_refused_unless_the_owner_removes_a_removable_participant(
     )
 
     assert result.disposition is HandlerDisposition.REFUSED
+
+
+@pytest.mark.xfail(strict=True, reason=_planned("CM-31-004"))
+@pytest.mark.spec("CM-31-004")
+def test_removal_naming_no_participant_of_the_case_is_refused(
+    removal_case,
+) -> None:
+    """A ``Remove`` naming a record not on this case's roster is refused."""
+    stranger = _record(STRANGER, [CVDRole.VENDOR])
+    removal_case.dl.create(stranger)
+    before = removal_case.read_case().case_participants
+
+    result = removal_case.route(
+        remove_participant_from_case_activity(
+            stranger, target=CASE_ID, actor=OWNER
+        )
+    )
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert removal_case.read_case().case_participants == before
 
 
 @pytest.mark.xfail(strict=True, reason=_planned("CM-31-004"))
@@ -310,6 +370,24 @@ def test_removed_participant_is_sent_a_direct_remove_naming_it(
     assert getattr(notices[0], "attributed_to", None) == OWNER
 
 
+@pytest.mark.xfail(strict=True, reason=_planned("CM-31-006"))
+@pytest.mark.spec("CM-31-006")
+def test_removal_entry_fans_out_to_the_removed_participant(
+    removal_case,
+) -> None:
+    """The removed party is sent the removal entry, its last one."""
+    before = len(removal_case.ledger())
+    removal_case.remove(VENDOR)
+    added = removal_case.ledger()[before:]
+    assert len(added) == 1
+
+    announced = [
+        _as_id(getattr(a, "object_", None))
+        for a in removal_case.activities_to("Announce", VENDOR)
+    ]
+    assert added[0].id_ in announced
+
+
 @pytest.mark.xfail(strict=True, reason=_planned("CM-31-007"))
 @pytest.mark.spec("CM-31-007")
 def test_announce_tree_has_a_removal_replay_node() -> None:
@@ -356,30 +434,60 @@ def test_removed_signatory_is_sent_the_termination(removal_case) -> None:
         remove_embargo_from_case_activity(embargo, origin=CASE_ID, actor=OWNER)
     )
 
-    assert removal_case.activities_to("Remove", VENDOR), (
+    terminations = [
+        a
+        for a in removal_case.activities_to("Remove", VENDOR)
+        if _as_id(getattr(a, "object_", None)) == EMBARGO_ID
+    ]
+    assert terminations, (
         "no Remove(EmbargoEvent) reached the removed signatory"
     )
 
 
-@pytest.mark.xfail(strict=True, reason=_planned("CM-31-010"))
-@pytest.mark.spec("CM-31-010")
-def test_paused_replica_ignores_an_ending_notice_from_a_non_manager() -> None:
-    """Only the CASE_MANAGER's notice moves a paused replica's embargo."""
+def _paused_replica_receives_ending_notice(
+    sender: str,
+) -> as_VulnerabilityCase:
+    """The vendor's replica, paused at RM ``CLOSED``, receives a termination."""
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=VENDOR)
-    _seed(dl)
+    _seed(dl, vendor_rm=RM.CLOSED)
     embargo = dl.read(EMBARGO_ID)
     assert isinstance(embargo, as_EmbargoEvent)
 
     route_received(
         dl,
         remove_embargo_from_case_activity(
-            embargo, origin=CASE_ID, actor=OTHER
+            embargo, origin=CASE_ID, actor=sender
         ),
         receiving_actor_id=VENDOR,
     )
 
     case = dl.read(CASE_ID)
     assert isinstance(case, as_VulnerabilityCase)
+    return case
+
+
+@pytest.mark.spec("CM-31-010")
+def test_paused_replica_applies_the_managers_ending_notice() -> None:
+    """A paused replica takes the CASE_MANAGER's notice; nothing else reaches it.
+
+    Passes today because no replica is gated yet. It guards the CM-31-010
+    exception: the RSH-08-003 replica gate (#3814) must leave it applying.
+    """
+    case = _paused_replica_receives_ending_notice(MANAGER)
+
+    assert case.active_embargo is None
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="RSH-08-003: replicas ignore a non-manager's direct notice."
+    f" Tracked by #{_TRACKED_BY['RSH-08-003']}.",
+)
+@pytest.mark.spec("CM-31-010")
+def test_paused_replica_ignores_an_ending_notice_from_a_non_manager() -> None:
+    """Only the CASE_MANAGER's notice moves a paused replica's embargo."""
+    case = _paused_replica_receives_ending_notice(OTHER)
+
     assert case.active_embargo is not None
 
 

@@ -4,7 +4,7 @@ date: 2026-10-01
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; CONCERN-2257; ADR-0093, ADR-0108, ADR-0109, ADR-0113,
-  ADR-0114; specs/case-management.yaml CM-10, CM-17, CM-23, CM-24;
+  ADR-0114, ADR-0115 (PR #4068); specs/case-management.yaml CM-10, CM-17, CM-23, CM-24;
   specs/received-status-handling.yaml RSH-08;
   docs/reference/vultron-spec/_participant-lifecycle.md § 11.4
 informed: []
@@ -57,15 +57,19 @@ It keeps the participant's history in the case, expresses removal on the axis it
 
 A participant record carries a stored removal fact.
 The record, its status history and the ledger entries it authored all stay.
-Whether a participant is active is computed by **one case-level check** from stored facts: joined (seated by case initialization, or accepted its stub Invite), not removed, `SIGNATORY` when an embargo is active, and RM not `CLOSED`.
+Whether a participant is active is computed by **one case-level check** from stored facts: joined (seated by case initialization, or accepted its stub Invite), not removed, and `SIGNATORY` when an embargo is active.
 The answer is never stored.
+RM `CLOSED` is not part of the check: the `case_fully_closed` fan-out must still reach a closed replica, and whether a closed participant receives other case content is #4100's question, which this decision leaves open.
 
-The check is a case method, not a participant property. "Is an embargo active" is case state that a participant record cannot see, and a participant-level property covering only part of the answer would read as "active" at a send site and leak embargoed content to a non-signatory.
+The check is a case method, not a participant property.
+"Is an embargo active" is case state that a participant record cannot see, and a participant-level property covering only part of the answer would read as "active" at a send site and leak embargoed content to a non-signatory.
 That is the ambiguity the glossary already flags for "joined participant".
 
 Authority to act on a case requires being active.
 No situation calls for an actor to act on a case whose content it may not see.
 An inert participant's only messages are its replies to the Invites addressed to it, and those answer the Invite; they do not act on the case.
+This is the rule `notes/case-joining.md` § "Authority to act" already records, and ADR-0115 (PR #4068) is deciding for the sender-entitlement checks; removal adds only that a removed participant loses its authority with its content.
+The CASE_MANAGER's authority to commit comes from its role (CLP-09), not from being active.
 
 ### The case publishes `activeParticipants`; `Remove` takes a participant out of it
 
@@ -108,8 +112,8 @@ Removal leaves the participant's embargo consent and `accepted_embargo_ids` unto
 A removed signatory stays bound; releasing it would reward the conduct that got it removed.
 
 A bound participant must learn when its obligation ends or shortens.
-So when the active embargo ends or is replaced by a shorter one, the CASE_MANAGER sends every `SIGNATORY` participant that is not active a direct notice, outside the ledger stream.
-That covers a removed participant and a participant whose RM is `CLOSED` after `Leave` (CM-23-004), who has the same gap today.
+So when the active embargo ends or is replaced by a shorter one, the CASE_MANAGER sends every `SIGNATORY` participant that the ledger fan-out no longer reaches a direct notice, outside the ledger stream.
+That covers a removed participant and a participant whose RM is `CLOSED` after `Leave`, whom CM-23-004's fan-out skips and who has the same gap today.
 The messages are the existing ones:
 
 | Change | Notice |

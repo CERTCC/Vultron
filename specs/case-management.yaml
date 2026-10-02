@@ -847,9 +847,10 @@ groups:
       has accepted the stub Invite
       (`Accept(Invite(Actor, VulnerabilityCaseStub))`), has not been removed
       (CM-31-001), and, only when an embargo is active, its embargo consent is
-      `SIGNATORY`. Every other participant is inert and MUST NOT receive case content: no `CaseLedgerEntry`
-      announcements, no `Announce(VulnerabilityCase)`, no status broadcasts, no
-      embargo announcements (ADR-0114).
+      `SIGNATORY`. Every other participant is inert and MUST NOT receive case
+      content: no `CaseLedgerEntry` announcements, no
+      `Announce(VulnerabilityCase)`, no status broadcasts, no embargo
+      announcements (ADR-0114).
     rationale: >-
       Many cases have no active embargo — one not yet established, or one
       already exited — so "is SIGNATORY" alone cannot be the entitlement test.
@@ -911,9 +912,8 @@ groups:
       A paused participant's replica is a contiguous prefix of the ledger; backfilling the withheld suffix
       in order restores it to the leader's tip without a gap the catch-up gate (SYNC-10-004) would block
       on. Ending the embargo lifts the gate for everyone, so a participant that never accepted it is
-      caught up at that point too. The trigger is the active check itself, not any one message: a
-      participant reinstated into a case whose embargo it has not accepted stays inert, and its
-      backfill waits for its consent (ADR-0116).
+      caught up at that point too. The trigger is the active check itself, not any one message
+      (ADR-0116).
     verification: >-
       A received-side test confirms that when a participant accepts the active embargo, the
       CASE_MANAGER's outbox holds an `Announce(CaseLedgerEntry)` addressed to it for each entry committed
@@ -4433,8 +4433,9 @@ groups:
     kind: architecture
     statement: >-
       Whether a participant is active MUST be computed by one case-level check from stored facts —
-      joined (seated by case initialization or accepted the stub Invite), not removed, `SIGNATORY`
-      when an embargo is active, and RM not `CLOSED` — and MUST NOT be stored. A participant-level
+      the CM-10-004 definition: joined (seated by case initialization or accepted the stub Invite),
+      not removed, and `SIGNATORY` when an embargo is active — and MUST NOT be stored. RM `CLOSED`
+      is not an input (#4100). A participant-level
       property MUST NOT compute a partial answer under a name that reads as "active".
     rationale: >-
       An inferred status that is stored goes stale whenever one of its inputs changes without
@@ -4548,9 +4549,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A replica MUST apply a removal from its ledger entry through a replica apply node reachable from
-      `create_announce_log_entry_tree`, recording the same removal fact the CASE_MANAGER recorded
-      (RSH-08-004). A replica MUST NOT apply a removal from a directly received `Remove(CaseParticipant)`
+      A replica MUST apply a removal from its ledger entry through a replica apply node, recording the
+      same removal fact the CASE_MANAGER recorded (RSH-08-004). A replica MUST NOT apply a removal from a directly received `Remove(CaseParticipant)`
       (RSH-08-003).
     rationale: >-
       Replicas take case state from the ledger. The direct notice tells the removed party what
@@ -4591,8 +4591,9 @@ groups:
     kind: protocol
     statement: >-
       When the active embargo is terminated (including by the case becoming public) or replaced by a
-      shorter revision, the CASE_MANAGER MUST send every `SIGNATORY` participant that is not active —
-      removed (CM-31-001) or RM `CLOSED` (CM-23-004) — a direct notice outside the ledger stream:
+      shorter revision, the CASE_MANAGER MUST send every `SIGNATORY` participant the ledger fan-out
+      does not reach — removed (CM-31-001), or at RM `CLOSED` and skipped by the CM-23-004 fan-out —
+      a direct notice outside the ledger stream:
       `Remove(EmbargoEvent)` for a termination, `Announce(EmbargoEvent)` with the new terms for a
       shorter revision. The notice MUST carry no other case content. No notice is owed for a longer
       revision or for expiry on the agreed date.
@@ -4618,7 +4619,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A participant whose ledger stream is paused MUST apply a CM-31-009 notice sent by the CASE_MANAGER
+      A participant whose ledger stream is paused — withheld under CM-10-005, removed (CM-31-001), or
+      skipped at RM `CLOSED` (CM-23-004) — MUST apply a CM-31-009 notice sent by the CASE_MANAGER
       for the case, and MUST ignore one from any other sender. Replaying the corresponding ledger entry
       after the participant becomes active again MUST change nothing further.
     rationale: >-
@@ -4648,7 +4650,9 @@ groups:
     rationale: >-
       Owners make mistakes and disputes resolve, so removal is reversible. The participant never
       withdrew, so it does not rejoin; `Leave` remains open to it. Joining requires accepting a stub
-      Invite (ADR-0114), and `Add` must not become a way around that.
+      Invite (ADR-0114), and `Add` must not become a way around that. A participant reinstated into a
+      case whose embargo it has not accepted stays inert, and its CM-10-006 backfill waits for its
+      consent.
     verification: >-
       Received-side tests assert the Case Owner's `Add` reinstates a removed participant, and that an
       `Add` naming a never-joined invitee or a participant that is not removed is refused.
