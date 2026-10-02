@@ -110,9 +110,15 @@ Reporter's `submit-report` trigger carries `proposed_embargo_end_time`, the
 Receiver publishes its actor default through `PUT
 /actors/{actor_id}/embargo-policy` (EP-02, #3972), and three runs show the
 Reporter's shorter terms winning, the Receiver's shorter default winning, and
-a Receiver with no default at all. Still no EP/EA message appears on the wire:
-the negotiation is settled at case creation, so a reader distinguishes the
-two paths by whether terms were stated on the Offer, not by the messages.
+a Receiver with no default at all. No proposal exchange precedes the case: the
+comparison is settled at case creation, so a reader distinguishes the two
+paths by whether terms were stated on the Offer. What follows creation is
+EP-04-011's relay of the losing terms to the winner — so when the Receiver's
+default wins, the Receiver (the CASE_OWNER) is invited to the Reporter's
+longer terms, its default response decision accepts, and an owner's
+acceptance activates them: that run settles at `EM.ACTIVE` on the Reporter's
+terms. When the Reporter's terms win, the Reporter's acceptance only records
+consent, and the case stays at `EM.REVISE`.
 
 **EP-04-003 is the two-party instance of a general rule.** Shortest-wins at case
 creation is the same comparison **EP-08-001** states for *N* simultaneously open
