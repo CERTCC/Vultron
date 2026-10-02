@@ -29,6 +29,7 @@ from vultron.config.app import get_config
 from vultron.core.behaviors.case.case_actor_identity import (
     case_actor_identity,
 )
+from vultron.core.behaviors.case.nodes.embargo import creation_time_embargo_id
 from vultron.core.behaviors.store_scope import store_for_actor
 from vultron.core.models._helpers import _as_id, from_now_utc
 from vultron.core.models.case import VulnerabilityCase
@@ -1314,7 +1315,9 @@ def _seed_active_embargo(case_obj, dl) -> None:
         protocol_default=get_config().actor.protocol_default_embargo_duration,
     )
     embargo = EmbargoEvent(
-        context=case_id, end_time=from_now_utc(resolved.duration)
+        id_=creation_time_embargo_id(case_id),
+        context=case_id,
+        end_time=from_now_utc(resolved.duration),
     )
     try:
         dl.create(embargo)

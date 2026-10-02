@@ -192,6 +192,38 @@ groups:
     stories:
     - story_2022_003
     - story_2022_009
+  - id: EP-02-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A publish or replace at `PUT /actors/{actor_id}/embargo-policy` MUST NOT overwrite
+      an update to the actor's profile that was written after the request read it. The
+      write MUST succeed only if the stored profile is still the one the request read;
+      otherwise the request MUST re-read the profile and re-apply its terms, and when the
+      profile keeps changing under it for a bounded number of attempts it MUST be refused
+      with 409 Conflict and MUST write nothing.
+    rationale: >-
+      The policy is a field of the profile (EP-01-001), so a publish rewrites the whole
+      profile, and a plain read-then-save loses a write landing between the two without
+      anyone being told (#4102). Re-applying the terms to a fresh read is safe because a
+      publish changes only the policy field; the bound keeps a profile under continuous
+      write from holding the request open.
+    verification: >-
+      `test/adapters/driving/fastapi/routers/test_actors_embargo_policy.py`
+      (`TestConcurrentProfileWrite`) interleaves a profile write between the PUT's read and
+      its write and confirms both the concurrent update and the published policy are kept,
+      and that a profile changed under every attempt yields 409 with the stored profile
+      untouched. `test/adapters/driven/test_sqlite_save_if_unchanged.py` confirms the
+      store's compare-and-set refuses a stale expected record and a row changed between
+      its own read and write.
+    scope:
+    - production
+    relationships:
+    - rel_type: refines
+      spec_id: EP-02-003
+    stories:
+    - story_2022_003
+    - story_2022_009
 - id: EP-03
   title: Policy Compatibility Evaluation
   specs:

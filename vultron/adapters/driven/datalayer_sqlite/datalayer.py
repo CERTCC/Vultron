@@ -256,6 +256,12 @@ class SqliteDataLayer:
         """Persist a domain object, overwriting any existing record."""
         crud.save(self, obj)
 
+    def save_if_unchanged(
+        self, obj: PersistableModel, expected: PersistableModel
+    ) -> bool:
+        """Replace ``obj.id_``'s record only if it still equals *expected*."""
+        return crud.save_if_unchanged(self, obj, expected)
+
     def save_many(self, objs: list[PersistableModel]) -> None:
         """Persist multiple domain objects in a single atomic transaction.
 

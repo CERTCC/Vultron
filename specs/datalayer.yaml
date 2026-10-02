@@ -65,6 +65,20 @@ groups:
     tags:
     - persistence
     - idempotency
+  - id: DL-02-003
+    priority: MUST
+    kind: project
+    statement: '`dl.save_if_unchanged(obj, expected)` MUST write *obj* only if the stored record with that id still equals
+      *expected* in stored form, checked atomically with the write, and MUST return `False` and write nothing otherwise,
+      including when no record with that id is stored. A replacement whose id differs from *expected*''s MUST raise
+      `ValueError`.'
+    rationale: A read-modify-write through `dl.save()` silently overwrites any write that lands between the read and the
+      save (#4102). The compare-and-set needs no schema change, and the caller decides what a refusal means (EP-02-004
+      re-reads and re-applies). See notes/datalayer-design.md.
+    verification: '`test/adapters/driven/test_sqlite_save_if_unchanged.py` covers an unchanged record, a write before the
+      call, a write between the call''s own read and write on a file-backed store, an absent record, and a mismatched id.'
+    tags:
+    - persistence
 - id: DL-03
   title: Port Isolation
   specs:
