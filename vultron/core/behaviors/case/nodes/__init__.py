@@ -82,7 +82,6 @@ from vultron.core.behaviors.case.nodes.delegation import (
 )
 from vultron.core.behaviors.case.nodes.embargo import (
     AdvanceEMStateToActiveNode,
-    AttachEmbargoToCaseNode,
     CreateEmbargoEventNode,
     SeedOwnerAsSignatoryNode,
 )
@@ -243,7 +242,6 @@ __all__ = [
     "resolve_participant_state_from_dl",
     # embargo (leaf nodes)
     "AdvanceEMStateToActiveNode",
-    "AttachEmbargoToCaseNode",
     "CaseEmbargoAlreadyInitializedNode",
     "CaseNotEmbargoEligibleNode",
     "CreateEmbargoEventNode",

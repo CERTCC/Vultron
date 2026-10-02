@@ -14,8 +14,9 @@
 """Active-embargo EM operations: activate and terminate.
 
 Both operate on ``case.active_embargo`` directly rather than answering an
-invite — activation is the owner's atomic accept at case creation
-(EP-04-002) or a replica's sync of an announced activation, termination is
+invite — activation is a replica's sync of an announced activation (the
+creation-time accept is ``initialize_creation_embargo`` in ``creation.py``,
+one write per EP-04-002), termination is
 the ``ET`` teardown that also resets every participant's consent and decides
 every open proposal (EP-08-004).
 """
