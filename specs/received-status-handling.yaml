@@ -172,6 +172,11 @@ groups:
       authority in `add_case_status_tree` (RSH-04-001, where the sender is the
       CASE_MANAGER). Neither sender is necessarily CASE_OWNER, so a duplicate
       CASE_OWNER gate here would block legitimate teardown on both paths.
+    note: >
+      RSH-03-004's skip for a status the CASE_MANAGER declared is not an
+      authorization gate: it does not decide whether a teardown is allowed,
+      only that a replica leaves the CASE_MANAGER's own teardown to its
+      committed entry.
   - id: RSH-03-003
     priority: MUST
     kind: protocol
@@ -186,6 +191,34 @@ groups:
     verification: Inspection of `vultron/core/behaviors/status/` confirms `PublicDisclosureBranchNode` is absent from
       `add_participant_status_tree` and `ThreatTerminationBranchNode` is present in `add_case_status_tree`.
 
+    stories:
+    - story_2022_081
+  - id: RSH-03-004
+    priority: MUST_NOT
+    kind: protocol
+    statement: >
+      An actor that does not hold `CVDRole.CASE_MANAGER` MUST NOT ask the
+      CASE_MANAGER for an embargo teardown when the P/X/A status that
+      triggered `ThreatTerminationBranchNode` was declared by the
+      CASE_MANAGER; it waits for the CASE_MANAGER's committed teardown entry
+      (EP-09-007).
+    rationale: >
+      The CASE_MANAGER tears down on its own P/X/A detection, commits the
+      teardown and declares the new status. The declaration can reach a
+      replica before the teardown entries do, and the replica would then ask
+      the CASE_MANAGER to do what it has already done (one ET, or one ER per
+      proposal), each answered with a refusal (#4149).
+    verification: >
+      `test/core/behaviors/status/test_add_case_status_bt.py` runs
+      `ThreatTerminationBranchNode` on a replica that still holds the active
+      embargo or the open proposal, with the CASE_MANAGER as sender, and
+      asserts nothing is queued; with another sender the terminate ask is
+      still queued.
+    relationships:
+    - rel_type: refines
+      spec_id: RSH-03-001
+    - rel_type: depends_on
+      spec_id: EP-09-008
     stories:
     - story_2022_081
 - id: RSH-04

@@ -21,7 +21,6 @@ from nodes.lifecycle.
 Per DEMOMA-07-003 steps 4–5.
 """
 
-from typing import cast
 from unittest.mock import MagicMock
 
 import py_trees
@@ -41,7 +40,6 @@ from vultron.core.behaviors.status.nodes.lifecycle import (
     _PublicDisclosureSkipConditionNode,
 )
 from vultron.core.models._helpers import days_from_now_utc
-from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import (
@@ -313,9 +311,9 @@ class TestPublicDisclosureBranchNodeProposedEmPath:
 
     Per EMB-16-001 the BranchNode routes to reject_proposed_embargo_bt (not
     terminate_embargo_bt).  Abandoning the proposal writes shared EM state,
-    so only the CASE_MANAGER makes it (EP-09-008, #4131): the owner's run
-    asks the manager with an ER, and the manager's run drives EM
-    ``PROPOSED → NONE``.  Each run executes in its own actor's store.
+    so only the CASE_MANAGER makes it (EP-09-008, #4131): the manager's run
+    drives EM ``PROPOSED → NONE``, and the owner's run writes and sends
+    nothing (EMB-16-002, #4148).  Each run executes in its own actor's store.
     """
 
     def _setup(
@@ -386,12 +384,9 @@ class TestPublicDisclosureBranchNodeProposedEmPath:
         assert updated_case.current_status.em.state == EM.NONE
         assert updated_case.proposed_embargo_ids == []
 
-    @pytest.mark.spec("EMB-16-001")
+    @pytest.mark.spec("EMB-16-002")
     @pytest.mark.spec("EP-09-008")
-    @pytest.mark.spec("PCR-08-001")
-    def test_the_owner_asks_the_case_manager_and_writes_no_em_state(
-        self, public_aware_status
-    ):
+    def test_the_owner_writes_and_sends_nothing(self, public_aware_status):
         dl, bridge, node = self._setup(public_aware_status)
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
@@ -399,10 +394,8 @@ class TestPublicDisclosureBranchNodeProposedEmPath:
         updated_case = dl.read(CASE_ID)
         assert isinstance(updated_case, VulnerabilityCase)
         assert updated_case.current_status.em.state == EM.PROPOSED
-        queued = [cast(VultronActivity, dl.read(i)) for i in dl.outbox_list()]
-        assert [(a.type_, a.to) for a in queued] == [
-            ("Reject", [CASE_MANAGER_ID])
-        ]
+        assert updated_case.proposed_embargo_ids == [EMBARGO_ID]
+        assert dl.outbox_list() == []
 
 
 # ---------------------------------------------------------------------------

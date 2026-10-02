@@ -34,9 +34,10 @@ from vultron.core.behaviors.embargo.nodes import (
     CommitEmbargoAbandonmentNode,
     CommitEmbargoDecisionNode,
     CommitEmbargoTeardownNode,
+    LeaveAbandonmentToCaseManagerNode,
     ProposeEmbargoLifecycleNode,
+    ReadOpenEmbargoProposalsNode,
     RejectEmbargoLifecycleNode,
-    SendAbandonmentRejectsNode,
     TerminateEmbargoLifecycleNode,
 )
 from vultron.core.behaviors.embargo.trigger_tree import (
@@ -203,17 +204,23 @@ class TestRejectProposedEmbargoBt:
             CommitEmbargoAbandonmentNode,
         )
 
-    def test_non_manager_arm_only_asks_the_manager(self, result_out):
+    @pytest.mark.spec("EMB-16-002")
+    def test_non_manager_arm_neither_writes_nor_asks(self, result_out):
         tree = reject_proposed_embargo_bt(
             case_id=CASE_ID,
             result_out=result_out,
         )
         other = _arm(tree, "AskCaseManager")
-        assert any(isinstance(n, SendAbandonmentRejectsNode) for n in other)
-        manager = _arm(tree, "AsCaseManager")
+        assert any(
+            isinstance(n, LeaveAbandonmentToCaseManagerNode) for n in other
+        )
         assert not any(
-            isinstance(n, SendAbandonmentRejectsNode) for n in manager
-        ), "the manager commits its ER; it never mails it (CLP-10-001)"
+            isinstance(n, ReadOpenEmbargoProposalsNode) for n in other
+        ), "only the manager reads the proposals it answers"
+        manager = _arm(tree, "AsCaseManager")
+        assert any(
+            isinstance(n, ReadOpenEmbargoProposalsNode) for n in manager
+        )
 
 
 @pytest.mark.spec("RSH-04-002")

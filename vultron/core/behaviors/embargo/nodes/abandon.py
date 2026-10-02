@@ -21,18 +21,22 @@ every open proposal is abandoned and EM returns to ``NONE``.  Abandoning
 writes shared EM state, so only the CASE_MANAGER makes it (EP-09-008,
 BT-17-001):
 
-- :class:`ReadOpenEmbargoProposalsNode` maps each open proposal to the
-  Invite that proposed it before anything moves.  The ER the wire carries
-  is a ``Reject`` of that Invite (MSM-02-006), so a proposal with no indexed
-  Invite cannot be answered and the tree fails closed.
-- As the CASE_MANAGER, :class:`AbandonEmbargoProposalsLifecycleNode` writes
-  the abandonment through ``EmbargoLifecycle``, and
-  :class:`CommitEmbargoAbandonmentNode` commits one ER per proposal as a
-  ledger entry of its own event type, addressed to nobody: the manager never
-  mails itself (CLP-10-001, ADR-0109), and every replica learns the decision
-  from the entry (EP-09-009).
-- As any other participant, :class:`SendAbandonmentRejectsNode` queues its
-  ER for each proposal to the CASE_MANAGER and writes nothing (PCR-08-001).
+- As the CASE_MANAGER, :class:`ReadOpenEmbargoProposalsNode` maps each open
+  proposal to the Invite that proposed it before anything moves.  The ER the
+  wire carries is a ``Reject`` of that Invite (MSM-02-006), so a proposal
+  with no indexed Invite cannot be answered and the tree fails closed.
+  :class:`AbandonEmbargoProposalsLifecycleNode` then writes the abandonment
+  through ``EmbargoLifecycle``, and :class:`CommitEmbargoAbandonmentNode`
+  commits one ER per proposal as a ledger entry of its own event type,
+  addressed to nobody: the manager never mails itself (CLP-10-001,
+  ADR-0109), and every replica learns the decision from the entry
+  (EP-09-009).
+- Any other participant sends nothing (EMB-16-002, #4148):
+  :class:`LeaveAbandonmentToCaseManagerNode` succeeds without a write or an
+  ask.  Its P/X/A signal already reached the manager as its status
+  declaration, and the manager abandons on its own detection.  An ER from it
+  would be read as that participant declining the proposal (MSM-07-004),
+  which nobody decided.
 - On a replica, :class:`ApplyEmbargoAbandonmentFromLedgerNode` replays an
   entry in ``OBSERVED`` mode (EP-09-007, RSH-08-004).  The replica drops the
   proposal because the entry is the manager's committed decision, not
@@ -58,7 +62,6 @@ from vultron.core.behaviors.embargo.nodes.relay_effect import (
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
-    _EmitSingleActivityBase,
 )
 from vultron.core.behaviors.narrative_log import log_em_transition
 from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
@@ -92,8 +95,7 @@ def _read_proposals(node: DataLayerActionWithPorts) -> dict[str, str]:
 class ReadOpenEmbargoProposalsNode(DataLayerActionWithPorts):
     """Map every open proposal of the case to the Invite that proposed it.
 
-    Read-only; runs before the role split, so both arms answer the same
-    proposals.  Writes ``{embargo_id: invite_id}``, in the case's record
+    Read-only; the first node of the CASE_MANAGER's arm.  Writes ``{embargo_id: invite_id}``, in the case's record
     order, to ``/abandoned_proposals`` — an empty map first, so a reader never
     sees a stale value.  FAILURE, before anything moves, when the case has no
     open proposal or an open proposal names no Invite in
@@ -237,71 +239,27 @@ class CommitEmbargoAbandonmentNode(_CommitEmbargoDecisionBase):
         ]
 
 
-class SendAbandonmentRejectsNode(_EmitSingleActivityBase):
-    """Queue this participant's ER for each abandoned proposal to the manager.
+class LeaveAbandonmentToCaseManagerNode(DataLayerActionWithPorts):
+    """The non-CASE_MANAGER arm of the abandonment: write nothing, ask nothing.
 
-    The non-CASE_MANAGER arm writes no EM state; it asks the CASE_MANAGER
-    instead (EP-09-008, PCR-08-001).  It answers several proposals at once,
-    so it overrides the one-activity ``update()`` frame and queues each ER
-    through the shared ``_emit_through_seam`` (OX-14-001).  Reads
-    ``/case_manager_id`` from ``ResolveCaseManagerNode``.
-    FAILURE when the factory is unavailable or a factory call or outbox write
-    raises (BT-14-001).
+    A participant that is not the CASE_MANAGER writes no shared EM state
+    (EP-09-008), and it sends no ER either (EMB-16-002, #4148).  The P/X/A
+    status that brought it here is its own declaration to the manager, or
+    the manager's declaration to it, so the manager has the signal and
+    abandons on its own detection.  An ER would reach the manager as this
+    participant declining the proposal (MSM-07-004).  Its replica moves when
+    the manager's abandonment entry is replayed (EP-09-007).  Always SUCCESS.
     """
-
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **_EmitSingleActivityBase.INPUT_PORTS,
-        **_PROPOSALS_PORT,
-        "case_manager_id": PortInformation(data_type=str, required=True),
-    }
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {**_PROPOSALS_REMAP, "case_manager_id": "/case_manager_id"}
 
     def __init__(self, case_id: str, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
 
-    def initialise(self) -> None:
-        super().initialise()
-        self._proposals = _read_proposals(self)
-        self._case_manager_id: str = self.get_input("case_manager_id")
-
     def update(self) -> Status:
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        if (f := self._require_factory()) is not None:
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return f
-        assert self.datalayer is not None
-        assert self.actor_id is not None
-        assert self.trigger_activity_factory is not None
-
-        queued: list[str] = []
-        for invite_id in self._proposals.values():
-            try:
-                activity_id, blob = (
-                    self.trigger_activity_factory.reject_embargo(
-                        proposal_id=invite_id,
-                        case_id=self._case_id,
-                        actor=self.actor_id,
-                        to=[self._case_manager_id],
-                    )
-                )
-                self._emit_through_seam(activity_id, blob)
-            except Exception as exc:  # noqa: BLE001  # ruff-baseline #3768
-                self.feedback_message = (
-                    f"ER for Invite '{invite_id}' on case '{self._case_id}'"
-                    f" was not queued: {exc}"
-                )
-                self.logger.warning("%s: %s", self.name, self.feedback_message)
-                return Status.FAILURE
-            queued.append(activity_id)
-
         self.feedback_message = (
-            f"Queued {len(queued)} ER(s) to CASE_MANAGER"
-            f" '{self._case_manager_id}' for case '{self._case_id}'"
+            f"not the CASE_MANAGER of case '{self._case_id}': the manager"
+            " abandons the open proposals on its own P/X/A detection, so"
+            " nothing is written or sent here (EMB-16-002)"
         )
         self.logger.info("%s: %s", self.name, self.feedback_message)
         return Status.SUCCESS
@@ -369,6 +327,6 @@ __all__ = [
     "AbandonEmbargoProposalsLifecycleNode",
     "ApplyEmbargoAbandonmentFromLedgerNode",
     "CommitEmbargoAbandonmentNode",
+    "LeaveAbandonmentToCaseManagerNode",
     "ReadOpenEmbargoProposalsNode",
-    "SendAbandonmentRejectsNode",
 ]

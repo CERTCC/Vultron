@@ -1264,19 +1264,80 @@ class TestThreatTerminationBranchNode:
         assert updated.active_embargo is None
 
     @pytest.mark.spec("RSH-03-002")
-    def test_no_sender_role_gate(self):
-        """RSH-03-002: teardown never consults the sender's role.
+    def test_no_sender_role_gate(self, dl):
+        """RSH-03-002: a sender holding no role still triggers the teardown.
 
-        The branch is built from the status and the case alone — it is given
-        no sender to gate on — so whoever declared the status, a threat
-        signal tears the embargo down; sender authorization was handled at
-        StatusAdoptionGate.  (The *executing* actor's role is a separate
-        question: see the non-manager test below.)
+        Sender authorization was handled at StatusAdoptionGate.  The sender
+        matters only for RSH-03-004, when it is the CASE_MANAGER itself.
         """
-        import inspect
+        status_obj = self._setup_dl_with_embargo(dl, CS_pxa.Pxa)
+        bridge = BTBridge(
+            datalayer=dl,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        )
+        node = ThreatTerminationBranchNode(
+            status_obj=status_obj,
+            case_id=CASE_ID,
+            sender_actor_id="https://example.org/users/no-role",
+        )
+        bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
 
-        params = inspect.signature(ThreatTerminationBranchNode).parameters
-        assert not any("sender" in p or "actor" in p for p in params)
+        updated = cast(VulnerabilityCase, dl.read(CASE_ID))
+        assert updated.current_status.em.state == EM.EXITED
+
+    def _run_replica(
+        self, dl, status_obj, sender: str
+    ) -> py_trees.common.Status:
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        )
+        node = ThreatTerminationBranchNode(
+            status_obj=status_obj, case_id=CASE_ID, sender_actor_id=sender
+        )
+        return bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID).status
+
+    @pytest.mark.spec("RSH-03-004")
+    def test_a_replica_waits_for_the_managers_teardown_entry(self, dl):
+        """The manager's P/X/A declaration arrives before its teardown entry.
+
+        The replica still holds the active embargo, and it asks nothing:
+        the manager has already torn down (#4149).
+        """
+        status_obj = self._setup_dl_with_embargo(
+            dl, CS_pxa.Pxa, manager_id=CASE_MANAGER_ID
+        )
+
+        status = self._run_replica(dl, status_obj, sender=CASE_MANAGER_ID)
+
+        assert status == Status.SUCCESS
+        assert dl.outbox_list() == []
+        updated = cast(VulnerabilityCase, dl.read(CASE_ID))
+        assert updated.current_status.em.state == EM.ACTIVE
+
+    @pytest.mark.spec("RSH-03-004")
+    @pytest.mark.spec("EP-09-008")
+    def test_a_replica_still_asks_on_a_status_the_manager_did_not_declare(
+        self, dl
+    ):
+        status_obj = self._setup_dl_with_embargo(
+            dl, CS_pxa.Pxa, manager_id=CASE_MANAGER_ID
+        )
+
+        status = self._run_replica(
+            dl, status_obj, sender="https://example.org/users/peer"
+        )
+
+        assert status == Status.SUCCESS
+        queued = [cast(VultronActivity, dl.read(i)) for i in dl.outbox_list()]
+        assert [a.to for a in queued] == [[CASE_MANAGER_ID]]
 
     @pytest.mark.spec("EP-09-008")
     def test_non_manager_receiver_asks_instead_of_tearing_down(self, dl):
@@ -1314,11 +1375,12 @@ PROPOSED_EMBARGO_ID = f"{CASE_ID}/embargo_events/p1"
 class TestThreatTerminationBranchNodeProposedEm:
     """EMB-16-001: a P/X/A signal while EM is ``PROPOSED`` abandons the
     open proposals.  Only the CASE_MANAGER writes EM (EP-09-008, #4131);
-    any other receiver asks the manager.  Each run uses its actor's store.
+    any other receiver writes and sends nothing (EMB-16-002, #4148).  Each
+    run uses its actor's store.
     """
 
     def _setup(
-        self, store_actor: str
+        self, store_actor: str, sender: str | None = None
     ) -> tuple[SqliteDataLayer, BTBridge, ThreatTerminationBranchNode]:
         from vultron.adapters.driven.trigger_activity_adapter import (
             TriggerActivityAdapter,
@@ -1360,7 +1422,7 @@ class TestThreatTerminationBranchNodeProposedEm:
             sync_port=SyncActivityAdapter(dl),
         )
         node = ThreatTerminationBranchNode(
-            status_obj=status_obj, case_id=CASE_ID
+            status_obj=status_obj, case_id=CASE_ID, sender_actor_id=sender
         )
         return dl, bridge, node
 
@@ -1376,10 +1438,16 @@ class TestThreatTerminationBranchNodeProposedEm:
         assert updated.current_status.em.state == EM.NONE
         assert updated.proposed_embargo_ids == []
 
-    @pytest.mark.spec("EMB-16-001")
-    @pytest.mark.spec("EP-09-008")
-    def test_a_non_manager_asks_the_case_manager_and_writes_no_em(self):
-        dl, bridge, node = self._setup(ACTOR_ID)
+    @pytest.mark.spec("EMB-16-002")
+    @pytest.mark.spec("RSH-03-004")
+    @pytest.mark.parametrize(
+        "sender", [None, CASE_MANAGER_ID], ids=["undeclared", "by-manager"]
+    )
+    def test_a_non_manager_writes_and_sends_nothing(self, sender):
+        """Whoever declared the status, a non-manager neither abandons nor
+        asks; with the manager as sender the out-of-order arrival skips the
+        branch before it is reached (#4149)."""
+        dl, bridge, node = self._setup(ACTOR_ID, sender=sender)
 
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
 
@@ -1387,10 +1455,12 @@ class TestThreatTerminationBranchNodeProposedEm:
         updated = cast(VulnerabilityCase, dl.read(CASE_ID))
         assert updated.current_status.em.state == EM.PROPOSED
         assert updated.proposed_embargo_ids == [PROPOSED_EMBARGO_ID]
-        queued = [cast(VultronActivity, dl.read(i)) for i in dl.outbox_list()]
-        assert [(a.type_, a.to) for a in queued] == [
-            ("Reject", [CASE_MANAGER_ID])
-        ]
+        assert dl.outbox_list() == []
+        skip = next(
+            c for c in node.children if c.name == "DeclaredByCaseManager"
+        )
+        expected = Status.SUCCESS if sender else Status.FAILURE
+        assert skip.status == expected
 
 
 # ---------------------------------------------------------------------------

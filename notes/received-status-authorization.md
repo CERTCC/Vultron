@@ -497,6 +497,14 @@ is dropped: authorization already occurred at StatusAdoptionGate. By the time
 `ThreatTerminationBranchNode` runs, the canonical state write has been
 authorized.
 
+One skip is not an authorization check: when the status was declared by the
+CASE_MANAGER and the executing actor is someone else, the branch does nothing
+(`_DeclaredByCaseManagerNode`, RSH-03-004, #4149). The CASE_MANAGER tore down
+on its own detection before declaring the status, so the replica waits for the
+committed teardown entry instead of asking for what is already done. The
+abandonment arm itself writes and sends nothing at a non-manager
+(EMB-16-002, #4148); see [embargo-lifecycle.md](embargo-lifecycle.md).
+
 This node is the enforcement mechanism for CSB-18-002, CSB-18-003, and
 CSB-18-004 (PXA↔EM cross-machine entailment). When `EmbargoTeardownAuthorizationGate`
 permits teardown, the embargo terminates and the invariant is satisfied.

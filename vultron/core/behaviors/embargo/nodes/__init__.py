@@ -23,8 +23,8 @@ from vultron.core.behaviors.embargo.nodes.abandon import (
     AbandonEmbargoProposalsLifecycleNode,
     ApplyEmbargoAbandonmentFromLedgerNode,
     CommitEmbargoAbandonmentNode,
+    LeaveAbandonmentToCaseManagerNode,
     ReadOpenEmbargoProposalsNode,
-    SendAbandonmentRejectsNode,
 )
 from vultron.core.behaviors.embargo.nodes.cascade import (
     PersistEmbargoEventNode,
@@ -145,7 +145,7 @@ __all__ = [
     "ReadOpenEmbargoProposalsNode",
     "AbandonEmbargoProposalsLifecycleNode",
     "CommitEmbargoAbandonmentNode",
-    "SendAbandonmentRejectsNode",
+    "LeaveAbandonmentToCaseManagerNode",
     "ApplyEmbargoAbandonmentFromLedgerNode",
     "case_manager_admits_proposal_guard",
     # Proposal

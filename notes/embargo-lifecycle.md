@@ -13,7 +13,9 @@ description: >
   embargo its store cannot read (EMB-18-003); and the trigger write gate under
   which only the CASE_MANAGER writes and commits shared EM state while any
   other participant asks (EP-09-008, SYNC-11-002, EMB-19-001), including
-  the P/X/A abandonment of every open proposal (EMB-16-001).
+  the P/X/A abandonment of every open proposal (EMB-16-001), which a
+  non-manager neither writes nor asks for (EMB-16-002), and the replica that
+  leaves a CASE_MANAGER-declared teardown to its entry (RSH-03-004).
 related_specs:
   - specs/case-management.yaml
   - specs/embargo-policy.yaml
@@ -254,7 +256,7 @@ depend on the current EM state:
 - **EM PROPOSED** → `reject_proposed_embargo_bt`. EMB-16-001: continuing to
   negotiate a proposed embargo after P/X/A is set is not viable, so every open
   proposal is abandoned (EM → NONE). Only the CASE_MANAGER writes; anyone else
-  asks it with one ER per proposal (see the write gate below).
+  writes and sends nothing (EMB-16-002; see the write gate below).
 - **EM NONE or EXITED** → skip (nothing to tear down).
 
 Prior to the fix in issue #1892, the skip condition used
@@ -516,6 +518,16 @@ embargo, else abandon the open proposals with `reject_proposed_embargo_bt`
 (EMB-16-001, #4145). Ratchet:
 `test/architecture/test_embargo_trigger_writes_are_case_manager_gated.py`.
 
+**A replica never asks for a teardown the CASE_MANAGER declared** (RSH-03-004,
+issue #4149). The manager tears down on its own P/X/A detection and declares the
+new status, and the declaration can reach a replica before the teardown
+entries do. `ThreatTerminationBranchNode` is given the status's sender, and
+`_DeclaredByCaseManagerNode` skips the branch when that sender holds the
+CASE_MANAGER role and is not the executing actor: the replica waits for the
+entry instead of asking for what is already done. This is not a sender-role
+authorization gate (RSH-03-002); a status from anyone else still runs the
+branch.
+
 **The P/X/A abandonment decides every open proposal (EMB-16-001, #4131).**
 `P → N` leaves nothing open, so the earliest-expiring order of EP-08-002 does
 not apply: the CASE_MANAGER drops every proposal
@@ -526,10 +538,20 @@ entry is addressed to nobody: every replica learns it from the ledger, whose
 `EmbargoAbandonment` announce slot drops the proposal in OBSERVED mode
 (`ApplyEmbargoAbandonmentFromLedgerNode`). The replica does not repeat the
 owner check a received `Reject` makes: the entry is the manager's decision,
-as a teardown already decides every open proposal (EP-08-004). A
-non-manager asks with one `Reject` per proposal to the manager, which needs
-each proposal's Invite from `pending_embargo_proposal_index`. A replica that
-holds the proposal but not its Invite id fails closed and asks nothing.
+as a teardown already decides every open proposal (EP-08-004). Only the
+manager reads each proposal's Invite from `pending_embargo_proposal_index`,
+and a proposal with none fails its run closed before anything moves.
+
+**A non-manager sends no ER for the abandonment (EMB-16-002, #4148).** Its
+P/X/A signal already reaches the CASE_MANAGER as its status declaration, and
+the manager abandons on that detection. A `Reject(Invite)` from the
+participant would arrive as an ordinary ER, which the manager reads as that
+participant declining the proposal (MSM-07-004) — a decline nobody made — and
+which would not make the manager abandon anything. So the non-manager arm
+(`LeaveAbandonmentToCaseManagerNode`) writes and sends nothing, and the
+participant's replica moves when the manager's entry is replayed. EMB-16-001's
+"emit ER" is met by the manager's committed entries, as EP-09-009 makes the
+manager's commit the EK.
 Participant self-status (RM) keeps its local write — the participant is the
 authority on its own progress. ADR-0108 was amended to match.
 

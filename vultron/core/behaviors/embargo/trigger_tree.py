@@ -59,6 +59,7 @@ from vultron.core.behaviors.embargo.nodes import (
     HasActiveEmbargoNode,
     IndexOwnEmbargoProposalNode,
     IsProposedEmbargoNode,
+    LeaveAbandonmentToCaseManagerNode,
     PersistEmbargoEventNode,
     ProposeEmbargoLifecycleNode,
     ReadEmbargoIdNode,
@@ -66,7 +67,6 @@ from vultron.core.behaviors.embargo.nodes import (
     ReadOpenEmbargoProposalsNode,
     RejectEmbargoLifecycleNode,
     RelayEmbargoInviteToEachNode,
-    SendAbandonmentRejectsNode,
     SendTerminateEmbargoActivityNode,
     TerminateEmbargoLifecycleNode,
     ValidateEmbargoProposalStateNode,
@@ -361,16 +361,17 @@ def reject_proposed_embargo_bt(
     ordering of :func:`terminate_embargo_bt`:
 
     1. ``ReadEmStateNode`` / ``IsProposedEmbargoNode`` — EM must be PROPOSED.
-    2. ``ReadOpenEmbargoProposalsNode`` — map each open proposal to the Invite
-       its ER answers; FAILURE before anything moves when one has none.
-    3. ``ResolveCaseManagerNode`` — routing guard; FAILURE = no state change.
-    4. As the CASE_MANAGER (EP-09-008): ``AbandonEmbargoProposalsLifecycleNode``
+    2. ``ResolveCaseManagerNode`` — routing guard; FAILURE = no state change.
+    3. As the CASE_MANAGER (EP-09-008): ``ReadOpenEmbargoProposalsNode`` maps
+       each open proposal to the Invite its ER answers (FAILURE before
+       anything moves when one has none), ``AbandonEmbargoProposalsLifecycleNode``
        drives ``PROPOSED → NONE``, then one ER per proposal is committed as an
        ``EMBARGO_ABANDONMENT_EVENT_TYPE`` entry the ``EmbargoAbandonment``
        slot replays (EP-09-007), addressed to nobody (CLP-10-001), then the
        ``Add(CaseStatus)`` declaration.
-    5. As any other participant: no EM write; one ER per proposal is queued
-       to the CASE_MANAGER as a request (PCR-08-001).
+    4. As any other participant: no EM write and no ask (EMB-16-002, #4148).
+       The manager has the P/X/A signal from the status declaration and
+       abandons on its own detection; an ER would read as a DECLINE.
     """
     return py_trees.composites.Sequence(
         name="RejectProposedEmbargoBT",
@@ -378,19 +379,19 @@ def reject_proposed_embargo_bt(
         children=[
             ReadEmStateNode(case_id=case_id, result_out=result_out),
             IsProposedEmbargoNode(case_id=case_id, result_out=result_out),
-            ReadOpenEmbargoProposalsNode(case_id=case_id),
             ResolveCaseManagerNode(case_id=case_id),
             *_by_role(
                 "AbandonProposedEmbargo",
                 case_id,
                 as_case_manager=[
+                    ReadOpenEmbargoProposalsNode(case_id=case_id),
                     AbandonEmbargoProposalsLifecycleNode(
                         case_id=case_id, result_out=result_out
                     ),
                     CommitEmbargoAbandonmentNode(case_id=case_id),
                     _make_emit_node(case_id),
                 ],
-                otherwise=[SendAbandonmentRejectsNode(case_id=case_id)],
+                otherwise=[LeaveAbandonmentToCaseManagerNode(case_id=case_id)],
             ),
         ],
     )

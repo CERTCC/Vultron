@@ -15,9 +15,9 @@
 
 ``reject_proposed_embargo_bt`` abandons every open proposal once P/X/A is
 set while EM is ``PROPOSED`` (EMB-16-001).  The EM write and the commit run
-only as the CASE_MANAGER (EP-09-008, BT-17-001); any other participant asks
-the manager and writes nothing.  Each test runs in the executing actor's own
-store (BT-05-005).
+only as the CASE_MANAGER (EP-09-008, BT-17-001); any other participant
+writes nothing and sends nothing (EMB-16-002, #4148).  Each test runs in the
+executing actor's own store (BT-05-005).
 """
 
 from typing import cast
@@ -54,20 +54,29 @@ from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.em import EM
+from vultron.core.states.participant_embargo_consent import PEC
 from vultron.wire.as2.factories import em_propose_embargo_activity
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 
 def _proposed_case(
-    suffix: str, days: tuple[int, ...] = (60, 15), *, indexed: bool = True
+    suffix: str,
+    days: tuple[int, ...] = (60, 15),
+    *,
+    indexed: bool = True,
+    consent: PEC = PEC.SIGNATORY,
 ) -> tuple[VulnerabilityCase, SqliteDataLayer, dict[str, str]]:
     """A PROPOSED case in the CASE_MANAGER's store with open proposals.
 
     Returns the case, the store and ``{embargo_id: invite_id}`` in record
-    order.  With *indexed* false no proposal names its Invite.
+    order.  With *indexed* false no proposal names its Invite.  Every
+    participant's consent is *consent*.
     """
-    case, _cm, dl = make_case_with_manager(suffix, em_state=EM.PROPOSED)
+    case, _cm, dl = make_case_with_manager(
+        suffix, em_state=EM.PROPOSED, other_consent=consent
+    )
     case = cast(VulnerabilityCase, dl.read(case.id_))
     case.active_embargo = None
     proposals: dict[str, str] = {}
@@ -180,10 +189,26 @@ def test_the_manager_queues_nothing_to_itself():
     )
 
 
+def _consents(dl: SqliteDataLayer, case_id: str) -> dict[str, PEC]:
+    stored = cast(VulnerabilityCase, dl.read(case_id))
+    return {
+        actor: cast(CaseParticipant, dl.read(pid)).embargo_consent_state
+        for actor, pid in stored.actor_participant_index.items()
+    }
+
+
+@pytest.mark.spec("EMB-16-002")
 @pytest.mark.spec("EP-09-008")
-@pytest.mark.spec("PCR-08-001")
-def test_a_non_manager_asks_the_manager_and_writes_nothing():
-    case, manager_dl, proposals = _proposed_case("abandon-ask")
+@pytest.mark.parametrize("indexed", [True, False])
+def test_a_non_manager_neither_writes_nor_asks(indexed: bool):
+    """The manager abandons on its own P/X/A detection (#4148).
+
+    Not even an unanswerable proposal (no indexed Invite) fails the arm:
+    only the manager reads the proposals, because only it answers them.
+    """
+    case, manager_dl, proposals = _proposed_case(
+        f"abandon-quiet-{indexed}", indexed=indexed
+    )
     dl = _replica_of(manager_dl, case, proposals, OTHER_PARTICIPANT_ACTOR)
 
     assert _run(dl, case.id_, OTHER_PARTICIPANT_ACTOR) == Status.SUCCESS
@@ -191,31 +216,37 @@ def test_a_non_manager_asks_the_manager_and_writes_nothing():
     updated = cast(VulnerabilityCase, dl.read(case.id_))
     assert updated.current_status.em.state == EM.PROPOSED
     assert updated.proposed_embargo_ids == list(proposals)
-    queued = _queued(dl)
-    assert [(a.type_, a.to) for a in queued] == [
-        ("Reject", [CASE_MANAGER_ACTOR])
-    ] * len(proposals)
+    assert _queued(dl) == []
     assert committed_event_types(dl, case.id_) == []
 
 
-@pytest.mark.spec("EMB-18-003")
-@pytest.mark.parametrize(
-    "actor_id", [CASE_MANAGER_ACTOR, OTHER_PARTICIPANT_ACTOR]
-)
-def test_a_proposal_naming_no_invite_fails_before_anything_moves(
-    actor_id: str,
-):
-    """No ER can answer a proposal with no Invite (MSM-02-006)."""
-    case, manager_dl, proposals = _proposed_case(
-        f"abandon-unindexed-{actor_id.rsplit('/', 1)[-1]}", indexed=False
-    )
-    dl = (
-        manager_dl
-        if actor_id == CASE_MANAGER_ACTOR
-        else _replica_of(manager_dl, case, proposals, actor_id)
-    )
+@pytest.mark.spec("EMB-16-002")
+@pytest.mark.spec("MSM-07-004")
+def test_the_abandonment_declines_nobody():
+    """No participant ends up DECLINED: nobody sent an ER (#4148).
 
-    assert _run(dl, case.id_, actor_id) == Status.FAILURE
+    The non-manager queues no ``Reject`` the manager could read as a
+    decline, and the manager's own abandonment changes no consent.
+    """
+    case, manager_dl, proposals = _proposed_case(
+        "abandon-consent", consent=PEC.INVITED
+    )
+    replica = _replica_of(manager_dl, case, proposals, OTHER_PARTICIPANT_ACTOR)
+    before = _consents(manager_dl, case.id_)
+
+    assert _run(replica, case.id_, OTHER_PARTICIPANT_ACTOR) == Status.SUCCESS
+    assert not any(a.type_ == "Reject" for a in _queued(replica))
+    assert _run(manager_dl, case.id_, CASE_MANAGER_ACTOR) == Status.SUCCESS
+
+    assert _consents(manager_dl, case.id_) == before
+
+
+@pytest.mark.spec("EMB-18-003")
+def test_a_proposal_naming_no_invite_fails_before_anything_moves():
+    """No ER can answer a proposal with no Invite (MSM-02-006)."""
+    case, dl, proposals = _proposed_case("abandon-unindexed", indexed=False)
+
+    assert _run(dl, case.id_, CASE_MANAGER_ACTOR) == Status.FAILURE
 
     updated = cast(VulnerabilityCase, dl.read(case.id_))
     assert updated.current_status.em.state == EM.PROPOSED
@@ -273,78 +304,3 @@ def test_read_names_the_proposal_with_no_invite():
     assert _tick(node) == Status.FAILURE
     for embargo_id in proposals:
         assert embargo_id in node.feedback_message
-
-
-# ---------------------------------------------------------------------------
-# SendAbandonmentRejectsNode failure paths (BT-14-001)
-# ---------------------------------------------------------------------------
-
-
-class _RaisingRejectFactory(TriggerActivityAdapter):
-    """A factory whose ``reject_embargo`` always raises."""
-
-    def reject_embargo(self, *args, **kwargs):  # type: ignore[override]
-        raise RuntimeError("factory down")
-
-
-def _run_asking(dl: SqliteDataLayer, case_id: str, factory) -> Status:
-    bridge = BTBridge(
-        datalayer=dl,
-        trigger_activity=factory,
-        wire_render_port=As2WireRenderAdapter(),
-        sync_port=SyncActivityAdapter(dl),
-    )
-    tree = reject_proposed_embargo_bt(case_id=case_id, result_out={})
-    return bridge.execute_with_setup(
-        tree, actor_id=OTHER_PARTICIPANT_ACTOR
-    ).status
-
-
-def _assert_nothing_moved(
-    dl: SqliteDataLayer, case_id: str, proposals: dict[str, str]
-) -> None:
-    updated = cast(VulnerabilityCase, dl.read(case_id))
-    assert updated.current_status.em.state == EM.PROPOSED
-    assert updated.proposed_embargo_ids == list(proposals)
-    assert committed_event_types(dl, case_id) == []
-
-
-@pytest.mark.spec("BT-14-001")
-def test_the_ask_fails_without_an_activity_factory():
-    case, manager_dl, proposals = _proposed_case("abandon-ask-nofactory")
-    dl = _replica_of(manager_dl, case, proposals, OTHER_PARTICIPANT_ACTOR)
-
-    assert _run_asking(dl, case.id_, None) == Status.FAILURE
-
-    _assert_nothing_moved(dl, case.id_, proposals)
-    assert _queued(dl) == []
-
-
-@pytest.mark.spec("BT-14-001")
-def test_the_ask_fails_when_the_factory_raises():
-    case, manager_dl, proposals = _proposed_case("abandon-ask-raise")
-    dl = _replica_of(manager_dl, case, proposals, OTHER_PARTICIPANT_ACTOR)
-
-    status = _run_asking(dl, case.id_, _RaisingRejectFactory(dl))
-
-    assert status == Status.FAILURE
-    _assert_nothing_moved(dl, case.id_, proposals)
-    assert _queued(dl) == []
-
-
-@pytest.mark.spec("BT-14-001")
-def test_the_ask_fails_when_the_outbox_write_raises(
-    monkeypatch: pytest.MonkeyPatch,
-):
-    case, manager_dl, proposals = _proposed_case("abandon-ask-outbox")
-    dl = _replica_of(manager_dl, case, proposals, OTHER_PARTICIPANT_ACTOR)
-
-    def _refuse(_activity_id: str) -> None:
-        raise RuntimeError("outbox down")
-
-    monkeypatch.setattr(dl, "outbox_append", _refuse)
-
-    status = _run_asking(dl, case.id_, TriggerActivityAdapter(dl))
-
-    assert status == Status.FAILURE
-    _assert_nothing_moved(dl, case.id_, proposals)

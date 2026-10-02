@@ -1702,10 +1702,21 @@ groups:
       would be misleading to other Participants and counter to the purpose of
       coordinated disclosure. The existing reject path (EM P → N + ER) is the
       correct mechanism; no new transition is introduced.
+    note: >-
+      Under ADR-0113 the abandonment is shared EM state, so the CASE_MANAGER
+      makes it for the case (EP-09-008): it moves EM to NONE and commits one
+      ER per open proposal, and that committed entry is the ER that notifies
+      every other Participant (EP-09-007, EP-09-009). A Participant that is
+      not the CASE_MANAGER meets this requirement through its replica, which
+      moves when the entry is replayed; it emits no ER of its own
+      (EMB-16-002).
     verification: >-
-      Integration tests in `test/demo/` confirm that a P/X/A CS transition detected
-      while EM is PROPOSED triggers `reject_embargo_trigger_bt` via
-      `PublicDisclosureBranchNode`, transitioning EM to NONE and queuing ER.
+      `test/core/behaviors/embargo/nodes/test_abandon.py` runs
+      `reject_proposed_embargo_bt` as the CASE_MANAGER and asserts EM is NONE,
+      no proposal is open and one ER per proposal is committed;
+      `test/core/behaviors/status/test_add_case_status_bt.py` drives the same
+      abandonment through `ThreatTerminationBranchNode` on a received
+      P/X/A status.
     testable: true
     preconditions:
     - em_state:
@@ -1722,13 +1733,17 @@ groups:
       actor: system
       action: >-
         Detect that CS has transitioned to a P/X/A state while EM is Proposed
-      expected: PublicDisclosureBranchNode recognises EM is Proposed (not skipped)
+      expected: >-
+        ThreatTerminationBranchNode recognises an open proposal (not skipped)
     - order: 2
       actor: system
       action: >-
-        Transition EM from Proposed to None via reject_embargo_trigger_bt
-        (RejectEmbargoLifecycleNode → sender_side_bt)
-      expected: EM state transitions to NONE; ER queued for sender
+        As the CASE_MANAGER, transition EM from Proposed to None via
+        reject_proposed_embargo_bt (AbandonEmbargoProposalsLifecycleNode →
+        CommitEmbargoAbandonmentNode)
+      expected: >-
+        EM state transitions to NONE; one ER per open proposal is committed
+        and replayed by every replica
     postconditions:
     - description: EM state is NONE; ER emitted; proposed embargo abandoned
     relationships:
@@ -1740,6 +1755,34 @@ groups:
     - rel_type: refines
       spec_id: EMB-06-001
       note: ER emission semantics apply; EM returns to NONE
+    stories:
+    - story_2022_080
+    - story_2022_023
+  - id: EMB-16-002
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A Participant that does not hold `CVDRole.CASE_MANAGER` and detects a
+      P/X/A CS transition while EM is Proposed MUST NOT emit ER for the open
+      proposals, and MUST NOT write the abandonment to its own EM state.
+    rationale: >-
+      The P/X/A signal already reaches the CASE_MANAGER as a status
+      declaration, and the CASE_MANAGER abandons on its own detection
+      (EMB-16-001, EP-09-008). An ER from a Participant arrives at the
+      CASE_MANAGER as that Participant declining the proposal (MSM-07-004),
+      so asking that way would record a decline nobody made (#4148).
+    verification: >-
+      `test/core/behaviors/embargo/nodes/test_abandon.py` runs
+      `reject_proposed_embargo_bt` as a non-manager and asserts nothing is
+      queued or committed and EM is unchanged, and that after the
+      CASE_MANAGER's abandonment no Participant's consent moved.
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-16-001
+    - rel_type: depends_on
+      spec_id: EP-09-008
+    adr:
+    - ADR-0113
     stories:
     - story_2022_080
     - story_2022_023
