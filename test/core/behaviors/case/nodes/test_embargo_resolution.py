@@ -23,7 +23,6 @@ import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
-import py_trees
 import pytest
 from py_trees.common import Status
 
@@ -42,9 +41,6 @@ from vultron.core.behaviors.case.nodes.embargo_resolution import (
     CaseEmbargoAlreadyInitializedNode,
     CaseNotEmbargoEligibleNode,
 )
-from vultron.core.behaviors.case.nodes.embargo_revision import (
-    CreationTimeRevision,
-)
 from vultron.core.behaviors.embargo.nodes import em_state as em_state_module
 from vultron.core.models._helpers import _as_id, from_now_utc
 from vultron.core.models.actor import VultronOrganization
@@ -52,6 +48,9 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_policy import EmbargoPolicy
+from vultron.core.models.pending_creation_time_revision_relay import (
+    PendingCreationTimeRevisionRelay,
+)
 from vultron.core.services.embargo_duration import (
     EmbargoDurationSource,
     InitialEmbargoDuration,
@@ -131,6 +130,7 @@ def _run(
     owner_policy: timedelta | None = None,
     actor_config: ActorConfig | None = None,
     with_sender_event: bool = True,
+    report_id: str | None = REPORT_ID,
     **context: Any,
 ) -> tuple[Status, datetime, datetime]:
     """Run ``InitializeDefaultEmbargoNode`` on the fixture case.
@@ -158,7 +158,8 @@ def _run(
     result = bt_scenario.run(
         InitializeDefaultEmbargoNode(
             actor_config=actor_config
-            or ActorConfig(protocol_default_embargo_duration=PROTOCOL_DEFAULT)
+            or ActorConfig(protocol_default_embargo_duration=PROTOCOL_DEFAULT),
+            report_id=report_id,
         ),
         actor_id=ACTOR_ID,
         case_id=CASE_ID,
@@ -493,110 +494,119 @@ def test_a_tie_between_sender_and_actor_default_registers_no_revision(
     assert case.proposed_embargoes == []
 
 
-_UNSET = object()
-
-
-class _RevisionProbe(py_trees.behaviour.Behaviour):
-    """Capture ``creation_time_revision`` while the execution is still live.
-
-    ``BTBridge`` scopes the key to one execution and restores it afterwards,
-    so the value is only observable from inside the tree.
-    """
-
-    def __init__(self) -> None:
-        super().__init__(name="RevisionProbe")
-        self.seen: object = _UNSET
-
-    def update(self) -> Status:
-        self.seen = py_trees.blackboard.Blackboard.storage.get(
-            "/creation_time_revision", _UNSET
-        )
-        return Status.SUCCESS
-
-
-def _run_probing_revision(
-    bt_scenario: BTTestScenario, *, sender_proposal: timedelta
-) -> tuple[Status, object]:
-    probe = _RevisionProbe()
-    tree = py_trees.composites.Sequence(
-        name="InitializeThenProbe",
-        memory=False,
-        children=[
-            InitializeDefaultEmbargoNode(
-                actor_config=ActorConfig(
-                    protocol_default_embargo_duration=PROTOCOL_DEFAULT
-                )
-            ),
-            probe,
-        ],
+def _owed(
+    bt_scenario: BTTestScenario,
+) -> PendingCreationTimeRevisionRelay | None:
+    stored = bt_scenario.dl.read(
+        PendingCreationTimeRevisionRelay.build_id(CASE_ID)
     )
-    result = bt_scenario.run(
-        tree,
-        actor_id=ACTOR_ID,
-        case_id=CASE_ID,
-        owner_profile=_profile(ACTOR_DEFAULT),
-        sender_proposed_embargo_duration=sender_proposal,
+    assert stored is None or isinstance(
+        stored, PendingCreationTimeRevisionRelay
     )
-    return result.status, probe.seen
+    return stored
 
 
 @pytest.mark.spec("EP-04-011")
-def test_no_contest_publishes_no_revision(
+def test_no_contest_records_no_relay(
     bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
 ) -> None:
-    """A tie still writes ``creation_time_revision`` — as ``None`` — so the
-    relay never reads a revision from an earlier write (BT-17-003)."""
-    status, seen = _run_probing_revision(
-        bt_scenario, sender_proposal=ACTOR_DEFAULT
+    status, _, _ = _run(
+        bt_scenario, owner_policy=ACTOR_DEFAULT, sender_proposal=ACTOR_DEFAULT
     )
 
     assert status == Status.SUCCESS
-    assert seen is None
+    assert _owed(bt_scenario) is None
 
 
 @pytest.mark.spec("EP-04-011")
-def test_the_revision_key_does_not_outlive_its_execution(
-    bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
+@pytest.mark.parametrize(
+    ("owner_policy", "sender_proposal", "losing_source"),
+    [
+        (ACTOR_DEFAULT, SENDER_PROPOSAL, "actor_default"),
+        (SENDER_PROPOSAL, ACTOR_DEFAULT, "sender_proposal"),
+    ],
+    ids=["owner-lost", "reporter-lost"],
+)
+def test_a_contest_records_the_relay_without_indexing_it(
+    bt_scenario: BTTestScenario,
+    case_obj: VulnerabilityCase,
+    owner_policy: timedelta,
+    sender_proposal: timedelta,
+    losing_source: str,
 ) -> None:
-    """``BTBridge`` scopes the key, so a later execution that never reaches
-    the registration (a redelivery) cannot read this one's revision."""
-    status, seen = _run_probing_revision(
-        bt_scenario, sender_proposal=SENDER_PROPOSAL
-    )
-
-    assert status == Status.SUCCESS
-    assert isinstance(seen, CreationTimeRevision)
-    assert (
-        py_trees.blackboard.Blackboard.storage.get("/creation_time_revision")
-        is None
-    )
-
-
-@pytest.mark.spec("EP-04-011")
-def test_a_contest_publishes_the_revision_without_indexing_it(
-    bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
-) -> None:
-    """The published revision names the Invite id the relay will use and
-    whose terms lost: here the owner's longer default (EP-04-011).
+    """The obligation names the revision, the Invite id the relay will use,
+    whose terms lost, the report and the CASE_MANAGER that owes it.
 
     Registration writes no ``pending_embargo_proposal_index`` entry: the
     relay indexes the Invite only after sending it, because the bootstrap
     ``Create`` snapshot would otherwise tell the invitee the Invite was
     already answered.
     """
-    status, revision = _run_probing_revision(
-        bt_scenario, sender_proposal=SENDER_PROPOSAL
+    status, _, _ = _run(
+        bt_scenario, owner_policy=owner_policy, sender_proposal=sender_proposal
     )
 
     assert status == Status.SUCCESS
-    assert isinstance(revision, CreationTimeRevision)
+    owed = _owed(bt_scenario)
+    assert owed is not None
     case = bt_scenario.dl.read(CASE_ID)
     assert isinstance(case, VulnerabilityCase)
-    assert revision.case_id == CASE_ID
-    assert case.proposed_embargoes == [revision.embargo_id]
-    assert revision.proposal_id
-    assert revision.embargo_id not in case.pending_embargo_proposal_index
-    assert revision.losing_source is EmbargoDurationSource.ACTOR_DEFAULT
+    assert case.proposed_embargoes == [owed.embargo_id]
+    assert owed.embargo_id not in case.pending_embargo_proposal_index
+    assert owed.losing_source == losing_source
+    assert owed.report_id == REPORT_ID
+    assert owed.case_actor_id == ACTOR_ID
+    assert owed.invite_queued is False
+
+
+@pytest.mark.spec("EP-04-011")
+def test_the_relay_is_owed_before_the_revision_is_registered(
+    bt_scenario: BTTestScenario,
+    case_obj: VulnerabilityCase,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A crash inside the registration leaves the obligation behind, never a
+    registered revision with none (#4156).  The relay discharges such an
+    obligation unsent, since its revision never opened."""
+    owed_at_registration: list[bool] = []
+
+    def _crash(self: EmbargoLifecycle, **_: Any) -> None:
+        owed_at_registration.append(_owed(bt_scenario) is not None)
+        raise RuntimeError("crashed while registering")
+
+    monkeypatch.setattr(EmbargoLifecycle, "propose_embargo", _crash)
+
+    status, _, _ = _run(
+        bt_scenario,
+        owner_policy=ACTOR_DEFAULT,
+        sender_proposal=SENDER_PROPOSAL,
+    )
+
+    assert status == Status.FAILURE
+    assert owed_at_registration == [True]
+    case = bt_scenario.dl.read(CASE_ID)
+    assert isinstance(case, VulnerabilityCase)
+    assert case.proposed_embargoes == []
+
+
+@pytest.mark.spec("EP-04-011")
+def test_a_contest_with_no_report_raises_before_registering(
+    bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
+) -> None:
+    """No relay could ever be sent for it, so neither the obligation nor the
+    revision is written; the fault is the manager's own (ARCH-10-001)."""
+    status, _, _ = _run(
+        bt_scenario,
+        owner_policy=ACTOR_DEFAULT,
+        sender_proposal=SENDER_PROPOSAL,
+        report_id=None,
+    )
+
+    assert status == Status.FAILURE
+    assert _owed(bt_scenario) is None
+    case = bt_scenario.dl.read(CASE_ID)
+    assert isinstance(case, VulnerabilityCase)
+    assert case.proposed_embargoes == []
 
 
 def _sender_event(

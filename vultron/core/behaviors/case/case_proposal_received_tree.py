@@ -19,7 +19,7 @@ entries last (CP-09-009):
      ``ActorConfig.default_case_roles`` (AC-1)
   3. Add reporter as participant at RM.ACCEPTED (AC-2)
   4. Initialize the default embargo, seeding the CASE_OWNER as SIGNATORY
-     (AC-3, CM-14-003)
+     (AC-3, CM-14-003); record any pending revision as owed (EP-04-011)
   5. Seed reporter as embargo SIGNATORY (CM-14-005)
   6. Emit ``Accept(as_CaseProposal)``
   7. Write durable retry marker (CP-05-005)
@@ -234,7 +234,8 @@ def create_case_proposal_received_tree(
       6. ``InitializeDefaultEmbargoNode`` — default embargo initialized
          (ADR-0041 AC-3); its ``SeedOwnerAsSignatoryNode`` seeds the case
          owner (``attributed_to``, the CASE_OWNER) as embargo SIGNATORY
-         (CM-14-003)
+         (CM-14-003); a revision it registers is first recorded as an owed
+         relay (EP-04-011, #4121)
       7. ``SeedReporterSignatoryNode`` — reporter seeded as embargo
          SIGNATORY (CM-14-005); implicit consent per ADR-0048
       Then the outbound messaging steps:
@@ -256,9 +257,10 @@ def create_case_proposal_received_tree(
          (CM-14-011, CP-09-009), or it enters the SYNC-15 pre-genesis
          reject/replay path on the normal case-creation route (#3033, #2898).
       13. ``RelayCreationTimeRevisionNode`` — relays the revision step 6
-         registered, if any, as ``Invite(EmbargoEvent)`` to the party whose
-         terms won (EP-04-011), then indexes the sent Invite (EP-08-002); no
-         modification precedes step 12 (CM-14-007).
+         recorded, if any, as ``Invite(EmbargoEvent)`` to the party
+         whose terms won (EP-04-011), then indexes the sent Invite
+         (EP-08-002) and deletes the marker, which a failure keeps for a
+         retry (#4121); no modification precedes step 12 (CM-14-007).
 
     If node 10 fails, the marker written in node 9 remains in the DataLayer so
     that a retry runner (#1139) can complete the ``Create(VulnerabilityCase)``
@@ -355,7 +357,11 @@ def create_case_proposal_received_tree(
             # SeedOwnerAsSignatoryNode seeds the case owner — the CASE_OWNER
             # this case is attributed to — as SIGNATORY (CM-14-003), the one
             # owner-seeding path.
-            InitializeDefaultEmbargoNode(actor_config=actor_config),
+            # A contested creation records its revision's relay as owed
+            # before registering it (EP-04-011, #4121, #4156).
+            InitializeDefaultEmbargoNode(
+                actor_config=actor_config, report_id=report_id
+            ),
             # CM-14-005: seed the reporter as embargo SIGNATORY.
             # Reporter consent is implicit in submitting the report (ADR-0048);
             # no invitation round-trip is needed or appropriate.
@@ -396,9 +402,9 @@ def create_case_proposal_received_tree(
                 offer_id=offer_id,
                 offer_actor_id=offer_actor_id,
             ),
-            # EP-04-011: relay the shortest-wins loser that step 6 registered,
+            # EP-04-011: relay the shortest-wins loser that step 6 recorded,
             # only now that initialization is complete (CM-14-007).
-            RelayCreationTimeRevisionNode(report_id=report_id),
+            RelayCreationTimeRevisionNode(),
         ],
     )
 

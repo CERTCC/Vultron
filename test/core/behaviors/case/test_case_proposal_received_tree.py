@@ -41,11 +41,17 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.adapters.driving.fastapi.pending_retry import (
+    retry_pending_creation_time_revision_relays,
+)
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes import (
     ClearCreateCaseMarkerNode,
+    EmitAcceptCaseProposalNode,
     WriteCreateCaseMarkerNode,
+    embargo_revision_relay,
 )
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.pending_create_case_activity import (
@@ -56,6 +62,7 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.states.em import EM
+from vultron.errors import VultronBTInternalError
 from vultron.semantic_registry import extract_event
 
 # imported for vocabulary registration side-effect
@@ -3439,6 +3446,72 @@ class TestEP04SenderProposalAtCaseCreation:
             if isinstance(c, VulnerabilityCase)
         ]
         assert case.pending_embargo_proposal_index == {}
+        # The obligation survives the failure, so it can be retried (#4121).
+        assert dl.list_objects("PendingCreationTimeRevisionRelay") != []
+
+    @pytest.mark.spec("EP-04-011")
+    @pytest.mark.spec("EP-04-012")
+    @pytest.mark.spec("EP-08-002")
+    def test_a_redelivery_after_a_failed_relay_sends_the_invite(
+        self, make_payload, monkeypatch
+    ):
+        """Initialization runs once per case (EP-04-012), so a redelivered
+        proposal registers nothing; the recorded obligation is what lets it
+        complete the relay the first delivery failed, exactly once (#4121)."""
+        dl = self._store()
+        self._publish_owner_policy()
+        monkeypatch.setattr(
+            embargo_revision_relay, "invitation_recipients", lambda *a, **k: []
+        )
+        with pytest.raises(VultronBTInternalError):
+            self._run(make_payload, dl, sender_days=self._SENDER_END_DAYS)
+        monkeypatch.undo()
+
+        case, _ = self._run(
+            make_payload, dl, sender_days=self._SENDER_END_DAYS
+        )
+
+        (revision_id,) = case.proposed_embargoes
+        (invite,) = self._invites(dl)
+        assert case.pending_embargo_proposal_index == {revision_id: invite.id_}
+        assert [_as_id(r) for r in invite.to] == [_REPORTER_URI]
+        assert _as_id(invite.attributed_to) == _VENDOR_URI
+        assert dl.list_objects("PendingCreationTimeRevisionRelay") == []
+
+        self._run(make_payload, dl, sender_days=self._SENDER_END_DAYS)
+        assert [i.id_ for i in self._invites(dl)] == [invite.id_]
+
+    @pytest.mark.spec("EP-04-011")
+    @pytest.mark.spec("CM-14-007")
+    @pytest.mark.spec("CM-14-011")
+    def test_the_startup_runner_does_not_relay_ahead_of_the_case_creation(
+        self, make_payload, monkeypatch
+    ):
+        """The tree fails after recording the obligation but before its
+        ledger commit.  The startup runner must not send the Invite then: it
+        would be the case's first ledger entry, announced to parties that
+        never received the case (#4121)."""
+        dl = self._store()
+        self._publish_owner_policy()
+        monkeypatch.setattr(
+            EmitAcceptCaseProposalNode,
+            "update",
+            lambda self: py_trees.common.Status.FAILURE,
+        )
+        self._run(make_payload, dl, sender_days=self._SENDER_END_DAYS)
+        monkeypatch.undo()
+        assert dl.list_objects("PendingCreationTimeRevisionRelay") != []
+        while dl.outbox_pop() is not None:
+            pass
+
+        relayed = retry_pending_creation_time_revision_relays(
+            datalayers_factory=lambda: {_CASE_ACTOR_URI: dl}
+        )
+
+        assert relayed == 0
+        assert self._invites(dl) == []
+        assert dl.list_objects("CaseLedgerEntry") == []
+        assert dl.list_objects("PendingCreationTimeRevisionRelay") != []
 
     @pytest.mark.spec("EP-04-011")
     @pytest.mark.spec("EP-04-012")

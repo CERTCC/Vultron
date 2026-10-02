@@ -595,7 +595,13 @@ groups:
       proposal entry; no second entry is committed. The open-proposal record is written once
       the Invite is sent, not at registration: the case reaches every participant whole in
       the bootstrap `Create`, and a record already naming the Invite would read to the winner
-      as an Invite it had already answered.
+      as an Invite it had already answered. The relay is owed durably: a
+      `PendingCreationTimeRevisionRelay` record, written before the revision is registered
+      and deleted once the relay is discharged, survives a failed relay — including one
+      whose committed Invite never reached the outbox — so a redelivered
+      proposal or the startup retry runner completes it (the CP-05-005 retry-marker
+      pattern). A retry outside the case tree sends nothing until the case's genesis
+      ledger entry is committed (CM-14-007, CM-14-011).
     verification: >-
       A marker test of `RegisterLongerProposalAsRevisionNode` asserts that a contested
       creation registers the loser as an open proposal without indexing it. Tree tests of
@@ -603,9 +609,13 @@ groups:
       directions — `actor` the CASE_MANAGER, `attributedTo` the losing party, queued to the
       winning party, committed, then indexed in `pending_embargo_proposal_index` for the
       owner's default selection, with the bootstrap `Create` carrying no index entry — and
-      that a tie or a redelivered proposal relays nothing. Node tests assert that an owner
-      who reported to itself has nothing relayed or indexed, and that the proposer's replica
-      indexes the replayed Invite while the invitee's does not.
+      that a tie or a redelivered proposal relays no second Invite, while a redelivery after
+      a failed relay sends the owed one. Node tests assert that an owner who reported to
+      itself has nothing relayed or indexed, that a failed relay keeps its obligation and a
+      retry completes it once, that an Invite already committed is not sent again, that no
+      relay precedes the case's genesis entry, and that the proposer's replica indexes the
+      replayed Invite while the invitee's does not. Startup-runner tests assert the retry,
+      its CASE_MANAGER gate, and that a failure never stops the server starting.
     relationships:
     - rel_type: refines
       spec_id: EP-04-003
