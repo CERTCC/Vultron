@@ -377,18 +377,62 @@ is handled gracefully without patching.
 ## Fan-Out Recipients and the Embargo Gate (CM-10-005, CM-10-006)
 
 Both recipient collectors in `vultron/core/behaviors/sync/nodes/fanout.py`,
-and the replay sender `SendMissingEntriesNode`, must apply the CM-10-004
-embargo content gate. The collectors apply it through the shared
-active-participant selection
-(`vultron/core/participants/recipients.py`, #4046); the replay gate is not
-yet implemented (#4042, strict-`xfail` marker in place). Under an active
-embargo, a participant that is not `SIGNATORY` to
-it is paused: it is sent no entries, and a `Reject(CaseLedgerEntry)`
-from it replays nothing. Without the replay gate, the paused replica's
-forward-gap Reject (SYNC-14-002) would pull the withheld entries straight
-through. On admission the participant is backfilled in log order, starting
-with the first entry withheld. The backfill reuses the replay path, not a new
-sender.
+the replay sender `SendMissingEntriesNode` and the genesis pre-seed
+`AnnounceCaseOnGenesisRejectNode` apply the CM-10-004 embargo content gate.
+All of them ask the shared active-participant selection in
+`vultron/core/participants/recipients.py` (CM-10-007, #4046), the same one
+`find_excluded_actor_ids()` uses for case updates: the collectors through
+`case_content_recipients()`, the replay and the pre-seed through
+`is_case_content_recipient()`. A peer that is not an active participant is
+sent no entries, and a `Reject(CaseLedgerEntry)` from it replays nothing and
+seeds no case. Without the replay gate, the paused replica's forward-gap
+Reject (SYNC-14-002) would pull the withheld entries straight through.
+
+Only a joined participant the active embargo withholds (not `SIGNATORY` to
+it) is *paused*; `embargo_withheld_participants()` names them, and the
+collectors publish them as `fanout_withheld`. A participant that has not
+joined is inert whatever the embargo, and gets its case and ledger through
+the join path (ADR-0114), so no pause record is created for it.
+
+The pause is recorded on the peer's `VultronReplicationState` as
+`embargo_paused_from_index`: the first `log_index` withheld. A later withheld
+entry keeps the earlier index. The helpers live in
+`sync/nodes/embargo_pause.py`.
+
+On admission the participant is backfilled in log order, from the paused
+index on, through `send_ledger_suffix()` — the send `SendMissingEntriesNode`
+itself uses, not a new sender — and the pause is cleared.
+
+A backfill sends ledger entries only, never the case object. A participant
+paused from index 0 holds no case, so its replica buffers the backfill
+(SYNC-15-004) and sends a genesis `Reject(CaseLedgerEntry)` (SYNC-15-001).
+`AnnounceCaseOnGenesisRejectNode` then seeds the case, now that the gate
+admits the participant (SYNC-15-002).
+
+Admission is caught at two points:
+
+- **At fan-out.** `SendLogEntryToEachNode` backfills every admitted paused
+  peer through the entry just before the one it is sending, then sends that
+  entry. This covers a path that changes state first and commits after:
+  `terminate_embargo_bt` (the terminate trigger and the CS.P/X/A and threat
+  cascades) ends the embargo, then `EmitCaseStatusUpdateNode` commits the new
+  case status. The node recomputes the gate over the whole case: a collector
+  that drops RM.CLOSED peers before gating would otherwise read a closed,
+  withheld peer as admitted.
+- **After an admitting received effect.** A received activity is committed,
+  and so fanned out, *before* its effect admits anyone (CLP-10-006), so the
+  fan-out of the admitting entry still withholds it.
+  `BackfillAdmittedParticipantsNode`, behind the CASE_MANAGER gate
+  (`embargo_admission_backfill_tree()`), runs after the effect: in the
+  accepted-Invite tree, in the Remove(EmbargoEvent) teardown, after an
+  honored late Accept (EMB-17-001), and after a received Add(EmbargoEvent)
+  activates a revision that a paused participant had already accepted.
+
+An admitted peer's own Reject clears the pause too. Its replay resends
+everything past the contiguous prefix it reports (SYNC-10-004), so whatever
+was withheld below that prefix it already holds. Any duplicate that results
+is idempotent on the replica (SYNC-12-003).
+
 Why the gate pauses a whole stream instead of filtering entries is in
 [participant-embargo-consent.md](participant-embargo-consent.md) § "Ledger
 Fan-Out Is Case Content".
