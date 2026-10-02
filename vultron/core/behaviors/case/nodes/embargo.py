@@ -18,7 +18,8 @@ Embargo management action nodes and helpers for case behavior trees.
 
 Provides action nodes for initializing the embargo a case is created with.
 Eligibility and duration resolution live in the sibling
-``embargo_resolution.py``.
+``embargo_resolution.py``; owner SIGNATORY seeding lives in
+``embargo_signatory.py`` and is re-exported here.
 
 The composite subtree assembling these leaf nodes is defined in the sibling
 ``embargo_tree.py`` module at the process-area root per BTND-07-003:
@@ -30,16 +31,19 @@ notes/protocol-event-cascades.md D5-6-EMBARGORCP.
 """
 
 import logging
+import uuid
 
 import isodate  # type: ignore[import-untyped]
 from py_trees.common import Status
 
+from vultron.core.behaviors.case.nodes.embargo_signatory import (
+    SeedOwnerAsSignatoryNode,  # noqa: F401  # re-export after the split
+)
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
 from vultron.core.models._helpers import _as_id, from_now_utc
-from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_persistence import CasePersistence
@@ -51,13 +55,21 @@ from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
 )
-from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 from vultron.errors import (
     VultronAlreadyExistsError,
     VultronError,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def creation_time_embargo_id(case_id: str) -> str:
+    """Return the id of the creation-time embargo minted for *case_id*.
+
+    The id is derived from the case, so every attempt to initialize the same
+    case names the same event (EP-04-012).
+    """
+    return f"urn:uuid:{uuid.uuid5(uuid.NAMESPACE_URL, f'{case_id}#creation-time-embargo')}"
 
 
 def persist_creation_time_embargo(
@@ -107,8 +119,10 @@ class CreateEmbargoEventNode(DataLayerActionWithPorts):
     When the sender's proposal won, the event is the sender's own
     ``EmbargoEvent`` with its ``context`` rewritten from the report to the
     case — the same terms and identity the Reporter stated, now about the case
-    (EP-04-004, EP-04-009).  Otherwise a fresh event is minted for the
-    resolved duration.
+    (EP-04-004, EP-04-009).  Otherwise an event is minted for the resolved
+    duration under ``creation_time_embargo_id(case_id)``, so a rerun on a
+    half-built case reuses the first attempt's event instead of storing a
+    second one beside it (EP-04-012, #4117).
     """
 
     def __init__(self, name: str | None = None) -> None:
@@ -167,9 +181,14 @@ class CreateEmbargoEventNode(DataLayerActionWithPorts):
             end_time = embargo.end_time
         else:
             end_time = from_now_utc(duration)
-            embargo = EmbargoEvent(end_time=end_time, context=case_id)
+            embargo = EmbargoEvent(
+                id_=creation_time_embargo_id(case_id),
+                end_time=end_time,
+                context=case_id,
+            )
         try:
-            persist_creation_time_embargo(self.datalayer, embargo, case_id)
+            if not self._restamp_half_built_attempt(embargo, case_id):
+                persist_creation_time_embargo(self.datalayer, embargo, case_id)
         except VultronError as exc:
             self.feedback_message = f"{self.name}: {exc}"
             self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
@@ -186,6 +205,37 @@ class CreateEmbargoEventNode(DataLayerActionWithPorts):
             resolved.source.value,
         )
         return Status.SUCCESS
+
+    def _restamp_half_built_attempt(
+        self, embargo: EmbargoEvent, case_id: str
+    ) -> bool:
+        """Overwrite an earlier attempt's minted event with *embargo*.
+
+        A minted event carries ``creation_time_embargo_id(case_id)``, so a
+        rerun on a half-built case (left at ``EM.NONE`` with the event
+        stored — EP-04-012 admits it) finds the first attempt's event under
+        the same id.  Nothing references it: the case is still at ``NONE``,
+        so no proposal, consent record or ledger entry names it.  It is
+        replaced in place with the terms this run resolved, so its window is
+        measured from the run that activates it and no second, orphan event is
+        stored beside it (#4117).  Returns ``False`` when no such event is
+        stored; an object under the id that is not this case's embargo is left
+        to ``persist_creation_time_embargo``, which refuses it.
+        """
+        assert self.datalayer is not None  # update() checked it
+        stored = self.datalayer.read(embargo.id_)
+        if not isinstance(stored, EmbargoEvent) or stored.context != case_id:
+            return False
+        self.datalayer.save(embargo)
+        self.logger.info(
+            "Re-stamped creation-time embargo '%s' for case '%s', left at"
+            " EM.NONE by an earlier attempt (end_time %s -> %s; EP-04-012)",
+            embargo.id_,
+            case_id,
+            stored.end_time.isoformat(),
+            embargo.end_time.isoformat(),
+        )
+        return True
 
 
 class AdvanceEMStateToActiveNode(DataLayerActionWithPorts):
@@ -373,98 +423,4 @@ class AttachEmbargoToCaseNode(DataLayerActionWithPorts):
                 case_id,
                 embargo_id,
             )
-        return Status.SUCCESS
-
-
-class SeedOwnerAsSignatoryNode(DataLayerActionWithPorts):
-    """Seed the case-owner participant as SIGNATORY (CM-14-003).
-
-    The owner is read from the case — ``attributed_to``, the CASE_OWNER
-    (CM-02-008, CP-09-001) — never from the actor running the tree.  On the
-    CASE_MANAGER's creation path those differ: the CASE_MANAGER runs the tree
-    and the proposing actor owns the case.  Keying on the executing actor
-    seeds nobody there, so the owner comes from the case and every creation
-    path shares this one seeding node.
-
-    The owner's participant record is created before the embargo is
-    initialized (CM-14-002), so a missing record — or a case naming no owner
-    — is a broken precondition: the node fails rather than report a seed it
-    did not make (ARCH-15).
-    """
-
-    def __init__(self, name: str | None = None) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **DataLayerActionWithPorts.INPUT_PORTS,
-        "case_id": PortInformation(data_type=str, required=True),
-        "default_embargo_initialized": PortInformation(
-            data_type=object, required=True
-        ),
-    }
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {
-            "case_id": "/case_id",
-            "default_embargo_initialized": "/default_embargo_initialized",
-        }
-
-    def initialise(self) -> None:
-        super().initialise()
-        self.bb_case_id: str = self.get_input("case_id")
-        self.embargo_initialized = self.get_input(
-            "default_embargo_initialized"
-        )
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-
-        case_id = self.bb_case_id
-        embargo_initialized = self.embargo_initialized
-        if embargo_initialized is False:
-            return Status.SUCCESS
-
-        stored_case, failure = self._require_case(case_id)
-        if failure is not None:
-            return failure  # Regime 1 (ADR-0087)
-
-        owner_id = _as_id(stored_case.attributed_to)
-        participant_id = (
-            stored_case.actor_participant_index.get(owner_id)
-            if owner_id is not None
-            else None
-        )
-        participant = (
-            self.datalayer.read(participant_id, raise_on_missing=False)
-            if participant_id
-            else None
-        )
-        if not isinstance(participant, CaseParticipant):
-            self.feedback_message = (
-                f"case owner '{owner_id}' has no participant record in case"
-                f" '{case_id}' — cannot seed SIGNATORY (CM-14-002 creates it"
-                " first)"
-            )
-            self.logger.error("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-
-        embargo_id = _as_id(stored_case.active_embargo)
-        if participant.embargo_consent_state not in (
-            PEC.SIGNATORY,
-            PEC.DECLINED,
-        ):
-            participant.apply_pec_transition(PEC_Trigger.ACCEPT)
-        if embargo_id:
-            participant.add_accepted_embargo(embargo_id)
-        self.datalayer.save(participant)
-        self.logger.info(
-            "Seeded case-owner participant '%s' (actor '%s') as SIGNATORY"
-            " for embargo in case '%s' (CM-14-003)",
-            participant_id,
-            owner_id,
-            case_id,
-        )
         return Status.SUCCESS

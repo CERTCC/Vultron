@@ -417,6 +417,26 @@ Consequences for the guard arm:
   `AttachEmbargoToCaseNode` stay. They are each node validating its own
   transition (CSB-16), not the idempotency guard.
 
+A rerun at `NONE` must also not store a *second* creation-time event (#4117).
+A run can stop after `CreateEmbargoEventNode` stored its event and before EM
+leaves `NONE`; the guard rightly admits the rerun, and a minted event with a
+fresh random id would leave the first one an orphan. So the minted event's id
+is derived from the case (`creation_time_embargo_id`, a uuid5 of the case id),
+and a rerun that finds this case's own event under that id overwrites it in
+place with the terms the rerun resolved — nothing references it yet, because
+the case is still at `NONE`. Any other object under that id is refused by
+`persist_creation_time_embargo`. The sender branch needs none of this: the
+Reporter's event keeps the Reporter's id, and the stored twin is accepted.
+
+Known limit: a redelivery that resolves to a different *branch* than the first
+attempt — the first minted a default, the rerun adopts the sender's event —
+still leaves the first default unreferenced. An exact redelivery (CP-05-006)
+resolves the same way, so this needs a changed proposal for the same report.
+
+A run that stops *after* the PROPOSE trigger and before activation is a
+different gap: `propose_embargo` persists `PROPOSED`, which EP-04-002 forbids,
+and the guard then reads the case as initialized and never finishes it (#4123).
+
 The report-keyed `LoadExistingCaseNode` itself is suspect for a different
 reason — CBT-06-002 expects a second recipient of the same report to get its own
 case, and the proposal id is the key both of the reuse branch's jobs actually
