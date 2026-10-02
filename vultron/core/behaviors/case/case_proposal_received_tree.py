@@ -232,7 +232,7 @@ def create_case_proposal_received_tree(
       5. ``AddReporterParticipantNode`` — reporter added at RM.ACCEPTED
          (ADR-0041 AC-2)
       6. ``InitializeDefaultEmbargoNode`` — default embargo initialized
-         (ADR-0041 AC-3); its ``SeedOwnerAsSignatoryNode`` seeds the case
+         (ADR-0041 AC-3); its ``InitializeCreationEmbargoNode`` seeds the case
          owner (``attributed_to``, the CASE_OWNER) as embargo SIGNATORY
          (CM-14-003); a revision it registers is first recorded as an owed
          relay (EP-04-011, #4121)
@@ -354,11 +354,11 @@ def create_case_proposal_received_tree(
             # ADR-0041 AC-2: add reporter at RM.ACCEPTED
             AddReporterParticipantNode(report_id=report_id),
             # ADR-0041 AC-3: initialize default embargo.  Its
-            # SeedOwnerAsSignatoryNode seeds the case owner — the CASE_OWNER
-            # this case is attributed to — as SIGNATORY (CM-14-003), the one
-            # owner-seeding path.
-            # A contested creation records its revision's relay as owed
-            # before registering it (EP-04-011, #4121, #4156).
+            # InitializeCreationEmbargoNode seeds the case owner — the
+            # CASE_OWNER this case is attributed to — as SIGNATORY
+            # (CM-14-003), the one owner-seeding path.  A contested creation
+            # records its revision's relay as owed in the same commit that
+            # registers the revision (EP-04-011, #4121, #4156).
             InitializeDefaultEmbargoNode(
                 actor_config=actor_config, report_id=report_id
             ),

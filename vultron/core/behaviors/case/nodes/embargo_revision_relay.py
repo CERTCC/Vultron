@@ -13,10 +13,10 @@
 
 """Relay the creation-time revision to the party whose terms won (EP-04-011).
 
-``RegisterLongerProposalAsRevisionNode`` registers the shortest-wins loser as a
+``InitializeCreationEmbargoNode`` registers the shortest-wins loser as a
 pending revision inside ``InitializeDefaultEmbargoNode``, and records the relay
-as owed in a durable :class:`PendingCreationTimeRevisionRelay` marker just
-before it does.  :class:`RelayCreationTimeRevisionNode` sends the revision
+as owed in a durable :class:`PendingCreationTimeRevisionRelay` marker in the
+same commit (#4142).  :class:`RelayCreationTimeRevisionNode` sends the revision
 like any other (EP-09, ADR-0113) once the case tree has finished its
 initialization sequence (CM-14-007), indexes it so the owner's default
 selection reaches it (EP-08-002), and deletes the marker.
@@ -40,10 +40,12 @@ from typing import cast
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.case.nodes.embargo_revision import (
+    creation_revision_parties,
+)
 from vultron.core.behaviors.case.nodes.proposal_ledger import (
     CREATE_CASE_EVENT_TYPE,
 )
-from vultron.core.behaviors.case.report_author import report_author_id
 from vultron.core.behaviors.embargo.nodes.relay import (
     RelayEmbargoInviteToEachNode,
     invite_rsvp_deadline,
@@ -333,17 +335,14 @@ class RelayCreationTimeRevisionNode(RelayEmbargoInviteToEachNode):
         """Set the proposer (the loser) and the one invitee (the winner)."""
         assert self.datalayer is not None
         assert self.actor_id is not None
-        owner_id = _as_id(case.attributed_to)
-        if not owner_id:
-            raise BtNodePreconditionError(
-                f"case '{case.id_}' names no CASE_OWNER (CP-09-001)"
-            )
-        # The reporter's terms arrived as the sender proposal (EP-04-004).
-        reporter_id = report_author_id(self.datalayer, marker.report_id)
-        if marker.losing_source == EmbargoDurationSource.SENDER_PROPOSAL:
-            self._proposer_id, winner_id = reporter_id, owner_id
-        else:
-            self._proposer_id, winner_id = owner_id, reporter_id
+        # The loser proposed the revision (MSM-07-005, #4152); the reporter's
+        # terms arrived as the sender proposal (EP-04-004).
+        self._proposer_id, winner_id = creation_revision_parties(
+            self.datalayer,
+            case,
+            EmbargoDurationSource(marker.losing_source),
+            marker.report_id,
+        )
         # Shared recipient selection (CM-10-007), narrowed to the other party:
         # nobody else held terms at creation (EP-04-011).
         self._recipients = [
