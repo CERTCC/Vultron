@@ -1110,15 +1110,14 @@ class TestOwnerChecksOnACaseTheCaseActorCreated:
             assert result.participant_changes == []
 
     @pytest.mark.parametrize(
-        ("decided_by", "pruned"),
+        ("rejecter", "pruned"),
         [(_VENDOR_URI, True), (_CASE_ACTOR_URI, False)],
     )
-    def test_teardown_prune_authorization(
-        self, make_payload, decided_by, pruned
-    ):
+    def test_reject_prune_authorization(self, make_payload, rejecter, pruned):
+        """Only the owner's Reject decides, and so forgets, the proposal."""
         from test.core.behaviors.bt_harness import BTTestScenario
-        from vultron.core.behaviors.embargo.nodes.teardown import (
-            RemoveFromProposedEmbargoesNode,
+        from vultron.core.behaviors.embargo.nodes.reject_proposed import (
+            DecideRejectedEmbargoProposalNode,
         )
 
         dl, case, revision_id = _proposed_case_with_open_revision(make_payload)
@@ -1126,10 +1125,10 @@ class TestOwnerChecksOnACaseTheCaseActorCreated:
         scenario = BTTestScenario(actor_id=_CASE_ACTOR_URI, dl=dl)
 
         result = scenario.run(
-            RemoveFromProposedEmbargoesNode(
+            DecideRejectedEmbargoProposalNode(
                 case_id=case.id_,
                 embargo_id=revision_id,
-                decided_by=decided_by,
+                rejecting_actor_id=rejecter,
             )
         )
 
