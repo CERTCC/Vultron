@@ -201,11 +201,16 @@ def save_if_unchanged(
     and a record deleted under the caller is a concurrent write too.
 
     The first comparison is of the record as read — hydrated, then
-    serialized back — so for a record that references other rows (an
-    activity's ``object_``), a change to a *referenced* row can refuse even
-    though this row's own text is unchanged.  That errs toward a spurious
-    refusal, never a lost write; the actor profile, today's only caller,
-    references no other row.
+    serialized back.  A plain reference collapses back to its id on
+    re-serialization, so a change to the row it names does not refuse.  Two
+    cases can refuse even though this row's own text is unchanged: a
+    reference whose hydrated value is kept inline (its type is in
+    ``_KEEP_INLINE_NESTED_TYPES``, or the field is in the model's
+    ``inline_required_refs``) whose referenced row changed, and a referenced
+    row that appears or disappears between the caller's read and this call.
+    Both err toward a spurious refusal, never a lost write, and a re-reading
+    caller recovers; the actor profile, today's only caller, references no
+    other row.
 
     Args:
         dl: The SqliteDataLayer instance.

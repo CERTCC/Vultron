@@ -544,3 +544,12 @@ bounded number of attempts it refuses with 409 (EP-02-004). A caller whose
 change depends on the fields it read cannot re-apply blindly and should
 surface the conflict at once. No schema change was needed: the stored text
 is the version token.
+
+A compare-and-set guards only the writers that use it. A plain `save()` of
+the same record by another writer still overwrites whatever the guarded
+writer stored, so the protection holds in both directions only while
+**every** read-modify-write of the actor profile goes through
+`save_if_unchanged`. Today the PUT is the only code that rewrites a profile
+(`POST /actors/` uses `create()`, which refuses an existing record); a new
+profile writer MUST use `save_if_unchanged` too, or it reopens the window
+that issue #4102 closed, this time in the other direction.

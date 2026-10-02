@@ -110,6 +110,11 @@ class DataLayer(Protocol):
         the write; otherwise writes nothing and returns ``False``.  A caller
         doing read-modify-write uses this instead of :meth:`save` so a
         concurrent writer's update is never silently overwritten (#4102).
+        A record absent from the store also returns ``False``: there is
+        nothing for *expected* to equal (DL-02-003).
+
+        Raises:
+            ValueError: ``obj.id_`` and ``expected.id_`` differ.
         """
         ...
 
