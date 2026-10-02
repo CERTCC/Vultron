@@ -222,11 +222,7 @@ def _invite_replicas(count: int) -> dict[str, list[dict]]:
 
 
 def test_check_event_type_count_returns_violation_when_above_max() -> None:
-    """An upper bound catches an event recorded more often than the scenario sends it.
-
-    FCV sends one Invite (the Vendor's); the reporter is seated at case creation
-    (CM-22-002, CM-14-005), so a second ``invite_actor_to_case`` is a defect (#4120).
-    """
+    """A count above ``max_count`` is reported as a violation naming both numbers."""
     violations = check_event_type_count(
         _invite_replicas(2), "invite_actor_to_case", 1, max_count=1
     )
@@ -241,6 +237,28 @@ def test_check_event_type_count_passes_within_bounds(count: int) -> None:
         _invite_replicas(count), "invite_actor_to_case", 1, max_count=2
     )
     assert violations == []
+
+
+@pytest.mark.parametrize(
+    ("count", "min_count", "max_count", "violates"),
+    [
+        pytest.param(1, 1, 1, False, id="exact-match"),
+        pytest.param(0, 1, 1, True, id="exact-below"),
+        pytest.param(0, 0, 0, False, id="absence-held"),
+        pytest.param(1, 0, 0, True, id="absence-broken"),
+    ],
+)
+def test_check_event_type_count_exact_bound(
+    count: int, min_count: int, max_count: int, violates: bool
+) -> None:
+    """``min_count == max_count`` pins an exact count, including zero."""
+    violations = check_event_type_count(
+        _invite_replicas(count),
+        "invite_actor_to_case",
+        min_count,
+        max_count=max_count,
+    )
+    assert bool(violations) is violates
 
 
 def test_check_event_type_count_has_no_upper_bound_by_default() -> None:

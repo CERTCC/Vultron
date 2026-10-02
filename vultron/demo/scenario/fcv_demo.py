@@ -15,16 +15,16 @@
 
 """FCV three-actor CVD workflow demo (Finder + Coordinator + Vendor).
 
-Orchestrates the full VFDPxa lifecycle across four containers: Finder,
-Coordinator (CASE_OWNER), Vendor, and CaseActor.
+Orchestrates the CVD lifecycle to VFdPxa closure across four containers:
+Finder, Coordinator (CASE_OWNER), Vendor, and CaseActor.
 
 Coordinator receives the Finder's report, creates the case (holding
 CASE_OWNER), the CaseActor service actor holds CASE_MANAGER.  The Finder is
 seated as reporter when the case is created (CM-22-002), so it is never
 invited; the Coordinator directly invites Vendor (``invite-actor-to-case``).
 Vendor accepts the report and embargo, advances through the fix lifecycle
-(VFD), and all three participants coordinate to VFDPxa closure.  Coordinator
-closes the case.
+to fix ready (VFd; Vendor stops at VFd), and all three participants
+coordinate to VFdPxa closure.  Coordinator closes the case.
 
 Spec: DEMOMA-12 (GitHub issue #1593).
 """
@@ -157,8 +157,8 @@ Coordinator receives the Finder's report, creates the authoritative case
 (holding CASE_OWNER), and the CaseActor service manages the case ledger.
 The Finder is seated as reporter at case creation; the Coordinator directly
 invites Vendor.  Vendor accepts as a late joiner and receives the full ledger
-backfill (LedgerFanout).  All participants advance through the full VFDPxa fix
-lifecycle to closure.
+backfill (LedgerFanout).  All participants advance through the fix lifecycle
+(Vendor stops at VFd) to VFdPxa closure.
 
 \b
 Workflow:
@@ -169,7 +169,7 @@ Workflow:
   5. Vendor accepts the case invitation; case replica seeded (LedgerFanout).
   6. Verify all replica ledgers synchronized.
   7. Three-way notes exchange among all participants.
-  8. Vendor advances: VF (fix ready) → VFD (fix deployed).
+  8. Vendor advances to VF (fix ready); Vendor stops at VFd.
   9. All participants report publication; embargo terminates (EM.EXITED).
  10. All participants close the case (RM.CLOSED on all replicas).
 """

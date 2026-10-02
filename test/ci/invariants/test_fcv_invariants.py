@@ -11,7 +11,8 @@ FCV-specific invariants (DEMOMA-12-008/009):
 - ``invite_actor_to_case`` appears exactly once (the Vendor's invitation; the
   Finder is seated as reporter at case creation, CM-22-002, and is never invited).
 - ``close_case`` event type is present.
-- CS transitions VFd and VFD observed in Vendor's add_participant_status entries.
+- CS transition VFd observed in Vendor's add_participant_status entries
+  (the Vendor stops at VFd, CSB-15-002).
 - P-transition observed in Coordinator's add_participant_status entries.
 - Vendor is a late joiner — replica holds the complete log from genesis.
 

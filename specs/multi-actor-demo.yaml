@@ -1237,14 +1237,17 @@ groups:
     - order: 1
       actor: demo_script
       action: >-
-        Poll the Coordinator's case until it lists the Finder and the
+        Wait until the Coordinator's case lists the Finder and the
         Coordinator as participants
       expected: >-
-        Finder present as a participant seated at case creation; no
-        invite_actor_to_case entry for the Finder in the case ledger
+        Finder present as a participant seated at case creation, with no
+        Invite/Accept exchange (the case-actor log's single
+        invite_actor_to_case entry, the Vendor's, is checked by
+        DEMOMA-12-009(2))
     - order: 2
       actor: demo_script
-      action: Poll Finder DataLayer until the case replica is visible
+      action: >-
+        Verify the case is active and the Finder holds a case replica
       expected: Finder holds a case replica with EM.ACTIVE
     postconditions:
     - description: >-
