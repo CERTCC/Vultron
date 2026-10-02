@@ -169,6 +169,7 @@ class TestEmbargoProposalLifecycle:
             embargo,
             context="https://example.org/cases/case_em2",
             actor="https://example.org/users/vendor",
+            to=["https://example.org/users/vendor"],
             id_="https://example.org/cases/case_em2/embargo_proposals/1",
         )
 
@@ -589,7 +590,8 @@ def _make_pxa_case(
 ):
     """Return (case, embargo, proposal) with pxa_state set.
 
-    *to* addresses the proposal; omitted, it carries no recipients.
+    *to* addresses the proposal; omitted, it goes to *coordinator_id*,
+    since an Invite naming no recipient is refused (EP-09-010).
     """
     from vultron.core.states.cs import CS_pxa
     from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
@@ -613,7 +615,7 @@ def _make_pxa_case(
         context=case.id_,
         actor=coordinator_id,
         id_=f"{case_id}/proposals/p1",
-        to=to,
+        to=to if to is not None else [coordinator_id],
     )
     dl.create(case)
     dl.create(embargo)
@@ -701,6 +703,51 @@ class TestInviteToEmbargoReceivedPxaGuard:
         # ER activity must be in the outbox
         _sole_queued_reject(dl)
 
+    @pytest.mark.spec("EP-09-010")
+    @pytest.mark.spec("HP-01-005")
+    @pytest.mark.parametrize(
+        ("to", "count"),
+        [([], 0), (["coord", "other"], 2)],
+        ids=["no-recipient", "two-recipients"],
+    )
+    def test_misrouted_ep_on_pxa_case_is_refused_without_er(
+        self, make_payload, to, count
+    ):
+        """A misrouted EP is refused before the P/X/A check answers it.
+
+        EMB-01-002's ER answers a proposal this receiver was sent; an Invite
+        naming no recipient or several is a misrouting (EP-09-010), so it is
+        refused with the count and no ER goes back.  Nothing is accepted, so
+        EMB-01-002's MUST NOT still holds.
+        """
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=self.COORD_ID)
+        case_id = f"{self.CASE_ID}/misrouted/{count}"
+        recipients = {
+            "coord": self.COORD_ID,
+            "other": "https://example.org/actors/other-pxa",
+        }
+        _case, _embargo, proposal = _make_pxa_case(
+            dl,
+            case_id=case_id,
+            coordinator_id=self.COORD_ID,
+            embargo_id=f"{case_id}/embargo_events/e1",
+            pxa_state_name="Pxa",
+            em_state=EM.NONE,
+            to=[recipients[name] for name in to],
+        )
+
+        event = make_payload(proposal, receiving_actor_id=self.COORD_ID)
+        result = InviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert f"names {count} 'to' recipients" in (result.reason or "")
+        assert "EMB-01-002" not in (result.reason or "")
+        assert dl.outbox_list() == []
+
     def test_pxa_clear_allows_ep_processing(self, make_payload):
         """invite_to_embargo_on_case runs normally when pxa_state is clear."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -748,6 +795,7 @@ class TestInviteToEmbargoReceivedPxaGuard:
             embargo,
             context=case,
             actor=coordinator_id,
+            to=[coordinator_id],
             id_=f"{case_id}/proposals/p1",
         )
         dl.create(proposal)

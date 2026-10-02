@@ -22,10 +22,10 @@ consent moves when the CASE_MANAGER commits its answer.  A revision Invite to a
 The manager-side relay (EP-09-001, EP-09-002, EP-09-004) landed with #3913;
 the participant side and the replay of every relay entry (EP-09-003,
 EP-09-007) with #3915 (``test_embargo_relay_replay.py``, beside this file,
-pins the replay across per-actor stores).  The remaining strict ``xfail``
-markers pin behaviour #3961 (RSVP deadline) and #3963 (invitee resolution)
-will deliver.  Each fails today for the reason its docstring names; when the
-feature lands the ``xfail`` auto-promotes.
+pins the replay across per-actor stores); the sole-recipient invitee
+(EP-09-010) with #3963.  The remaining strict ``xfail`` markers pin what
+#3961 (RSVP deadline) will deliver.  Each fails today for the reason its
+docstring names; when the feature lands the ``xfail`` auto-promotes.
 """
 
 from typing import cast
@@ -412,13 +412,6 @@ def test_participant_stores_no_deadline_on_receipt(make_payload):
     assert _deadline_of(dl, case_id, OTHER_A) is None
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "EP-09-010: resolve_invitee_id accepts a multi-recipient Invite and "
-        "picks the receiving actor. Tracked by #3963. " + _TRACKING_3918
-    ),
-)
 @pytest.mark.spec("EP-09-010")
 def test_invite_with_several_recipients_is_refused(make_payload):
     """The invitee is the sole ``to`` recipient; several is a misrouting."""
@@ -439,17 +432,9 @@ def test_invite_with_several_recipients_is_refused(make_payload):
 
     assert result.disposition is HandlerDisposition.REFUSED
     reason = (result.reason or "").lower()
-    assert "recipient" in reason
-    assert "2" in reason, "the refusal names the recipient count"
+    assert "names 2 'to' recipients" in reason, "the refusal names the count"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "EP-09-010: resolve_invitee_id falls back to the receiving actor when "
-        "the Invite names no recipient. Tracked by #3963. " + _TRACKING_3918
-    ),
-)
 @pytest.mark.spec("EP-09-010")
 def test_invite_with_no_recipient_is_refused(make_payload):
     """No ``to`` recipient means no invitee; refuse rather than guess."""
@@ -470,8 +455,7 @@ def test_invite_with_no_recipient_is_refused(make_payload):
 
     assert result.disposition is HandlerDisposition.REFUSED
     reason = (result.reason or "").lower()
-    assert "recipient" in reason
-    assert "0" in reason, "the refusal names the recipient count"
+    assert "names 0 'to' recipients" in reason, "the refusal names the count"
 
 
 @pytest.mark.spec("EP-09-009")

@@ -48,7 +48,7 @@ from vultron.core.models.use_case_result import (
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.predicates.addressing import is_addressed_to
+from vultron.core.predicates.addressing import same_actor_id
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
@@ -74,7 +74,10 @@ from vultron.core.use_cases.received._bt_verdict import (
 from vultron.core.use_cases.triggers._helpers import (
     _prepare_delegated_context,
 )
-from vultron.errors import VultronNotFoundError
+from vultron.errors import (
+    VultronNotFoundError,
+    VultronProtocolViolationError,
+)
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -101,63 +104,31 @@ def _pxa_embargo_ineligible(dl: CasePersistence, case_id: str) -> bool:
 
 
 def resolve_invitee_id(
-    request: InviteToEmbargoOnCaseReceivedEvent,
-    receiving_actor_id: str,
-    invite_id: str,
+    request: InviteToEmbargoOnCaseReceivedEvent, invite_id: str
 ) -> str:
-    """Resolve whose participant record an embargo invitation applies to.
+    """Return the invitee of an ``Invite(EmbargoEvent)``: its sole ``to``.
 
-    The invitee is a *message subject*: it comes from the activity's ``to:``
-    field, never from ``resolve_receiving_actor_id()`` (ADR-0022).  Resolution
-    is by **addressee membership**, not by position, mirroring
-    ``_is_primary_submit_report_recipient`` in ``received/report.py``:
+    The invitee is a *message subject*, read from the message and never from
+    the store it reached (ADR-0022, CLP-10-015).  Every emitter sends one
+    recipient — a participant to the CASE_MANAGER, the CASE_MANAGER to one
+    participant per relayed Invite (EP-09-002) — so an Invite naming none or
+    several is a misrouting, refused rather than guessed at (EP-09-010).  The
+    recipient is returned in its canonical spelling, so a trailing slash still
+    names the actor (#2667), and two spellings of one actor are one recipient.
 
-    1. ``receiving_actor_id`` is among the recipients — the ordinary case.
-       Preferring it is what makes a multi-recipient ``Invite`` correct in
-       *every* recipient's replica rather than only the first one's, and it is
-       canonical by construction, since ``inbox_handler`` normalises
-       ``receiving_actor_id`` against ``activity.to`` (HP-09-001).
-    2. Exactly one recipient, and it is not this store's actor — the CaseActor
-       relaying on a participant's behalf, CLI dispatch, or log replay.
-    3. Several recipients, none of them this store's actor — ambiguous.  Warn
-       and degrade rather than guessing positionally.
-    4. No recipient at all — an OX-08-001 violation upstream.  Warn and
-       degrade.
-
-    Cases 3 and 4 fall back to ``receiving_actor_id`` rather than dropping the
-    invitation, because the guarded-commit branch lives inside the same single
-    tree (ADR-0022): skipping the writes would also discard the canonical
-    ledger commit this message is entitled to.  The WARNING is what the old
-    ``invitee_id = receiving_actor_id`` fallback lacked.
+    Raises:
+        VultronProtocolViolationError: ``to`` names no recipient or more
+            than one; the message gives the count.
     """
-    recipients = request.to_recipients
-
-    if is_addressed_to(receiving_actor_id, recipients):
-        return receiving_actor_id
-
-    if len(recipients) == 1:
-        return recipients[0]
-
-    if recipients:
-        logger.warning(
-            "invite_to_embargo_on_case: invite '%s' names %d recipients"
-            " and none of them is receiving actor '%s' — cannot tell which"
-            " participant this replica should apply the invitation to;"
-            " treating the receiving actor as the subject",
-            invite_id,
-            len(recipients),
-            receiving_actor_id,
+    invitee_id = request.invitee_id
+    if invitee_id is None:
+        raise VultronProtocolViolationError(
+            f"Invite(EmbargoEvent) '{invite_id}' names"
+            f" {len(request.to_recipients)} 'to' recipients; its invitee is"
+            " its sole recipient, so it is refused as a misrouting"
+            " (EP-09-010, OX-08-001)"
         )
-        return receiving_actor_id
-
-    logger.warning(
-        "invite_to_embargo_on_case: invite '%s' carries no 'to:' recipient"
-        " (OX-08-001) — treating receiving actor '%s' as the invitation's"
-        " subject",
-        invite_id,
-        receiving_actor_id,
-    )
-    return receiving_actor_id
+    return invitee_id
 
 
 def _resolve_case_for_embargo_acceptance(
@@ -225,9 +196,21 @@ def _store_invite_deadline(
     actor_id: str,
     rsvp_deadline: datetime,
 ) -> None:
-    """Store RSVP deadline on the participant record for lazy lapse detection."""
+    """Store RSVP deadline on the invitee's record for lazy lapse detection.
+
+    A proposal addressed to the CASE_MANAGER names it as the sole recipient,
+    but the manager adjudicates that Invite and is never its invitee
+    (EP-09-010): its record gets no deadline, so the enforcer of invite
+    expiry is never the record expiry is evaluated on (CM-28-003).
+    """
     case = dl.read_case(case_id)
     if case is None:
+        return
+    manager_id = resolve_case_manager_id(case, dl)
+    if manager_id is None:
+        # No enforcer to tell from the invitee (CM-24-006, CM-28-003).
+        raise VultronNotFoundError("CASE_MANAGER of case", case_id)
+    if same_actor_id(actor_id, manager_id):
         return
     participant_id = case.actor_participant_index.get(actor_id)
     if not participant_id:
@@ -421,6 +404,48 @@ class InviteToEmbargoOnCaseReceivedUseCase:
         self._sync_port = sync_port
         self._trigger_activity = trigger_activity
 
+    def _refuse_pxa_ineligible(
+        self, case_id: str, invite_id: str, receiving_actor_id: str
+    ) -> HandlerResult:
+        """Refuse an EP on a public/exploited/attacked case and emit ER.
+
+        EMB-01-002: MUST NOT process EP when P/X/A is set; MUST emit ER.
+        """
+        request = self._request
+        logger.info(
+            "invite_to_embargo_on_case: P/X/A set on case '%s'"
+            " — rejecting EP '%s' (EMB-01-002)",
+            case_id,
+            invite_id,
+        )
+        if self._trigger_activity is not None:
+            _idempotent_create(
+                self._dl,
+                request.activity_type,
+                invite_id,
+                request.activity,
+                "InviteToEmbargoOnCase",
+                invite_id,
+            )
+            reject_id, _ = self._trigger_activity.reject_embargo(
+                proposal_id=invite_id,
+                case_id=case_id,
+                actor=receiving_actor_id,
+                to=[request.actor_id],
+            )
+            add_activity_to_outbox(receiving_actor_id, reject_id, self._dl)
+        else:
+            logger.warning(
+                "invite_to_embargo_on_case: trigger_activity unavailable"
+                " — ER not emitted for EP '%s' on case '%s'",
+                invite_id,
+                case_id,
+            )
+        return HandlerResult.refused(
+            f"EMB-01-002: P/X/A set on case '{case_id}'; embargo"
+            " proposal rejected"
+        )
+
     def execute(self) -> HandlerResult:
         request = self._request
         case_id = request.context_id or ""
@@ -442,54 +467,30 @@ class InviteToEmbargoOnCaseReceivedUseCase:
                 f"Invite(EmbargoEvent) '{invite_id}' names no embargo"
             )
 
+        # The invitee is a subject the message names, not the actor whose
+        # replica this is (ADR-0022): the Invite's sole `to` recipient.  An
+        # Invite naming none or several is a misrouting, refused before the
+        # P/X/A check answers it (EP-09-010, HP-01-005).
+        try:
+            invitee_id = resolve_invitee_id(request, invite_id)
+        except VultronProtocolViolationError as exc:
+            logger.warning(
+                "invite_to_embargo_on_case: refusing invite '%s' from actor"
+                " '%s' at receiving actor '%s': %s",
+                invite_id,
+                request.actor_id,
+                request.receiving_actor_id,
+                exc,
+            )
+            return HandlerResult.refused(str(exc))
+
         receiving_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
         )
-        # EMB-01-002: MUST NOT process EP when P/X/A is set; MUST emit ER.
         if case_id and _pxa_embargo_ineligible(self._dl, case_id):
-            logger.info(
-                "invite_to_embargo_on_case: P/X/A set on case '%s'"
-                " — rejecting EP '%s' (EMB-01-002)",
-                case_id,
-                invite_id,
+            return self._refuse_pxa_ineligible(
+                case_id, invite_id, receiving_actor_id
             )
-            if self._trigger_activity is not None:
-                _idempotent_create(
-                    self._dl,
-                    request.activity_type,
-                    invite_id,
-                    request.activity,
-                    "InviteToEmbargoOnCase",
-                    invite_id,
-                )
-                reject_id, _ = self._trigger_activity.reject_embargo(
-                    proposal_id=invite_id,
-                    case_id=case_id,
-                    actor=receiving_actor_id,
-                    to=[request.actor_id],
-                )
-                add_activity_to_outbox(receiving_actor_id, reject_id, self._dl)
-            else:
-                logger.warning(
-                    "invite_to_embargo_on_case: trigger_activity unavailable"
-                    " — ER not emitted for EP '%s' on case '%s'",
-                    invite_id,
-                    case_id,
-                )
-            return HandlerResult.refused(
-                f"EMB-01-002: P/X/A set on case '{case_id}'; embargo"
-                " proposal rejected"
-            )
-
-        # The invitee is a subject the message names, not the actor whose
-        # replica this is (ADR-0022).  Resolving it from `to:` is what keeps
-        # the two apart: an EP dispatched into any store other than the
-        # addressee's — CLI, replay, or a CaseActor relaying on a
-        # participant's behalf — would otherwise write this participant's PEC
-        # transition and RSVP deadline (CM-28-001, CM-28-003) onto the wrong
-        # record.  Resolved after the P/X/A guard so the warnings it may emit
-        # describe an invitation this use case is actually going to apply.
-        invitee_id = resolve_invitee_id(request, receiving_actor_id, invite_id)
 
         # Single BT execution under receiving_actor_id (ADR-0022 / CLP-10-005).
         # invitee_id is threaded into the tree as a node constructor arg so

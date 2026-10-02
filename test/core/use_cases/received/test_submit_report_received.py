@@ -475,6 +475,7 @@ class TestOfferAddressingSemantics:
             "Expected pending VultronReportCaseLink when receiving actor in to"
         )
 
+    @pytest.mark.spec("CLP-10-021")
     def test_submit_report_trailing_slash_recipient_creates_case(self):
         """A trailing slash on the ``to:`` entry still addresses the receiver.
 

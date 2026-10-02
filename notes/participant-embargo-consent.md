@@ -20,6 +20,7 @@ related_notes:
   - notes/protocol-asks.md
   - notes/sync-ledger-replication.md
   - notes/case-joining.md
+  - notes/bt-integration.md
 relevant_packages:
   - transitions
   - vultron/bt/embargo_management
@@ -449,11 +450,12 @@ on it.
 
 The invitee is the Invite's **sole** `to:` recipient (EP-09-010). Every emitter
 sends a single-recipient Invite — a participant to the CASE_MANAGER, the
-CASE_MANAGER to one participant per relayed Invite — so the multi-recipient
-resolution `resolve_invitee_id()` once carried was built for a shape nothing
-emits, and its fallback to the receiving actor put the deadline on the
-enforcer's own record. An Invite with no recipient or several is refused as a
-misrouting, never guessed at. See also `notes/bt-integration.md` § "The message
+CASE_MANAGER to one participant per relayed Invite — so `resolve_invitee_id()`
+takes that one recipient and refuses an Invite with none or several as a
+misrouting, naming the count, rather than guessing from the receiving actor. A
+proposal addressed to the CASE_MANAGER names the manager as its sole recipient,
+but the manager is that Invite's adjudicator, not its invitee: its own record
+never takes the deadline. See also `notes/bt-integration.md` § "The message
 subject is a fourth identity, and it must stay separate".
 
 ### It Is an `Invite`, Not an `Offer`
