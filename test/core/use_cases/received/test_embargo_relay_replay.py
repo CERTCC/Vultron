@@ -36,17 +36,34 @@ from vultron.adapters.outbox_sealed_body import (
     dump_outbound_body,
     read_sealed_body_dict,
 )
+from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_EVENT_TYPE
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.use_cases.triggers.embargo import (
+    SvcAcceptEmbargoUseCase,
+    SvcProposeEmbargoRevisionUseCase,
+    SvcProposeEmbargoUseCase,
+    SvcRejectEmbargoUseCase,
+    SvcTerminateEmbargoUseCase,
+)
+from vultron.core.use_cases.triggers.requests import (
+    AcceptEmbargoTriggerRequest,
+    ProposeEmbargoRevisionTriggerRequest,
+    ProposeEmbargoTriggerRequest,
+    RejectEmbargoTriggerRequest,
+    TerminateEmbargoTriggerRequest,
+)
 from vultron.semantic_registry import extract_event, use_case_map
 from vultron.wire.as2.factories import em_propose_embargo_activity
 from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 from .conftest import make_embargo_case_with_actor
@@ -62,21 +79,30 @@ BYSTANDER = "https://example.org/users/vendor-b"
 class _Network:
     """One store per actor, and the outbox items each has delivered."""
 
-    def __init__(self, case_id: str) -> None:
+    def __init__(
+        self, case_id: str, *, owner: str = OWNER, em_state: EM = EM.ACTIVE
+    ) -> None:
         self.case_id = case_id
         manager_dl, _, _case, embargo = make_embargo_case_with_actor(
             case_id,
-            OWNER,
+            owner,
             extra_participants=[PROPOSER, BYSTANDER],
             case_manager_actor_id=MANAGER,
         )
         case_read = cast(VulnerabilityCase, manager_dl.read(case_id))
-        case_read.current_status.em.state = EM.ACTIVE
-        case_read.active_embargo = embargo.id_
+        case_read.current_status.em.state = em_state
+        if em_state is EM.ACTIVE:
+            case_read.active_embargo = embargo.id_
         manager_dl.save(case_read)
         # Every participant has signed the active embargo, so each is active
         # while it is in force and a case-content send reaches it (CM-10-004).
-        for participant_id in case_read.actor_participant_index.values():
+        # With no embargo in force every send reaches every participant.
+        signatories = (
+            case_read.actor_participant_index.values()
+            if em_state is EM.ACTIVE
+            else []
+        )
+        for participant_id in signatories:
             participant = cast(
                 CaseParticipant, manager_dl.read(participant_id)
             )
@@ -92,7 +118,7 @@ class _Network:
             embargo.id_,
             *(str(p) for p in case_read.actor_participant_index.values()),
         ]
-        for actor_id in (OWNER, BYSTANDER):
+        for actor_id in {owner, BYSTANDER} - {MANAGER}:
             replica = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
             for obj_id in replicated:
                 obj = manager_dl.read(obj_id)
@@ -313,3 +339,184 @@ def test_the_owners_rejection_returns_every_store_to_the_prior_terms():
         assert case.current_status.em.state == EM.ACTIVE, actor_id
         assert case.active_embargo_id == net.initial_embargo_id, actor_id
         assert case.proposed_embargo_ids == [], actor_id
+
+
+def _manager_ports(net: _Network) -> dict[str, Any]:
+    """The ports ``TriggerDispatcher`` hands a trigger run by the manager."""
+    dl = net.stores[MANAGER]
+    return {
+        "trigger_activity": TriggerActivityAdapter(dl),
+        "sync_port": SyncActivityAdapter(dl),
+        "wire_render_port": As2WireRenderAdapter(),
+    }
+
+
+@pytest.mark.spec("EP-09-007")
+@pytest.mark.spec("EP-09-008")
+@pytest.mark.spec("RSH-08-004")
+@pytest.mark.spec("TB-06-007")
+def test_a_replica_follows_the_managing_owners_revision_by_trigger():
+    """The owner is the CASE_MANAGER and decides by trigger (#4085).
+
+    Its revision and its own acceptance are committed as ledger entries, so a
+    replica that receives nothing but the ``Announce(CaseLedgerEntry)``
+    fan-out converges ``ACTIVE → REVISE → ACTIVE`` with it.
+    """
+    net = _Network("https://example.org/cases/manager-owner", owner=MANAGER)
+    dl = net.stores[MANAGER]
+    dl.create(as_Service(id_=MANAGER, name="Coordinator"))
+
+    SvcProposeEmbargoRevisionUseCase(
+        dl,
+        ProposeEmbargoRevisionTriggerRequest(
+            actor_id=MANAGER,
+            case_id=net.case_id,
+            end_time=days_from_now_utc(90),
+        ),
+        **_manager_ports(net),
+    ).execute()
+    (revision_id,) = net.case(MANAGER).proposed_embargo_ids
+    # The manager mails itself nothing (CLP-10-001); each participant gets
+    # its relayed Invite (EP-09-002).
+    assert net.queued(MANAGER, to=MANAGER) == []
+    assert len(net.queued(MANAGER, to=BYSTANDER, type_="Invite")) == 1
+    _replay_to_bystander(net)
+
+    for actor_id in (MANAGER, BYSTANDER):
+        case = net.case(actor_id)
+        assert case.current_status.em.state == EM.REVISE, actor_id
+        assert case.active_embargo_id == net.initial_embargo_id, actor_id
+        assert case.proposed_embargo_ids == [revision_id], actor_id
+
+    SvcAcceptEmbargoUseCase(
+        dl,
+        AcceptEmbargoTriggerRequest(actor_id=MANAGER, case_id=net.case_id),
+        **_manager_ports(net),
+    ).execute()
+    assert net.queued(MANAGER, to=MANAGER) == []
+    _replay_to_bystander(net)
+
+    for actor_id in (MANAGER, BYSTANDER):
+        case = net.case(actor_id)
+        assert case.current_status.em.state == EM.ACTIVE, actor_id
+        assert case.active_embargo_id == revision_id, actor_id
+        assert case.proposed_embargo_ids == [], actor_id
+
+
+def _managing_owner_network(case_id: str, **kwargs: Any) -> _Network:
+    """A network whose case owner is the CASE_MANAGER and has an actor."""
+    net = _Network(case_id, owner=MANAGER, **kwargs)
+    net.stores[MANAGER].create(as_Service(id_=MANAGER, name="Coordinator"))
+    return net
+
+
+def _manager_revises(net: _Network) -> str:
+    """The managing owner proposes a revision by trigger; return its id."""
+    SvcProposeEmbargoRevisionUseCase(
+        net.stores[MANAGER],
+        ProposeEmbargoRevisionTriggerRequest(
+            actor_id=MANAGER,
+            case_id=net.case_id,
+            end_time=days_from_now_utc(90),
+        ),
+        **_manager_ports(net),
+    ).execute()
+    (revision_id,) = net.case(MANAGER).proposed_embargo_ids
+    return revision_id
+
+
+@pytest.mark.spec("EP-09-007")
+@pytest.mark.spec("EP-09-008")
+@pytest.mark.spec("TB-06-007")
+def test_a_replica_follows_the_managing_owners_first_proposal_by_trigger():
+    """NONE → PROPOSED in the manager's store and the replica's (#4085)."""
+    net = _managing_owner_network(
+        "https://example.org/cases/manager-owner-propose", em_state=EM.NONE
+    )
+
+    SvcProposeEmbargoUseCase(
+        net.stores[MANAGER],
+        ProposeEmbargoTriggerRequest(
+            actor_id=MANAGER,
+            case_id=net.case_id,
+            end_time=days_from_now_utc(90),
+        ),
+        **_manager_ports(net),
+    ).execute()
+    (proposal_id,) = net.case(MANAGER).proposed_embargo_ids
+    assert net.queued(MANAGER, to=MANAGER) == []
+    _replay_to_bystander(net)
+
+    for actor_id in (MANAGER, BYSTANDER):
+        case = net.case(actor_id)
+        assert case.current_status.em.state == EM.PROPOSED, actor_id
+        assert case.active_embargo_id is None, actor_id
+        assert case.proposed_embargo_ids == [proposal_id], actor_id
+
+
+@pytest.mark.spec("EP-09-007")
+@pytest.mark.spec("EP-09-008")
+@pytest.mark.spec("TB-06-007")
+def test_a_replica_follows_the_managing_owners_rejection_by_trigger():
+    """ACTIVE → REVISE → ACTIVE on the prior terms when the manager rejects."""
+    net = _managing_owner_network(
+        "https://example.org/cases/manager-owner-reject"
+    )
+    _manager_revises(net)
+
+    SvcRejectEmbargoUseCase(
+        net.stores[MANAGER],
+        RejectEmbargoTriggerRequest(actor_id=MANAGER, case_id=net.case_id),
+        **_manager_ports(net),
+    ).execute()
+    assert net.queued(MANAGER, to=MANAGER) == []
+    _replay_to_bystander(net)
+
+    for actor_id in (MANAGER, BYSTANDER):
+        case = net.case(actor_id)
+        assert case.current_status.em.state == EM.ACTIVE, actor_id
+        assert case.active_embargo_id == net.initial_embargo_id, actor_id
+        assert case.proposed_embargo_ids == [], actor_id
+
+
+@pytest.mark.spec("EP-09-007")
+@pytest.mark.spec("EP-09-008")
+@pytest.mark.spec("EMB-19-001")
+@pytest.mark.spec("VM-08-003")
+@pytest.mark.spec("TB-06-007")
+def test_a_replica_follows_the_managing_owners_termination_by_trigger():
+    """ACTIVE → EXITED from the fan-out; the Remove is sealed as committed.
+
+    The manager commits its own ``Remove(EmbargoEvent)``, so the sealed body
+    names the case in ``context`` (VM-08-003), the committed snapshot is that
+    body unchanged (OX-07-001), and it is addressed to every other
+    participant, never to the manager itself (EMB-19-001, #4112).
+    """
+    net = _managing_owner_network(
+        "https://example.org/cases/manager-owner-terminate"
+    )
+
+    SvcTerminateEmbargoUseCase(
+        net.stores[MANAGER],
+        TerminateEmbargoTriggerRequest(actor_id=MANAGER, case_id=net.case_id),
+        **_manager_ports(net),
+    ).execute()
+    assert net.queued(MANAGER, to=MANAGER) == []
+    (remove,) = net.queued(MANAGER, to=BYSTANDER, type_="Remove")
+    sealed = read_sealed_body_dict(net.stores[MANAGER], remove.id_)
+    assert sealed is not None
+    assert sealed["context"] == net.case_id
+    (entry,) = [
+        obj
+        for obj in net.stores[MANAGER].list_objects("CaseLedgerEntry")
+        if isinstance(obj, CaseLedgerEntry)
+        and str(obj.event_type) == EMBARGO_TEARDOWN_EVENT_TYPE
+    ]
+    assert entry.payload_snapshot == sealed
+
+    _replay_to_bystander(net)
+
+    for actor_id in (MANAGER, BYSTANDER):
+        case = net.case(actor_id)
+        assert case.current_status.em.state == EM.EXITED, actor_id
+        assert case.active_embargo_id is None, actor_id

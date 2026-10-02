@@ -213,6 +213,21 @@ def _dispose_actor_stores_between_tests():
     reset_store_claimants()
 
 
+@pytest.fixture(autouse=True)
+def _reset_pending_assertion_stores_between_tests():
+    """Drop every per-actor pending-assertion store after each test.
+
+    The stores are process-global and in-memory (SYNC-11-002).  An embargo
+    trigger run by a participant that is not the CASE_MANAGER records its ask
+    there and suppresses a repeat of it (EP-09-008), so an entry left by one
+    test would silently suppress the same trigger in the next.
+    """
+    yield
+    from vultron.core.models.pending_assertion import _reset_stores
+
+    _reset_stores()
+
+
 @pytest.fixture
 def isolated_core_registries():
     """Restore ``CORE_VOCABULARY`` and ``CORE_TYPE_MAP`` after the test.

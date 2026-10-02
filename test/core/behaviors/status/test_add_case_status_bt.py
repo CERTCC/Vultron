@@ -1130,7 +1130,15 @@ class TestThreatTerminationBranchNode:
         object.__setattr__(s, "pxa_state", pxa_state)
         return s
 
-    def _setup_dl_with_embargo(self, dl, pxa_state: CS_pxa):
+    def _setup_dl_with_embargo(
+        self, dl, pxa_state: CS_pxa, manager_id: str = ACTOR_ID
+    ):
+        """Seed a case under active embargo whose CASE_MANAGER is *manager_id*.
+
+        By default the executing actor holds the role: teardown writes shared
+        EM state, which only the CASE_MANAGER does (EP-09-008), and the
+        canonical CaseStatus this branch follows is adopted there.
+        """
         from vultron.core.states.em import EM
         from vultron.enums.roles import CVDRole
 
@@ -1138,7 +1146,7 @@ class TestThreatTerminationBranchNode:
         cm_participant = CaseParticipant(
             id_=CM_PARTICIPANT_ID,
             context=CASE_ID,
-            attributed_to=CASE_MANAGER_ID,
+            attributed_to=manager_id,
             case_roles=[CVDRole.CASE_MANAGER],
         )
         case = VulnerabilityCase(
@@ -1255,20 +1263,34 @@ class TestThreatTerminationBranchNode:
         assert updated.active_embargo is None
 
     @pytest.mark.spec("RSH-03-002")
-    def test_no_sender_role_gate(self, dl):
-        """RSH-03-002: teardown fires regardless of sender role (no CASE_OWNER check).
+    def test_no_sender_role_gate(self):
+        """RSH-03-002: teardown never consults the sender's role.
 
-        Unlike PublicDisclosureBranchNode, any actor_id triggers teardown when
-        pxa conditions are met — sender authorization was handled at StatusAdoptionGate.
+        The branch is built from the status and the case alone — it is given
+        no sender to gate on — so whoever declared the status, a threat
+        signal tears the embargo down; sender authorization was handled at
+        StatusAdoptionGate.  (The *executing* actor's role is a separate
+        question: see the non-manager test below.)
+        """
+        import inspect
+
+        params = inspect.signature(ThreatTerminationBranchNode).parameters
+        assert not any("sender" in p or "actor" in p for p in params)
+
+    @pytest.mark.spec("EP-09-008")
+    def test_non_manager_receiver_asks_instead_of_tearing_down(self, dl):
+        """A receiver that is not the CASE_MANAGER writes no EM state.
+
+        It asks the manager to end the embargo (here the ask fails: no
+        factory, BT-14-001) and the embargo stays in force until the
+        manager's committed teardown reaches it.
         """
         from vultron.core.models.case import VulnerabilityCase
         from vultron.core.states.em import EM
 
-        # ACTOR_ID holds no role at all in the seeded case — the only
-        # participant is CASE_MANAGER_ID — so executing as ACTOR_ID *is* the
-        # non-CASE_OWNER condition this test asserts.  A separate stand-in id
-        # would only name an actor whose store is empty, which tests nothing.
-        status_obj = self._setup_dl_with_embargo(dl, CS_pxa.Pxa)
+        status_obj = self._setup_dl_with_embargo(
+            dl, CS_pxa.Pxa, manager_id=CASE_MANAGER_ID
+        )
         bridge = BTBridge(
             datalayer=dl,
             wire_render_port=As2WireRenderAdapter(),
@@ -1278,10 +1300,11 @@ class TestThreatTerminationBranchNode:
             status_obj=status_obj, case_id=CASE_ID
         )
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
-        # FAILURE because no broadcast factory, but state was applied
+
         assert result.status == Status.FAILURE
         updated = cast(VulnerabilityCase, dl.read(CASE_ID))
-        assert updated.current_status.em.state == EM.EXITED
+        assert updated.current_status.em.state == EM.ACTIVE
+        assert updated.active_embargo is not None
 
 
 # ---------------------------------------------------------------------------

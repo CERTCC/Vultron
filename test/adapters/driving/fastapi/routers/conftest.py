@@ -218,6 +218,38 @@ def _add_case_manager(case: VulnerabilityCase, dl) -> as_Service:
     return case_actor
 
 
+def make_case_manager(case_id: str, actor_id: str, dl) -> None:
+    """Make *actor_id* the case's sole CASE_MANAGER (CM-24-006).
+
+    A trigger writes shared EM state only as the role holder (EP-09-008), so
+    a test of the state an endpoint writes runs as it; the fixtures' separate
+    case actor gives up the role and stays a participant.
+    """
+    case = dl.read(case_id)
+    for participant_id in list(case.actor_participant_index.values()):
+        participant = dl.read(participant_id)
+        if CVDRole.CASE_MANAGER in participant.case_roles:
+            participant.case_roles = [
+                r for r in participant.case_roles if r != CVDRole.CASE_MANAGER
+            ]
+            dl.save(participant)
+    existing_id = case.actor_participant_index.get(actor_id)
+    if existing_id is not None:
+        # The actor keeps its one participant record and gains the role.
+        existing = dl.read(existing_id)
+        existing.case_roles = [*existing.case_roles, CVDRole.CASE_MANAGER]
+        dl.save(existing)
+        return
+    manager = as_CaseParticipant(
+        attributed_to=actor_id,
+        context=case_id,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    dl.create(manager)
+    case.add_participant(manager)
+    dl.save(case)
+
+
 @pytest.fixture
 def client_triggers(dl):
     """TestClient wired to the trigger_embargo router over the ``dl`` store.
