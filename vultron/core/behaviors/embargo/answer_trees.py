@@ -47,6 +47,9 @@ from vultron.core.behaviors.embargo.nodes import (
     ValidateCaseExistsNode,
 )
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
+from vultron.core.behaviors.sync.nodes.embargo_backfill import (
+    BackfillAdmittedParticipantsNode,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +65,9 @@ def accept_invite_to_embargo_tree(
     Handles receipt of an ``Accept(InviteToEmbargoOnCase)`` activity.
     Records the acceptance via EmbargoLifecycle and commits a canonical
     ledger entry.  Only the CASE_MANAGER records it (BT-17-001); any other
-    receiver's gate turns it away and the handler reports a refusal.
+    receiver's gate turns it away and the handler reports a refusal.  The
+    CASE_MANAGER then backfills any participant the acceptance admitted
+    (CM-10-006).
 
     Args:
         case_id: ID of the VulnerabilityCase.
@@ -87,6 +92,10 @@ def accept_invite_to_embargo_tree(
                         embargo_id=embargo_id,
                         accepting_actor_id=accepting_actor_id,
                     ),
+                    # The acceptance can admit the participant (or, as the
+                    # owner's, activate the revision) after its entry was
+                    # fanned out; send what the gate withheld (CM-10-006).
+                    BackfillAdmittedParticipantsNode(case_id=case_id),
                 ],
             ),
         ],

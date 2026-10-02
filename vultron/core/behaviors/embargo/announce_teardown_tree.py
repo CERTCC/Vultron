@@ -41,7 +41,8 @@ activity (protocol ET message).  Sequence:
        └─ ActiveTeardown (Sequence)       # its FAILURE is the tree's FAILURE
           ├─ ClearActiveEmbargoNode       # ACTIVE/REVISE→EXITED + clear active_embargo
           ├─ ResetParticipantConsentNode  # reset all participant PEC to UNBOUND
-          └─ SendAnnounceEmbargoEventNode # emit Announce(EmbargoEvent) to CaseActor
+          ├─ SendAnnounceEmbargoEventNode # emit Announce(EmbargoEvent) to CaseActor
+          └─ EmbargoAdmissionBackfill     # CASE_MANAGER: backfill paused peers (CM-10-006)
 
 Per specs/behavior-tree-integration.yaml BT-06-001.
 """
@@ -86,10 +87,30 @@ from vultron.core.behaviors.embargo.nodes import (
 from vultron.core.behaviors.embargo.response_decision_tree import (
     create_embargo_response_decision_tree,
 )
+from vultron.core.behaviors.sync.nodes.embargo_backfill import (
+    BackfillAdmittedParticipantsNode,
+)
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.services.embargo_lifecycle import TransitionMode
 
 logger = logging.getLogger(__name__)
+
+
+def embargo_admission_backfill_tree(
+    case_id: str,
+) -> py_trees.behaviour.Behaviour:
+    """Backfill the participants an embargo effect just admitted (CM-10-006).
+
+    The admitting entry was committed and fanned out before the effect ran, so
+    the fan-out withheld it; this sends it, and everything else withheld, once
+    the gate admits the participant. CASE_MANAGER only (BT-17-001): the pause
+    records and the canonical ledger live in its store.
+    """
+    return create_case_manager_gated_tree(
+        name="EmbargoAdmissionBackfill",
+        case_id=case_id,
+        children=[BackfillAdmittedParticipantsNode(case_id=case_id)],
+    )
 
 
 def remove_embargo_from_case_tree(
@@ -146,6 +167,7 @@ def remove_embargo_from_case_tree(
                     SendAnnounceEmbargoEventNode(
                         case_id=case_id, embargo_id=embargo_id
                     ),
+                    embargo_admission_backfill_tree(case_id),
                 ],
             ),
         ],
@@ -177,7 +199,8 @@ def add_embargo_to_case_tree(
 
     Handles receipt of an ``Add(EmbargoEvent)`` activity.  Sets the embargo
     as active on the case, transitions EM → ACTIVE, and commits a canonical
-    ledger entry.
+    ledger entry. As the CASE_MANAGER it then backfills any participant the
+    newly active embargo admits (CM-10-006).
 
     BT returns SUCCESS when the embargo is activated.
     Always commits the ledger entry regardless of BT result.
@@ -199,6 +222,9 @@ def add_embargo_to_case_tree(
                 embargo_id=embargo_id,
                 transition_mode=TransitionMode.OBSERVED,
             ),
+            # Activating a revision can admit a participant that had already
+            # accepted it, after the Add entry was fanned out (CM-10-006).
+            embargo_admission_backfill_tree(case_id),
         ],
     )
     logger.info(

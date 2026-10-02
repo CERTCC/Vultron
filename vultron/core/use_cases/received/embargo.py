@@ -12,6 +12,7 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.embargo.announce_teardown_tree import (
     accept_invite_to_embargo_tree,
     add_embargo_to_case_tree,
+    embargo_admission_backfill_tree,
     invite_to_embargo_on_case_tree,
     reject_invite_to_embargo_tree,
     remove_embargo_from_case_tree,
@@ -621,6 +622,19 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         # would diverge the replicas silently (CM-28-009).
         applied_or_raise(tree, result, label="CommitLapseLedgerEntryBT")
 
+    def _backfill_admitted(
+        self, *, case_id: str, receiving_actor_id: str
+    ) -> None:
+        tree = embargo_admission_backfill_tree(case_id)
+        result = BTBridge(
+            datalayer=self._dl, wire_render_port=self._wire_render_port
+        ).execute_with_setup(
+            tree=tree,
+            actor_id=receiving_actor_id,
+            sync_port=self._sync_port,
+        )
+        applied_or_raise(tree, result, label="EmbargoAdmissionBackfillBT")
+
     def _handle_emb17_routing(
         self,
         *,
@@ -667,6 +681,11 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
                 accepting_actor_id,
                 case_id,
                 embargo_id,
+            )
+            # CM-10-006: the honored Accept admits the participant to case
+            # content, so send it what the embargo gate withheld.
+            self._backfill_admitted(
+                case_id=case_id, receiving_actor_id=receiving_actor_id
             )
 
         elif em_state in (EM.ACTIVE, EM.REVISE, EM.PROPOSED):
