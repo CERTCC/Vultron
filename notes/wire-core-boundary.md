@@ -585,16 +585,12 @@ there:
   classes the dict is judged against the union of their spellings, and when it
   also admits `Any` or a plain `dict`, no class decides and the dict is carried
   unexamined (its typed children are still partitioned by their type).
-- **The case stub** is chosen by `resolve_inline_class` on the stub's own key
-  set (`CASE_STUB_KEYS`, derived from the class since #2624 so the enriched
-  CM-17-002 stub's `activeEmbargo` and `caseStatus` count). It judges keys as
-  the partition will, so the raw dict and the partitioned one resolve to the
-  same class: a key foreign to both classes cannot decide it
-  (`{"type": "VulnerabilityCase", "id": …, "fooBar": 1}` is a stub with one key
-  set aside), and a near miss counts as the spelling it resembles (`CaseStatus`
-  selects the stub, whose partition refuses it naming `caseStatus`, rather than
-  the full case, where it would have been set aside and the embargo state
-  lost).
+- **The case stub** is chosen by its `type`, `VulnerabilityCaseStub`, like
+  every other class (CM-11-013, #4045). The key-set guess that once told a
+  sparse `VulnerabilityCase` apart from a stub (`CASE_STUB_KEYS`, #2624) is
+  gone: a `VulnerabilityCase` is a case however few keys it carries, and a
+  near miss on a stub (`CaseStatus`) is refused by the stub's partition naming
+  `caseStatus`.
 - **One refusal names every near miss** in the body, at every depth
   (EH-07-001), each with its dotted path.
 - **A body nested past the recursion limit** is refused as a schema fault

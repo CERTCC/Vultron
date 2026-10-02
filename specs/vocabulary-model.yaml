@@ -438,9 +438,9 @@ groups:
       type is a subtype of the field''s declared type, at **both** the persistence serialization boundary and the wire delivery
       serialization boundary. Omitting `serialize_as_any=True` at either boundary causes the serializer to use the declared
       (base) type''s schema, silently dropping all subtype-specific fields.'
-    rationale: Pydantic v2 uses the declared field type for serialization by default. A field typed as `VulnerabilityCase`
-      but holding an `as_VulnerabilityCaseStub` at runtime will serialize using `VulnerabilityCase`'s schema, dropping `stub_*`
-      fields entirely with no error. Root causes of BUG-26042201 and BUG-26051902. Both persistence and delivery boundaries
+    rationale: Pydantic v2 uses the declared field type for serialization by default. A field typed as `as_Object`
+      but holding an `as_VulnerabilityCaseStub` at runtime will serialize using `as_Object`'s schema, dropping the stub's
+      own fields (`caseId`, `activeEmbargo`, `caseStatus`) entirely with no error. Root causes of BUG-26042201 and BUG-26051902. Both persistence and delivery boundaries
       are required because a correct write-path can still produce incorrect wire output if the delivery serializer also lacks
       this flag.
     verification: Unit test `test_handle_outbox_item_preserves_inline_case_ledger_entry_fields` in

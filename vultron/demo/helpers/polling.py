@@ -751,15 +751,25 @@ def _received_activity_id(raw_id: str, obj_data: dict) -> str:
 
 
 def _is_case_invite_for(obj_data: dict, case_id: str, invitee_id: str) -> bool:
-    """Return True if *obj_data* holds an Invite(Actor, Case) for *invitee_id*/*case_id*."""
+    """Return True if *obj_data* holds a case Invite for *invitee_id*/*case_id*.
+
+    A stub Invite names its case in the stub's ``caseId`` (CM-11-013); the
+    stub's own ``id`` is ``<case-id>/stub`` and is never parsed.  A full-case
+    Invite names the case by URI (AKM-02-003).
+    """
     invite = _received_activity(obj_data)
     if invite.get("type") != "Invite":
         return False
     target_raw = invite.get("target")
-    target_id = (
-        target_raw.get("id") if isinstance(target_raw, dict) else target_raw
-    )
-    if target_id != case_id:
+    if isinstance(target_raw, dict):
+        target_case_id = (
+            target_raw.get("caseId")
+            if target_raw.get("type") == "VulnerabilityCaseStub"
+            else target_raw.get("id")
+        )
+    else:
+        target_case_id = target_raw
+    if target_case_id != case_id:
         return False
     inner = invite.get("object")
     inner_id = inner.get("id") if isinstance(inner, dict) else inner

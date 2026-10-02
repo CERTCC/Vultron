@@ -81,7 +81,7 @@ class InviteActorToCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        case_id = request.target_id
+        case_id = request.case_id
         invitee_id = request.object_id
         if not case_id or not invitee_id:
             logger.warning(

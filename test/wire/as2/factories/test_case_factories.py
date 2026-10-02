@@ -482,7 +482,37 @@ def test_rm_invite_to_case_target_is_set(sample_actor):
     result = rm_invite_to_case_activity(
         invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
     )
-    assert result.target == _CASE_URI
+    assert result.target == as_VulnerabilityCaseStub(case_id=_CASE_URI)
+
+
+@pytest.mark.spec("CM-11-013")
+@pytest.mark.spec("VAM-04-004")
+def test_rm_invite_to_case_wraps_a_case_uri_in_a_stub(sample_actor):
+    """A case named by URI travels as a stub; ``context`` is the case."""
+    result = rm_invite_to_case_activity(
+        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+    )
+    wire = json.loads(result.model_dump_json(by_alias=True, exclude_none=True))
+    assert wire["target"]["type"] == "VulnerabilityCaseStub"
+    assert wire["target"]["id"] == f"{_CASE_URI}/stub"
+    assert wire["target"]["caseId"] == _CASE_URI
+    assert wire["context"] == _CASE_URI
+
+
+@pytest.mark.spec("CM-17-010")
+def test_rm_invite_stub_carries_no_case_content(sample_actor):
+    """The stub names the case and nothing about it (CM-17-010)."""
+    case = as_VulnerabilityCase(
+        id_=_CASE_URI,
+        name="CVE-2025-0001 in widget",
+        summary="A summary of the case",
+        attributed_to=_ACTOR_URI,
+    )
+    result = rm_invite_to_case_activity(
+        invitee=sample_actor, target=case, actor=_ACTOR_URI
+    )
+    wire = json.loads(result.model_dump_json(by_alias=True, exclude_none=True))
+    assert set(wire["target"]) == {"@context", "type", "id", "caseId"}
 
 
 @pytest.mark.spec("AF-04-001")
@@ -552,7 +582,9 @@ def test_reply_embeds_an_invite_as_intake_archived_it(sample_actor, factory):
     invite = rm_invite_to_case_activity(
         invitee=sample_actor,
         actor=_ACTOR_URI,
-        target=as_VulnerabilityCaseStub(id_="https://example.org/cases/c1"),
+        target=as_VulnerabilityCaseStub(
+            case_id="https://example.org/cases/c1"
+        ),
         roles=["vendor"],
     )
     archived = extract_event(invite).activity
@@ -595,11 +627,21 @@ def test_reply_refuses_an_archived_activity_that_is_not_an_invite(
 def _as_plain_invite(activity: BaseModel | None) -> as_Invite:
     """Validate an archived activity into ``as_Invite``, as the adapter does."""
     assert activity is not None, "intake archived no activity"
-    return as_Invite.model_validate(
-        json.loads(
-            activity.model_dump_json(by_alias=True, serialize_as_any=True)
-        )
+    data = json.loads(
+        activity.model_dump_json(by_alias=True, serialize_as_any=True)
     )
+    held = as_Invite.model_validate(data)
+    # As the adapter does: the generic ``as_Object`` target slot keeps none of
+    # the stub's own fields, so the stub is validated as itself.
+    target = data.get("target")
+    if (
+        isinstance(target, dict)
+        and target.get("type") == "VulnerabilityCaseStub"
+    ):
+        held = held.model_copy(
+            update={"target": as_VulnerabilityCaseStub.model_validate(target)}
+        )
+    return held
 
 
 # ---------------------------------------------------------------------------
@@ -750,7 +792,8 @@ def test_rm_invite_stub_is_enriched_from_an_inline_active_embargo(
 
     stub = invite.target
     assert isinstance(stub, as_VulnerabilityCaseStub)
-    assert stub.id_ == case_id
+    assert stub.case_id == case_id
+    assert stub.id_ == f"{case_id}/stub"
     assert isinstance(stub.active_embargo, as_EmbargoEvent)
     assert stub.active_embargo.id_ == embargo.id_
     assert stub.active_embargo.end_time is not None

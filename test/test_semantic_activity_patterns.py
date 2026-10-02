@@ -321,7 +321,7 @@ OWNER_URI = "https://example.org/actors/owner"
 
 
 def _make_case() -> as_VulnerabilityCaseStub:
-    return as_VulnerabilityCaseStub(id_=CASE_URI)
+    return as_VulnerabilityCaseStub(case_id=CASE_URI)
 
 
 @pytest.mark.parametrize(
@@ -435,25 +435,26 @@ def test_announce_vulnerability_case_pattern_matches():
 @pytest.mark.spec("VM-07-001")
 @pytest.mark.spec("VM-07-002")
 def test_vulnerability_case_stub_serialises_minimally():
-    """as_VulnerabilityCaseStub must produce only {id, type} when serialised.
+    """A bare stub serialises as only {id, type, caseId} (CM-17-010).
 
     DR-10 / MV-10-001: the stub is the selective-disclosure object used in
     Invite.target; it must not expose full case details to uninvited parties.
     """
     stub = as_VulnerabilityCaseStub(
-        id_="https://example.org/cases/case-stub-001"
+        case_id="https://example.org/cases/case-stub-001"
     )
     dumped = stub.model_dump(by_alias=True, exclude_none=True)
-    assert set(dumped.keys()) <= {"id", "type", "@context"}
-    assert dumped.get("id") == "https://example.org/cases/case-stub-001"
-    assert dumped.get("type") == "VulnerabilityCase"
+    assert set(dumped.keys()) <= {"id", "type", "caseId", "@context"}
+    assert dumped.get("id") == "https://example.org/cases/case-stub-001/stub"
+    assert dumped.get("type") == "VulnerabilityCaseStub"
+    assert dumped.get("caseId") == "https://example.org/cases/case-stub-001"
 
 
 @pytest.mark.spec("VM-07-001")
 def test_vulnerability_case_stub_with_summary():
     """as_VulnerabilityCaseStub may expose a summary field (MV-10-002)."""
     stub = as_VulnerabilityCaseStub(
-        id_="https://example.org/cases/case-stub-002",
+        case_id="https://example.org/cases/case-stub-002",
         summary="Heap overflow in libfoo",
     )
     dumped = stub.model_dump(by_alias=True, exclude_none=True)
@@ -482,7 +483,8 @@ def test_rm_invite_projects_full_vulnerability_case_to_stub():
     assert isinstance(activity.target, as_VulnerabilityCaseStub), (
         "DR-10: wire activity target must be as_VulnerabilityCaseStub, not full as_VulnerabilityCase"
     )
-    assert activity.target.id_ == full_case.id_
+    assert activity.target.case_id == full_case.id_
+    assert activity.target.id_ == f"{full_case.id_}/stub"
 
 
 # ---------------------------------------------------------------------------

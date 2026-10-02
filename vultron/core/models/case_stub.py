@@ -32,7 +32,9 @@ class CaseStubReference(CoreObject):
     ``VulnerabilityCaseStub``); :attr:`case_id` is the case.  The class keeps
     ``type_`` abstract, so it registers in no type map: it is an in-process
     projection the extractor builds, like the bare :class:`CoreObject` it wraps
-    an otherwise-unmodelled object in, and is never stored.
+    an otherwise-unmodelled object in.  It is never stored as a record of its
+    own: it travels only inline, inside the activity that carries it, and
+    persistence keeps it inline there (``_KEEP_INLINE_NESTED_TYPES``).
     """
 
     case_id: NonEmptyString

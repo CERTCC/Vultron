@@ -90,21 +90,14 @@ def _semantics_of(kind: str, invite: as_Invite) -> MessageSemantics:
     return find_matching_semantics(_reply(kind, invite))
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "CM-11-013: a case stub carries its own type VulnerabilityCaseStub"
-        " and ID <case-id>/stub. Tracked by #4045."
-    ),
-)
 @pytest.mark.spec("CM-11-013")
 def test_stub_invite_target_has_its_own_type_and_id() -> None:
     """The stub in a stub Invite is not the case on the wire.
 
     It serialises with ``type`` ``VulnerabilityCaseStub`` and ID
     ``<case-id>/stub``, and names the case it stands for in a field of its
-    own.  Today the stub reuses the case's ``type`` and ID, which makes the
-    stub Invite and the full-case Invite indistinguishable.
+    own, so the stub Invite and the full-case Invite are told apart by the
+    target's ``type`` alone (#4045).
     """
     dumped = _stub_invite().model_dump(
         mode="json", by_alias=True, exclude_none=True

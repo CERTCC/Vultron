@@ -48,9 +48,6 @@ from pydantic import AliasChoices, AliasPath, BaseModel
 from vultron.core.models._helpers import strip_annotated
 from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCaseStub,
-)
 
 #: The JSON-LD context key every object may carry (MV-11-001).  It is the only
 #: JSON-LD keyword that is a declared spelling: ``@id`` and ``@type`` are near
@@ -242,83 +239,6 @@ def _candidates_for(
     return tuple(dict.fromkeys(found))
 
 
-_CASE_TYPE = "VulnerabilityCase"
-
-
-def _own_wire_keys(model: type[BaseModel]) -> frozenset[str]:
-    """The wire spelling of the fields *model* itself declares, plus identity.
-
-    Reads the class's own annotations rather than ``model_fields``: the latter
-    includes every inherited AS2 field (``name``, ``content``, ...), which a
-    full object carries too, so it cannot tell a stub from a minimal full
-    object.  ``id`` and ``@context`` are identity every stub carries.
-    """
-    keys = {
-        info.serialization_alias or info.alias or name
-        for name, info in model.model_fields.items()
-        if name in model.__annotations__ and not info.exclude
-    }
-    return frozenset(keys | {"id", CONTEXT_KEY})
-
-
-#: Every key an inbound ``as_VulnerabilityCaseStub`` may carry, derived from the
-#: class rather than listed by hand: a hand-kept allowlist described the
-#: pre-CM-17-002 stub long after the class had grown ``activeEmbargo`` and
-#: ``caseStatus``, so an enriched stub was typed as a full case and refused for
-#: the very fields that made it a stub (#2624).
-CASE_STUB_KEYS = _own_wire_keys(as_VulnerabilityCaseStub)
-
-
-def _own_input_keys(model: type[BaseModel]) -> frozenset[str]:
-    """Every spelling *model*'s own fields accept on input, plus identity.
-
-    :data:`CASE_STUB_KEYS` holds the wire spellings; a sender may also use the
-    field names, which both roots validate by (CS-14-001), so stub membership
-    is judged on these.
-    """
-    spellings = _class_spellings(model).annotations
-    own = {
-        spelling
-        for name, info in model.model_fields.items()
-        if name in model.__annotations__ and not info.exclude
-        for spelling in (
-            name,
-            *_alias_keys(info.alias),
-            *_alias_keys(info.validation_alias),
-        )
-        if spelling in spellings
-    }
-    identity = {"id", "id_", CONTEXT_KEY, "context_"} & spellings.keys()
-    return frozenset(own | identity | CASE_STUB_KEYS)
-
-
-_CASE_STUB_INPUT_KEYS = _own_input_keys(as_VulnerabilityCaseStub)
-
-
-def _reads_as_case_stub(value: dict[str, Any]) -> bool:
-    """Whether an inline ``VulnerabilityCase`` dict is the stub (MV-10-001).
-
-    The stub when every key it carries is one of :data:`CASE_STUB_KEYS`, judged
-    as the partition will judge it, so the raw dict and the partitioned one
-    resolve to the same class: a key neither class declares is set aside and
-    cannot decide the class, and a near miss counts as the spelling it
-    resembles (so ``CaseStatus`` still selects the stub, whose partition then
-    refuses it naming ``caseStatus``).
-    """
-    known = _merged_spellings(
-        (as_VulnerabilityCaseStub, find_in_vocabulary(_CASE_TYPE))
-    )
-    for key in value:
-        read_as = (
-            key
-            if key in known.annotations
-            else known.by_normalised.get(normalise(key))
-        )
-        if read_as is not None and read_as not in _CASE_STUB_INPUT_KEYS:
-            return False
-    return True
-
-
 def resolve_inline_class(value: dict[str, Any]) -> type[BaseModel] | None:
     """Return the most specific *wire* class for an inline dict's ``type``.
 
@@ -328,12 +248,14 @@ def resolve_inline_class(value: dict[str, Any]) -> type[BaseModel] | None:
     default (VM-06-008, ISSUE-3217).  Shared by this partition, which calls it
     on the raw dict, and the parser's expansion, which calls it on the
     partitioned one; both calls answer the same class.
+
+    The ``type`` alone decides the class, a case stub included: a stub names
+    itself ``VulnerabilityCaseStub`` (CM-11-013), so a sparse
+    ``VulnerabilityCase`` is a case however few keys it carries.
     """
     obj_type = value.get("type")
     if not isinstance(obj_type, str):
         return None
-    if obj_type == _CASE_TYPE and _reads_as_case_stub(value):
-        return as_VulnerabilityCaseStub
     try:
         return find_in_vocabulary(obj_type)
     except KeyError:

@@ -210,26 +210,33 @@ class TestDynamicDiscovery:
         assert "as_VulnerabilityReport" not in VOCABULARY
         assert "as_VulnerabilityCase" not in VOCABULARY
 
-    def test_case_stub_does_not_claim_the_case_wire_type_key(self):
-        """VM-01-008: an alias class holds no key of its own (issue #2982).
+    def test_case_stub_owns_its_own_wire_type_key(self):
+        """VM-01-008, CM-11-013: the stub is its own type, not an alias.
 
-        ``as_VulnerabilityCaseStub`` emits ``type: "VulnerabilityCase"``, so the
-        key belongs to ``as_VulnerabilityCase``. It used to also register under
-        ``VulnerabilityCaseStub`` — a key no payload carries, which is why
-        ``docs/ns/context.jsonld`` correctly grants the stub no term of its own.
+        ``as_VulnerabilityCaseStub`` emits ``type: "VulnerabilityCaseStub"``
+        and owns that ``WIRE_TYPE_MAP`` key (ADR-0114, #4045); the full case
+        keeps ``VulnerabilityCase``.  Before #4045 the stub was a
+        ``_wire_type_alias`` of the case and owned no key.
         """
         import vultron.wire.as2.vocab  # noqa: F401 — dynamic discovery
-        from vultron.wire.as2.vocab.base.registry import wire_type_value
+        from vultron.wire.as2.vocab.base.registry import (
+            is_wire_type_alias,
+            wire_type_value,
+        )
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             as_VulnerabilityCase,
             as_VulnerabilityCaseStub,
         )
 
-        assert wire_type_value(as_VulnerabilityCaseStub) == "VulnerabilityCase"
-        assert "VulnerabilityCaseStub" not in WIRE_TYPE_MAP
+        assert (
+            wire_type_value(as_VulnerabilityCaseStub)
+            == "VulnerabilityCaseStub"
+        )
+        assert not is_wire_type_alias(as_VulnerabilityCaseStub)
+        assert (
+            WIRE_TYPE_MAP["VulnerabilityCaseStub"] is as_VulnerabilityCaseStub
+        )
         assert WIRE_TYPE_MAP["VulnerabilityCase"] is as_VulnerabilityCase
-
-        # The stub stays reachable by class name through VOCABULARY.
         assert (
             VOCABULARY["as_VulnerabilityCaseStub"] is as_VulnerabilityCaseStub
         )

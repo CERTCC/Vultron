@@ -8,9 +8,11 @@ description: >
 related_specs:
   - specs/stub-objects.yaml
   - specs/message-validation.yaml
+  - specs/case-management.yaml (CM-11-013, CM-17-010)
 related_notes:
   - vultron/core/ports/AGENTS.md
   - notes/wire-core-boundary.md
+  - notes/case-joining.md
 relevant_packages:
   - vultron/wire/as2
 ---
@@ -104,7 +106,7 @@ by ADR-0090). It is not a general substitute for a full object.
 | Situation | Use |
 |---|---|
 | Normal protocol operation (Create, Offer, Invite, Announce) | Full inline typed object (AKM-03-001) |
-| Inviting a participant before embargo acceptance | `as_VulnerabilityCaseStub` (type + id + summary only) |
+| Inviting a participant before embargo acceptance | `as_VulnerabilityCaseStub` (`id`, `type`, `caseId`, plus embargo terms when active; CM-17-010) |
 | Large object already known to recipient | Bare URI, or an AS2 `Link` |
 | Privacy-sensitive fields must be withheld | Omit the object; send a URI reference |
 
@@ -115,8 +117,10 @@ nothing else can: an invitee must evaluate a case *before* accepting, and the
 case cannot be shared until they accept (MV-10-005). The stub is therefore
 **transient** — a placeholder that rehydrates into the full object once the
 invitee is admitted. It is the only stub type implemented:
-`as_VulnerabilityCaseStub` has a class, a factory (`_project_case_to_stub`), and an
-explicit key-set check in `parser._inline_vocab_class`.
+`as_VulnerabilityCaseStub` has a class, a factory (`_project_case_to_stub`), and
+its own wire `type`, `VulnerabilityCaseStub`, with ID `<case-id>/stub` and a
+`caseId` field naming the case (CM-11-013, #4045). A receiver recognises it by
+`type` alone and resolves the case from `caseId`, never by parsing the ID.
 
 Partial inline objects of other types were never designed. They appeared to work
 only because `parser._expand_inline_value` swallowed inline validation failures
@@ -210,8 +214,8 @@ The formal stub object requirements are now specified in
 
 - `as_VulnerabilityCaseStub` MUST override the inherited `published` and
   `updated` defaults from `as_Object`. Otherwise `model_dump(exclude_none=True)`
-  leaks timestamps and violates the "stub carries only id/type(+summary)"
-  selective-disclosure rule.
+  leaks timestamps and violates the selective-disclosure rule of CM-17-010
+  (`id`, `type`, `caseId`, embargo terms when active, optional `summary`).
 - `event.activity` cannot be reduced to ID strings for `AnnounceVulnerabilityCase`
   handling. `AnnounceVulnerabilityCaseReceivedUseCase` needs the full inline
   `VulnerabilityCase` on `activity.object_`, so `extract_intent()` must

@@ -31,6 +31,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     OWNER_ACTOR_ID,
 )
 from vultron.core.behaviors.sync.nodes.canonical_entry import (
+    _snapshot_object_type,
     _validate_canonical_entry,
 )
 from vultron.core.models._helpers import now_utc
@@ -382,6 +383,36 @@ def test_invite_with_a_bare_case_target_resolves_to_the_case_signature():
         "target": CASE_ID,
         "context": CASE_ID,
     }
+    _validate_canonical_entry(
+        case_id=CASE_ID,
+        payload_snapshot=snapshot,
+        event_type="invite_actor_to_case",
+    )
+
+
+@pytest.mark.spec("CM-11-013")
+def test_invite_with_a_case_stub_target_resolves_to_the_stub_signature():
+    """``Invite(Actor, target=VulnerabilityCaseStub)`` is its own signature.
+
+    The stub Invite is told apart from the full-case Invite by its target's
+    ``type`` (CM-11-013), and the ledger records it under that type.
+    """
+    snapshot = {
+        "type": "Invite",
+        "actor": OWNER_ACTOR_ID,
+        "published": now_utc().isoformat(),
+        "object": {
+            "type": "Organization",
+            "id": "https://example.org/actors/vendor",
+        },
+        "target": {
+            "type": "VulnerabilityCaseStub",
+            "id": f"{CASE_ID}/stub",
+            "caseId": CASE_ID,
+        },
+        "context": CASE_ID,
+    }
+    assert _snapshot_object_type(snapshot, CASE_ID) == "VulnerabilityCaseStub"
     _validate_canonical_entry(
         case_id=CASE_ID,
         payload_snapshot=snapshot,

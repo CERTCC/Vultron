@@ -144,7 +144,7 @@ _LOG_ENTRY = as_CaseLedgerEntry(
 )
 
 _SUBMIT = _RmSubmitReportActivity(actor=_ACTOR, object_=_REPORT)
-_STUB = as_VulnerabilityCaseStub(id_=_CASE.id_)
+_STUB = as_VulnerabilityCaseStub(case_id=_CASE.id_)
 _INVITE = _RmInviteToCaseActivity(actor=_ACTOR, object_=_ACTOR, target=_STUB)
 _LEAVE = _RmCloseCaseActivity(actor=_ACTOR, object_=_CASE)
 _PROPOSE = _EmProposeEmbargoActivity(

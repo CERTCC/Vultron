@@ -307,8 +307,10 @@ Concretely:
 - `Add(ParticipantStatus)` — participant asserts an RM/CS/EM transition
 - `Offer(EmbargoEvent)`, `Accept(EmbargoEvent)`, `Reject(EmbargoEvent)` —
   embargo proposal/response
-- `Invite(VulnerabilityCase)`, `Accept(Invite)`, `Reject(Invite)` — case
-  membership handshake (note: routed through the CASE_MANAGER per PCR-08)
+- `Invite(VulnerabilityCaseStub)` (the stub Invite, CM-11-013),
+  `Invite(VulnerabilityCase)` (the full-case Invite, which names its case by
+  URI), `Accept(Invite)`, `Reject(Invite)` — case membership handshake (note:
+  routed through the CASE_MANAGER per PCR-08)
 - `Announce(VulnerabilityCase)` — case bootstrap broadcast
 - Any other protocol-significant AS2 activity that mutates protocol-visible
   state

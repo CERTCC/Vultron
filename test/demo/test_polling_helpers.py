@@ -588,6 +588,21 @@ class TestFindCaseInviteForActor:
         assert found == _INVITE_ID
         assert record_id != _INVITE_ID
 
+    @pytest.mark.spec("CM-11-013")
+    def test_matches_the_case_the_stub_names_not_the_stub_id(self):
+        """The stub's own ID is ``<case-id>/stub``; ``caseId`` names the case."""
+        record_id, record = _archived_invite_entry()
+        target = record["activity"]["target"]
+        assert target["type"] == "VulnerabilityCaseStub"
+        assert target["id"] != CASE_ID and target["caseId"] == CASE_ID
+        client = _dl_client({record_id: record})
+
+        found = find_case_invite_for_actor(
+            client, CASE_ID, ACTOR_B, timeout_seconds=1.0, poll_interval=0.01
+        )
+
+        assert found == _INVITE_ID
+
     def test_finds_the_invite_the_inbox_holds_until_the_case_bootstrap(
         self,
     ):

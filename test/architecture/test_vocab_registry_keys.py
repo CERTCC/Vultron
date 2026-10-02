@@ -13,6 +13,8 @@ keys before #2982: the five ``as_Vultron*`` actor classes registered under their
 stripped class names (``VultronPerson`` — also the name of a core type) as well as
 their ``type`` values (``Person``), and ``as_VulnerabilityCaseStub`` registered
 under ``VulnerabilityCaseStub`` while emitting ``type: "VulnerabilityCase"``.
+Since #4045 the stub emits ``type: "VulnerabilityCaseStub"`` and owns that key
+(CM-11-013, ADR-0114).
 
 Spec: `specs/vocabulary-model.yaml` VM-01-004, VM-01-008.
 See: GitHub issue #2982.
@@ -143,8 +145,7 @@ def test_every_declared_wire_type_resolves() -> None:
     """Every declared ``type`` value resolves to *some* registered class.
 
     A class may legitimately not own its own ``type`` value — ``as_Person`` is
-    shadowed by ``as_VultronPerson``, and ``as_VulnerabilityCaseStub`` declares
-    itself an alias of ``as_VulnerabilityCase``. What must never happen is a
+    shadowed by ``as_VultronPerson``. What must never happen is a
     ``type`` value the project emits that resolves to nothing.
     """
     _force_full_registration()

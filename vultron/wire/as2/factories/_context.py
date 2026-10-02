@@ -26,13 +26,23 @@ alone.
 
 from typing import Any, TypeVar
 
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCaseStub,
+)
+
 _Target = TypeVar("_Target")
 
 
 def case_uri_of(case_ref: object) -> str | None:
-    """Return the URI a case reference names: the string itself, or its id."""
+    """Return the URI a case reference names.
+
+    That is the string itself, the case a stub stands for (its ``case_id``,
+    never its own ``<case-id>/stub`` id — CM-11-003), or the object's id.
+    """
     if isinstance(case_ref, str):
         return case_ref or None
+    if isinstance(case_ref, as_VulnerabilityCaseStub):
+        return case_ref.case_id
     case_id = getattr(case_ref, "id_", None)
     return case_id if isinstance(case_id, str) and case_id else None
 

@@ -119,8 +119,9 @@ def test_the_invite_case_stub_survives_to_the_emitter(dl):
     delivered = json.loads(body)
     assert delivered["target"] == {
         "@context": delivered["target"]["@context"],
-        "type": "VulnerabilityCase",
-        "id": case.id_,
+        "type": "VulnerabilityCaseStub",
+        "id": f"{case.id_}/stub",
+        "caseId": case.id_,
     }
     assert delivered["context"] == case.id_
 

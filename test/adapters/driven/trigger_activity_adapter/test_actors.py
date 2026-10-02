@@ -105,7 +105,9 @@ class TestInviteActorToCaseWithInlineEmbargo:
         )
 
         target = json.loads(blob)["target"]
-        assert target["id"] == case_id
+        assert target["type"] == "VulnerabilityCaseStub"
+        assert target["id"] == f"{case_id}/stub"
+        assert target["caseId"] == case_id
         assert target["activeEmbargo"]["id"] == embargo.id_
         assert target["activeEmbargo"]["endTime"]
         assert target["caseStatus"]["emState"] == "ACTIVE"
@@ -154,7 +156,7 @@ class TestAcceptCaseInvite:
         dl.create(invitee)
         invite = rm_invite_to_case_activity(
             invitee,
-            target=as_VulnerabilityCaseStub(id_=_CASE_ID),
+            target=as_VulnerabilityCaseStub(case_id=_CASE_ID),
             actor=_ACTOR,
             to=[_INVITEE],
         )
@@ -239,14 +241,23 @@ class TestAcceptCaseInvite:
         assert obj.get("id") == invite_id
 
     @pytest.mark.spec("AKM-02-003")
-    def test_embedded_invite_names_the_case_by_uri(self, adapter, dl):
+    @pytest.mark.spec("CM-11-013")
+    def test_embedded_invite_keeps_the_case_stub(self, adapter, dl):
+        """The reply embeds the Invite as received, stub target and all.
+
+        The stub's ``type`` is what tells the reply apart from a reply to a
+        full-case Invite (CM-11-013), and its ``caseId`` names the case
+        (AKM-02-003 permits the stub in ``target``).
+        """
         invite_id = self._make_invite(dl)
 
         _, activity_dict = adapter.accept_case_invite(
             invite_id=invite_id, actor=_INVITEE
         )
 
-        assert json.loads(activity_dict)["object"]["target"] == _CASE_ID
+        target = json.loads(activity_dict)["object"]["target"]
+        assert target["type"] == "VulnerabilityCaseStub"
+        assert target["caseId"] == _CASE_ID
 
     @pytest.mark.spec("AKM-02-003")
     def test_an_invite_the_inbox_holds_until_the_case_bootstrap_is_answered(
@@ -260,7 +271,7 @@ class TestAcceptCaseInvite:
         """
         invite = rm_invite_to_case_activity(
             _INVITEE,
-            target=as_VulnerabilityCaseStub(id_=_CASE_ID),
+            target=as_VulnerabilityCaseStub(case_id=_CASE_ID),
             actor=_ACTOR,
             to=[_INVITEE],
         )
@@ -272,7 +283,7 @@ class TestAcceptCaseInvite:
 
         accept = json.loads(activity_dict)
         assert accept["object"]["id"] == invite.id_
-        assert accept["object"]["target"] == _CASE_ID
+        assert accept["object"]["target"]["caseId"] == _CASE_ID
 
     def test_an_invite_this_store_never_received_is_not_found(
         self, adapter, dl
@@ -296,8 +307,13 @@ class TestAcceptCaseInvite:
                 invite_id="urn:uuid:held-oddly", actor=_INVITEE
             )
 
-    def test_a_held_invite_whose_inline_case_has_no_id_is_refused(
-        self, adapter, monkeypatch
+    @pytest.mark.parametrize(
+        "held_target",
+        [{"type": "VulnerabilityCase"}, {"type": "VulnerabilityCaseStub"}],
+        ids=["case-without-id", "stub-without-case-id"],
+    )
+    def test_a_held_invite_that_does_not_name_its_case_is_refused(
+        self, adapter, monkeypatch, held_target
     ):
         from pydantic import BaseModel
 
@@ -305,13 +321,15 @@ class TestAcceptCaseInvite:
 
         class _Held(BaseModel):
             actor: str = _ACTOR
-            target: dict[str, str] = {"type": "VulnerabilityCase"}
+            target: dict[str, str] = held_target
 
         monkeypatch.setattr(
             actors, "read_received_activity", lambda *_args: _Held()
         )
 
-        with pytest.raises(VultronValidationError, match="with no id"):
+        with pytest.raises(
+            VultronValidationError, match="does not validate as an Invite"
+        ):
             adapter.accept_case_invite(
                 invite_id="urn:uuid:held-without-case-id", actor=_INVITEE
             )

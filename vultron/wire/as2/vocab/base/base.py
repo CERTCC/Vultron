@@ -77,8 +77,9 @@ class as_Base(BaseModel):
     _vocab_ns: ClassVar[VocabNamespace] = VocabNamespace.AS
 
     #: Set ``True`` on a class that shares another class's wire ``type`` value
-    #: and is therefore not what that value should deserialize to
-    #: (``as_VulnerabilityCaseStub`` emits ``type: "VulnerabilityCase"``). Such a
+    #: and is therefore not what that value should deserialize to. No
+    #: production class declares it today; the case stub, its last user, became
+    #: its own ``VulnerabilityCaseStub`` type in #4045 (CM-11-013). Such a
     #: class stays reachable by class name through ``VOCABULARY`` but claims no
     #: ``WIRE_TYPE_MAP`` key of its own (VM-01-008).
     _wire_type_alias: ClassVar[bool] = False

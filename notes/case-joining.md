@@ -19,6 +19,7 @@ related_notes:
   - notes/participant-embargo-consent.md
   - notes/participant-role-management.md
   - notes/sync-ledger-replication.md
+  - notes/stub-objects.md
 relevant_packages:
   - vultron/core/participants/recipients.py
   - vultron/core/behaviors/case/nodes/invite_participant.py
@@ -160,7 +161,9 @@ never a way into a case.
 
 **The stub and the case were the same thing on the wire.** Same `type`, same
 ID; a stub differed only in which fields it carried, so no message could be
-about the stub as distinct from the case.
+about the stub as distinct from the case. Fixed in #4045: the stub is
+`VulnerabilityCaseStub` with ID `<case-id>/stub` and a `caseId` naming the case
+(CM-11-013), and it carries only that plus the embargo terms (CM-17-010).
 
 **The RM model could not say "no" from *Received*.** `R → C` did not exist, yet
 two paths already closed from other rungs by bypassing the transition table:
@@ -193,3 +196,6 @@ message is designed: we accept offers and invitations, never bare objects.
   stale.
 - **Do not add a `TentativeReject` handler for the stub Invite.** It is not a
   valid reply.
+- **Resolve the case from the stub's `caseId`, never its ID.** Since #4045 the
+  stub-Invite reply patterns match only a `VulnerabilityCaseStub` target, so a
+  reply to a full-case Invite matches no pattern until #4050 adds its own.

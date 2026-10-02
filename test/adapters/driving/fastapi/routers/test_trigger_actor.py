@@ -188,7 +188,7 @@ def invite(other_actor_and_dl, actor, case_obj):
     other, other_dl = other_actor_and_dl
     invite_activity = rm_invite_to_case_activity(
         other,
-        target=as_VulnerabilityCaseStub(id_=case_obj.id_),
+        target=as_VulnerabilityCaseStub(case_id=case_obj.id_),
         actor=actor.id_,
     )
     archive_received(other_dl, invite_activity)

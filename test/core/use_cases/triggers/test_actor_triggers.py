@@ -832,7 +832,7 @@ class TestSvcAcceptCaseInviteUseCase:
 
         invite = rm_invite_to_case_activity(
             invitee,
-            target=as_VulnerabilityCaseStub(id_=case.id_),
+            target=as_VulnerabilityCaseStub(case_id=case.id_),
             actor=inviter.id_,
             to=[invitee.id_],
         )
@@ -895,7 +895,7 @@ class TestSvcAcceptCaseInviteUseCase:
 
         invite = rm_invite_to_case_activity(
             invitee,
-            target=as_VulnerabilityCaseStub(id_=case.id_),
+            target=as_VulnerabilityCaseStub(case_id=case.id_),
             actor=inviter.id_,
             to=[invitee.id_],
         )
@@ -930,7 +930,7 @@ class TestSvcAcceptCaseInviteUseCase:
 
         invite = rm_invite_to_case_activity(
             invitee,
-            target=as_VulnerabilityCaseStub(id_=case.id_),
+            target=as_VulnerabilityCaseStub(case_id=case.id_),
             actor=inviter.id_,
             to=[invitee.id_],
         )
@@ -967,7 +967,7 @@ class TestSvcRejectCaseInviteUseCase:
 
         invite = rm_invite_to_case_activity(
             invitee,
-            target=as_VulnerabilityCaseStub(id_=case.id_),
+            target=as_VulnerabilityCaseStub(case_id=case.id_),
             actor=inviter.id_,
             to=[invitee.id_],
         )
@@ -1021,7 +1021,7 @@ class TestSvcRejectCaseInviteUseCase:
 
         invite = rm_invite_to_case_activity(
             invitee,
-            target=as_VulnerabilityCaseStub(id_=case.id_),
+            target=as_VulnerabilityCaseStub(case_id=case.id_),
             actor=inviter.id_,
             to=[invitee.id_],
         )

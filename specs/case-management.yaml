@@ -2232,6 +2232,37 @@ groups:
       spec_id: SYNC-15-004
     adr:
     - ADR-0114
+  - id: CM-17-010
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A case stub MUST carry exactly its `id`, its `type` and the `caseId` naming the
+      case it stands for (CM-11-013), plus, when an embargo is active, the embargo terms
+      CM-17-002 requires (`activeEmbargo` and `caseStatus.emState`). It MAY carry a
+      `summary` (MV-10-001). It MUST NOT carry any other case content, and it MUST NOT
+      name the case's coordinator or Case Owner: the Invite that carries it already
+      identifies the inviter in its `actor` and `attributedTo`.
+    rationale: >-
+      An invitee is not yet an active participant and is entitled to no case content
+      (CM-10-004, CM-17-005). Informed consent to join needs only the case's identity
+      and the embargo terms (CM-17-002); the Invite envelope already says who is asking.
+      Anything more leaks case content to an actor that may decline (#3758).
+    verification: >-
+      A stub projected from a full case serialises with only `id`, `type` and `caseId`
+      when no embargo is active, and adds only `activeEmbargo` and `caseStatus` when one
+      is.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-11-013
+    - rel_type: refines
+      spec_id: MV-10-001
+    - rel_type: depends_on
+      spec_id: CM-17-002
+    stories:
+    - story_2022_023
+    - story_2022_014
+    adr:
+    - ADR-0114
 - id: CM-18
   title: Participant Embargo Consent State Machine
   specs:

@@ -35,6 +35,9 @@ from vultron.wire.as2.vocab.objects.case_status import (
     as_CaseStatus,
     as_ParticipantStatus,
 )
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCaseStub,
+)
 
 
 class TestVocabParticipantExamples(unittest.TestCase):
@@ -134,7 +137,10 @@ class TestVocabParticipantExamples(unittest.TestCase):
 
         self.assertEqual(activity.actor, vendor.id_)
         self.assertEqual(activity.object_, coordinator)
-        self.assertEqual(activity.target, case.id_)
+        stub = activity.target
+        assert isinstance(stub, as_VulnerabilityCaseStub)
+        self.assertEqual(stub.case_id, case.id_)
+        self.assertEqual(activity.context, case.id_)
         self.assertEqual(activity.to, coordinator.id_)
 
     def test_accept_invite_to_case(self):
@@ -179,7 +185,10 @@ class TestVocabParticipantExamples(unittest.TestCase):
 
         self.assertEqual(activity.actor, vendor.id_)
         self.assertEqual(activity.object_, coordinator)
-        self.assertEqual(activity.target, case.id_)
+        stub = activity.target
+        assert isinstance(stub, as_VulnerabilityCaseStub)
+        self.assertEqual(stub.case_id, case.id_)
+        self.assertEqual(activity.context, case.id_)
         self.assertEqual(activity.to, coordinator.id_)
 
     def test_recommend_actor(self):
