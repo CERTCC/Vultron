@@ -39,11 +39,13 @@ from py_trees.common import Status
 from vultron.core.behaviors.case.nodes.embargo_signatory import (
     SeedOwnerAsSignatoryNode,  # noqa: F401  # re-export after the split
 )
+from vultron.core.behaviors.embargo.nodes.em_state import read_case_em_state
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
 from vultron.core.models._helpers import _as_id, from_now_utc
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_persistence import CasePersistence
@@ -55,6 +57,7 @@ from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
 )
+from vultron.core.states.em import EM
 from vultron.errors import (
     VultronAlreadyExistsError,
     VultronError,
@@ -232,10 +235,19 @@ class CreateEmbargoEventNode(DataLayerActionWithPorts):
         stored beside it (#4117).  Returns ``False`` when no such event is
         stored; an object under the id that is not this case's embargo is left
         to ``persist_creation_time_embargo``, which refuses it.
+
+        "Nothing references it" is checked here, not inherited from the
+        upstream guard (CSB-16): the case must be at ``EM.NONE`` with no
+        active embargo and must not list the id as a proposal.  Otherwise
+        ``False`` is returned and ``persist_creation_time_embargo`` refuses
+        the changed terms rather than rewriting an event already in use
+        (#4123).
         """
         assert self.datalayer is not None  # update() checked it
         stored = self.datalayer.read(embargo.id_)
         if not isinstance(stored, EmbargoEvent) or stored.context != case_id:
+            return False
+        if not self._unreferenced_by_case(embargo.id_, case_id):
             return False
         self.datalayer.save(embargo)
         self.logger.info(
@@ -249,6 +261,24 @@ class CreateEmbargoEventNode(DataLayerActionWithPorts):
             embargo.end_time.isoformat(),
         )
         return True
+
+    def _unreferenced_by_case(self, embargo_id: str, case_id: str) -> bool:
+        """Return whether case *case_id* is half-built and names no embargo.
+
+        Raises:
+            BtNodePreconditionError: when the case or its EM state cannot be
+                read; ``update()`` turns it into FAILURE.
+        """
+        assert self.datalayer is not None  # update() checked it
+        if read_case_em_state(self.datalayer, case_id) is not EM.NONE:
+            return False
+        case = self.datalayer.read(case_id)
+        if not isinstance(case, VulnerabilityCase):
+            return False
+        return (
+            _as_id(case.active_embargo) is None
+            and embargo_id not in case.proposed_embargo_ids
+        )
 
 
 class AdvanceEMStateToActiveNode(DataLayerActionWithPorts):

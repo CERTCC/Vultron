@@ -33,7 +33,10 @@ from vultron.core.behaviors.case.embargo_tree import (
     InitializeDefaultEmbargoNode,
 )
 from vultron.core.behaviors.case.nodes import embargo as embargo_nodes_module
-from vultron.core.behaviors.case.nodes.embargo import creation_time_embargo_id
+from vultron.core.behaviors.case.nodes.embargo import (
+    CreateEmbargoEventNode,
+    creation_time_embargo_id,
+)
 from vultron.core.behaviors.case.nodes.embargo_resolution import (
     CaseEmbargoAlreadyInitializedNode,
     CaseNotEmbargoEligibleNode,
@@ -45,6 +48,10 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_policy import EmbargoPolicy
+from vultron.core.services.embargo_duration import (
+    EmbargoDurationSource,
+    InitialEmbargoDuration,
+)
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
@@ -561,6 +568,24 @@ def test_a_longer_sender_duration_without_its_event_fails_loudly(
     assert case.proposed_embargoes == []
 
 
+@pytest.mark.spec("EP-04-004")
+def test_a_winning_sender_duration_without_its_event_mints_the_default_id(
+    bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
+) -> None:
+    """A sender duration that wins with no sender event on the blackboard
+    falls to the minted branch, which names the event by the case-derived
+    id so a rerun reuses it (#4117)."""
+    status, before, after = _run(
+        bt_scenario, sender_proposal=SENDER_PROPOSAL, with_sender_event=False
+    )
+
+    assert status == Status.SUCCESS
+    active = _active_embargo(bt_scenario)
+    assert active is not None
+    assert active.id_ == creation_time_embargo_id(CASE_ID)
+    _assert_duration(active, SENDER_PROPOSAL, before, after)
+
+
 @pytest.mark.xfail(
     strict=True,
     reason=(
@@ -830,6 +855,38 @@ class TestCaseEmbargoAlreadyInitializedNode:
         stored = bt_scenario.dl.read(embargo_id)
         assert isinstance(stored, EmbargoEvent)
         assert stored.context == other_case
+
+    def test_an_event_the_case_already_proposes_is_not_restamped(
+        self, bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
+    ) -> None:
+        """Re-stamping checks for itself that nothing references the event
+        (CSB-16), rather than trusting the upstream guard: a case that has
+        moved to ``PROPOSED`` and lists the event as a proposal keeps the
+        terms it proposed, and the changed terms are refused (#4123)."""
+        embargo_id = creation_time_embargo_id(CASE_ID)
+        stored_end = datetime(2099, 1, 1, tzinfo=UTC)
+        bt_scenario.dl.create(
+            EmbargoEvent(id_=embargo_id, context=CASE_ID, end_time=stored_end)
+        )
+        _set_em(bt_scenario, EM.PROPOSED)
+        case = cast(Any, bt_scenario.dl.read(CASE_ID))
+        case.proposed_embargoes = [embargo_id]
+        bt_scenario.dl.save(case)
+
+        status = bt_scenario.run(
+            CreateEmbargoEventNode(),
+            actor_id=ACTOR_ID,
+            case_id=CASE_ID,
+            initial_embargo_duration=InitialEmbargoDuration(
+                duration=PROTOCOL_DEFAULT,
+                source=EmbargoDurationSource.PROTOCOL_DEFAULT,
+            ),
+        ).status
+
+        assert status == Status.FAILURE
+        stored = bt_scenario.dl.read(embargo_id)
+        assert isinstance(stored, EmbargoEvent)
+        assert stored.end_time == stored_end
 
     @pytest.mark.parametrize(
         ("owner_policy", "sender_proposal", "expected"),

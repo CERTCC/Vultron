@@ -13,8 +13,8 @@ description: >
   revision's registration order no longer touches consent (ADR-0093); how
   the creation-time revision is relayed to the other party (EP-04-011, ADR-0113);
   why creation-time initialization runs once per case with the EM state, not
-  the active-embargo reference, as the evidence (EP-04-012), and why a rerun
-  on a half-built case reuses the minted event's case-derived id; and why the actor
+  the active-embargo reference, as the evidence (EP-04-012); why a rerun on a
+  half-built case reuses the minted event's case-derived id; and why the actor
   default is the CASE_OWNER's profile policy, carried inline on the case proposal
   (CP-01-009, CP-01-010).
 related_specs:
@@ -425,8 +425,11 @@ fresh random id would leave the first one an orphan. So the minted event's id
 is derived from the case (`creation_time_embargo_id`, a uuid5 of the case id),
 and a rerun that finds this case's own event under that id overwrites it in
 place with the terms the rerun resolved — nothing references it yet, because
-the case is still at `NONE`. Any other object under that id is refused by
-`persist_creation_time_embargo`. The sender branch needs none of this: the
+the case is still at `NONE`. The node checks that for itself rather than
+trusting the guard (CSB-16): it re-stamps only while the case is at `NONE`, has
+no active embargo and does not list the id as a proposal. Any other object
+under that id, or this case's event once something references it, is refused
+by `persist_creation_time_embargo`. The sender branch needs none of this: the
 Reporter's event keeps the Reporter's id, and the stored twin is accepted.
 
 Known limit: a redelivery that resolves to a different *branch* than the first
