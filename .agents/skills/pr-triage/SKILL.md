@@ -132,6 +132,10 @@ checklist. Pay particular attention to:
 
 - AGENTS.md Common Pitfalls relevant to the changed code areas
 - Any spec IDs mentioned in the PR body or issue — confirm they are satisfied
+- Every new or changed `verification:` clause in `specs/` — ask "if this
+  requirement were violated, would the named check fail?" and record a **FAIL**
+  when it would not, including a named test that does not exist or a tool that
+  never inspects the property (MS-10-009)
 
 ### Phase 6 — ADR Check
 

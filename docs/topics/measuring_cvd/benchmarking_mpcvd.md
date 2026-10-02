@@ -101,6 +101,7 @@ behaving independently of all the others. Therefore:
     $$
 
     where $N_{vprod}$ represents the number of vendor-product pairs.
+    The constant is five rather than the six substates of the [CS model](../process_models/cs/cs_model.md), because the causal constraints $D \Rightarrow F \Rightarrow V$ and $X \Rightarrow P \Rightarrow V$ collapse those six substates into five dimensions.
 
 This is undesirable, as it would result in a wide distribution of realized histories that more closely resemble the randomness assumptions of [A Random Walk through CVD States](./random_walk.md) than a skillful, coordinated effort.
 Further discussion of measuring MPCVD skill can be found in [MPCVD Benchmarks](#mpcvd-benchmarks) below.
