@@ -969,9 +969,9 @@ def create_case_proposal_activity(
     to: list[str],
     **kwargs,
 ) -> as_Create:
-    """Build a ``Create(as_CaseProposal)`` sent by the vendor actor.
+    """Build a ``Create(as_CaseProposal)`` sent by the report receiver.
 
-    The vendor actor sends this to the case-actor service to initiate the
+    The report receiver sends this to the case-actor service to initiate the
     case initialization protocol (CP-04-001).  The ``as_CaseProposal``
     is embedded inline so the case-actor service has full context without
     an additional round-trip, and so is the sender's own actor profile: it
@@ -1025,14 +1025,14 @@ def accept_case_proposal_activity(
     """Build an ``Accept(as_CaseProposal)`` sent by the case-actor service.
 
     The case-actor service sends this to acknowledge that it will create a
-    ``as_VulnerabilityCase`` from the vendor's proposal.  A separate
+    ``as_VulnerabilityCase`` from the report receiver's proposal.  A separate
     ``Create(as_VulnerabilityCase)`` follows (CP-05-003).
 
     Args:
         actor_id: URI of the case-actor service that is accepting the proposal.
         proposal: The ``as_CaseProposal`` being accepted (embedded inline as
             ``object_``).
-        to: List of recipient URIs (typically the vendor actor URI).
+        to: List of recipient URIs (typically the report receiver URI).
         **kwargs: Optional AS2 fields forwarded to the constructor.
 
     Returns:
@@ -1065,15 +1065,15 @@ def reject_case_proposal_activity(
 ) -> as_Reject:
     """Build a ``Reject(as_CaseProposal)`` sent by the case-actor service.
 
-    The case-actor service sends this when it declines the vendor's proposal
-    (CP-05-004).  The ``as_CaseProposal`` is embedded inline so the vendor
+    The case-actor service sends this when it declines the report receiver's proposal
+    (CP-05-004).  The ``as_CaseProposal`` is embedded inline so the report receiver
     has full proposal context without an additional round-trip.
 
     Args:
         actor_id: URI of the case-actor service that is rejecting the proposal.
         proposal: The ``as_CaseProposal`` being rejected (embedded inline as
             ``object_``).
-        to: List of recipient URIs (typically the vendor actor URI).
+        to: List of recipient URIs (typically the report receiver URI).
         **kwargs: Optional AS2 fields forwarded to the constructor.
 
     Returns:

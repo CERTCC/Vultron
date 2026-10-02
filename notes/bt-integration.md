@@ -644,11 +644,12 @@ in `CaseParticipant.participant_status[].rm_state` from the moment
 of case creation.
 
 > **ADR-0015 is superseded by ADR-0041.** In the CASE_MANAGER-authoritative model
-> the vendor tree no longer creates the `VulnerabilityCase` directly.  The vendor
-> stores the report, writes a pending `VultronReportCaseLink`, and sends
-> `Create(as_CaseProposal)` to the CASE_MANAGER; the CASE_MANAGER creates the case,
-> adds participants, and initializes embargo before emitting
-> `Create(VulnerabilityCase)` back to the vendor.  See `notes/case-proposal.md`
+> the report receiver's tree no longer creates the `VulnerabilityCase` directly.
+> The report receiver stores the report, writes a pending `VultronReportCaseLink`,
+> and sends `Create(as_CaseProposal)` to the CASE_MANAGER; the CASE_MANAGER
+> creates the case, adds participants, and initializes embargo before emitting
+> `Create(VulnerabilityCase)` back to the report receiver, which becomes the
+> CASE_OWNER.  See `notes/case-proposal.md`
 > for the corrected flow (CM-22, CP-09).
 
 `ReportStatus` in the flat status layer is a **transient pre-case

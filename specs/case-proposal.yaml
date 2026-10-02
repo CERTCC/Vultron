@@ -31,7 +31,7 @@ groups:
     priority: MUST
     kind: project
     statement: '`as_CaseProposal` MUST include an `attributed_to` field identifying the report receiver that originated
-      the proposal (the proposer, who becomes the CASE_OWNER).'
+      the proposal (the proposer, who becomes the CASE_OWNER if the proposal is accepted).'
     verification: Inspection of `vultron/wire/as2/vocab/objects/case_proposal.py` confirms `attributed_to` is a required
       `NonEmptyString` field on `as_CaseProposal`.
   - id: CP-01-004

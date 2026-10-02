@@ -81,12 +81,12 @@ class RecordProposalAdmissionNode(DataLayerAction):
     def __init__(
         self,
         proposal_id: str,
-        owner_uri: str,
+        proposer_uri: str,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._proposal_id = proposal_id
-        self._owner_uri = owner_uri
+        self._proposer_uri = proposer_uri
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -108,7 +108,7 @@ class RecordProposalAdmissionNode(DataLayerAction):
                 proposal_id=self._proposal_id,
                 case_actor_id=self.actor_id,
                 # Stored field keeps its pre-rename name (#4128).
-                vendor_uri=self._owner_uri,
+                vendor_uri=self._proposer_uri,
             )
             self.datalayer.create(record)
         except ValueError as exc:
@@ -156,12 +156,12 @@ class RecordProposalDeclineNode(DataLayerAction):
     def __init__(
         self,
         proposal_id: str,
-        owner_uri: str,
+        proposer_uri: str,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._proposal_id = proposal_id
-        self._owner_uri = owner_uri
+        self._proposer_uri = proposer_uri
 
     def update(self) -> Status:
         if self.datalayer is None or self.actor_id is None:
@@ -191,7 +191,7 @@ class RecordProposalDeclineNode(DataLayerAction):
                 proposal_id=self._proposal_id,
                 case_actor_id=self.actor_id,
                 # Stored field keeps its pre-rename name (#4128).
-                vendor_uri=self._owner_uri,
+                vendor_uri=self._proposer_uri,
             )
             self.datalayer.create(record)
         except ValueError as exc:
@@ -232,13 +232,13 @@ class EmitRejectCaseProposalNode(_EmitSingleActivityBase):
     def __init__(
         self,
         proposal_id: str,
-        owner_uri: str,
+        proposer_uri: str,
         proposal_dict: dict | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._proposal_id = proposal_id
-        self._owner_uri = owner_uri
+        self._proposer_uri = proposer_uri
         self._proposal_dict = proposal_dict
 
     def _call_factory(self) -> tuple[str, str]:
@@ -263,7 +263,7 @@ class EmitRejectCaseProposalNode(_EmitSingleActivityBase):
         return self.trigger_activity_factory.reject_case_proposal(
             actor=self.actor_id,
             proposal=self._proposal_dict,
-            to=[self._owner_uri],
+            to=[self._proposer_uri],
             summary=reason,
         )
 
@@ -298,7 +298,7 @@ class EmitRejectCaseProposalNode(_EmitSingleActivityBase):
             self.name,
             self._proposal_id,
             activity_id,
-            self._owner_uri,
+            self._proposer_uri,
         )
 
 

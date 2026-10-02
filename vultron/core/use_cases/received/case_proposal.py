@@ -206,8 +206,8 @@ class CreateCaseProposalReceivedUseCase:
             )
 
         # The report receiver who sent Create(as_CaseProposal) is the activity
-        # actor, and becomes the CASE_OWNER.
-        owner_uri = request.actor_id
+        # actor, and becomes the CASE_OWNER if the proposal is admitted.
+        proposer_uri = request.actor_id
 
         # The inner object is the VulnerabilityReport embedded in the proposal.
         report_id = request.inner_object_id
@@ -251,7 +251,7 @@ class CreateCaseProposalReceivedUseCase:
         tree = create_case_proposal_received_tree(
             report_id=report_id,
             proposal_id=proposal_id,
-            owner_uri=owner_uri,
+            proposer_uri=proposer_uri,
             proposal_dict=proposal_dict,
             actor_config=self._actor_config,
             inline_report=inline_report,

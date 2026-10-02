@@ -175,7 +175,7 @@ def _run_tree(
     tree = create_case_proposal_received_tree(
         report_id=report_id,
         proposal_id=_PROPOSAL_URI,
-        owner_uri=_VENDOR_URI,
+        proposer_uri=_VENDOR_URI,
         proposal_dict=(
             proposal.model_dump(by_alias=True, serialize_as_any=True)
             if with_proposal_dict
@@ -833,7 +833,7 @@ class TestTheGateIsKeyedOnTheProposalNotTheReport:
             tree = create_case_proposal_received_tree(
                 report_id=_REPORT_URI,
                 proposal_id=second_proposal_uri,
-                owner_uri=second_proposer_uri,
+                proposer_uri=second_proposer_uri,
                 proposal_dict=proposal.model_dump(
                     by_alias=True, serialize_as_any=True
                 ),

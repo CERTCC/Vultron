@@ -23,7 +23,8 @@ AC-4: Verifies that
   - The marker remains when Create(as_VulnerabilityCase) delivery fails (AC-2
     partial-failure path).
   - The marker stores at minimum: proposal_id, case_actor_id, vendor_uri
-    (the stored name of the owner URI, #4128), and the pre-constructed Create(as_VulnerabilityCase) payload (AC-1).
+    (the stored name of the owner URI, #4128), and the pre-constructed
+    Create(as_VulnerabilityCase) payload (AC-1).
 """
 
 import logging

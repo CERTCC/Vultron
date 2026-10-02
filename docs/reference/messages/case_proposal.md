@@ -9,12 +9,11 @@ description: >
 
 A *case proposal* is a pre-case bootstrap message flow described in [ADR-0023](../../adr/0023-case-proposal-protocol.md).
 It allows the **report receiver** — the actor that received the `Offer(VulnerabilityReport)`, whether a Vendor, a Coordinator, or any other role — to request case initialization from a case-actor service **before a case exists**.
-The report receiver is the proposer, and it becomes the case's Case Owner (CP-01-003, CP-09-001).
+The report receiver is the proposer, and if the case-actor service accepts the proposal, it becomes the case's Case Owner (CP-01-003, CP-09-001).
 No case URI is in scope; the proposal itself is the shared object.
 
-The flow is: `Create(CaseProposal)` → service accepts or rejects
-(`Accept(CaseProposal)` / `Reject(CaseProposal)`). On acceptance the service
-proceeds to `Create(VulnerabilityCase)` separately (CP-05-003).
+The flow is: `Create(CaseProposal)` → service accepts or rejects (`Accept(CaseProposal)` / `Reject(CaseProposal)`).
+On acceptance the service proceeds to `Create(VulnerabilityCase)` separately (CP-05-003).
 
 These messages have no formal-protocol shorthand (see
 [ADR-0083](../../adr/0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md)).
