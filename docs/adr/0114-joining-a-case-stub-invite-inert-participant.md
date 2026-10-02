@@ -343,5 +343,7 @@ outstanding, and rejected.
 - ADR-0089 — the single participant-status writer, through which the birth at
   Invite is written.
 - ADR-0093 — embargo consent and lapse.
+- ADR-0116 — refines this decision's definition of an active participant:
+  a participant the Case Owner removed is inert.
 - `notes/case-joining.md` — what was misunderstood and why, for readers of the
   old model.

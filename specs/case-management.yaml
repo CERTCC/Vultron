@@ -845,11 +845,12 @@ groups:
       participant is active when it was seated by the case initialization
       sequence (CM-14-001: the Case Owner, the CASE_MANAGER and the reporter) or
       has accepted the stub Invite
-      (`Accept(Invite(Actor, VulnerabilityCaseStub))`), and, only when an embargo
-      is active, its embargo consent is `SIGNATORY`. Every other participant is
-      inert and MUST NOT receive case content: no `CaseLedgerEntry`
-      announcements, no `Announce(VulnerabilityCase)`, no status broadcasts, no
-      embargo announcements (ADR-0114).
+      (`Accept(Invite(Actor, VulnerabilityCaseStub))`), has not been removed
+      (CM-31-001), and, only when an embargo is active, its embargo consent is
+      `SIGNATORY`. Every other participant is inert and MUST NOT receive case
+      content: no `CaseLedgerEntry` announcements, no
+      `Announce(VulnerabilityCase)`, no status broadcasts, no embargo
+      announcements (ADR-0114).
     rationale: >-
       Many cases have no active embargo — one not yet established, or one
       already exited — so "is SIGNATORY" alone cannot be the entitlement test.
@@ -860,9 +861,11 @@ groups:
       Tests confirm that an invitee that has not accepted the stub Invite, and a
       joined participant that is not SIGNATORY to an active embargo, receive no
       case content, and that an active participant does, including one seated by
-      case initialization that was never sent a stub.
+      case initialization that was never sent a stub. A test confirms a removed
+      participant receives no case content whatever its embargo consent.
     adr:
     - ADR-0114
+    - ADR-0116
     stories:
     - story_2022_023
     - story_2022_025
@@ -900,7 +903,8 @@ groups:
     kind: protocol
     statement: >-
       When the CM-10-004 content gate admits a participant whose ledger stream it had paused (CM-10-005)
-      — because the participant accepts the active embargo, or because the embargo ends — the
+      — whenever the active check turns from false to true for that participant, whether because it
+      accepts the active embargo, the embargo ends, or it is reinstated (CM-31-011) — the
       CASE_MANAGER MUST send that participant every canonical entry it was not sent, in log order
       starting with the first entry withheld from it, before or together with the entry that records
       the change admitting it.
@@ -908,7 +912,8 @@ groups:
       A paused participant's replica is a contiguous prefix of the ledger; backfilling the withheld suffix
       in order restores it to the leader's tip without a gap the catch-up gate (SYNC-10-004) would block
       on. Ending the embargo lifts the gate for everyone, so a participant that never accepted it is
-      caught up at that point too.
+      caught up at that point too. The trigger is the active check itself, not any one message
+      (ADR-0116).
     verification: >-
       A received-side test confirms that when a participant accepts the active embargo, the
       CASE_MANAGER's outbox holds an `Announce(CaseLedgerEntry)` addressed to it for each entry committed
@@ -930,7 +935,9 @@ groups:
       selection that every case-content send uses, not at individual send
       sites. Invites addressed to a participant so that it can join (the stub
       Invite) or consent (an embargo Invite, EP-09) are not case content and
-      MUST reach an inert participant.
+      MUST reach an inert participant that has not been removed (CM-31-013).
+      The embargo-ending notices owed to a bound participant that is not active
+      (CM-31-009) are likewise not case content.
     rationale: >-
       Nearly every case-content send selected its recipients from the roster
       through one helper (`case_addressees`, retired by #4046). A per-site
@@ -4392,3 +4399,311 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-27-001
+- id: CM-31
+  title: Participant Removal and Reinstatement
+  description: >-
+    Removing a participant withdraws its entitlement to case content and keeps its record. The Case
+    Owner requests removal and reinstatement; the CASE_MANAGER applies them, records each as one ledger
+    entry, and tells the affected participant directly (ADR-0116).
+  specs:
+  - id: CM-31-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Removing a participant MUST record a removal fact on its `CaseParticipant` and MUST NOT delete the
+      record from `case_participants`. The participant's status history and the ledger entries it
+      authored MUST remain, and a removed participant MUST be inert (CM-10-004).
+    rationale: >-
+      Deleting the record erases who took part in the case and leaves ledger entries naming an actor
+      the roster no longer holds. Removal is a decision about entitlement to case content, not about
+      membership, so it is a fact the active check reads (ADR-0116).
+    verification: >-
+      A received-side test applies a Case Owner's `Remove(CaseParticipant)` at the CASE_MANAGER and
+      asserts the participant is still in `case_participants` and `actor_participant_index` and is
+      not active.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-10-004
+    adr:
+    - ADR-0116
+    stories:
+    - story_2022_023
+  - id: CM-31-002
+    priority: MUST
+    kind: architecture
+    statement: >-
+      Whether a participant is active MUST be computed by one case-level check from stored facts —
+      the CM-10-004 definition: joined (seated by case initialization or accepted the stub Invite),
+      not removed, and `SIGNATORY` when an embargo is active — and MUST NOT be stored. RM `CLOSED`
+      is not an input (#4100). A participant-level
+      property MUST NOT compute a partial answer under a name that reads as "active".
+    rationale: >-
+      An inferred status that is stored goes stale whenever one of its inputs changes without
+      rewriting it; the precedent is `embargo_adherence` (CM-18-008, CM-18-014). Whether an embargo is
+      active is case state a participant record cannot see, so the full answer lives on the case. A
+      partial participant-level property would read as "active" at a send site and leak embargoed
+      content to a non-signatory.
+    verification: >-
+      Inspection confirms no stored field holds the active answer and that the shared recipient
+      selection (CM-10-007) calls the one case-level check.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-10-007
+    adr:
+    - ADR-0116
+  - id: CM-31-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      `VulnerabilityCase` MUST expose a computed `activeParticipants` collection on the wire holding
+      exactly the participants the CM-31-002 check finds active. It MUST NOT be stored, and reading a
+      serialized case back in MUST ignore or recompute it rather than refuse it.
+    rationale: >-
+      `case_participants` stays the full roster that role resolution and `actor_participant_index`
+      read (CM-19-001). Publishing the active set as its own collection makes
+      `Remove(CaseParticipant)` literally true: the participant leaves that collection. Core types
+      refuse unknown keys on input, so a computed field in the dump refuses the case's own serialized
+      form unless input handles it.
+    verification: >-
+      A unit test asserts `activeParticipants` lists active participants only, and that a case dumped
+      by alias validates back to an equal case.
+    adr:
+    - ADR-0116
+    stories:
+    - story_2022_023
+  - id: CM-31-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      `Remove(CaseParticipant, target=VulnerabilityCase)` is the Case Owner's request to the
+      CASE_MANAGER to remove a participant from active participation. The CASE_MANAGER MUST refuse it
+      (`HandlerResult.refused`) when the sender does not hold `CVDRole.CASE_OWNER`, when the named
+      participant holds `CVDRole.CASE_MANAGER` or `CVDRole.CASE_OWNER`, or when it names no participant
+      of the case, and MUST report a removal of an already-removed participant as skipped. The
+      CASE_MANAGER MUST NOT remove a participant on its own initiative.
+    rationale: >-
+      The Case Owner decides who takes part in the case; the CASE_MANAGER applies case changes and
+      decides none (ADR-0108). The CASE_MANAGER role is never unfilled (CM-24-006), and the Case Owner
+      leaves only by transferring ownership (CM-21). A participant that wants to stop taking part
+      sends `Leave(VulnerabilityCase)` (CM-23), not `Remove`.
+    verification: >-
+      Received-side tests assert a removal from a non-owner, of the CASE_MANAGER, and of the Case
+      Owner is refused, a repeat removal is skipped, and a removal from the Case Owner is applied.
+    relationships:
+    - rel_type: depends_on
+      spec_id: PCR-03-006
+    adr:
+    - ADR-0116
+    stories:
+    - story_2022_023
+  - id: CM-31-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An accepted removal MUST be recorded as exactly one ledger entry: the Case Owner's received
+      `Remove(CaseParticipant)`, committed by the receive pipeline (CLP-10-006).
+      `("Remove", "CaseParticipant")` MUST be a canonical ledger signature, and the CASE_MANAGER MUST
+      NOT commit a second entry of its own for the same removal.
+    rationale: >-
+      One move gets one entry, authored by the actor that made it, so the ledger shows the removal as
+      the Case Owner's decision rather than the CASE_MANAGER acting alone (ADR-0108). Without the
+      canonical signature a removal cannot be committed, so it never reaches a replica.
+    verification: >-
+      A test asserts `("Remove", "CaseParticipant")` is a canonical signature and that an accepted
+      removal grows the ledger by one entry whose snapshot is the Case Owner's activity.
+    relationships:
+    - rel_type: depends_on
+      spec_id: CLP-10-006
+    adr:
+    - ADR-0116
+    stories:
+    - story_2022_023
+    - story_2022_052
+  - id: CM-31-006
+    priority: MUST
+    kind: protocol
+    statement: >-
+      After committing a removal the CASE_MANAGER MUST send the removed participant a direct
+      `Remove(CaseParticipant)` naming it, with `actor` the CASE_MANAGER and `attributedTo` the Case
+      Owner (CM-24), and MUST NOT ledger that notice. The removal entry's fan-out MUST include the
+      removed participant, and MUST be the last canonical entry it is sent, by fan-out or by replay,
+      until it is reinstated.
+    rationale: >-
+      Learning of removal only from silence is indistinguishable from a network fault, and the removed
+      party needs to know it is still bound and how it will hear of the embargo's end. The notice is
+      delivery, not a second record of the move; the ledger entry keeps the removed party's replica
+      continuous up to the removal.
+    verification: >-
+      A received-side test asserts the CASE_MANAGER's outbox holds a `Remove(CaseParticipant)`
+      addressed to the removed participant and an `Announce(CaseLedgerEntry)` of the removal addressed
+      to it, and that an entry committed afterwards is not addressed to it.
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-31-005
+    adr:
+    - ADR-0116
+    stories:
+    - story_2022_023
+    - story_2022_052
+  - id: CM-31-007
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A replica MUST apply a removal from its ledger entry through a replica apply node, recording the
+      same removal fact the CASE_MANAGER recorded (RSH-08-004). A replica MUST NOT apply a removal from a directly received `Remove(CaseParticipant)`
+      (RSH-08-003).
+    rationale: >-
+      Replicas take case state from the ledger. The direct notice tells the removed party what
+      happened; the entry is what changes every replica, the removed party's included.
+    verification: >-
+      A test announces a removal entry to a replica and asserts the participant's record remains,
+      carries the removal fact, and is not active on the replica.
+    relationships:
+    - rel_type: depends_on
+      spec_id: RSH-08-004
+    adr:
+    - ADR-0116
+    stories:
+    - story_2022_023
+    - story_2022_052
+  - id: CM-31-008
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Removal MUST NOT change the participant's embargo consent or `accepted_embargo_ids`. A removed
+      `SIGNATORY` remains bound by the embargo it accepted.
+    rationale: >-
+      Releasing a removed participant from the embargo would reward the conduct that got it removed.
+      Consent is the participant's own statement (CM-18-005); removal is a separate fact.
+    verification: >-
+      A received-side test removes a `SIGNATORY` and asserts its consent state and
+      `accepted_embargo_ids` are unchanged.
+    relationships:
+    - rel_type: constrains
+      spec_id: CM-18-005
+    adr:
+    - ADR-0116
+    stories:
+    - story_2022_014
+    - story_2022_023
+  - id: CM-31-009
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the active embargo is terminated (including by the case becoming public) or replaced by a
+      shorter revision, the CASE_MANAGER MUST send every `SIGNATORY` participant the ledger fan-out
+      does not reach — removed (CM-31-001), or at RM `CLOSED` and skipped by the CM-23-004 fan-out —
+      a direct notice outside the ledger stream:
+      `Remove(EmbargoEvent)` for a termination, `Announce(EmbargoEvent)` with the new terms for a
+      shorter revision. The notice MUST carry no other case content. No notice is owed for a longer
+      revision or for expiry on the agreed date.
+    rationale: >-
+      A participant that stopped receiving case content while bound stays bound, and without this it
+      never learns that the obligation ended early or shortened. A longer revision does not bind a
+      participant that never agreed to it, and expiry on the agreed date is already known to it. A
+      past-dated `Announce(EmbargoEvent)` is not used: its meaning would depend on the receiver's
+      clock, and an early end is an event, not a date that passed.
+    verification: >-
+      Tests terminate the embargo and activate a shorter revision on a case with a removed signatory
+      and a departed signatory, and assert each is sent the matching notice and no ledger entry;
+      a declined or never-joined participant is sent nothing.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-10-007
+    adr:
+    - ADR-0116
+    - ADR-0093
+    stories:
+    - story_2022_014
+  - id: CM-31-010
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A participant whose ledger stream is paused — withheld under CM-10-005, removed (CM-31-001), or
+      skipped at RM `CLOSED` (CM-23-004) — MUST apply a CM-31-009 notice sent by the CASE_MANAGER
+      for the case, and MUST ignore one from any other sender. Replaying the corresponding ledger entry
+      after the participant becomes active again MUST change nothing further.
+    rationale: >-
+      A paused replica cannot take the change from the ledger, so the notice is its only channel. The
+      exception is to the channel, not the authority: the notice still originates from the
+      CASE_MANAGER (PCR-03-001).
+    verification: >-
+      A received-side test applies the notice at a removed participant's replica and asserts the
+      embargo ended; the same notice from a non-manager changes nothing; a later replay of the entry
+      leaves the replica unchanged.
+    relationships:
+    - rel_type: refines
+      spec_id: RSH-08-003
+    adr:
+    - ADR-0116
+    stories:
+    - story_2022_014
+  - id: CM-31-011
+    priority: MUST
+    kind: protocol
+    statement: >-
+      `Add(CaseParticipant, target=VulnerabilityCase)` is the Case Owner's request to the CASE_MANAGER
+      to reinstate a removed participant. It MUST follow the CM-31-004 through CM-31-007 pipeline
+      (Case Owner only, one ledger entry, a direct notice, a replica apply node), MUST clear the
+      removal fact, and MUST NOT require the participant to accept again. The CASE_MANAGER MUST refuse
+      an `Add` naming a participant that is not removed or that never joined.
+    rationale: >-
+      Owners make mistakes and disputes resolve, so removal is reversible. The participant never
+      withdrew, so it does not rejoin; `Leave` remains open to it. Joining requires accepting a stub
+      Invite (ADR-0114), and `Add` must not become a way around that. A participant reinstated into a
+      case whose embargo it has not accepted stays inert, and its CM-10-006 backfill waits for its
+      consent.
+    verification: >-
+      Received-side tests assert the Case Owner's `Add` reinstates a removed participant, and that an
+      `Add` naming a never-joined invitee or a participant that is not removed is refused.
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-31-004
+    adr:
+    - ADR-0116
+    stories:
+    - story_2022_052
+  - id: CM-31-012
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST NOT emit `Add(CaseParticipant)`, or commit an `add_case_participant` ledger
+      entry, as a consequence of an invitee accepting the stub Invite. Replicas learn of the new
+      member from the `Accept(Invite)` entry.
+    rationale: >-
+      CM-17-004 does not call for it, the `Accept(Invite)` entry already carries the change, and a
+      replica usually refuses the direct message for want of the participant record it names. It also
+      records one move twice, and `Add(CaseParticipant)` now means reinstatement only (CM-31-011).
+    verification: >-
+      A test drives an invitee's stub-Invite acceptance at the CASE_MANAGER and asserts no
+      `Add(CaseParticipant)` is enqueued and no `add_case_participant` entry is committed.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-17-004
+    adr:
+    - ADR-0116
+    stories:
+    - story_2022_052
+  - id: CM-31-013
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A removed participant MUST NOT be sent a stub Invite, a full-case Invite, or an embargo Invite;
+      the CM-31-009 notices are its only exception. When a participant is reinstated into a case with
+      an active embargo it has not accepted, the CASE_MANAGER MUST send it that embargo's Invite.
+    rationale: >-
+      Invites reach inert participants because they ask them to join or consent (CM-10-007). A removed
+      participant was taken out by the Case Owner's decision; inviting it to vote on embargo revisions
+      would undo that decision. A reinstated participant that is not `SIGNATORY` stays inert until it
+      consents, so it must be asked.
+    verification: >-
+      Tests assert the embargo-Invite recipient selection excludes a removed participant, and that
+      reinstating a participant that is not `SIGNATORY` to the active embargo enqueues that embargo's
+      Invite to it.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-10-007
+    adr:
+    - ADR-0116
+    stories:
+    - story_2022_023

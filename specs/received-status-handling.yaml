@@ -1243,7 +1243,9 @@ groups:
       A non-CASE_MANAGER replica that receives such an activity directly MUST
       store the activity and write no participant or case state; it obtains
       the resulting state from the `Announce(CaseLedgerEntry)` broadcast
-      (PCR-03-001).
+      (PCR-03-001). The one exception is a participant whose ledger stream is
+      paused, which applies an embargo-ending notice sent to it by the
+      CASE_MANAGER (CM-31-010).
     rationale: >
       Received-side trees gate their ledger commit on the CASE_MANAGER role but
       run their state-writing effects at every inbox, so `Add(EmbargoEvent)`,
