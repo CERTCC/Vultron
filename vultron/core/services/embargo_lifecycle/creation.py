@@ -36,6 +36,9 @@ from pydantic import BaseModel, ConfigDict
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.pending_creation_time_revision_relay import (
+    PendingCreationTimeRevisionRelay,
+)
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.embargo_lifecycle.proposals import (
     _ProposalOperationsMixin,
@@ -106,12 +109,17 @@ class CreationRevision(BaseModel):
     the reporter when the sender's proposal lost, the case owner when its
     actor default did.  Proposing is consenting (MSM-07-005), so its record,
     not the executing actor's, gains the revision id (#4152).
+
+    ``relay`` is the durable record that the revision's ``Invite`` is owed
+    (EP-04-011).  It is committed with the registration, never after it, so
+    no failure can leave a registered revision that nobody owes (#4156).
     """
 
     model_config = ConfigDict(frozen=True)
 
     embargo: EmbargoEvent
     proposer_id: NonEmptyString
+    relay: PendingCreationTimeRevisionRelay
 
 
 class _CreationOperationsMixin(_ProposalOperationsMixin):
@@ -152,6 +160,8 @@ class _CreationOperationsMixin(_ProposalOperationsMixin):
         shortest-wins (EP-04-003).  It is stored and proposed through
         ``propose_embargo`` (``ACTIVE → REVISE``, EMB-18-001) on behalf of
         its ``proposer_id``, whose consent record gains it (MSM-07-005).
+        Its ``relay`` obligation is staged first, so the revision and the
+        record that its ``Invite`` is owed are written together (EP-04-011).
 
         All of it is staged and committed through one ``save_many``, so any
         refusal or fault leaves the case at ``EM.NONE`` with nothing else
@@ -238,6 +248,9 @@ class _CreationOperationsMixin(_ProposalOperationsMixin):
             work._record_actor_pec_acceptance(case, owner_id, embargo_id)
         )
         if revision is not None:
+            # EP-04-011: the relay is owed in the commit that opens the
+            # revision (#4156).
+            staged.save(revision.relay)
             persist_creation_time_embargo(staged, revision.embargo, case_id)
             em_after = work.propose_embargo(
                 case_id=case_id,

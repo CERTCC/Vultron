@@ -1299,6 +1299,33 @@ groups:
     stories:
     - story_2022_014
     - story_2022_023
+  - id: CM-11-017
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST act on a reply to a stub Invite only when the sender is the
+      invitee of a stub Invite it sent and recorded, and MUST take the participant's roles
+      from that recorded Invite, never from the copy of the Invite embedded in the reply.
+      A reply from any other sender MUST be refused with no participant created or changed.
+    rationale: >-
+      Today the Accept handler admits whichever actor the embedded Invite names, with the
+      roles that copy carries, without looking for an Invite in the store; any actor can
+      therefore admit itself or a third party as, say, a VENDOR and then receive the case
+      and its full ledger. See #3733.
+    verification: >-
+      A test marked `CM-11-017`
+      sends an Accept of a stub Invite the CASE_MANAGER never sent and asserts `REFUSED`
+      with no participant created.
+    stories:
+    - story_2022_035
+    - story_2022_054
+    relationships:
+    - rel_type: refines
+      spec_id: HP-01-006
+    - rel_type: refines
+      spec_id: CM-11-001
+    adr:
+    - ADR-0115
 - id: CM-12
   title: Case Creation Timing
   specs:
@@ -2030,6 +2057,34 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-16-006
+  - id: CM-16-019
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST act on `Accept(Offer(CaseParticipant))` or
+      `Reject(Offer(CaseParticipant))` only when the sender is the case's Case Owner, and
+      MUST take the actor to invite from the `Offer(CaseParticipant)` it recorded, never
+      from the reply. A reply from any other sender MUST be refused, and the CASE_MANAGER
+      MUST NOT invite anyone or notify the recommender.
+    rationale: >-
+      The Case Owner decides on a recommendation (CM-16-006), but the handler checks only
+      that the recommendation was recorded, and reads the invitee from the inbound message;
+      anyone who learns a recommendation id can accept it and choose who is invited. See
+      #3733.
+    verification: >-
+      A test marked `CM-16-019`
+      sends the Accept from a participant that is not the Case Owner and asserts `REFUSED`
+      with an empty outbox.
+    stories:
+    - story_2022_035
+    - story_2022_054
+    relationships:
+    - rel_type: refines
+      spec_id: HP-01-006
+    - rel_type: refines
+      spec_id: CM-16-006
+    adr:
+    - ADR-0115
 - id: CM-17
   title: Invitation Flow — Enrichment and Roles
   specs:
@@ -2997,6 +3052,33 @@ groups:
       spec_id: CM-21-006
     adr:
     - ADR-0053
+  - id: CM-21-011
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST act on `Accept(Offer(VulnerabilityCase))` only when the sender
+      is the transferee named in a pending ownership-transfer Offer it recorded for that
+      case and that has not been answered; a participant replica MUST apply the ownership
+      change only from the CASE_MANAGER (PCR-03-001). Any other sender MUST be refused, with
+      `VulnerabilityCase.attributed_to` and every participant's `CASE_OWNER` role unchanged.
+    rationale: >-
+      The handler takes the sender to be the new owner and never looks up the Offer, so any
+      actor that knows a case id can claim ownership on every receiver holding the case.
+      See #3733.
+    verification: >-
+      A test marked `CM-21-011`
+      sends the Accept with no pending Offer naming the sender and asserts `REFUSED` with
+      the case owner unchanged.
+    stories:
+    - story_2022_035
+    - story_2022_050
+    relationships:
+    - rel_type: refines
+      spec_id: HP-01-006
+    - rel_type: refines
+      spec_id: CM-21-002
+    adr:
+    - ADR-0115
 - id: CM-22
   title: CASE_MANAGER-Authoritative Case Creation
   description: >-
@@ -4399,6 +4481,56 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-27-001
+- id: CM-30
+  title: Sender Entitlement for Case Content Changes
+  description: >-
+    Who may remove a note from a case or attach a report to it. Neither message has a
+    trigger today; these entries name the sender a receiver accepts (HP-01-006).
+  specs:
+  - id: CM-30-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST act on `Remove(Note)[target=VulnerabilityCase]` only when the
+      sender is the note's author and an active participant (CM-10-004), or the case's Case
+      Owner; a participant replica MUST apply the removal only from the CASE_MANAGER
+      (PCR-03-001). Any other sender MUST be refused with the note left in the case.
+    rationale: >-
+      The handler removes any note for any sender. An author may withdraw its own note, and
+      the Case Owner may remove anyone's; nobody else has a reason to. See #3733.
+    verification: >-
+      A test marked `CM-30-001`
+      sends the Remove from an actor that is neither the author nor the Case Owner and
+      asserts `REFUSED` with the note still in the case.
+    stories:
+    - story_2022_035
+    - story_2022_088
+    relationships:
+    - rel_type: refines
+      spec_id: HP-01-006
+    adr:
+    - ADR-0115
+  - id: CM-30-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST act on `Add(VulnerabilityReport)[target=VulnerabilityCase]`
+      only when the sender is the case's Case Owner; a participant replica MUST apply the
+      addition only from the CASE_MANAGER (PCR-03-001). Any other sender MUST be refused
+      with the case's reports unchanged.
+    rationale: >-
+      The handler appends any report id to any case for any sender. See #3733.
+    verification: >-
+      A test marked `CM-30-002`
+      sends the Add from a non-owner and asserts `REFUSED` with the report not attached.
+    stories:
+    - story_2022_035
+    - story_2022_088
+    relationships:
+    - rel_type: refines
+      spec_id: HP-01-006
+    adr:
+    - ADR-0115
 - id: CM-31
   title: Participant Removal and Reinstatement
   description: >-

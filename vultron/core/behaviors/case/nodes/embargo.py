@@ -38,8 +38,6 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.case.nodes.embargo_revision import (
     CANDIDATE_KEY,
-    REVISION_KEY,
-    CreationTimeRevision,
     CreationTimeRevisionCandidate,
     creation_revision_parties,
 )
@@ -264,10 +262,12 @@ class InitializeCreationEmbargoNode(DataLayerActionWithPorts):
     #4152).  A contest with no resolvable reporter fails before the
     initialization commit, leaving the case at ``EM.NONE``.
 
-    A registered revision is published, under a freshly minted proposal id,
-    as ``creation_time_revision`` for ``RelayCreationTimeRevisionNode``
-    (EP-04-011).  The key is written (``None``) first whenever this node
-    ticks, and ``BTBridge`` scopes it to one execution (BT-17-003).
+    A registered revision owes a relay (EP-04-011): the same commit stores a
+    :class:`PendingCreationTimeRevisionRelay` naming the loser, the report,
+    this CASE_MANAGER and a freshly minted id for its ``Invite``, which
+    ``RelayCreationTimeRevisionNode`` reads from the store.  Committing both
+    together means no failure leaves a registered revision with no relay
+    owed, nor a relay owed for a revision never registered (#4121, #4156).
 
     The transition itself is validated by the lifecycle service, not by an
     upstream guard (CSB-16, EMB-18-001).  The once-per-case guard ahead of
@@ -301,9 +301,6 @@ class InitializeCreationEmbargoNode(DataLayerActionWithPorts):
         "default_embargo_initialized": PortInformation(
             data_type=object, required=True
         ),
-        REVISION_KEY: PortInformation(
-            data_type=CreationTimeRevision | None, required=True
-        ),
     }
 
     @classmethod
@@ -315,7 +312,6 @@ class InitializeCreationEmbargoNode(DataLayerActionWithPorts):
                 "default_embargo_id",
                 "default_embargo_initialized",
                 CANDIDATE_KEY,
-                REVISION_KEY,
             )
         }
 
@@ -325,7 +321,6 @@ class InitializeCreationEmbargoNode(DataLayerActionWithPorts):
         self.default_embargo_id_bb: str = self.get_input("default_embargo_id")
 
     def update(self) -> Status:
-        self._set_output(REVISION_KEY, None)
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.datalayer is not None
@@ -374,15 +369,7 @@ class InitializeCreationEmbargoNode(DataLayerActionWithPorts):
             revision = (
                 None
                 if candidate is None
-                else CreationRevision(
-                    embargo=candidate.embargo,
-                    proposer_id=creation_revision_parties(
-                        self.datalayer,
-                        stored_case,
-                        candidate.losing_source,
-                        self._report_id,
-                    )[0],
-                )
+                else self._revision(stored_case, candidate)
             )
             EmbargoLifecycle(
                 persistence=self.datalayer
@@ -401,6 +388,23 @@ class InitializeCreationEmbargoNode(DataLayerActionWithPorts):
             return Status.FAILURE
 
         self._set_output("default_embargo_initialized", True)
-        if candidate is not None:
-            self._set_output(REVISION_KEY, candidate.registered(case_id))
         return Status.SUCCESS
+
+    def _revision(
+        self, case: VulnerabilityCase, candidate: CreationTimeRevisionCandidate
+    ) -> CreationRevision:
+        """Name the revision's proposer and the relay it owes (EP-04-011)."""
+        assert self.datalayer is not None
+        assert self.actor_id is not None
+        proposer_id, _winner = creation_revision_parties(
+            self.datalayer, case, candidate.losing_source, self._report_id
+        )
+        # creation_revision_parties refuses a missing report id.
+        assert self._report_id is not None
+        return CreationRevision(
+            embargo=candidate.embargo,
+            proposer_id=proposer_id,
+            relay=candidate.relay_obligation(
+                case.id_, self._report_id, self.actor_id
+            ),
+        )

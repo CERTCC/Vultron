@@ -256,7 +256,9 @@ class TestInitializeDefaultEmbargoNode:
         """
         for _ in range(2):
             result = bt_scenario.run(
-                InitializeDefaultEmbargoNode(),
+                InitializeDefaultEmbargoNode(
+                    report_id="https://example.org/reports/r-1"
+                ),
                 actor_id=actor_id,
                 owner_profile=_profile(actor_id),
                 case_id=case_obj.id_,

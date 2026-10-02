@@ -447,6 +447,33 @@ groups:
     stories:
     - story_2022_074
     - story_2022_088
+  - id: CP-06-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The vendor MUST record the actor it addressed a `CaseProposal` to, and MUST act on
+      `Accept(CaseProposal)` or `Reject(CaseProposal)` only when the sender is that actor.
+      Once a case is established for the report, a reply MUST NOT replace the trusted
+      CASE_MANAGER. A reply from any other sender MUST be refused with the report's case
+      link unchanged.
+    rationale: >-
+      The accept handler sets the trusted CASE_MANAGER to whoever replied, and routing and
+      `Announce` trust both read that field; any actor that knows a report id can redirect
+      the vendor's case traffic to itself. See #3733.
+    verification: >-
+      A test marked `CP-06-005`
+      sends the Accept from an actor the proposal was not addressed to and asserts `REFUSED`
+      with the trusted CASE_MANAGER unchanged.
+    stories:
+    - story_2022_035
+    - story_2022_074
+    relationships:
+    - rel_type: refines
+      spec_id: HP-01-006
+    - rel_type: refines
+      spec_id: CP-06-004
+    adr:
+    - ADR-0115
 - id: CP-07
   title: Testing
   specs:

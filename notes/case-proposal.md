@@ -484,6 +484,27 @@ the original ``id_``, which is essential: the retry runner's outbox
 idempotency check looks for that specific ``id_``.  A fresh ``id_``
 would bypass the check and cause a duplicate delivery after crash/restart.
 
+### The Same Shape for the Creation-Time Revision Relay (EP-04-011)
+
+The accept flow owes one more delivery on a contested creation: the
+`Invite(EmbargoEvent)` that relays the shortest-wins loser to the winner
+(EP-04-011). Creation-time initialization runs once per case (EP-04-012), so
+nothing on a redelivered proposal would register the revision again, and a relay
+that failed would be lost. `InitializeCreationEmbargoNode` therefore writes
+a `PendingCreationTimeRevisionRelay` marker in the same commit that registers the
+revision, and `RelayCreationTimeRevisionNode` reads it,
+relays, indexes, and deletes it; a failure after the write keeps it. The same
+lifespan scan calls `retry_pending_creation_time_revision_relays()` after the
+Create retry, which re-runs the relay node for each marker's case behind the
+CASE_MANAGER gate, and sends nothing until the case's genesis `create_case`
+ledger entry is committed (CM-14-007). A later delivery of a proposal for the
+case also completes it, since its accept arm reaches the relay again — but not
+while a `PendingCreateCaseActivity` marker exists, because
+`CheckMarkerExistsNode` short-circuits that redelivery. It is a separate record type rather than a field on an existing one, so
+no existing persisted shape changes. See
+[embargo-default-semantics.md](embargo-default-semantics.md) for the relay
+itself (#4121).
+
 ---
 
 ## Duplicate-Proposal Handling (CP-05-006)
