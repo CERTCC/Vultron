@@ -192,6 +192,38 @@ groups:
     stories:
     - story_2022_003
     - story_2022_009
+  - id: EP-02-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A publish or replace at `PUT /actors/{actor_id}/embargo-policy` MUST NOT overwrite
+      an update to the actor's profile that was written after the request read it. The
+      write MUST succeed only if the stored profile is still the one the request read;
+      otherwise the request MUST re-read the profile and re-apply its terms, and when the
+      profile keeps changing under it for a bounded number of attempts it MUST be refused
+      with 409 Conflict and MUST write nothing.
+    rationale: >-
+      The policy is a field of the profile (EP-01-001), so a publish rewrites the whole
+      profile, and a plain read-then-save loses a write landing between the two without
+      anyone being told (#4102). Re-applying the terms to a fresh read is safe because a
+      publish changes only the policy field; the bound keeps a profile under continuous
+      write from holding the request open.
+    verification: >-
+      `test/adapters/driving/fastapi/routers/test_actors_embargo_policy.py`
+      (`TestConcurrentProfileWrite`) interleaves a profile write between the PUT's read and
+      its write and confirms both the concurrent update and the published policy are kept,
+      and that a profile changed under every attempt yields 409 with the stored profile
+      untouched. `test/adapters/driven/test_sqlite_save_if_unchanged.py` confirms the
+      store's compare-and-set refuses a stale expected record and a row changed between
+      its own read and write.
+    scope:
+    - production
+    relationships:
+    - rel_type: refines
+      spec_id: EP-02-003
+    stories:
+    - story_2022_003
+    - story_2022_009
 - id: EP-03
   title: Policy Compatibility Evaluation
   specs:
@@ -551,12 +583,21 @@ groups:
       the reporter's longer terms lost, the reporter is the proposer and the case owner is
       invited; when the owner's longer default lost, the owner is the proposer and the
       reporter is invited. An exact tie registers no revision (EP-04-003) and relays nothing.
+      No proposal activity exists at creation, so the committed relayed Invite is itself the
+      proposal entry; no second entry is committed. The open-proposal record is written once
+      the Invite is sent, not at registration: the case reaches every participant whole in
+      the bootstrap `Create`, and a record already naming the Invite would read to the winner
+      as an Invite it had already answered.
     verification: >-
-      A strict `xfail` marker test of `RegisterLongerProposalAsRevisionNode` asserts that
-      after a contested creation the loser's id is present in
-      `pending_embargo_proposal_index`, and names its tracking issue until the implementation
-      lands. The implementation's own tests assert the relayed `Invite(EmbargoEvent)`: `actor`
-      the CASE_MANAGER, `attributedTo` the losing party, queued to the winning party.
+      A marker test of `RegisterLongerProposalAsRevisionNode` asserts that a contested
+      creation registers the loser as an open proposal without indexing it. Tree tests of
+      the case-proposal received tree assert the relayed `Invite(EmbargoEvent)` for both
+      directions — `actor` the CASE_MANAGER, `attributedTo` the losing party, queued to the
+      winning party, committed, then indexed in `pending_embargo_proposal_index` for the
+      owner's default selection, with the bootstrap `Create` carrying no index entry — and
+      that a tie or a redelivered proposal relays nothing. Node tests assert that an owner
+      who reported to itself has nothing relayed or indexed, and that the proposer's replica
+      indexes the replayed Invite while the invitee's does not.
     relationships:
     - rel_type: refines
       spec_id: EP-04-003

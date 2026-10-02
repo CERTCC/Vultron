@@ -7,6 +7,7 @@ related_specs:
   - specs/case-ledger-processing.yaml
   - specs/case-proposal.yaml
   - specs/case-management.yaml
+  - specs/behavior-tree-integration.yaml
 related_notes:
   - notes/case-ledger-authority.md
   - notes/outbox-delivery-reliability.md
@@ -16,6 +17,8 @@ related_notes:
   - notes/testing-pitfalls.md
   - notes/participant-embargo-consent.md
   - notes/case-joining.md
+  - notes/core-wire-rendering-port.md
+  - notes/bt-pitfalls.md
 relevant_packages:
   - vultron/core/behaviors
   - vultron/wire/as2
@@ -349,46 +352,106 @@ port being permanently `True` in single-node imposes zero runtime cost.
 
 ---
 
-## Fan-Out Graceful Degradation
+## A Missing Sync Port Is a Wiring Fault
 
-`_fan_out_log_entry` (in `vultron/core/use_cases/triggers/sync.py`) queues one
-`Announce(CaseLedgerEntry)` per peer participant. `sync_port` is an **optional**
-injection: when it is absent (single-actor context, tests, or configurations
-without a `SyncActivityAdapter`), the function logs at `DEBUG` level and
-returns immediately instead of raising.
+`SendLogEntryToEachNode` (in `vultron/core/behaviors/sync/nodes/fanout.py`)
+queues one `Announce(CaseLedgerEntry)` per active participant. It reads the
+`SyncActivityPort` from `/sync_port`, and when the port is absent it **raises
+`VultronWiringError`**. The rejection sender (`receive.py`) and the replay
+sender (`replay.py`) already did the same.
 
-This differs from the two functions that **require** `sync_port`:
+The commit tree checks earlier. `RequireSyncPortNode` (`port_guard.py`) is
+the first step of the mint sequence, so a commit with no port raises before
+any entry is written. Without it, the ledger would keep an entry that no
+replica receives, for an effect the outer tree then never applies.
 
-- `_send_rejection` — must be able to send a rejection; raises `VultronError`
-  if `sync_port` is absent.
-- `replay_missing_entries_trigger` — replaying entries to a peer requires an
-  outbound channel; raises `VultronError` if `sync_port` is absent.
+Fan-out used to be treated as optional: a missing port logged at `DEBUG` and
+returned `SUCCESS`. That hid #4113. Three received use cases committed
+CASE_MANAGER entries with no port, so no replica got those entries until a
+`Reject(CaseLedgerEntry)` caught it up, and the `fcv-reject` demo timed out. A
+committed entry that is never announced breaks SYNC-02-003. A node that skips
+and still reports success masks a delivery failure (BT-14-001).
 
-**Rule**: fan-out is optional behaviour — skipping it silently is correct when
-no sync port is configured. Rejection and replay paths are not optional; they
-MUST raise if the port is missing.
+**Rule**: wherever a ledger commit can run, the sync port must reach it.
 
-This means BT node tests and single-actor integration tests do **not** need a
-`sync_port` injected on the blackboard or as a use-case parameter — the absence
-is handled gracefully without patching.
+- The inbox dispatcher gives every semantic the port through
+  `with_received_baseline_ports()` (`inbox_port_factories.py`).
+- Every received use case accepts the port and passes it to the `BTBridge`
+  constructor, never as an `execute_with_setup` context kwarg.
+  `test/architecture/test_received_use_cases_fan_out_commits.py` enforces
+  this.
+- Tests that reach a commit inject one too: `SyncActivityAdapter(dl)`, or
+  `MagicMock(spec=SyncActivityPort)` where the test is not about fan-out.
+  `BTTestScenario` injects the real adapter.
+
+When the port is missing inside a nested commit, `CommitCaseLedgerEntryNode`
+re-raises the nested bridge's `internal_error` as `VultronBTInternalError`. The
+outer bridge flags it too, so the received handler raises instead of reporting
+the sender as `REFUSED` (ADR-0095). This is the one nested-bridge site that
+carries the flag across the hop. See [bt-pitfalls.md](bt-pitfalls.md) §
+"…And That Idiom Is Why `internal_error` Cannot See a Nested Crash".
 
 ---
 
 ## Fan-Out Recipients and the Embargo Gate (CM-10-005, CM-10-006)
 
 Both recipient collectors in `vultron/core/behaviors/sync/nodes/fanout.py`,
-and the replay sender `SendMissingEntriesNode`, must apply the CM-10-004
-embargo content gate. The collectors apply it through the shared
-active-participant selection
-(`vultron/core/participants/recipients.py`, #4046); the replay gate is not
-yet implemented (#4042, strict-`xfail` marker in place). Under an active
-embargo, a participant that is not `SIGNATORY` to
-it is paused: it is sent no entries, and a `Reject(CaseLedgerEntry)`
-from it replays nothing. Without the replay gate, the paused replica's
-forward-gap Reject (SYNC-14-002) would pull the withheld entries straight
-through. On admission the participant is backfilled in log order, starting
-with the first entry withheld. The backfill reuses the replay path, not a new
-sender.
+the replay sender `SendMissingEntriesNode` and the genesis pre-seed
+`AnnounceCaseOnGenesisRejectNode` apply the CM-10-004 embargo content gate.
+All of them ask the shared active-participant selection in
+`vultron/core/participants/recipients.py` (CM-10-007, #4046), the same one
+`find_excluded_actor_ids()` uses for case updates: the collectors through
+`case_content_recipients()`, the replay and the pre-seed through
+`is_case_content_recipient()`. A peer that is not an active participant is
+sent no entries, and a `Reject(CaseLedgerEntry)` from it replays nothing and
+seeds no case. Without the replay gate, the paused replica's forward-gap
+Reject (SYNC-14-002) would pull the withheld entries straight through.
+
+Only a joined participant the active embargo withholds (not `SIGNATORY` to
+it) is *paused*; `embargo_withheld_participants()` names them, and the
+collectors publish them as `fanout_withheld`. A participant that has not
+joined is inert whatever the embargo, and gets its case and ledger through
+the join path (ADR-0114), so no pause record is created for it.
+
+The pause is recorded on the peer's `VultronReplicationState` as
+`embargo_paused_from_index`: the first `log_index` withheld. A later withheld
+entry keeps the earlier index. The helpers live in
+`sync/nodes/embargo_pause.py`.
+
+On admission the participant is backfilled in log order, from the paused
+index on, through `send_ledger_suffix()` — the send `SendMissingEntriesNode`
+itself uses, not a new sender — and the pause is cleared.
+
+A backfill sends ledger entries only, never the case object. A participant
+paused from index 0 holds no case, so its replica buffers the backfill
+(SYNC-15-004) and sends a genesis `Reject(CaseLedgerEntry)` (SYNC-15-001).
+`AnnounceCaseOnGenesisRejectNode` then seeds the case, now that the gate
+admits the participant (SYNC-15-002).
+
+Admission is caught at two points:
+
+- **At fan-out.** `SendLogEntryToEachNode` backfills every admitted paused
+  peer through the entry just before the one it is sending, then sends that
+  entry. This covers a path that changes state first and commits after:
+  `terminate_embargo_bt` (the terminate trigger and the CS.P/X/A and threat
+  cascades) ends the embargo, then `EmitCaseStatusUpdateNode` commits the new
+  case status. The node recomputes the gate over the whole case: a collector
+  that drops RM.CLOSED peers before gating would otherwise read a closed,
+  withheld peer as admitted.
+- **After an admitting received effect.** A received activity is committed,
+  and so fanned out, *before* its effect admits anyone (CLP-10-006), so the
+  fan-out of the admitting entry still withholds it.
+  `BackfillAdmittedParticipantsNode`, behind the CASE_MANAGER gate
+  (`embargo_admission_backfill_tree()`), runs after the effect: in the
+  accepted-Invite tree, in the Remove(EmbargoEvent) teardown, after an
+  honored late Accept (EMB-17-001), and after a received Add(EmbargoEvent)
+  activates a revision that a paused participant had already accepted.
+
+An admitted peer's own Reject clears the pause too. Its replay resends
+everything past the contiguous prefix it reports (SYNC-10-004), so whatever
+was withheld below that prefix it already holds. Any duplicate that results
+is idempotent on the replica (SYNC-12-003).
+
 Why the gate pauses a whole stream instead of filtering entries is in
 [participant-embargo-consent.md](participant-embargo-consent.md) § "Ledger
 Fan-Out Is Case Content".
@@ -599,9 +662,9 @@ the chain — no need to wait for the genesis ledger entry to be re-delivered.
   reconstructed tail is `(genesis_hash, -1)`, so a buffered genesis entry
   (`prev_log_hash == genesis_hash`) drains first and the rest cascade in
   hash-chain order, reusing the exact effects-before-persist path (SYNC-12-001).
-- `ANNOUNCE_VULNERABILITY_CASE` was added to `_SYNC_PORT_SEMANTICS` so the seed
-  use case receives the `sync_port` the drain needs to send a Reject on any
-  residual mismatch.
+- The seed use case receives the `sync_port` the drain needs to send a Reject
+  on any residual mismatch. It first came from a per-semantic set; since #4113
+  `with_received_baseline_ports()` gives every received use case the port.
 
 Spec: SYNC-15-004 (buffer pre-genesis), SYNC-15-005 (drain on seed).
 ADR: `docs/adr/0059-buffer-pre-genesis-ledger-entries.md`. Regression tests:

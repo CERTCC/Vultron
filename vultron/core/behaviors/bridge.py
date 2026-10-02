@@ -52,7 +52,11 @@ from vultron.core.behaviors.blackboard_scope import (
 )
 from vultron.core.behaviors.store_scope import port_for_store, store_for_actor
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.errors import VultronError, VultronWiringError
+from vultron.errors import (
+    VultronBTInternalError,
+    VultronError,
+    VultronWiringError,
+)
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -90,7 +94,10 @@ class BTExecutionResult:
       ``SUCCESS``) and is never flagged.
     - Nodes that run a sub-tree through their own ``BTBridge`` discard the inner
       result's flag and return a bare ``Status.FAILURE``, so a crash inside a
-      nested subtree is not visible in the outer result.
+      nested subtree is not visible in the outer result.  The exception is
+      ``CommitCaseLedgerEntryNode``, which raises ``VultronBTInternalError``
+      when its nested commit reports one, so a missing sync port on a
+      received commit is not read as a refusal (#4113).
     """
 
     status: Status
@@ -466,13 +473,17 @@ class BTBridge:
             internal_error: Classification, as described above.  A
                 ``VultronWiringError`` is always internal: a missing DataLayer
                 or port is our composition fault, not the protocol's, whatever
-                base class it shares (#2255).
+                base class it shares (#2255).  A ``VultronBTInternalError`` is
+                internal too: a node raises it to carry a nested bridge's
+                ``internal_error`` across the hop (#4113).
 
         Returns:
             A FAILURE ``BTExecutionResult`` carrying the composed message as
             both ``feedback_message`` and the sole entry in ``errors``.
         """
-        internal_error = internal_error or isinstance(e, VultronWiringError)
+        internal_error = internal_error or isinstance(
+            e, (VultronWiringError, VultronBTInternalError)
+        )
         if internal_error:
             error_msg = (
                 f"{prefix} with internal error: {type(e).__name__}: {e}"
@@ -762,6 +773,11 @@ class BTBridge:
                 # node owns "clean up when the Sequence aborts", so the bridge
                 # does, exactly once, for every outcome.
                 "ledger_payload_object_override",
+                # Published by RegisterLongerProposalAsRevisionNode, read by
+                # RelayCreationTimeRevisionNode (EP-04-011).  The writer ticks
+                # only on the creation arm, so a redelivery that skips that arm
+                # would otherwise hand the relay the previous execution's value.
+                "creation_time_revision",
                 # The executing actor's identity is execution-scoped too, and for
                 # a sharper reason than the ports above.  Every node base in
                 # `helpers.py` re-reads `/actor_id` into `self.actor_id` in

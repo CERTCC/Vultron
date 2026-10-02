@@ -32,6 +32,7 @@ import pytest
 
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -68,8 +69,15 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
 )
 
 
-def _make_case_with_case_manager(dl, actor_id, em_state=EM.PROPOSED):
-    """Create and persist a VulnerabilityCase with a CASE_MANAGER participant."""
+def _make_case_with_case_manager(
+    dl, actor_id, em_state=EM.PROPOSED, manager_id: str | None = None
+):
+    """Create and persist a VulnerabilityCase with a CASE_MANAGER participant.
+
+    The role holder is a fresh ``CaseManager`` service unless *manager_id*
+    names an actor already in *dl* — the receiver, for a test of work only
+    the CASE_MANAGER does (BT-17-001, BT-17-005).
+    """
     from vultron.enums.roles import CVDRole
 
     case = VulnerabilityCase(
@@ -79,8 +87,11 @@ def _make_case_with_case_manager(dl, actor_id, em_state=EM.PROPOSED):
     case.append_case_status(em_state=em_state)
     dl.create(case)
 
-    case_manager = as_Service(name="CaseManager")
-    dl.create(case_manager)
+    if manager_id is None:
+        case_manager = as_Service(name="CaseManager")
+        dl.create(case_manager)
+    else:
+        case_manager = cast(as_Service, dl.read(manager_id))
     cm_p = as_CaseParticipant(
         attributed_to=case_manager.id_,
         context=case.id_,
@@ -128,7 +139,11 @@ class TestInviteToEmbargoRecordsIndex:
         )
 
         InviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         updated_case = dl.read(case.id_)
@@ -172,10 +187,18 @@ class TestInviteToEmbargoRecordsIndex:
         )
 
         InviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
         InviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         updated_case = dl.read(case.id_)
@@ -215,6 +238,7 @@ class TestProposeTriggerRecordsIndex:
             request,
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert result.activity is not None
@@ -275,6 +299,7 @@ class TestAcceptRejectFromCoreState:
             request,
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert result.activity is not None
@@ -326,6 +351,7 @@ class TestAcceptRejectFromCoreState:
             request,
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert result.activity is not None
@@ -359,6 +385,7 @@ class TestAcceptRejectFromCoreState:
             request,
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert result.activity is not None
@@ -389,6 +416,7 @@ class TestAcceptRejectFromCoreState:
                 request,
                 trigger_activity=TriggerActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
 
     def test_reject_raises_notfound_when_index_empty(self):
@@ -413,31 +441,31 @@ class TestAcceptRejectFromCoreState:
                 request,
                 trigger_activity=TriggerActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
 
 
 class TestReceivedRejectPrunesOpenProposals:
-    """A received Reject(Invite(EmbargoEvent)) prunes on a replica iff the
-    rejecting actor is the case owner (EP-08-003, #3470).
+    """A received Reject(Invite(EmbargoEvent)) prunes in the CASE_MANAGER's
+    store iff the rejecting actor is the case owner (EP-08-003, #3470).
 
-    The received Accept path prunes through ``accept_embargo_invite``; before
-    this the Reject path only recorded PEC DECLINE, so the owner's Reject left
-    the decided proposal in every participant replica's records, where a later
-    default selection could still pick it.
+    Only the CASE_MANAGER receives an answer (EP-09); a participant replica
+    learns it from the committed entry's ledger replay, tested in
+    ``test/core/behaviors/sync/nodes/test_embargo_relay_effect.py``.
     """
 
     _OWNER = "https://example.org/actors/reject-owner"
-    _REPLICA = "https://example.org/actors/reject-replica"
+    _REPLICA = "https://example.org/actors/reject-manager"
 
     def _replica_with_open_proposal(self):
-        """A participant's store holding the owner's case with one open proposal."""
+        """The CASE_MANAGER's store holding the owner's case with one open proposal."""
         from vultron.wire.as2.factories import em_reject_embargo_activity
 
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=self._REPLICA)
-        dl.create(as_Service(id_=self._REPLICA, name="Replica"))
+        dl.create(as_Service(id_=self._REPLICA, name="Manager"))
         dl.create(as_Service(id_=self._OWNER, name="Owner"))
         case, _cm = _make_case_with_case_manager(
-            dl, self._OWNER, em_state=EM.PROPOSED
+            dl, self._OWNER, em_state=EM.PROPOSED, manager_id=self._REPLICA
         )
         embargo = as_EmbargoEvent(
             id_=f"{case.id_}/embargo_events/e1",
@@ -468,7 +496,7 @@ class TestReceivedRejectPrunesOpenProposals:
         return dl, case, embargo, proposal, received_reject_by
 
     @pytest.mark.spec("EP-08-003")
-    def test_owners_reject_prunes_both_records_on_the_replica(self):
+    def test_owners_reject_prunes_both_records_in_the_managers_store(self):
         dl, case, _embargo, _proposal, received_reject_by = (
             self._replica_with_open_proposal()
         )
@@ -477,6 +505,7 @@ class TestReceivedRejectPrunesOpenProposals:
             dl,
             received_reject_by(self._OWNER),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert result.disposition is HandlerDisposition.APPLIED
@@ -496,6 +525,7 @@ class TestReceivedRejectPrunesOpenProposals:
             dl,
             received_reject_by(participant),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert result.disposition is HandlerDisposition.APPLIED
@@ -555,7 +585,7 @@ class TestRejectEventCarriesCaseAndEmbargoIds:
         actor = as_Service(id_=actor_id, name="RejActor")
         dl.create(actor)
         case, _cm = _make_case_with_case_manager(
-            dl, actor_id, em_state=EM.PROPOSED
+            dl, actor_id, em_state=EM.PROPOSED, manager_id=actor_id
         )
         embargo = as_EmbargoEvent(
             id_=f"{case.id_}/embargo_events/e1",
@@ -595,6 +625,7 @@ class TestRejectEventCarriesCaseAndEmbargoIds:
                 dl,
                 event,
                 wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 

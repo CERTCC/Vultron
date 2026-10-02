@@ -20,6 +20,7 @@ import pytest
 from test.core.use_cases.received.conftest import (
     seed_store_owner_as_case_manager,
 )
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
@@ -254,7 +255,10 @@ class TestInviteActorUseCases:
         event = make_payload(invite)
 
         result = InviteActorToCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert result.disposition is HandlerDisposition.APPLIED
@@ -289,7 +293,10 @@ class TestInviteActorUseCases:
 
         with caplog.at_level(logging.INFO):
             InviteActorToCaseReceivedUseCase(
-                dl, event, wire_render_port=As2WireRenderAdapter()
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
 
         narrative = [
@@ -325,7 +332,10 @@ class TestInviteActorUseCases:
 
         with caplog.at_level(logging.DEBUG):
             InviteActorToCaseReceivedUseCase(
-                dl, event, wire_render_port=As2WireRenderAdapter()
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
 
         awaiting = [
@@ -366,7 +376,10 @@ class TestInviteActorUseCases:
         )
         event = make_payload(invite)
         InviteActorToCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         pending_id = VultronPendingCaseInbox.build_id(case_id)
@@ -406,10 +419,16 @@ class TestInviteActorUseCases:
         )
 
         InviteActorToCaseReceivedUseCase(
-            dl, make_payload(invite1), wire_render_port=As2WireRenderAdapter()
+            dl,
+            make_payload(invite1),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
         InviteActorToCaseReceivedUseCase(
-            dl, make_payload(invite2), wire_render_port=As2WireRenderAdapter()
+            dl,
+            make_payload(invite2),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         pending = dl.read(VultronPendingCaseInbox.build_id(case_id))
@@ -442,11 +461,17 @@ class TestInviteActorUseCases:
         event = make_payload(invite)
 
         first = InviteActorToCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
         anchor = dl.read(VultronPendingCaseInbox.build_id(case_id))
         second = InviteActorToCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert first.disposition is HandlerDisposition.APPLIED
@@ -474,7 +499,10 @@ class TestInviteActorUseCases:
         event = make_payload(invite).model_copy(update={field: None})
 
         result = InviteActorToCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert result.disposition is HandlerDisposition.REFUSED
@@ -506,7 +534,10 @@ class TestInviteActorUseCases:
         monkeypatch.setattr(BTBridge, "execute_with_setup", _spy)
 
         InviteActorToCaseReceivedUseCase(
-            dl, make_payload(invite), wire_render_port=As2WireRenderAdapter()
+            dl,
+            make_payload(invite),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert len(calls) == 1
@@ -565,10 +596,16 @@ class TestInviteActorUseCases:
         )
 
         first = InviteActorToCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
         second = InviteActorToCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert first.disposition is HandlerDisposition.APPLIED
@@ -653,6 +690,7 @@ class TestInviteActorUseCases:
             dl,
             event.model_copy(update={"receiving_actor_id": case_actor_id}),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         entries = [
@@ -1653,10 +1691,16 @@ class TestInviteDispositions:
         event = make_payload(self._invite("https://example.org/cases/d-inv1"))
 
         first = InviteActorToCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
         second = InviteActorToCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert first.disposition == HandlerDisposition.APPLIED
@@ -1668,7 +1712,10 @@ class TestInviteDispositions:
         event = MagicMock(case_id=None, receiving_actor_id=None)
 
         result = RejectInviteActorToCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
@@ -1687,7 +1734,10 @@ class TestInviteDispositions:
         )
 
         result = RejectInviteActorToCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
@@ -1735,7 +1785,10 @@ class TestInviteDispositions:
         )
 
         result = RejectInviteActorToCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
@@ -1754,7 +1807,10 @@ class TestInviteDispositions:
         )
 
         result = RejectInviteActorToCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert result.disposition == HandlerDisposition.APPLIED

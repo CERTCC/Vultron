@@ -141,7 +141,8 @@ No open entries.
 | `fvcv-handoff Demo Integration` — `AddCaseParticipantReceivedBT did not succeed … case not found` / `wait_for_case_participants` timeout | #2257 | 2026-08-18 |
 | `fvcv-handoff Invariant Harness` (downstream of the row above) | #2257 | 2026-08-18 |
 | `fvcv-handoff Demo Integration` — `Case attributed_to updated to Coordinator on Vendor1's DataLayer (AC-1)` timeout | #3602 | 2026-09-23 |
-| `fcv-reject Demo Integration` — `Finder ledger coverage (sync-verification phase)` timeout | #4113 | 2026-10-02 |
+| `fcv-reject Demo Integration` | #3033 | 2026-09-02 |
+| `fcv-reject Demo Integration` — `Finder ledger coverage (sync-verification phase)` timeout on `0…11` | #4113 | 2026-10-01 |
 | `fcv-reject Invariant Harness` | #3033 | 2026-09-02 |
 | `fccv-handoff Demo Integration` — `M6 receiver: pxa_state is not public-aware, found None` | #3903 | 2026-09-30 |
 | `fcv Demo Integration` — `M6 receiver: pxa_state is not public-aware, found None` | #3903 | 2026-09-30 |

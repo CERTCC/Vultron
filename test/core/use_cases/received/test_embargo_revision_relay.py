@@ -19,10 +19,12 @@ participant that receives an Invite writes no case or consent state on receipt;
 consent moves when the CASE_MANAGER commits its answer.  A revision Invite to a
 ``SIGNATORY`` changes nothing.
 
-The manager-side relay (EP-09-001, EP-09-002, EP-09-004) landed with #3913.
-The remaining strict ``xfail`` markers pin behaviour #3915 (participant side
-and replay), #3961 (RSVP deadline) and #3963 (invitee resolution) will
-deliver.  Each fails today for the reason its docstring names; when the
+The manager-side relay (EP-09-001, EP-09-002, EP-09-004) landed with #3913;
+the participant side and the replay of every relay entry (EP-09-003,
+EP-09-007) with #3915 (``test_embargo_relay_replay.py``, beside this file,
+pins the replay across per-actor stores).  The remaining strict ``xfail``
+markers pin behaviour #3961 (RSVP deadline) and #3963 (invitee resolution)
+will deliver.  Each fails today for the reason its docstring names; when the
 feature lands the ``xfail`` auto-promotes.
 """
 
@@ -55,7 +57,6 @@ from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 from .conftest import make_embargo_case_with_actor
 
-_TRACKING = "Tracked by #3915 (participant side, replay); the manager-side relay landed with #3913. Concern #3892, ADR-0113."
 _TRACKING_3918 = "Concern #3918, ADR-0113."
 
 MANAGER = "https://example.org/users/coord"
@@ -189,14 +190,8 @@ def test_case_manager_invites_every_participant_except_the_proposer(
     assert all(a.attributed_to == PROPOSER for a in relayed)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "EP-09-003: a participant's receive tree moves its own consent to "
-        "INVITED on receipt instead of leaving it to the ledger. " + _TRACKING
-    ),
-)
 @pytest.mark.spec("EP-09-003")
+@pytest.mark.spec("EMB-15-001")
 def test_participant_writes_no_consent_on_receipt_of_relayed_invite(
     make_payload,
 ):
@@ -215,11 +210,22 @@ def test_participant_writes_no_consent_on_receipt_of_relayed_invite(
         id_=f"{case_id}/embargo_invites/other-a",
     )
 
-    _deliver(dl, relayed, make_payload, receiving_actor_id=OTHER_A)
+    verdict = _deliver(dl, relayed, make_payload, receiving_actor_id=OTHER_A)
 
+    assert verdict.disposition is HandlerDisposition.APPLIED
     case = cast(VulnerabilityCase, dl.read(case_id))
     assert case.current_status.em.state == EM.ACTIVE
+    assert case.proposed_embargo_ids == []
     assert _pec_of(dl, case_id, OTHER_A) is PEC.UNBOUND
+    other_a = cast(
+        CaseParticipant, dl.read(case.actor_participant_index[OTHER_A])
+    )
+    assert revision.id_ not in other_a.accepted_embargo_ids
+    assert dl.read(relayed.id_) is not None, "the Invite was not stored"
+    answers = _outbox_of_type(dl, "Accept")
+    assert len(answers) == 1, "the invitee did not answer its Invite"
+    assert answers[0].actor == OTHER_A
+    assert answers[0].to == [MANAGER]
 
 
 @pytest.mark.spec("EP-09-004")
@@ -282,12 +288,16 @@ def _deadline_of(dl: SqliteDataLayer, case_id: str, actor_id: str):
     return participant.invite_rsvp_deadline
 
 
-def _relayed_invites(dl: SqliteDataLayer) -> list[VultronActivity]:
+def _outbox_of_type(dl: SqliteDataLayer, type_: str) -> list[VultronActivity]:
     return [
         a
         for a in (cast(VultronActivity, dl.read(i)) for i in dl.outbox_list())
-        if a.type_ == "Invite"
+        if a.type_ == type_
     ]
+
+
+def _relayed_invites(dl: SqliteDataLayer) -> list[VultronActivity]:
+    return _outbox_of_type(dl, "Invite")
 
 
 @pytest.mark.spec("EP-09-001")
@@ -315,8 +325,9 @@ def test_case_manager_moves_first_proposal_to_proposed(make_payload):
 @pytest.mark.xfail(
     strict=True,
     reason=(
-        "CM-28-012: no relayed Invite exists yet, so none carries the "
-        "CASE_MANAGER-stamped end_time. Tracked by #3961. " + _TRACKING_3918
+        "CM-28-012: the CASE_MANAGER relays the Invites without stamping "
+        "end_time, so none carries an RSVP deadline. Tracked by #3961. "
+        + _TRACKING_3918
     ),
 )
 @pytest.mark.spec("CM-28-012")

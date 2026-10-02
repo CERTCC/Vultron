@@ -36,6 +36,7 @@ from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -220,6 +221,7 @@ class _OwnerDirectInvite:
             self.owner_dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.owner_dl),
+            sync_port=SyncActivityAdapter(self.owner_dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
         return activity_of(result)
@@ -237,6 +239,7 @@ class _OwnerDirectInvite:
             self.manager_dl,
             event,
             trigger_activity=TriggerActivityAdapter(self.manager_dl),
+            sync_port=SyncActivityAdapter(self.manager_dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -342,6 +345,7 @@ class TestSvcInviteActorToCaseUseCase:
                 dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
             ).execute()
         assert dl.outbox_list() == []
@@ -373,6 +377,7 @@ class TestSvcInviteActorToCaseUseCase:
                 dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
@@ -431,6 +436,7 @@ class TestSvcInviteActorToCaseUseCase:
                     dl,
                     request,
                     trigger_activity=TriggerActivityAdapter(dl),
+                    sync_port=SyncActivityAdapter(dl),
                     wire_render_port=As2WireRenderAdapter(),
                 ).execute()
 
@@ -455,6 +461,7 @@ class TestSvcInviteActorToCaseUseCase:
                 dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
@@ -477,6 +484,7 @@ class TestSvcInviteActorToCaseUseCase:
             dl,
             request,
             trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -664,6 +672,7 @@ class TestSvcSuggestActorToCaseUseCase:
             dl,
             request,
             trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -702,6 +711,7 @@ class TestSvcSuggestActorToCaseUseCase:
                 dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
@@ -751,6 +761,7 @@ class TestSvcSuggestActorToCaseUseCase:
                     dl,
                     request,
                     trigger_activity=TriggerActivityAdapter(dl),
+                    sync_port=SyncActivityAdapter(dl),
                     wire_render_port=As2WireRenderAdapter(),
                 ).execute()
 
@@ -778,6 +789,7 @@ class TestSvcSuggestActorToCaseUseCase:
             dl,
             request,
             trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -802,6 +814,7 @@ class TestSvcSuggestActorToCaseUseCase:
                 dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
@@ -846,6 +859,7 @@ class TestSvcAcceptCaseInviteUseCase:
             dl_invitee,
             request,
             trigger_activity=TriggerActivityAdapter(dl_invitee),
+            sync_port=SyncActivityAdapter(dl_invitee),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -869,6 +883,7 @@ class TestSvcAcceptCaseInviteUseCase:
                 dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
@@ -910,6 +925,7 @@ class TestSvcAcceptCaseInviteUseCase:
             dl_invitee,
             request,
             trigger_activity=TriggerActivityAdapter(dl_invitee),
+            sync_port=SyncActivityAdapter(dl_invitee),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
         assert result.activity is not None
@@ -945,6 +961,7 @@ class TestSvcAcceptCaseInviteUseCase:
             dl_invitee,
             request,
             trigger_activity=TriggerActivityAdapter(dl_invitee),
+            sync_port=SyncActivityAdapter(dl_invitee),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -981,6 +998,7 @@ class TestSvcRejectCaseInviteUseCase:
             dl_invitee,
             request,
             trigger_activity=TriggerActivityAdapter(dl_invitee),
+            sync_port=SyncActivityAdapter(dl_invitee),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -1002,6 +1020,7 @@ class TestSvcRejectCaseInviteUseCase:
                 dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
@@ -1035,6 +1054,7 @@ class TestSvcRejectCaseInviteUseCase:
             dl_invitee,
             request,
             trigger_activity=TriggerActivityAdapter(dl_invitee),
+            sync_port=SyncActivityAdapter(dl_invitee),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -1075,6 +1095,7 @@ class TestSvcAcceptActorRecommendationUseCase:
             dl,
             request,
             trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -1097,6 +1118,7 @@ class TestSvcAcceptActorRecommendationUseCase:
                 dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
@@ -1118,6 +1140,7 @@ class TestSvcAcceptActorRecommendationUseCase:
                 dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
@@ -1150,6 +1173,7 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
             dl,
             request,
             trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -1183,6 +1207,7 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
             dl,
             request,
             trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -1224,6 +1249,7 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
                 dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
@@ -1253,6 +1279,7 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
                 dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
@@ -1315,6 +1342,7 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
             dl,
             request,
             trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -1355,6 +1383,7 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
             dl,
             request,
             trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -1422,6 +1451,7 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
             dl,
             request,
             trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -1458,6 +1488,7 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
             dl,
             request,
             trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -1486,6 +1517,7 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
                 dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
@@ -1514,6 +1546,7 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
                 dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
@@ -1560,6 +1593,7 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
                 mock_dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(mock_dl),
+                sync_port=SyncActivityAdapter(mock_dl),
                 wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
@@ -1605,6 +1639,7 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
             dl,
             request,
             trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -1702,6 +1737,7 @@ class TestActorDiscoveryCallOut:
                 dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
                 call_out=ACTOR_DISCOVERY_DETERMINISTIC,
                 wire_render_port=As2WireRenderAdapter(),
             ).execute()
@@ -1737,6 +1773,7 @@ class TestActorDiscoveryCallOut:
                 dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
                 call_out=fail_bundle,
                 wire_render_port=As2WireRenderAdapter(),
             ).execute()
@@ -1774,6 +1811,7 @@ class TestActorDiscoveryCallOut:
             dl,
             request,
             trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
             call_out=fail_bundle,
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
@@ -1822,6 +1860,7 @@ class TestActorDiscoveryCallOut:
                 dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
                 call_out=running_bundle,
                 wire_render_port=As2WireRenderAdapter(),
             ).execute()

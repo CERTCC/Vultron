@@ -213,10 +213,6 @@ KNOWN_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
             f"{_NODES}/suggest_actor/emit.py",
             "RecordRecommendationRecommenderNode.update",
         ),
-        (
-            "vultron/core/behaviors/embargo/nodes/conditions.py",
-            "OptionalLookupParticipantNode.update",
-        ),
         # R3 — teardown addressing enrichment; upstream nodes fail on absence.
         (
             "vultron/core/behaviors/embargo/nodes/terminate.py",
@@ -243,6 +239,13 @@ KNOWN_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         (f"{_NODES}/participant/common.py", "_create_and_attach_participant"),
         (f"{_NODES}/suggest_actor/emit.py", "_resolve_owner_recipient"),
         (f"{_NODES}/vfd_role_guards.py", "_resolve_actor_roles"),
+        # MOD — shared by a received use case, a trigger, a replay node and a
+        # BT node, so it takes a bare `dl`; it raises VultronNotFoundError on
+        # absence.
+        (
+            "vultron/core/behaviors/embargo/proposal_index.py",
+            "record_embargo_proposal_index",
+        ),
         # lenient — sender-verification gate: a missing/unseeded case is the
         # bootstrap window and MUST pass through (SUCCESS) rather than FAIL, so
         # it reads leniently instead of via Regime 1 _require_case. Authority is

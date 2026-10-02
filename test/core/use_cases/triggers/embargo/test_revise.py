@@ -6,6 +6,7 @@ from typing import cast
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -45,6 +46,7 @@ def test_propose_embargo_revision_transitions_em_to_revise(
         dl,
         request,
         trigger_activity=TriggerActivityAdapter(dl),
+        sync_port=SyncActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
     ).execute()
 
@@ -73,6 +75,7 @@ def test_propose_embargo_revision_queues_outbox_activity(
         dl,
         request,
         trigger_activity=TriggerActivityAdapter(dl),
+        sync_port=SyncActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
     ).execute()
 
@@ -98,6 +101,7 @@ def test_propose_embargo_revision_invalid_em_state_raises_error(
             dl,
             request,
             trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -122,6 +126,7 @@ def test_propose_embargo_revision_invalid_state_does_not_persist_embargo(
             dl,
             request,
             trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -160,6 +165,7 @@ def test_propose_embargo_revision_in_revise_state_succeeds(
         dl,
         request,
         trigger_activity=TriggerActivityAdapter(dl),
+        sync_port=SyncActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
     ).execute()
 

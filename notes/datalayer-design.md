@@ -10,6 +10,7 @@ description: >
 related_specs:
   - specs/datalayer.yaml
   - specs/architecture.yaml (ARCH-12-006, ARCH-23-003, ARCH-23-005)
+  - specs/embargo-policy.yaml (EP-02-004)
 related_notes:
   - notes/domain-model-separation.md
   - notes/architecture-hexagonal.md
@@ -515,3 +516,44 @@ Two rules for the next instance:
   of the wire form: the endpoint stamps had to be removed from twelve of them,
   and the key-shape ratchet (`test_vocab_examples_current.py`) is what would
   have caught the mismatch had it existed when the default was added.
+
+## A Read-Modify-Write of a Shared Record Uses `save_if_unchanged`, Not `save`
+
+(ISSUE-4102, 2026-10-02)
+
+`save()` is an upsert with no guard. A caller that reads a record, changes
+one field and saves the whole record back overwrites any write that landed
+in between, and nobody is told. `PUT /actors/{id}/embargo-policy` was such a
+caller once the policy became a field of the actor profile (EP-01-001): the
+profile is what travels inline on every `Create(CaseProposal)` (CP-01-010),
+so a lost write silently changed the actor default a CASE_MANAGER applies.
+
+`DataLayer.save_if_unchanged(obj, expected)` is the compare-and-set for that
+shape (DL-02-003). It writes only when the stored record still equals `expected` (both
+compared in stored form) and refuses otherwise, returning `False` with
+nothing written. Two windows are closed, and each has its own test in
+`test/adapters/driven/test_sqlite_save_if_unchanged.py`:
+
+- **A write before the call** — caught by comparing the stored record with
+  `expected`.
+- **A write between the call's own read and its write** — a file-backed
+  store opens one connection per `Session`, so a Python-side comparison
+  alone is not enough. The write is one conditional `UPDATE` keyed on the
+  row's stored text as the call read it, so a row changed in between
+  matches nothing.
+
+The caller decides what a refusal means. The embargo-policy PUT changes
+only the policy field, so it re-reads and re-applies its terms, and after a
+bounded number of attempts it refuses with 409 (EP-02-004). A caller whose
+change depends on the fields it read cannot re-apply blindly and should
+surface the conflict at once. No schema change was needed: the stored text
+is the version token.
+
+A compare-and-set guards only the writers that use it. A plain `save()` of
+the same record by another writer still overwrites whatever the guarded
+writer stored, so the protection holds in both directions only while
+**every** read-modify-write of the actor profile goes through
+`save_if_unchanged`. Today the PUT is the only code that rewrites a profile
+(`POST /actors/` uses `create()`, which refuses an existing record); a new
+profile writer MUST use `save_if_unchanged` too, or it reopens the window
+that issue #4102 closed, this time in the other direction.

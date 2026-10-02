@@ -22,8 +22,9 @@ Provides factory functions for the received-side embargo BTs:
 activity (protocol EP / EV message).  Two role-gated arms behind the shared
 intake and guarded commit (ADR-0113, EP-09): the CASE_MANAGER adjudicates the
 proposal (``ProposeEmbargoLifecycleNode``) and relays it to every participant
-except the proposer (``RelayEmbargoInviteToEachNode``, ``nodes/relay.py``); any
-other store records the Invite on its replica.  The tree's docstring draws it.
+except the proposer (``RelayEmbargoInviteToEachNode``, ``nodes/relay.py``); the
+addressee's store answers the Invite to the CASE_MANAGER and writes no state
+(EP-09-003).  The tree's docstring draws it.
 
 ``remove_embargo_from_case_tree`` — handles receipt of a ``Remove(EmbargoEvent)``
 activity (protocol ET message).  Sequence:
@@ -40,7 +41,8 @@ activity (protocol ET message).  Sequence:
        └─ ActiveTeardown (Sequence)       # its FAILURE is the tree's FAILURE
           ├─ ClearActiveEmbargoNode       # ACTIVE/REVISE→EXITED + clear active_embargo
           ├─ ResetParticipantConsentNode  # reset all participant PEC to UNBOUND
-          └─ SendAnnounceEmbargoEventNode # emit Announce(EmbargoEvent) to CaseActor
+          ├─ SendAnnounceEmbargoEventNode # emit Announce(EmbargoEvent) to CaseActor
+          └─ EmbargoAdmissionBackfill     # CASE_MANAGER: backfill paused peers (CM-10-006)
 
 Per specs/behavior-tree-integration.yaml BT-06-001.
 """
@@ -56,32 +58,59 @@ from vultron.core.behaviors.case.nodes.role_gates import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+
+# The Accept/Reject(Invite(EmbargoEvent)) trees live in ``answer_trees``
+# (CS-18-001); re-exported for existing importers.
+from vultron.core.behaviors.embargo.answer_trees import (  # noqa: F401
+    accept_invite_to_embargo_tree,
+    reject_invite_to_embargo_tree,
+)
 from vultron.core.behaviors.embargo.nodes import (
+    CanAnswerEmbargoInviteNode,
     ClearActiveEmbargoNode,
     CollectEmbargoInviteRecipientsNode,
     CreateAndStoreInviteNode,
     EmbargoProposalNotYetRecordedNode,
     HasEmbargoActiveNode,
     IsActiveEmbargoNode,
-    OptionalLookupParticipantNode,
     PersistEmbargoEventNode,
     ProposeEmbargoLifecycleNode,
-    RecordParticipantAcceptanceNode,
-    RecordParticipantRejectionNode,
     RelayEmbargoInviteToEachNode,
     RemoveFromProposedEmbargoesNode,
     ResetParticipantConsentNode,
     SendAnnounceEmbargoEventNode,
+    SendEmbargoInviteAnswerNode,
     SetEmbargoActiveNode,
-    UpdateParticipantEmbargoPecNode,
     ValidateCaseExistsNode,
     case_manager_admits_proposal_guard,
 )
+from vultron.core.behaviors.embargo.response_decision_tree import (
+    create_embargo_response_decision_tree,
+)
+from vultron.core.behaviors.sync.nodes.embargo_backfill import (
+    BackfillAdmittedParticipantsNode,
+)
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.services.embargo_lifecycle import TransitionMode
-from vultron.core.states.participant_embargo_consent import PEC_Trigger
 
 logger = logging.getLogger(__name__)
+
+
+def embargo_admission_backfill_tree(
+    case_id: str,
+) -> py_trees.behaviour.Behaviour:
+    """Backfill the participants an embargo effect just admitted (CM-10-006).
+
+    The admitting entry was committed and fanned out before the effect ran, so
+    the fan-out withheld it; this sends it, and everything else withheld, once
+    the gate admits the participant. CASE_MANAGER only (BT-17-001): the pause
+    records and the canonical ledger live in its store.
+    """
+    return create_case_manager_gated_tree(
+        name="EmbargoAdmissionBackfill",
+        case_id=case_id,
+        children=[BackfillAdmittedParticipantsNode(case_id=case_id)],
+    )
 
 
 def remove_embargo_from_case_tree(
@@ -138,6 +167,7 @@ def remove_embargo_from_case_tree(
                     SendAnnounceEmbargoEventNode(
                         case_id=case_id, embargo_id=embargo_id
                     ),
+                    embargo_admission_backfill_tree(case_id),
                 ],
             ),
         ],
@@ -169,7 +199,8 @@ def add_embargo_to_case_tree(
 
     Handles receipt of an ``Add(EmbargoEvent)`` activity.  Sets the embargo
     as active on the case, transitions EM → ACTIVE, and commits a canonical
-    ledger entry.
+    ledger entry. As the CASE_MANAGER it then backfills any participant the
+    newly active embargo admits (CM-10-006).
 
     BT returns SUCCESS when the embargo is activated.
     Always commits the ledger entry regardless of BT result.
@@ -191,6 +222,9 @@ def add_embargo_to_case_tree(
                 embargo_id=embargo_id,
                 transition_mode=TransitionMode.OBSERVED,
             ),
+            # Activating a revision can admit a participant that had already
+            # accepted it, after the Add entry was fanned out (CM-10-006).
+            embargo_admission_backfill_tree(case_id),
         ],
     )
     logger.info(
@@ -209,7 +243,6 @@ def invite_to_embargo_on_case_tree(
     embargo_id: str,
     proposer_id: str,
     embargo: EmbargoEvent | None = None,
-    pec_result_out: dict[str, object] | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for receiving an embargo proposal or invitation (EP / EV).
 
@@ -244,13 +277,16 @@ def invite_to_embargo_on_case_tree(
     embargo to this Invite's id) commits nothing and the handler reports it
     as a repeat (CLP-13-001, HP-01-003).
 
-    **A participant replica records** the Invite addressed to it: the
-    invitee's participant record is looked up leniently and PEC ``INVITE``
-    applied where legal — a ``SIGNATORY`` asked about a revision keeps its
-    state and the tree succeeds (EP-09-004).  This on-receipt write is the
-    pre-relay behaviour retained until the replica apply node for the
-    manager's Invite commit lands (RSH-08-004, #3915); EP-09-003 then gates
-    it off.
+    **A participant replica stores and answers** the Invite addressed to it
+    and writes nothing else (EP-09-003).  The intake stores the Invite; when
+    the executing actor is its addressee, the EMB-15 response decision
+    (``create_embargo_response_decision_tree``) queues an ``Accept`` or
+    ``Reject`` of it to the CASE_MANAGER (``SendEmbargoInviteAnswerNode``).
+    No EM state and no consent state moves here: the replica learns the
+    proposal, the relayed Invite and every answer from the CASE_MANAGER's
+    committed entries, which ``create_announce_log_entry_tree`` replays
+    (EP-09-007, RSH-08-004).  An Invite that reached a store other than its
+    addressee's is stored and left unanswered.
 
     Args:
         case_id: ID of the VulnerabilityCase.
@@ -260,35 +296,35 @@ def invite_to_embargo_on_case_tree(
         proposer_id: Actor whose terms these are — the Invite's ``actor``, or
             its ``attributedTo`` when the proposal was itself relayed.
         embargo: The inline ``EmbargoEvent`` the message carries, persisted
-            in the manager's store before adjudication; ``None`` when the
-            message named its object by bare URI.
-        pec_result_out: Receives the replica arm's ``pec_before`` /
-            ``pec_changed`` so the handler can report a repeat as SKIPPED.
+            by the intake in whichever store receives the Invite (CLP-10-017);
+            ``None`` when the message named its object by bare URI.
 
     Returns:
         Root node of the ``InviteToEmbargoOnCaseBT`` Sequence.
     """
-    adjudication: list[py_trees.behaviour.Behaviour] = []
+    # The intake stores the Invite and the embargo it carries, in every store:
+    # the store keeps the Invite's object by reference, so without the
+    # EmbargoEvent it could not read the Invite back whole to adjudicate or
+    # answer it.  Storing the object moves no EM or consent state (EP-09-003).
+    intake: list[py_trees.behaviour.Behaviour] = [CreateAndStoreInviteNode()]
     if embargo is not None:
-        adjudication.append(PersistEmbargoEventNode(embargo=embargo))
-    adjudication.extend(
-        [
-            CollectEmbargoInviteRecipientsNode(
-                case_id=case_id, proposer_id=proposer_id
-            ),
-            ProposeEmbargoLifecycleNode(
-                case_id=case_id,
-                embargo_id=embargo_id,
-                result_out={},
-                proposer_id=proposer_id,
-            ),
-            RelayEmbargoInviteToEachNode(
-                case_id=case_id,
-                embargo_id=embargo_id,
-                proposer_id=proposer_id,
-            ),
-        ]
-    )
+        intake.append(PersistEmbargoEventNode(embargo=embargo))
+    adjudication: list[py_trees.behaviour.Behaviour] = [
+        CollectEmbargoInviteRecipientsNode(
+            case_id=case_id, proposer_id=proposer_id
+        ),
+        ProposeEmbargoLifecycleNode(
+            case_id=case_id,
+            embargo_id=embargo_id,
+            result_out={},
+            proposer_id=proposer_id,
+        ),
+        RelayEmbargoInviteToEachNode(
+            case_id=case_id,
+            embargo_id=embargo_id,
+            proposer_id=proposer_id,
+        ),
+    ]
     root = create_receive_activity_tree(
         name="InviteToEmbargoOnCaseBT",
         case_id=case_id,
@@ -299,23 +335,45 @@ def invite_to_embargo_on_case_tree(
             case_manager_admits_proposal_guard(case_id=case_id),
         ],
         effect_nodes=[
-            CreateAndStoreInviteNode(),
+            *intake,
             create_case_manager_gated_tree(
                 name="AdjudicateEmbargoProposal",
                 case_id=case_id,
                 children=adjudication,
             ),
             create_participant_replica_gated_tree(
-                name="RecordInviteOnReplica",
+                name="AnswerInviteOnReplica",
                 case_id=case_id,
                 children=[
-                    OptionalLookupParticipantNode(
-                        case_id=case_id, target_actor_id=invitee_id
-                    ),
-                    UpdateParticipantEmbargoPecNode(
-                        pec_trigger=PEC_Trigger.INVITE,
-                        where_legal=True,
-                        result_out=pec_result_out,
+                    py_trees.composites.Selector(
+                        name="AnswerIfAddressee",
+                        memory=False,
+                        children=[
+                            py_trees.decorators.Inverter(
+                                name="SkipUnlessAnswerable",
+                                child=CanAnswerEmbargoInviteNode(
+                                    case_id=case_id,
+                                    invitee_id=invitee_id,
+                                    embargo_id=embargo_id,
+                                ),
+                            ),
+                            create_embargo_response_decision_tree(
+                                case_id=case_id,
+                                deciding_actor_id=invitee_id,
+                                accept_bt=SendEmbargoInviteAnswerNode(
+                                    case_id=case_id,
+                                    invite_id=invite_id,
+                                    accept=True,
+                                    name="SendAcceptEmbargoInvite",
+                                ),
+                                reject_bt=SendEmbargoInviteAnswerNode(
+                                    case_id=case_id,
+                                    invite_id=invite_id,
+                                    accept=False,
+                                    name="SendRejectEmbargoInvite",
+                                ),
+                            ),
+                        ],
                     ),
                 ],
             ),
@@ -329,121 +387,5 @@ def invite_to_embargo_on_case_tree(
         invite_id,
         embargo_id,
         proposer_id,
-    )
-    return root
-
-
-def accept_invite_to_embargo_tree(
-    case_id: str,
-    embargo_id: str,
-    accepting_actor_id: str,
-    invite_id: str,
-) -> py_trees.behaviour.Behaviour:
-    """Create the BT for accepting embargo invitation (protocol EA).
-
-    Handles receipt of an ``Accept(InviteToEmbargoOnCase)`` activity.
-    Records the acceptance via EmbargoLifecycle and commits a canonical
-    ledger entry.
-
-    BT returns SUCCESS when acceptance is recorded.
-    Always commits the ledger entry regardless of BT result.
-
-    Args:
-        case_id: ID of the VulnerabilityCase.
-        embargo_id: ID of the EmbargoEvent being accepted.
-        accepting_actor_id: Actor ID of the participant accepting.
-        invite_id: ID of the InviteToEmbargoOnCase activity.
-
-    Returns:
-        Root node of the ``AcceptInviteToEmbargoBT`` Sequence.
-    """
-    root = create_receive_activity_tree(
-        name="AcceptInviteToEmbargoBT",
-        case_id=case_id,
-        precondition_guards=[ValidateCaseExistsNode(case_id=case_id)],
-        effect_nodes=[
-            RecordParticipantAcceptanceNode(
-                case_id=case_id,
-                embargo_id=embargo_id,
-                accepting_actor_id=accepting_actor_id,
-            ),
-        ],
-    )
-    logger.info(
-        "Created AcceptInviteToEmbargoBT for case=%s embargo=%s"
-        " accepting_actor=%s",
-        case_id,
-        embargo_id,
-        accepting_actor_id,
-    )
-    return root
-
-
-def reject_invite_to_embargo_tree(
-    case_id: str,
-    rejecting_actor_id: str,
-    invite_id: str,
-    embargo_id: str,
-) -> py_trees.behaviour.Behaviour:
-    """Create the BT for rejecting embargo invitation (protocol ER / EJ).
-
-    Handles receipt of a ``Reject(InviteToEmbargoOnCase)`` activity.  Records
-    the rejecting participant's consent through
-    :class:`RecordParticipantRejectionNode`, which applies the same
-    MSM-07-004 rule as ``EmbargoLifecycle.reject_embargo_invite`` (ADR-0093):
-    a Reject naming the case's *active* embargo is consent withdrawal
-    (``DECLINE`` from any state, ``SIGNATORY`` included); one naming a
-    *proposed* embargo drops the id from ``accepted_embargo_ids`` and
-    declines only a participant not yet ``SIGNATORY``; the owner's EJ changes
-    nobody's record.  When the rejecting actor is the case owner the Reject
-    *decides* the proposal, so this replica also forgets it as an open
-    proposal (EP-08-003) — the received Accept path prunes through
-    ``accept_embargo_invite`` and the Reject path must not lag it, or a later
-    default selection here would still see the rejected terms.
-
-    Commits the ledger entry before the effects (CLP-10-006); a Reject naming
-    an embargo the case knows nothing about fails the effect, so the handler
-    reports a refusal.
-
-    Args:
-        case_id: ID of the VulnerabilityCase.
-        rejecting_actor_id: Actor ID of the participant rejecting.
-        invite_id: ID of the InviteToEmbargoOnCase activity.
-        embargo_id: ID of the EmbargoEvent the Reject names (required: which
-            terms are refused decides the consent effect, MSM-07-004).
-
-    Returns:
-        Root node of the ``RejectInviteToEmbargoBT`` Sequence.
-    """
-    effect_nodes: list[py_trees.behaviour.Behaviour] = [
-        # The consent belongs to the actor who rejected, not to whoever's
-        # replica this is: a Reject routes through the CASE_MANAGER (PCR-08),
-        # so recording against the BT execution actor would decline the
-        # manager's own consent instead.
-        RecordParticipantRejectionNode(
-            case_id=case_id,
-            embargo_id=embargo_id,
-            rejecting_actor_id=rejecting_actor_id,
-        ),
-        # The owner's Reject decides the proposal; a participant's is consent
-        # and prunes nothing (EP-08-003, #3470).
-        RemoveFromProposedEmbargoesNode(
-            case_id=case_id,
-            embargo_id=embargo_id,
-            decided_by=rejecting_actor_id,
-        ),
-    ]
-    root = create_receive_activity_tree(
-        name="RejectInviteToEmbargoBT",
-        case_id=case_id,
-        precondition_guards=[],
-        effect_nodes=effect_nodes,
-    )
-    logger.info(
-        "Created RejectInviteToEmbargoBT for case=%s rejecting_actor=%s"
-        " invite=%s",
-        case_id,
-        rejecting_actor_id,
-        invite_id,
     )
     return root

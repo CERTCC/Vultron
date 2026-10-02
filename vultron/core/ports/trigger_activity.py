@@ -611,6 +611,7 @@ class TriggerActivityPort(Protocol):
         actor: str,
         to: list[str] | None = None,
         attributed_to: str | None = None,
+        activity_id: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Invite(EmbargoEvent, Case)`` proposal.
 
@@ -618,6 +619,10 @@ class TriggerActivityPort(Protocol):
         proposal on a participant's behalf (CM-24-002, EP-09-002): ``actor`` is
         then the CASE_MANAGER and ``attributed_to`` the participant whose terms
         these are.
+        ``activity_id`` is the Invite's id when the caller recorded it before
+        the emission — the creation-time revision is indexed under its
+        Invite's id at registration and relayed only after the initialization
+        sequence completes (EP-04-011, CM-14-007).  ``None`` mints a fresh id.
         Returns ``(activity_id, activity_dict)``.
         """
         ...

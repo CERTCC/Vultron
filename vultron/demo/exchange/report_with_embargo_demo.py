@@ -27,7 +27,9 @@ negotiation exchange to watch: ADR-0096 declined a pre-case protocol phase, so
 the Reporter states terms once, on the Offer, and the CASE_MANAGER settles the
 comparison when it creates the case (EP-04-003, shortest-wins).  What is
 visible is the *result* — which terms became active and which were left
-pending as ``EM.REVISE``.
+pending as ``EM.REVISE`` — and, when the pending terms are the Reporter's,
+the Receiver's answer to them: the CASE_MANAGER relays every creation-time
+revision to the party whose terms won (EP-04-011).
 
 Three runs:
 
@@ -36,9 +38,13 @@ Three runs:
    and the Receiver's longer default is registered as a pending revision, so
    the case is created at ``EM.REVISE``.
 2. **Reporter proposes longer** (60 vs 30 days): the Receiver's default is the
-   active embargo and the Reporter's terms are the pending revision — the
-   same ``EmbargoEvent`` the Reporter sent, now about the case rather than
-   the report (EP-04-009).
+   active embargo at creation and the Reporter's terms — the same
+   ``EmbargoEvent`` the Reporter sent, now about the case rather than the
+   report (EP-04-009) — are the pending revision, relayed to the Receiver.
+   The Receiver is the CASE_OWNER, so its acceptance (the default response
+   decision) activates the Reporter's terms and the case settles at
+   ``EM.ACTIVE``.  In run 1 the relay goes to the Reporter instead, whose
+   acceptance only records consent, so that case stays at ``EM.REVISE``.
 3. **Receiver has no actor default**: the Reporter's terms are the only
    candidate and win outright at their stated length.  The 10-day proposal
    is longer than the protocol default's 5-day ceiling (EP-04-005), so an
@@ -71,10 +77,11 @@ from vultron.demo.helpers.embargo import publish_embargo_policy
 from vultron.demo.helpers.embargo_outcome import (
     assert_window_is,
     verify_pending_revision,
-    verify_receiver_default_active,
     verify_receiver_replica_agrees,
     verify_reporter_terms_active,
+    verify_revision_settled,
     verify_uncontested,
+    wait_for_revision_activated,
 )
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.workflow import (
@@ -224,31 +231,22 @@ def _run_negotiated_submission(
                         "Pending",
                     )
             else:
-                active = verify_receiver_default_active(
-                    client,
-                    case_actor.id_,
-                    case,
-                    proposal_id,
-                    receiver_default_days,
-                )
-                revision = verify_pending_revision(
-                    client, case_actor.id_, case, active
-                )
-                with demo_check(
-                    "Pending revision is the Reporter's own event, rewritten"
-                    " to the case"
+                # The Receiver's shorter default won at creation and the
+                # Reporter's terms were registered as a revision and relayed
+                # to the Receiver, the CASE_OWNER (EP-04-011).  Its default
+                # response decision accepts, and an owner's acceptance
+                # activates the revision — so the settled outcome is the
+                # Reporter's terms, reached through the Receiver's answer.
+                with demo_gate(
+                    "Step 4: Receiver answers the relayed revision Invite"
                 ):
-                    if revision.id_ != proposal_id:
-                        raise AssertionError(
-                            f"Expected the Reporter's proposal {proposal_id!r}"
-                            f" to be the pending revision, found"
-                            f" {revision.id_!r}"
-                        )
-                    if revision.end_time != proposed_end:
-                        raise AssertionError(
-                            f"Revision ends {revision.end_time.isoformat()},"
-                            f" the Reporter proposed {proposed_end.isoformat()}"
-                        )
+                    case = wait_for_revision_activated(
+                        client, case_actor.id_, case.id_, proposal_id
+                    )
+                    verify_reporter_terms_active(
+                        client, case_actor.id_, case, proposal_id, proposed_end
+                    )
+                    verify_revision_settled(case)
 
             verify_receiver_replica_agrees(client, vendor, offer.id_, case)
 
@@ -293,7 +291,7 @@ def demo_reporter_proposes_longer(
     vendor: as_Actor,
     coordinator: as_Actor | None = None,
 ) -> None:
-    """Receiver's shorter default wins; the Reporter's terms are the revision."""
+    """Receiver's default wins; it then accepts the Reporter's longer revision."""
     logger.info("=" * 80)
     logger.info(
         "DEMO: Report with Embargo — Reporter proposes longer (%d vs %d days)",
@@ -309,8 +307,9 @@ def demo_reporter_proposes_longer(
         receiver_default_days=RECEIVER_DEFAULT_DAYS,
     )
     logger.info(
-        "✅ DEMO COMPLETE: the Receiver's %d-day default is active; the"
-        " Reporter's %d-day terms are pending as a revision (EM.REVISE).",
+        "✅ DEMO COMPLETE: the Receiver's %d-day default won at creation;"
+        " it accepted the Reporter's relayed %d-day revision, now active"
+        " (EM.ACTIVE).",
         RECEIVER_DEFAULT_DAYS,
         REPORTER_LONGER_DAYS,
     )

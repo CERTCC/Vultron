@@ -35,6 +35,7 @@ import py_trees
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -208,6 +209,7 @@ class TestWriteCreateCaseMarkerNode:
             datalayer=dl,
             wire_render_port=As2WireRenderAdapter(),
             trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
         ).execute_with_setup(tree=tree, actor_id=actor_id)
         return result.status
 
@@ -458,9 +460,10 @@ class TestWriteCreateCaseMarkerNode:
         )
         client.accept_activity_id = "https://example.org/activities/a-001"
 
-        result = BTBridge(datalayer=dl).execute_with_setup(
-            tree=tree, actor_id=_CASE_ACTOR_URI
-        )
+        result = BTBridge(
+            datalayer=dl,
+            sync_port=SyncActivityAdapter(dl),
+        ).execute_with_setup(tree=tree, actor_id=_CASE_ACTOR_URI)
         assert result.status == py_trees.common.Status.FAILURE
 
     def test_fails_when_accept_activity_id_missing(self):
@@ -480,9 +483,10 @@ class TestWriteCreateCaseMarkerNode:
         client.register_key(key="case_id", access=py_trees.common.Access.WRITE)
         client.case_id = "https://example.org/cases/c-001"
 
-        result = BTBridge(datalayer=dl).execute_with_setup(
-            tree=tree, actor_id=_CASE_ACTOR_URI
-        )
+        result = BTBridge(
+            datalayer=dl,
+            sync_port=SyncActivityAdapter(dl),
+        ).execute_with_setup(tree=tree, actor_id=_CASE_ACTOR_URI)
         assert result.status == py_trees.common.Status.FAILURE
 
     def test_fails_when_datalayer_save_raises(self):
@@ -521,9 +525,10 @@ class TestClearCreateCaseMarkerNode:
         tree = py_trees.composites.Sequence(
             name="TestSeq", memory=False, children=[node]
         )
-        result = BTBridge(datalayer=dl).execute_with_setup(
-            tree=tree, actor_id=actor_id
-        )
+        result = BTBridge(
+            datalayer=dl,
+            sync_port=SyncActivityAdapter(dl),
+        ).execute_with_setup(tree=tree, actor_id=actor_id)
         return result.status
 
     def test_removes_existing_marker(self):
@@ -604,6 +609,7 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
             event,
             wire_render_port=As2WireRenderAdapter(),
             trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         marker_id = PendingCreateCaseActivity.build_id(_PROPOSAL_URI)
@@ -637,6 +643,7 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
                 event,
                 wire_render_port=As2WireRenderAdapter(),
                 trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
 
         marker_id = PendingCreateCaseActivity.build_id(_PROPOSAL_URI)
@@ -673,6 +680,7 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
                 event,
                 wire_render_port=As2WireRenderAdapter(),
                 trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
 
         marker_id = PendingCreateCaseActivity.build_id(_PROPOSAL_URI)
@@ -723,6 +731,7 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
                 event,
                 wire_render_port=As2WireRenderAdapter(),
                 trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
 
         marker_id = PendingCreateCaseActivity.build_id(_PROPOSAL_URI)
@@ -816,6 +825,7 @@ def _run_full_bt(
         actor_config=actor_config,
         wire_render_port=As2WireRenderAdapter(),
         trigger_activity=TriggerActivityAdapter(dl),
+        sync_port=SyncActivityAdapter(dl),
     ).execute()
 
 
@@ -1167,15 +1177,14 @@ class TestOwnerChecksOnACaseTheCaseActorCreated:
             assert result.participant_changes == []
 
     @pytest.mark.parametrize(
-        ("decided_by", "pruned"),
+        ("rejecter", "pruned"),
         [(_VENDOR_URI, True), (_CASE_ACTOR_URI, False)],
     )
-    def test_teardown_prune_authorization(
-        self, make_payload, decided_by, pruned
-    ):
+    def test_reject_prune_authorization(self, make_payload, rejecter, pruned):
+        """Only the owner's Reject decides, and so forgets, the proposal."""
         from test.core.behaviors.bt_harness import BTTestScenario
-        from vultron.core.behaviors.embargo.nodes.teardown import (
-            RemoveFromProposedEmbargoesNode,
+        from vultron.core.behaviors.embargo.nodes.reject_proposed import (
+            DecideRejectedEmbargoProposalNode,
         )
 
         dl, case, revision_id = _proposed_case_with_open_revision(make_payload)
@@ -1183,10 +1192,10 @@ class TestOwnerChecksOnACaseTheCaseActorCreated:
         scenario = BTTestScenario(actor_id=_CASE_ACTOR_URI, dl=dl)
 
         result = scenario.run(
-            RemoveFromProposedEmbargoesNode(
+            DecideRejectedEmbargoProposalNode(
                 case_id=case.id_,
                 embargo_id=revision_id,
-                decided_by=decided_by,
+                rejecting_actor_id=rejecter,
             )
         )
 
@@ -1583,6 +1592,7 @@ class TestADR0041EmbargoInit:
                 actor_config=config,
                 wire_render_port=As2WireRenderAdapter(),
                 trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
             expected[report_id] = policy or timedelta(days=5)
 
@@ -1766,9 +1776,10 @@ class TestCM14005ReporterSignatory:
 
         from vultron.core.behaviors.bridge import BTBridge
 
-        result = BTBridge(datalayer=dl).execute_with_setup(
-            tree=tree, actor_id=_CASE_ACTOR_URI
-        )
+        result = BTBridge(
+            datalayer=dl,
+            sync_port=SyncActivityAdapter(dl),
+        ).execute_with_setup(tree=tree, actor_id=_CASE_ACTOR_URI)
         assert result.status == py_trees.common.Status.SUCCESS, (
             "SeedReporterSignatoryNode must return SUCCESS when no active"
             " embargo (AC-3, best-effort)"
@@ -2117,6 +2128,7 @@ class TestADR0041InlineParticipantsPayload:
                 event,
                 wire_render_port=As2WireRenderAdapter(),
                 trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
 
         marker_id = PendingCreateCaseActivity.build_id(_PROPOSAL_URI)
@@ -2166,6 +2178,7 @@ class TestADR0041InlineParticipantsPayload:
                 event,
                 wire_render_port=As2WireRenderAdapter(),
                 trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
 
         marker_id = PendingCreateCaseActivity.build_id(_PROPOSAL_URI)
@@ -2915,9 +2928,10 @@ def test_store_proposal_report_keeps_the_reporter(caplog):
         inline_report=cast(Any, proposal.object_),
     )
     py_trees.blackboard.Blackboard.storage.clear()
-    result = BTBridge(datalayer=dl).execute_with_setup(
-        tree=node, actor_id=_CASE_ACTOR_URI
-    )
+    result = BTBridge(
+        datalayer=dl,
+        sync_port=SyncActivityAdapter(dl),
+    ).execute_with_setup(tree=node, actor_id=_CASE_ACTOR_URI)
     assert result.status == py_trees.common.Status.SUCCESS
 
     stored = dl.read(_REPORT_URI_2482)
@@ -2952,9 +2966,10 @@ def test_store_proposal_report_falls_back_to_the_wire_dict(caplog):
         proposal_dict=proposal.model_dump(serialize_as_any=True),
     )
     py_trees.blackboard.Blackboard.storage.clear()
-    result = BTBridge(datalayer=dl).execute_with_setup(
-        tree=node, actor_id=_CASE_ACTOR_URI
-    )
+    result = BTBridge(
+        datalayer=dl,
+        sync_port=SyncActivityAdapter(dl),
+    ).execute_with_setup(tree=node, actor_id=_CASE_ACTOR_URI)
     assert result.status == py_trees.common.Status.SUCCESS
     assert isinstance(dl.read(_REPORT_URI_2482), VulnerabilityReport)
 
@@ -3160,6 +3175,7 @@ class TestEP04SenderProposalAtCaseCreation:
             event,
             wire_render_port=As2WireRenderAdapter(),
             trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
         (case,) = [
             c
@@ -3273,6 +3289,184 @@ class TestEP04SenderProposalAtCaseCreation:
         assert revision.context == case.id_
         assert revision.end_time == terms.end_time
 
+    # -- EP-04-011: the creation-time revision is relayed like any other ----
+
+    @staticmethod
+    def _invites(dl: SqliteDataLayer) -> list[Any]:
+        """Every ``Invite`` the CaseActor queued, in outbox order."""
+        return [
+            activity
+            for activity in (dl.read(i) for i in dl.outbox_list())
+            if getattr(activity, "type_", None) == "Invite"
+        ]
+
+    def _assert_relayed(
+        self,
+        dl: SqliteDataLayer,
+        case: VulnerabilityCase,
+        *,
+        loser: str,
+        winner: str,
+    ) -> None:
+        from vultron.core.models._helpers import _as_id
+        from vultron.core.sync_helpers import recorded_entries_for_case
+
+        (revision_id,) = case.proposed_embargoes
+        proposal_id = case.pending_embargo_proposal_index[revision_id]
+        (invite,) = self._invites(dl)
+        assert invite.id_ == proposal_id
+        assert [_as_id(r) for r in invite.to] == [winner]
+        assert _as_id(invite.actor) == _CASE_ACTOR_URI
+        assert _as_id(invite.attributed_to) == loser
+        assert _as_id(invite.object_) == revision_id
+        assert proposal_id in {
+            entry.log_object_id
+            for entry in recorded_entries_for_case(case_id=case.id_, dl=dl)
+        }
+        # A signatory's consent does not move on a revision Invite: PEC
+        # INVITE is illegal from SIGNATORY (EP-09-004, ADR-0093).
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.core.states.participant_embargo_consent import PEC
+
+        stored = dl.read(case.id_)
+        assert isinstance(stored, VulnerabilityCase)
+        invitee = dl.read(stored.actor_participant_index[winner])
+        assert isinstance(invitee, CaseParticipant)
+        assert invitee.embargo_consent_state is PEC.SIGNATORY
+        # The invitee holds the case before an Invite about it (CP-09-003,
+        # CM-14-011): the relay is queued after Create(VulnerabilityCase).
+        labels = _outbox_labels(dl)
+        assert labels.index("Create(VulnerabilityCase)") < labels.index(
+            "Invite(EmbargoEvent)"
+        )
+        # The Create carries the case whole, rendered before the relay: it
+        # must not carry the Invite's index entry, or the invitee's
+        # idempotency guard reads the Invite as already answered and skips it.
+        created = _created_case_activity(dl).object_
+        assert isinstance(created, VulnerabilityCase)
+        assert revision_id not in created.pending_embargo_proposal_index
+
+    @pytest.mark.spec("EP-04-011")
+    @pytest.mark.spec("CM-24-001")
+    @pytest.mark.spec("CM-24-002")
+    def test_the_owners_losing_default_is_relayed_to_the_reporter(
+        self, make_payload
+    ):
+        """The Reporter's shorter terms won: the CASE_MANAGER relays the
+        owner's longer default to the Reporter on the owner's behalf, under
+        the id the registration minted, commits it, and only then indexes it
+        (EP-04-011, EP-08-002)."""
+        dl = self._store()
+        self._publish_owner_policy()
+        case, _ = self._run(
+            make_payload, dl, sender_days=self._SENDER_END_DAYS
+        )
+
+        self._assert_relayed(dl, case, loser=_VENDOR_URI, winner=_REPORTER_URI)
+
+    @pytest.mark.spec("EP-04-011")
+    @pytest.mark.spec("CM-24-001")
+    @pytest.mark.spec("CM-24-002")
+    def test_the_reporters_losing_terms_are_relayed_to_the_owner(
+        self, make_payload
+    ):
+        """The owner's shorter default won: the Reporter's longer terms go to
+        the owner, attributed to the Reporter; the Reporter is not invited
+        to its own proposal (EP-09-002)."""
+        dl = self._store()
+        self._publish_owner_policy()
+        case, _ = self._run(make_payload, dl, sender_days=60)
+
+        self._assert_relayed(dl, case, loser=_REPORTER_URI, winner=_VENDOR_URI)
+
+    @pytest.mark.spec("EP-04-011")
+    def test_a_tie_relays_nothing(self, make_payload, monkeypatch):
+        """Equal terms leave nothing contested, so there is nothing to relay.
+
+        The sender's remaining time is measured from the clock, so the clock
+        is pinned to make it exactly the owner's thirty days.
+        """
+        from vultron.core.models.embargo_event import EmbargoEvent
+        from vultron.core.use_cases.received import (
+            _sender_embargo_proposal as sender_module,
+        )
+
+        now = datetime.now(tz=UTC).replace(microsecond=0)
+        monkeypatch.setattr(sender_module, "now_utc", lambda: now)
+        terms = EmbargoEvent(
+            id_=f"{_REPORT_URI}/embargo_proposals/1",
+            context=_REPORT_URI,
+            end_time=now + self._ACTOR_DEFAULT,
+        )
+        dl = self._store()
+        self._publish_owner_policy()
+        case, _ = self._run(make_payload, dl, sender_days=30, terms=terms)
+
+        assert case.current_status.em.state == EM.ACTIVE
+        assert case.proposed_embargoes == []
+        assert case.pending_embargo_proposal_index == {}
+        assert self._invites(dl) == []
+
+    @pytest.mark.spec("EP-04-011")
+    def test_a_failed_relay_is_an_internal_error_not_a_refusal(
+        self, make_payload, monkeypatch
+    ):
+        """By the relay the proposal is accepted and the case created and
+        announced, so a revision the manager cannot relay is its own fault:
+        the handler raises rather than refusing the sender (ADR-0095), and
+        nothing is indexed for an Invite that was never sent."""
+        from vultron.core.behaviors.case.nodes import (
+            embargo_revision_relay as relay_module,
+        )
+        from vultron.errors import VultronBTInternalError
+
+        monkeypatch.setattr(
+            relay_module, "invitation_recipients", lambda *a, **k: []
+        )
+        dl = self._store()
+        self._publish_owner_policy()
+
+        with pytest.raises(
+            VultronBTInternalError, match="is not an invitation recipient"
+        ):
+            self._run(make_payload, dl, sender_days=self._SENDER_END_DAYS)
+
+        assert self._invites(dl) == []
+        (case,) = [
+            c
+            for c in dl.list_objects("VulnerabilityCase")
+            if isinstance(c, VulnerabilityCase)
+        ]
+        assert case.pending_embargo_proposal_index == {}
+
+    @pytest.mark.spec("EP-04-011")
+    @pytest.mark.spec("EP-04-012")
+    def test_a_redelivered_proposal_relays_no_second_invite(
+        self, make_payload
+    ):
+        """Initialization runs once per case (EP-04-012), so a redelivered
+        proposal registers no revision and relays no second Invite."""
+        dl = self._store()
+        self._publish_owner_policy()
+        case, terms = self._run(
+            make_payload, dl, sender_days=self._SENDER_END_DAYS
+        )
+        (first,) = self._invites(dl)
+
+        again, _ = self._run(
+            make_payload,
+            dl,
+            sender_days=self._SENDER_END_DAYS,
+            proposal_id="https://example.org/proposals/p-002",
+            terms=terms,
+        )
+
+        assert [i.id_ for i in self._invites(dl)] == [first.id_]
+        assert (
+            again.pending_embargo_proposal_index
+            == case.pending_embargo_proposal_index
+        )
+
     @pytest.mark.spec("EP-04-003")
     @pytest.mark.spec("CP-05-006")
     def test_a_second_proposal_for_the_same_report_registers_no_second_revision(
@@ -3350,6 +3544,7 @@ class TestEP04SenderProposalAtCaseCreation:
             event,
             wire_render_port=As2WireRenderAdapter(),
             trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert result.disposition == HandlerDisposition.APPLIED, result

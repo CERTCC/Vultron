@@ -21,6 +21,21 @@ def domain_error_translation() -> Generator[None, None, None]:
         raise translate_domain_errors(e)  # noqa: B904  # ruff-baseline #3353
 
 
+def conflict_http_exception(
+    message: str, *, activity_id: str | None = None
+) -> HTTPException:
+    """A 409 carrying the structured EH-05-001 body every conflict uses."""
+    return HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail={
+            "status": 409,
+            "error": "Conflict",
+            "message": message,
+            "activity_id": activity_id,
+        },
+    )
+
+
 def translate_domain_errors(exc: Exception) -> HTTPException:
     """Convert a domain exception to an appropriate HTTPException."""
     if isinstance(exc, VultronNotFoundError):
@@ -34,14 +49,8 @@ def translate_domain_errors(exc: Exception) -> HTTPException:
             },
         )
     if isinstance(exc, VultronInvalidStateTransitionError):
-        return HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={
-                "status": 409,
-                "error": "Conflict",
-                "message": str(exc),
-                "activity_id": getattr(exc, "activity_id", None),
-            },
+        return conflict_http_exception(
+            str(exc), activity_id=getattr(exc, "activity_id", None)
         )
     if isinstance(exc, (VultronValidationError, PydanticValidationError)):
         detail: dict[str, object] = {

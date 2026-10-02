@@ -14,7 +14,7 @@
 """Operations that leave the EM state alone.
 
 Per-participant consent bookkeeping (``record_participant_consent``,
-``record_embargo_rejection``), lazy RSVP-deadline enforcement
+``record_embargo_rejection``, ``record_embargo_invite``), lazy RSVP-deadline enforcement
 (``detect_and_apply_lapse``, EMB-17) and the public eligibility check
 callers use before creating anything (``assert_embargo_eligible``,
 EP-04-008).
@@ -34,6 +34,7 @@ from vultron.core.states.participant_embargo_consent import (
     PEC,
     PEC_Trigger,
 )
+from vultron.errors import VultronNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +59,79 @@ def _unchanged(
 
 class _ConsentOperationsMixin(_PecEffectsMixin):
     """Consent, lapse and eligibility operations with no EM transition."""
+
+    def record_embargo_invite(
+        self,
+        *,
+        case_id: str,
+        invitee_id: str,
+        rsvp_deadline: datetime | None = None,
+    ) -> EmbargoLifecycleResult:
+        """Record that *invitee_id* was invited to an embargo, without moving EM.
+
+        Applies PEC ``INVITE`` where CM-18-003 allows it — only from
+        ``UNBOUND``, ``LAPSED`` or ``DECLINED``, so a ``SIGNATORY`` asked
+        about a revision keeps its state (EP-09-004).  When *rsvp_deadline*
+        is given the invitee's record takes it (CM-28-013).  The CASE_MANAGER
+        calls this as it relays the Invite; a replica calls it as it replays
+        the relay's ledger entry (EP-09-007), so both stores apply one rule.
+
+        Args:
+            case_id: ID of the ``VulnerabilityCase`` that owns the participant.
+            invitee_id: ID of the invited actor.
+            rsvp_deadline: The Invite's RSVP deadline, when it carries one.
+
+        Returns:
+            :class:`EmbargoLifecycleResult` with ``em_before == em_after`` and
+            ``case_changed == False``; ``participant_changes`` carries the
+            invitee's PEC state change, empty when ``INVITE`` did not apply.
+
+        Raises:
+            VultronNotFoundError: If *case_id* does not resolve to a case, or
+                *invitee_id* has no participant record on it.
+        """
+        case = self._read_case(case_id)
+        em_state = case.current_status.em.state
+        participant_id = case.actor_participant_index.get(invitee_id)
+        participant = (
+            self._persistence.read(participant_id) if participant_id else None
+        )
+        if not isinstance(participant, CaseParticipant):
+            raise VultronNotFoundError(
+                "CaseParticipant", f"{invitee_id} on case {case_id}"
+            )
+
+        pec_before = participant.embargo_consent_state
+        changed = participant.apply_pec_transition_if_legal(PEC_Trigger.INVITE)
+        if (
+            rsvp_deadline is not None
+            and participant.invite_rsvp_deadline != rsvp_deadline
+        ):
+            participant.invite_rsvp_deadline = rsvp_deadline
+            changed = True
+        if changed:
+            self._persistence.save(participant)
+
+        pec_after = participant.embargo_consent_state
+        changes = (
+            [
+                ParticipantPECChange(
+                    participant_id=participant.id_,
+                    pec_before=pec_before.value,
+                    pec_after=pec_after.value,
+                )
+            ]
+            if pec_after != pec_before
+            else []
+        )
+        logger.info(
+            "Recorded embargo invite of '%s' on case '%s' (PEC %s → %s)",
+            invitee_id,
+            case_id,
+            pec_before.name,
+            pec_after.name,
+        )
+        return _unchanged(em_state, participant_changes=changes)
 
     def record_embargo_rejection(
         self,

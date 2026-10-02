@@ -29,12 +29,13 @@ Two overture flows are supported via caller-supplied delegate trees:
   :func:`~vultron.core.behaviors.embargo.trigger_tree.propose_embargo_trigger_bt`
   as ``counter_bt`` (counter = re-propose, no new mechanism, EMB-15-003).
 
-- **Flow B** — PEC-level invitation (InviteToEmbargoOnCase).  The caller
-  passes the result of
-  :func:`~vultron.core.behaviors.embargo.announce_teardown_tree.accept_invite_to_embargo_tree`
-  as ``accept_bt`` and
-  :func:`~vultron.core.behaviors.embargo.announce_teardown_tree.reject_invite_to_embargo_tree`
-  as ``reject_bt``.  No counter arm; pass ``counter_bt=None`` (the default).
+- **Flow B** — PEC-level invitation (InviteToEmbargoOnCase), answered by the
+  invitee (EP-09-003).  The caller passes a
+  :class:`~vultron.core.behaviors.embargo.nodes.invite_answer.SendEmbargoInviteAnswerNode`
+  with ``accept=True`` as ``accept_bt`` and one with ``accept=False`` as
+  ``reject_bt``; each queues the answer to the CASE_MANAGER.  No counter arm;
+  pass ``counter_bt=None`` (the default).  ``invite_to_embargo_on_case_tree``
+  is the caller.
 
 Tree structure (EMB-15, ADR-0046)::
 
@@ -105,8 +106,8 @@ def create_embargo_response_decision_tree(
 
     **Reject arm (EMB-15-004)**: the third child of the outer Selector, always
     present.  The caller supplies the flow-appropriate reject BT
-    (``reject_embargo_trigger_bt`` for Flow A; ``reject_invite_to_embargo_tree``
-    for Flow B).
+    (``reject_embargo_trigger_bt`` for Flow A; ``SendEmbargoInviteAnswerNode``
+    with ``accept=False`` for Flow B).
 
     .. note::
         This tree does **not** enforce EMB-01-002 (mandatory rejection when
@@ -123,10 +124,10 @@ def create_embargo_response_decision_tree(
             actor holds ``CVDRole.CASE_OWNER``, not when the remote proposer does.
         accept_bt: Pre-built BT to execute when the accept arm is taken.
             For Flow A: ``accept_embargo_trigger_bt(...)``.
-            For Flow B: ``accept_invite_to_embargo_tree(...)``.
+            For Flow B: ``SendEmbargoInviteAnswerNode(..., accept=True)``.
         reject_bt: Pre-built BT to execute when the reject arm is taken.
             For Flow A: ``reject_embargo_trigger_bt(...)``.
-            For Flow B: ``reject_invite_to_embargo_tree(...)``.
+            For Flow B: ``SendEmbargoInviteAnswerNode(..., accept=False)``.
         counter_bt: Pre-built BT to execute when the counter arm is taken.
             Supply ``propose_embargo_trigger_bt(...)`` for Flow A.
             Pass ``None`` (the default) for Flow B — omits the counter arm.

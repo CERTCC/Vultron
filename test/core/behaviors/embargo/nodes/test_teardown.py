@@ -713,65 +713,6 @@ class TestRemoveFromProposedEmbargoesNode:
         ]
         assert updated.pending_embargo_proposal_index == {}
 
-    @pytest.mark.spec("EP-08-003")
-    def test_decided_by_a_non_owner_is_consent_and_prunes_nothing(self):
-        """With ``decided_by`` set to a participant, both records are kept."""
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
-        case, embargo = make_case_and_embargo("rfp4", em_state=EM.PROPOSED)
-        case.proposed_embargoes.append(embargo.id_)
-        case.pending_embargo_proposal_index[embargo.id_] = (
-            f"{case.id_}/embargo_proposals/1"
-        )
-        dl.create(case)
-
-        setup_blackboard(dl)
-        node = RemoveFromProposedEmbargoesNode(
-            case_id=case.id_,
-            embargo_id=embargo.id_,
-            decided_by="https://test.example/api/v2/actors/some-participant",
-        )
-        bt = py_trees.trees.BehaviourTree(root=node)
-        bt.setup()
-        bt.tick()
-
-        assert node.status == py_trees.common.Status.SUCCESS
-        assert "consent, not a decision" in node.feedback_message
-        kept = cast(as_VulnerabilityCase, dl.read(case.id_))
-        assert kept.proposed_embargoes == [embargo.id_]
-        assert embargo.id_ in kept.pending_embargo_proposal_index
-
-    @pytest.mark.spec("EP-08-003")
-    def test_decided_by_the_owner_prunes_both_records(self):
-        """With ``decided_by`` set to the case owner, the proposal is decided."""
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
-        case, embargo = make_case_and_embargo("rfp5", em_state=EM.PROPOSED)
-        case.proposed_embargoes.append(embargo.id_)
-        case.pending_embargo_proposal_index[embargo.id_] = (
-            f"{case.id_}/embargo_proposals/1"
-        )
-        dl.create(case)
-
-        setup_blackboard(dl)
-        node = RemoveFromProposedEmbargoesNode(
-            case_id=case.id_,
-            embargo_id=embargo.id_,
-            decided_by=case.attributed_to,
-        )
-        bt = py_trees.trees.BehaviourTree(root=node)
-        bt.setup()
-        bt.tick()
-
-        assert node.status == py_trees.common.Status.SUCCESS
-        pruned = cast(as_VulnerabilityCase, dl.read(case.id_))
-        assert pruned.proposed_embargoes == []
-        assert pruned.pending_embargo_proposal_index == {}
-
     def test_idempotent_when_not_in_proposed(self):
         """Node returns SUCCESS even if embargo_id is not in proposed_embargoes."""
         dl = SqliteDataLayer(

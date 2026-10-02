@@ -26,7 +26,10 @@ import pytest
 from fastapi import status
 
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
-from vultron.adapters.driven.datalayer_sqlite import get_datalayer
+from vultron.adapters.driven.datalayer_sqlite import (
+    SqliteDataLayer,
+    get_datalayer,
+)
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.core.services.embargo_duration import actor_default_duration
@@ -312,3 +315,99 @@ class TestGetEmbargoPolicy:
         resp = client_actors.get(_PATH)
 
         assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+
+def _interleave_rival_writes(monkeypatch, rival, *, times: int) -> list[int]:
+    """Land ``rival(store, expected, n)`` before each of the next *times* PUT writes.
+
+    The rival writes the actor's profile between the PUT's read and its
+    compare-and-set — the window a plain read-then-save left unguarded
+    (#4102).  Returns the attempts it interleaved, in order.
+    """
+    real = SqliteDataLayer.save_if_unchanged
+    interleaved: list[int] = []
+
+    def rival_then_write(self, obj, expected):
+        if len(interleaved) < times:
+            interleaved.append(len(interleaved) + 1)
+            rival(self, expected, interleaved[-1])
+        return real(self, obj, expected)
+
+    monkeypatch.setattr(SqliteDataLayer, "save_if_unchanged", rival_then_write)
+    return interleaved
+
+
+def _rename(store, profile: CoreActor, n: int) -> None:
+    """A rival profile write that touches a field other than the policy."""
+    store.save(profile.model_copy(update={"name": f"Renamed {n}"}))
+
+
+def _rival_publish(store, profile: CoreActor, _n: int) -> None:
+    """A rival publish of different terms, as a concurrent PUT would write."""
+    store.save(
+        type(profile).model_validate(
+            {
+                **dict(profile),
+                "embargo_policy": EmbargoPolicy(
+                    id_=EmbargoPolicy.build_id(profile.id_),
+                    actor_id=profile.id_,
+                    inbox=profile.inbox,
+                    preferred_duration=timedelta(days=10),
+                ),
+            }
+        )
+    )
+
+
+class TestConcurrentProfileWrite:
+    """A publish rewrites the whole profile, so it must not overwrite a rival write."""
+
+    @pytest.mark.spec("EP-02-004")
+    def test_a_profile_write_inside_the_window_is_kept_beside_the_policy(
+        self, client_actors, hosted_actor, monkeypatch
+    ):
+        interleaved = _interleave_rival_writes(monkeypatch, _rename, times=1)
+
+        resp = client_actors.put(_PATH, json={"preferred_duration": "P30D"})
+
+        assert interleaved == [1]
+        assert resp.status_code == status.HTTP_201_CREATED
+        profile = _stored_profile(hosted_actor)
+        assert profile.name == "Renamed 1"
+        assert profile.embargo_policy is not None
+        assert profile.embargo_policy.preferred_duration == timedelta(days=30)
+
+    @pytest.mark.spec("EP-02-004")
+    def test_a_rival_publish_inside_the_window_makes_this_one_a_replace(
+        self, client_actors, hosted_actor, monkeypatch
+    ):
+        """Whether a publish replaced one is read from the fresh profile."""
+        interleaved = _interleave_rival_writes(
+            monkeypatch, _rival_publish, times=1
+        )
+
+        resp = client_actors.put(_PATH, json={"preferred_duration": "P30D"})
+
+        assert interleaved == [1]
+        assert resp.status_code == status.HTTP_200_OK
+        policy = _profile_policy(hosted_actor)
+        assert policy is not None
+        assert policy.preferred_duration == timedelta(days=30)
+
+    @pytest.mark.spec("EP-02-004")
+    def test_a_profile_changed_under_every_attempt_is_409_and_writes_nothing(
+        self, client_actors, hosted_actor, monkeypatch
+    ):
+        interleaved = _interleave_rival_writes(monkeypatch, _rename, times=100)
+
+        resp = client_actors.put(_PATH, json={"preferred_duration": "P30D"})
+
+        assert resp.status_code == status.HTTP_409_CONFLICT
+        detail = resp.json()["detail"]
+        assert detail["status"] == status.HTTP_409_CONFLICT
+        assert detail["error"] == "Conflict"
+        assert hosted_actor in detail["message"]
+        assert interleaved == [1, 2, 3]
+        profile = _stored_profile(hosted_actor)
+        assert profile.name == "Renamed 3"
+        assert profile.embargo_policy is None

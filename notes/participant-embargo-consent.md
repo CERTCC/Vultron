@@ -178,14 +178,15 @@ unconditionally therefore faults on precisely the participants a revision most
 concerns. The `INVITE` write belongs to the CASE_MANAGER's commit of each Invite
 emission — built in #3913 as `RelayEmbargoInviteToEachNode._invite_where_legal()`
 (`vultron/core/behaviors/embargo/nodes/relay.py`) — and to the replay node that
-reconstructs it on replicas (#3915); *that* is where the state check lives. The
-check is `CaseParticipant.apply_pec_transition_if_legal()`: the one sanctioned
-"apply where legal" shape, which asks `accepts_pec_trigger()` first and then
-routes through `apply_pec_transition()`, so an illegal trigger is a recorded
-no-op rather than a fault and every other caller stays fail-closed.
-`UpdateParticipantEmbargoPecNode(where_legal=True)` — the participant replica's
-on-receipt write, retained until #3915 gates it off (RSH-08-004) — uses the same
-method.
+reconstructs it on replicas, `ApplyEmbargoInviteFromLedgerNode`
+(`vultron/core/behaviors/embargo/nodes/relay_effect.py`, #3915); *that* is
+where the state check lives. The check is
+`CaseParticipant.apply_pec_transition_if_legal()`: the one sanctioned "apply
+where legal" shape, which asks `accepts_pec_trigger()` first and then routes
+through `apply_pec_transition()`, so an illegal trigger is a recorded no-op
+rather than a fault and every other caller stays fail-closed. Both stores reach
+it through `EmbargoLifecycle.record_embargo_invite()`, and the participant
+replica writes no consent on receipt at all (EP-09-003).
 
 Two further rules from the same decision matter to consent:
 
@@ -299,7 +300,7 @@ Consent-write sites (every one routes through `apply_pec_transition()`):
 | Site | Uses `apply_pec_transition()`? | Syncs status? |
 |---|---|---|
 | `case/nodes/proposal_consent.py` | yes | yes |
-| `case/nodes/embargo.py` | yes | yes |
+| `case/nodes/embargo_signatory.py` | yes | yes |
 | `case/nodes/participant/participant_add.py` | yes | yes |
 | `case/nodes/invite_embargo_consent.py` | yes | yes |
 | `embargo/nodes/proposal.py` | yes | yes |
@@ -440,10 +441,9 @@ enforcement cannot fire and nothing raises: the invitee has no deadline to lapse
 against, and the record that *did* receive one is not the one being checked.
 
 The failure is silent in both directions, which is why it survived for a
-release: `OptionalLookupParticipantNode` is lenient by design and
-`UpdateParticipantEmbargoPecNode` returns SUCCESS when no participant is on the
-blackboard. CM-28-003 makes the CASE_MANAGER the enforcement authority for invite
-expiry, so deriving the invitee from the receiving actor puts the deadline on
+release: the participant lookup on that path was lenient by design and the PEC
+write returned SUCCESS when no participant was found. CM-28-003 makes the
+CASE_MANAGER the enforcement authority for invite expiry, so deriving the invitee from the receiving actor puts the deadline on
 the enforcer's own record and disarms exactly the actor responsible for acting
 on it.
 
@@ -549,9 +549,9 @@ notes with sensitive information) is gated on `embargo_adherence=True`.
 
 ### Ledger Fan-Out Is Case Content (CM-10-005, CM-10-006)
 
-*Source: Concern #3917 (2026-10-01). Fan-out gate implemented by #4046 (the
-shared selection in `vultron/core/participants/recipients.py`); the replay gate
-and the backfill on admission are tracked in #4042.*
+*Source: Concern #3917 (2026-10-01). The fan-out recipients come from the
+shared selection in `vultron/core/participants/recipients.py` (#4046); the
+replay gate, the pause and the backfill on admission are implemented in #4042.*
 
 The gate (CM-10-004) was first applied only to
 `Announce(VulnerabilityCase)`. The `Announce(CaseLedgerEntry)` fan-out, which
@@ -573,6 +573,13 @@ participant **stream**, not per entry:
   pause began. When the gate admits it — it accepts, or the embargo ends — the
   CASE_MANAGER sends the withheld suffix in log order, starting with the first
   entry withheld, so the catch-up gate (SYNC-10-004) never sees a gap.
+
+The predicate is the shared active-participant selection in
+`vultron/core/participants/recipients.py` (CM-10-007), the one the case-update
+broadcast, the ledger fan-out, the replay and the genesis pre-seed all ask.
+Where the pause is recorded and the points that catch admission are in
+[sync-ledger-replication.md](sync-ledger-replication.md) § "Fan-Out Recipients
+and the Embargo Gate".
 
 The embargo meta-protocol above is unaffected: Invites and their responses
 are addressed to the participant directly, not fanned out from the ledger, so

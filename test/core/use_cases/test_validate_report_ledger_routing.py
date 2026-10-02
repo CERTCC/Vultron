@@ -40,6 +40,7 @@ from __future__ import annotations
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -265,6 +266,7 @@ class TestTriggerEmitsToCaseActorOutbox:
             ),
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
         after = outbox_ids(self.VENDOR_ID, dl)
 
@@ -303,6 +305,7 @@ class TestTriggerEmitsToCaseActorOutbox:
             ),
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
         after = outbox_ids(self.VENDOR_ID, dl)
 
@@ -438,6 +441,7 @@ class TestCaseActorReceivedWritesLedgerEntry:
             dl,
             self._make_validate_event(),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         event_types = _ledger_event_types(dl)
@@ -453,6 +457,7 @@ class TestCaseActorReceivedWritesLedgerEntry:
             dl,
             self._make_validate_event(),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         entries = list(dl.list_objects("CaseLedgerEntry"))
@@ -476,7 +481,10 @@ class TestCaseActorReceivedWritesLedgerEntry:
         event = self._make_validate_event(receiving_actor_id=self.VENDOR_ID)
 
         ValidateReportReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         event_types = _ledger_event_types(dl)
@@ -530,6 +538,7 @@ class TestCaseActorReceivedWritesLedgerEntry:
             dl,
             self._make_validate_event(),  # actor_id=VENDOR, receiving=CASE_ACTOR,
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         link = dl.read(VultronReportCaseLink.build_id(self.REPORT_ID))
@@ -592,6 +601,7 @@ class TestFullValidateReportLedgerChain:
             ),
             trigger_activity=TriggerActivityAdapter(vendor_dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(vendor_dl),
         ).execute()
         after = outbox_ids(self.VENDOR_ID, vendor_dl)
 
@@ -677,7 +687,10 @@ class TestFullValidateReportLedgerChain:
         )
 
         ValidateReportReceivedUseCase(
-            case_actor_dl, event, wire_render_port=As2WireRenderAdapter()
+            case_actor_dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(case_actor_dl),
         ).execute()
 
         # ── Step 6: assert CaseActor ledger has the validate_report entry ─────

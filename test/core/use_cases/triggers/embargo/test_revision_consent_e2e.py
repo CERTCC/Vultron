@@ -42,6 +42,7 @@ from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -148,6 +149,7 @@ class _Revision:
                 end_time=now_utc() + timedelta(days=days),
             ),
             trigger_activity=TriggerActivityAdapter(self.dl),
+            sync_port=SyncActivityAdapter(self.dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
         activity = activity_of(result)
@@ -172,6 +174,7 @@ class _Revision:
                 actor_id=OWNER, case_id=self.case.id_, proposal_id=proposal_id
             ),
             trigger_activity=TriggerActivityAdapter(self.dl),
+            sync_port=SyncActivityAdapter(self.dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -185,6 +188,7 @@ class _Revision:
                 actor_id=OWNER, case_id=self.case.id_, proposal_id=proposal_id
             ),
             trigger_activity=TriggerActivityAdapter(self.dl),
+            sync_port=SyncActivityAdapter(self.dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 

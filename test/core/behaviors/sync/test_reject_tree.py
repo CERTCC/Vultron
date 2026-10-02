@@ -90,9 +90,18 @@ def case_manager_case(datalayer):
         case_roles=[CVDRole.CASE_MANAGER],
     )
     datalayer.create(participant)
+    # The Reject's sender is a joined participant, so the replay and the
+    # genesis pre-seed's active-participant gate admit it (CM-10-004).
+    peer = as_CaseParticipant(
+        id_=f"{CASE_ID}/participants/reporter",
+        context=CASE_ID,
+        attributed_to=PEER_ID,
+    )
+    datalayer.create(peer)
     case = as_VulnerabilityCase(id_=CASE_ID, name="Sync Case")
-    case.case_participants.append(participant.id_)
+    case.case_participants.extend([participant.id_, peer.id_])
     case.actor_participant_index[OWNER_ACTOR_ID] = participant.id_
+    case.actor_participant_index[PEER_ID] = peer.id_
     datalayer.create(case)
     return case
 
