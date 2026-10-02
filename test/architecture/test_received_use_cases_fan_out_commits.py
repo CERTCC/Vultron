@@ -34,6 +34,7 @@ dispatcher-side link (every semantic's factory supplies the port) is pinned in
 
 import ast
 import inspect
+from collections.abc import Callable
 
 import pytest
 
@@ -45,9 +46,11 @@ _RECEIVED_ROOT = (
 )
 
 
-def _calls(matches) -> list[tuple[str, int, ast.Call]]:
+def _calls(
+    fragment: str, matches: Callable[[ast.expr], bool]
+) -> list[tuple[str, int, ast.Call]]:
     calls: list[tuple[str, int, ast.Call]] = []
-    for path, tree in _corpus.all_trees(under=_RECEIVED_ROOT):
+    for path, tree in _corpus.files_mentioning(fragment, under=_RECEIVED_ROOT):
         rel = str(path.relative_to(_corpus.REPO_ROOT))
         for node in ast.walk(tree):
             if isinstance(node, ast.Call) and matches(node.func):
@@ -57,16 +60,18 @@ def _calls(matches) -> list[tuple[str, int, ast.Call]]:
 
 def _bridge_calls() -> list[tuple[str, int, ast.Call]]:
     return _calls(
-        lambda func: isinstance(func, ast.Name) and func.id == "BTBridge"
+        "BTBridge(",
+        lambda func: isinstance(func, ast.Name) and func.id == "BTBridge",
     )
 
 
 def _execute_with_setup_calls() -> list[tuple[str, int, ast.Call]]:
     return _calls(
+        "execute_with_setup(",
         lambda func: (
             isinstance(func, ast.Attribute)
             and func.attr == "execute_with_setup"
-        )
+        ),
     )
 
 

@@ -25,7 +25,7 @@ semantic whose factory drops the sync port fails here.
 """
 
 import json
-from typing import Any, cast
+from typing import Any
 
 import py_trees
 import pytest
@@ -135,16 +135,16 @@ def test_owner_offer_actor_dispatched_by_inbox_fans_out_every_commit(
 
     assert result.disposition is HandlerDisposition.APPLIED
     entries = [
-        cast(CaseLedgerEntry, obj)
+        obj
         for obj in dl.list_objects("CaseLedgerEntry")
         if isinstance(obj, CaseLedgerEntry)
     ]
-    committed = {entry.event_type: entry.id_ for entry in entries}
-    assert {"offer_actor_to_case", "invite_actor_to_case"} <= set(committed)
+    event_types = {entry.event_type for entry in entries}
+    assert {"offer_actor_to_case", "invite_actor_to_case"} <= event_types
 
     announced = _announced(dl)
-    for event_type, entry_id in committed.items():
-        assert _FINDER_ID in announced.get(entry_id, set()), (
-            f"{event_type} entry '{entry_id}' was committed but never"
+    for entry in entries:
+        assert _FINDER_ID in announced.get(entry.id_, set()), (
+            f"{entry.event_type} entry '{entry.id_}' was committed but never"
             " announced to the finder (SYNC-02-003)"
         )

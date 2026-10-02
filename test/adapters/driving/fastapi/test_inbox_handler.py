@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, Mock
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driving.fastapi import inbox_handler as ih
 from vultron.core.models.events import MessageSemantics, VultronEvent
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
@@ -909,11 +910,6 @@ def test_make_dispatcher_gives_every_semantic_a_sync_port(monkeypatch):
     ``REJECT_INVITE_ACTOR_TO_CASE`` did, and the ``fcv-reject`` demo's ledger
     coverage gate timed out on the gap (#4113).
     """
-    import inspect
-
-    from vultron.adapters.driven.sync_activity_adapter import (
-        SyncActivityAdapter,
-    )
     from vultron.semantic_registry import use_case_map
 
     captured: dict = {}
@@ -932,15 +928,14 @@ def test_make_dispatcher_gives_every_semantic_a_sync_port(monkeypatch):
         "sqlite:///:memory:",
         actor_id="https://test.example/api/v2/actors/test-actor",
     )
-    for sem, use_case in use_case_map().items():
+    # That each use case accepts the port is the architecture ratchet's job
+    # (test_received_use_cases_fan_out_commits.py); this pins the supply.
+    for sem in use_case_map():
         factory = captured["port_factories"].get(sem)
         assert factory is not None, f"{sem.name} has no port factory"
         assert isinstance(
             factory(real_dl).get("sync_port"), SyncActivityAdapter
         ), f"{sem.name} is dispatched without a SyncActivityPort"
-        assert "sync_port" in inspect.signature(use_case).parameters, (
-            f"{use_case.__name__} does not accept sync_port"
-        )
 
 
 def test_case_proposal_port_factory_injects_actor_config(monkeypatch):

@@ -38,6 +38,13 @@ class RequireSyncPortNode(DataLayerActionWithPorts):
     first in the mint sequence and refuses before anything is written
     (BT-14-001, #4113).
 
+    ``/sync_port`` is written by :class:`~vultron.core.behaviors.bridge.BTBridge`
+    from its ``sync_port`` constructor argument, rebound to the executing
+    store (BT-05-005); a nested bridge inherits it from the outer tree's
+    blackboard. The port is read in ``initialise()`` (BTND-03-011) and is
+    declared optional so its absence surfaces as this wiring error rather
+    than as ``NoDataAvailable``.
+
     It sits after ``DeclineForeignLedgerCommitNode``. A store that declines
     mints nothing and fans out nothing, so it needs no port.
     """

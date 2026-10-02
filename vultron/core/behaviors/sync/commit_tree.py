@@ -38,6 +38,13 @@ def create_commit_log_entry_tree(
     a caller still reads a non-SUCCESS result as a real failure — "the canonical
     log is somewhere else, and replication will bring the entry here" is not one
     (ADR-0073, BT-05-006).
+
+    The mint sequence opens with
+    :class:`~vultron.core.behaviors.sync.nodes.port_guard.RequireSyncPortNode`:
+    a store that would mint needs ``/sync_port`` to announce the entry
+    (SYNC-02-003), and refusing before anything is persisted keeps the ledger
+    free of entries no replica receives (#4113).  The raise surfaces as
+    ``internal_error`` on the bridge running this tree.
     """
     return py_trees.composites.Selector(
         name="CommitLogEntryBT",

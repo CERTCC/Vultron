@@ -21,6 +21,7 @@ import pytest
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases.received.actor.ownership import (
     AcceptCaseOwnershipTransferReceivedUseCase,
     OfferCaseOwnershipTransferReceivedUseCase,
@@ -670,7 +671,7 @@ class TestOwnershipTransferUseCases:
                 MagicMock(),
                 event,
                 wire_render_port=As2WireRenderAdapter(),
-                sync_port=SyncActivityAdapter(MagicMock()),
+                sync_port=MagicMock(spec=SyncActivityPort),
             ).execute()
 
         assert any("rejected" in r.message.lower() for r in caplog.records)
