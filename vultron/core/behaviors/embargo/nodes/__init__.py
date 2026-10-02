@@ -53,7 +53,16 @@ from vultron.core.behaviors.embargo.nodes.lifecycle import (
     SendTerminateEmbargoActivityNode,
     SetEmbargoActiveNode,
     TerminateEmbargoLifecycleNode,
+    ValidateEmbargoProposalStateNode,
     ValidateEmbargoRevisionStateNode,
+)
+from vultron.core.behaviors.embargo.nodes.manager_commit import (
+    COMMITTED_ACTIVITY_KEY,
+    EMBARGO_TEARDOWN_EVENT_TYPE,
+    CommitEmbargoDecisionNode,
+    CommitEmbargoTeardownNode,
+    EmbargoActivityBuilder,
+    IndexOwnEmbargoProposalNode,
 )
 from vultron.core.behaviors.embargo.nodes.proposal import (
     CreateAndStoreInviteNode,
@@ -120,6 +129,13 @@ __all__ = [
     "EmStateAdmitsProposalNode",
     "EmbargoProposalNotYetRecordedNode",
     "RelayEmbargoInviteToEachNode",
+    # CASE_MANAGER decision commit (EP-09-008, #4085)
+    "EMBARGO_TEARDOWN_EVENT_TYPE",
+    "CommitEmbargoDecisionNode",
+    "CommitEmbargoTeardownNode",
+    "COMMITTED_ACTIVITY_KEY",
+    "IndexOwnEmbargoProposalNode",
+    "EmbargoActivityBuilder",
     # Relay ledger replay (EP-09-007)
     "ApplyEmbargoProposalFromLedgerNode",
     "ApplyEmbargoInviteFromLedgerNode",
@@ -137,6 +153,7 @@ __all__ = [
     "RecordParticipantRejectionNode",
     # Lifecycle
     "PersistEmbargoEventNode",
+    "ValidateEmbargoProposalStateNode",
     "ValidateEmbargoRevisionStateNode",
     "ProposeEmbargoLifecycleNode",
     "AcceptEmbargoLifecycleNode",

@@ -27,6 +27,8 @@ from fastapi import status
 
 from vultron.core.states.em import EM
 
+from .conftest import make_case_manager
+
 FUTURE_END_TIME = "2099-12-01T00:00:00Z"
 
 
@@ -148,6 +150,7 @@ def test_trigger_propose_embargo_revision_sets_em_state_to_revise(
 ):
     """propose-embargo-revision transitions case EM state from ACTIVE to REVISE."""
     case_obj, _ = case_with_embargo
+    make_case_manager(case_obj.id_, actor.id_, dl)  # EP-09-008
 
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/propose-embargo-revision",

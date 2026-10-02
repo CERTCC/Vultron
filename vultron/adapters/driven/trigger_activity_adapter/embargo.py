@@ -156,10 +156,19 @@ class _EmbargoMixin:
         actor: str,
         to: list[str] | None = None,
     ) -> tuple[str, str]:
-        """Create and persist a ``Remove(as_EmbargoEvent, origin=case)`` ET activity."""
+        """Create and persist a ``Remove(as_EmbargoEvent, origin=case)`` ET activity.
+
+        ``context`` names the case as well: the CASE_MANAGER commits its own
+        teardown as a canonical entry, whose snapshot must carry the case URI
+        in ``context`` (VM-08-003, #4085).
+        """
         embargo = _to_wire(self._dl.read(embargo_id), as_EmbargoEvent)
         activity = remove_embargo_from_case_activity(
-            embargo=embargo, origin=case_id, actor=actor, to=to
+            embargo=embargo,
+            origin=case_id,
+            context=case_id,
+            actor=actor,
+            to=to,
         )
         try:
             self._dl.create(activity)

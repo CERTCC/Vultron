@@ -8,10 +8,11 @@ Actor set: ``finder``, ``coordinator``, ``vendor``, ``case-actor``.
 
 FCV-specific invariants (DEMOMA-12-008/009):
 - ``validate_report`` event type is present (Coordinator validates Finder's report).
-- ``invite_actor_to_case`` appears at least twice (Finder + Vendor invitations).
-- ``accept_invite_actor_to_case`` appears at least twice (Finder and Vendor each accept).
+- ``invite_actor_to_case`` appears exactly once (the Vendor's invitation; the
+  Finder is seated as reporter at case creation, CM-22-002, and is never invited).
 - ``close_case`` event type is present.
-- CS transitions VFd and VFD observed in Vendor's add_participant_status entries.
+- CS transition VFd observed in Vendor's add_participant_status entries
+  (the Vendor stops at VFd, CSB-15-002).
 - P-transition observed in Coordinator's add_participant_status entries.
 - Vendor is a late joiner — replica holds the complete log from genesis.
 
@@ -50,7 +51,8 @@ _FCV_EXPECTED_EVENT_TYPES = [
     # DEMOMA-16-001: universal — the shared RM-triage helpers in
     # vultron/demo/helpers/workflow.py engage the case in every scenario.
     pytest.param("engage_case", id="engage_case"),
-    # DEMOMA-16-007: Coordinator invites both Finder and Vendor; both accept.
+    # DEMOMA-16-007: the Coordinator invites the Vendor, who accepts.  The
+    # Finder is seated as reporter at case creation (CM-22-002) — no Invite.
     pytest.param("invite_actor_to_case", id="invite_actor_to_case"),
     pytest.param(
         "accept_invite_actor_to_case", id="accept_invite_actor_to_case"
@@ -109,16 +111,22 @@ def test_fcv_validate_report_present(
 
 
 @pytest.mark.case_ledger_invariants
-def test_fcv_invite_actor_to_case_at_least_twice(
+def test_fcv_invite_actor_to_case_exactly_once(
     fcv_replicas: dict[str, list[dict]],
 ) -> None:
-    """``invite_actor_to_case`` appears at least twice (Finder + Vendor invitations).
+    """``invite_actor_to_case`` appears exactly once (the Vendor's invitation).
 
-    Spec: DEMOMA-12-003 (Coordinator invites Finder),
-    DEMOMA-12-004 (Coordinator invites Vendor directly).
+    The Finder is the reporter, so the CASE_MANAGER seats it as a SIGNATORY
+    participant when it creates the case (CM-22-002, CM-14-005); FCV never
+    invites it.  The one Invite is the Vendor's.  The upper bound matters: a
+    floor alone cannot tell the scenario's one send from a second Invite, such
+    as a Finder invite reintroduced with its own activity id (CLP-07-002).
+
+    Spec: DEMOMA-12-003 (Finder seated, not invited), DEMOMA-12-004
+    (Coordinator invites Vendor directly), DEMOMA-12-009(2).
     """
     violations = check_event_type_count(
-        fcv_replicas, "invite_actor_to_case", min_count=2
+        fcv_replicas, "invite_actor_to_case", min_count=1, max_count=1
     )
     assert not violations, violations[0] if violations else ""
 

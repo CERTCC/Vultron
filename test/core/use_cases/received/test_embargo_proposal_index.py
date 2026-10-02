@@ -225,8 +225,9 @@ class TestProposeTriggerRecordsIndex:
 
         actor = as_Service(id_=actor_id, name="Coordinator")
         dl.create(actor)
+        # The CASE_MANAGER indexes its own proposal (EP-09-001, EP-09-008).
         case, _cm = _make_case_with_case_manager(
-            dl, actor_id, em_state=EM.NONE
+            dl, actor_id, em_state=EM.NONE, manager_id=actor_id
         )
 
         end_time = datetime.now(UTC) + timedelta(days=90)
@@ -252,14 +253,49 @@ class TestProposeTriggerRecordsIndex:
         )
         assert proposal_ids[0] == activity_of(result)["id"]
 
+    @pytest.mark.spec("EP-09-008")
+    def test_non_manager_proposal_is_not_indexed_locally(self):
+        """A non-manager only asks: the manager's relay indexes the proposal."""
+        from datetime import datetime, timedelta
+
+        from vultron.core.use_cases.triggers.requests import (
+            ProposeEmbargoTriggerRequest,
+        )
+
+        actor_id = "https://example.org/actors/finder"
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
+        dl.create(as_Service(id_=actor_id, name="Finder"))
+        case, _cm = _make_case_with_case_manager(
+            dl, actor_id, em_state=EM.NONE
+        )
+
+        SvcProposeEmbargoUseCase(
+            dl,
+            ProposeEmbargoTriggerRequest(
+                actor_id=actor_id,
+                case_id=case.id_,
+                end_time=datetime.now(UTC) + timedelta(days=90),
+            ),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        updated_case = dl.read(case.id_)
+        assert isinstance(updated_case, VulnerabilityCase)
+        assert updated_case.pending_embargo_proposal_index == {}
+        assert updated_case.current_status.em.state == EM.NONE
+
 
 class TestAcceptRejectFromCoreState:
     """accept/reject trigger use cases must resolve proposal from core state."""
 
     def _make_proposed_case(self, dl, actor_id, actor):
-        """Build a PROPOSED case with index populated."""
+        """Build a PROPOSED case with index populated, managed by *actor_id*.
+
+        Only the CASE_MANAGER's answer moves the case (EP-09-008).
+        """
         case, _cm = _make_case_with_case_manager(
-            dl, actor_id, em_state=EM.PROPOSED
+            dl, actor_id, em_state=EM.PROPOSED, manager_id=actor_id
         )
         embargo = as_EmbargoEvent(
             id_=f"{case.id_}/embargo_events/e1",

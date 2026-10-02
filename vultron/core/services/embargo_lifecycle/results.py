@@ -28,16 +28,21 @@ from vultron.core.states.em import EM
 class TransitionMode(StrEnum):
     """Controls how strict the EM state machine is during a transition.
 
-    ``STRICT``   — Used by BT behaviors and trigger use cases.  The service
+    ``STRICT``   — Used where the executing actor *decides* the
+                   transition: a trigger's CASE_MANAGER arm and the
+                   CASE_MANAGER's received-side adjudication.  The service
                    enforces that the requested transition is valid for the
                    current EM state and raises
                    :exc:`~vultron.errors.VultronInvalidStateTransitionError`
-                   otherwise.
+                   otherwise.  A trigger run by any other participant makes no
+                   lifecycle call at all: it asks the CASE_MANAGER
+                   (EP-09-008).
 
-    ``OBSERVED`` — Used by received use cases.  The remote party has already
-                   asserted the new state; the service syncs local state even
-                   if the local machine would not have initiated that
-                   transition.  Implemented in follow-up issue #747.
+    ``OBSERVED`` — Used where the executing actor *follows* a decision the
+                   CASE_MANAGER already committed: received-side recording and
+                   ledger replay (EP-09-007).  The service syncs local state
+                   even if the local machine would not have initiated that
+                   transition.
     """
 
     STRICT = "STRICT"

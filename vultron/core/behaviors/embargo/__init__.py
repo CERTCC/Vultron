@@ -26,6 +26,7 @@ from vultron.core.behaviors.embargo.nodes import (
     SetEmbargoActiveNode,
     TerminateEmbargoLifecycleNode,
     ValidateCaseExistsNode,
+    ValidateEmbargoProposalStateNode,
     ValidateEmbargoRevisionStateNode,
 )
 
@@ -51,5 +52,6 @@ __all__ = [
     "SetEmbargoActiveNode",
     "TerminateEmbargoLifecycleNode",
     "ValidateCaseExistsNode",
+    "ValidateEmbargoProposalStateNode",
     "ValidateEmbargoRevisionStateNode",
 ]

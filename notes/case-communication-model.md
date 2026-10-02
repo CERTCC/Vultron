@@ -18,6 +18,7 @@ related_specs:
   - specs/behavior-tree-integration.yaml
   - specs/handler-protocol.yaml
   - specs/protocol-asks.yaml
+  - specs/em-behavior.yaml
 related_notes:
   - notes/sync-ledger-replication.md
   - notes/case-ledger-authority.md
@@ -368,9 +369,16 @@ Owner answers Accept/Reject(Invite(B))                   → CASE_MANAGER
 ```
 
 The proposer's own trigger writes no EM state unless the proposer holds the
-CASE_MANAGER role: it emits, records the ask in the pending-assertion store,
-and its replica moves on the announced commit (EP-09-008). The manager's
-commit is also the acknowledgement the behavioural specs call EK (EP-09-009).
+CASE_MANAGER role: it emits to the manager alone, records the ask in the
+pending-assertion store, and its replica moves on the announced commit
+(EP-09-008). When the CASE_MANAGER is the one deciding by trigger — proposing,
+answering or ending an embargo — it writes, commits the decision as a ledger
+entry, and addresses nothing to itself: its proposal is relayed as one Invite
+per other participant, its `Accept`/`Reject` is addressed to nobody, and its
+`Remove(EmbargoEvent)` goes to every other participant (#4085, #4112;
+`notes/embargo-lifecycle.md` § "A trigger writes shared EM state only as the
+CASE_MANAGER"). The manager's commit is also the acknowledgement the
+behavioural specs call EK (EP-09-009).
 
 The rule this pins down, because it kept getting mixed up: **an
 `Announce(CaseLedgerEntry)` is a channel for case state, not a protocol

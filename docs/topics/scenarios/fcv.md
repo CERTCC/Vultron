@@ -15,8 +15,9 @@ causal_edges:
     consequent: invite_actor_to_case
     consequent_actor: case-actor
     note: >
-      The Coordinator invites both the Finder and the Vendor to the case only
-      after the case is active.
+      The Coordinator invites the Vendor to the case only after the case is
+      active.  The Finder is seated as reporter at case creation and is not
+      invited.
   - antecedent: invite_actor_to_case
     consequent: accept_invite_actor_to_case
     consequent_actor: vendor
@@ -48,16 +49,16 @@ level: 300
 
 ## Overview
 
-The FCV scenario introduces a **Coordinator** who receives the initial report
-from the Finder and manages participant onboarding.  The Coordinator validates
-and engages the case, then invites both the Finder and the Vendor.  The Vendor
-carries out the fix; the Coordinator and Finder manage communication.
+The FCV scenario introduces a **Coordinator** who receives the initial report from the Finder and manages participant onboarding.
+The Coordinator validates and engages the case, then invites the Vendor.
+The Finder, as the reporter, is a participant from the moment the case is created, so it receives no invitation.
+The Vendor carries out the fix; the Coordinator and Finder manage communication.
 
 **Participants:**
 
 - **Finder** — discovers the vulnerability and submits the report; in the case it holds the Reporter role, because the protocol has no Finder role ([ADR-0078](../../adr/0078-retire-finder-role.md)).
 - **Coordinator** — receives the report; validates, engages, and owns the case;
-  invites the Finder and Vendor.
+  invites the Vendor.
 - **Vendor** — receives an invitation; develops and ships the fix.
 - **Case Actor** — the actor that holds the [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) role for this case; it writes every canonical ledger entry and fans it out to the participants. The Coordinator's platform hosts it, but its authority comes from the role, not from where it runs.
 
@@ -80,47 +81,33 @@ Coordinator accepts responsibility.
 
 ### 3. Participant status records are created
 
-The Case Actor records the initial participant status for the Coordinator as an
-`add_participant_status_to_participant` entry.
+The Case Actor records the initial participant status for each participant seated at case creation as an `add_participant_status_to_participant` entry.
+The Finder is one of them: as the reporter, it joins the case as a signatory when the case is created, so the Coordinator never invites it.
 
 *Antecedent:* `engage_case` is in the ledger.
 
-### 4. Coordinator invites the Finder to the case
+### 4. Coordinator invites the Vendor
 
-The Coordinator sends the Finder a formal invitation.  This is recorded as an
-`invite_actor_to_case` entry.
-
-*Antecedent:* `engage_case` is in the ledger.
-
-### 5. Finder accepts the invitation
-
-The Finder accepts the Coordinator's invitation.  An `accept_invite_actor_to_case`
-entry is recorded.
-
-*Antecedent:* `invite_actor_to_case` is in the ledger.
-
-### 6. Coordinator invites the Vendor
-
-The Coordinator identifies the Vendor responsible for the affected product and
-sends a second `invite_actor_to_case` entry.
+The Coordinator identifies the Vendor responsible for the affected product and asks the Case Actor to invite it.
+The Case Actor sends the Invite and records it as an `invite_actor_to_case` entry, the only one in this scenario.
 
 *Antecedent:* `engage_case` is in the ledger.
 
-### 7. Vendor accepts the invitation
+### 5. Vendor accepts the invitation
 
-The Vendor reviews the invitation and joins the case.  An `accept_invite_actor_to_case`
-entry is recorded.
+The Vendor reviews the invitation and joins the case.
+An `accept_invite_actor_to_case` entry is recorded.
 
 *Antecedent:* The Vendor's `invite_actor_to_case` entry is in the ledger.
 
-### 8. Participants exchange notes
+### 6. Participants exchange notes
 
 The Finder, Coordinator, and Vendor communicate through case notes.  Each
 note is an `add_note_to_case` entry.
 
 *Antecedent:* `engage_case` is in the ledger.
 
-### 9. Vendor develops and ships a fix
+### 7. Vendor develops and ships a fix
 
 The Vendor progresses through the fix lifecycle.
 Participant status updates reflect the Vendor reaching the fix-ready (VFd) state.
@@ -128,13 +115,13 @@ No participant deploys a fix in this scenario, so the VFD state stays at VFd.
 
 *Antecedent:* `engage_case` is in the ledger.
 
-### 10. Participants publish and embargo terminates
+### 8. Participants publish and embargo terminates
 
 All participants publish.  The embargo exits ACTIVE.  The CS PXA state advances.
 
 *Antecedent:* Vendor has reached fix-ready.
 
-### 11. All participants close the case
+### 9. All participants close the case
 
 Finder, Coordinator, and Vendor each close the case with `close_case` entries.
 

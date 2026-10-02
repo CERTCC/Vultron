@@ -72,3 +72,30 @@ Sequence
 `ResolveCaseManagerNode` before `TerminateEmbargoLifecycleNode`, and replace
 all standalone monolithic nodes with the factory output. Both trigger and
 cascade call sites use the shared factory directly (BT-19-002, PR #1263).
+
+---
+
+## Embargo Writes Run Only in the CASE_MANAGER Arm
+
+(EP-09-008, #3962, #4085, #4112)
+
+Every embargo trigger tree in `trigger_tree.py` ends in `_by_role()`'s two
+mutually exclusive arms. Add a new embargo write to the **CASE_MANAGER arm**
+only, in this order: `*EmbargoLifecycleNode` (`STRICT`) →
+`CommitEmbargoDecisionNode` (`nodes/manager_commit.py`; commit precedes the
+outbox write) → `EmitCaseStatusUpdateNode`. The other arm writes no EM state:
+it queues to the manager through `sender_side_bt` with `_asserting()`, which
+writes `result_out[ASSERTED_ACTIVITY_KEY]` for the pending-assertion record.
+
+- A decision every replica learns from the entry (`Accept`/`Reject`) is
+  addressed to nobody; a teardown goes to every *other* participant
+  (`notify_participants=True`). Never address the manager's own outbox to
+  itself — that is #4112.
+- A cascade with no use case to build the activity uses
+  `CommitEmbargoTeardownNode`, which reads `/embargo_id` and calls the factory.
+- Ratchet: `test/architecture/test_embargo_trigger_writes_are_case_manager_gated.py`
+  fails on any `_EmbargoLifecycleNode` outside the gate, and on a new public
+  factory that is not listed.
+- A test of the manager arm runs in the manager's own store; a test of the
+  ask arm needs a replica store whose `actor_id` is the asking participant
+  (BT-05-005).

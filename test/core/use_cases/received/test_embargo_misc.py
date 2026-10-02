@@ -22,10 +22,12 @@ from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
+from vultron.core.use_cases.received._embargo_pxa import (
+    pxa_embargo_ineligible,
+)
 from vultron.core.use_cases.received.embargo import (
     AnnounceEmbargoEventToCaseReceivedUseCase,
     RemoveEmbargoEventFromCaseReceivedUseCase,
-    _pxa_embargo_ineligible,
 )
 from vultron.wire.as2.factories import (
     announce_embargo_activity,
@@ -240,12 +242,12 @@ class TestResetEmbargoConsentWithInlineParticipants:
 
 
 # ---------------------------------------------------------------------------
-# _pxa_embargo_ineligible — AC-4 named-predicate coverage
+# pxa_embargo_ineligible — AC-4 named-predicate coverage
 # ---------------------------------------------------------------------------
 
 
 class TestPxaEmbargoIneligible:
-    """Unit tests for _pxa_embargo_ineligible (AC-4: named predicates).
+    """Unit tests for pxa_embargo_ineligible (AC-4: named predicates).
 
     Verifies that every CS_pxa state with at least one bit set returns True
     (ineligible) and that the clear state returns False (eligible).
@@ -278,12 +280,12 @@ class TestPxaEmbargoIneligible:
     def test_any_pxa_bit_set_is_ineligible(self, pxa_state_name):
         """Any P/X/A bit set makes the case embargo-ineligible."""
         dl = self._make_dl_with_pxa(pxa_state_name)
-        assert _pxa_embargo_ineligible(dl, self.CASE_ID) is True
+        assert pxa_embargo_ineligible(dl, self.CASE_ID) is True
 
     def test_clear_pxa_is_eligible(self):
         """CS_pxa.pxa (all clear) makes the case embargo-eligible."""
         dl = self._make_dl_with_pxa("pxa")
-        assert _pxa_embargo_ineligible(dl, self.CASE_ID) is False
+        assert pxa_embargo_ineligible(dl, self.CASE_ID) is False
 
     def test_missing_case_returns_false(self):
         """Missing case returns False so normal processing can continue."""
@@ -294,14 +296,14 @@ class TestPxaEmbargoIneligible:
             actor_id="https://example.org/users/finder",
         )
         assert (
-            _pxa_embargo_ineligible(dl, "https://example.org/cases/missing")
+            pxa_embargo_ineligible(dl, "https://example.org/cases/missing")
             is False
         )
 
     def test_value_error_on_current_status_returns_false(self):
         """False (eligible) when case.current_status raises ValueError.
 
-        The try/except ValueError guard in _pxa_embargo_ineligible must
+        The try/except ValueError guard in pxa_embargo_ineligible must
         return False (fail-open) so that processing continues normally
         when no materialized CaseStatus exists.
         """
@@ -318,4 +320,4 @@ class TestPxaEmbargoIneligible:
         mock_dl = MagicMock()
         mock_dl.read.return_value = mock_case
 
-        assert _pxa_embargo_ineligible(mock_dl, self.CASE_ID) is False
+        assert pxa_embargo_ineligible(mock_dl, self.CASE_ID) is False

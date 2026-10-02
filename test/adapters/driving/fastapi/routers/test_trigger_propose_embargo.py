@@ -28,6 +28,8 @@ from fastapi import status
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.core.states.em import EM
 
+from .conftest import make_case_manager
+
 FUTURE_END_TIME = "2099-12-01T00:00:00Z"
 
 
@@ -215,6 +217,7 @@ def test_trigger_propose_embargo_updates_em_state_to_proposed(
     client_triggers, dl, actor, case_without_participant
 ):
     """propose-embargo transitions case EM state from N to P."""
+    make_case_manager(case_without_participant.id_, actor.id_, dl)  # EP-09-008
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/propose-embargo",
         json={
@@ -228,11 +231,30 @@ def test_trigger_propose_embargo_updates_em_state_to_proposed(
     assert updated_case.current_status.em.state == EM.PROPOSED
 
 
+@pytest.mark.spec("EP-09-008")
+def test_trigger_propose_embargo_as_non_manager_only_asks(
+    client_triggers, dl, actor, case_without_participant
+):
+    """A non-manager's proposal goes to the CASE_MANAGER; EM is unchanged."""
+    case_id = case_without_participant.id_
+    manager_id = next(iter(dl.read(case_id).actor_participant_index))
+
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/propose-embargo",
+        json={"case_id": case_id, "end_time": FUTURE_END_TIME},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+    assert resp.json()["activity"]["to"] == [manager_id]
+    assert dl.read(case_id).current_status.em.state == EM.NONE
+
+
 def test_trigger_propose_embargo_from_active_updates_em_state_to_revise(
     client_triggers, dl, actor, case_with_embargo
 ):
     """propose-embargo transitions case EM state from A to R when embargo is active."""
     case_obj, _ = case_with_embargo
+    make_case_manager(case_obj.id_, actor.id_, dl)  # EP-09-008
 
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/propose-embargo",
@@ -251,6 +273,7 @@ def test_trigger_propose_embargo_exited_returns_409(
     case_obj = dl.read(case_without_participant.id_)
     case_obj.current_status.em.state = EM.EXITED
     dl.update(case_obj.id_, object_to_record(case_obj))
+    make_case_manager(case_obj.id_, actor.id_, dl)  # EP-09-008
 
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/propose-embargo",

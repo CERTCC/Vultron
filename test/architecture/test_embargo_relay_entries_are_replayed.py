@@ -87,6 +87,20 @@ REPLAYED: dict[str, tuple[str, dict[str, Any]]] = {
             "object": EMBARGO,
         },
     ),
+    "the manager's own proposal": (
+        _INVITE,
+        {"type": "Invite", "actor": MANAGER, "object": EMBARGO},
+    ),
+    "the manager's own terms, relayed": (
+        _INVITE,
+        {
+            "type": "Invite",
+            "actor": MANAGER,
+            "attributedTo": MANAGER,
+            "to": [REPLICA],
+            "object": EMBARGO,
+        },
+    ),
     "Accept of an Invite": (
         MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value,
         {"type": "Accept", "actor": REPLICA, "object": {"object": EMBARGO}},
