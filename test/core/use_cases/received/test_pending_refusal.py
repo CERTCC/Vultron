@@ -112,7 +112,10 @@ def _receive_reject(
     rejecting_actor_id: str,
 ) -> None:
     reject = em_reject_embargo_activity(
-        proposal=proposal, context=case_id, actor=rejecting_actor_id
+        proposal=proposal,
+        context=case_id,
+        actor=rejecting_actor_id,
+        to=[_PROPOSER],
     )
     event = cast(
         RejectInviteToEmbargoOnCaseReceivedEvent,

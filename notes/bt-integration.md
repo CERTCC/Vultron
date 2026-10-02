@@ -234,7 +234,7 @@ Read a subject **from the message**, never from the receiving actor. For an
 CASE_MANAGER; the CASE_MANAGER to one participant per relayed Invite), so an
 Invite naming several recipients or none is refused as a misrouting, never
 resolved by membership or guessed at. `resolve_invitee_id()`
-(`vultron/core/use_cases/received/embargo.py`) returns the sole recipient in its
+(`vultron/core/use_cases/received/embargo/invite.py`) returns the sole recipient in its
 canonical spelling and raises `VultronProtocolViolationError` naming the
 recipient count, which the use case reports as `REFUSED`. A proposal addressed
 to the CASE_MANAGER names the manager as that sole recipient, but the manager

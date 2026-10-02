@@ -67,6 +67,7 @@ class TestAnnounceEmbargoEventToCaseReceivedUseCase:
             embargo=embargo,
             context=case.id_,
             actor="https://example.org/users/vendor",
+            to=["https://example.org/users/finder"],
         )
         event = make_payload(activity)
 
@@ -84,6 +85,9 @@ class TestAnnounceEmbargoEventToCaseReceivedUseCase:
         dl = MagicMock()
         mock_event = MagicMock()
         mock_event.activity_id = "https://example.org/activities/ann1"
+        mock_event.receiving_actor_id = "https://example.org/users/finder"
+        mock_event.activity.to = ["https://example.org/users/finder"]
+        mock_event.activity.cc = []
 
         with caplog.at_level(logging.INFO):
             AnnounceEmbargoEventToCaseReceivedUseCase(dl, mock_event).execute()
@@ -95,7 +99,7 @@ class TestAnnounceEmbargoEventToCaseReceivedUseCase:
 
 
 class TestResetEmbargoConsentWithInlineParticipants:
-    """Regression tests for #609: _reset_case_participant_embargo_consent
+    """Regression tests for #609: _exit_case_participant_embargo_consent
     must tolerate inline as_CaseParticipant objects in case.case_participants,
     not just plain string IDs.
     """
@@ -177,8 +181,8 @@ class TestResetEmbargoConsentWithInlineParticipants:
         assert updated.active_embargo is None
         assert updated.current_status.em.state == EM.EXITED
 
-    def test_reset_consent_with_inline_participant_resets_state(self):
-        """_reset_case_participant_embargo_consent resets consent state even
+    def test_exit_consent_with_inline_participant_exits_state(self):
+        """_exit_case_participant_embargo_consent exits consent state even
         when case_participants entries are inline wire-layer as_CaseParticipant
         objects (not string IDs).
 
@@ -187,7 +191,7 @@ class TestResetEmbargoConsentWithInlineParticipants:
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.states.participant_embargo_consent import PEC
         from vultron.core.use_cases._helpers import (
-            reset_case_participant_embargo_consent as _reset_case_participant_embargo_consent,
+            exit_case_participant_embargo_consent as _exit_case_participant_embargo_consent,
         )
         from vultron.wire.as2.vocab.objects.case_participant import (
             as_CaseParticipant,
@@ -231,13 +235,13 @@ class TestResetEmbargoConsentWithInlineParticipants:
         assert isinstance(core_case, VulnerabilityCase)
 
         # Must not raise TypeError
-        _reset_case_participant_embargo_consent(dl, core_case)
+        _exit_case_participant_embargo_consent(dl, core_case)
 
         updated_participant = dl.read(participant_id)
         assert updated_participant is not None
         assert (
             getattr(updated_participant, "embargo_consent_state", None)
-            == PEC.UNBOUND.value
+            == PEC.UNBOUND_EXITED.value
         )
 
 

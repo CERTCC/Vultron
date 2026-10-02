@@ -226,3 +226,5 @@ divergent write sites (CS-22-001) — including the seven that already call
 - **Subsequent rename**: ADR-0091 (Issue #3277) renamed `PEC.NO_EMBARGO` to
   `PEC.UNBOUND` and dropped the `EM.NO_EMBARGO = NONE` alias. The absence
   semantics established here are unchanged; only the state identifier changed.
+- **Amended by ADR-0118 (2026-10-02)**: the machine gains `EXPIRED` (an invite whose RSVP deadline passed unanswered, distinct from `DECLINED`) and the terminal `UNBOUND_EXITED` (reached by `EXIT`, renamed from `RESET`, when the embargo terminates).
+  `UNBOUND` is now only the initial state; it is no longer the `RESET` destination described above.

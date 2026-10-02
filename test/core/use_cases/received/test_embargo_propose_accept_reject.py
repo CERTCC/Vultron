@@ -91,6 +91,7 @@ class TestEmbargoProposalLifecycle:
             actor="https://example.org/users/vendor",
             object_=embargo,
             context=case,
+            to=["https://test.example/api/v2/actors/test-actor"],
         )
 
         event = make_payload(activity)
@@ -133,6 +134,7 @@ class TestEmbargoProposalLifecycle:
             actor="https://example.org/users/vendor",
             object_=embargo,
             context=case,
+            to=["https://test.example/api/v2/actors/test-actor"],
         )
         event = make_payload(activity)
 
@@ -1007,9 +1009,14 @@ class TestPxaRejectionAttribution:
         assert [ref_id(r) for r in reject.to or []] == [self.SENDER_ID]
 
     @pytest.mark.spec("EMB-01-002")
-    @pytest.mark.spec("EP-09-010")
+    @pytest.mark.spec("HP-01-005")
     def test_ep_naming_another_invitee_gets_no_er(self, make_payload):
-        """An EP addressed to another actor is refused, and not answered here."""
+        """An EP addressed to another actor is refused at the door, unanswered.
+
+        The receiver is neither the sender nor named in ``to``/``cc``, so
+        no tree runs and EMB-01-002's ER duty — which binds only the
+        addressee — never arises (ADR-0118, #4132).
+        """
         dl = self._dl()
         case_id = f"{self.CASE_ID}/ep-other"
         _, _, proposal = _make_pxa_case(
@@ -1028,7 +1035,9 @@ class TestPxaRejectionAttribution:
         ).execute()
 
         assert result.disposition is HandlerDisposition.REFUSED
-        assert "EP-09-010" in (result.reason or "")
+        reason = result.reason or ""
+        assert "neither the sender nor a recipient" in reason
+        assert self.RECEIVER_ID in reason and self.INVITEE_ID in reason
         assert dl.outbox_list() == []
 
     @pytest.mark.spec("EMB-02-002")
@@ -1047,7 +1056,10 @@ class TestPxaRejectionAttribution:
             to=[self.INVITEE_ID],
         )
         accept = em_accept_embargo_activity(
-            proposal, context=case.id_, actor=self.INVITEE_ID
+            proposal,
+            context=case.id_,
+            actor=self.INVITEE_ID,
+            to=[self.RECEIVER_ID],
         )
 
         event = make_payload(accept, receiving_actor_id=self.RECEIVER_ID)

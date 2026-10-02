@@ -121,13 +121,14 @@ def test_terminate_active_embargo_strict_active_to_exited(
 
     assert result.em_before == EM.ACTIVE
     assert result.em_after == EM.EXITED
-    assert result.pec_reset is True
+    assert result.pec_exited is True
 
     refreshed_owner_participant = cast(
         CaseParticipant, dl.read(owner_participant_id)
     )
     assert (
-        refreshed_owner_participant.embargo_consent_state == PEC.UNBOUND.value
+        refreshed_owner_participant.embargo_consent_state
+        == PEC.UNBOUND_EXITED.value
     )
 
 

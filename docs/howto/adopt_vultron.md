@@ -110,7 +110,7 @@ A Reporter who submits with no terms has accepted the recipient's published defa
 Decide the following before your first invitation arrives, and write the answers next to your policy.
 
 - Who in your organization answers an embargo invitation, and within how many days.
-  An invitation that is not answered by its deadline counts as declined, a rule called the [Pocket Veto](../topics/behavior_logic/use-cases/embargo-lifecycle.md) ([§9.4 Deadlines and the Pocket Veto](../reference/vultron-spec/tracking-models.md#94-deadlines-and-the-pocket-veto)), and a declined participant is in the case without receiving its embargoed content.
+  An invitation that is not answered by its deadline expires, a rule called the [Pocket Veto](../topics/behavior_logic/use-cases/embargo-lifecycle.md) ([§9.4 Deadlines and the Pocket Veto](../reference/vultron-spec/tracking-models.md#94-deadlines-and-the-pocket-veto)), and an expired or declined participant is in the case without receiving its embargoed content.
 - Whom you will propose adding to an embargoed case, and whom you will not.
   [Adding Participants to an Embargoed Case](../topics/process_models/em/working_with_others.md) gives the protocol's guidance on who belongs and when to bring them in.
 - What you do when an embargo ends early.

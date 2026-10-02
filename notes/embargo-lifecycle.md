@@ -50,7 +50,7 @@ relevant_packages:
   - vultron/core/behaviors/embargo/nodes/manager_commit.py
   - vultron/core/models/pending_assertion.py
   - vultron/core/use_cases/triggers/embargo.py
-  - vultron/core/use_cases/received/embargo.py
+  - vultron/core/use_cases/received/embargo/
   - vultron/bt/embargo_management
 ---
 
@@ -71,7 +71,8 @@ The embargo lifecycle involves three interacting state machines:
    `NONE → PROPOSED → ACTIVE ↔ REVISE → EXITED`
 2. **PEC** (`vultron/core/states/participant_embargo_consent.py`) — the
    per-participant consent state, over `UNBOUND`, `INVITED`, `SIGNATORY`,
-   `LAPSED`, `DECLINED`. `UNBOUND` means *the participant is not bound by any
+   `LAPSED`, `DECLINED`, `EXPIRED` and the terminal `UNBOUND_EXITED`
+   (ADR-0118). `UNBOUND` means *the participant is not bound by any
    embargo terms*, so `ACCEPT`/`DECLINE` are valid directly from it — consent
    is not always mediated by an invitation (ADR-0048, ADR-0091, CM-18-003). See
    `notes/participant-embargo-consent.md` for the full transition table and
@@ -208,7 +209,7 @@ enforces EMB-01-002, EMB-02-002, and EMB-04-002 via
 - `reject_embargo_invite()` — raises when EM is REVISE and P/X/A is set (caller
   MUST use `terminate_active_embargo()` instead)
 
-The received-side path (`received/embargo.py`) reaches `EmbargoLifecycle`
+The received-side path (`received/embargo/`) reaches `EmbargoLifecycle`
 through nodes: the received Accept runs `accept_embargo_invite(OBSERVED)`
 (`RecordParticipantAcceptanceNode`), the received Reject records consent through
 `record_embargo_rejection` (`RecordParticipantRejectionNode`) and decides the
@@ -246,6 +247,18 @@ later P/X/A never contradicts an earlier answer. "Already stored" is not that
 signal: FastAPI ingress stores the Invite before dispatch. The refusal itself
 records no decision, so a repeated refusal answers twice (#4140). Moving this
 refusal into the receive tree is #3872.
+
+**A participant answers a revision on a P/X/A case with ER, never ET**
+(EMB-03-003, EMB-01-002, ADR-0118). This is the one statement of the rule. A
+participant that is neither the case owner nor the CASE_MANAGER and receives a
+revision Invite when P/X/A is set sends ER to the CASE_MANAGER and changes no EM
+state. Termination belongs to the owner, or to the CASE_MANAGER when delegated
+(EP-09-003, EP-09-008, CM-24); a participant emitting ET would write shared EM
+state it does not own. The ER duty binds only the addressee: every received
+embargo use case first runs the door check `unaddressed_copy_refusal()`
+(`vultron/core/use_cases/_helpers.py`), which refuses (HP-01-005), before any
+write, an activity whose receiver is neither its sender nor in its `to`/`cc`, so
+an unaddressed copy is answered by nobody.
 
 **Auto-terminate on publication** (CS.P/X/A event): the live receive path is
 `ThreatTerminationBranchNode` (`status/nodes/threat_termination.py`), under the
@@ -296,8 +309,10 @@ When implementing any code that transitions embargo state:
    consent to the proposed id. The owner path of `accept_embargo_invite()`
    re-evaluates consent when it replaces the active embargo: signatories who
    have not accepted *longer* terms lapse, and a *shorter* replacement carries
-   everyone over (MSM-07-005). `terminate_active_embargo()` resets all PEC to
-   `UNBOUND`. Callers do not need to do this manually.
+   everyone over (MSM-07-005). `terminate_active_embargo()` moves all PEC to
+   the terminal `UNBOUND_EXITED` (`EXIT`, MSM-07-006); an unanswered invite
+   past its deadline moves `INVITED → EXPIRED` (`EXPIRE`, CM-28-004). Callers do
+   not need to do this manually.
 5. **OBSERVED mode** (received-side): pass
    `transition_mode=TransitionMode.OBSERVED` to sync local state with a remote
    assertion. EM transition guards are bypassed in OBSERVED mode; the PEC
@@ -445,19 +460,20 @@ do about it? The answer, in order:
    case, consent or deadline state; consent moves when the CASE_MANAGER commits
    the answer (EP-09-003). The invitee is the sole `to` recipient; anything else
    is refused as a misrouting (EP-09-010). A revision Invite to a `SIGNATORY`
-   changes no consent state — `INVITE` is legal only from UNBOUND/LAPSED/DECLINED
-   (EP-09-004), so the receive tree must never apply it unconditionally.
+   changes no consent state — `INVITE` is legal only from
+   UNBOUND/LAPSED/DECLINED/EXPIRED (EP-09-004), so the receive tree must never
+   apply it unconditionally.
 5. The owner's answer is consent *and* decision: `Accept` activates
    (`PROPOSED → ACTIVE`, or `REVISE → ACTIVE` with the EP-05-001 cascade),
    `Reject` clears a first proposal or keeps the prior terms. The owner MAY
    decide without waiting (EP-09-005) and SHOULD wait for some answers to gauge
    consensus (EP-09-006); no quorum or vote is defined — that is actor policy,
    a call-out point.
-6. Only the CASE_MANAGER evaluates lapse; the lapse entry is role-gated and
+6. Only the CASE_MANAGER evaluates invite expiry; the expiry entry is role-gated and
    replayed (CM-28-014). Replay nodes reconstruct the proposal, each relayed
    Invite, each answer and the owner's decision via `EmbargoLifecycle(OBSERVED)`
    (EP-09-007, RSH-08-004, built in #3915), which is what made the
-   participant-side Invite tree gateable; the lapse replay is #3961's. The
+   participant-side Invite tree gateable; the expiry replay is #3961's. The
    slot table is in `notes/case-communication-model.md` § "What the
    participant and its replica do".
 

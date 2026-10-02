@@ -2,26 +2,33 @@
 """Participant Embargo Consent (PEC) state machine.
 
 Tracks each case participant's consent status with respect to an active or
-proposed embargo.  The five-state machine is independent of the shared case-
+proposed embargo.  The seven-state machine is independent of the shared case-
 level EM machine: the shared EM machine describes the coordinator's view of
 the embargo lifecycle; PEC describes each individual participant's position.
 
 States
 ------
-UNBOUND     – This participant is not bound by any embargo terms.
-INVITED     – Participant has been invited but has not yet responded.
-SIGNATORY   – Participant has accepted the current embargo terms.
-LAPSED      – Embargo terms changed (REVISE); participant's prior consent no
-              longer covers the revision.
-DECLINED    – Participant explicitly declined (current invite or lapsed terms).
+UNBOUND        – Initial.  This participant is not bound by any embargo terms.
+INVITED        – Participant has been invited but has not yet responded.
+SIGNATORY      – Participant has accepted the current embargo terms.
+LAPSED         – Was SIGNATORY; the owner activated longer terms this
+                 participant has not accepted (ADR-0093).
+DECLINED       – Participant explicitly refused (a Reject of the Invite, or a
+                 consent withdrawal).
+EXPIRED        – Participant was invited and the RSVP deadline passed with no
+                 answer (ADR-0118).  Not a refusal.
+UNBOUND_EXITED – Terminal.  The embargo terminated (EM EXITED); nothing leaves
+                 this state (ADR-0118).
 
 Transitions
 -----------
-INVITE  : UNBOUND | LAPSED | DECLINED → INVITED
-ACCEPT  : UNBOUND | INVITED | LAPSED → SIGNATORY
-DECLINE : UNBOUND | INVITED | LAPSED | SIGNATORY → DECLINED
+INVITE  : UNBOUND | LAPSED | DECLINED | EXPIRED → INVITED
+ACCEPT  : UNBOUND | INVITED | LAPSED | EXPIRED → SIGNATORY
+DECLINE : UNBOUND | INVITED | LAPSED | SIGNATORY | EXPIRED → DECLINED
 REVISE  : SIGNATORY → LAPSED
-RESET   : * → UNBOUND  (embargo terminated or removed)
+EXPIRE  : INVITED → EXPIRED  (RSVP deadline passed, CM-28-014)
+EXIT    : every state except UNBOUND_EXITED → UNBOUND_EXITED
+          (embargo terminated, MSM-07-006)
 
 ``UNBOUND`` means *not bound by any embargo terms* (ADR-0048, ADR-0091).
 ``ACCEPT`` and ``DECLINE`` are therefore valid directly from ``UNBOUND``
@@ -56,6 +63,8 @@ class PEC(StrEnum):
     SIGNATORY = "SIGNATORY"
     DECLINED = "DECLINED"
     LAPSED = "LAPSED"
+    EXPIRED = "EXPIRED"
+    UNBOUND_EXITED = "UNBOUND_EXITED"
 
 
 class PEC_Trigger(StrEnum):
@@ -66,60 +75,64 @@ class PEC_Trigger(StrEnum):
     ACCEPT = auto()
     DECLINE = auto()
     REVISE = auto()
-    RESET = auto()
+    EXPIRE = auto()
+    EXIT = auto()
 
 
 class PECTransition(TransitionBase):
     trigger: PEC_Trigger
-    # source accepts PEC enum members or the wildcard string "*"
-    source: PEC | str
+    source: PEC
     dest: PEC
 
 
+#: The one terminal state: no transition leaves it (ADR-0118).
+PEC_TERMINAL_STATES: frozenset[PEC] = frozenset({PEC.UNBOUND_EXITED})
+
+
+def _pec(trigger: PEC_Trigger, source: PEC, dest: PEC) -> dict:
+    return PECTransition(
+        trigger=trigger, source=source, dest=dest
+    ).model_dump()
+
+
 _transitions: list[dict] = [
-    # INVITE transitions
-    PECTransition(
-        trigger=PEC_Trigger.INVITE, source=PEC.UNBOUND, dest=PEC.INVITED
-    ).model_dump(),
-    PECTransition(
-        trigger=PEC_Trigger.INVITE, source=PEC.LAPSED, dest=PEC.INVITED
-    ).model_dump(),
-    PECTransition(
-        trigger=PEC_Trigger.INVITE, source=PEC.DECLINED, dest=PEC.INVITED
-    ).model_dump(),
-    # ACCEPT transitions (ADR-0048: UNBOUND is absence-of-embargo, not pre-consent)
-    PECTransition(
-        trigger=PEC_Trigger.ACCEPT, source=PEC.UNBOUND, dest=PEC.SIGNATORY
-    ).model_dump(),
-    PECTransition(
-        trigger=PEC_Trigger.ACCEPT, source=PEC.INVITED, dest=PEC.SIGNATORY
-    ).model_dump(),
-    PECTransition(
-        trigger=PEC_Trigger.ACCEPT, source=PEC.LAPSED, dest=PEC.SIGNATORY
-    ).model_dump(),
+    # INVITE transitions; EXPIRED is re-invitable like DECLINED (EMB-17-003)
+    *(
+        _pec(PEC_Trigger.INVITE, source, PEC.INVITED)
+        for source in (PEC.UNBOUND, PEC.LAPSED, PEC.DECLINED, PEC.EXPIRED)
+    ),
+    # ACCEPT transitions (ADR-0048: UNBOUND is absence-of-embargo, not
+    # pre-consent; ADR-0118: a late Accept the CASE_MANAGER honours moves an
+    # EXPIRED participant straight to SIGNATORY, EMB-17-002)
+    *(
+        _pec(PEC_Trigger.ACCEPT, source, PEC.SIGNATORY)
+        for source in (PEC.UNBOUND, PEC.INVITED, PEC.LAPSED, PEC.EXPIRED)
+    ),
     # DECLINE transitions (ADR-0048: symmetric with ACCEPT from UNBOUND;
-    # ADR-0093: SIGNATORY → DECLINED is consent withdrawal, not a lapse)
-    PECTransition(
-        trigger=PEC_Trigger.DECLINE, source=PEC.UNBOUND, dest=PEC.DECLINED
-    ).model_dump(),
-    PECTransition(
-        trigger=PEC_Trigger.DECLINE, source=PEC.INVITED, dest=PEC.DECLINED
-    ).model_dump(),
-    PECTransition(
-        trigger=PEC_Trigger.DECLINE, source=PEC.LAPSED, dest=PEC.DECLINED
-    ).model_dump(),
-    # ADR-0093: volitional consent withdrawal — SIGNATORY may explicitly decline
-    PECTransition(
-        trigger=PEC_Trigger.DECLINE, source=PEC.SIGNATORY, dest=PEC.DECLINED
-    ).model_dump(),
-    # REVISE: an active signatory lapses when embargo terms change
-    PECTransition(
-        trigger=PEC_Trigger.REVISE, source=PEC.SIGNATORY, dest=PEC.LAPSED
-    ).model_dump(),
-    # RESET: embargo terminated or removed — all participants revert to UNBOUND
-    PECTransition(
-        trigger=PEC_Trigger.RESET, source="*", dest=PEC.UNBOUND
-    ).model_dump(),
+    # ADR-0093: SIGNATORY → DECLINED is consent withdrawal, not a lapse;
+    # ADR-0118: a late explicit Reject records DECLINED over EXPIRED)
+    *(
+        _pec(PEC_Trigger.DECLINE, source, PEC.DECLINED)
+        for source in (
+            PEC.UNBOUND,
+            PEC.INVITED,
+            PEC.LAPSED,
+            PEC.SIGNATORY,
+            PEC.EXPIRED,
+        )
+    ),
+    # REVISE: an active signatory lapses when the owner activates longer terms
+    _pec(PEC_Trigger.REVISE, PEC.SIGNATORY, PEC.LAPSED),
+    # EXPIRE: the RSVP deadline passed with no answer — not a refusal
+    # (ADR-0118, CM-28-014).  DECLINE is never the timer path.
+    _pec(PEC_Trigger.EXPIRE, PEC.INVITED, PEC.EXPIRED),
+    # EXIT: the embargo terminated (EM EXITED) — every non-terminal state
+    # moves to the terminal UNBOUND_EXITED, and nothing leaves it (ADR-0118)
+    *(
+        _pec(PEC_Trigger.EXIT, source, PEC.UNBOUND_EXITED)
+        for source in PEC
+        if source not in PEC_TERMINAL_STATES
+    ),
 ]
 
 
