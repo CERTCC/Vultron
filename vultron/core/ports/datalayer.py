@@ -100,6 +100,19 @@ class DataLayer(Protocol):
 
     def save(self, obj: PersistableModel) -> None: ...
 
+    def save_if_unchanged(
+        self, obj: PersistableModel, expected: PersistableModel
+    ) -> bool:
+        """Compare-and-set: replace ``obj.id_``'s record only if unchanged.
+
+        Writes *obj* and returns ``True`` only when the stored record still
+        equals *expected* (the record as the caller read it) at the moment of
+        the write; otherwise writes nothing and returns ``False``.  A caller
+        doing read-modify-write uses this instead of :meth:`save` so a
+        concurrent writer's update is never silently overwritten (#4102).
+        """
+        ...
+
     def save_many(self, objs: list[PersistableModel]) -> None: ...
 
     def hydrate(self, obj: PersistableModel) -> PersistableModel: ...
