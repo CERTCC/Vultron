@@ -31,6 +31,7 @@ from vultron.core.use_cases.received.note import (
     CreateNoteReceivedUseCase,
     RemoveNoteFromCaseReceivedUseCase,
 )
+from vultron.errors import VultronBTInternalError
 from vultron.wire.as2.factories import add_note_to_case_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Create,
@@ -624,15 +625,16 @@ class TestNoteUseCases:
 
     @pytest.mark.spec("SYNC-02-002")
     @pytest.mark.spec("BT-14-001")
-    def test_add_note_without_sync_port_is_refused_as_wiring_fault(
+    def test_add_note_without_sync_port_raises_as_wiring_fault(
         self, make_payload
     ):
         """A missing sync_port fails the commit instead of skipping fan-out.
 
         ``RequireSyncPortNode`` raises ``VultronWiringError`` before the entry
-        is minted (#4113).  The nested commit tree reports it to ``CommitCaseLedgerEntryNode``, which turns
-        it into FAILURE, so the use case refuses and the note is not attached.
-        Nothing is announced to participants.
+        is minted (#4113).  ``CommitCaseLedgerEntryNode`` carries the nested
+        bridge's ``internal_error`` across the hop, so the handler raises
+        ``VultronBTInternalError`` rather than reporting the sender as refused
+        (ADR-0095).  The note is not attached and nothing is announced.
         """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
@@ -694,12 +696,14 @@ class TestNoteUseCases:
         event = make_payload(activity, receiving_actor_id=case_actor_id)
 
         # No sync_port — the commit's fan-out is a wiring fault.
-        result = AddNoteToCaseReceivedUseCase(
-            dl, event, sync_port=None, wire_render_port=As2WireRenderAdapter()
-        ).execute()
+        with pytest.raises(VultronBTInternalError, match="sync_port"):
+            AddNoteToCaseReceivedUseCase(
+                dl,
+                event,
+                sync_port=None,
+                wire_render_port=As2WireRenderAdapter(),
+            ).execute()
 
-        assert result.disposition == HandlerDisposition.REFUSED
-        assert "CommitCaseLedgerEntryNode" in (result.reason or "")
         stored_case = cast(as_VulnerabilityCase, dl.read(case_id))
         assert stored_case is not None
         assert note.id_ not in stored_case.notes

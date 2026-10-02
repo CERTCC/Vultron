@@ -58,9 +58,9 @@ class InviteActorToCaseReceivedUseCase:
     A redelivered Invite that intake finds already archived is the benign
     no-op, ``SKIPPED`` (HP-01-003).
 
-    The ``sync_port`` kwarg is injected when ``INVITE_ACTOR_TO_CASE`` is in
-    ``_SYNC_PORT_SEMANTICS`` so ``CommitCaseLedgerEntryNode`` can fan out
-    via ``sync_port`` (SYNC-02-002).
+    The ``sync_port`` kwarg is injected for every received use case by
+    ``with_received_baseline_ports`` so ``CommitCaseLedgerEntryNode`` can fan
+    out via ``sync_port`` (SYNC-02-002, #4113).
     """
 
     def __init__(

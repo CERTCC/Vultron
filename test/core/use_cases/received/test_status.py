@@ -35,6 +35,7 @@ from vultron.core.use_cases.received.status import (
     CreateCaseStatusReceivedUseCase,
     CreateParticipantStatusReceivedUseCase,
 )
+from vultron.errors import VultronBTInternalError
 from vultron.wire.as2.factories import (
     add_status_to_case_activity,
     add_status_to_participant_activity,
@@ -799,15 +800,16 @@ class TestParticipantStatusLogEntryCascade:
 
     @pytest.mark.spec("SYNC-02-002")
     @pytest.mark.spec("BT-14-001")
-    def test_status_without_sync_port_is_refused_as_wiring_fault(
+    def test_status_without_sync_port_raises_as_wiring_fault(
         self, make_payload
     ):
         """A missing sync_port fails the commit instead of skipping fan-out.
 
         ``RequireSyncPortNode`` raises ``VultronWiringError`` before the entry
-        is minted (#4113).  The nested commit tree reports it to ``CommitCaseLedgerEntryNode``, which turns
-        it into FAILURE, so the use case refuses and the status is not
-        attached.  Nothing is announced to participants.
+        is minted (#4113).  ``CommitCaseLedgerEntryNode`` carries the nested
+        bridge's ``internal_error`` across the hop, so the handler raises
+        ``VultronBTInternalError`` rather than reporting the sender as refused
+        (ADR-0095).  The status is not attached and nothing is announced.
         """
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             as_VulnerabilityCase,
@@ -828,15 +830,14 @@ class TestParticipantStatusLogEntryCascade:
             context=case,
         )
         event = make_payload(activity, receiving_actor_id=case_actor_id)
-        result = AddParticipantStatusToParticipantReceivedUseCase(
-            dl,
-            event,
-            sync_port=None,
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        with pytest.raises(VultronBTInternalError, match="sync_port"):
+            AddParticipantStatusToParticipantReceivedUseCase(
+                dl,
+                event,
+                sync_port=None,
+                wire_render_port=As2WireRenderAdapter(),
+            ).execute()
 
-        assert result.disposition == HandlerDisposition.REFUSED
-        assert "CommitCaseLedgerEntryNode" in (result.reason or "")
         stored = dl.read(participant.id_)
         assert stored is not None
         assert pstatus.id_ not in [

@@ -384,10 +384,12 @@ and still reports success masks a delivery failure (BT-14-001).
   `MagicMock(spec=SyncActivityPort)` where the test is not about fan-out.
   `BTTestScenario` injects the real adapter.
 
-When the port is missing inside a nested commit, the outer node catches the
-wiring fault and the verdict is `REFUSED`, not `internal_error`. See
-[bt-pitfalls.md](bt-pitfalls.md) § "…And That Idiom Is Why `internal_error`
-Cannot See a Nested Crash".
+When the port is missing inside a nested commit, `CommitCaseLedgerEntryNode`
+re-raises the nested bridge's `internal_error` as `VultronBTInternalError`. The
+outer bridge flags it too, so the received handler raises instead of reporting
+the sender as `REFUSED` (ADR-0095). This is the one nested-bridge site that
+carries the flag across the hop. See [bt-pitfalls.md](bt-pitfalls.md) §
+"…And That Idiom Is Why `internal_error` Cannot See a Nested Crash".
 
 ---
 
@@ -660,9 +662,9 @@ the chain — no need to wait for the genesis ledger entry to be re-delivered.
   reconstructed tail is `(genesis_hash, -1)`, so a buffered genesis entry
   (`prev_log_hash == genesis_hash`) drains first and the rest cascade in
   hash-chain order, reusing the exact effects-before-persist path (SYNC-12-001).
-- `ANNOUNCE_VULNERABILITY_CASE` was added to `_SYNC_PORT_SEMANTICS` so the seed
-  use case receives the `sync_port` the drain needs to send a Reject on any
-  residual mismatch.
+- The seed use case receives the `sync_port` the drain needs to send a Reject
+  on any residual mismatch. It first came from a per-semantic set; since #4113
+  `with_received_baseline_ports()` gives every received use case the port.
 
 Spec: SYNC-15-004 (buffer pre-genesis), SYNC-15-005 (drain on seed).
 ADR: `docs/adr/0059-buffer-pre-genesis-ledger-entries.md`. Regression tests:

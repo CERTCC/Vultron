@@ -44,20 +44,12 @@ from vultron.adapters.driving.fastapi.inbox_pending_queue import (
 )
 from vultron.adapters.driving.fastapi.inbox_port_factories import (
     _CASE_PROPOSAL_SEMANTICS,
-    _CLOSE_CASE_SEMANTICS,
-    _STATUS_AUTH_SYNC_TRIGGER_SEMANTICS,
     _STATUS_AUTH_TRIGGER_SEMANTICS,
     _SUBMIT_REPORT_SEMANTICS,
-    _SYNC_AND_TRIGGER_PORT_SEMANTICS,
-    _SYNC_PORT_SEMANTICS,
     _TRIGGER_ACTIVITY_PORT_SEMANTICS,
     _case_proposal_port_factory,
-    _close_case_port_factory,
-    _status_auth_sync_trigger_port_factory,
     _status_auth_trigger_port_factory,
     _submit_report_port_factory,
-    _sync_and_trigger_port_factory,
-    _sync_port_factory,
     _trigger_activity_port_factory,
 )
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
@@ -127,14 +119,10 @@ def make_dispatcher() -> ActivityDispatcher:
     # would cause a silent dict.update() overwrite — exactly the class of bug
     # that #628 introduced — so fail fast with an actionable message.
     _all_sets = (
-        _SYNC_PORT_SEMANTICS,
         _TRIGGER_ACTIVITY_PORT_SEMANTICS,
-        _SYNC_AND_TRIGGER_PORT_SEMANTICS,
         _SUBMIT_REPORT_SEMANTICS,
         _CASE_PROPOSAL_SEMANTICS,
-        _CLOSE_CASE_SEMANTICS,
         _STATUS_AUTH_TRIGGER_SEMANTICS,
-        _STATUS_AUTH_SYNC_TRIGGER_SEMANTICS,
     )
     for i, left in enumerate(_all_sets):
         for right in _all_sets[i + 1 :]:
@@ -143,26 +131,14 @@ def make_dispatcher() -> ActivityDispatcher:
                 raise AssertionError(
                     f"Port-semantics sets overlap: {overlap!r}. "
                     "Each semantic must appear in exactly one set. "
-                    "For sync+trigger semantics use _SYNC_AND_TRIGGER_PORT_SEMANTICS; "
-                    "for semantics that also need extra ports (e.g. actor_config) "
+                    "For semantics that need extra ports (e.g. actor_config) "
                     "create a dedicated set+factory pair like _SUBMIT_REPORT_SEMANTICS."
                 )
 
     port_factories: dict = {
-        sem: _sync_port_factory for sem in _SYNC_PORT_SEMANTICS
+        sem: _trigger_activity_port_factory
+        for sem in _TRIGGER_ACTIVITY_PORT_SEMANTICS
     }
-    port_factories.update(
-        {
-            sem: _trigger_activity_port_factory
-            for sem in _TRIGGER_ACTIVITY_PORT_SEMANTICS
-        }
-    )
-    port_factories.update(
-        {
-            sem: _sync_and_trigger_port_factory
-            for sem in _SYNC_AND_TRIGGER_PORT_SEMANTICS
-        }
-    )
     port_factories.update(
         {sem: _submit_report_port_factory for sem in _SUBMIT_REPORT_SEMANTICS}
     )
@@ -170,18 +146,9 @@ def make_dispatcher() -> ActivityDispatcher:
         {sem: _case_proposal_port_factory for sem in _CASE_PROPOSAL_SEMANTICS}
     )
     port_factories.update(
-        {sem: _close_case_port_factory for sem in _CLOSE_CASE_SEMANTICS}
-    )
-    port_factories.update(
         {
             sem: _status_auth_trigger_port_factory
             for sem in _STATUS_AUTH_TRIGGER_SEMANTICS
-        }
-    )
-    port_factories.update(
-        {
-            sem: _status_auth_sync_trigger_port_factory
-            for sem in _STATUS_AUTH_SYNC_TRIGGER_SEMANTICS
         }
     )
     # Every received use case gets a WireRenderPort and a SyncActivityPort, on

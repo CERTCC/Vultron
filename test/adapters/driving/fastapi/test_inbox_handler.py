@@ -316,9 +316,9 @@ def test_make_dispatcher_overlapping_semantics_raises(monkeypatch):
     """
     from vultron.core.models.events import MessageSemantics
 
-    # Inject an artificial overlap: put one sync-only semantic into the
+    # Inject an artificial overlap: put the submit-report semantic into the
     # trigger set as well.
-    overlapping = frozenset({MessageSemantics.ADD_NOTE_TO_CASE})
+    overlapping = frozenset({MessageSemantics.SUBMIT_REPORT})
     monkeypatch.setattr(ih, "_TRIGGER_ACTIVITY_PORT_SEMANTICS", overlapping)
 
     with pytest.raises(AssertionError, match="overlap"):
@@ -738,8 +738,9 @@ def test_submit_report_port_factory_injects_actor_config(monkeypatch):
     assert "actor_config" in kwargs, "factory must include actor_config"
     assert isinstance(kwargs["actor_config"], ActorConfig)
     assert kwargs["actor_config"].auto_create_case is False
-    assert "sync_port" in kwargs
-    assert "trigger_activity" in kwargs
+    # The sync and wire-render ports come only from the received baseline
+    # (with_received_baseline_ports, #4113), never from this factory.
+    assert set(kwargs) == {"actor_config", "trigger_activity"}
 
 
 def test_submit_report_port_factory_omits_actor_config_when_unavailable(
@@ -748,7 +749,7 @@ def test_submit_report_port_factory_omits_actor_config_when_unavailable(
     """_submit_report_port_factory omits actor_config when SeedConfig fails.
 
     When SeedConfig cannot be loaded (e.g. env vars absent), the factory
-    must still return sync_port + trigger_activity and must NOT include an
+    must still return trigger_activity and must NOT include an
     ``actor_config`` key — so the use case falls back to always-create (CM-15-001).
     """
     import vultron.adapters.driving.fastapi.inbox_port_factories as pf
@@ -761,17 +762,15 @@ def test_submit_report_port_factory_omits_actor_config_when_unavailable(
     )
     kwargs = pf._submit_report_port_factory(real_dl)
 
-    assert "actor_config" not in kwargs
-    assert "sync_port" in kwargs
-    assert "trigger_activity" in kwargs
+    assert set(kwargs) == {"trigger_activity"}
 
 
 def test_make_dispatcher_submit_report_uses_actor_config_factory(monkeypatch):
     """make_dispatcher() must register _submit_report_port_factory for SUBMIT_REPORT.
 
-    SUBMIT_REPORT was moved out of _SYNC_AND_TRIGGER_PORT_SEMANTICS to
-    _SUBMIT_REPORT_SEMANTICS (issue #1319), so it must be wired to the
-    factory that also injects actor_config.
+    SUBMIT_REPORT has its own set, _SUBMIT_REPORT_SEMANTICS (issue #1319), so
+    it is wired to the factory that also injects actor_config.  The sync port
+    comes from the received baseline every semantic gets (#4113).
     """
     import vultron.adapters.driving.fastapi.inbox_port_factories as pf
     from vultron.adapters.driven.sync_activity_adapter import (
@@ -815,11 +814,11 @@ def test_make_dispatcher_submit_report_uses_actor_config_factory(monkeypatch):
 
 
 def test_make_dispatcher_close_case_gets_wire_render_port(monkeypatch):
-    """make_dispatcher() must wire CLOSE_CASE to a factory supplying all three ports.
+    """make_dispatcher() must give CLOSE_CASE all three ports.
 
-    CLOSE_CASE was moved out of ``_SYNC_AND_TRIGGER_PORT_SEMANTICS`` into
-    ``_CLOSE_CASE_SEMANTICS`` so it also receives a ``WireRenderPort``.  Without
-    that port, ``CommitCaseActorRMClosedEntryNode`` cannot render the
+    The trigger port comes from ``_TRIGGER_ACTIVITY_PORT_SEMANTICS``; the sync
+    and wire-render ports come from the received baseline (#4113).  Without
+    the ``WireRenderPort``, ``CommitCaseActorRMClosedEntryNode`` cannot render the
     CASE_MANAGER's own ``RM.CLOSED`` snapshot and hard-fails, which would abort
     the owner-Leave path before ``case_fully_closed`` is committed.  This guards
     the wiring rather than the node, because a lost registration is silent at
@@ -939,23 +938,20 @@ def test_make_dispatcher_gives_every_semantic_a_sync_port(monkeypatch):
 
 
 def test_case_proposal_port_factory_injects_actor_config(monkeypatch):
-    """_case_proposal_port_factory returns actor_config and both ports.
+    """_case_proposal_port_factory returns actor_config, its port and call-out.
 
     ``CreateCaseProposalReceivedUseCase`` needs ``default_case_roles`` so the
     CaseActor grants the proposing actor its real roles alongside CASE_OWNER
-    (CFG-07-002, CFG-07-004), ``wire_render_port`` so ledger entries are
-    rendered via the wire adapter (issue #2287), ``trigger_activity`` so the
-    admission decline path can emit Reject(as_CaseProposal) (CP-05-004), and
-    ``call_out`` as the admission-policy injection point (CP-05-002).
+    (CFG-07-002, CFG-07-004), ``trigger_activity`` so the admission decline
+    path can emit Reject(as_CaseProposal) (CP-05-004), and ``call_out`` as the
+    admission-policy injection point (CP-05-002).  ``wire_render_port`` and
+    ``sync_port`` come only from the received baseline (#4113), so this
+    factory must not name them.
     """
     import vultron.adapters.driving.fastapi.inbox_port_factories as pf
-    from vultron.adapters.driven.sync_activity_adapter import (
-        SyncActivityAdapter,
-    )
     from vultron.adapters.driven.trigger_activity_adapter import (
         TriggerActivityAdapter,
     )
-    from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
     from vultron.config.actor import ActorConfig
     from vultron.core.behaviors.call_out.bundles.case_proposal import (
         CASE_PROPOSAL_DETERMINISTIC,
@@ -973,37 +969,24 @@ def test_case_proposal_port_factory_injects_actor_config(monkeypatch):
     )
 
     assert kwargs["actor_config"] == fake
-    assert isinstance(kwargs["wire_render_port"], As2WireRenderAdapter)
     assert isinstance(kwargs["trigger_activity"], TriggerActivityAdapter)
     assert kwargs["call_out"] is CASE_PROPOSAL_DETERMINISTIC
-    assert isinstance(kwargs["sync_port"], SyncActivityAdapter)
-    assert set(kwargs) == {
-        "actor_config",
-        "wire_render_port",
-        "trigger_activity",
-        "call_out",
-        "sync_port",
-    }
+    assert set(kwargs) == {"actor_config", "trigger_activity", "call_out"}
 
 
 def test_case_proposal_port_factory_omits_actor_config_when_unavailable(
     monkeypatch,
 ):
-    """The factory drops actor_config, keeping the ports, when config load fails.
+    """The factory drops actor_config, keeping the port, when config load fails.
 
-    The owner gets CASE_OWNER only (no inherited role guess) but ledger
-    entries are still rendered via the wire adapter (issue #2287), and the
-    decline path can still emit Reject(as_CaseProposal) (CP-05-004) under the
-    default admission policy.
+    The owner gets CASE_OWNER only (no inherited role guess), and the decline
+    path can still emit Reject(as_CaseProposal) (CP-05-004) under the default
+    admission policy.
     """
     import vultron.adapters.driving.fastapi.inbox_port_factories as pf
-    from vultron.adapters.driven.sync_activity_adapter import (
-        SyncActivityAdapter,
-    )
     from vultron.adapters.driven.trigger_activity_adapter import (
         TriggerActivityAdapter,
     )
-    from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
     from vultron.core.behaviors.call_out.bundles.case_proposal import (
         CASE_PROPOSAL_DETERMINISTIC,
     )
@@ -1017,16 +1000,9 @@ def test_case_proposal_port_factory_omits_actor_config_when_unavailable(
         )
     )
 
-    assert isinstance(kwargs["wire_render_port"], As2WireRenderAdapter)
     assert isinstance(kwargs["trigger_activity"], TriggerActivityAdapter)
     assert kwargs["call_out"] is CASE_PROPOSAL_DETERMINISTIC
-    assert isinstance(kwargs["sync_port"], SyncActivityAdapter)
-    assert set(kwargs) == {
-        "wire_render_port",
-        "trigger_activity",
-        "call_out",
-        "sync_port",
-    }
+    assert set(kwargs) == {"trigger_activity", "call_out"}
 
 
 def test_make_dispatcher_case_proposal_uses_actor_config_factory(monkeypatch):

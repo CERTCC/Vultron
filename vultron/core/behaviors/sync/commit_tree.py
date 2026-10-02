@@ -44,7 +44,9 @@ def create_commit_log_entry_tree(
     a store that would mint needs ``/sync_port`` to announce the entry
     (SYNC-02-003), and refusing before anything is persisted keeps the ledger
     free of entries no replica receives (#4113).  The raise surfaces as
-    ``internal_error`` on the bridge running this tree.
+    ``internal_error`` on the bridge running this tree, and
+    ``CommitCaseLedgerEntryNode`` carries it to the outer bridge, so a received
+    handler raises rather than reporting a refusal (ADR-0095).
     """
     return py_trees.composites.Selector(
         name="CommitLogEntryBT",

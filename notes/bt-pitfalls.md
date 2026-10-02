@@ -626,15 +626,19 @@ occurred", because the pattern immediately above defeats it twice over:
   calling node's *own* `except Exception` in `update()` and converted to
   `Status.FAILURE`. So the outer bridge sees an ordinary failure and the flag
   stays `False` — verified at `case/nodes/actor.py`.
-- The nine nodes that run a subtree through their own `BTBridge` discard the
+- Most nodes that run a subtree through their own `BTBridge` discard the
   inner `result.internal_error` and return a bare `Status.FAILURE`
-  (`case/nodes/lifecycle.py`, `case_status_snapshot.py`, and seven more), so
-  a crash inside a subtree is invisible in the outer result.
+  (`case_status_snapshot.py` and several more), so a crash inside a subtree
+  is invisible in the outer result.
 
-Both gaps are uniform across every nested-bridge site — there is no site where
-the flag survives the hop. Propagating it through nested calls is tracked on
-CONCERN-3019; until then, do not branch on `internal_error is False` as
-evidence that a failure was deliberate.
+The exception is `CommitCaseLedgerEntryNode` (`case/nodes/lifecycle.py`). It
+raises `VultronBTInternalError` when its nested commit reports
+`internal_error`, and `BTBridge` classifies that exception as internal. Every
+received commit runs through it, so a missing sync port reaches the handler
+as an internal error, not a refusal (#4113, ADR-0095). Use the same idiom at
+another nested site rather than a new one. Propagating the flag through the
+remaining nested calls is tracked on CONCERN-3019; until then, do not branch
+on `internal_error is False` as evidence that a failure was deliberate.
 
 On the test side the mirror-image rule — a FAILURE assertion must prove the
 harness can produce the reason it names — is in
