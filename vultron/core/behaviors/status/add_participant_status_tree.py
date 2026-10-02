@@ -229,6 +229,7 @@ def add_participant_status_tree(
                             case_id=tree_case_id,
                             name="ThreatTerminationBranch",
                             use_datalayer_fallback=True,
+                            sender_actor_id=actor_id,
                         ),
                     ],
                 ),

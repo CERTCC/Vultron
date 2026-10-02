@@ -19,7 +19,10 @@ Calls :func:`~vultron.core.states.composite_state_invariants.violation_pxa_em_en
 after :class:`~vultron.core.behaviors.status.nodes.threat_termination.ThreatTerminationBranchNode`
 has had a chance to terminate the embargo.  When the invariant is still
 violated — embargo still active with PXA P/X/A bit set — posts a
-``Add(Note, VulnerabilityCase)`` to the case record.
+``Add(Note, VulnerabilityCase)`` to the case record.  A replica that
+received the CASE_MANAGER's own P/X/A declaration ahead of its teardown
+entry posts nothing (RSH-03-004): that gap is expected, not a violation
+worth reporting.
 
 Per CSB-18-002, CSB-18-003, CSB-18-004. Resolves CONCERN-3008.
 """
@@ -32,6 +35,7 @@ from py_trees.common import Status
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.status.nodes.threat_termination import (
     resolve_pxa_threat_state,
+    teardown_left_to_case_manager,
 )
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
@@ -106,6 +110,20 @@ class PxaEmInvariantDiagnosticNode(DataLayerActionWithPorts):
         em = case.current_status.em.state
         violation = violation_pxa_em_entailment(pxa, em)
         if violation is None:
+            return Status.SUCCESS
+
+        if teardown_left_to_case_manager(
+            case, self.datalayer, self.sender_actor_id, self.actor_id
+        ):
+            # RSH-03-004: the CASE_MANAGER declared this status after its
+            # own teardown, so the violation is only this replica lagging
+            # the committed entry.  Telling the manager is noise.
+            logger.info(
+                "PxaEmInvariantDiagnosticNode: case '%s' awaits the"
+                " CASE_MANAGER's teardown entry (%s); no Note posted",
+                self.case_id,
+                violation,
+            )
             return Status.SUCCESS
 
         logger.warning(

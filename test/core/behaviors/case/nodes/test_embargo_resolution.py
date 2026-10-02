@@ -19,7 +19,9 @@ Drives ``InitializeDefaultEmbargoNode`` end to end, so each assertion is about
 the embargo the case is actually created with, not a blackboard value.
 """
 
+import functools
 import logging
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
@@ -46,11 +48,13 @@ from vultron.core.models._helpers import _as_id, from_now_utc
 from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.core.models.pending_creation_time_revision_relay import (
     PendingCreationTimeRevisionRelay,
 )
+from vultron.core.models.report import VulnerabilityReport
 from vultron.core.services.embargo_duration import (
     EmbargoDurationSource,
     InitialEmbargoDuration,
@@ -58,8 +62,10 @@ from vultron.core.services.embargo_duration import (
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM, EM_Trigger
+from vultron.core.states.participant_embargo_consent import PEC
 from vultron.errors import (
     BtNodePreconditionError,
+    VultronError,
     VultronInvalidStateTransitionError,
     VultronValidationError,
 )
@@ -67,6 +73,7 @@ from vultron.errors import (
 ACTOR_ID = "https://example.org/actors/vendor"
 CASE_ID = "https://example.org/cases/case-resolution"
 REPORT_ID = "https://example.org/reports/report-resolution"
+REPORTER_ID = "https://example.org/actors/reporter"
 
 # Distinct from every default in play, so a pinned duration names its source.
 SENDER_PROPOSAL = timedelta(days=20)
@@ -80,6 +87,15 @@ def case_obj(bt_scenario: BTTestScenario) -> VulnerabilityCase:
     case = VulnerabilityCase(id_=CASE_ID, name="Case", attributed_to=ACTOR_ID)
     seed_case_owner_participant(bt_scenario.dl, case)
     bt_scenario.dl.create(case)
+    # The sender's terms are the reporter's (EP-04-004, #4152).
+    bt_scenario.dl.create(
+        VulnerabilityReport(
+            id_=REPORT_ID,
+            name="Report",
+            content="Report",
+            attributed_to=REPORTER_ID,
+        )
+    )
     return case
 
 
@@ -428,7 +444,7 @@ class TestCaseNotEmbargoEligibleNode:
     ) -> None:
         """An unreadable case is not silently treated as "no embargo"."""
         result = bt_scenario.run(
-            InitializeDefaultEmbargoNode(),
+            InitializeDefaultEmbargoNode(report_id=REPORT_ID),
             actor_id=ACTOR_ID,
             case_id="https://example.org/cases/absent",
         )
@@ -451,7 +467,9 @@ class TestCaseNotEmbargoEligibleNode:
         )
 
         result = bt_scenario.run(
-            InitializeDefaultEmbargoNode(), actor_id=ACTOR_ID, case_id=CASE_ID
+            InitializeDefaultEmbargoNode(report_id=REPORT_ID),
+            actor_id=ACTOR_ID,
+            case_id=CASE_ID,
         )
 
         assert result.status == Status.FAILURE
@@ -560,18 +578,24 @@ def test_a_contest_records_the_relay_without_indexing_it(
 
 
 @pytest.mark.spec("EP-04-011")
-def test_the_relay_is_owed_before_the_revision_is_registered(
+def test_the_relay_is_owed_in_the_commit_that_registers_the_revision(
     bt_scenario: BTTestScenario,
     case_obj: VulnerabilityCase,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A crash inside the registration leaves the obligation behind, never a
-    registered revision with none (#4156).  The relay discharges such an
-    obligation unsent, since its revision never opened."""
+    """The obligation is staged before the registration and committed with
+    it, so a crash inside the registration leaves neither: never a
+    registered revision with no relay owed (#4156), and the case stays at
+    ``EM.NONE`` for a redelivery to finish both (#4142)."""
     owed_at_registration: list[bool] = []
 
-    def _crash(self: EmbargoLifecycle, **_: Any) -> None:
-        owed_at_registration.append(_owed(bt_scenario) is not None)
+    def _crash(self: EmbargoLifecycle, *, case_id: str, **_: Any) -> None:
+        staged = self._persistence.read(
+            PendingCreationTimeRevisionRelay.build_id(case_id)
+        )
+        owed_at_registration.append(
+            isinstance(staged, PendingCreationTimeRevisionRelay)
+        )
         raise RuntimeError("crashed while registering")
 
     monkeypatch.setattr(EmbargoLifecycle, "propose_embargo", _crash)
@@ -584,6 +608,8 @@ def test_the_relay_is_owed_before_the_revision_is_registered(
 
     assert status == Status.FAILURE
     assert owed_at_registration == [True]
+    assert _owed(bt_scenario) is None
+    assert _em_state(bt_scenario) == EM.NONE
     case = bt_scenario.dl.read(CASE_ID)
     assert isinstance(case, VulnerabilityCase)
     assert case.proposed_embargoes == []
@@ -1115,7 +1141,9 @@ class TestCaseEmbargoAlreadyInitializedNode:
         )
 
         result = bt_scenario.run(
-            InitializeDefaultEmbargoNode(), actor_id=ACTOR_ID, case_id=CASE_ID
+            InitializeDefaultEmbargoNode(report_id=REPORT_ID),
+            actor_id=ACTOR_ID,
+            case_id=CASE_ID,
         )
 
         assert result.status == Status.FAILURE
@@ -1181,4 +1209,301 @@ class TestCreationTimeEmbargoIsOneWrite:
         assert _em_state(bt_scenario) == EM.ACTIVE
         _assert_duration(
             _active_embargo(bt_scenario), PROTOCOL_DEFAULT, before, after
+        )
+
+
+def _owner_participant(bt_scenario: BTTestScenario) -> CaseParticipant:
+    case = cast(VulnerabilityCase, bt_scenario.dl.read(CASE_ID))
+    participant = bt_scenario.dl.read(case.actor_participant_index[ACTOR_ID])
+    assert isinstance(participant, CaseParticipant)
+    return participant
+
+
+@pytest.mark.spec("EP-04-002")
+@pytest.mark.spec("EP-04-012")
+class TestCreationTimeEmbargoCommitsItsEffectsWithIt:
+    """Owner seed and revision commit with the activation (#4142).
+
+    A store fault on either write used to come after the case was saved
+    ``ACTIVE``: the owner was left unseeded or the revision unregistered, and
+    the once-per-case guard then refused the rerun that would have finished
+    them.  Now the fault leaves the case at ``EM.NONE`` and the rerun
+    completes every effect.
+    """
+
+    SENDER_EVENT_ID = "https://example.org/embargoes/sender-terms"
+
+    def _fail_writes_of(
+        self,
+        bt_scenario: BTTestScenario,
+        monkeypatch: pytest.MonkeyPatch,
+        faulty: Callable[[Any], bool],
+    ) -> None:
+        """Make every store write that includes a *faulty* object raise.
+
+        ``save_many`` raises before writing anything, as its one transaction
+        rolls back (CM-21-004).
+        """
+        dl = bt_scenario.dl
+        save, save_many, create = dl.save, dl.save_many, dl.create
+
+        def check(objs: list[Any]) -> None:
+            if any(faulty(obj) for obj in objs):
+                raise VultronError("forced store fault")
+
+        def failing_save(obj: Any) -> None:
+            check([obj])
+            save(obj)
+
+        def failing_save_many(objs: list[Any]) -> None:
+            check(objs)
+            save_many(objs)
+
+        def failing_create(obj: Any) -> None:
+            check([obj])
+            create(obj)
+
+        monkeypatch.setattr(dl, "save", failing_save)
+        monkeypatch.setattr(dl, "save_many", failing_save_many)
+        monkeypatch.setattr(dl, "create", failing_create)
+
+    @functools.cached_property
+    def _sender_event(self) -> EmbargoEvent:
+        """The sender's terms, built once so a rerun carries the same ones.
+
+        A second ``from_now_utc`` would give the rerun a different
+        ``end_time``, which the stored twin then refuses (EP-04-004).
+        """
+        return EmbargoEvent(
+            id_=self.SENDER_EVENT_ID,
+            context=REPORT_ID,
+            end_time=from_now_utc(SENDER_PROPOSAL),
+        )
+
+    def _run_contest(self, bt_scenario: BTTestScenario) -> Status:
+        """The sender's shorter terms win; the owner's default is the loser."""
+        status, _, _ = _run(
+            bt_scenario,
+            owner_policy=ACTOR_DEFAULT,
+            sender_proposal=SENDER_PROPOSAL,
+            sender_proposed_embargo=self._sender_event,
+        )
+        return status
+
+    @pytest.mark.spec("CM-14-003")
+    def test_a_failed_owner_seed_leaves_the_case_at_none(
+        self,
+        bt_scenario: BTTestScenario,
+        case_obj: VulnerabilityCase,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        with monkeypatch.context() as patch:
+            self._fail_writes_of(
+                bt_scenario,
+                patch,
+                lambda obj: isinstance(obj, CaseParticipant),
+            )
+            status, _, _ = _run(bt_scenario)
+
+        assert status == Status.FAILURE
+        assert _em_state(bt_scenario) == EM.NONE
+        assert _active_embargo(bt_scenario) is None
+        assert _owner_participant(bt_scenario).accepted_embargo_ids == []
+
+    @pytest.mark.spec("CM-14-003")
+    def test_a_rerun_after_a_failed_owner_seed_seeds_the_owner(
+        self,
+        bt_scenario: BTTestScenario,
+        case_obj: VulnerabilityCase,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        with monkeypatch.context() as patch:
+            self._fail_writes_of(
+                bt_scenario,
+                patch,
+                lambda obj: isinstance(obj, CaseParticipant),
+            )
+            _run(bt_scenario)
+
+        status, _, _ = _run(bt_scenario)
+
+        assert status == Status.SUCCESS
+        active = _active_embargo(bt_scenario)
+        assert active is not None
+        owner = _owner_participant(bt_scenario)
+        assert owner.embargo_consent_state == PEC.SIGNATORY
+        assert owner.accepted_embargo_ids == [active.id_]
+
+    @pytest.mark.spec("EP-04-003")
+    def test_a_failed_revision_write_leaves_the_case_at_none(
+        self,
+        bt_scenario: BTTestScenario,
+        case_obj: VulnerabilityCase,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        with monkeypatch.context() as patch:
+            self._fail_writes_of(
+                bt_scenario,
+                patch,
+                lambda obj: (
+                    isinstance(obj, EmbargoEvent)
+                    and obj.id_ != self.SENDER_EVENT_ID
+                ),
+            )
+            status = self._run_contest(bt_scenario)
+
+        assert status == Status.FAILURE
+        assert _em_state(bt_scenario) == EM.NONE
+        assert _active_embargo(bt_scenario) is None
+        case = cast(VulnerabilityCase, bt_scenario.dl.read(CASE_ID))
+        assert case.proposed_embargoes == []
+        assert _owner_participant(bt_scenario).accepted_embargo_ids == []
+
+    @pytest.mark.spec("EP-04-003")
+    def test_a_rerun_after_a_failed_revision_write_registers_it(
+        self,
+        bt_scenario: BTTestScenario,
+        case_obj: VulnerabilityCase,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        with monkeypatch.context() as patch:
+            self._fail_writes_of(
+                bt_scenario,
+                patch,
+                lambda obj: (
+                    isinstance(obj, EmbargoEvent)
+                    and obj.id_ != self.SENDER_EVENT_ID
+                ),
+            )
+            self._run_contest(bt_scenario)
+
+        status = self._run_contest(bt_scenario)
+
+        assert status == Status.SUCCESS
+        assert _em_state(bt_scenario) == EM.REVISE
+        case = cast(VulnerabilityCase, bt_scenario.dl.read(CASE_ID))
+        assert case.active_embargo_id == self.SENDER_EVENT_ID
+        (revision_id,) = case.proposed_embargoes
+        revision = bt_scenario.dl.read(revision_id)
+        assert isinstance(revision, EmbargoEvent)
+        assert revision.context == CASE_ID
+        # The owner ran the tree, so it is both the seeded signatory of the
+        # active terms and the proposer of the revision (MSM-07-005): one
+        # record carries both, through the one commit.
+        owner = _owner_participant(bt_scenario)
+        assert owner.embargo_consent_state == PEC.SIGNATORY
+        assert set(owner.accepted_embargo_ids) == {
+            self.SENDER_EVENT_ID,
+            revision_id,
+        }
+
+    def test_the_whole_initialization_is_one_store_write(
+        self,
+        bt_scenario: BTTestScenario,
+        case_obj: VulnerabilityCase,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Past the event creation, nothing but one ``save_many`` writes —
+        the relay obligation included (EP-04-011, #4156)."""
+        dl = bt_scenario.dl
+        save, save_many = dl.save, dl.save_many
+        writes: list[list[str]] = []
+
+        def recording_save(obj: Any) -> None:
+            writes.append([type(obj).__name__])
+            save(obj)
+
+        def recording_save_many(objs: list[Any]) -> None:
+            writes.append(sorted(type(obj).__name__ for obj in objs))
+            save_many(objs)
+
+        monkeypatch.setattr(dl, "save", recording_save)
+        monkeypatch.setattr(dl, "save_many", recording_save_many)
+
+        assert self._run_contest(bt_scenario) == Status.SUCCESS
+
+        participant = type(_owner_participant(bt_scenario)).__name__
+        assert writes == [
+            sorted(
+                [
+                    "VulnerabilityCase",
+                    participant,
+                    "EmbargoEvent",
+                    "PendingCreationTimeRevisionRelay",
+                ]
+            )
+        ]
+
+
+def _seed_reporter_participant(bt_scenario: BTTestScenario) -> str:
+    """Add the reporter's participant to the fixture case; return its id."""
+    case = cast(VulnerabilityCase, bt_scenario.dl.read(CASE_ID))
+    participant = CaseParticipant(attributed_to=REPORTER_ID, context=CASE_ID)
+    bt_scenario.dl.create(participant)
+    case.case_participants.append(participant.id_)
+    case.actor_participant_index[REPORTER_ID] = participant.id_
+    bt_scenario.dl.save(case)
+    return participant.id_
+
+
+@pytest.mark.spec("MSM-07-005")
+@pytest.mark.spec("EP-04-003")
+class TestTheRevisionIsConsentedToByItsProposer:
+    """The party whose terms lost proposed the revision (#4152).
+
+    Proposing is consenting (MSM-07-005), so that party's record gains the
+    revision — not the executing actor's, which on the CASE_MANAGER's path is
+    neither party.
+    """
+
+    def test_the_reporters_lost_terms_land_on_the_reporters_record(
+        self, bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
+    ) -> None:
+        reporter_participant_id = _seed_reporter_participant(bt_scenario)
+
+        status, _, _ = _run(
+            bt_scenario,
+            owner_policy=timedelta(days=10),
+            sender_proposal=SENDER_PROPOSAL,
+        )
+
+        assert status == Status.SUCCESS
+        case = cast(VulnerabilityCase, bt_scenario.dl.read(CASE_ID))
+        (revision_id,) = case.proposed_embargoes
+        reporter = bt_scenario.dl.read(reporter_participant_id)
+        assert isinstance(reporter, CaseParticipant)
+        assert reporter.accepted_embargo_ids == [revision_id]
+        # The owner holds only the terms it set and is signatory of.
+        owner = _owner_participant(bt_scenario)
+        assert owner.accepted_embargo_ids == [case.active_embargo_id]
+
+    def test_a_contest_with_no_report_fails_before_the_commit(
+        self, bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
+    ) -> None:
+        """No report, no reporter: the revision has no proposer to name.
+
+        The winning ``EmbargoEvent`` is already stored by then
+        (``CreateEmbargoEventNode``), which EP-04-012 allows; nothing of the
+        initialization commit is written, so the case stays at ``EM.NONE``.
+        """
+        result = bt_scenario.run(
+            InitializeDefaultEmbargoNode(),
+            actor_id=ACTOR_ID,
+            case_id=CASE_ID,
+            owner_profile=_profile(timedelta(days=10)),
+            sender_proposed_embargo_duration=SENDER_PROPOSAL,
+            sender_proposed_embargo=EmbargoEvent(
+                context=REPORT_ID, end_time=from_now_utc(SENDER_PROPOSAL)
+            ),
+        )
+
+        assert result.status == Status.FAILURE
+        assert _em_state(bt_scenario) == EM.NONE
+        assert _owner_participant(bt_scenario).accepted_embargo_ids == []
+        case = bt_scenario.dl.read(CASE_ID)
+        assert isinstance(case, VulnerabilityCase)
+        assert case.proposed_embargoes == []
+        assert case.active_embargo_id is None
+        assert len(bt_scenario.dl.list_objects("EmbargoEvent")) == 1, (
+            "only the winner CreateEmbargoEventNode stored; no revision"
         )

@@ -12,7 +12,9 @@ related_specs:
   - specs/behavior-tree-integration.yaml
   - specs/cs-behavior.yaml
   - specs/embargo-policy.yaml
+  - specs/em-behavior.yaml
 related_notes:
+  - notes/embargo-lifecycle.md
   - notes/bt-integration.md
   - notes/call-out-configuration.md
   - notes/bt-fuzzer-rm-threat.md
@@ -482,9 +484,8 @@ self-addressed `Add(CaseStatus)` loopback that threaded them is gone — ADR-010
 
 ### ThreatTerminationBranchNode
 
-Replaces `PublicDisclosureBranchNode` (which is removed from
-`add_participant_status_tree`). Fires `terminate_embargo_bt` when the canonical
-CaseStatus carries any of:
+Replaces `PublicDisclosureBranchNode`, which is deleted (#4154). Fires
+`terminate_embargo_bt` when the canonical CaseStatus carries any of:
 
 - **CS.P** — public awareness (previously covered)
 - **CS.X** — exploit public (newly covered)
@@ -494,6 +495,17 @@ The CASE_OWNER sender gate that was part of `PublicDisclosureBranchNode`
 is dropped: authorization already occurred at StatusAdoptionGate. By the time
 `ThreatTerminationBranchNode` runs, the canonical state write has been
 authorized.
+
+One skip is not an authorization check: when the status was declared by the
+CASE_MANAGER and the executing actor is someone else, the branch does nothing
+(`_DeclaredByCaseManagerNode`, RSH-03-004, #4149). The CASE_MANAGER tore down
+on its own detection before declaring the status, so the replica waits for the
+committed teardown entry instead of asking for what is already done. The skip
+decides *who* carries out the teardown, not *whether* it is allowed. The same
+condition keeps `PxaEmInvariantDiagnosticNode` from posting a CSB-18 Note at
+the replica, since the gap it would report is the one the manager's entry
+closes. The abandonment arm itself writes and sends nothing at a non-manager
+(EMB-16-002, #4148); see [embargo-lifecycle.md](embargo-lifecycle.md).
 
 This node is the enforcement mechanism for CSB-18-002, CSB-18-003, and
 CSB-18-004 (PXA↔EM cross-machine entailment). When `EmbargoTeardownAuthorizationGate`
@@ -541,7 +553,7 @@ Placed in `vultron/core/behaviors/call_out/bundles/status_authorization.py`
 
 | Before | After |
 |---|---|
-| `PublicDisclosureBranchNode` in `add_participant_status_tree` | Removed |
+| `PublicDisclosureBranchNode` in `add_participant_status_tree` | Deleted (#4154) |
 | Gates: CS.P AND CASE_OWNER sender | N/A |
 | Runs before canonical write | N/A |
 | `ThreatTerminationBranchNode` in `add_case_status_tree` | Added |
@@ -577,7 +589,7 @@ A shared BT node, `EmitCaseStatusUpdateNode`, performs the canonical write:
 
 This node is wired **after** every EM lifecycle node in each BT tree factory
 (Propose, Accept, Reject, Terminate, and cascade variants such as
-`RejectProposedEmbargoLifecycleNode` and `ApplyEmbargoTeardownNode`).
+`AbandonEmbargoProposalsLifecycleNode` and `ApplyEmbargoTeardownNode`).
 
 ### Causality (important)
 
@@ -610,7 +622,7 @@ changes. The inbound adoption path was refactored onto `EmitCaseStatusUpdateNode
 | `AcceptEmbargoLifecycleNode` (trigger) | PROPOSED → ACTIVE | Implemented (#2857) |
 | `RejectEmbargoLifecycleNode` (trigger) | PROPOSED → NONE | Implemented (#2857) |
 | `TerminateEmbargoLifecycleNode` (trigger) | ACTIVE/REVISE → EXITED | Implemented (#2857) |
-| `RejectProposedEmbargoLifecycleNode` (cascade) | PROPOSED → NONE | Implemented (#2857) |
+| `AbandonEmbargoProposalsLifecycleNode` (cascade, CASE_MANAGER only) | PROPOSED → NONE | Implemented (#2857, #4131) |
 | `ApplyEmbargoTeardownNode` (sync/announce) | ACTIVE/REVISE → EXITED | Implemented (#2857) |
 
 ---

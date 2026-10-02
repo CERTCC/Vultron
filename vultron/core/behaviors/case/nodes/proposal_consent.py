@@ -21,8 +21,8 @@ active embargo. Composed by ``create_case_proposal_received_tree``
 (BTND-07-003).
 
 The CASE_OWNER has no node here: the case is attributed to it (CP-09-001), so
-``SeedOwnerAsSignatoryNode`` inside ``InitializeDefaultEmbargoNode`` seeds it,
-and that is the one owner-seeding path (CM-14-003).
+``InitializeCreationEmbargoNode`` inside ``InitializeDefaultEmbargoNode``
+seeds it, and that is the one owner-seeding path (CM-14-003).
 """
 
 import logging

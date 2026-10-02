@@ -118,6 +118,11 @@ It is mandatory, and it applies at every point in the lifecycle:
 - An EA MUST NOT move the case to `ACTIVE`; the actor emits ER instead (EMB-02-002).
 - An EV arriving while the case is public MUST produce ET — terminate now, do not negotiate (EMB-03-003).
 - An actor sitting at `EM.PROPOSED` that *observes* the case go public MUST abandon the proposal, return to `EM.NONE`, and emit ER (EMB-16-001).
+  The case manager makes that abandonment for the case, and its committed ER is what notifies everyone else.
+  Only the case owner, or the case manager it delegates to, decides that abandonment.
+  Any other participant's status report already tells the case manager the case went public, so it sends no ER as the abandonment, which the case manager would read as that participant declining the proposal (EMB-16-002).
+  That rule covers only proposals already open on the case.
+  A proposal, Invite or revision a participant *receives* while it believes the case is public is still answered with ER by that participant, as the first item above requires (EMB-01-002).
 - An actor at `EM.EXITED` MUST NOT seek or accept a new embargo for a public case (EMB-13-002).
 
 EMB-16-001 is the one implementations forget, because it is not triggered by a message.
@@ -222,6 +227,7 @@ The embargo is over for everyone at once, which is the one thing about the EM sc
 | [EMB-13-002](../../../reference/specs/protocol.md#emb-13-002) | An actor at `EM.EXITED` MUST NOT accept a new embargo for a public case |
 | [EMB-15-002](../../../reference/specs/protocol.md#emb-15-002) | The response seam MUST bypass approval when the deciding actor is the case owner |
 | [EMB-16-001](../../../reference/specs/protocol.md#emb-16-001) | An actor at `EM.PROPOSED` observing the case go public MUST abandon the proposal and emit ER |
+| [EMB-16-002](../../../reference/specs/protocol.md#emb-16-002) | A participant that is not the case manager MUST NOT emit ER as that abandonment or write it itself; it still answers what it receives under EMB-01-002 |
 | [EMB-17-001](../../../reference/specs/protocol.md#emb-17-001) | A late `Accept` MUST NOT be refused solely because the deadline passed |
 | [EMB-18-001](../../../reference/specs/architecture.md#emb-18-001) | Every EM transition MUST route through the embargo lifecycle service |
 | [EMB-18-003](../../../reference/specs/architecture.md#emb-18-003) | A case MUST NOT name an embargo whose record its store does not hold |

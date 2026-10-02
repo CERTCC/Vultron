@@ -338,7 +338,7 @@ class TestTerminateEmbargoBT:
     def test_cascade_path_no_builder_returns_failure_when_no_factory(self):
         """Without activity_builder, FAILURE when no trigger_activity_factory set.
 
-        This is the cascade path used by PublicDisclosureBranchNode (BT-14-001).
+        This is the cascade path used by ThreatTerminationBranchNode (BT-14-001).
         """
         case, _, dl = _make_case_with_manager("teb6", em_state=EM.ACTIVE)
         result_out: dict = {}

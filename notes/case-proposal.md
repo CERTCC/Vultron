@@ -437,6 +437,22 @@ case-actor ID, receiver URI, and the pre-constructed
 `Create(VulnerabilityCase)` payload. It is deleted on successful
 `Create` delivery, so only failed deliveries leave a marker.
 
+Because the marker is gone once the `Create` is queued, it cannot tell a
+redelivered proposal that the case was already announced. The `Create`'s
+id is therefore derived from the proposal
+(`PendingCreateCaseActivity.create_activity_id()`), not minted. A redelivery
+that finds that activity already stored writes no marker and queues nothing,
+whether the first delivery succeeded or a later leaf failed after the marker
+was cleared (#4146). The proposal id is the sender's, so the stored activity
+is checked, not just found: `announced_case_id()` (in
+`proposal_retry_marker.py`) refuses anything but a `Create` naming a case, and
+`WriteCreateCaseMarkerNode` fails if that case is not the one it just built.
+A sender that reused a proposal id for another report would otherwise get a
+case that is never announced while the tree reports SUCCESS. Reading the store
+is sound only because the marker is cleared *after* the enqueue: while it
+exists, `CheckMarkerExistsNode` short-circuits and the retry runner owns
+recovery, so "Create stored, no marker" means "queued".
+
 ### Retry Runner (AC-2: startup-scan option)
 
 `vultron/adapters/driving/fastapi/pending_retry.py` provides
@@ -474,8 +490,8 @@ The accept flow owes one more delivery on a contested creation: the
 `Invite(EmbargoEvent)` that relays the shortest-wins loser to the winner
 (EP-04-011). Creation-time initialization runs once per case (EP-04-012), so
 nothing on a redelivered proposal would register the revision again, and a relay
-that failed would be lost. `RegisterLongerProposalAsRevisionNode` therefore writes
-a `PendingCreationTimeRevisionRelay` marker just before it registers the
+that failed would be lost. `InitializeCreationEmbargoNode` therefore writes
+a `PendingCreationTimeRevisionRelay` marker in the same commit that registers the
 revision, and `RelayCreationTimeRevisionNode` reads it,
 relays, indexes, and deletes it; a failure after the write keeps it. The same
 lifespan scan calls `retry_pending_creation_time_revision_relays()` after the

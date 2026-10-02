@@ -61,6 +61,7 @@ from vultron.core.behaviors.status.nodes.lifecycle import (
     ThreatTerminationBranchNode,
 )
 from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
@@ -1263,19 +1264,80 @@ class TestThreatTerminationBranchNode:
         assert updated.active_embargo is None
 
     @pytest.mark.spec("RSH-03-002")
-    def test_no_sender_role_gate(self):
-        """RSH-03-002: teardown never consults the sender's role.
+    def test_no_sender_role_gate(self, dl):
+        """RSH-03-002: a sender holding no role still triggers the teardown.
 
-        The branch is built from the status and the case alone — it is given
-        no sender to gate on — so whoever declared the status, a threat
-        signal tears the embargo down; sender authorization was handled at
-        StatusAdoptionGate.  (The *executing* actor's role is a separate
-        question: see the non-manager test below.)
+        Sender authorization was handled at StatusAdoptionGate.  The sender
+        matters only for RSH-03-004, when it is the CASE_MANAGER itself.
         """
-        import inspect
+        status_obj = self._setup_dl_with_embargo(dl, CS_pxa.Pxa)
+        bridge = BTBridge(
+            datalayer=dl,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        )
+        node = ThreatTerminationBranchNode(
+            status_obj=status_obj,
+            case_id=CASE_ID,
+            sender_actor_id="https://example.org/users/no-role",
+        )
+        bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
 
-        params = inspect.signature(ThreatTerminationBranchNode).parameters
-        assert not any("sender" in p or "actor" in p for p in params)
+        updated = cast(VulnerabilityCase, dl.read(CASE_ID))
+        assert updated.current_status.em.state == EM.EXITED
+
+    def _run_replica(
+        self, dl, status_obj, sender: str
+    ) -> py_trees.common.Status:
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        )
+        node = ThreatTerminationBranchNode(
+            status_obj=status_obj, case_id=CASE_ID, sender_actor_id=sender
+        )
+        return bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID).status
+
+    @pytest.mark.spec("RSH-03-004")
+    def test_a_replica_waits_for_the_managers_teardown_entry(self, dl):
+        """The manager's P/X/A declaration arrives before its teardown entry.
+
+        The replica still holds the active embargo, and it asks nothing:
+        the manager has already torn down (#4149).
+        """
+        status_obj = self._setup_dl_with_embargo(
+            dl, CS_pxa.Pxa, manager_id=CASE_MANAGER_ID
+        )
+
+        status = self._run_replica(dl, status_obj, sender=CASE_MANAGER_ID)
+
+        assert status == Status.SUCCESS
+        assert dl.outbox_list() == []
+        updated = cast(VulnerabilityCase, dl.read(CASE_ID))
+        assert updated.current_status.em.state == EM.ACTIVE
+
+    @pytest.mark.spec("RSH-03-004")
+    @pytest.mark.spec("EP-09-008")
+    def test_a_replica_still_asks_on_a_status_the_manager_did_not_declare(
+        self, dl
+    ):
+        status_obj = self._setup_dl_with_embargo(
+            dl, CS_pxa.Pxa, manager_id=CASE_MANAGER_ID
+        )
+
+        status = self._run_replica(
+            dl, status_obj, sender="https://example.org/users/peer"
+        )
+
+        assert status == Status.SUCCESS
+        queued = [cast(VultronActivity, dl.read(i)) for i in dl.outbox_list()]
+        assert [a.to for a in queued] == [[CASE_MANAGER_ID]]
 
     @pytest.mark.spec("EP-09-008")
     def test_non_manager_receiver_asks_instead_of_tearing_down(self, dl):
@@ -1305,6 +1367,100 @@ class TestThreatTerminationBranchNode:
         updated = cast(VulnerabilityCase, dl.read(CASE_ID))
         assert updated.current_status.em.state == EM.ACTIVE
         assert updated.active_embargo is not None
+
+
+PROPOSED_EMBARGO_ID = f"{CASE_ID}/embargo_events/p1"
+
+
+class TestThreatTerminationBranchNodeProposedEm:
+    """EMB-16-001: a P/X/A signal while EM is ``PROPOSED`` abandons the
+    open proposals.  Only the CASE_MANAGER writes EM (EP-09-008, #4131);
+    any other receiver writes and sends nothing (EMB-16-002, #4148).  Each
+    run uses its actor's store.
+    """
+
+    def _setup(
+        self, store_actor: str, sender: str | None = None
+    ) -> tuple[SqliteDataLayer, BTBridge, ThreatTerminationBranchNode]:
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.factories import em_propose_embargo_activity
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=store_actor)
+        embargo = as_EmbargoEvent(
+            id_=PROPOSED_EMBARGO_ID,
+            context=CASE_ID,
+            end_time=days_from_now_utc(45),
+        )
+        invite = em_propose_embargo_activity(
+            embargo, context=CASE_ID, actor=ACTOR_ID, to=[CASE_MANAGER_ID]
+        )
+        cm_participant = CaseParticipant(
+            id_=CM_PARTICIPANT_ID,
+            context=CASE_ID,
+            attributed_to=CASE_MANAGER_ID,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        case = VulnerabilityCase(
+            id_=CASE_ID, name="Proposed Case", attributed_to=ACTOR_ID
+        )
+        case.add_participant(cm_participant)
+        case.append_case_status(em_state=EM.PROPOSED)
+        case.proposed_embargoes = [embargo.id_]
+        case.pending_embargo_proposal_index = {embargo.id_: invite.id_}
+        status_obj = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
+        object.__setattr__(status_obj, "pxa_state", CS_pxa.Pxa)
+        for obj in (embargo, invite, cm_participant, case, status_obj):
+            dl.create(obj)
+
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        )
+        node = ThreatTerminationBranchNode(
+            status_obj=status_obj, case_id=CASE_ID, sender_actor_id=sender
+        )
+        return dl, bridge, node
+
+    @pytest.mark.spec("EMB-16-001")
+    @pytest.mark.spec("EP-09-008")
+    def test_as_the_case_manager_em_returns_to_none(self):
+        dl, bridge, node = self._setup(CASE_MANAGER_ID)
+
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+
+        assert result.status == Status.SUCCESS
+        updated = cast(VulnerabilityCase, dl.read(CASE_ID))
+        assert updated.current_status.em.state == EM.NONE
+        assert updated.proposed_embargo_ids == []
+
+    @pytest.mark.spec("EMB-16-002")
+    @pytest.mark.spec("RSH-03-004")
+    @pytest.mark.parametrize(
+        "sender", [None, CASE_MANAGER_ID], ids=["undeclared", "by-manager"]
+    )
+    def test_a_non_manager_writes_and_sends_nothing(self, sender):
+        """Whoever declared the status, a non-manager neither abandons nor
+        asks; with the manager as sender the out-of-order arrival skips the
+        branch before it is reached (#4149)."""
+        dl, bridge, node = self._setup(ACTOR_ID, sender=sender)
+
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+
+        assert result.status == Status.SUCCESS
+        updated = cast(VulnerabilityCase, dl.read(CASE_ID))
+        assert updated.current_status.em.state == EM.PROPOSED
+        assert updated.proposed_embargo_ids == [PROPOSED_EMBARGO_ID]
+        assert dl.outbox_list() == []
+        skip = next(
+            c for c in node.children if c.name == "DeclaredByCaseManager"
+        )
+        expected = Status.SUCCESS if sender else Status.FAILURE
+        assert skip.status == expected
 
 
 # ---------------------------------------------------------------------------
@@ -1432,22 +1588,18 @@ class TestAddCaseStatusTreeSeam2:
 
 
 # ---------------------------------------------------------------------------
-# Regression: new pipeline (ThreatTerminationBranchNode) vs old
-#             (PublicDisclosureBranchNode) — CS.P teardown outcome
+# Regression: ThreatTerminationBranchNode — CS.P teardown outcome
 # ---------------------------------------------------------------------------
 
 
 class TestRegressionCSPTeardownPath:
-    """Regression: EmbargoTeardownAuthorizationGate ThreatTerminationBranchNode produces the same
-    end-state as the legacy PublicDisclosureBranchNode for a CS.P update
-    sent by a CASE_OWNER.
+    """Regression: ``ThreatTerminationBranchNode`` tears down an active
+    embargo on a CS.P update: EM=EXITED and active_embargo=None.
 
-    Both paths must result in EM=EXITED and active_embargo=None (BT-14-001
-    means FAILURE when no broadcast factory, but the state transition is
-    committed before broadcast in both paths).
-
-    The new pipeline uses ThreatTerminationBranchNode directly (EmbargoTeardownAuthorizationGate).
-    This regression focuses on teardown outcome parity.
+    BT-14-001 means FAILURE when no broadcast factory is present, but the
+    state transition is committed before the broadcast.  The legacy
+    ``PublicDisclosureBranchNode`` this once compared against is deleted
+    (RSH-03-003, #4154).
 
     AC #8 from issue #1844.
     """
@@ -1455,11 +1607,7 @@ class TestRegressionCSPTeardownPath:
     def _build_dl_with_active_embargo(self, manager_id: str = CASE_MANAGER_ID):
         """Return a fresh DataLayer with a case in ACTIVE embargo.
 
-        *manager_id* names both the case manager and the store, so the two
-        halves of the regression comparison below must pass **different** ids:
-        in-memory stores are keyed by ``(db_url, actor_id)``, so two calls with
-        the same id would hand back the *same* database and the second seed
-        would collide on ``CASE_ID``.
+        *manager_id* names both the case manager and the store.
         """
         from vultron.enums.roles import CVDRole
 
@@ -1486,31 +1634,18 @@ class TestRegressionCSPTeardownPath:
         dl.create(embargo)
         return dl
 
-    def test_new_pipeline_csp_teardown_matches_old_path_end_state(self):
-        """EmbargoTeardownAuthorizationGate (ThreatTerminationBranchNode, new pipeline) produces the
-        same end-state as legacy PublicDisclosureBranchNode for CS.P with a
-        CASE_OWNER sender: EM=EXITED and active_embargo=None.
+    def test_csp_teardown_reaches_exited(self):
+        """CS.P with an active embargo: EM=EXITED and active_embargo=None.
 
-        Both nodes delegate to terminate_embargo_bt and FAIL when no broadcast
-        factory is present (BT-14-001); the EM state transition is committed
-        before the broadcast attempt in both cases.
+        The node delegates to terminate_embargo_bt and FAILS when no
+        broadcast factory is present (BT-14-001); the EM state transition is
+        committed before the broadcast attempt.
         """
         from typing import cast as c
 
-        from vultron.core.behaviors.status.nodes.lifecycle import (
-            PublicDisclosureBranchNode,
-        )
         from vultron.core.models.case import VulnerabilityCase
         from vultron.core.states.em import EM
-        from vultron.enums.roles import CVDRole
-        from vultron.wire.as2.vocab.objects.case_participant import (
-            as_CaseParticipant,
-        )
-        from vultron.wire.as2.vocab.objects.case_status import (
-            as_ParticipantStatus,
-        )
 
-        # — New pipeline: ThreatTerminationBranchNode (EmbargoTeardownAuthorizationGate) —
         dl_new = self._build_dl_with_active_embargo()
         new_status_obj = as_CaseStatus(
             id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.Pxa)
@@ -1525,10 +1660,8 @@ class TestRegressionCSPTeardownPath:
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl_new),
         )
-        # Runs as the case manager, matching the legacy half below: the seeded
-        # case names CASE_MANAGER_ID as its only participant, and teardown
-        # authority is the manager's.  ACTOR_ID here would execute against an
-        # empty store and hold no authority either.
+        # Runs as the case manager: the seeded case names CASE_MANAGER_ID as
+        # its only participant, and teardown authority is the manager's.
         new_result = new_bridge.execute_with_setup(
             tree=new_node, actor_id=CASE_MANAGER_ID
         )
@@ -1538,61 +1671,11 @@ class TestRegressionCSPTeardownPath:
         new_em_state = new_case.current_status.em.state
         new_embargo = new_case.active_embargo
 
-        # — Legacy path: PublicDisclosureBranchNode (CASE_OWNER + CS.P) —
-        # A distinct manager id, so this half gets its own store rather than
-        # the one the new-pipeline half above already seeded.
-        legacy_manager_id = f"{CASE_MANAGER_ID}-legacy"
-        dl_old = self._build_dl_with_active_embargo(legacy_manager_id)
-        owner_participant = as_CaseParticipant(
-            id_=f"{CASE_ID}/participants/vendor",
-            context=CASE_ID,
-            attributed_to=ACTOR_ID,
-            case_roles=[CVDRole.CASE_OWNER],
+        assert new_em_state == EM.EXITED, (
+            f"EM={new_em_state}; CS.P teardown must reach EXITED"
+            " (AC #8, issue #1844)"
         )
-        dl_old.create(owner_participant)
-        case_old = c(VulnerabilityCase, dl_old.read(CASE_ID))
-        case_old.actor_participant_index[ACTOR_ID] = owner_participant.id_
-        dl_old.save(case_old)
-
-        # ``context`` is required on the core class, and ``pxa_state`` is a real
-        # read/write view onto the dimension now, so plain assignment works —
-        # ``object.__setattr__`` bypassed the property and failed.
-        cs_old = as_CaseStatus(context=CASE_ID)
-        cs_old.pxa_state = CS_pxa.Pxa
-        ps_with_cs = as_ParticipantStatus(
-            id_=f"{CASE_ID}/participants/vendor/statuses/s1",
-            context=CASE_ID,
-        )
-        object.__setattr__(ps_with_cs, "case_status", cs_old)
-
-        old_node = PublicDisclosureBranchNode(
-            status_obj=ps_with_cs,
-            sender_actor_id=ACTOR_ID,
-            case_id=CASE_ID,
-        )
-        old_bridge = BTBridge(
-            datalayer=dl_old,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl_old),
-        )
-        # No factory → FAILURE from broadcast (BT-14-001)
-        old_result = old_bridge.execute_with_setup(
-            tree=old_node, actor_id=legacy_manager_id
-        )
-        assert old_result.status == Status.FAILURE
-
-        old_case = c(VulnerabilityCase, dl_old.read(CASE_ID))
-        old_em_state = old_case.current_status.em.state
-        old_embargo = old_case.active_embargo
-
-        # Both paths must produce identical end-state
-        assert new_em_state == old_em_state == EM.EXITED, (
-            f"New pipeline EM={new_em_state}, old path EM={old_em_state};"
-            " both must be EXITED for CS.P teardown (AC #8, issue #1844)"
-        )
-        assert new_embargo is None and old_embargo is None, (
-            "Both paths must clear active_embargo after CS.P teardown"
-        )
+        assert new_embargo is None, "CS.P teardown must clear active_embargo"
 
 
 # ---------------------------------------------------------------------------
@@ -2007,3 +2090,84 @@ class TestPxaEmInvariantDiagnosticNode:
             "PxaEmInvariantDiagnosticNode must post exactly one Note when the"
             " gate blocks teardown and the CSB-18 invariant is still violated"
         )
+
+
+# ---------------------------------------------------------------------------
+# RSH-03-004: the whole tree, at a replica, on the manager's declaration
+# ---------------------------------------------------------------------------
+
+REPLICA_ID = "https://example.org/actors/rsh-03-004-replica"
+PEER_ID = "https://example.org/actors/rsh-03-004-peer"
+
+
+class TestReplicaLeavesManagerDeclaredTeardownToItsEntry:
+    """``add_case_status_tree`` gives the branch the status's sender, so at a
+    replica a P/X/A status the CASE_MANAGER declared tears nothing down and
+    asks for nothing (RSH-03-004, #4149); the manager's committed entry
+    carries the teardown.  The same tree at a replica still asks when the
+    status came from anyone else.
+    """
+
+    def _run(self, sender: str) -> SqliteDataLayer:
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+        from vultron.semantic_registry import extract_event
+
+        dl: SqliteDataLayer
+        dl, status_obj = (
+            TestPxaEmInvariantDiagnosticNode()._build_dl_with_active_embargo(
+                actor_id=REPLICA_ID
+            )
+        )
+        # The store is the replica's; the CASE_MANAGER is someone else.
+        case = cast(VulnerabilityCase, dl.read(DIAG_CASE_ID))
+        cm = cast(CaseParticipant, dl.read(f"{DIAG_CASE_ID}/participants/cm"))
+        dl.save(cm.model_copy(update={"attributed_to": DIAG_CM_ID}))
+        case.actor_participant_index = {DIAG_CM_ID: cm.id_}
+        dl.save(case)
+
+        event = cast(
+            AddCaseStatusToCaseReceivedEvent,
+            extract_event(
+                add_status_to_case_activity(
+                    status_obj,
+                    target=as_VulnerabilityCase(id_=DIAG_CASE_ID),
+                    actor=sender,
+                )
+            ),
+        )
+        tree = add_case_status_tree(
+            request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
+        )
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        )
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=REPLICA_ID, activity=event
+        )
+        assert result.status == Status.SUCCESS, result.feedback_message
+        return dl
+
+    @pytest.mark.spec("RSH-03-004")
+    def test_the_managers_declaration_asks_nothing_at_a_replica(self):
+        dl = self._run(sender=DIAG_CM_ID)
+
+        updated = cast(VulnerabilityCase, dl.read(DIAG_CASE_ID))
+        assert updated.current_status.em.state == EM.ACTIVE
+        queued = [cast(VultronActivity, dl.read(i)) for i in dl.outbox_list()]
+        assert [a.type_ for a in queued] == [], [a.type_ for a in queued]
+
+    @pytest.mark.spec("RSH-03-004")
+    @pytest.mark.spec("EP-09-008")
+    def test_a_peers_declaration_still_asks_at_a_replica(self):
+        dl = self._run(sender=PEER_ID)
+
+        updated = cast(VulnerabilityCase, dl.read(DIAG_CASE_ID))
+        assert updated.current_status.em.state == EM.ACTIVE
+        queued = [cast(VultronActivity, dl.read(i)) for i in dl.outbox_list()]
+        asks = [a for a in queued if DIAG_CM_ID in (a.to or [])]
+        assert asks, [a.type_ for a in queued]

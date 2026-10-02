@@ -48,6 +48,7 @@ from vultron.core.behaviors.sync.announce_tree import (
     create_announce_log_entry_tree,
 )
 from vultron.core.behaviors.sync.nodes.event_conditions import (
+    EMBARGO_ABANDONMENT_EVENT_TYPE,
     _ActivityEventNode,
 )
 from vultron.core.models.case import VulnerabilityCase
@@ -108,6 +109,10 @@ REPLAYED: dict[str, tuple[str, dict[str, Any]]] = {
     "Reject of an Invite": (
         MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE.value,
         {"type": "Reject", "actor": REPLICA, "object": {"object": EMBARGO}},
+    ),
+    "the manager's abandonment of an Invite": (
+        EMBARGO_ABANDONMENT_EVENT_TYPE,
+        {"type": "Reject", "actor": MANAGER, "object": {"object": EMBARGO}},
     ),
     "teardown": (
         MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE.value,

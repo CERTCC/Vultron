@@ -314,7 +314,6 @@ Consent-write sites (every one routes through `apply_pec_transition()`):
 | Site | Uses `apply_pec_transition()`? | Syncs status? |
 |---|---|---|
 | `case/nodes/proposal_consent.py` | yes | yes |
-| `case/nodes/embargo_signatory.py` | yes | yes |
 | `case/nodes/participant/participant_add.py` | yes | yes |
 | `case/nodes/invite_embargo_consent.py` | yes | yes |
 | `embargo/nodes/proposal.py` | yes | yes |

@@ -25,10 +25,9 @@ relay failed, nothing would send the Invite and the winning party would never
 be asked.
 
 This record carries what the relay needs across executions, in the shape of
-the ``PendingCreateCaseActivity`` marker (CP-05-005): written just before the
-revision is registered, so a crash between the two leaves a record the relay
-discharges rather than a revision nobody owes; deleted once the relay is
-discharged; and found by a later delivery's relay or by the startup retry
+the ``PendingCreateCaseActivity`` marker (CP-05-005): committed in the same
+write that registers the revision (#4142), so no failure leaves a revision
+nobody owes (#4156); deleted once the relay is discharged; and found by a later delivery's relay or by the startup retry
 runner while it remains.
 
 Spec: ``specs/embargo-policy.yaml`` EP-04-011.

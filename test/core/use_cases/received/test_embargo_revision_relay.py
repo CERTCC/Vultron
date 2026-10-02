@@ -628,7 +628,7 @@ def test_a_revision_of_a_public_case_is_refused_with_er(make_payload):
     ADR-0113 step 2 maps EMB-03-003 (with EMB-01-002) onto the CASE_MANAGER
     refusing a proposal on a public, exploited or attacked case — the embargo
     termination the requirement calls "emit ET" is the CS public-event
-    cascade's job (``PublicDisclosureBranchNode``), which has already run or
+    cascade's job (``ThreatTerminationBranchNode``), which has already run or
     will run regardless of this proposal.  The received proposal itself is
     answered with the retained ER refusal (#3913 AC-1).  The tension between
     the requirement's literal text and the ADR's reading is recorded as an
