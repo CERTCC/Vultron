@@ -318,9 +318,10 @@ def record_pending_assertion(
     """Record an assertion *actor_id* just sent to the CASE_MANAGER.
 
     The one entry point every trigger that asks the manager instead of
-    writing shared state uses (SYNC-11-002, ASK-04-008): the note trigger and
-    the five embargo triggers.  The matching ``Announce(CaseLedgerEntry)``
-    clears it (SYNC-11-003).
+    writing shared state uses (SYNC-11-002, ASK-04-008): the note trigger,
+    the five embargo triggers and the received P/X/A cascade's teardown ask
+    (``SendTerminateEmbargoActivityNode``).  The matching
+    ``Announce(CaseLedgerEntry)`` clears it (SYNC-11-003).
     """
     get_pending_assertion_store(actor_id).add(
         case_id, event_type, activity_id, subject_id=subject_id

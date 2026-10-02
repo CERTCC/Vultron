@@ -1260,7 +1260,7 @@ class TestThreatTerminationBranchNode:
         """All CS_pxa states except pxa trigger embargo teardown attempt.
 
         Without a broadcast factory, TerminateEmbargoLifecycleNode still
-        succeeds but SendTerminateEmbargoActivityNode fails (BT-14-001).
+        succeeds but the teardown emit fails (BT-14-001).
         The EM state is updated and active_embargo cleared before that.
         """
         from vultron.core.models.case import VulnerabilityCase
