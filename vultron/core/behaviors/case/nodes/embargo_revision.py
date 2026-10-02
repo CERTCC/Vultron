@@ -22,11 +22,13 @@ the last leaf of ``InitializeDefaultEmbargoNode``; it does nothing when there
 was no contest.
 
 The revision then follows the relay like any other (EP-04-011, ADR-0113): the
-registration mints the id its ``Invite`` will carry and publishes it, and
-``RelayCreationTimeRevisionNode`` (``embargo_revision_relay``) emits that
-``Invite`` on the losing party's behalf, and indexes it for the owner's default
-selection (EP-08-002), only once the initialization sequence is complete
-(CM-14-007).
+registration mints the id its ``Invite`` will carry and publishes it,
+``RecordCreationTimeRevisionRelayNode`` (``embargo_revision_relay``) records
+the relay as owed in a durable ``PendingCreationTimeRevisionRelay``, and
+``RelayCreationTimeRevisionNode`` emits that ``Invite`` on the losing party's
+behalf, and indexes it for the owner's default selection (EP-08-002), only once
+the initialization sequence is complete (CM-14-007).  A failed relay keeps the
+record, so redelivery or the startup runner retries it (#4121).
 """
 
 import logging
@@ -96,7 +98,8 @@ class RegisterLongerProposalAsRevisionNode(DataLayerActionWithPorts):
 
     A registered revision is published, under a freshly minted proposal id, as
     ``creation_time_revision`` for
-    :class:`RelayCreationTimeRevisionNode` (EP-04-011).  The key is written
+    :class:`RecordCreationTimeRevisionRelayNode`, which records the relay as
+    owed (EP-04-011).  The key is written
     (``None``) first whenever this node ticks, and ``BTBridge`` scopes it to
     one execution, so the relay never reads a revision an earlier execution
     left on the process-global blackboard (BT-17-003).

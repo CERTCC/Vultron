@@ -774,9 +774,10 @@ class BTBridge:
                 # does, exactly once, for every outcome.
                 "ledger_payload_object_override",
                 # Published by RegisterLongerProposalAsRevisionNode, read by
-                # RelayCreationTimeRevisionNode (EP-04-011).  The writer ticks
-                # only on the creation arm, so a redelivery that skips that arm
-                # would otherwise hand the relay the previous execution's value.
+                # RecordCreationTimeRevisionRelayNode (EP-04-011).  The writer
+                # ticks only on the creation arm, so a redelivery that skips
+                # that arm would otherwise record the previous execution's
+                # value as a fresh relay obligation (#4121).
                 "creation_time_revision",
                 # The executing actor's identity is execution-scoped too, and for
                 # a sharper reason than the ports above.  Every node base in

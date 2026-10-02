@@ -12,7 +12,8 @@ description: >
   earliest-expiration ordering for N open proposals; why the creation-time
   revision's registration order no longer touches consent (ADR-0093); how
   the creation-time revision is relayed to the other party after
-  initialization and indexed only once sent (EP-04-011, CM-14-007, ADR-0113);
+  initialization and indexed only once sent (EP-04-011, CM-14-007, ADR-0113),
+  and why the relay is a durable marker a later run retries (#4121);
   why creation-time initialization runs once per case with the EM state, not
   the active-embargo reference, as the evidence (EP-04-012); why a rerun on a
   half-built case reuses the minted event's case-derived id; and why the actor
@@ -33,6 +34,7 @@ related_notes:
   - notes/bt-pitfalls.md
 relevant_packages:
   - transitions
+  - vultron/adapters/driving/fastapi
   - vultron/bt/embargo_management
   - vultron/config
   - vultron/core/behaviors/case
@@ -332,8 +334,16 @@ the CASE_MANAGER", in two steps that sit at two different places in the tree:
   `None` first whenever it ticks, and `BTBridge` scopes the key to one execution
   (as it does `ledger_payload_object_override`, #3101), because the registration
   ticks only on the creation arm: a redelivery that finds the case already
-  initialized never reaches it, and would otherwise hand the relay the previous
-  execution's revision.
+  initialized never reaches it, and would otherwise record the previous
+  execution's revision as a fresh obligation.
+- **Recorded as owed.** `RecordCreationTimeRevisionRelayNode`, right after
+  `InitializeDefaultEmbargoNode`, turns the published revision into a
+  `PendingCreationTimeRevisionRelay` record keyed on the case, carrying the
+  report the reporter is resolved from and the CASE_MANAGER that owes the relay.
+  It is the `PendingCreateCaseActivity` shape (CP-05-005): written before
+  anything later in the tree can fail, deleted once the relay is discharged.
+  Writing a record initiates no modification, so it does not run ahead of
+  CM-14-007's sequence.
 - **Relayed after initialization.** `RelayCreationTimeRevisionNode` sits in the
   case-proposal tree after `CommitNativeLedgerEntriesNode`, not inside
   `InitializeDefaultEmbargoNode`, because no modification may be initiated before
@@ -344,25 +354,61 @@ the CASE_MANAGER", in two steps that sit at two different places in the tree:
   the outbox write, and only then indexes it (`record_embargo_proposal_index`,
   shared with the received-proposal handler) for the owner's default selection
   (EP-08-002). No proposal activity exists at creation, so the committed relayed
-  Invite *is* the revision's proposal entry (EP-04-011).
+  Invite *is* the revision's proposal entry (EP-04-011). It reads what to relay
+  from the marker, never from the blackboard, and deletes the marker when done.
 
 The loser is the proposer and is not invited: when the reporter's longer terms
 lost (the reporter is the report's `attributedTo`), the owner is invited; when the
 owner's longer default lost, the reporter is. Both were just seeded SIGNATORY, so
 the relay's PEC `INVITE` is not legal for the invitee and changes no consent
-(EP-09-004). A tie registers nothing and relays nothing. The relay also sends
-nothing when the published revision names another case, when the embargo is no
-longer an open proposal, or when an entry for that id is already in the ledger —
-the last two read from the store, so a retry after a completed relay sends no
-second Invite. A report naming no reporter, a case naming no CASE_OWNER, or a
-winner who is not an invitation recipient (CM-10-007) raises: the relay is a MUST,
+(EP-09-004). A tie registers nothing and relays nothing. Nothing is recorded
+when the published revision names another case, and a revision whose case
+names no report is refused when the marker is written. A report naming no
+reporter, a case naming no CASE_OWNER, or a winner who is not an invitation recipient (CM-10-007) raises: the relay is a MUST,
 so a registered revision whose Invite cannot be sent is never a silent SUCCESS,
 and the proposal was already accepted and the case announced, so it is the
 manager's internal error, never a REFUSED verdict on the sender (ADR-0095). A
 reporter that is itself the CASE_OWNER has nobody to invite, so nothing is relayed
-or indexed. A failed relay is not retried: the redelivery takes the
-already-initialized arm and publishes no revision (#4121); because the index is
-written only after sending, it never names an Invite that was not emitted.
+or indexed, and the marker is deleted.
+
+**A failed relay is retried, from the marker (#4121).** Initialization runs once
+per case (EP-04-012), so a redelivered proposal takes the already-initialized arm
+and registers nothing; without a durable record the revision would stay open with
+an Invite nobody sent and nobody could answer. Once the marker is written, a
+failure after it — a missing factory, an unresolvable party, a fault mid-relay, a
+crash — keeps it. Two runs find it. One is a later delivery of a proposal for the
+case, whose accept arm reruns the creation sequence and so reaches the relay
+again; that path is closed while a `PendingCreateCaseActivity` marker exists,
+because `CheckMarkerExistsNode` short-circuits the redelivery. The other is the
+startup runner `retry_pending_creation_time_revision_relays` in
+`vultron/adapters/driving/fastapi/pending_retry.py`, beside the
+`Create(VulnerabilityCase)` retry. The runner wraps the relay node in
+`create_case_manager_gated_tree` (BT-17-001), so an actor that no longer holds
+CASE_MANAGER relays nothing and the marker is kept for the role holder.
+
+The relay node classifies the marker before acting:
+
+- **Not yet.** With no genesis `create_case` entry in the case's ledger, the
+  creation sequence is not complete (CM-14-007, CM-14-011): nothing is sent and
+  the marker is kept. Only a run outside the case tree can see this — inside it,
+  `CommitNativeLedgerEntriesNode` has already committed the genesis entry.
+- **Closed.** The embargo is no longer an open proposal: nothing is sent and the
+  marker is deleted.
+- **Committed.** An entry for the pre-minted Invite id is already in the ledger:
+  the relay committed and then failed. The node re-applies PEC `INVITE` where
+  legal (EP-09-004), writes the index, and deletes the marker. It does not queue
+  the Invite again, because `outbox_pop` empties the outbox on delivery, so the
+  outbox cannot tell a delivered Invite from a lost one.
+- **Send.** Otherwise it sends the Invite under the id the marker carries,
+  indexes it, and deletes the marker.
+
+Three gaps remain. An Invite committed whose `outbox_append` then failed reads as
+committed and is not queued again — the gap every "ledger commit precedes outbox
+write" emitter shares. A crash between registration and the marker write, in the
+same tick, leaves nothing to retry. And when the `Create` runner recovered the
+announcement but the native entries were never committed, the relay waits until
+the case tree runs again. Because the index is written only after the Invite is
+committed, it never names an Invite that was not emitted.
 
 The owner may then accept or reject as with any revision (EP-09-005). Each replica
 learns the revision from two sources. The `Create(VulnerabilityCase)` snapshot
