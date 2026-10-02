@@ -13,31 +13,16 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Embargo revision proposal trigger use case."""
+"""Read what a store's canonical case ledger holds, for test assertions."""
 
-import logging
-
-from vultron.core.behaviors.embargo.trigger_tree import (
-    propose_embargo_revision_trigger_bt,
-)
-from vultron.core.use_cases.triggers.embargo._terms import (
-    SvcOfferEmbargoTermsBase,
-)
-
-logger = logging.getLogger(__name__)
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.ports.datalayer import DataLayer
 
 
-class SvcProposeEmbargoRevisionUseCase(SvcOfferEmbargoTermsBase):
-    _tree_factory = staticmethod(propose_embargo_revision_trigger_bt)
-
-    def _log_lifecycle_result(self) -> None:
-        lr = self._lifecycle_result
-        logger.info(
-            "Actor '%s' proposed embargo revision '%s' on case '%s'"
-            " (EM %s → %s)",
-            self._actor_id,
-            self._embargo.id_,
-            self._case.id_,
-            lr.em_before,
-            lr.em_after,
-        )
+def committed_event_types(dl: DataLayer, case_id: str) -> list[str]:
+    """``event_type`` of every ledger entry committed for *case_id*."""
+    return [
+        str(entry.event_type)
+        for entry in dl.list_objects("CaseLedgerEntry")
+        if isinstance(entry, CaseLedgerEntry) and entry.case_id == case_id
+    ]

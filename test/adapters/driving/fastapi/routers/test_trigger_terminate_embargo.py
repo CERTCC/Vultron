@@ -28,6 +28,8 @@ from fastapi import status
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.core.states.em import EM
 
+from .conftest import make_case_manager
+
 # ---------------------------------------------------------------------------
 # Module-level fixture: suppress outbox delivery retries
 # ---------------------------------------------------------------------------
@@ -155,6 +157,7 @@ def test_trigger_terminate_embargo_updates_em_state_to_exited(
 ):
     """terminate-embargo transitions case EM state to EXITED."""
     case_obj, _ = case_with_embargo
+    make_case_manager(case_obj.id_, actor.id_, dl)  # EP-09-008
 
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/terminate-embargo",
@@ -171,6 +174,7 @@ def test_trigger_terminate_embargo_clears_active_embargo(
 ):
     """terminate-embargo clears the active_embargo field on the case."""
     case_obj, _ = case_with_embargo
+    make_case_manager(case_obj.id_, actor.id_, dl)  # EP-09-008
 
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/terminate-embargo",
@@ -195,6 +199,7 @@ def test_trigger_terminate_embargo_invalid_em_state_returns_409(
     stored = dl.read(case_obj.id_)
     stored.current_status.em.state = EM.PROPOSED
     dl.update(stored.id_, object_to_record(stored))
+    make_case_manager(case_obj.id_, actor.id_, dl)  # EP-09-008
 
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/terminate-embargo",

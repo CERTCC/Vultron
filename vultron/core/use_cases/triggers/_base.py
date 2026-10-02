@@ -30,20 +30,27 @@ Three-level hierarchy:
   ``{"activity", "emitting_actor_id"}``.
 
 - :class:`SvcEmbargoTriggerBase` — extends ``SvcActivityTriggerBase`` with a
-  concrete ``_handle_result()`` that validates and stores the
-  ``lifecycle_result`` from the BT output, then delegates to the
+  concrete ``_handle_result()`` for the two role arms of an embargo trigger
+  tree (EP-09-008): a non-manager's pending assertion is recorded, and a
+  CASE_MANAGER's ``lifecycle_result`` is validated and handed to the
   per-operation ``_log_lifecycle_result()`` hook.
 """
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, ClassVar
 
 import py_trees.behaviour
 from py_trees.common import Status
 from pydantic import ValidationError
 
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.pending_assertion import (
+    ASSERTED_ACTIVITY_KEY,
+    get_pending_assertion_store,
+    record_pending_assertion,
+)
 from vultron.core.models.use_case_result import ActivityResult, TriggerResult
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
@@ -93,7 +100,8 @@ class SvcBTTriggerBase[TriggerResultT: TriggerResult](ABC):
         # (ARCH-20-001, CLP-07-009).
         self._wire_render_port = wire_render_port
         # A tree that commits a ledger entry fans it out through this port
-        # (SYNC-02-002); only the ``sync-log-entry`` verb's tree reads it.
+        # (SYNC-02-002): the ``sync-log-entry`` verb's tree, and every
+        # embargo trigger the CASE_MANAGER runs (EP-09-008, #4085).
         self._sync_port = sync_port
 
     def execute(self) -> TriggerResultT:
@@ -110,6 +118,9 @@ class SvcBTTriggerBase[TriggerResultT: TriggerResult](ABC):
             )
         if self._trigger_activity is not None:
             self._factory: TriggerActivityPort = self._trigger_activity
+
+        if (suppressed := self._suppressed_duplicate()) is not None:
+            return suppressed
 
         bridge = BTBridge(
             datalayer=self._dl,
@@ -208,6 +219,15 @@ class SvcBTTriggerBase[TriggerResultT: TriggerResult](ABC):
             )
         return value
 
+    def _suppressed_duplicate(self) -> TriggerResultT | None:
+        """Return a result in place of running the tree, or ``None`` to run it.
+
+        Called after :meth:`_prepare`.  A trigger that records a pending
+        assertion overrides this to answer a duplicate inside the window
+        without re-emitting it (SYNC-11-002).  The default runs the tree.
+        """
+        return None
+
     def _extra_execute_kwargs(self) -> dict[str, Any]:
         """Additional kwargs passed to ``bridge.execute_with_setup``.
 
@@ -234,15 +254,74 @@ class SvcActivityTriggerBase(SvcBTTriggerBase[ActivityResult]):
 class SvcEmbargoTriggerBase(SvcActivityTriggerBase):
     """Abstract base for embargo trigger use cases.
 
-    Provides a concrete :meth:`_handle_result` that:
+    A trigger writes shared EM state only as the CASE_MANAGER (EP-09-008), so
+    the tree runs one of two arms and :meth:`_handle_result` handles both:
 
-    1. Extracts ``lifecycle_result`` from ``self._result_out``.
-    2. Raises ``RuntimeError`` if the value is absent or the wrong type.
-    3. Stores the validated result as ``self._lifecycle_result``.
-    4. Delegates to the per-operation :meth:`_log_lifecycle_result` hook.
+    - **Asked the CASE_MANAGER** (the tree wrote
+      ``result_out[ASSERTED_ACTIVITY_KEY]``): records the queued activity in
+      the pending-assertion store through the helper the note trigger also
+      uses (SYNC-11-002, ASK-04-008).  No EM state was written, so there is
+      no lifecycle result.
+    - **Decided as the CASE_MANAGER**: extracts and validates
+      ``lifecycle_result``, raising ``RuntimeError`` if it is absent or the
+      wrong type, stores it as ``self._lifecycle_result`` and delegates to the
+      per-operation :meth:`_log_lifecycle_result` hook.
+
+    A repeat of an assertion still pending — the same :meth:`_assertion_subject`
+    asked again inside the window — is suppressed before the tree runs and
+    reported with no activity (:meth:`_suppressed_duplicate`).
     """
 
+    #: Ledger ``event_type`` of the activity this trigger emits; the key the
+    #: pending assertion and the manager's commit share (SYNC-11-003).
+    _assertion_event_type: ClassVar[str]
+
+    _case: VulnerabilityCase
+
+    @abstractmethod
+    def _assertion_subject(self) -> str | None:
+        """What a repeat of this trigger would be about, or ``None``.
+
+        The proposal an answer names, the embargo a teardown ends, the terms a
+        proposal offers.  ``None`` when there is nothing to compare (the
+        tree's own guard then refuses the request).
+        """
+
+    def _suppressed_duplicate(self) -> ActivityResult | None:
+        subject = self._assertion_subject()
+        if subject is None:
+            return None
+        pending = get_pending_assertion_store(
+            self._actor_id
+        ).pending_for_subject(
+            self._case.id_, self._assertion_event_type, subject
+        )
+        if pending is None:
+            return None
+        logger.info(
+            "%s: actor '%s' already asked the CASE_MANAGER for '%s' on case"
+            " '%s' (activity_id=%s, pending since %s) — duplicate suppressed,"
+            " not re-emitted (SYNC-11-002)",
+            type(self).__name__,
+            self._actor_id,
+            self._assertion_event_type,
+            self._case.id_,
+            pending.object_id,
+            pending.emitted_at.isoformat(),
+        )
+        return ActivityResult(activity=None, emitting_actor_id=self._actor_id)
+
     def _handle_result(self) -> None:
+        asserted_id = self._output_id(ASSERTED_ACTIVITY_KEY)
+        if asserted_id is not None:
+            record_pending_assertion(
+                self._actor_id,
+                self._case.id_,
+                self._assertion_event_type,
+                asserted_id,
+                subject_id=self._assertion_subject(),
+            )
+            return
         lifecycle_result = self._result_out.get("lifecycle_result")
         if not isinstance(lifecycle_result, EmbargoLifecycleResult):
             raise RuntimeError(  # noqa: TRY004  # ruff-baseline #3353

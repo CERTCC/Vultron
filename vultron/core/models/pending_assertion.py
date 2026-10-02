@@ -47,6 +47,11 @@ DEFAULT_PENDING_ASSERTION_TIMEOUT: float = 180.0
 _STORES: dict[str, PendingAssertionStore] = {}
 
 
+#: ``result_out`` key a trigger tree's ask arm writes the queued activity id
+#: to, for the trigger base to record as a pending assertion (SYNC-11-002).
+ASSERTED_ACTIVITY_KEY = "asserted_activity_id"
+
+
 @dataclass
 class PendingAssertion:
     """A single tracked outbound assertion awaiting canonical confirmation.
@@ -60,6 +65,11 @@ class PendingAssertion:
         emitted_at: UTC timestamp when the assertion was emitted.
         status: Lifecycle state — ``"pending"``, ``"cleared"``,
             or ``"timed_out"``.
+        subject_id: What the assertion is *about*, when a repeat of it would
+            carry a new activity id — the proposal an embargo answer names,
+            the embargo a teardown ends, the terms a proposal offers.  A
+            duplicate trigger is recognised by this, not by ``object_id``
+            (SYNC-11-002).  ``None`` when the activity id is the subject.
     """
 
     case_id: str
@@ -67,11 +77,14 @@ class PendingAssertion:
     object_id: str
     emitted_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     status: Literal["pending", "cleared", "timed_out"] = "pending"
+    subject_id: str | None = None
 
     def __post_init__(self) -> None:
         # CS-08-001 for a stdlib dataclass: both ids are references.
         require_non_empty(self.case_id, "case_id")
         require_non_empty(self.object_id, "object_id")
+        if self.subject_id is not None:
+            require_non_empty(self.subject_id, "subject_id")
 
 
 class PendingAssertionStore:
@@ -144,7 +157,13 @@ class PendingAssertionStore:
     # Public API
     # ------------------------------------------------------------------
 
-    def add(self, case_id: str, event_type: str, object_id: str) -> None:
+    def add(
+        self,
+        case_id: str,
+        event_type: str,
+        object_id: str,
+        subject_id: str | None = None,
+    ) -> None:
         """Record a just-emitted assertion as *pending*.
 
         Overwrites any previous entry for the same triple so that a
@@ -154,12 +173,15 @@ class PendingAssertionStore:
             case_id: URI of the parent :class:`VulnerabilityCase`.
             event_type: Machine-readable event descriptor.
             object_id: Full URI of the asserted activity or primary object.
+            subject_id: What the assertion is about, when a repeat would
+                carry a new activity id (see :class:`PendingAssertion`).
         """
         key = self._key(case_id, event_type, object_id)
         self._store[key] = PendingAssertion(
             case_id=case_id,
             event_type=event_type,
             object_id=object_id,
+            subject_id=subject_id,
         )
         logger.debug(
             "pending_assertions: added entry "
@@ -191,6 +213,30 @@ class PendingAssertionStore:
         if self._check_expired(entry):
             return False
         return entry.status == "pending"
+
+    def pending_for_subject(
+        self, case_id: str, event_type: str, subject_id: str
+    ) -> PendingAssertion | None:
+        """Return the pending, unexpired assertion about *subject_id*, if any.
+
+        The duplicate check for an assertion whose repeat would carry a new
+        activity id (SYNC-11-002): the same embargo answer, teardown or terms
+        asked for again inside the window.  Honours the timeout exactly as
+        :meth:`is_suppressed` does — zero disables suppression, and an
+        expired entry is marked ``timed_out`` and no longer matches.
+        """
+        if self.timeout_seconds == 0:
+            return None
+        for entry in list(self._store.values()):
+            if (
+                entry.case_id == case_id
+                and entry.event_type == event_type
+                and entry.subject_id == subject_id
+                and not self._check_expired(entry)
+                and entry.status == "pending"
+            ):
+                return entry
+        return None
 
     def clear(self, case_id: str, event_type: str, object_id: str) -> None:
         """Mark a pending entry as *cleared* on canonical confirmation.
@@ -262,6 +308,33 @@ def get_pending_assertion_store(
     return _STORES[actor_id]
 
 
+def record_pending_assertion(
+    actor_id: str,
+    case_id: str,
+    event_type: str,
+    activity_id: str,
+    subject_id: str | None = None,
+) -> None:
+    """Record an assertion *actor_id* just sent to the CASE_MANAGER.
+
+    The one entry point every trigger that asks the manager instead of
+    writing shared state uses (SYNC-11-002, ASK-04-008): the note trigger and
+    the five embargo triggers.  The matching ``Announce(CaseLedgerEntry)``
+    clears it (SYNC-11-003).
+    """
+    get_pending_assertion_store(actor_id).add(
+        case_id, event_type, activity_id, subject_id=subject_id
+    )
+    logger.info(
+        "Actor '%s' asserted '%s' on case '%s' to the CASE_MANAGER;"
+        " pending its canonical commit (activity_id=%s)",
+        actor_id,
+        event_type,
+        case_id,
+        activity_id,
+    )
+
+
 def _reset_stores() -> None:
     """Clear the global per-actor store registry.
 
@@ -272,10 +345,12 @@ def _reset_stores() -> None:
 
 
 __all__ = [
+    "ASSERTED_ACTIVITY_KEY",
     "DEFAULT_PENDING_ASSERTION_TIMEOUT",
     "PendingAssertion",
     "PendingAssertionStore",
     "ProtocolPair",
     "get_pending_assertion_store",
+    "record_pending_assertion",
     "_reset_stores",
 ]

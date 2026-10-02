@@ -489,7 +489,6 @@ class TestEmbargoProposalLifecycle:
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.base.objects.actors import (
             as_Actor as Actor,
-            as_Service,
         )
         from vultron.wire.as2.vocab.objects.embargo_event import (
             as_EmbargoEvent,
@@ -531,25 +530,21 @@ class TestEmbargoProposalLifecycle:
         dl.create(embargo)
         dl.create(proposal)
 
-        # Add a Case Manager participant so routing proceeds to the
-        # EM-state validation check (the test's actual assertion target).
+        # The vendor is the CASE_MANAGER, so the trigger reaches the EM-state
+        # validation (the test's actual assertion target): a non-manager
+        # writes no EM state and only asks (EP-09-008).
         from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.objects.case_participant import (
             as_CaseParticipant as CP,
         )
 
-        case_actor = as_Service(
-            id_="https://example.org/actors/case-manager",
-            name="Case Manager",
-        )
-        dl.create(case_actor)
         cm_p = CP(
-            attributed_to=case_actor.id_,
+            attributed_to=actor.id_,
             context=case.id_,
             case_roles=[CVDRole.CASE_MANAGER],
         )
         dl.create(cm_p)
-        case.actor_participant_index[case_actor.id_] = cm_p.id_
+        case.actor_participant_index[actor.id_] = cm_p.id_
         case.pending_embargo_proposal_index[embargo.id_] = proposal.id_
         dl.save(case)
 
