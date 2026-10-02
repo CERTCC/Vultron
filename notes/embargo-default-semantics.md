@@ -436,7 +436,7 @@ EP-04-012 fixes what the guard's evidence is:
 The reference is wrong in the first column. After `terminate_active_embargo`
 the reference is `None` and the state is `EXITED`; a guard keyed on the
 reference falls through to the creation arm, which stores a fresh `EmbargoEvent`
-*before* `AdvanceEMStateToActiveNode` asks the EM machine for a `PROPOSE` it has
+*before* `InitializeCreationEmbargoNode` asks the EM machine for a `PROPOSE` it has
 no transition for from `EXITED` — an orphan write, a failed tree, and a proposal
 that is never answered (#3986). The EM state is right in both columns because
 the machine never returns to `NONE` once it has left it and `PROPOSED` is never
@@ -464,9 +464,21 @@ Consequences for the guard arm:
   registration both live inside it. The embargo is the case's, not the
   report's; terms on a redelivered proposal that conflict with the case lose
   to the case.
-- The per-node skips in `AdvanceEMStateToActiveNode` and
-  `AttachEmbargoToCaseNode` stay. They are each node validating its own
-  transition (CSB-16), not the idempotency guard.
+- The per-node skip in `InitializeCreationEmbargoNode` stays. It is the node
+  validating its own transition (CSB-16), not the idempotency guard.
+
+"`PROPOSED` is never persisted at creation" is a property of one write, not of
+the order of two. `InitializeCreationEmbargoNode` calls
+`EmbargoLifecycle.initialize_creation_embargo`, which applies `PROPOSE` and
+`ACCEPT` in memory, attaches the embargo and saves the case once; every check
+(P/X/A, the event's record, both transitions) runs before that save. The
+creation arm used to call `propose_embargo` and then, in a second node,
+`activate_embargo`: a failure between the two saves left the case at
+`PROPOSED`, which this guard reads as initialized, so the case never got an
+active embargo (#4123). A failure in a node *after* the activation write
+(signatory seeding, revision registration), or in the participant consent
+writes that follow the case save, still leaves the case past `NONE` with the
+rest of the arm undone; that is tracked in #4142.
 
 A rerun at `NONE` must also not store a *second* creation-time event (#4117).
 A run can stop after `CreateEmbargoEventNode` stored its event and before EM

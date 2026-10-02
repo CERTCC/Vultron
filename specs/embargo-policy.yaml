@@ -305,6 +305,14 @@ groups:
       The implementation MUST apply both the PROPOSE and ACCEPT state machine triggers atomically
       within `InitializeDefaultEmbargoNode`. The intermediate `EM.PROPOSED` state MUST NOT
       be persisted or observable externally.
+    verification: >-
+      The `initialize_creation_embargo` service tests confirm that the creation-time operation
+      hands the store one case write, at `EM.ACTIVE` with the embargo attached, and that a
+      refused P/X/A check, an unheld embargo or a case that has left `EM.NONE` writes nothing.
+      Participant consent records are written after that case write and are not part of it.
+      `TestCreationTimeEmbargoIsOneWrite` refuses the ACCEPT step after PROPOSE has been applied
+      and asserts the stored case stays at `EM.NONE`, and that a rerun then reaches `EM.ACTIVE`
+      with an attached embargo (EP-04-012, #4123).
   - id: EP-04-003
     priority: MUST
     kind: protocol

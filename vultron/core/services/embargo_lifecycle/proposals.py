@@ -23,14 +23,15 @@ EM is ``PROPOSED`` the proposals are abandoned rather than answered
 """
 
 import logging
-from typing import TYPE_CHECKING
 
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.dimensions import EmDimension
 from vultron.core.services.embargo_lifecycle.pec import (
     _PecEffectsMixin,
 )
 from vultron.core.services.embargo_lifecycle.results import (
     EmbargoLifecycleResult,
+    ParticipantPECChange,
     TransitionMode,
 )
 from vultron.core.states.em import EM, EM_Trigger
@@ -39,14 +40,11 @@ from vultron.errors import (
     VultronValidationError,
 )
 
-if TYPE_CHECKING:
-    from vultron.core.models.case import VulnerabilityCase
-
 logger = logging.getLogger(__name__)
 
 
 def _assert_abandonable(
-    case: "VulnerabilityCase", embargo_ids: list[str], em_before: EM
+    case: VulnerabilityCase, embargo_ids: list[str], em_before: EM
 ) -> None:
     """Raise unless the ``STRICT`` abandonment of *embargo_ids* is licensed.
 
@@ -166,13 +164,8 @@ class _ProposalOperationsMixin(_PecEffectsMixin):
         if case_mutated:
             self._persistence.save(case)
 
-        # Proposing B is consent to B (ADR-0093): the proposer's list gains the
-        # id with no state change.  A proposer with no participant record (the
-        # case-creation default, for one) has no consent to record.
-        if actor_id is not None and actor_id in case.actor_participant_index:
-            self._record_actor_pec_acceptance(
-                case, actor_id, embargo_id, advance=False
-            )
+        # Proposing B is consent to B (ADR-0093).
+        self._record_proposer_consent(case, actor_id, embargo_id)
 
         if em_after != em_before:
             logger.info(
@@ -299,4 +292,22 @@ class _ProposalOperationsMixin(_PecEffectsMixin):
             case_embargo_changed=False,
             pec_reset=False,
             participant_changes=[],
+        )
+
+    def _record_proposer_consent(
+        self,
+        case: VulnerabilityCase,
+        actor_id: str | None,
+        embargo_id: str,
+    ) -> list[ParticipantPECChange]:
+        """Record that proposing *embargo_id* is *actor_id*'s consent to it.
+
+        The proposer's list gains the id with no state change (ADR-0093).  A
+        proposer with no participant record (the case-creation default, for
+        one) has no consent to record.
+        """
+        if actor_id is None or actor_id not in case.actor_participant_index:
+            return []
+        return self._record_actor_pec_acceptance(
+            case, actor_id, embargo_id, advance=False
         )
