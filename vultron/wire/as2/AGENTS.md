@@ -118,7 +118,7 @@ suspenders for edge cases the runtime guard might miss).
 
 `ActivityPattern` declares `activity_`, `strict`, `to_`, `object_`, `target_` and
 `context_` — and **no `origin_` field**, so `origin` is never consulted for
-dispatch however well it reads. A field may be a **tuple of types** (any-of):
+dispatch however well it reads (#3438). A field may be a **tuple of types** (any-of):
 `CreateEmbargoEventPattern` admits a case or a report subject that way (VAM-05-001). Set the discriminator fields the pattern actually
 requires. A well-formed example is not necessarily a dispatchable one: an example
 that matches no pattern is silently dropped by a receiver, and the reference page

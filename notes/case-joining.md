@@ -220,7 +220,16 @@ message is designed: we accept offers and invitations, never bare objects.
 ## Pitfalls
 
 - **Roster membership is not "accepted" and not "entitled to content."** Ask
-  whether the participant is active.
+  whether the participant is active: it accepted the stub Invite, has not been
+  removed, and — only while an embargo is active — is `SIGNATORY` to it. The
+  check lives in the shared recipient selection, never at a send site
+  (CM-10-004, CM-10-005).
+- **A joined participant never answers the original `Offer(VulnerabilityReport)`**
+  and never runs `validate-report`/`invalidate-report`/`reject-report` for the
+  case's report; it judges the case by answering the full-case Invite
+  (CM-11-005, ADR-0070).
+- **A status update never creates a participant.** An on-behalf assertion whose
+  target is not a participant is refused before any write (PRM-06-006).
 - **Removal is not deletion and not a consent state.** Do not drop a removed
   participant from `case_participants`, and do not model removal as a PEC
   value: an embargo reset would erase it, and with no embargo the content gate
