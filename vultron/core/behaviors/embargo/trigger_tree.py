@@ -67,10 +67,10 @@ from vultron.core.behaviors.embargo.nodes import (
     ReadOpenEmbargoProposalsNode,
     RejectEmbargoLifecycleNode,
     RelayEmbargoInviteToEachNode,
-    SendTerminateEmbargoActivityNode,
     TerminateEmbargoLifecycleNode,
     ValidateEmbargoProposalStateNode,
     ValidateEmbargoRevisionStateNode,
+    ask_case_manager_to_terminate_once,
 )
 from vultron.core.behaviors.sender.nodes import (
     ConstructActivitiesNode,
@@ -431,7 +431,9 @@ def terminate_embargo_bt(
        and never to the manager (EMB-19-001, CLP-10-001, #4112), then the
        ``Add(CaseStatus)`` declaration.
     4. As any other participant: no EM write; the ``Remove`` is queued to the
-       CASE_MANAGER as a request (PCR-08-001).
+       CASE_MANAGER as a request (PCR-08-001) and recorded as a pending
+       assertion keyed by the ended embargo (EP-09-008, SYNC-11-002) — by
+       the use case on the trigger path, by the ask subtree on the cascades.
 
     With ``activity_builder`` (the trigger path) the use case builds the
     activity; with ``None`` (the CS.P/X/A and threat cascades) the nodes read
@@ -458,7 +460,7 @@ def terminate_embargo_bt(
         )
     else:
         commit = CommitEmbargoTeardownNode(case_id=case_id)
-        ask = SendTerminateEmbargoActivityNode(case_id=case_id)
+        ask = ask_case_manager_to_terminate_once(case_id)
 
     return py_trees.composites.Sequence(
         name="TerminateEmbargoBT",

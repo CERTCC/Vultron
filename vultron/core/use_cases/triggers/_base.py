@@ -48,8 +48,8 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.pending_assertion import (
     ASSERTED_ACTIVITY_KEY,
-    get_pending_assertion_store,
     record_pending_assertion,
+    suppressed_repeat_reason,
 )
 from vultron.core.models.use_case_result import ActivityResult, TriggerResult
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
@@ -291,24 +291,12 @@ class SvcEmbargoTriggerBase(SvcActivityTriggerBase):
         subject = self._assertion_subject()
         if subject is None:
             return None
-        pending = get_pending_assertion_store(
-            self._actor_id
-        ).pending_for_subject(
-            self._case.id_, self._assertion_event_type, subject
+        reason = suppressed_repeat_reason(
+            self._actor_id, self._case.id_, self._assertion_event_type, subject
         )
-        if pending is None:
+        if reason is None:
             return None
-        logger.info(
-            "%s: actor '%s' already asked the CASE_MANAGER for '%s' on case"
-            " '%s' (activity_id=%s, pending since %s) — duplicate suppressed,"
-            " not re-emitted (SYNC-11-002)",
-            type(self).__name__,
-            self._actor_id,
-            self._assertion_event_type,
-            self._case.id_,
-            pending.object_id,
-            pending.emitted_at.isoformat(),
-        )
+        logger.info("%s: %s", type(self).__name__, reason)
         return ActivityResult(activity=None, emitting_actor_id=self._actor_id)
 
     def _handle_result(self) -> None:

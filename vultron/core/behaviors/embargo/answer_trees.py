@@ -126,6 +126,11 @@ def _decide_owner_rejection(
     (ER / EJ, or nothing for a participant's consent).  Once the condition
     holds, a termination failure fails the tree: it is not a reason to
     revert to the prior terms instead.
+
+    The whole decision sits behind the CASE_MANAGER gate, so the
+    non-manager ask arm inside ``terminate_embargo_bt`` never runs here.  It
+    stays rather than a manager-only variant: every path ends an embargo
+    through the one shared composition (BT-19-002).
     """
     return py_trees.composites.Selector(
         name="DecideRejectedProposal",
