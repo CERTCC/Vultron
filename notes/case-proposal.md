@@ -415,13 +415,6 @@ a guessed base URL reproduces exactly the unresolvable-identity failure.
 
 ---
 
-## Open Questions
-
-None — all design decisions were resolved in the planning session.
-See `docs/adr/0023-case-proposal-protocol.md` for the alternatives evaluated.
-
----
-
 ## Durable-Delivery Marker (CP-05-005)
 
 The case-actor's accepted path involves two sequenced outbound activities

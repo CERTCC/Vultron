@@ -680,5 +680,5 @@ in post-BT procedural code. See `specs/message-validation.yaml` MV-10-005.
   embedding a proposed `EmbargoEvent` on the report offer (EP-04-004). The second
   of those *does* give pre-case terms a home, so there is no deadline-without-a-case
   problem to solve: the proposal is not an invitation, and the RSVP deadline still
-  attaches only to a case-scoped `Invite(EmbargoEvent)`. See
-  `notes/embargo-default-semantics.md` § "No Pre-Case Embargo Phase".
+  attaches only to a case-scoped `Invite(EmbargoEvent)`. See ADR-0096, which
+  rules out a pre-case embargo phase.

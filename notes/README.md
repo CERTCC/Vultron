@@ -733,8 +733,7 @@ logic.
 
 **`triggerable-behaviors-resolved.md`**
 Resolved trigger implementation design decisions and audit results: P30-1
-(outbox diff strategy), P30-2 (report triggers procedural), P30-3 (case
-triggers procedural), BT requirement for trigger use cases, general-purpose
+(outbox diff strategy), BT requirement for trigger use cases, general-purpose
 vs demo-only trigger classification, trigger audit results, wrapper pattern,
 sync-log-entry context field, and testing patterns.
 **Load when**: verifying whether a trigger use case requires a BT, looking up
@@ -981,9 +980,9 @@ or editing a section landing page, or planning any documentation reorganization.
 Source: CONCERN-3512.
 
 **`reader-facing-docs-audit.md`**
-The dated audit (#3526) of every reader-facing `docs/` page against ADR-0102:
-the routing ledger (level, stakeholder type, verdict, and owning remediation
-task for each page), the ten pages reclassified as working record, the finding
+The dated audit (#3526) of every reader-facing `docs/` page against ADR-0102
+(its per-page routing ledger is archived now that every remediation task has
+closed): the ten pages reclassified as working record, the finding
 that no page narrows `cvd-practitioner`, and the cross-page rulings a page-local
 fixer cannot make — which of four concept registries wins, where the Background
 essay goes, which Case State, PEC, case-proposal and discovery page owns each

@@ -90,16 +90,6 @@ embargo regression and vice versa.
 When a single PR must touch both, call it out explicitly in the PR body and
 list the integration test(s) that exercise the combined path.
 
-## Structural follow-up
-
-The module structure of `triggers/case.py` mirrored the `nodes.py` smell that
-[`specs/behavior-tree-node-design.yaml`](../specs/behavior-tree-node-design.yaml)
-BTND-07-001 addresses for BT nodes: a flat module accumulating many classes
-becomes high-blast-radius and review-hostile.
-
-That follow-up has now landed: `triggers/case.py` was split into a
-`triggers/case/` subpackage with one submodule per use case (issue #742).
-
 ## References
 
 - Originating concern: [#652](https://github.com/CERTCC/Vultron/issues/652)
