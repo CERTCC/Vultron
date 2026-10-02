@@ -30,7 +30,7 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.behaviors.sync.nodes.embargo_pause import peer_is_withheld
-from vultron.core.behaviors.sync.nodes.replay import _require_rejected_entry
+from vultron.core.behaviors.sync.nodes.replay import require_rejected_entry
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
@@ -97,7 +97,7 @@ class AnnounceCaseOnGenesisRejectNode(DataLayerActionWithPorts):
             )
             return Status.SUCCESS
 
-        entry = _require_rejected_entry(activity, self.name)
+        entry = require_rejected_entry(activity, self.name)
         peer_id = activity.actor_id
         # CM-10-004: the case object is case content; a withheld peer's replay
         # is withheld too (SendMissingEntriesNode), so seed nothing.

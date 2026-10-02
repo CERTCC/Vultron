@@ -61,7 +61,13 @@ from vultron.errors import (
 logger = logging.getLogger(__name__)
 
 
-def _require_rejected_entry(activity: Any, node_name: str) -> CaseLedgerEntry:
+def require_rejected_entry(activity: Any, node_name: str) -> CaseLedgerEntry:
+    """Return the ``CaseLedgerEntry`` a ``Reject(CaseLedgerEntry)`` carries.
+
+    Shared by the replay nodes here and ``AnnounceCaseOnGenesisRejectNode``
+    (``genesis_announce.py``). Raises ``VultronError`` when the activity
+    carries no entry (BT-HELPER-01: helpers raise, ``update()`` catches).
+    """
     entry = getattr(activity, "rejected_entry", None)
     if entry is None:
         entry = getattr(activity, "object_", None)
@@ -134,7 +140,7 @@ class FindCaseActorNode(DataLayerActionWithPorts):
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
-        entry = _require_rejected_entry(self.activity, self.name)
+        entry = require_rejected_entry(self.activity, self.name)
         self._set_output("case_id", entry.case_id)
 
         # Regime 1 (ADR-0087): a peer is asking us to replay this case's log,
@@ -190,7 +196,7 @@ class CollectAndSortCaseLedgerEntriesNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
         activity = self.activity
-        entry = _require_rejected_entry(activity, self.name)
+        entry = require_rejected_entry(activity, self.name)
         peer_id = activity.actor_id
         if not peer_id:
             raise VultronError(

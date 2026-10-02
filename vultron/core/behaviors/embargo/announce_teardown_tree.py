@@ -191,7 +191,8 @@ def add_embargo_to_case_tree(
 
     Handles receipt of an ``Add(EmbargoEvent)`` activity.  Sets the embargo
     as active on the case, transitions EM → ACTIVE, and commits a canonical
-    ledger entry.
+    ledger entry. As the CASE_MANAGER it then backfills any participant the
+    newly active embargo admits (CM-10-006).
 
     BT returns SUCCESS when the embargo is activated.
     Always commits the ledger entry regardless of BT result.
@@ -213,6 +214,9 @@ def add_embargo_to_case_tree(
                 embargo_id=embargo_id,
                 transition_mode=TransitionMode.OBSERVED,
             ),
+            # Activating a revision can admit a participant that had already
+            # accepted it, after the Add entry was fanned out (CM-10-006).
+            embargo_admission_backfill_tree(case_id),
         ],
     )
     logger.info(

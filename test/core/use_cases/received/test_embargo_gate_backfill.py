@@ -31,6 +31,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -39,6 +40,7 @@ from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
+    AddEmbargoEventToCaseReceivedUseCase,
     RemoveEmbargoEventFromCaseReceivedUseCase,
 )
 from vultron.core.use_cases.triggers.embargo import SvcTerminateEmbargoUseCase
@@ -46,10 +48,12 @@ from vultron.core.use_cases.triggers.requests import (
     TerminateEmbargoTriggerRequest,
 )
 from vultron.wire.as2.factories import (
+    add_embargo_to_case_activity,
     em_accept_embargo_activity,
     em_propose_embargo_activity,
     remove_embargo_from_case_activity,
 )
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 from .conftest import make_embargo_case_with_actor
 
@@ -107,6 +111,46 @@ class _GateScenario:
         RemoveEmbargoEventFromCaseReceivedUseCase(
             self.dl,
             self._make_payload(remove, receiving_actor_id=MANAGER_ID),
+            sync_port=SyncActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+    def receive_revision_accepted_by(self, actor_id: str) -> None:
+        """Activate a shorter revision that *actor_id* had already accepted.
+
+        The case is in REVISE with the revision proposed, and *actor_id*'s
+        participant lists the revision, so the CASE_MANAGER's receipt of the
+        owner's ``Add(EmbargoEvent)`` admits it (CM-10-004). The revision ends
+        sooner than the active terms, so the signatories carry over by
+        containment and stay admitted (EP-05-001).
+        """
+        revision = as_EmbargoEvent(
+            id_=f"{CASE_ID}/embargo_events/e2",
+            content="Shorter revision",
+            context=CASE_ID,
+            end_time=days_from_now_utc(30),
+        )
+        self.dl.create(revision)
+        stored = cast(VulnerabilityCase, self.dl.read(CASE_ID))
+        stored.current_status.em.state = EM.REVISE
+        stored.proposed_embargoes.append(revision.id_)
+        self.dl.save(stored)
+        participant = self.dl.read(
+            f"{CASE_ID}/participants/{actor_id.rsplit('/', 1)[-1]}"
+        )
+        assert isinstance(participant, CaseParticipant)
+        participant.accepted_embargo_ids = [
+            *participant.accepted_embargo_ids,
+            revision.id_,
+        ]
+        self.dl.save(participant)
+
+        activation = add_embargo_to_case_activity(
+            revision, target=CASE_ID, actor=MANAGER_ID
+        )
+        AddEmbargoEventToCaseReceivedUseCase(
+            self.dl,
+            self._make_payload(activation, receiving_actor_id=MANAGER_ID),
             sync_port=SyncActivityAdapter(self.dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
@@ -210,10 +254,10 @@ def _assert_backfilled(scenario: _GateScenario, withheld: list[str]) -> None:
 def test_signatory_accepts_commit_entries_before_the_finder_is_admitted(
     make_payload,
 ) -> None:
-    """Precondition for the CM-10-006 marker: more than one entry is withheld.
+    """Precondition for the backfill tests: more than one entry is withheld.
 
-    Kept outside the strict ``xfail`` so that a change in what an accept
-    commits fails loudly here instead of hiding inside the expected failure.
+    Kept as its own test so that a change in what an accept commits fails
+    loudly here, not as a confusing ordering failure in a backfill test.
     """
     scenario = _GateScenario(make_payload)
 
@@ -300,4 +344,24 @@ def test_an_honored_late_accept_backfills_withheld_entries(
     finder = scenario.dl.read(f"{CASE_ID}/participants/finder")
     assert isinstance(finder, CaseParticipant)
     assert scenario.embargo.id_ in finder.accepted_embargo_ids
+    _assert_backfilled(scenario, withheld)
+
+
+@pytest.mark.spec("CM-10-006")
+def test_activating_a_revision_the_participant_accepted_backfills_it(
+    make_payload,
+) -> None:
+    """A received Add(EmbargoEvent) that admits the finder backfills it.
+
+    The Add entry is committed and fanned out while the old embargo is still
+    active, so its fan-out withholds the finder; the backfill after the
+    activation sends it everything, the Add entry included.
+    """
+    scenario = _GateScenario(make_payload)
+    withheld = scenario.withhold_signatory_commits()
+
+    scenario.receive_revision_accepted_by(NON_SIGNATORY_ID)
+
+    stored = cast(VulnerabilityCase, scenario.dl.read(CASE_ID))
+    assert stored.active_embargo_id == f"{CASE_ID}/embargo_events/e2"
     _assert_backfilled(scenario, withheld)
