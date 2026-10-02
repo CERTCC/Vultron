@@ -35,3 +35,6 @@ adapter-boundary obligation (the inbox handler catches, logs at ERROR, and
 re-queues or drops) with a clause naming the `inbox_handler` tests that show
 it, or be removed per MS-09-001 as superseded by the inbox-pipeline
 requirements that already govern that boundary.
+
+**Promoted**: 2026-10-02 — Promoted — DR-03-002 restated (core propagates); new IE-06-004 (inbox handler catch, bounded retry, dead-letter), owned by #4168.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/4174>.

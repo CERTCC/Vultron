@@ -32,3 +32,6 @@ replication `Announce`, and messages whose content is a ledger assertion), or
 CM-14 / CBT-01 should carry a cross-reference saying the bootstrap seed precedes
 the first commit by design. Which group carries the qualification is the open
 question.
+
+**Promoted**: 2026-10-02 — Promoted — decided the ledger records completed acts: proposed ADR-0117 and Epic #4158 (SYNC-09-002 narrowing rejected).
+Docs PR: <https://github.com/CERTCC/Vultron/pull/4174>.

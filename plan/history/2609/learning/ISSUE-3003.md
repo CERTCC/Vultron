@@ -80,3 +80,6 @@ which is about unverifiable claims rather than quadrant boundaries; that entry's
 rule was *applied* in this session (the guides name trigger behaviors, never URL
 paths, because nothing ratchets a path — #3442), so this session is a confirming
 application of it, not a second witness.
+
+**Promoted**: 2026-10-02 — Promoted — DF-04-009 and DF-04-010 (specs/diataxis-requirements.yaml); pair cleanup owned by #4169.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/4174>.

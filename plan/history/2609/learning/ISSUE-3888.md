@@ -33,3 +33,6 @@ document) and filing #3900 for the envelope, where keys are still dropped.
 Claim awaiting a second witness: an ADR graduation should be gated on a
 per-detail test map, not on its epic's child count, and a `lint_suppress` added
 in the same commit as a status change is a signal to inspect, not a fix.
+
+**Promoted**: 2026-10-02 — Promoted — one of five cases behind MS-10-009 (notes/spec-authoring-rules.md § "A Verification Clause Is a Claim About the Suite").
+Docs PR: <https://github.com/CERTCC/Vultron/pull/4174>.

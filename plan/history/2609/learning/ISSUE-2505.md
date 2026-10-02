@@ -77,3 +77,6 @@ mirror case — there a guard was inert because its input was always empty; here
 guard was inert because it deliberately excluded its subject. Both read as
 green and neither announced itself, which is the shared hazard: **a check that
 passes is not evidence it examined what you think it examined.**
+
+**Promoted**: 2026-10-02 — Promoted — captured in notes/agentic-workflow.md § "A Passing Check Is Not Evidence It Examined What You Think" (grep the predicate shape, not the ADR).
+Docs PR: <https://github.com/CERTCC/Vultron/pull/4174>.

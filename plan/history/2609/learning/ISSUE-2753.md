@@ -33,3 +33,6 @@ requesting participant lives in `attributedTo` — amended DEMOMA-22-004 to say 
 and relabelled the ten invite edges. Making the label load-bearing in
 `check_causal_edges` remains Concern #3882; PR #3881 adds only a shape-local
 check (an invitation response is never attributed to its inviter).
+
+**Promoted**: 2026-10-02 — Already closed — DEMOMA-22-004 amended by PR #3881; enforcement tracked by Concern #3882.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/4174>.

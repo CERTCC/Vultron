@@ -37,3 +37,6 @@ ARCH-12-006 (`str`, derived when absent). `test_derived_endpoint_carries_no_cloc
 and `test_actor_round_trips_through_uri_endpoints_across_a_clock_tick` in
 `test/wire/as2/vocab/base/test_actor_endpoints.py` are ready to carry a
 `@pytest.mark.spec` marker once the id exists.
+
+**Promoted**: 2026-10-02 — Promoted — ARCH-12-006 corrected; new ARCH-23-007 (derived endpoint carries no clock stamp).
+Docs PR: <https://github.com/CERTCC/Vultron/pull/4174>.

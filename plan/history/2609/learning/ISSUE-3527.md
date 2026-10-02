@@ -22,3 +22,6 @@ Open question for `learn`: does DF-09-003 exempt navigation labels and generated
 link text, or must the nav label itself carry the expansion? The answer decides
 what #3617 does when it generates sub-section listings, and whether the
 generator should lint labels against `docs/_acronyms`.
+
+**Promoted**: 2026-10-02 — Promoted — DF-09-003 amended: navigation exempt; a generated listing entry is one unit.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/4174>.

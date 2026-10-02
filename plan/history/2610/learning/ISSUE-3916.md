@@ -21,3 +21,6 @@ revision through its default selection; #4122 makes it index the Invite on the
 proposer's own replica only. The PR adds a clarifying sentence to EP-04-011
 saying the committed relayed Invite is the proposal entry; if a distinct entry
 were intended instead, the replica replay (#4099) is where it would be consumed.
+
+**Promoted**: 2026-10-02 — Promoted — EP-04-011 now states the committed relayed Invite is the proposal entry.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/4174>.

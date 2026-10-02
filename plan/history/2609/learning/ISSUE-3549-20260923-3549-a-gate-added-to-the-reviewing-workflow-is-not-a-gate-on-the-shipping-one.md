@@ -83,3 +83,6 @@ branch, not the enumeration of deployment paths, so it is a family resemblance
 rather than corroboration.
 [[20260923-3549-the-publishing-workflow-has-no-spec-group]] is the spec-level
 half of this entry, and a candidate mechanism for it.
+
+**Promoted**: 2026-10-02 — Promoted — captured in notes/agentic-workflow.md § "Enumerate the Affected Set From Its Consumers"; DOCBW-06 group; shared build action owned by #4167.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/4174>.

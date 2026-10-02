@@ -31,3 +31,6 @@ The gap: EMB-03-003 should either say that the termination is the CS cascade's
 and the EV is refused (so the marker test matches the text), or keep its ET
 wording and gain a separate marker on the cascade path, so that a test
 asserting "stays ACTIVE, ER sent" is not the sole evidence for "emit ET".
+
+**Promoted**: 2026-10-02 — Promoted — EMB-03-003 reworded (public awareness causes termination; a racing proposal is refused); markers owned by #4161.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/4174>.

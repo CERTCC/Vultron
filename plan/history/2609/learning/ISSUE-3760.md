@@ -20,3 +20,6 @@ Observation worth keeping: the last change to the reject tree reordered
 `FindCaseActorNode` ahead of `UpdateReplicationStateNode`, and the test still
 constructs the use case with no `sync_port`. Either the test's fixture or the
 tree's gate is out of date; #3802 asks the #3776 author which.
+
+**Promoted**: 2026-10-02 — Already closed — #3802 fixed and closed.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/4174>.

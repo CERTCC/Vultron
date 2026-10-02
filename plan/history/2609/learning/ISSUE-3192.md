@@ -57,3 +57,6 @@ valid input or revealed to have been inert.
 
 Related: [[20260914-3217-measure-what-a-permissive-fallback-absorbs]]. Its watched
 neighbouring claim was corroborated by this session and filed as #3295.
+
+**Promoted**: 2026-10-02 — Promoted — corroborated (with ISSUE-2505 and Concern #3156) and captured in notes/agentic-workflow.md § "A Passing Check Is Not Evidence It Examined What You Think".
+Docs PR: <https://github.com/CERTCC/Vultron/pull/4174>.

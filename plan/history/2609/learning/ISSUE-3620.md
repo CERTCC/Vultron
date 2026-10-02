@@ -24,3 +24,6 @@ I found this while writing the consent table in
 which follows §9.2 rather than MSM-07-004's wording. Suggested fix: add
 SIGNATORY to MSM-07-004's source states, and restate the EJ clause as
 "REVISE → ACTIVE".
+
+**Promoted**: 2026-10-02 — Already closed — MSM-07-004 already lists SIGNATORY and states EJ as REVISE → ACTIVE on main.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/4174>.

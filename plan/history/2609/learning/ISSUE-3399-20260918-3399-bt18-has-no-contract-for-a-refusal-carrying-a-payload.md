@@ -62,3 +62,6 @@ the channel exists and this entry is wrong about BT-18's scope.
 Related: [[20260918-3399-a-structural-fix-leaves-the-hazard-one-node-upstream]]
 is the other half of the same session and concerns the tree structure rather
 than the spec. Neither of the other queued entries covers this.
+
+**Promoted**: 2026-10-02 — Already closed — tracked by Concern #3446 (BT-18 refusal payload channel); no promotion.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/4174>.

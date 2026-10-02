@@ -77,3 +77,6 @@ absent from.
 [[20260922-3480-an-unenforced-must-is-invisible-to-the-planning-that-needs-it]]
 is the nearer queued entry in kind: both are about a requirement that exists but
 is positioned so that the reader who needs it will not encounter it.
+
+**Promoted**: 2026-10-02 — Promoted — DOCBW topic widened to build and publication; new DOCBW-06 Site Publication group (publish trigger left open, Concern #3560).
+Docs PR: <https://github.com/CERTCC/Vultron/pull/4174>.

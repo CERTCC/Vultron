@@ -70,3 +70,6 @@ Related: [[20260914-3217-measure-what-a-permissive-fallback-absorbs]] and
 [[20260916-3207-ac7-exactly-two-vs-permanent-overcatch]] — the same shape as the
 CM-20 finding: an entry that constrains/frames one member of a population (here,
 "CASE_MANAGER") against a premise its governing decision already overturned.
+
+**Promoted**: 2026-10-02 — Promoted — confirmed against the glossary; captured in notes/spec-authoring-rules.md § "Name the Authority CASE_MANAGER, Not CaseActor" (infrastructure-vs-authority discriminator).
+Docs PR: <https://github.com/CERTCC/Vultron/pull/4174>.

@@ -49,3 +49,6 @@ Either way, issue #3601 and the stories epic (#2717) should look first at the
 ~90 protocol-worded specs relabeled here: mapping them to stories restores
 `protocol` under both readings. The decision and the re-adjudication are
 tracked as Concern #3943, which carries the list.
+
+**Promoted**: 2026-10-02 — Already closed — tracked by Concern #3943.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/4174>.

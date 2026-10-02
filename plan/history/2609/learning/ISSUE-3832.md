@@ -40,3 +40,6 @@ still says the second.
 
 Tracked as Concern #4006 (filed from the same session), which holds the two
 resolution options; this file records the evidence behind it.
+
+**Promoted**: 2026-10-02 — Already closed — PRM-06-004 scoped to a deployer already in the case (Concern #4006 closed).
+Docs PR: <https://github.com/CERTCC/Vultron/pull/4174>.

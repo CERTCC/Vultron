@@ -79,3 +79,6 @@ verify what it names. This one is a requirement with no verification at all, and
 the consequence is different in kind: a weak clause lets a defect through, while
 a missing clause lets the **requirement itself** disappear from the project's
 working knowledge.
+
+**Promoted**: 2026-10-02 — Promoted — one of five cases behind MS-10-009; recorded in notes/spec-authoring-rules.md § "A Verification Clause Is a Claim About the Suite".
+Docs PR: <https://github.com/CERTCC/Vultron/pull/4174>.

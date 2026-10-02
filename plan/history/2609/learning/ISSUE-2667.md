@@ -27,3 +27,6 @@ added one tree at a time, because nothing states the rule it enforces.
 Candidate home: a BT-17 or CM-24 statement, plus an architecture ratchet that
 flags any received tree whose emit nodes are neither role-gated nor
 sender-gated.
+
+**Promoted**: 2026-10-02 — Promoted — BT-17-008 (specs/behavior-tree-integration.yaml); the ratchet is Concern #3830.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/4174>.

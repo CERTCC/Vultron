@@ -66,3 +66,6 @@ Related: [[20260918-3399-bt18-has-no-contract-for-a-refusal-carrying-a-payload]]
 is the nearer queued entry in kind — a spec clause that cannot be satisfied as
 written. This one is the inverse: a clause that *is* satisfied as written and
 still permits the defect it exists to prevent.
+
+**Promoted**: 2026-10-02 — Promoted — DEMOCI-11-009 verification rewritten to cite the built-site reference check; general rule MS-10-009 (specs/meta-specifications.yaml).
+Docs PR: <https://github.com/CERTCC/Vultron/pull/4174>.

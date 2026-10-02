@@ -31,3 +31,6 @@ Applies at planning time (`plan-issue` writing "the N handlers that …") and at
 ratchet-authoring time (any `KNOWN_*` set whose membership test is a name
 regex). Second witness wanted: another issue whose site count was derived from
 a shared implementation pattern and came up short.
+
+**Promoted**: 2026-10-02 — Promoted — captured in notes/agentic-workflow.md § "Enumerate the Affected Set From Its Consumers".
+Docs PR: <https://github.com/CERTCC/Vultron/pull/4174>.

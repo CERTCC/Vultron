@@ -76,3 +76,6 @@ is the spec-level half of the same work.
 [[20260916-3192-tightening-a-resolver-wakes-dormant-checks]] shares a family
 resemblance — a permissive path silently load-bearing — but its mechanism is a
 guard consuming an empty answer, not a branch consuming a status.
+
+**Promoted**: 2026-10-02 — Promoted — corroborated (with ISSUE-3549, ISSUE-3870); captured in notes/agentic-workflow.md § "Enumerate the Affected Set From Its Consumers".
+Docs PR: <https://github.com/CERTCC/Vultron/pull/4174>.

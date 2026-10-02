@@ -24,3 +24,6 @@ embargo stake — neither owner nor service — falls between the two: never
 invited, never asked, `UNBOUND` forever unless it proposes. Whether that record
 should be moved at the manager's own commit, left `UNBOUND`, or declared
 meaningless for the role holder is a decision EP-09 does not make.
+
+**Promoted**: 2026-10-02 — Promoted — EP-09-002 amended: the manager is excluded and the CASE_MANAGER role carries no embargo stake.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/4174>.

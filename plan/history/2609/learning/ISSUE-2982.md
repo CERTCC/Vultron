@@ -94,3 +94,6 @@ which is the same statement-versus-supporting-prose seam surviving a change. If 
 second session finds a defect licensed by a stale `rationale:` or `verification:`
 clause, this is corroborated and belongs in `specs/meta-specifications.yaml` as
 an authoring MUST rather than a notes rule.
+
+**Promoted**: 2026-10-02 — Promoted — notes rule already landed (notes/spec-authoring-rules.md § "A Spec States Current Understanding"); the corroborated authoring MUST is MS-10-009; VM-01-004 already fixed.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/4174>.

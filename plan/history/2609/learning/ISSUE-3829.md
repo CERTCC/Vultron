@@ -41,3 +41,6 @@ What would resolve it: either add the three (five) notify verbs to
 demo mounting is provisional. The trigger registry (ADR-0110, TRIG-12-004)
 will carry an exposure column per verb, so whichever answer is chosen becomes
 a data-table fact rather than a docstring judgment.
+
+**Promoted**: 2026-10-02 — Promoted — TRIG-02-003 kept and clarified (general-purpose, notify-published records Public Aware); routes owned by #4159.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/4174>.

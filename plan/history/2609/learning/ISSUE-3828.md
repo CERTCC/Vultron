@@ -28,3 +28,6 @@ that auto-lowers, (b) a "below" arm that reports and files rather than
 fails, or (c) an explicit "land it alone, re-measure at merge" step in the PR
 that introduces it. Seen once; a second two-sided ratchet landing red would
 corroborate it.
+
+**Promoted**: 2026-10-02 — Already closed — tracked by Concern #3984.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/4174>.

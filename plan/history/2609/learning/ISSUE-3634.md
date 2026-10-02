@@ -24,3 +24,6 @@ files' entries should be removed; or
 permit a deprecated entry with `superseded_by`, for example as a transitional
 state.
 Until one is chosen, agents will keep following whichever one they read first.
+
+**Promoted**: 2026-10-02 — Promoted — delete rule confirmed (MS-04-005/MS-09-001 rationale); removal of the 16 entries and the schema fields owned by #4166.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/4174>.

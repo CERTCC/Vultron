@@ -31,3 +31,6 @@ received side it also sanctions. A second received-side delegated emit (the
 creation-time revision of EP-04-011, #3916, is the obvious next one) will face
 the same choice. Either CM-24-005 should say the role gate *is* the received
 side's shared mechanism, or a received-side helper should be named.
+
+**Promoted**: 2026-10-02 — Promoted — CM-24-005 amended (one shared helper for every on-behalf send); relocation owned by #4160.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/4174>.
