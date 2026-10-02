@@ -32,7 +32,7 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.states.rm import RM
 
 logger = logging.getLogger(__name__)

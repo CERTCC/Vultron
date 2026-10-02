@@ -27,11 +27,18 @@ Submodules:
 - ``canonical_entry``: Canonical ``payloadSnapshot`` validation (CLP-07)
 - ``replay``: Reject-driven replay action nodes for replication
 - ``fanout``: Fan-out action nodes, plain and RM.CLOSED-filtered
-- ``effects``: Ledger-apply side-effect nodes (note, invite-accept, close-case)
+- ``effects``: Ledger-apply side-effect nodes (note, invite-accept)
 - ``participant_status_effect``: Ledger-apply of ``ParticipantStatus``, with the
   monotonic-RM ratchet (ADR-0061)
 - ``offer_report_effect``, ``ownership_effects``, ``ownership_offer_effect``:
   per-effect ledger-apply nodes
+
+The ``close_case`` effect is not here: it composes the case participant-status
+writer, so it lives in :mod:`vultron.core.behaviors.case.nodes.close_case_effect`.
+Every case node that commits imports
+:mod:`~vultron.core.behaviors.sync.commit_tree`, which loads this package, so
+a module here that imported ``case.nodes`` would close an import cycle
+(CS-05-003).  Nodes in this package depend on no domain node package.
 """
 
 from vultron.core.behaviors.sync.nodes.chain import (
@@ -39,9 +46,6 @@ from vultron.core.behaviors.sync.nodes.chain import (
     PersistLogEntryNode,
     ReconstructChainTailNode,
     UpdateReplicationStateNode,
-)
-from vultron.core.behaviors.sync.nodes.close_case_effect import (
-    ApplyCloseCaseFromLedgerNode,
 )
 from vultron.core.behaviors.sync.nodes.conditions import (
     CheckLedgerEntryAlreadyStoredNode,
@@ -123,7 +127,6 @@ __all__ = [
     # effects
     "ApplyNoteFromLedgerNode",
     "ApplyInviteAcceptFromLedgerNode",
-    "ApplyCloseCaseFromLedgerNode",
     # participant_status_effect
     "ApplyParticipantStatusFromLedgerNode",
     "EmitImpossibleStateFaultNode",

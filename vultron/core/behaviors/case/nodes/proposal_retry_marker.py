@@ -159,7 +159,7 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
         self, raw_case: VulnerabilityCase
     ) -> dict[str, Any]:
         assert self.datalayer is not None
-        # Materialise each participant ref so _store_embedded_participants
+        # Materialise each participant ref so store_embedded_participants
         # on the vendor side receives full objects, not bare ID strings (AC-5).
         materialized: list[Any] = []
         for ref in raw_case.case_participants:
@@ -239,7 +239,7 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
         # EmitCreateVulnerabilityCaseNode so the retry runner (#1139)
         # can reconstruct the exact same activity without re-running the BT.
         # AC-5 (ADR-0041): embed full inline case object with materialised
-        # participants so _store_embedded_participants seeds the vendor replica.
+        # participants so store_embedded_participants seeds the vendor replica.
         try:
             case_object = self._build_case_object(case)
         except (VultronNotFoundError, VultronValidationError) as exc:

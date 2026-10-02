@@ -9,12 +9,14 @@ from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.wire_render import WireRenderPort
+from vultron.core.services.case_replica_seeding import (
+    store_embedded_participants,
+)
 from vultron.errors import VultronAlreadyExistsError
 
 from ._helpers import (
     _find_report_case_link,
     _hold_carried_embargo,
-    _store_embedded_participants,
 )
 
 logger = logging.getLogger(__name__)
@@ -146,7 +148,7 @@ class CreateCaseReceivedUseCase:
         ) is not None:
             return refusal
         stored = self._store_replica(case_id, case_obj)
-        _store_embedded_participants(case_obj, self._dl, case_id)
+        store_embedded_participants(case_obj, self._dl, case_id)
         if not stored:
             return HandlerResult.skipped(f"case '{case_id}' already seeded")
         logger.info(
@@ -249,7 +251,7 @@ class CreateCaseReceivedUseCase:
         # find them by UUID via ``datalayer.read(participant_id)``.
         # This must happen regardless of the idempotency guard above because
         # the inbox router may have already seeded the case before dispatch.
-        _store_embedded_participants(case_obj, self._dl, case_id)
+        store_embedded_participants(case_obj, self._dl, case_id)
         if not stored:
             # The trust anchors and embedded objects above are re-applied
             # idempotently; only the replica itself already existed.

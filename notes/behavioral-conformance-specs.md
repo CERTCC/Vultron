@@ -90,7 +90,8 @@ Some ECA rules are not just "do A when B" but "do A *before* B." These use
 - **Ephemeral states: pX→PX invariant** (CSB-13-001, CSB-17-003, CSB-17-012):
   when the CS PXA state is pXa or pXA (exploit public without public awareness),
   the next CS event MUST be P. **Write-boundary enforcement** (AC-1, PR #2479):
-  `_promote_pxa()` in `AppendCaseStatusToCaseNode` and `EmitCaseStatusUpdateNode`,
+  `promote_pxa()` (`case_status_snapshot.py`), called by `AppendCaseStatusToCaseNode`
+  and `EmitCaseStatusUpdateNode`,
   and `_apply_ac1_promotions()` in `CreateParticipantStatusNode`, prevent
   pXa/pXA from being persisted. **Receive-path enforcement** (PR #2888):
   `CheckCsEphemeralStateNode` in `add_case_status_tree` returns FAILURE if

@@ -20,7 +20,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.errors import (
     VultronActivityConstructionError,
     VultronAlreadyExistsError,

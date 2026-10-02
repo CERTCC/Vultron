@@ -43,7 +43,7 @@ from vultron.core.behaviors.call_out.bundles.status_authorization import (
     STATUS_AUTHORIZATION_PERMISSIVE,
 )
 from vultron.core.models.events import MessageSemantics
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.datalayer import DataLayer
 
 logger = logging.getLogger(__name__)

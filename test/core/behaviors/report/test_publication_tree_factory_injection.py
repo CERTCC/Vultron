@@ -23,9 +23,11 @@ import py_trees
 import pytest
 from py_trees.common import Access, Status
 
-from vultron.core.behaviors.report.publication_tree import (
+from vultron.core.behaviors.report.publication_intent import (
     INTENT_DECISION_KEY,
     PublicationIntentDecision,
+)
+from vultron.core.behaviors.report.publication_tree import (
     create_publication_tree,
 )
 from vultron.demo.fuzzer.bundles.publication import PublicationCallOutBundle

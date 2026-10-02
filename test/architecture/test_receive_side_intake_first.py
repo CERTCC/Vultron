@@ -217,7 +217,7 @@ KNOWN_FACTORIES_BYPASSING_INTAKE: frozenset[str] = frozenset(
         "create_announce_log_entry_tree",
         "create_commit_log_entry_tree",
         "create_reject_log_entry_tree",
-        # inbox
+        # dead_letter
         "create_store_dead_letter_tree",
     }
 )

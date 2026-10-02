@@ -26,10 +26,8 @@ from vultron.adapters.outbox_sealed_body import (
     seal_outbound_body,
 )
 from vultron.core.models.base import CoreObject
-from vultron.core.ports.case_persistence import (
-    CaseOutboxPersistence,
-    CasePersistence,
-)
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.embargo_ordering import read_embargo_event
 from vultron.errors import (
     VultronActivityConstructionError,
@@ -146,7 +144,7 @@ def _case_for_wire(
     ``as_VulnerabilityCase`` admits the objects in every one of these slots, and
     ``to_core()`` reduces them back to ids, so a receiver's stored case is
     unchanged in shape; the recipient stores each carried object separately
-    (``store_carried_embargo``, ``_store_embedded_participants``).
+    (``store_carried_embargo``, ``store_embedded_participants``).
 
     A participant or report reference the sender's own store cannot resolve
     is left as the id with a WARNING: this function's job is to carry what is

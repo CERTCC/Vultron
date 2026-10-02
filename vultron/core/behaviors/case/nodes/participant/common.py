@@ -30,10 +30,8 @@ from vultron.core.models.participant_status import (
     participant_status_rm_state,
     participant_status_vf_state,
 )
-from vultron.core.ports.case_persistence import (
-    CaseOutboxPersistence,
-    CasePersistence,
-)
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.participant_transitions import (
     participant_transition_violations,

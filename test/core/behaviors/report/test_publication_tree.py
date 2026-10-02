@@ -27,9 +27,11 @@ import pytest
 from py_trees.common import Status
 
 from vultron.core.behaviors.call_out import unwrap_call_out
-from vultron.core.behaviors.report.publication_tree import (
+from vultron.core.behaviors.report.publication_intent import (
     INTENT_DECISION_KEY,
     PublicationIntentDecision,
+)
+from vultron.core.behaviors.report.publication_tree import (
     ShouldPublishExploit,
     ShouldPublishFix,
     ShouldPublishReport,

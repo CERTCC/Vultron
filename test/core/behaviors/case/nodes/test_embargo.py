@@ -46,7 +46,7 @@ from vultron.core.behaviors.case.nodes.embargo_resolution import (
 from vultron.core.behaviors.case.nodes.embargo_revision import (
     RegisterLongerProposalAsRevisionNode,
 )
-from vultron.core.behaviors.case.nodes.participant import (
+from vultron.core.behaviors.case.participant_tree import (
     CreateCaseOwnerParticipant,
 )
 from vultron.core.models.actor import VultronOrganization

@@ -9,7 +9,7 @@ import py_trees
 from vultron.core.behaviors.bridge import BTBridge
 
 if TYPE_CHECKING:
-    from vultron.core.ports.case_persistence import CaseOutboxPersistence
+    from vultron.core.ports.case_outbox import CaseOutboxPersistence
     from vultron.core.ports.sync_activity import SyncActivityPort
 
 from vultron.core.behaviors.sync.nodes import (

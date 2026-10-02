@@ -52,7 +52,7 @@ from vultron.core.behaviors.report.nodes.develop_fix_conditions import (
     CheckIsVendorRoleNode,
 )
 from vultron.core.participants.authority import resolve_case_manager_id
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.states.cs import CS_vf
 
 logger = logging.getLogger(__name__)

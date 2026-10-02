@@ -62,60 +62,27 @@ References
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import py_trees
 from py_trees.common import Status
 from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
-from pydantic import BaseModel
 
+from vultron.core.behaviors.call_out.bundles.publication import (
+    PUBLICATION_DETERMINISTIC,
+    PublicationCallOutBundle,
+)
 from vultron.core.behaviors.call_out_point import CallOutBackendFactory
 from vultron.core.behaviors.node_logger import node_logger
+from vultron.core.behaviors.report.publication_intent import (
+    INTENT_DECISION_KEY,
+    PublicationIntentDecision,
+)
 from vultron.core.behaviors.report.publish_artifact_tree import (
     create_publish_artifact_tree,
 )
 
-if TYPE_CHECKING:
-    from vultron.core.behaviors.call_out.bundles.publication import (
-        PublicationCallOutBundle,
-    )
-
 logger = logging.getLogger(__name__)
-
-#: Blackboard key under which the ``PrioritizePublicationIntents`` Evaluator
-#: writes its :class:`PublicationIntentDecision` record and from which the
-#: ``ShouldPublish*`` gate nodes read it (BT-18-001).
-INTENT_DECISION_KEY = "publication_intent_decision"
-
-
-class PublicationIntentDecision(BaseModel):
-    """Structured output record for the PrioritizePublicationIntents call-out point.
-
-    Written to the blackboard key :data:`INTENT_DECISION_KEY` by the
-    ``PrioritizePublicationIntents`` Evaluator node on SUCCESS (BT-18-001).
-    The three boolean fields directly gate the three named per-artifact
-    publication arms (ADR-0028); the removed ``NoPublish*`` bypass leaves are
-    replaced by ``ShouldPublish*`` reads on these fields.
-
-    Field defaults encode the standard CVD outcome — publish the fix and the
-    vulnerability report, withhold the exploit — matching the simulator's
-    ``NoPublishFix`` / ``NoPublishReport`` (``AlmostAlwaysFail``) and
-    ``NoPublishExploit`` (``UsuallySucceed``) probabilities.  A real Evaluator
-    backend overrides these per case policy.
-
-    Attributes:
-        publish_exploit: Whether the exploit artifact should be published.
-        publish_fix: Whether the fix artifact should be published.
-        publish_report: Whether the vulnerability report/advisory should be
-            published.
-        rationale: Human-readable or machine-generated explanation of the
-            publication-intent decision.
-    """
-
-    publish_exploit: bool = False
-    publish_fix: bool = True
-    publish_report: bool = True
-    rationale: str = ""
 
 
 class _ShouldPublishArtifactGate(BehaviourWithPorts):
@@ -310,10 +277,6 @@ def create_publication_tree(
     Returns:
         Root Sequence node of the collapsed publication behavior tree.
     """
-    from vultron.core.behaviors.call_out.bundles.publication import (  # noqa: PLC0415  # ruff-baseline #3950
-        PUBLICATION_DETERMINISTIC,
-    )
-
     bundle = call_out if call_out is not None else PUBLICATION_DETERMINISTIC
     root = py_trees.composites.Sequence(
         name="PublicationBT",

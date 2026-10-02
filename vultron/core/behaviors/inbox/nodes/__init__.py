@@ -9,6 +9,9 @@ Note: nodes are implementation details of the inbox BT module.  They are
 re-exported here for use by ``inbox_tree.py`` and tests; they MUST NOT be
 exposed as the public API of the ``vultron.core.behaviors.inbox`` package
 (IO-02-003).
+
+The dead-letter node is not an inbox pipeline node; it lives in
+``vultron.core.behaviors.dead_letter.nodes``.
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -24,9 +27,6 @@ exposed as the public API of the ``vultron.core.behaviors.inbox`` package
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from vultron.core.behaviors.inbox.nodes.dead_letter import (
-    StoreDeadLetterRecordNode,
-)
 from vultron.core.behaviors.inbox.nodes.dispatch import (
     BuildOutcomeNode,
     DispatchNode,

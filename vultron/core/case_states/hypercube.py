@@ -44,8 +44,8 @@ from vultron.core.case_states.validations import (
     ensure_valid_state_method_wrapper as ensure_valid_state,
     is_valid_history,
     is_valid_pattern,
-    is_valid_state,
     is_valid_transition,
+    valid_states,
 )
 from vultron.core.states.cs import pxa, vfd
 from vultron.errors import (
@@ -53,39 +53,14 @@ from vultron.errors import (
     HistoryValidationError,
     PatternValidationError,
     ScoringError,
-    StateValidationError,
     TransitionValidationError,
 )
 
 logger = logging.getLogger(__name__)
 
 
-EVENTS = tuple("VFDPXA")
-
-
-def _proto_states():
-    proto_states = [f"{e.lower()}{e.upper()}" for e in EVENTS]
-    return proto_states
-
-
-def _create_states():
-    states = []
-    proto_states = _proto_states()
-    for seq in product(*proto_states):
-        state = "".join(seq)
-
-        try:
-            is_valid_state(state)
-        except StateValidationError:
-            continue
-
-        states.append(state)
-
-    return states
-
-
 def _create_graph():
-    states = _create_states()
+    states = valid_states()
 
     G = nx.DiGraph()
     G.add_nodes_from(states)

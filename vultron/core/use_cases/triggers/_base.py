@@ -45,7 +45,7 @@ from pydantic import ValidationError
 
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.models.use_case_result import ActivityResult, TriggerResult
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort

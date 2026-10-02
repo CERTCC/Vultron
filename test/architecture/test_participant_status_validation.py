@@ -130,6 +130,12 @@ _DECLARED_EXCLUSIONS: dict[str, str] = {
         "writes CaseStatus.pxa, not ParticipantStatus — separate model type"
         " (ADR-0080); out of scope for the participant-status evaluator"
     ),
+    # EmitCaseStatusUpdateNode's post-mutation CaseStatus snapshot — the same
+    # CaseStatus.pxa write, in the module shared with the embargo trees.
+    "vultron/core/behaviors/case_status_snapshot.py": (
+        "writes CaseStatus.pxa, not ParticipantStatus — separate model type"
+        " (ADR-0080); out of scope for the participant-status evaluator"
+    ),
     # Receive-path PXA adjudication for CaseStatus (not ParticipantStatus).
     # Also receive-path in the same sense as _adjudication.py, but operates
     # on the case-level PXA dimension, not the participant dimensions.
