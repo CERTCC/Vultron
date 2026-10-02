@@ -289,9 +289,12 @@ class InitializeCreationEmbargoNode(DataLayerActionWithPorts):
     finish (EP-04-012).  Proposing and then activating in two nodes saved the
     case at ``PROPOSED`` in between, and a failure there stranded it (#4123).
 
-    A case that already has an active embargo is left as it is.  The
-    transition itself is validated by the lifecycle service, not by an
-    upstream guard (CSB-16, EMB-18-001).
+    The transition itself is validated by the lifecycle service, not by an
+    upstream guard (CSB-16, EMB-18-001).  The once-per-case guard ahead of
+    this node takes every case past ``EM.NONE``, so a case that reaches it
+    with an embargo already attached is inconsistent: the service refuses
+    it and the node fails, rather than report an initialization it did not
+    make (ARCH-15).
     """
 
     def __init__(self, name: str | None = None) -> None:
@@ -340,16 +343,6 @@ class InitializeCreationEmbargoNode(DataLayerActionWithPorts):
         stored_case, failure = self._require_case(case_id)
         if failure is not None:
             return failure  # Regime 1 (ADR-0087)
-
-        if _as_id(stored_case.active_embargo) is not None:
-            self.logger.debug(
-                "%s: Case '%s' already has active_embargo '%s' — skipping EM advance",
-                self.name,
-                case_id,
-                _as_id(stored_case.active_embargo),
-            )
-            self._set_output("default_embargo_initialized", False)
-            return Status.SUCCESS
 
         # The creation-time embargo is the owner's to set: either the owner
         # creates the case itself, or the CASE_MANAGER creates it on the

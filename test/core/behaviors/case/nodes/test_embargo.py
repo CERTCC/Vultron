@@ -48,6 +48,7 @@ from vultron.core.behaviors.case.nodes.embargo_revision import (
 from vultron.core.behaviors.case.participant_tree import (
     CreateCaseOwnerParticipant,
 )
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor
@@ -443,6 +444,51 @@ class TestInitializeCreationEmbargoNodeAC1:
         stored = cast(Any, bt_scenario.dl.read(case_obj.id_))
         assert stored.current_status.em.state == EM.NONE
         assert stored.active_embargo is None
+
+    @pytest.mark.spec("EP-04-012")
+    def test_an_attached_embargo_at_none_fails_rather_than_skips(
+        self,
+        bt_scenario: BTTestScenario,
+        actor_id: str,
+        case_obj: VulnerabilityCase,
+    ) -> None:
+        """A case at ``EM.NONE`` with an embargo attached is not initialized.
+
+        The guard ahead of the node takes every case past ``NONE``, so this
+        state is inconsistent.  The node reports the service's refusal as
+        FAILURE instead of a SUCCESS that initialized nothing (ARCH-15).
+        """
+        attached = EmbargoEvent(
+            end_time=datetime.now(tz=UTC) + timedelta(days=1),
+            context=case_obj.id_,
+        )
+        default = EmbargoEvent(
+            end_time=datetime.now(tz=UTC) + timedelta(days=2),
+            context=case_obj.id_,
+        )
+        bt_scenario.dl.create(attached)
+        bt_scenario.dl.create(default)
+        bt_scenario.run(
+            CreateCaseOwnerParticipant(),
+            actor_id=actor_id,
+            case_id=case_obj.id_,
+        )
+        stored = cast(VulnerabilityCase, bt_scenario.dl.read(case_obj.id_))
+        stored.set_embargo(attached.id_)
+        bt_scenario.dl.save(stored)
+
+        result = bt_scenario.run(
+            InitializeCreationEmbargoNode(),
+            actor_id=actor_id,
+            case_id=case_obj.id_,
+            default_embargo_id=default.id_,
+        )
+
+        assert result.status == Status.FAILURE
+        assert "already attached" in result.feedback_message
+        after = cast(Any, bt_scenario.dl.read(case_obj.id_))
+        assert after.current_status.em.state == EM.NONE
+        assert _as_id(after.active_embargo) == attached.id_
 
 
 class TestSeedOwnerAsSignatoryNode:

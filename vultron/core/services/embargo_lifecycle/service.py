@@ -36,10 +36,10 @@ from vultron.core.services.embargo_lifecycle.proposals import (
 
 
 class EmbargoLifecycle(
+    _CreationOperationsMixin,
     _ProposalOperationsMixin,
     _AnswerOperationsMixin,
     _ActivationOperationsMixin,
-    _CreationOperationsMixin,
     _ConsentOperationsMixin,
 ):
     """Consolidated EM + PEC state management service.

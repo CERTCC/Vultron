@@ -24,8 +24,8 @@ stranded, because the once-per-case guard reads any state but ``NONE`` as
 
 import logging
 
-from vultron.core.services.embargo_lifecycle.pec import (
-    _PecEffectsMixin,
+from vultron.core.services.embargo_lifecycle.proposals import (
+    _ProposalOperationsMixin,
 )
 from vultron.core.services.embargo_lifecycle.results import (
     EmbargoLifecycleResult,
@@ -38,7 +38,7 @@ from vultron.errors import VultronInvalidStateTransitionError
 logger = logging.getLogger(__name__)
 
 
-class _CreationOperationsMixin(_PecEffectsMixin):
+class _CreationOperationsMixin(_ProposalOperationsMixin):
     """``initialize_creation_embargo``."""
 
     def initialize_creation_embargo(
@@ -127,13 +127,9 @@ class _CreationOperationsMixin(_PecEffectsMixin):
 
         self._save_activation(case, em_after=em_after, embargo_id=embargo_id)
 
-        participant_changes: list[ParticipantPECChange] = []
-        if actor_id is not None and actor_id in case.actor_participant_index:
-            participant_changes.extend(
-                self._record_actor_pec_acceptance(
-                    case, actor_id, embargo_id, advance=False
-                )
-            )
+        participant_changes: list[ParticipantPECChange] = (
+            self._record_proposer_consent(case, actor_id, embargo_id)
+        )
         participant_changes.extend(
             self._consent_at_activation(
                 case, embargo_id=embargo_id, ends_no_later=None

@@ -185,7 +185,7 @@ def test_a_stale_proposed_listing_is_discarded_in_the_same_write(
     owner, dl = owner_and_dl
     case, _ = _make_case(dl, owner.id_)
     embargo = _make_embargo(dl, case.id_)
-    case.proposed_embargoes.append(embargo.id_)
+    case.proposed_embargoes = [*case.proposed_embargoes, embargo.id_]
     dl.save(case)
 
     EmbargoLifecycle(persistence=dl).initialize_creation_embargo(
