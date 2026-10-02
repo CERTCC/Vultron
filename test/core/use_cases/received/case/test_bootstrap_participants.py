@@ -27,6 +27,7 @@ from typing import cast
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.dimensions import (
     VfDimension,
@@ -158,7 +159,10 @@ class TestBootstrapParticipantStorage:
         dl.save(link)
 
         CreateCaseReceivedUseCase(
-            dl, create_event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            create_event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         stored = dl.read(_PARTICIPANT_ID)
@@ -180,7 +184,10 @@ class TestBootstrapParticipantStorage:
 
         with caplog.at_level(logging.DEBUG):
             CreateCaseReceivedUseCase(
-                dl, create_event, wire_render_port=As2WireRenderAdapter()
+                dl,
+                create_event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
 
         stored_records = [
@@ -206,7 +213,10 @@ class TestBootstrapParticipantStorage:
         dl.create(case)
 
         CreateCaseReceivedUseCase(
-            dl, create_event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            create_event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         stored = dl.read(_PARTICIPANT_ID)
@@ -240,7 +250,10 @@ class TestBootstrapParticipantStorage:
         with mock.patch.object(dl, "save", side_effect=_patched_save):
             with pytest.raises(RuntimeError, match="storage failure"):
                 CreateCaseReceivedUseCase(
-                    dl, create_event, wire_render_port=As2WireRenderAdapter()
+                    dl,
+                    create_event,
+                    wire_render_port=As2WireRenderAdapter(),
+                    sync_port=SyncActivityAdapter(dl),
                 ).execute()
 
 
@@ -293,7 +306,10 @@ class TestM4AddParticipantStatusAfterBootstrap:
         # Step 1: bootstrap — store_embedded_participants saves vendor's
         # as_CaseParticipant as an independent DataLayer record (CBT-05-005).
         CreateCaseReceivedUseCase(
-            dl, bootstrap_event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            bootstrap_event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         # Step 2: confirm vendor participant is independently stored (core fix).
@@ -322,7 +338,10 @@ class TestM4AddParticipantStatusAfterBootstrap:
         event = make_payload(activity, receiving_actor_id=_CASE_ACTOR_ID)
 
         AddParticipantStatusToParticipantReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         # Step 4: vendor participant now has the VFd status — M4 can observe it.

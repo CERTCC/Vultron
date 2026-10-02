@@ -706,8 +706,17 @@ class TestValidateReportReceivedGuardedCommit:
             tracking_create,
         )
 
+        from vultron.adapters.driven.sync_activity_adapter import (
+            SyncActivityAdapter,
+        )
+
+        # The commit tree refuses to mint without a sync port, and that
+        # wiring fault now reaches the handler as an internal error (#4113).
         ValidateReportReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert commit_tree_calls, (

@@ -52,6 +52,7 @@ from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -186,6 +187,7 @@ def _send_stub_invite(
                 roles=[CVDRole.VENDOR],
             ),
             trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
     )
@@ -200,6 +202,7 @@ def _send_stub_invite(
         dl,
         event,
         trigger_activity=TriggerActivityAdapter(dl),
+        sync_port=SyncActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
     ).execute()
     assert result.disposition is HandlerDisposition.APPLIED, result
@@ -384,6 +387,7 @@ def test_joined_participant_never_answers_the_original_report_offer(
                 actor_id=joiner.id_, offer_id=offer.id_
             ),
             trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
     except VultronError:
         # Refusing the trigger outright also satisfies CM-11-005.  The setup
@@ -437,6 +441,7 @@ def test_on_behalf_assertion_for_absent_target_is_refused(
                 **dimension,
             ),
             trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
     after = dl.read_case(case.id_)
@@ -598,6 +603,7 @@ def test_embargo_change_reissues_outstanding_stub_invite(actor_store) -> None:
         dl,
         TerminateEmbargoTriggerRequest(actor_id=owner.id_, case_id=case.id_),
         trigger_activity=TriggerActivityAdapter(dl),
+        sync_port=SyncActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
     ).execute()
 
@@ -730,6 +736,7 @@ def test_reject_of_superseded_stub_invite_is_honoured(actor_store) -> None:
         dl,
         TerminateEmbargoTriggerRequest(actor_id=owner.id_, case_id=case.id_),
         trigger_activity=TriggerActivityAdapter(dl),
+        sync_port=SyncActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
     ).execute()
     assert [

@@ -19,6 +19,7 @@ import py_trees
 import pytest
 
 from test.conftest import TEST_ACTOR_ID
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -117,6 +118,7 @@ class TestOfferActorToCaseReceivedUseCase:
             event,
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 
@@ -167,6 +169,7 @@ class TestOfferActorToCaseReceivedUseCase:
                 event,
                 trigger_activity=TriggerActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
 
         # The store holds no such case, so the recommendation is refused.
@@ -199,7 +202,10 @@ class TestOfferActorToCaseReceivedUseCase:
 
         with caplog.at_level(logging.WARNING):
             result = OfferActorToCaseReceivedUseCase(
-                dl, mock_event, wire_render_port=As2WireRenderAdapter()
+                dl,
+                mock_event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
 
         assert any("missing" in r.message.lower() for r in caplog.records)
@@ -238,6 +244,7 @@ class TestOfferActorToCaseReceivedUseCase:
             event,
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         case = cast(VulnerabilityCase, dl.read(case_id))
@@ -311,6 +318,7 @@ class TestOfferActorToCaseAtNonCaseManager:
             event,
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert result.disposition is HandlerDisposition.REFUSED
@@ -337,6 +345,7 @@ class TestOfferActorToCaseAtNonCaseManager:
             event,
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         case = cast(VulnerabilityCase, dl.read(self._CASE_ID))
@@ -417,19 +426,37 @@ class TestOwnerDirectInviteAtCaseManager:
             event,
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
-    def _sealed_invite(self, dl) -> dict:
+    def _sealed_bodies(self, dl) -> list[dict]:
+        """Sealed outbox bodies, minus the ledger fan-out.
+
+        The CASE_MANAGER announces each entry it commits to every active
+        participant (SYNC-02-003); those Announce(CaseLedgerEntry) items are
+        replication, not the protocol message these tests inspect.
+        """
         import json
 
         from vultron.adapters.outbox_sealed_body import read_sealed_body
 
-        outbox = dl.outbox_list()
-        assert len(outbox) == 1, f"expected one Invite, got {outbox!r}"
-        sealed = read_sealed_body(dl, outbox[0])
-        assert sealed is not None
-        body: dict = json.loads(sealed.body)
-        return body
+        bodies: list[dict] = []
+        for item in dl.outbox_list():
+            sealed = read_sealed_body(dl, item)
+            assert sealed is not None
+            body: dict = json.loads(sealed.body)
+            obj = body.get("object")
+            if body.get("type") == "Announce" and (
+                isinstance(obj, dict) and obj.get("type") == "CaseLedgerEntry"
+            ):
+                continue
+            bodies.append(body)
+        return bodies
+
+    def _sealed_invite(self, dl) -> dict:
+        bodies = self._sealed_bodies(dl)
+        assert len(bodies) == 1, f"expected one Invite, got {bodies!r}"
+        return bodies[0]
 
     @pytest.mark.spec("CM-17-007")
     def test_case_manager_emits_the_invite_itself(
@@ -498,5 +525,6 @@ class TestOwnerDirectInviteAtCaseManager:
 
         self._deliver(dl, make_payload)
 
-        queued = [dl.read(item) for item in dl.outbox_list()]
-        assert all(getattr(q, "type_", None) == "Invite" for q in queued)
+        queued = self._sealed_bodies(dl)
+        assert queued
+        assert all(body.get("type") == "Invite" for body in queued)

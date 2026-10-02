@@ -63,6 +63,7 @@ from vultron.core.behaviors.sync.nodes import (
     FanOutLogEntryNode,
     PersistLogEntryNode,
     ReconstructChainTailNode,
+    RequireSyncPortNode,
 )
 from vultron.core.models._helpers import claimed_published_iso
 
@@ -116,6 +117,7 @@ def create_close_case_received_tree(
             │       │   ├── AdvanceCaseActorToRMClosedNode    # step 2: CaseActor → RM.CLOSED
             │       │   ├── CommitCaseActorRMClosedEntryNode  # step 2 on the ledger (CM-23-005)
             │       │   └── CommitCaseFullyClosedBT (Sequence)  # steps 3-4: commit + fan-out
+            │       │       ├── RequireSyncPortNode             # refuse before writing
             │       │       ├── ReconstructChainTailNode        # step 3a: tail hash
             │       │       ├── CreateCaseFullyClosedEntry      # step 3b: build entry
             │       │       ├── PersistCaseFullyClosedEntry     # step 3c: write to DataLayer
@@ -188,6 +190,9 @@ def create_close_case_received_tree(
         name="CommitCaseFullyClosedBT",
         memory=False,
         children=[
+            # Refuse before the entry is written: persisted but never
+            # announced is a silent fork (SYNC-02-003, #4113).
+            RequireSyncPortNode(name="RequireSyncPortForCaseFullyClosed"),
             ReconstructChainTailNode(
                 case_id=case_id, name="ReconstructChainTail"
             ),

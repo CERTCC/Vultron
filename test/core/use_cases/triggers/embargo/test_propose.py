@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -42,6 +43,7 @@ def test_propose_embargo_invalid_state_does_not_persist_embargo(
             finder_dl,
             request,
             trigger_activity=TriggerActivityAdapter(finder_dl),
+            sync_port=SyncActivityAdapter(finder_dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -70,6 +72,7 @@ def test_propose_embargo_updates_case_state_via_bt_path(
         finder_dl,
         request,
         trigger_activity=TriggerActivityAdapter(finder_dl),
+        sync_port=SyncActivityAdapter(finder_dl),
         wire_render_port=As2WireRenderAdapter(),
     ).execute()
 

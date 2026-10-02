@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Port factory functions for Vultron inbox dispatch wiring.
 
-Defines the per-semantic port factories and the three disjoint semantics
+Defines the per-semantic port factories and the disjoint semantics
 sets used by
 :func:`~vultron.adapters.driving.fastapi.inbox_handler.make_dispatcher`
 to inject adapter ports into use cases at dispatch time.
@@ -82,15 +82,6 @@ def _wire_render_port_factory(dl: DataLayer) -> dict[str, Any]:
     return {"wire_render_port": As2WireRenderAdapter()}
 
 
-def with_wire_render_port(factory: PortFactory) -> PortFactory:
-    """Return *factory* extended with :func:`_wire_render_port_factory`."""
-
-    def _factory(dl: DataLayer) -> dict[str, Any]:
-        return {**factory(dl), **_wire_render_port_factory(dl)}
-
-    return _factory
-
-
 def _sync_port_factory(dl: DataLayer) -> dict[str, Any]:
     """Create a ``SyncActivityAdapter`` for the given DataLayer.
 
@@ -99,6 +90,47 @@ def _sync_port_factory(dl: DataLayer) -> dict[str, Any]:
     ARCH-13-002).
     """
     return {"sync_port": SyncActivityAdapter(cast(CaseOutboxPersistence, dl))}
+
+
+def with_received_baseline_ports(factory: PortFactory) -> PortFactory:
+    """Return *factory* extended with the ports every received use case gets.
+
+    Every received tree that names a case runs a guarded ledger commit
+    (CLP-10-006).  The commit snapshots the activity as an AS2 rendering, which
+    needs the ``WireRenderPort`` (ARCH-20-001, CLP-07-009), and the
+    CASE_MANAGER announces the entry to every active participant, which needs
+    the ``SyncActivityPort`` (SYNC-02-003).  Both are given to every use case
+    rather than to a hand-kept list of those whose trees commit: a list that
+    falls behind is how the snapshot path ran portless before #3930, and how
+    ``OFFER_ACTOR_TO_CASE``, ``VALIDATE_REPORT`` and
+    ``REJECT_INVITE_ACTOR_TO_CASE`` committed without fan-out until #4113.
+
+    This is the **only** source of both ports: no per-semantic factory below
+    names either one.  Some semantics use the sync port for more than their
+    commit, and still take it from here:
+
+    - ``ANNOUNCE_VULNERABILITY_CASE`` seeds the local case, which anchors the
+      per-case genesis hash, and then drains any pre-genesis
+      ``Announce(CaseLedgerEntry)`` parked in the gap buffer.  The drain re-runs
+      the announce receive path, which sends a ``Reject`` on any residual
+      mismatch (SYNC-15-005, #2186, #2180).
+    - ``CREATE_CASE_PROPOSAL``'s accept path commits the genesis entries
+      natively and fans them out (``CommitNativeLedgerEntriesNode``, ADR-0041
+      AC-4); the port is that fan-out's only channel (ARCH-04-004), and its
+      outbox order relative to ``Create(VulnerabilityCase)`` is CP-09-009's.
+    - ``CLOSE_CASE`` fans out ``case_fully_closed`` (CM-23-002) and renders the
+      CASE_MANAGER's own ``RM.CLOSED`` status into the snapshot CM-23-005
+      requires (``CommitCaseActorRMClosedEntryNode``, ISSUE-2505).
+    """
+
+    def _factory(dl: DataLayer) -> dict[str, Any]:
+        return {
+            **factory(dl),
+            **_sync_port_factory(dl),
+            **_wire_render_port_factory(dl),
+        }
+
+    return _factory
 
 
 def _trigger_activity_port_factory(dl: DataLayer) -> dict[str, Any]:
@@ -115,46 +147,21 @@ def _trigger_activity_port_factory(dl: DataLayer) -> dict[str, Any]:
     }
 
 
-def _sync_and_trigger_port_factory(dl: DataLayer) -> dict[str, Any]:
-    """Create both a ``SyncActivityAdapter`` and a ``TriggerActivityAdapter``.
-
-    Used for semantics that require both ports — specifically
-    ``ADD_PARTICIPANT_STATUS_TO_PARTICIPANT``, which must sync the log
-    entry to participants *and* trigger the downstream
-    participant-status activity.
-    """
-    return {**_sync_port_factory(dl), **_trigger_activity_port_factory(dl)}
-
-
 def _submit_report_port_factory(dl: DataLayer) -> dict[str, Any]:
-    """Create sync+trigger ports and resolve the local ``ActorConfig``.
+    """Create the trigger port and resolve the local ``ActorConfig``.
 
     Used for ``SUBMIT_REPORT`` so that ``SubmitReportReceivedUseCase``
     receives a populated ``actor_config`` and can honour
     ``auto_create_case=False`` at runtime (CM-15-001, issue #1319).
     Falls back to ``actor_config=None`` when ``SeedConfig`` is unavailable,
-    preserving the always-create default.
+    preserving the always-create default.  The sync and wire-render ports
+    come from :func:`with_received_baseline_ports`.
     """
-    kwargs: dict[str, Any] = _sync_and_trigger_port_factory(dl)
+    kwargs: dict[str, Any] = _trigger_activity_port_factory(dl)
     actor_config = _resolve_actor_config()
     if actor_config is not None:
         kwargs["actor_config"] = actor_config
     return kwargs
-
-
-def _close_case_port_factory(dl: DataLayer) -> dict[str, Any]:
-    """Create sync+trigger ports and a ``WireRenderPort`` for ``CLOSE_CASE``.
-
-    The ``WireRenderPort`` is what lets the owner-Leave path record the
-    CASE_MANAGER's own ``RM.CLOSED`` transition as a canonical ledger entry
-    (CM-23-005).  Without it that transition stays store-local and every
-    replica reads the CASE_MANAGER as permanently ``RM.ACCEPTED`` — the defect
-    behind ISSUE-2505.
-    """
-    return {
-        **_sync_and_trigger_port_factory(dl),
-        **_wire_render_port_factory(dl),
-    }
 
 
 def _case_proposal_port_factory(dl: DataLayer) -> dict[str, Any]:
@@ -172,12 +179,9 @@ def _case_proposal_port_factory(dl: DataLayer) -> dict[str, Any]:
     The trigger-activity port is needed only on the decline path, where
     ``_EmitRejectCaseProposalNode`` builds ``Reject(as_CaseProposal)`` through
     the shared emit seam (CP-05-002, CP-05-004).  The accept path never reads it.
-
-    The sync port carries the accept path's native ledger fan-out
-    (``CommitNativeLedgerEntriesNode``, ADR-0041 AC-4).  It is injected here
-    rather than inherited from the blackboard so the fan-out — and the outbox
-    order it produces relative to ``Create(VulnerabilityCase)`` (CP-09-009) —
-    is part of the use case's declared contract.
+    The accept path's sync port comes from
+    :func:`with_received_baseline_ports`, as a constructor argument, so the
+    fan-out stays part of the use case's declared contract.
 
     ``call_out`` is the admission-policy injection point (CP-05-002).  This
     adapter wires the core DETERMINISTIC bundle, which admits every well-formed
@@ -187,13 +191,8 @@ def _case_proposal_port_factory(dl: DataLayer) -> dict[str, Any]:
     ``STATUS_AUTHORIZATION_PERMISSIVE`` for the received-side status gates.
     """
     kwargs: dict[str, Any] = {
-        **_wire_render_port_factory(dl),
         "call_out": CASE_PROPOSAL_DETERMINISTIC,
         **_trigger_activity_port_factory(dl),
-        # The accept path commits the genesis ledger entries natively and fans
-        # them out to every participant (ADR-0041 AC-4, SYNC-02-003); the
-        # sync port is that fan-out's only channel (ARCH-04-004).
-        **_sync_port_factory(dl),
     }
     actor_config = _resolve_actor_config()
     if actor_config is not None:
@@ -201,69 +200,46 @@ def _case_proposal_port_factory(dl: DataLayer) -> dict[str, Any]:
     return kwargs
 
 
-_SYNC_PORT_SEMANTICS = frozenset(
-    {
-        MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE,
-        MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY,
-        # ANNOUNCE_VULNERABILITY_CASE seeds the local VulnerabilityCase, which
-        # anchors the per-case genesis hash and lets AnnounceVulnerabilityCase-
-        # ReceivedUseCase drain any pre-genesis Announce(CaseLedgerEntry) it
-        # parked in the gap buffer.  The drain re-runs the announce receive path,
-        # which sends a Reject on any residual mismatch, so it needs sync_port
-        # (SYNC-15-005, #2186, #2180).
-        MessageSemantics.ANNOUNCE_VULNERABILITY_CASE,
-        MessageSemantics.ADD_NOTE_TO_CASE,
-        MessageSemantics.INVITE_ACTOR_TO_CASE,
-        MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE,
-        MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE,
-    }
-)
-
+# Semantics whose use cases need the trigger-activity port.  None of these
+# sets names the sync or wire-render port: every received use case gets both
+# from with_received_baseline_ports, so a semantic that needs only those two is
+# in no set at all.
 _TRIGGER_ACTIVITY_PORT_SEMANTICS = frozenset(
     {
-        MessageSemantics.OFFER_ACTOR_TO_CASE,
-        MessageSemantics.OFFER_CASE_PARTICIPANT,
-        MessageSemantics.ACCEPT_OFFER_CASE_PARTICIPANT,
-        MessageSemantics.REJECT_OFFER_CASE_PARTICIPANT,
-        MessageSemantics.VALIDATE_REPORT,
-        # UPDATE_CASE broadcasts Announce(VulnerabilityCase) to the
-        # participants (CM-06-001); the adapter builds and seals it
-        # (VM-08-003).
-        MessageSemantics.UPDATE_CASE,
-    }
-)
-
-# Semantics that require both a sync port and a trigger-activity port.
-# ENGAGE_CASE, DEFER_CASE run BTs that contain CommitCaseLedgerEntryNode,
-# which fans out Announce(CaseLedgerEntry) via sync_port (SYNC-02-002),
-# AND also need trigger_activity for outbound wire-activity construction
-# (e.g. Announce(VulnerabilityCase) broadcast).
-# INVITE_TO_EMBARGO_ON_CASE and ACCEPT_INVITE_TO_EMBARGO_ON_CASE need
-# trigger_activity to emit ER when P/X/A is set (EMB-01-002, EMB-02-002).
-# NOTE: SUBMIT_REPORT is intentionally absent here — it uses
-# _submit_report_port_factory (below) which also injects actor_config.
-_SYNC_AND_TRIGGER_PORT_SEMANTICS = frozenset(
-    {
         MessageSemantics.ACK_REPORT,
-        MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
         MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER,
         MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
-        # NOTE: CLOSE_CASE is intentionally absent here — it uses
-        # _close_case_port_factory (below), which adds wire_render_port.
+        # INVITE_TO_EMBARGO_ON_CASE and ACCEPT_INVITE_TO_EMBARGO_ON_CASE emit
+        # ER when P/X/A is set (EMB-01-002, EMB-02-002).
+        MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
+        MessageSemantics.INVITE_TO_EMBARGO_ON_CASE,
+        MessageSemantics.ACCEPT_OFFER_CASE_PARTICIPANT,
+        # CLOSE_CASE emits the as:Reject that declines an owner close during a
+        # live embargo (CM-23-011).
+        MessageSemantics.CLOSE_CASE,
+        # ENGAGE_CASE and DEFER_CASE build outbound wire activities such as the
+        # Announce(VulnerabilityCase) broadcast.
         MessageSemantics.DEFER_CASE,
         MessageSemantics.ENGAGE_CASE,
-        MessageSemantics.INVITE_TO_EMBARGO_ON_CASE,
+        MessageSemantics.OFFER_ACTOR_TO_CASE,
         MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER,
+        MessageSemantics.OFFER_CASE_PARTICIPANT,
         MessageSemantics.OFFER_CASE_PARTICIPANT_ROLE,
         # REJECT_CASE_LEDGER_ENTRY needs trigger_activity so that
         # AnnounceCaseOnGenesisRejectNode can send Announce(VulnerabilityCase)
         # to a peer that has no case yet before replaying entries (SYNC-15-002).
         MessageSemantics.REJECT_CASE_LEDGER_ENTRY,
+        MessageSemantics.REJECT_OFFER_CASE_PARTICIPANT,
+        # UPDATE_CASE broadcasts Announce(VulnerabilityCase) to the
+        # participants (CM-06-001); the adapter builds and seals it
+        # (VM-08-003).
+        MessageSemantics.UPDATE_CASE,
+        MessageSemantics.VALIDATE_REPORT,
     }
 )
 
-# SUBMIT_REPORT needs sync + trigger ports AND the local actor's ActorConfig
-# so that SubmitReportReceivedUseCase can honour auto_create_case=False at
+# SUBMIT_REPORT needs the trigger port AND the local actor's ActorConfig so
+# that SubmitReportReceivedUseCase can honour auto_create_case=False at
 # runtime (CM-15-001, issue #1319).  Kept in a separate set so the disjoint
 # guard in make_dispatcher() does not need special-casing.
 _SUBMIT_REPORT_SEMANTICS = frozenset({MessageSemantics.SUBMIT_REPORT})
@@ -274,15 +250,6 @@ _SUBMIT_REPORT_SEMANTICS = frozenset({MessageSemantics.SUBMIT_REPORT})
 # CaseProposalCallOutBundle for the decline path (CP-05-002, CP-05-004).  See
 # _case_proposal_port_factory.  Separate set for the same reason as above.
 _CASE_PROPOSAL_SEMANTICS = frozenset({MessageSemantics.CREATE_CASE_PROPOSAL})
-
-# CLOSE_CASE needs sync + trigger ports AND a WireRenderPort.  sync_port fans
-# out case_fully_closed (CM-23-002); trigger_activity emits the as:Reject that
-# declines an owner close during a live embargo (CM-23-011); wire_render_port
-# renders the CASE_MANAGER's own RM.CLOSED ParticipantStatus into the
-# add_participant_status_to_participant snapshot that CM-23-005 requires
-# (CommitCaseActorRMClosedEntryNode, ISSUE-2505).  Separate set so the
-# disjoint guard in make_dispatcher() needs no special-casing.
-_CLOSE_CASE_SEMANTICS = frozenset({MessageSemantics.CLOSE_CASE})
 
 # Status-authorization call-out seam (ADR-0076, RSH-07-003):
 # ADD_CASE_STATUS_TO_CASE and ADD_PARTICIPANT_STATUS_TO_PARTICIPANT both
@@ -298,37 +265,23 @@ _STATUS_AUTH_TRIGGER_SEMANTICS = frozenset(
         # ThreatTerminationBranchNode can dispatch TerminateEmbargo when
         # P/X/A is set (RSH-03-001, ADR-0046).
         MessageSemantics.ADD_CASE_STATUS_TO_CASE,
-    }
-)
-
-_STATUS_AUTH_SYNC_TRIGGER_SEMANTICS = frozenset(
-    {
+        # ADD_PARTICIPANT_STATUS_TO_PARTICIPANT triggers the downstream
+        # participant-status activity.
         MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT,
     }
 )
 
 
 def _status_auth_trigger_port_factory(dl: DataLayer) -> dict[str, Any]:
-    """Inject trigger_activity + STATUS_AUTHORIZATION_PERMISSIVE for ADD_CASE_STATUS_TO_CASE.
+    """Inject trigger_activity + STATUS_AUTHORIZATION_PERMISSIVE.
 
-    Wires the permissive authorization bundle (RSH-07-003, ADR-0076) so the
-    EmbargoTeardownAuthorizationGate succeeds in this adapter's trusted/demo
-    deployment context.
+    Used for ``ADD_CASE_STATUS_TO_CASE`` and
+    ``ADD_PARTICIPANT_STATUS_TO_PARTICIPANT``.  Wires the permissive
+    authorization bundle (RSH-07-003, ADR-0076) so the
+    EmbargoTeardownAuthorizationGate and StatusAdoptionGate succeed in this
+    adapter's trusted/demo deployment context.
     """
     return {
         **_trigger_activity_port_factory(dl),
-        "call_out": STATUS_AUTHORIZATION_PERMISSIVE,
-    }
-
-
-def _status_auth_sync_trigger_port_factory(dl: DataLayer) -> dict[str, Any]:
-    """Inject sync_port + trigger_activity + STATUS_AUTHORIZATION_PERMISSIVE for ADD_PARTICIPANT_STATUS.
-
-    Wires the permissive authorization bundle (RSH-07-003, ADR-0076) so the
-    StatusAdoptionGate succeeds for non-CASE_OWNER senders in this adapter's
-    trusted/demo deployment context.
-    """
-    return {
-        **_sync_and_trigger_port_factory(dl),
         "call_out": STATUS_AUTHORIZATION_PERMISSIVE,
     }

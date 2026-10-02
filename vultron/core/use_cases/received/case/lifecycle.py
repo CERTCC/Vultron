@@ -40,10 +40,12 @@ class AddReportToCaseReceivedUseCase:
         self,
         dl: CasePersistence,
         request: AddReportToCaseReceivedEvent,
+        sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
+        self._sync_port = sync_port
         self._request: AddReportToCaseReceivedEvent = request
 
     def execute(self) -> HandlerResult:
@@ -128,11 +130,11 @@ class CloseCaseReceivedUseCase:
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
         ).execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
             activity=request,
-            sync_port=self._sync_port,
         )
         if _close_declined(tree):
             # The decline arm ran: the case was left open and the owner was

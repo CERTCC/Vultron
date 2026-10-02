@@ -3,6 +3,7 @@
 from typing import cast
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -40,6 +41,7 @@ def test_non_owner_reject_embargo_on_active_case_updates_participant_only(
         finder_dl,
         request,
         trigger_activity=TriggerActivityAdapter(finder_dl),
+        sync_port=SyncActivityAdapter(finder_dl),
         wire_render_port=As2WireRenderAdapter(),
     ).execute()
 
