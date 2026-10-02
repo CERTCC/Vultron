@@ -181,4 +181,4 @@ A case actor service that cannot decline is an open relay: any actor able to rea
 - [Embargo lifecycle](embargo-lifecycle.md) — the default embargo this use case creates, and how it is renegotiated
 - [Capability Model](../../capability_model/index.md#case-admission) — the service contract for the admission call-out point
 - [Glossary](../../../reference/glossary.md) — Participant, call-out point, capability shape, case actor service
-- [Case Handlers](../../../reference/behaviors/case_handlers.md) — the vendor-side `Accept` and `Reject` receive trees
+- [Case Handlers](../../../reference/behaviors/case_handlers.md) — the report receiver's `Accept` and `Reject` receive trees

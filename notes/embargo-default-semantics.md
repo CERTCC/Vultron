@@ -293,9 +293,9 @@ for "eligible": a missing case or unreadable store *raises*, because FAILURE
 there would run creation, which persists an `EmbargoEvent` before anything
 re-checks P/X/A (`notes/bt-pitfalls.md` § "A Refusal Arm in a Selector Fails
 Toward 'Admit'"). The sender-proposal input
-(`sender_proposed_embargo_duration`) is written by the case-proposal use case
-from the `EmbargoEvent` the Reporter embedded on the report Offer, which the
-vendor's `CaseProposal` carries whole as `inReplyTo` (#3392, CP-01-008); the
+(`sender_proposed_embargo_duration`) is written by the case-proposal use case from
+the `EmbargoEvent` the Reporter embedded on the report Offer, which the report
+receiver's `CaseProposal` carries whole as `inReplyTo` (#3392, CP-01-008); the
 winning sender event keeps its identity with its context rewritten to the case,
 and the loser is registered as a pending revision. Keeping the identity means one
 URI denotes a report-scoped event on the Reporter's side and a case-scoped one on
@@ -305,14 +305,13 @@ between the sender's terms and the actor default registers no revision — there
 nothing contested.
 
 The revision is registered inside `InitializeDefaultEmbargoNode`, *before* the
-case-proposal tree seeds the vendor and the reporter as SIGNATORY. So a contested
-creation leaves the case at `EM.REVISE` with two SIGNATORY participants who never
-saw the revision. That is correct: CM-14-005 seeds consent to the *active*
-embargo, whose terms are still in force under REVISE, and under ADR-0093 a
-proposal changes nobody's consent, so the order of registration and seeding no
+case-proposal tree seeds the report receiver and the reporter as SIGNATORY. So a
+contested creation leaves the case at `EM.REVISE` with two SIGNATORY participants
+who never saw the revision. That is correct: CM-14-005 seeds consent to the
+*active* embargo, whose terms are still in force under REVISE, and under ADR-0093
+a proposal changes nobody's consent, so the order of registration and seeding no
 longer affects the consent record (it once did — the superseded lapse-on-propose
-cascade would have lapsed both seeds had the revision been registered after
-them).
+cascade would have lapsed both seeds had the revision been registered after them).
 
 The registration alone was not enough, for two reasons #3863 surfaced (ADR-0113,
 EP-04-011): `propose_embargo` appends to `proposed_embargoes` but never to

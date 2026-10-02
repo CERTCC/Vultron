@@ -3,8 +3,8 @@
 Case-actor side: handles an inbound ``Create(as_CaseProposal)`` and emits
 two outbound activities in sequence:
 
-  1. ``Accept(as_CaseProposal)`` — acknowledgement to the vendor
-  2. ``Create(VulnerabilityCase)`` — case announcement to the vendor
+  1. ``Accept(as_CaseProposal)`` — acknowledgement to the report receiver
+  2. ``Create(VulnerabilityCase)`` — case announcement to the report receiver
 
 A durable ``PendingCreateCaseActivity`` marker is written to the DataLayer
 after step 1 and cleared on successful completion of step 2 so that a retry
@@ -131,7 +131,7 @@ from vultron.core.behaviors.case.nodes.proposal_ledger import (
 )
 from vultron.core.behaviors.case.nodes.proposal_participants import (
     AddCaseActorParticipantNode,
-    AddVendorOwnerParticipantNode,
+    AddOwnerParticipantNode,
 )
 from vultron.core.behaviors.case.nodes.proposal_reporter import (
     AddReporterParticipantNode,
@@ -157,7 +157,7 @@ logger = logging.getLogger(__name__)
 def create_case_proposal_received_tree(
     report_id: str | None,
     proposal_id: str,
-    vendor_uri: str,
+    proposer_uri: str,
     proposal_dict: dict | None = None,
     actor_config: ActorConfig | None = None,
     inline_report: VulnerabilityReport | None = None,
@@ -219,13 +219,14 @@ def create_case_proposal_received_tree(
       * ``LoadExistingCaseNode`` (AC-1/AC-2): if a case already exists for
         *report_id*, write its ID to the blackboard and succeed.
       * ``CreateCaseFromProposalNode`` (normal path): create a new case,
-        attributed to *vendor_uri* — the CASE_OWNER (CP-09-001).
+        attributed to *proposer_uri*, which becomes the CASE_OWNER
+        (CP-09-001).
 
       Then CaseActor-native initialization steps (ADR-0041):
 
       3. ``AddCaseActorParticipantNode`` — CaseActor registered as
          COORDINATOR + CASE_MANAGER (ADR-0041)
-      4. ``AddVendorOwnerParticipantNode`` — proposing actor added as
+      4. ``AddOwnerParticipantNode`` — proposing actor added as
          CASE_OWNER (plus ``actor_config.default_case_roles``) at RM.RECEIVED
          (ADR-0041 AC-1)
       5. ``AddReporterParticipantNode`` — reporter added at RM.ACCEPTED
@@ -271,10 +272,12 @@ def create_case_proposal_received_tree(
             (CP-01-004). Pass ``None`` if the report URI could not be
             extracted — the case will be created without a report link.
         proposal_id: URI of the ``as_CaseProposal`` object.
-        vendor_uri: URI of the proposing actor — the report receiver — to
-            whom the responses are sent.  It becomes the case's CASE_OWNER:
-            the new case is attributed to it (CP-09-001) and it is the
-            participant given ``CVDRole.CASE_OWNER``.
+        proposer_uri: URI of the proposing actor — the report receiver — to
+            whom the responses are sent.  If the proposal is admitted, it
+            becomes the case's CASE_OWNER: the new case is attributed to it
+            (CP-09-001) and it is the participant given
+            ``CVDRole.CASE_OWNER``.  A declined proposer owns nothing, so
+            the nodes that run before the case exists name it the proposer.
         proposal_dict: The proposal's AS2 rendering (from ``WireRenderPort``).
             When supplied, the Accept's ``object_`` carries the full inline proposal,
             satisfying CP-05-003 and the AKM-03-001 outbox requirement. Falls back
@@ -310,7 +313,7 @@ def create_case_proposal_received_tree(
         children=[
             LoadExistingCaseNode(report_id=report_id),
             CreateCaseFromProposalNode(
-                report_id=report_id, owner_id=vendor_uri
+                report_id=report_id, owner_id=proposer_uri
             ),
         ],
     )
@@ -327,7 +330,7 @@ def create_case_proposal_received_tree(
             # report the *sender* chose.  See RecordProposalAdmissionNode.
             RecordProposalAdmissionNode(
                 proposal_id=proposal_id,
-                vendor_uri=vendor_uri,
+                proposer_uri=proposer_uri,
             ),
             case_resolution,
             # Store the inline report first: the reporter participant, its ledger
@@ -340,9 +343,9 @@ def create_case_proposal_received_tree(
             ),
             # ADR-0041: register CaseActor as COORDINATOR + CASE_MANAGER
             AddCaseActorParticipantNode(),
-            # ADR-0041 AC-1: add vendor as CASE_OWNER at RM.RECEIVED
-            AddVendorOwnerParticipantNode(
-                vendor_uri=vendor_uri,
+            # ADR-0041 AC-1: add the report receiver as CASE_OWNER at RM.RECEIVED
+            AddOwnerParticipantNode(
+                owner_uri=proposer_uri,
                 report_id=report_id,
                 actor_config=actor_config,
             ),
@@ -364,16 +367,15 @@ def create_case_proposal_received_tree(
             # describe it are committed below.
             EmitAcceptCaseProposalNode(
                 proposal_id=proposal_id,
-                vendor_uri=vendor_uri,
+                proposer_uri=proposer_uri,
                 proposal_dict=proposal_dict,
             ),
             WriteCreateCaseMarkerNode(
                 proposal_id=proposal_id,
-                vendor_uri=vendor_uri,
+                owner_uri=proposer_uri,
             ),
             EmitCreateVulnerabilityCaseNode(
                 proposal_id=proposal_id,
-                vendor_uri=vendor_uri,
             ),
             ClearCreateCaseMarkerNode(proposal_id=proposal_id),
             # ADR-0041 AC-4: commit canonical ledger entries natively — AFTER
@@ -389,7 +391,7 @@ def create_case_proposal_received_tree(
             # receiver's system must hold the case object before any
             # Announce(CaseLedgerEntry) fan-out that references it.
             CommitNativeLedgerEntriesNode(
-                vendor_uri=vendor_uri,
+                owner_uri=proposer_uri,
                 report_id=report_id,
                 offer_id=offer_id,
                 offer_actor_id=offer_actor_id,
@@ -416,7 +418,7 @@ def create_case_proposal_received_tree(
                     CheckRejectAlreadyAnsweredNode(proposal_id=proposal_id),
                     EmitRejectCaseProposalNode(
                         proposal_id=proposal_id,
-                        vendor_uri=vendor_uri,
+                        proposer_uri=proposer_uri,
                         proposal_dict=proposal_dict,
                     ),
                 ],
@@ -457,11 +459,11 @@ def create_case_proposal_received_tree(
             # Before the emit, deliberately — see RecordProposalDeclineNode.
             RecordProposalDeclineNode(
                 proposal_id=proposal_id,
-                vendor_uri=vendor_uri,
+                proposer_uri=proposer_uri,
             ),
             EmitRejectCaseProposalNode(
                 proposal_id=proposal_id,
-                vendor_uri=vendor_uri,
+                proposer_uri=proposer_uri,
                 proposal_dict=proposal_dict,
             ),
         ],

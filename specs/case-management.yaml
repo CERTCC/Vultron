@@ -2994,7 +2994,7 @@ groups:
   title: CASE_MANAGER-Authoritative Case Creation
   description: >-
     Requirements on the CASE_MANAGER's obligations when accepting a CaseProposal,
-    per ADR-0041.  These replace the vendor-authored case-creation described in
+    per ADR-0041.  These replace the receiver-authored case-creation described in
     ADR-0015 and govern how the CASE_MANAGER initializes CaseStatus, participants,
     and embargo in its DataLayer before emitting `Create(VulnerabilityCase)`.
   specs:
@@ -3030,17 +3030,17 @@ groups:
     kind: protocol
     statement: >-
       After creating the `VulnerabilityCase`, the CASE_MANAGER MUST create
-      `CaseParticipant` records for at minimum: (a) the receiver (vendor) with
+      `CaseParticipant` records for at minimum: (a) the report receiver with
       `CVDRole.CASE_OWNER` and `RM.RECEIVED`, and (b) the reporter with
       `RM.ACCEPTED`.  These records MUST be written before `Create(VulnerabilityCase)`
-      is emitted to the vendor.
+      is emitted to the report receiver.
     rationale: >-
       The `Create(VulnerabilityCase)` payload embeds participants inline so the
-      vendor's `store_embedded_participants` can seed
+      receiver's `store_embedded_participants` can seed
       its local replica.  Absent participant records at emission time produce an
       empty replica and break role-guard checks (CP-09-002, CP-09-004).
     verification: Integration tests in `test/demo/` confirm that `Create(VulnerabilityCase)` is
-      emitted by the CASE_MANAGER only after `CaseParticipant` records for the vendor and reporter
+      emitted by the CASE_MANAGER only after `CaseParticipant` records for the report receiver and reporter
       are written to its DataLayer.
     relationships:
     - rel_type: refines
@@ -3057,17 +3057,17 @@ groups:
       The CASE_MANAGER MUST commit all canonical ledger entries for case
       initialization (`create_case`, `add_report_to_case`, participant-status
       entries, `add_case_status_to_case`) natively in its own DataLayer.  These
-      entries MUST NOT be authored by the vendor and back-filled via
+      entries MUST NOT be authored by the report receiver and back-filled via
       `WritePrologueLedgerEntriesNode` or any equivalent mechanism.
     rationale: >-
       `_validate_canonical_entry` (in `sync/nodes/canonical_entry.py`) rejects
       entries where the
-      `actor_id` does not match `_CASE_AUTHORED_SIGNATURES`.  Vendor-authored
+      `actor_id` does not match `_CASE_AUTHORED_SIGNATURES`.  Receiver-authored
       entries fail this check (the root cause of Issue #1767).  Native
       CASE_MANAGER authorship is the only compliant path.
     verification: Inspection of `vultron/core/` confirms that the canonical initialization
       ledger entries (`create_case`, `add_report_to_case`, participant-status entries,
-      `add_case_status_to_case`) are authored by the CASE_MANAGER, not the vendor.
+      `add_case_status_to_case`) are authored by the CASE_MANAGER, not the report receiver.
     relationships:
     - rel_type: refines
       spec_id: CM-22-001
@@ -3078,16 +3078,16 @@ groups:
     kind: protocol
     statement: >-
       The CASE_MANAGER MUST initialize the default embargo for the new case before
-      emitting `Create(VulnerabilityCase)` to the vendor.
+      emitting `Create(VulnerabilityCase)` to the report receiver (the CASE_OWNER).
     rationale: >-
       Embargo state is protocol-significant.  Deferring initialization to the
-      vendor or to a later message would produce a window in which
+      report receiver or to a later message would produce a window in which
       embargo-gated operations are undefined (ADR-0041, CP-09-003).  The
       CASE_MANAGER is the only actor that can initialize it authoritatively at
       case creation; the actor default it applies is the CASE_OWNER's policy,
       carried on the proposal (CP-01-009, CP-01-010).
     verification: Integration tests in `test/demo/` confirm that the CASE_MANAGER initializes the
-      default embargo before emitting `Create(VulnerabilityCase)` to the vendor.
+      default embargo before emitting `Create(VulnerabilityCase)` to the report receiver.
     relationships:
     - rel_type: refines
       spec_id: CM-22-001

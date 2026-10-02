@@ -188,7 +188,7 @@ class AddCaseActorParticipantNode(DataLayerActionWithPorts):
         return self._register_participant(case_id)
 
 
-class AddVendorOwnerParticipantNode(DataLayerActionWithPorts):
+class AddOwnerParticipantNode(DataLayerActionWithPorts):
     """Add the report receiver as CASE_OWNER participant at RM.RECEIVED.
 
     The actor that sent the proposal is the case owner (receiver of the
@@ -197,7 +197,7 @@ class AddVendorOwnerParticipantNode(DataLayerActionWithPorts):
 
     The receiver's additional CVD roles come from
     ``ActorConfig.default_case_roles`` (CFG-07-002, CFG-07-004) — the same
-    source the pre-ADR-0041 vendor-side ``CreateCaseOwnerParticipant`` used.
+    source the pre-ADR-0041 receiver-side ``CreateCaseOwnerParticipant`` used.
     They must not be hard-coded: a coordinator that receives a report is a
     CASE_OWNER but never a VENDOR, and giving it ``CVDRole.VENDOR`` makes
     downstream VFD fix-lifecycle guards demand a fix it will never produce.
@@ -207,20 +207,20 @@ class AddVendorOwnerParticipantNode(DataLayerActionWithPorts):
 
     def __init__(
         self,
-        vendor_uri: str,
+        owner_uri: str,
         report_id: str | None,
         actor_config: ActorConfig | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self._vendor_uri = vendor_uri
+        self._owner_uri = owner_uri
         self._report_id = report_id
         self._actor_config = actor_config
         # Pre-build the initial status node (BTND-10-004, ADR-0089).
         # actor_id is set here so execute_with_setup can use actor_id=self.actor_id
-        # (the CaseActor's store) without BTBridge cloning an empty vendor store.
+        # (the CaseActor's store) without BTBridge cloning an empty owner store.
         self._status_node = CreateParticipantStatusNode(
-            actor_id=vendor_uri,
+            actor_id=owner_uri,
             rm_state=RM.RECEIVED,
             vf_state=None,
             d_state=None,
@@ -258,31 +258,31 @@ class AddVendorOwnerParticipantNode(DataLayerActionWithPorts):
             self.feedback_message = "case_id not found in blackboard"
             return Status.FAILURE
 
-        # Skip if vendor already has a participant in this case.
+        # Skip if the owner already has a participant in this case.
         # Regime 3 (ADR-0087): idempotency probe during case construction. A
         # truly-absent case falls through to _create_and_attach_participant
         # below, which hard-fails (returns None → FAILURE at the guard).
         stored_case = self.datalayer.read_case(case_id)
         if (
             stored_case is not None
-            and self._vendor_uri in stored_case.actor_participant_index
+            and self._owner_uri in stored_case.actor_participant_index
         ):
             logger.debug(
-                "%s: vendor '%s' already in actor_participant_index"
+                "%s: report receiver '%s' already in actor_participant_index"
                 " for case '%s' — skipping",
                 self.name,
-                self._vendor_uri,
+                self._owner_uri,
                 case_id,
             )
             return Status.SUCCESS
 
         # Roles come from the local ActorConfig (CFG-07-002, CFG-07-004) so
-        # role guards (e.g. CheckVendorRoleNode) work for vendors without
-        # mislabelling coordinators as vendors.  A future spec amendment
-        # should carry role hints in the CaseProposal itself so the CaseActor
-        # does not have to rely on co-located configuration.
+        # role guards (e.g. CheckVendorRoleNode) work for a VENDOR-role owner
+        # without mislabelling a coordinator owner as a VENDOR.  A future
+        # spec amendment should carry role hints in the CaseProposal itself
+        # so the CaseActor does not have to rely on co-located configuration.
         participant = CaseParticipant(
-            attributed_to=self._vendor_uri,
+            attributed_to=self._owner_uri,
             context=case_id,
             case_roles=_effective_case_roles(self._actor_config),
             participant_statuses=[],
@@ -292,7 +292,7 @@ class AddVendorOwnerParticipantNode(DataLayerActionWithPorts):
             self.datalayer,
             participant,
             case_id,
-            self._vendor_uri,
+            self._owner_uri,
             self.logger,
         )
         if updated_case is None:
@@ -307,14 +307,17 @@ class AddVendorOwnerParticipantNode(DataLayerActionWithPorts):
             case_id=case_id,
         )
         if result.status != Status.SUCCESS:
-            self.feedback_message = f"Initial RM.RECEIVED write failed for vendor '{self._vendor_uri}'"
+            self.feedback_message = (
+                "Initial RM.RECEIVED write failed for report receiver "
+                f"'{self._owner_uri}'"
+            )
             return Status.FAILURE
 
         logger.info(
             "%s: Added report receiver '%s' with roles %s at RM.RECEIVED"
             " in case '%s' (ADR-0041 AC-1)",
             self.name,
-            self._vendor_uri,
+            self._owner_uri,
             [r.value for r in participant.case_roles],
             case_id,
         )

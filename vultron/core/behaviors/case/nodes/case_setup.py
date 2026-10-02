@@ -90,7 +90,7 @@ class SetCaseAttributedTo(DataLayerActionWithPorts):
     Set VulnerabilityCase.attributed_to to the receiving actor's ID.
 
     Must run before PersistCase so the stored case already carries the
-    vendor/coordinator owner reference.
+    report receiver's (CASE_OWNER's) reference.
 
     Per specs/case-management.yaml CM-02-008.
     """

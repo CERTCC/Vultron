@@ -54,7 +54,7 @@ class CheckMarkerExistsNode(DataLayerAction):
     was already sent for this proposal and a ``Create(VulnerabilityCase)``
     delivery is still pending.  The retry runner (#1139) owns recovery; the
     current delivery should be a no-op to avoid duplicate Accepts on the
-    vendor side.
+    report-receiver side.
 
     Returns FAILURE when no marker is found, allowing the outer Selector to
     proceed to the normal / duplicate flow.
@@ -100,12 +100,12 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
     def __init__(
         self,
         proposal_id: str,
-        vendor_uri: str,
+        owner_uri: str,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._proposal_id = proposal_id
-        self._vendor_uri = vendor_uri
+        self._owner_uri = owner_uri
         self._case_id_bb: str | None = None
         self._accept_activity_id_bb: str | None = None
 
@@ -136,9 +136,9 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
             self._accept_activity_id_bb = None
 
     def _collect_reporter_uris(self, raw_case: VulnerabilityCase) -> list[str]:
-        """Return URIs of active REPORTER/FINDER participants, excluding vendor.
+        """Return URIs of active REPORTER/FINDER participants, excluding the owner.
 
-        CaseActor bootstraps non-vendor participants (ADR-0041 AC-5) by including
+        CaseActor bootstraps non-owner participants (ADR-0041 AC-5) by including
         them as direct ``to`` recipients of ``Create(VulnerabilityCase)`` so their
         DataLayers can seed a case replica immediately via
         ``CreateCaseReceivedUseCase`` without waiting for the
@@ -150,7 +150,7 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
         return [
             uri
             for uri, p in case_content_participants(
-                raw_case, self.datalayer, excluding={self._vendor_uri}
+                raw_case, self.datalayer, excluding={self._owner_uri}
             )
             if CVDRole.REPORTER in p.roles or CVDRole.FINDER in p.roles
         ]
@@ -160,7 +160,7 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
     ) -> dict[str, Any]:
         assert self.datalayer is not None
         # Materialise each participant ref so store_embedded_participants
-        # on the vendor side receives full objects, not bare ID strings (AC-5).
+        # on the owner's side receives full objects, not bare ID strings (AC-5).
         materialized: list[Any] = []
         for ref in raw_case.case_participants:
             if isinstance(ref, str):
@@ -239,7 +239,7 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
         # EmitCreateVulnerabilityCaseNode so the retry runner (#1139)
         # can reconstruct the exact same activity without re-running the BT.
         # AC-5 (ADR-0041): embed full inline case object with materialised
-        # participants so store_embedded_participants seeds the vendor replica.
+        # participants so store_embedded_participants seeds the owner's replica.
         try:
             case_object = self._build_case_object(case)
         except (VultronNotFoundError, VultronValidationError) as exc:
@@ -253,7 +253,7 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
         # ADR-0041 AC-5: bootstrap all known participants directly.
         # Include REPORTER/FINDER URIs so their DataLayers receive the case
         # replica immediately; CreateCaseReceivedUseCase handles them via the
-        # non-vendor participant path (no ReportCaseLink required).
+        # non-owner participant path (no ReportCaseLink required).
         # CP-05-003 / ADR-0045: context = case URI (deferral routing key);
         # in_reply_to = Accept URI (causal antecedent, AS2-correct field).
         reporter_uris = self._collect_reporter_uris(case)
@@ -262,7 +262,7 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
             object_=case_object,
             context=case_id,
             in_reply_to=accept_activity_id,
-            to=[self._vendor_uri, *reporter_uris],
+            to=[self._owner_uri, *reporter_uris],
         )
         # The marker's payload is the AS2 document the retry runner re-sends
         # over HTTP (#1139), and ``create_activity`` is a core-branch object, so
@@ -272,7 +272,8 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
         marker = PendingCreateCaseActivity(
             proposal_id=self._proposal_id,
             case_actor_id=self.actor_id,
-            vendor_uri=self._vendor_uri,
+            # Stored field keeps its pre-rename name (#4128).
+            vendor_uri=self._owner_uri,
             create_activity_payload=payload,
         )
 

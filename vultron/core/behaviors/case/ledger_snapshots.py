@@ -34,7 +34,7 @@ the verbatim AS2 activity that requirement demands.
 
 These helpers were previously private to the now-deleted
 ``nodes/prologue.py`` (``WritePrologueLedgerEntriesNode``, Issue #1688).
-ADR-0041 removes the vendor-authored back-fill; the builders themselves are
+ADR-0041 removes the receiver-authored back-fill; the builders themselves are
 retained because the CaseActor uses the same snapshot shapes when it commits
 those entries natively (CM-22-003).
 """

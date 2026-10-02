@@ -349,12 +349,12 @@ class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
 class CheckProposalAlreadySentForReport(DataLayerConditionWithPorts):
     """SUCCESS when a proposal for the report has already been sent and not refused.
 
-    The idempotency guard in the slimmed vendor tree (ADR-0041): a
+    The idempotency guard in the slimmed receive-report tree (ADR-0041): a
     ``VultronReportCaseLink`` exists for the report and its proposal was not
     rejected.  That covers both the *pending* link (``case_id is None``, the
     answer has not arrived) and the *answered* one (``case_id`` set, the
     CaseActor accepted and the case is linked).  Only a rejected proposal
-    (``proposal_rejected is True``) falls through, so the vendor proposes
+    (``proposal_rejected is True``) falls through, so the receiver proposes
     again after a ``Reject`` and never otherwise.
 
     The answered link used to fall through too, so a report Offer delivered

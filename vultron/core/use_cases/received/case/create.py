@@ -83,7 +83,7 @@ class CreateCaseReceivedUseCase:
             return HandlerResult.skipped(
                 f"bootstrap of case '{case_id}' already accepted"
             )
-        # Non-vendor participant path (ADR-0041 AC-5)
+        # Non-owner participant path (ADR-0041 AC-5)
         return self._handle_direct_participant_bootstrap(
             actor_id, case_id, case_obj
         )
@@ -125,7 +125,7 @@ class CreateCaseReceivedUseCase:
         case_id: str,
         case_obj: VulnerabilityCase,
     ) -> HandlerResult:
-        """Seed the case replica when receiver is a non-vendor participant.
+        """Seed the case replica when the receiver is a non-owner participant.
 
         Under ADR-0041 AC-5, CaseActor bootstraps reporters/finders directly by
         including them in the ``to`` field of ``Create(VulnerabilityCase)``.
@@ -155,7 +155,7 @@ class CreateCaseReceivedUseCase:
         if not stored:
             return HandlerResult.skipped(f"case '{case_id}' already seeded")
         logger.info(
-            "create_case_received: stored case '%s' replica for non-vendor"
+            "create_case_received: stored case '%s' replica for non-owner"
             " participant from CaseActor '%s' (ADR-0041 AC-5)",
             case_id,
             actor_id,

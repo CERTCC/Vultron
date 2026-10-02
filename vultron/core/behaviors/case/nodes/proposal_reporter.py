@@ -55,7 +55,7 @@ class AddReporterParticipantNode(DataLayerActionWithPorts):
     SUCCESS) so the overall flow is not blocked by a missing reporter.
 
     **Why degrading is right here, and where it went wrong.** The case is valid
-    without this participant: a proposal names the vendor and the case actor
+    without this participant: a proposal names the report receiver and the case actor
     directly, and refusing the whole case because one *derived* participant could
     not be built would lose more than it protects. So SUCCESS is correct.
 

@@ -55,20 +55,20 @@ class EmitAcceptCaseProposalNode(DataLayerActionWithPorts):
     the newly-created case.
 
     Failure here returns FAILURE so the Sequence aborts before the
-    Create(VulnerabilityCase) is sent — the vendor should not receive an
+    Create(VulnerabilityCase) is sent — the report receiver should not receive an
     unacknowledged case (BT-14-001).
     """
 
     def __init__(
         self,
         proposal_id: str,
-        vendor_uri: str,
+        proposer_uri: str,
         proposal_dict: dict | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._proposal_id = proposal_id
-        self._vendor_uri = vendor_uri
+        self._proposer_uri = proposer_uri
         # proposal_dict is the wire-serialised proposal (model_dump(by_alias=True)).
         # The factory embeds it inline (CP-05-003, AKM-03-001); without it there
         # is nothing to embed, so the emit fails rather than sending a bare id.
@@ -124,7 +124,7 @@ class EmitAcceptCaseProposalNode(DataLayerActionWithPorts):
                 self.trigger_activity_factory.accept_case_proposal(
                     actor=self.actor_id,
                     proposal=self._proposal_dict,
-                    to=[self._vendor_uri],
+                    to=[self._proposer_uri],
                     result=case_id,
                 )
             )
@@ -140,10 +140,10 @@ class EmitAcceptCaseProposalNode(DataLayerActionWithPorts):
         cast(CaseOutboxPersistence, self.datalayer).outbox_append(activity_id)
         self._set_output("accept_activity_id", activity_id)
         logger.info(
-            "%s: Queued Accept(CaseProposal) '%s' to outbox for vendor '%s'",
+            "%s: Queued Accept(CaseProposal) '%s' to outbox for report receiver '%s'",
             self.name,
             activity_id,
-            self._vendor_uri,
+            self._proposer_uri,
         )
         return Status.SUCCESS
 
@@ -167,12 +167,10 @@ class EmitCreateVulnerabilityCaseNode(DataLayerAction):
     def __init__(
         self,
         proposal_id: str,
-        vendor_uri: str,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._proposal_id = proposal_id
-        self._vendor_uri = vendor_uri
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:

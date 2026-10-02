@@ -184,12 +184,12 @@ class _ProposalsMixin:
 
         Rebuilds the ``as_CaseProposal`` from the wire dict the inbound
         ``Create`` carried, so the Reject embeds the proposal inline exactly as
-        the vendor sent it (CP-05-004, AKM-03-001).
+        the report receiver sent it (CP-05-004, AKM-03-001).
 
         The proposal is persisted alongside the activity for the same reason
         ``create_case_proposal`` persists it: storage dehydrates an inline
         Activity sub-field to its URI, so the outbox expansion path resolves the
-        proposal by reading it back. Without the stored object the vendor would
+        proposal by reading it back. Without the stored object the report receiver would
         receive a Reject whose ``object_`` is a bare URI it cannot dereference —
         the AKM-03-001 failure that #2482 found on the Create side.  Storing an
         activity payload is not case state; declining still creates no case,
@@ -221,7 +221,7 @@ class _ProposalsMixin:
                 "reject_case_proposal: proposal '%s' already exists — skipping",
                 wire_proposal.id_,
             )
-        # The proposing vendor is the only party owed the refusal.
+        # The proposing report receiver is the only party owed the refusal.
         recipients = (
             to if to is not None else [str(wire_proposal.attributed_to)]
         )
@@ -253,8 +253,8 @@ class _ProposalsMixin:
         """Create and persist an ``Accept(as_CaseProposal)`` activity.
 
         The CASE_MANAGER sends this to acknowledge that it will open (or has
-        already opened) a case for the vendor's proposal (CP-05-002).  The
-        proposal is embedded inline exactly as the vendor sent it (AKM-03-001),
+        already opened) a case for the report receiver's proposal (CP-05-002).  The
+        proposal is embedded inline exactly as the report receiver sent it (AKM-03-001),
         and *result* carries the URI of the case the Accept ties to — the
         existing case for a duplicate proposal (CP-05-006), the new one
         otherwise.

@@ -176,7 +176,7 @@ def _run_tree(
     tree = create_case_proposal_received_tree(
         report_id=report_id,
         proposal_id=_PROPOSAL_URI,
-        vendor_uri=_VENDOR_URI,
+        proposer_uri=_VENDOR_URI,
         proposal_dict=(
             proposal.model_dump(by_alias=True, serialize_as_any=True)
             if with_proposal_dict
@@ -798,7 +798,7 @@ class TestTheGateIsKeyedOnTheProposalNotTheReport:
 
     def test_a_second_proposal_on_the_same_report_is_still_adjudicated(self):
         second_proposal_uri = "https://evil.example.org/proposals/p-002"
-        second_vendor_uri = "https://evil.example.org/actors/attacker"
+        second_proposer_uri = "https://evil.example.org/actors/attacker"
 
         _dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
         _dl.clear_all()
@@ -819,14 +819,14 @@ class TestTheGateIsKeyedOnTheProposalNotTheReport:
             # report. The deployment's policy refuses it.
             proposal = as_CaseProposal(
                 id_=second_proposal_uri,
-                attributed_to=second_vendor_uri,
+                attributed_to=second_proposer_uri,
                 object_=as_VulnerabilityReport(
                     id_=_REPORT_URI, attributed_to=_REPORTER_URI
                 ),
                 target=_CASE_ACTOR_URI,
             )
             activity = as_Create(
-                actor=VultronOrganization(id_=second_vendor_uri),
+                actor=VultronOrganization(id_=second_proposer_uri),
                 object_=proposal,
                 to=[_CASE_ACTOR_URI],
             )
@@ -837,7 +837,7 @@ class TestTheGateIsKeyedOnTheProposalNotTheReport:
             tree = create_case_proposal_received_tree(
                 report_id=_REPORT_URI,
                 proposal_id=second_proposal_uri,
-                vendor_uri=second_vendor_uri,
+                proposer_uri=second_proposer_uri,
                 proposal_dict=proposal.model_dump(
                     by_alias=True, serialize_as_any=True
                 ),
@@ -884,7 +884,7 @@ class TestTheGateIsKeyedOnTheProposalNotTheReport:
             participants = [
                 p
                 for p in _dl.list_objects("CaseParticipant")
-                if second_vendor_uri in str(getattr(p, "actor_id", ""))
+                if second_proposer_uri in str(getattr(p, "actor_id", ""))
             ]
             assert participants == [], (
                 "a refused actor must not end up on the roster of the case it "

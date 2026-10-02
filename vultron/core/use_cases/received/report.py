@@ -173,7 +173,7 @@ def _run_submit_report_case_creation(
     actor_config: "ActorConfig | None" = None,
     wire_render_port: "WireRenderPort | None" = None,
 ) -> HandlerResult:
-    """Run the vendor-side proposal BT and classify its outcome (#2255).
+    """Run the receiver-side proposal BT and classify its outcome (#2255).
 
     The report is already stored, so nothing in this BT judges the sender's
     message: a disabled ``auto_create_case`` gate and an already-sent proposal
