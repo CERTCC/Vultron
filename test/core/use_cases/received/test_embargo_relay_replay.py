@@ -43,6 +43,7 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
+from vultron.core.states.participant_embargo_consent import PEC
 from vultron.semantic_registry import extract_event, use_case_map
 from vultron.wire.as2.factories import em_propose_embargo_activity
 from vultron.wire.as2.parser import parse_activity
@@ -73,6 +74,17 @@ class _Network:
         case_read.current_status.em.state = EM.ACTIVE
         case_read.active_embargo = embargo.id_
         manager_dl.save(case_read)
+        # Every participant has signed the active embargo, so each is active
+        # while it is in force and a case-content send reaches it (CM-10-004).
+        for participant_id in case_read.actor_participant_index.values():
+            participant = cast(
+                CaseParticipant, manager_dl.read(participant_id)
+            )
+            manager_dl.save(
+                participant.model_copy(
+                    update={"embargo_consent_state": PEC.SIGNATORY}
+                )
+            )
         self.initial_embargo_id = embargo.id_
         self.stores: dict[str, SqliteDataLayer] = {MANAGER: manager_dl}
         replicated = [
