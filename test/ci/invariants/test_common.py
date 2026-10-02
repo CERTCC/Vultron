@@ -210,6 +210,53 @@ def test_check_event_type_count_returns_violation_when_below_min():
     assert violations
 
 
+def _invite_replicas(count: int) -> dict[str, list[dict]]:
+    """A case-actor log holding *count* distinct ``invite_actor_to_case`` entries."""
+    entries: list[dict] = []
+    prev = GENESIS_HASH
+    for i in range(count):
+        h = _SHA256(f"invite:{i}")
+        entries.append(_entry(i, h, prev, event_type="invite_actor_to_case"))
+        prev = h
+    return {"case-actor": entries}
+
+
+def test_check_event_type_count_returns_violation_when_above_max() -> None:
+    """An upper bound catches an event recorded more often than the scenario sends it.
+
+    FCV sends one Invite (the Vendor's); the reporter is seated at case creation
+    (CM-22-002, CM-14-005), so a second ``invite_actor_to_case`` is a defect (#4120).
+    """
+    violations = check_event_type_count(
+        _invite_replicas(2), "invite_actor_to_case", 1, max_count=1
+    )
+    assert violations
+    assert "at most 1" in violations[0]
+    assert "found 2" in violations[0]
+
+
+@pytest.mark.parametrize("count", [1, 2])
+def test_check_event_type_count_passes_within_bounds(count: int) -> None:
+    violations = check_event_type_count(
+        _invite_replicas(count), "invite_actor_to_case", 1, max_count=2
+    )
+    assert violations == []
+
+
+def test_check_event_type_count_has_no_upper_bound_by_default() -> None:
+    violations = check_event_type_count(
+        _invite_replicas(5), "invite_actor_to_case", 1
+    )
+    assert violations == []
+
+
+def test_check_event_type_count_rejects_max_below_min() -> None:
+    with pytest.raises(ValueError, match="max_count"):
+        check_event_type_count(
+            _invite_replicas(1), "invite_actor_to_case", 2, max_count=1
+        )
+
+
 # ---------------------------------------------------------------------------
 # Invariant 6: check_no_rm_state_oscillation
 # ---------------------------------------------------------------------------

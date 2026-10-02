@@ -19,11 +19,12 @@ Orchestrates the full VFDPxa lifecycle across four containers: Finder,
 Coordinator (CASE_OWNER), Vendor, and CaseActor.
 
 Coordinator receives the Finder's report, creates the case (holding
-CASE_OWNER), the CaseActor service actor holds CASE_MANAGER.  Coordinator
-invites Finder into the case, then directly invites Vendor
-(``invite-actor-to-case``).  Vendor accepts the report and embargo, advances
-through the fix lifecycle (VFD), and all three participants coordinate to
-VFDPxa closure.  Coordinator closes the case.
+CASE_OWNER), the CaseActor service actor holds CASE_MANAGER.  The Finder is
+seated as reporter when the case is created (CM-22-002), so it is never
+invited; the Coordinator directly invites Vendor (``invite-actor-to-case``).
+Vendor accepts the report and embargo, advances through the fix lifecycle
+(VFD), and all three participants coordinate to VFDPxa closure.  Coordinator
+closes the case.
 
 Spec: DEMOMA-12 (GitHub issue #1593).
 """
@@ -154,9 +155,10 @@ CLI_HELP = """Run the FCV (Finder + Coordinator + Vendor) CVD demo (DEMOMA-12).
 
 Coordinator receives the Finder's report, creates the authoritative case
 (holding CASE_OWNER), and the CaseActor service manages the case ledger.
-Coordinator invites Finder, then directly invites Vendor.  Vendor accepts
-as a late joiner and receives the full ledger backfill (LedgerFanout).  All
-participants advance through the full VFDPxa fix lifecycle to closure.
+The Finder is seated as reporter at case creation; the Coordinator directly
+invites Vendor.  Vendor accepts as a late joiner and receives the full ledger
+backfill (LedgerFanout).  All participants advance through the full VFDPxa fix
+lifecycle to closure.
 
 \b
 Workflow:

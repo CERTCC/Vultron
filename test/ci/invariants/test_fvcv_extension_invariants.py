@@ -8,7 +8,8 @@ Actor set: ``finder``, ``vendor``, ``coordinator``, ``vendor2``,
 ``case-actor``.
 
 FVCV-extension-specific invariants:
-- ``invite_actor_to_case`` appears at least twice (Finder, then Vendor2 via CaseActor).
+- ``invite_actor_to_case`` appears at least twice (Coordinator, then Vendor2 via
+  CaseActor; the Finder is seated as reporter at case creation, CM-22-002).
 - ``offer_case_participant`` appears at least once (Coordinator suggests Vendor2).
 - ``accept_invite_actor_to_case`` appears at least once (Vendor2 accepts CaseActor invite).
 - Vendor2 is a late joiner — replica holds the complete log from genesis.
@@ -106,10 +107,10 @@ globals().update(
 def test_fvcv_extension_invite_actor_to_case_at_least_twice(
     fvcv_extension_replicas: dict[str, list[dict]],
 ) -> None:
-    """``invite_actor_to_case`` appears at least twice (Finder + Vendor2 invitations).
+    """``invite_actor_to_case`` appears at least twice (Coordinator + Vendor2 invitations).
 
-    Spec: DEMOMA-10-003 (Coordinator invites Finder), DEMOMA-10-005 (CaseActor
-    invites Vendor2).
+    Spec: DEMOMA-10-003 (Vendor1 invites the Coordinator), DEMOMA-10-005
+    (CaseActor invites Vendor2).
     """
     violations = check_event_type_count(
         fvcv_extension_replicas, "invite_actor_to_case", min_count=2

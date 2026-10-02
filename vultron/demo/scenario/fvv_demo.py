@@ -16,10 +16,10 @@
 """Finder → Vendor1 → Vendor2 (FVV) three-actor CVD workflow demo.
 
 Orchestrates the full VFDPxa lifecycle across separate Finder, Vendor1,
-and Vendor2 containers with no coordinator.  Vendor1 creates the case and
-invites both Finder and Vendor2; each vendor has an independent fix path
-(CS_vf/CS_d).  Vendor2's DataLayer is verified as a LedgerFanout replica of the
-authoritative Vendor1 state.
+and Vendor2 containers with no coordinator.  Vendor1 creates the case, which
+seats the Finder as reporter, and invites Vendor2; each vendor has an
+independent fix path (CS_vf/CS_d).  Vendor2's DataLayer is verified as a
+LedgerFanout replica of the authoritative Vendor1 state.
 
 Spec: D5-5 (GitHub issue #1265).
 """
@@ -146,8 +146,9 @@ VENDOR2_BASE_URL = _ROLES["vendor2"].url
 CLI_HELP = """Run the FVV (Finder + Vendor1 + Vendor2) multi-container CVD demo (D5-5).
 
 Orchestrates a complete CVD workflow across three separate API server
-containers with no coordinator.  Vendor1 creates the case and invites both
-Finder and Vendor2; each vendor maintains an independent fix path.
+containers with no coordinator.  Vendor1 creates the case, which seats the
+Finder as reporter, and invites Vendor2; each vendor maintains an independent
+fix path.
 
 \b
 Workflow:

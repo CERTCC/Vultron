@@ -175,10 +175,9 @@ Workflow:
   1. Seed both containers (actor records + peer registration).
   2. Finder submits a vulnerability report to Vendor's inbox.
   3. Vendor validates the report (trigger: validate-report).
-  4. Vendor engages the case (trigger: engage-case).
-  5. Vendor invites Finder to the case (Finder's inbox).
-  6. Finder accepts the invitation (Vendor's inbox).
-  7. Verify final state on both containers.
+  4. Vendor engages the case (trigger: engage-case); the new case seats
+     Finder as reporter, so Finder is never invited.
+  5. Verify final state on both containers.
 """
 
 # Deterministic actor IDs from docker-compose-multi-actor.yml (D5-1-G3).
