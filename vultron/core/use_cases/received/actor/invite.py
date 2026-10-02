@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 
 
 class InviteActorToCaseReceivedUseCase:
-    """Handle an incoming ``Invite(Actor, Case)`` activity.
+    """Handle an incoming ``Invite(Actor, CaseStub)`` activity.
 
     One path for every receiver (CLP-10-005, CLP-10-013): the use case builds
     ``InviteActorToCaseReceivedBT`` and runs it once as the receiving actor.
@@ -79,7 +79,7 @@ class InviteActorToCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        case_id = request.target_id
+        case_id = request.case_id
         invitee_id = request.object_id
         if not case_id or not invitee_id:
             logger.warning(

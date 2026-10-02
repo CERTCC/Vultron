@@ -21,7 +21,6 @@ Case Actor / CASE_MANAGER delegation activities.
 
 import json
 import logging
-from collections.abc import Mapping
 from typing import Any, cast
 
 from pydantic import BaseModel, ValidationError
@@ -57,6 +56,7 @@ from vultron.wire.as2.factories.case import (
     offer_case_participant_role_activity,
     reject_case_participant_role_activity,
     rm_reject_invite_to_case_activity,
+    validate_held_case_invite,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Invite,
@@ -90,17 +90,18 @@ def _active_embargo_of(
     return active_embargo
 
 
-def _stored_invite_by_case_uri(
+def _stored_case_invite(
     dl: CaseOutboxPersistence, invite_id: str
 ) -> as_Invite:
-    """Read the received Invite with its ``target`` reduced to the case URI.
+    """Read the received Invite as this invitee holds it, stub and all.
 
-    The Invite is read as this invitee holds it (``read_received_activity``):
-    archived by intake, or held by the inbox while it waits for the case
-    bootstrap.  The reply factory checks that it is a case Invite.  The Accept
-    or Reject that embeds the Invite goes to the CASE_MANAGER, which holds the
-    case, so the embedded Invite addresses it by URI (AKM-02-003) rather than
-    carrying the stub or a reconstruction of it (VM-08-003).
+    The Invite is read with ``read_received_activity``: archived by intake, or
+    held by the inbox while it waits for the case bootstrap.  The reply
+    factory checks that it is a case Invite.  The Accept or Reject embeds the
+    Invite as received, so its ``target`` stays the case stub
+    (VAM-04-005, VAM-04-006): the CASE_MANAGER reads the case from the stub's
+    ``caseId`` (CM-11-003), and the stub's ``type`` is what tells the reply
+    apart from a reply to a full-case Invite (CM-11-013).
 
     The held record is validated into ``as_Invite`` here, at the adapter
     edge (ADR-0032): intake archives the activity as the event carried it,
@@ -108,9 +109,8 @@ def _stored_invite_by_case_uri(
 
     Raises:
         VultronNotFoundError: when no activity with *invite_id* was received.
-        VultronValidationError: when the stored record is not a model, its
-            inline ``target`` carries no id, or it does not validate as an
-            Invite.
+        VultronValidationError: when the stored record is not a model, or it
+            does not validate as an Invite (a stub without ``caseId`` included).
     """
     held = read_received_activity(dl, invite_id, "RmInviteToCaseActivity")
     if not isinstance(held, BaseModel):
@@ -120,32 +120,18 @@ def _stored_invite_by_case_uri(
         )
     # The protocol's ``model_copy`` returns the protocol; read it as the model.
     invite = cast(BaseModel, held)
-    target = getattr(invite, "target", None)
-    # Read back from the archive, an inline target may be a plain mapping
-    # rather than a model, so its id is taken from either form.
-    if isinstance(target, Mapping):
-        target_id = target.get("id")
-    else:
-        target_id = _as_id(target)
-    if target is not None and not isinstance(target, str):
-        if not target_id:
-            raise VultronValidationError(
-                f"invite '{invite_id}' names its case with no id;"
-                " cannot address the reply to the case"
-            )
-        invite = invite.model_copy(update={"target": target_id})
     if isinstance(invite, as_Invite):
         return invite
+    data = json.loads(
+        invite.model_dump_json(by_alias=True, serialize_as_any=True)
+    )
     try:
-        return as_Invite.model_validate(
-            json.loads(
-                invite.model_dump_json(by_alias=True, serialize_as_any=True)
-            )
-        )
+        validated = validate_held_case_invite(data)
     except ValidationError as exc:
         raise VultronValidationError(
             f"invite '{invite_id}' does not validate as an Invite"
         ) from exc
+    return validated
 
 
 class _ActorsMixin:
@@ -166,7 +152,7 @@ class _ActorsMixin:
         roles: list[str] | None = None,
         target: VulnerabilityCase | None = None,
     ) -> tuple[str, str]:
-        """Create and persist an ``Invite(Actor, Case)`` activity.
+        """Create and persist an ``Invite(Actor, CaseStub)`` activity.
 
         ``actor`` MUST be the CASE_MANAGER's ID (PCR-08-007); ``attributed_to``
         MAY carry the case owner's ID for attribution.  The Invite carries no
@@ -229,7 +215,7 @@ class _ActorsMixin:
         hydrated AS2 object; a ``VultronValidationError`` is raised if the
         invite carries no routable actor reference.
         """
-        invite = _stored_invite_by_case_uri(self._dl, invite_id)
+        invite = _stored_case_invite(self._dl, invite_id)
         invite_actor_id = _as_id(getattr(invite, "actor", None))
         if not invite_actor_id:
             raise VultronValidationError(
@@ -260,7 +246,7 @@ class _ActorsMixin:
         outbox handler.  Mirrors ``accept_case_invite`` but uses
         ``rm_reject_invite_to_case_activity``.
         """
-        invite = _stored_invite_by_case_uri(self._dl, invite_id)
+        invite = _stored_case_invite(self._dl, invite_id)
         invite_actor_id = _as_id(getattr(invite, "actor", None))
         if not invite_actor_id:
             raise VultronValidationError(

@@ -458,7 +458,7 @@ def _phase_coordinator_suggests_vendor2(
             )
     logger.info("Vendor1 sent Accept(Offer(CaseParticipant)) to CaseActor")
 
-    # CaseActor receives Accept → emits Invite(Actor, Case) to Vendor2.  Per
+    # CaseActor receives Accept → emits Invite(Actor, CaseStub) to Vendor2.  Per
     # MV-10-004 the Invite alone does NOT seed Vendor2's case replica; Vendor2
     # must Accept(Invite) so the CaseActor sends the trust-bootstrap
     # Announce(VulnerabilityCase) (MV-10-003).  Poll Vendor2's DataLayer for the

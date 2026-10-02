@@ -212,7 +212,8 @@ print(json2md(reject_case_ownership_transfer()))
   The Case Owner decides whom to invite; a participant that wants a third party brought in sends a recommendation instead (`Offer(CaseParticipant)`, on [General (GI) Messages](general.md)).
   See [§11.2 Invitation and Acceptance](../vultron-spec/interactions.md#112-invitation-and-acceptance-n).
 - **Triggering transition:** none — roster action.
-- **Wire activity:** `Offer(Invite)` targeting the actor being invited.
+- **Wire activity:** `Invite(Actor, target=VulnerabilityCaseStub)`.
+  The `object` is the actor being invited, and the `target` is the case stub, of type `VulnerabilityCaseStub`, which names the case in its `caseId` ([CM-11-013](../specs/protocol.md#cm-11-013), [CM-17-010](../specs/protocol.md#cm-17-010)).
 - **Example artifact:** [invite_to_case.json](../examples/invite_to_case.json).
 
 ```python exec="true" idprefix=""
@@ -227,7 +228,7 @@ print(json2md(rm_invite_to_case()))
 
 - **Protocol role:** The invited actor accepts and joins the case at RM Received.
   The CASE_MANAGER records the acceptance in the ledger, seats the participant, and then sends `Announce(VulnerabilityCase)` to seed the new participant's replica ([CM-17-004](../specs/protocol.md#cm-17-004)).
-- **Wire activity:** `Accept(Invite)`.
+- **Wire activity:** `Accept(Invite(Actor, target=VulnerabilityCaseStub))`.
 - **Example artifact:** [accept_invite_to_case.json](../examples/accept_invite_to_case.json).
 
 ```python exec="true" idprefix=""
@@ -242,7 +243,7 @@ print(json2md(accept_invite_to_case()))
 
 - **Protocol role:** The invited actor declines.
 - **Triggering transition:** none — roster action.
-- **Wire activity:** `Reject(Invite)`.
+- **Wire activity:** `Reject(Invite(Actor, target=VulnerabilityCaseStub))`.
 - **Example artifact:** [reject_invite_to_case.json](../examples/reject_invite_to_case.json).
 
 ```python exec="true" idprefix=""

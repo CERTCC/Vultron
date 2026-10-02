@@ -18,6 +18,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.case_stub import CaseStubReference
 from vultron.core.models.dimensions import (
     DDimension,
     EmDimension,
@@ -41,6 +42,9 @@ from vultron.wire.as2.enums import as_ObjectType as AOtype
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.object_types import as_Event
 from vultron.wire.as2.vocab.objects.base import _coerce_pec_or_none
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCaseStub,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -97,9 +101,22 @@ def _get_type(field: object) -> str | None:
 
 
 def _to_domain_obj(as_obj: object) -> CoreObject | None:
-    """Wrap a bare AS2 object reference as a minimal CoreObject."""
+    """Wrap a bare AS2 object reference as a minimal CoreObject.
+
+    A case stub is promoted to a :class:`CaseStubReference` instead, so the
+    case it names reaches core in a field of its own and no consumer reads the
+    case from the stub's ID (CM-11-003, CM-11-013).
+    """
     if as_obj is None:
         return None
+    if isinstance(as_obj, as_VulnerabilityCaseStub):
+        return CaseStubReference(
+            id_=as_obj.id_,
+            type_=str(as_obj.type_),
+            case_id=as_obj.case_id,
+            published=as_obj.published,
+            updated=as_obj.updated,
+        )
     obj_id = _get_id(as_obj)
     if not obj_id:
         return None
@@ -662,13 +679,6 @@ def _build_object_kwargs(
         kw.update(_build_embargo_event_object(obj, context, target))
     elif builder := _OBJ_BUILDERS.get(_obj_type):
         kw.update(builder(obj))
-    else:
-        obj_id = _get_id(obj)
-        if obj_id:
-            kw["object_"] = CoreObject(
-                id_=obj_id,
-                type_=_get_type(obj),
-                published=_get_timestamp(obj, "published"),
-                updated=_get_timestamp(obj, "updated"),
-            )
+    elif (domain_obj := _to_domain_obj(obj)) is not None:
+        kw["object_"] = domain_obj
     return kw

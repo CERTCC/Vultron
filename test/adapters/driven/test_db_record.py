@@ -326,11 +326,15 @@ def test_keep_inline_nested_types_contains_case_ledger_entry():
 
 
 def test_keep_inline_nested_types_matches_enum_union_exactly():
-    """_KEEP_INLINE_NESTED_TYPES must equal the union of both enum value sets plus CaseLedgerEntry."""
+    """_KEEP_INLINE_NESTED_TYPES is both activity enums plus two record-less types.
+
+    ``CaseLedgerEntry`` and ``VulnerabilityCaseStub`` (CM-11-013) have no record
+    of their own to be read back from.
+    """
     expected = (
         frozenset(e.value for e in as_TransitiveActivityType)
         | frozenset(e.value for e in as_IntransitiveActivityType)
-        | {"CaseLedgerEntry"}
+        | {"CaseLedgerEntry", "VulnerabilityCaseStub"}
     )
     assert expected == _KEEP_INLINE_NESTED_TYPES
 
@@ -678,7 +682,7 @@ _CASE_ACTOR_ID = "http://coordinator:7999/api/v2/actors/case-actor"
 
 
 def _invite_naming_a_peer():
-    """An ``Invite(Actor, Case)`` as the Case Actor builds it for a peer.
+    """An ``Invite(Actor, CaseStub)`` as the Case Actor builds it for a peer.
 
     Built through the factory, not the internal vocab class, per the
     AF-05-001 boundary (``test/architecture/test_activity_factory_imports.py``).

@@ -56,9 +56,6 @@ from vultron.core.models.fault_classes import (
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.enums.roles import CVDRole
-from vultron.wire.as2.unknown_keys import (
-    CASE_STUB_KEYS as _VULNERABILITY_CASE_STUB_KEYS,
-)
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
@@ -514,7 +511,11 @@ def test_the_activity_is_sealed_complete(world, method):
 
 
 def _full_case_paths(value: Any, path: str = "body") -> list[str]:
-    """Paths of every full-case dict in a ``target``/``context`` slot, any depth."""
+    """Paths of every case dict in a ``target``/``context`` slot, any depth.
+
+    A stub names itself ``VulnerabilityCaseStub`` (CM-11-013), so any inline
+    ``VulnerabilityCase`` in a reference slot is the case itself.
+    """
     found: list[str] = []
     if isinstance(value, dict):
         for key, child in value.items():
@@ -523,12 +524,8 @@ def _full_case_paths(value: Any, path: str = "body") -> list[str]:
                 key in ("target", "context")
                 and isinstance(child, dict)
                 and child.get("type") == "VulnerabilityCase"
-                and not set(child) <= _VULNERABILITY_CASE_STUB_KEYS
             ):
-                found.append(
-                    f"{child_path} (non-stub keys"
-                    f" {sorted(set(child) - _VULNERABILITY_CASE_STUB_KEYS)})"
-                )
+                found.append(child_path)
             found.extend(_full_case_paths(child, child_path))
     elif isinstance(value, list):
         for index, item in enumerate(value):

@@ -28,9 +28,9 @@ The term set is every distinct concrete ``type_`` value carried by a wire class
 whose ``_vocab_ns`` is :data:`VocabNamespace.VULTRON`, plus every non-AS2
 ``type_`` value of a core class registered in ``WIRE_TYPE_MAP`` (the ADR-0099
 aliases; VM-10-002). It is keyed
-by the emitted ``type`` *value*, not the class name: ``VulnerabilityCaseStub``
-emits ``type: "VulnerabilityCase"``, so it needs no separate term — the
-``VulnerabilityCase`` term already resolves it.
+by the emitted ``type`` *value*, not the class name: a class that shares
+another's ``type`` value needs no separate term, because the value's term
+already resolves it.
 
 CLI (``uv run wire-context``):
     --check   exit 1 if ``docs/ns/context.jsonld`` is stale
@@ -72,8 +72,8 @@ def _import_all_vocab() -> None:
     Enumeration walks ``as_Object.__subclasses__()``, so a class that has not
     been imported is invisible — the exact silent-drop failure this generator
     exists to prevent. Importing the top-level ``vultron.wire.as2`` package does
-    **not** transitively load every leaf module (e.g. ``as_EmbargoEvent`` and
-    ``VulnerabilityCaseStub`` are left out), so the package tree is walked and
+    **not** transitively load every leaf module (e.g. ``as_EmbargoEvent`` is
+    left out), so the package tree is walked and
     every module imported before enumeration.
     """
     for module in pkgutil.walk_packages(

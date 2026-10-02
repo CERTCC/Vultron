@@ -318,6 +318,10 @@ This is correct behaviour and must not be changed. The rationale has two parts:
    (e.g., a reconstituted `Offer` in the validate-report path, a
    `CaseLedgerEntry` inside an `Announce` envelope). Collapsing them to a bare
    ID would make rehydration impossible on read-back.
+   A `VulnerabilityCaseStub` is kept inline for this reason alone: a stub never
+   has a record of its own, and the stub Invite is recognised by its target's
+   `type` (CM-11-013, #4045), so collapsing the stub to its ID would make the
+   stored Invite unrecognisable.
 
 2. **Semantic (more important)**: even where independent records exist, the
    snapshot captures state at receipt time — "when you offered me this case, it

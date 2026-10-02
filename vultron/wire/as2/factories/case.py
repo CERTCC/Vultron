@@ -34,6 +34,7 @@ from vultron.core.models.dimensions import (
     EmDimension,
 )
 from vultron.core.states.em import EM
+from vultron.enums.object_types import VultronObjectType
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.enums import as_TransitiveActivityType
 from vultron.wire.as2.factories._context import (
@@ -121,7 +122,7 @@ def _project_case_to_stub(
     try:
         current_status = case.current_status
     except (ValueError, AttributeError):
-        return as_VulnerabilityCaseStub(id_=case_id)
+        return as_VulnerabilityCaseStub(case_id=case_id)
     # Support both core CaseStatus (.em.state) and wire as_CaseStatus (.em_state)
     if hasattr(current_status, "em") and hasattr(current_status.em, "state"):
         em_state = current_status.em.state
@@ -129,10 +130,10 @@ def _project_case_to_stub(
         em_state = getattr(current_status, "em_state", None)
     active_embargo = getattr(case, "active_embargo", None)
     if em_state != EM.ACTIVE or active_embargo is None:
-        return as_VulnerabilityCaseStub(id_=case_id)
+        return as_VulnerabilityCaseStub(case_id=case_id)
     embargo_ref = _stub_embargo_ref(active_embargo, embargo_obj, case_id)
     if embargo_ref is None:
-        return as_VulnerabilityCaseStub(id_=case_id)
+        return as_VulnerabilityCaseStub(case_id=case_id)
     # ``context`` names the case this status belongs to.  It is required on the
     # core class (fail-fast, ARCH-10-001); the deleted wire class allowed it to be
     # absent because the wire branch was deliberately lenient (ARCH-12-002).
@@ -140,7 +141,7 @@ def _project_case_to_stub(
         context=case_id, em=EmDimension(state=em_state)
     )
     return as_VulnerabilityCaseStub(
-        id_=case_id,
+        case_id=case_id,
         active_embargo=embargo_ref,
         case_status=wire_status,
     )
@@ -685,12 +686,12 @@ def reject_case_ownership_transfer_activity(
 
 def rm_invite_to_case_activity(
     invitee: as_Actor | str,
-    target: Any = None,
+    target: Any,
     roles: list[str] | None = None,
     embargo_obj: Any = None,
     **kwargs,
 ) -> as_Invite:
-    """Build an Invite(Actor, target=as_VulnerabilityCase) — the RS message.
+    """Build an Invite(Actor, target=VulnerabilityCaseStub) — the RS message.
 
     Invites an actor to join a case that already exists.  See
     :func:`vultron.wire.as2.factories.report.rm_submit_report_activity`
@@ -701,7 +702,8 @@ def rm_invite_to_case_activity(
         target: The case to join — either a ``as_VulnerabilityCase`` (core or wire;
             projected to an enriched ``as_VulnerabilityCaseStub`` via
             :func:`_project_case_to_stub`), a pre-built ``as_VulnerabilityCaseStub``,
-            or a bare URI string.
+            or the case URI (wrapped in a bare stub).  The Invite's
+            ``context`` defaults to the case URI, never the stub's ID.
         roles: Optional list of intended CVD role strings for the invitee
             (CM-17-003).  When provided the Invite carries the intended
             participant roles so ``CreateInviteeParticipantNode``
@@ -720,6 +722,11 @@ def rm_invite_to_case_activity(
     """
     if isinstance(target, (VulnerabilityCase, as_VulnerabilityCase)):
         target = _project_case_to_stub(target, embargo_obj)
+    elif isinstance(target, str):
+        # A case named by URI alone still travels as a stub: the invitee does
+        # not hold the case, and the stub Invite is told apart by its target's
+        # ``type`` (CM-11-013, VAM-04-004).
+        target = as_VulnerabilityCaseStub(case_id=target)
     if isinstance(invitee, str):
         invitee = as_Actor(id_=invitee)
     if roles is not None:
@@ -737,6 +744,30 @@ def rm_invite_to_case_activity(
         raise VultronActivityConstructionError(
             "rm_invite_to_case_activity: invalid arguments"
         ) from exc
+
+
+def validate_held_case_invite(data: dict[str, Any]) -> as_Invite:
+    """Validate a held Invite's JSON form into ``as_Invite``, stub and all.
+
+    ``as_Invite.target`` is a generic ``as_Object`` slot, which keeps none of
+    a stub's own fields, so a target whose ``type`` is ``VulnerabilityCaseStub``
+    is validated as the stub itself (CM-11-013).  Any other target is kept as
+    the generic slot holds it, for :func:`_as_case_invite` to refuse.
+
+    Raises:
+        pydantic.ValidationError: when *data* is not an Invite, or its stub
+            does not validate (for example, it has no ``caseId``).
+    """
+    invite = as_Invite.model_validate(data)
+    stub = data.get("target")
+    if (
+        isinstance(stub, dict)
+        and stub.get("type") == VultronObjectType.VULNERABILITY_CASE_STUB.value
+    ):
+        invite = invite.model_copy(
+            update={"target": as_VulnerabilityCaseStub.model_validate(stub)}
+        )
+    return invite
 
 
 def _as_case_invite(invite: as_Invite) -> _RmInviteToCaseActivity:

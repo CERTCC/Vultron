@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Invitee-side effect nodes for a received ``Invite(Actor, Case)``.
+"""Invitee-side effect nodes for a received ``Invite(Actor, CaseStub)``.
 
 The invitee holds only the Invite's case stub until the CASE_MANAGER announces
 the case (MV-10-003, MV-10-004), so it records two things and creates no case:

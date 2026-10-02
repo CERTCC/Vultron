@@ -26,6 +26,7 @@ from vultron.core.models._helpers import strip_annotated
 from vultron.core.models.base import CoreObject
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import StorableRecord
+from vultron.enums.object_types import VultronObjectType
 from vultron.wire.as2.enums import (
     as_IntransitiveActivityType,
     as_TransitiveActivityType,
@@ -127,10 +128,16 @@ def object_ref_fields(cls: type[BaseModel]) -> frozenset[str]:
 #    if Activities eventually gain independent DataLayer records.  See
 #    notes/datalayer-design.md § "Received Activity Artifacts: Inline
 #    Sub-Field Snapshots Are Intentional".
+#
+# ``VulnerabilityCaseStub`` is kept inline for reason 1 alone, and more
+# strictly: a stub never has a record of its own (an invitee holds no case,
+# and the CASE_MANAGER holds the case the stub stands for), and the stub
+# Invite is recognised by its target's ``type`` (CM-11-013), so a target
+# collapsed to the stub's ID would read back as an unrecognisable Invite.
 _KEEP_INLINE_NESTED_TYPES: frozenset[str] = frozenset(
     {e.value for e in as_TransitiveActivityType}
     | {e.value for e in as_IntransitiveActivityType}
-    | {"CaseLedgerEntry"}
+    | {"CaseLedgerEntry", VultronObjectType.VULNERABILITY_CASE_STUB.value}
 )
 
 

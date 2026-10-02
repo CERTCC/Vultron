@@ -14,6 +14,7 @@
       "ParticipantStatus": "vultron:ParticipantStatus",
       "ProcessingFault": "vultron:ProcessingFault",
       "VulnerabilityCase": "vultron:VulnerabilityCase",
+      "VulnerabilityCaseStub": "vultron:VulnerabilityCaseStub",
       "VulnerabilityRecord": "vultron:VulnerabilityRecord",
       "VulnerabilityReport": "vultron:VulnerabilityReport"
     }

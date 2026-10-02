@@ -47,6 +47,9 @@ from vultron.wire.as2.factories import (
     rm_reject_invite_to_case_activity,
     update_case_activity,
 )
+from vultron.wire.as2.factories.case import (
+    validate_held_case_invite,
+)
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Add,
@@ -469,12 +472,16 @@ def test_reject_ownership_transfer_plain_offer_raises(sample_report):
 
 @pytest.mark.spec("AF-01-002")
 def test_rm_invite_to_case_returns_invite(sample_actor):
-    result = rm_invite_to_case_activity(invitee=sample_actor, actor=_ACTOR_URI)
+    result = rm_invite_to_case_activity(
+        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+    )
     assert isinstance(result, as_Invite)
 
 
 def test_rm_invite_to_case_object_is_actor(sample_actor):
-    result = rm_invite_to_case_activity(invitee=sample_actor, actor=_ACTOR_URI)
+    result = rm_invite_to_case_activity(
+        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+    )
     assert result.object_ == sample_actor
 
 
@@ -482,14 +489,45 @@ def test_rm_invite_to_case_target_is_set(sample_actor):
     result = rm_invite_to_case_activity(
         invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
     )
-    assert result.target == _CASE_URI
+    assert result.target == as_VulnerabilityCaseStub(case_id=_CASE_URI)
+
+
+@pytest.mark.spec("CM-11-013")
+@pytest.mark.spec("VAM-04-004")
+def test_rm_invite_to_case_wraps_a_case_uri_in_a_stub(sample_actor):
+    """A case named by URI travels as a stub; ``context`` is the case."""
+    result = rm_invite_to_case_activity(
+        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+    )
+    wire = json.loads(result.model_dump_json(by_alias=True, exclude_none=True))
+    assert wire["target"]["type"] == "VulnerabilityCaseStub"
+    assert wire["target"]["id"] == f"{_CASE_URI}/stub"
+    assert wire["target"]["caseId"] == _CASE_URI
+    assert wire["context"] == _CASE_URI
+
+
+@pytest.mark.spec("CM-17-010")
+def test_rm_invite_stub_carries_no_case_content(sample_actor):
+    """The stub names the case and nothing about it (CM-17-010)."""
+    case = as_VulnerabilityCase(
+        id_=_CASE_URI,
+        name="CVE-2025-0001 in widget",
+        summary="A summary of the case",
+        attributed_to=_ACTOR_URI,
+    )
+    result = rm_invite_to_case_activity(
+        invitee=sample_actor, target=case, actor=_ACTOR_URI
+    )
+    wire = json.loads(result.model_dump_json(by_alias=True, exclude_none=True))
+    assert set(wire["target"]) == {"@context", "type", "id", "caseId"}
 
 
 @pytest.mark.spec("AF-04-001")
 def test_rm_invite_to_case_invalid_raises():
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         rm_invite_to_case_activity(
-            invitee="not-an-actor"  # type: ignore[arg-type]
+            invitee="not-an-actor",  # type: ignore[arg-type]
+            target=_CASE_URI,
         )
     assert exc_info.value.__cause__ is not None
 
@@ -501,27 +539,35 @@ def test_rm_invite_to_case_invalid_raises():
 
 @pytest.mark.spec("AF-01-002")
 def test_rm_accept_invite_to_case_returns_accept(sample_actor):
-    invite = rm_invite_to_case_activity(invitee=sample_actor, actor=_ACTOR_URI)
+    invite = rm_invite_to_case_activity(
+        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+    )
     result = rm_accept_invite_to_case_activity(invite=invite, actor=_ACTOR_URI)
     assert isinstance(result, as_Accept)
 
 
 def test_rm_accept_invite_to_case_object_is_invite(sample_actor):
-    invite = rm_invite_to_case_activity(invitee=sample_actor, actor=_ACTOR_URI)
+    invite = rm_invite_to_case_activity(
+        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+    )
     result = rm_accept_invite_to_case_activity(invite=invite, actor=_ACTOR_URI)
     assert result.object_ == invite
 
 
 def test_rm_accept_invite_to_case_in_reply_to_auto_set(sample_actor):
     """Model validator auto-populates in_reply_to from invite.id_."""
-    invite = rm_invite_to_case_activity(invitee=sample_actor, actor=_ACTOR_URI)
+    invite = rm_invite_to_case_activity(
+        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+    )
     result = rm_accept_invite_to_case_activity(invite=invite, actor=_ACTOR_URI)
     assert result.in_reply_to == invite.id_
 
 
 def test_rm_accept_invite_to_case_explicit_in_reply_to_preserved(sample_actor):
     """Explicitly provided in_reply_to is not overwritten."""
-    invite = rm_invite_to_case_activity(invitee=sample_actor, actor=_ACTOR_URI)
+    invite = rm_invite_to_case_activity(
+        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+    )
     explicit_id = "https://example.org/activities/explicit-invite-id"
     result = rm_accept_invite_to_case_activity(
         invite=invite, in_reply_to=explicit_id, actor=_ACTOR_URI
@@ -552,7 +598,7 @@ def test_reply_embeds_an_invite_as_intake_archived_it(sample_actor, factory):
     invite = rm_invite_to_case_activity(
         invitee=sample_actor,
         actor=_ACTOR_URI,
-        target=as_VulnerabilityCaseStub(id_="https://example.org/cases/c1"),
+        target="https://example.org/cases/c1",
         roles=["vendor"],
     )
     archived = extract_event(invite).activity
@@ -595,11 +641,11 @@ def test_reply_refuses_an_archived_activity_that_is_not_an_invite(
 def _as_plain_invite(activity: BaseModel | None) -> as_Invite:
     """Validate an archived activity into ``as_Invite``, as the adapter does."""
     assert activity is not None, "intake archived no activity"
-    return as_Invite.model_validate(
-        json.loads(
-            activity.model_dump_json(by_alias=True, serialize_as_any=True)
-        )
+    data = json.loads(
+        activity.model_dump_json(by_alias=True, serialize_as_any=True)
     )
+    held = validate_held_case_invite(data)
+    return held
 
 
 # ---------------------------------------------------------------------------
@@ -609,27 +655,35 @@ def _as_plain_invite(activity: BaseModel | None) -> as_Invite:
 
 @pytest.mark.spec("AF-01-002")
 def test_rm_reject_invite_to_case_returns_reject(sample_actor):
-    invite = rm_invite_to_case_activity(invitee=sample_actor, actor=_ACTOR_URI)
+    invite = rm_invite_to_case_activity(
+        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+    )
     result = rm_reject_invite_to_case_activity(invite=invite, actor=_ACTOR_URI)
     assert isinstance(result, as_Reject)
 
 
 def test_rm_reject_invite_to_case_object_is_invite(sample_actor):
-    invite = rm_invite_to_case_activity(invitee=sample_actor, actor=_ACTOR_URI)
+    invite = rm_invite_to_case_activity(
+        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+    )
     result = rm_reject_invite_to_case_activity(invite=invite, actor=_ACTOR_URI)
     assert result.object_ == invite
 
 
 def test_rm_reject_invite_to_case_in_reply_to_auto_set(sample_actor):
     """Model validator auto-populates in_reply_to from invite.id_."""
-    invite = rm_invite_to_case_activity(invitee=sample_actor, actor=_ACTOR_URI)
+    invite = rm_invite_to_case_activity(
+        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+    )
     result = rm_reject_invite_to_case_activity(invite=invite, actor=_ACTOR_URI)
     assert result.in_reply_to == invite.id_
 
 
 def test_rm_reject_invite_to_case_explicit_in_reply_to_preserved(sample_actor):
     """Explicitly provided in_reply_to is not overwritten."""
-    invite = rm_invite_to_case_activity(invitee=sample_actor, actor=_ACTOR_URI)
+    invite = rm_invite_to_case_activity(
+        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+    )
     explicit_id = "https://example.org/activities/explicit-invite-id"
     result = rm_reject_invite_to_case_activity(
         invite=invite, in_reply_to=explicit_id, actor=_ACTOR_URI
@@ -750,10 +804,72 @@ def test_rm_invite_stub_is_enriched_from_an_inline_active_embargo(
 
     stub = invite.target
     assert isinstance(stub, as_VulnerabilityCaseStub)
-    assert stub.id_ == case_id
+    assert stub.case_id == case_id
+    assert stub.id_ == f"{case_id}/stub"
     assert isinstance(stub.active_embargo, as_EmbargoEvent)
     assert stub.active_embargo.id_ == embargo.id_
     assert stub.active_embargo.end_time is not None
     assert isinstance(stub.case_status, as_CaseStatus)
     assert stub.case_status.em is not None
     assert stub.case_status.em.state == EM.ACTIVE
+
+
+@pytest.mark.spec("CM-17-010")
+@pytest.mark.spec("CM-17-002")
+def test_enriched_stub_carries_only_the_embargo_terms(sample_actor):
+    """An embargo-active stub adds only ``activeEmbargo`` and ``caseStatus``,
+    and its ``caseStatus`` states only the EM state (CM-17-010).
+
+    The case here is public with an exploit (``PXa``).  The stub's status is
+    built for the stub, not read from the case, so a ``pxaState`` on the wire
+    would be the class default and would tell the invitee the case is not
+    public.  The dump goes through the outbound form, the subtype-aware JSON
+    dump (VM-07-001).
+    """
+    from vultron.core.models._helpers import days_from_now_utc
+    from vultron.core.models.case import VulnerabilityCase
+    from vultron.core.models.case_status import CaseStatus
+    from vultron.core.models.dimensions import EmDimension, PxaDimension
+    from vultron.core.models.embargo_event import EmbargoEvent
+    from vultron.core.states.cs import CS_pxa
+    from vultron.core.states.em import EM
+
+    case_id = "https://example.org/cases/enriched-stub"
+    embargo = EmbargoEvent(context=case_id, end_time=days_from_now_utc(30))
+    case = VulnerabilityCase(
+        id_=case_id,
+        name="CVE-2025-011",
+        summary="Case content the invitee must not see",
+        attributed_to=_ACTOR_URI,
+        case_statuses=[
+            CaseStatus(
+                context=case_id,
+                attributed_to=_ACTOR_URI,
+                em=EmDimension(state=EM.ACTIVE),
+                pxa=PxaDimension(state=CS_pxa.PXa),
+            )
+        ],
+        active_embargo=embargo,
+    )
+
+    invite = rm_invite_to_case_activity(
+        invitee=sample_actor, target=case, actor=_ACTOR_URI
+    )
+    wire = json.loads(
+        invite.model_dump_json(
+            by_alias=True, exclude_none=True, serialize_as_any=True
+        )
+    )
+
+    stub = wire["target"]
+    assert set(stub) == {
+        "@context",
+        "type",
+        "id",
+        "caseId",
+        "activeEmbargo",
+        "caseStatus",
+    }
+    status = stub["caseStatus"]
+    assert status["emState"] == EM.ACTIVE.value
+    assert set(status) <= {"@context", "id", "type", "context", "emState"}

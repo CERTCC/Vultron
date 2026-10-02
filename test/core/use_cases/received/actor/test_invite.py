@@ -36,9 +36,6 @@ from vultron.wire.as2.factories import (
     rm_reject_invite_to_case_activity,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCaseStub,
-)
 
 
 def _outbound_blob(activity) -> str:
@@ -152,7 +149,7 @@ def _seed_late_joiner_case() -> dict[str, Any]:
     object.__setattr__(case_actor, "context", case.id_)
     invite = rm_invite_to_case_activity(
         invitee,
-        target=as_VulnerabilityCaseStub(id_=case.id_),
+        target=case.id_,
         actor=case_actor_id,
         id_=f"{case.id_}/invitations/1",
     )
@@ -590,7 +587,7 @@ class TestInviteActorUseCases:
 
         invite = rm_invite_to_case_activity(
             as_Actor(id_="https://example.org/users/coordinator"),
-            target=as_VulnerabilityCaseStub(id_=case_id),
+            target=case_id,
             actor=case_actor_id,
             id_=f"{case_id}/invitations/1",
         )
@@ -668,7 +665,7 @@ class TestInviteActorUseCases:
         )
         invite = rm_invite_to_case_activity(
             as_Actor(id_=invitee_id),
-            target=as_VulnerabilityCaseStub(id_=case_id),
+            target=case_id,
             actor=case_actor_id,
             id_=f"{case_id}/invitations/1",
         )
@@ -732,7 +729,7 @@ class TestInviteActorUseCases:
         seed_store_owner_as_case_manager(dl, case)
         invite = rm_invite_to_case_activity(
             invitee,
-            target=as_VulnerabilityCaseStub(id_=case.id_),
+            target=case.id_,
             actor="https://example.org/users/owner",
             id_="https://example.org/cases/caseIA1/invitations/1",
         )
@@ -793,7 +790,7 @@ class TestInviteActorUseCases:
         seed_store_owner_as_case_manager(dl, case)
         invite = rm_invite_to_case_activity(
             invitee,
-            target=as_VulnerabilityCaseStub(id_=case.id_),
+            target=case.id_,
             actor="https://example.org/users/owner",
             id_="https://example.org/cases/caseIA2/invitations/1",
         )
@@ -856,7 +853,7 @@ class TestInviteActorUseCases:
         seed_store_owner_as_case_manager(dl, case)
         invite = rm_invite_to_case_activity(
             invitee,
-            target=as_VulnerabilityCaseStub(id_=case.id_),
+            target=case.id_,
             actor=owner_id,
             id_="https://example.org/cases/caseRM001/invitations/1",
         )
@@ -934,7 +931,7 @@ class TestInviteActorUseCases:
         )
         invite = rm_invite_to_case_activity(
             invitee,
-            target=as_VulnerabilityCaseStub(id_=case.id_),
+            target=case.id_,
             actor=owner_id,
             id_="https://example.org/cases/caseRM002/invitations/1",
         )
@@ -1021,7 +1018,7 @@ class TestInviteActorUseCases:
         )
         invite = rm_invite_to_case_activity(
             invitee,
-            target=as_VulnerabilityCaseStub(id_=case.id_),
+            target=case.id_,
             actor="https://example.org/users/owner",
             id_="https://example.org/cases/caseIA3/invitations/1",
         )
@@ -1209,7 +1206,7 @@ class TestInviteActorUseCases:
         object.__setattr__(case_actor, "context", case.id_)
         invite = rm_invite_to_case_activity(
             invitee,
-            target=as_VulnerabilityCaseStub(id_=case.id_),
+            target=case.id_,
             actor=case_actor_id,
             id_=f"{case.id_}/invitations/1",
         )
@@ -1385,7 +1382,7 @@ class TestInviteActorUseCases:
         )
         invite = rm_invite_to_case_activity(
             invitee,
-            target=as_VulnerabilityCaseStub(id_=case.id_),
+            target=case.id_,
             actor=case_actor_id,
             id_=f"{case.id_}/invitations/1",
         )
@@ -1474,7 +1471,7 @@ class TestInviteActorUseCases:
         object.__setattr__(case_actor, "context", case.id_)
         invite = rm_invite_to_case_activity(
             invitee,
-            target=as_VulnerabilityCaseStub(id_=case.id_),
+            target=case.id_,
             actor=case_actor_id,
             id_=f"{case.id_}/invitations/1",
         )
@@ -1568,7 +1565,7 @@ class TestAcceptInviteRolesAC4:
         seed_store_owner_as_case_manager(dl, case)
         invite = rm_invite_to_case_activity(
             invitee,
-            target=as_VulnerabilityCaseStub(id_=case.id_),
+            target=case.id_,
             actor="https://example.org/users/owner",
             id_="https://example.org/cases/ac4-test/invitations/1",
             roles=["vendor"],
@@ -1616,7 +1613,7 @@ class TestAcceptInviteRolesAC4:
         seed_store_owner_as_case_manager(dl, case)
         invite = rm_invite_to_case_activity(
             invitee,
-            target=as_VulnerabilityCaseStub(id_=case.id_),
+            target=case.id_,
             actor="https://example.org/users/owner",
             id_="https://example.org/cases/ac4-neg/invitations/1",
         )
@@ -1658,7 +1655,7 @@ class TestInviteDispositions:
     def _invite(self, case_id: str):
         return rm_invite_to_case_activity(
             as_Actor(id_=self._INVITEE),
-            target=as_VulnerabilityCaseStub(id_=case_id),
+            target=case_id,
             actor=self._OWNER,
             id_=f"{case_id}/invitations/1",
         )

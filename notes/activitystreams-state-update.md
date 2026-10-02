@@ -224,14 +224,13 @@ into fields of the nested dict, the `Invite`'s own `actor` and `object_`
 (typically a case stub) are left as raw dicts, breaking `ActivityPattern`
 matching that relies on typed subtype information.
 
-**Lesson 2 — Minimal case dicts must expand to `as_VulnerabilityCaseStub`.**
+**Lesson 2 — A case stub is recognised by its `type`, not by its sparseness.**
 
-Minimal `{"id": "...", "type": "VulnerabilityCase"}` dicts received in
-inbound activities (e.g., as the `object_` of an `Invite`) should be expanded
-as `as_VulnerabilityCaseStub`, not full `VulnerabilityCase`. This preserves
-selective-disclosure semantics: the invitee has not yet accepted the embargo,
-so they should only see the stub. Expanding to full `VulnerabilityCase` would
-incorrectly materialize fields the invitee has not yet earned access to.
+An Invite's `target` stub carries `"type": "VulnerabilityCaseStub"` and expands
+to `as_VulnerabilityCaseStub` (CM-11-013). This preserves selective-disclosure
+semantics: the invitee has not yet accepted the embargo, so it sees only the
+stub. Before #4045 the stub reused `"type": "VulnerabilityCase"` and was guessed
+from a minimal key set; a sparse `VulnerabilityCase` is now always a case.
 
 **Lesson 3 — `inReplyTo` belongs on the model, not only on call sites.**
 

@@ -343,7 +343,7 @@ class TriggerActivityPort(Protocol):
         roles: list[str] | None = None,
         target: VulnerabilityCase | None = None,
     ) -> tuple[str, str]:
-        """Create and persist an ``Invite(Actor, Case)`` activity.
+        """Create and persist an ``Invite(Actor, CaseStub)`` activity.
 
         ``actor`` MUST be the CASE_MANAGER's ID (PCR-08-007); ``attributed_to``
         MAY carry the case owner's ID for attribution.  There is no ``cc``:

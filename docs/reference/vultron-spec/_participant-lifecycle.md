@@ -41,23 +41,31 @@ whether to join until it knows something about the case, but it must not receive
 case content before it has been admitted and its embargo consent resolved
 ([§9.7 Gating Full Case Delivery](tracking-models.md#97-gating-full-case-delivery)).
 
-The protocol solves this with a **case stub** — a minimal description of the case
-carrying enough for the invitee to decide, and no vulnerability detail. The stub
-names the case, says who is coordinating it, and states the embargo terms the
-invitee would be agreeing to. Full content follows only after the invitee accepts.
+The protocol solves this with a **case stub**: a minimal stand-in for the case that carries enough for the invitee to decide, and no vulnerability detail.
+The stub is its own object, of type `VulnerabilityCaseStub`, and is not the case ([CM-11-013](../specs/protocol.md#cm-11-013)).
+It carries exactly these fields ([CM-17-010](../specs/protocol.md#cm-17-010)):
+
+- `id`: the stub's own identifier, which is the case's identifier with `/stub` appended.
+  A receiver never derives the case from it.
+- `type`: `VulnerabilityCaseStub`.
+  A receiver tells a stub from a case by its `type` alone.
+- `caseId`: the identifier of the case the stub stands for.
+- `activeEmbargo` and `caseStatus`: present only when an embargo is active.
+  They state the embargo terms the invitee would agree to by accepting: the embargo's identifier and end time, and the case's embargo state ([CM-17-002](../specs/protocol.md#cm-17-002)).
+- `summary`: optional human-readable context ([MV-10-001](../specs/protocol.md#mv-10-001)).
+
+The stub does not name the case's coordinator or Case Owner.
+The `Invite` that carries the stub already identifies who is asking: its `actor` is the CASE_MANAGER, and its `attributedTo` can name the Case Owner.
+Full content follows only after the invitee accepts.
 
 Two paths bring an actor into a case, and they differ in who initiates:
 
-- **Direct invitation.** The CASE_MANAGER sends `Invite`, carrying the case stub,
-  to the actor. The actor answers `Accept(Invite)` or `Reject(Invite)`.
-  `Accept(Invite)` admits the actor at RM Received and, where an embargo is in
-  force, records its consent to those terms.
-- **Suggested actor.** An existing participant proposes a third party — "this
-  vendor is also affected" — by sending `Offer(CaseParticipant)` to the
-  CASE_MANAGER. The proposal is a recommendation, not an invitation: the Case
-  Owner decides whether to act on it, and if it does, the CASE_MANAGER then sends
-  the `Invite` above. An implementation MUST NOT treat
-  `Offer(CaseParticipant)` as an invitation to the proposed actor.
+- **Direct invitation.** The CASE_MANAGER sends `Invite(Actor, target=VulnerabilityCaseStub)` to the actor.
+  The actor answers `Accept(Invite)` or `Reject(Invite)`.
+  `Accept(Invite)` admits the actor at RM Received and, where an embargo is in force, records its consent to those terms.
+- **Suggested actor.** An existing participant proposes a third party — "this vendor is also affected" — by sending `Offer(CaseParticipant)` to the CASE_MANAGER.
+  The proposal is a recommendation, not an invitation: the Case Owner decides whether to act on it, and if it does, the CASE_MANAGER then sends the `Invite` above.
+  An implementation MUST NOT treat `Offer(CaseParticipant)` as an invitation to the proposed actor.
 
 Both paths converge on `Accept(Invite)`. The suggested-actor path adds one
 round-trip, because the Case Owner's decision sits between the proposal and the

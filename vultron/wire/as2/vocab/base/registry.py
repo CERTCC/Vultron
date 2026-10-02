@@ -91,8 +91,7 @@ def wire_type_value(cls: type) -> str:
 def is_wire_type_alias(cls: type) -> bool:
     """Return whether *cls* declares itself an alias of another wire type.
 
-    An alias shares another class's wire ``type`` value (``as_VulnerabilityCaseStub``
-    emits ``type: "VulnerabilityCase"``) and therefore MUST NOT own a
+    An alias shares another class's wire ``type`` value and therefore MUST NOT own a
     ``WIRE_TYPE_MAP`` key: exactly one class can be what a given ``type`` value
     deserializes to. Read off the class's own namespace rather than inherited,
     so a subclass that narrows ``type_`` to a distinct value still registers.

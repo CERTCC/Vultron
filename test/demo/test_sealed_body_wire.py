@@ -153,8 +153,9 @@ class TestTheWireCarriesTheSealedBody:
             "Invite.target crossed the wire as a bare URI: the enriched stub was"
             f" collapsed before delivery. target={target!r}"
         )
-        assert target["type"] == "VulnerabilityCase"
-        assert target["id"] == case_id
+        assert target["type"] == "VulnerabilityCaseStub"
+        assert target["caseId"] == case_id
+        assert target["id"] == f"{case_id}/stub"
         assert "activeEmbargo" in target, (
             "the invitee was not sent the embargo terms it is asked to consent"
             f" to (CM-17-002). target={target!r}"
