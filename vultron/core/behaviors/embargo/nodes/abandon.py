@@ -11,6 +11,7 @@
 #  certain third party source code, object code, documentation and other files
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 """The P/X/A abandonment of open embargo proposals (EMB-16-001, #4131).
 
@@ -242,7 +243,8 @@ class SendAbandonmentRejectsNode(_EmitSingleActivityBase):
     The non-CASE_MANAGER arm writes no EM state; it asks the CASE_MANAGER
     instead (EP-09-008, PCR-08-001).  It answers several proposals at once,
     so it overrides the one-activity ``update()`` frame and queues each ER
-    through the shared ``_emit_through_seam`` (OX-14-001).  Reads ``/case_manager_id`` from ``ResolveCaseManagerNode``.
+    through the shared ``_emit_through_seam`` (OX-14-001).  Reads
+    ``/case_manager_id`` from ``ResolveCaseManagerNode``.
     FAILURE when the factory is unavailable or a factory call or outbox write
     raises (BT-14-001).
     """

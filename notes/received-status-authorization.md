@@ -12,7 +12,9 @@ related_specs:
   - specs/behavior-tree-integration.yaml
   - specs/cs-behavior.yaml
   - specs/embargo-policy.yaml
+  - specs/em-behavior.yaml
 related_notes:
+  - notes/embargo-lifecycle.md
   - notes/bt-integration.md
   - notes/call-out-configuration.md
   - notes/bt-fuzzer-rm-threat.md

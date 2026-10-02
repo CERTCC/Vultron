@@ -16,8 +16,8 @@
 """The case owner's Reject of an open embargo proposal (EP-08-003).
 
 :class:`DecideRejectedEmbargoProposalNode` applies the owner's ER or EJ on the
-received path and in the ledger replay; :class:`OwnerRejectsRevisionAfterDisclosureNode`
-tells when that Reject must end the embargo instead (EMB-04-002).  The P/X/A
+received path and in the ledger replay;
+:class:`OwnerRejectsRevisionAfterDisclosureNode` tells when that Reject must end the embargo instead (EMB-04-002).  The P/X/A
 abandonment of open proposals (EMB-16-001) is the CASE_MANAGER's decision, not
 an owner's Reject, and lives in :mod:`.abandon`.
 

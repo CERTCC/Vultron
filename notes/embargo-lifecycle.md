@@ -12,7 +12,8 @@ description: >
   reads on the relay trees; the invariant that a case never names an
   embargo its store cannot read (EMB-18-003); and the trigger write gate under
   which only the CASE_MANAGER writes and commits shared EM state while any
-  other participant asks (EP-09-008, SYNC-11-002, EMB-19-001).
+  other participant asks (EP-09-008, SYNC-11-002, EMB-19-001), including
+  the P/X/A abandonment of every open proposal (EMB-16-001).
 related_specs:
   - specs/case-management.yaml
   - specs/embargo-policy.yaml
@@ -33,6 +34,7 @@ related_notes:
   - notes/case-ledger-authority.md
   - notes/call-out-configuration.md
   - notes/activitystreams-semantics.md
+  - notes/received-status-authorization.md
   - notes/protocol-asks.md
 relevant_packages:
   - vultron/core/states/em.py
@@ -240,15 +242,19 @@ signal: FastAPI ingress stores the Invite before dispatch. The refusal itself
 records no decision, so a repeated refusal answers twice (#4140). Moving this
 refusal into the receive tree is #3872.
 
-**Auto-terminate on publication** (CS.P/X/A event): handled by
-`PublicDisclosureBranchNode` in `vultron/core/behaviors/status/nodes/lifecycle.py`.
-The node is a Selector with two arms depending on the current EM state:
+**Auto-terminate on publication** (CS.P/X/A event): the live receive path is
+`ThreatTerminationBranchNode` (`status/nodes/threat_termination.py`), under the
+teardown gate of `add_case_status_tree` and `add_participant_status_tree`.
+`PublicDisclosureBranchNode` (`status/nodes/lifecycle.py`) is built by no
+production tree. Both build `pxa_embargo_teardown_bt`, a Selector whose arms
+depend on the current EM state:
 
-- **EM ACTIVE or REVISE** → delegates to `terminate_embargo_bt` (ET + EM →
-  EXITED). This is the cascade path for AC-2 of issue #1454.
-- **EM PROPOSED** → delegates to `reject_proposed_embargo_bt` (ER + EM →
-  NONE). EMB-16-001: continuing to negotiate a proposed embargo after
-  P/X/A is set is not viable; the proposal must be abandoned immediately.
+- **EM ACTIVE or REVISE** → `terminate_embargo_bt` (ET + EM → EXITED). This is
+  the cascade path for AC-2 of issue #1454.
+- **EM PROPOSED** → `reject_proposed_embargo_bt`. EMB-16-001: continuing to
+  negotiate a proposed embargo after P/X/A is set is not viable, so every open
+  proposal is abandoned (EM → NONE). Only the CASE_MANAGER writes; anyone else
+  asks it with one ER per proposal (see the write gate below).
 - **EM NONE or EXITED** → skip (nothing to tear down).
 
 Prior to the fix in issue #1892, the skip condition used
@@ -297,8 +303,8 @@ When implementing any code that transitions embargo state:
    is PROPOSED, use `reject_proposed_embargo_bt` (not `terminate_embargo_bt`).
    `terminate_embargo_bt` requires an active embargo (`HasActiveEmbargoNode`
    guard); it fails when EM is PROPOSED. `reject_proposed_embargo_bt` calls
-   `reject_embargo_invite()` which handles PROPOSED → NONE correctly
-   (EMB-16-001).
+   `abandon_embargo_proposals()` as the CASE_MANAGER, which drops every open
+   proposal and drives PROPOSED → NONE (EMB-16-001, EP-09-008).
 7. **Several proposals can be open at once, and order is by expiration, not
    arrival** (EP-08, ADR-0100). See the section below before touching any
    proposal-selection code.
@@ -349,9 +355,9 @@ reason EP-08 exists:
   decided entry from `pending_embargo_proposal_index` — one writer, no remover.
   The neighbouring `proposed_embargoes` list is pruned *only on teardown*, by
   `RemoveFromProposedEmbargoesNode`, which is wired into
-  `remove_embargo_from_case_tree` and nowhere else; `reject_proposed_embargo_bt`
-  omits it, so a **rejected** proposal survives in both records.
-  `reject_proposed.py` only reads the list. An unpruned record is not a weaker
+  `remove_embargo_from_case_tree` and nowhere else, so a **rejected** proposal
+  survives in both records. (The P/X/A abandonment prunes both, through
+  `discard_proposed_embargo`.) An unpruned record is not a weaker
   guarantee than a pruned one; it is a different and wrong answer, because a
   decided proposal stays selectable. Both records are #3470's job.
 

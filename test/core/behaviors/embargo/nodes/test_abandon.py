@@ -273,3 +273,78 @@ def test_read_names_the_proposal_with_no_invite():
     assert _tick(node) == Status.FAILURE
     for embargo_id in proposals:
         assert embargo_id in node.feedback_message
+
+
+# ---------------------------------------------------------------------------
+# SendAbandonmentRejectsNode failure paths (BT-14-001)
+# ---------------------------------------------------------------------------
+
+
+class _RaisingRejectFactory(TriggerActivityAdapter):
+    """A factory whose ``reject_embargo`` always raises."""
+
+    def reject_embargo(self, *args, **kwargs):  # type: ignore[override]
+        raise RuntimeError("factory down")
+
+
+def _run_asking(dl: SqliteDataLayer, case_id: str, factory) -> Status:
+    bridge = BTBridge(
+        datalayer=dl,
+        trigger_activity=factory,
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(dl),
+    )
+    tree = reject_proposed_embargo_bt(case_id=case_id, result_out={})
+    return bridge.execute_with_setup(
+        tree, actor_id=OTHER_PARTICIPANT_ACTOR
+    ).status
+
+
+def _assert_nothing_moved(
+    dl: SqliteDataLayer, case_id: str, proposals: dict[str, str]
+) -> None:
+    updated = cast(VulnerabilityCase, dl.read(case_id))
+    assert updated.current_status.em.state == EM.PROPOSED
+    assert updated.proposed_embargo_ids == list(proposals)
+    assert committed_event_types(dl, case_id) == []
+
+
+@pytest.mark.spec("BT-14-001")
+def test_the_ask_fails_without_an_activity_factory():
+    case, manager_dl, proposals = _proposed_case("abandon-ask-nofactory")
+    dl = _replica_of(manager_dl, case, proposals, OTHER_PARTICIPANT_ACTOR)
+
+    assert _run_asking(dl, case.id_, None) == Status.FAILURE
+
+    _assert_nothing_moved(dl, case.id_, proposals)
+    assert _queued(dl) == []
+
+
+@pytest.mark.spec("BT-14-001")
+def test_the_ask_fails_when_the_factory_raises():
+    case, manager_dl, proposals = _proposed_case("abandon-ask-raise")
+    dl = _replica_of(manager_dl, case, proposals, OTHER_PARTICIPANT_ACTOR)
+
+    status = _run_asking(dl, case.id_, _RaisingRejectFactory(dl))
+
+    assert status == Status.FAILURE
+    _assert_nothing_moved(dl, case.id_, proposals)
+    assert _queued(dl) == []
+
+
+@pytest.mark.spec("BT-14-001")
+def test_the_ask_fails_when_the_outbox_write_raises(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    case, manager_dl, proposals = _proposed_case("abandon-ask-outbox")
+    dl = _replica_of(manager_dl, case, proposals, OTHER_PARTICIPANT_ACTOR)
+
+    def _refuse(_activity_id: str) -> None:
+        raise RuntimeError("outbox down")
+
+    monkeypatch.setattr(dl, "outbox_append", _refuse)
+
+    status = _run_asking(dl, case.id_, TriggerActivityAdapter(dl))
+
+    assert status == Status.FAILURE
+    _assert_nothing_moved(dl, case.id_, proposals)
