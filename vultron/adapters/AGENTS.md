@@ -161,6 +161,20 @@ received", and do not add receipt bookkeeping to the actor record to feed one:
 
 ---
 
+### The Outbox Delivers the Sealed Body, Never a Re-Read (OX-07-001, VM-08-003)
+
+Every adapter that persists an outbound activity also seals its JSON text
+(`vultron/adapters/outbox_sealed_body.py`), and the outbox handler relays that text
+byte for byte. It never reads the activity record back, because a re-read is a
+reconstruction from whatever the store holds now. It refuses, and never repairs, a body
+whose `object` the factory left as a bare URI or `Link` (`outbox_delivery.py`), and it
+drops a queued id that has no sealed body with an ERROR. Core records
+`json.loads(activity_blob)` as the ledger `payloadSnapshot` with no stripping or
+`context` patch, so the ledger and the wire carry the same blob. A factory whose blob
+the commit boundary refuses is fixed in the factory, never downstream (#2654, #2655).
+See [case-ledger-authority](../../notes/case-ledger-authority.md) and
+[outbox](../../notes/outbox.md).
+
 ### URL-Keyed IDs in FastAPI Path Segments
 
 When an endpoint accepts an object ID that may be a full HTTP URL (e.g.,

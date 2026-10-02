@@ -69,7 +69,9 @@ pocket vetoes).
 | `DECLINED` | Has explicitly declined, or timed out without responding |
 
 `embargo_adherence: bool` is a **derived property**: `True` iff the
-participant's consent state is `SIGNATORY`; `False` for all other states.
+participant's consent state is `SIGNATORY`; `False` for all other states. It is
+a Pydantic `@computed_field` on `ParticipantStatus` (ADR-0056), never a stored
+field to assign.
 
 ---
 
@@ -623,7 +625,10 @@ the shared EM state.
 **Idempotent PEC transitions**: Participant-only accept/reject updates SHOULD
 NOT re-run the PEC machine when the participant is already in the target state
 (`SIGNATORY` / `DECLINED`). Idempotent repeats MUST NOT generate
-invalid-transition warnings.
+invalid-transition warnings, and a retried accept/reject MUST NOT downgrade
+consent the participant already holds. Guard the call site with
+`if participant.embargo_consent_state != PEC.<TARGET>:` before
+`apply_pec_transition()`.
 
 ### Full Case Delivery Precondition
 

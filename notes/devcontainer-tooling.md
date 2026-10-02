@@ -14,6 +14,8 @@ related_notes:
   - notes/git-workflow-pitfalls.md
   - notes/parallel-development.md
   - notes/lint-tooling.md
+related_specs:
+  - specs/tech-stack.yaml
 ---
 
 # Devcontainer and Toolchain Pitfalls
@@ -62,6 +64,11 @@ enough for a commit.
 What remains slow is outside the hook: `mypy` and `pyright`, which `run-linters`
 routes through `.agents/skills/shared/run-if-changed.sh` so a repeat run with
 unchanged inputs is a no-op. Neither runs as a pre-commit hook.
+
+Run `ruff` bare (`ruff check`, `ruff format`) with no path operands. Its scope
+is declared once in `[tool.ruff]` in `pyproject.toml`, never on a command line
+(IMPLTS-07-021, ADR-0094), so a hand-picked path list silently diverges from
+what the hook and CI check.
 
 Sources: ISSUE-2479
 

@@ -47,6 +47,12 @@ inbox endpoint becomes thin glue that:
 The CLI, tests, and any future inbox entry point do the same but supply
 different adapter implementations.
 
+So a change to inbox processing behavior (parse, rehydrate, defer-check, dispatch)
+belongs in `vultron/core/behaviors/inbox/` (IO-02-001), never in the FastAPI router or
+a new adapter-layer pipeline helper. `process_payload` is the sole caller-facing entry
+point (IO-02-003), and all policy is internal to the BT; logic added to the router
+repeats the ADR-0009 violation and is untestable from non-HTTP entry points.
+
 ---
 
 ## Exception: Synchronous Route-Level Guards

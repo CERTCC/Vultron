@@ -3,6 +3,8 @@ title: Peer Broadcast Failure Semantics
 status: active
 related_specs:
   - specs/behavior-tree-integration.yaml
+related_notes:
+  - notes/bt-pitfalls.md
 related_issues:
   - https://github.com/CERTCC/Vultron/issues/782
 ---

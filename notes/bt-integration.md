@@ -407,6 +407,9 @@ stages in a fixed order (CLP-10-006, CLP-10-010):
 4. **Effects** — apply the accepted assertion to the local replica and enqueue
    any cascades.
 
+Every ledger commit goes through `CommitCaseLedgerEntryNode` inside the tree; a
+received `execute()` never commits one itself (BT-06-006).
+
 Intake is the only path that stores the received activity (CLP-10-019). Do not
 add a per-tree store node or a handler-local store helper; the factory
 (`create_receive_activity_tree`, `vultron/core/behaviors/case/receive_activity_tree.py`)
