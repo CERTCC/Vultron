@@ -185,8 +185,9 @@ class VulnerabilityCase(CoreObject):
         :exc:`~vultron.errors.VultronValidationError` is raised (fail-closed
         per CLP-08-003/CLP-08-004).  No-ops when ``genesis_hash`` is already
         set — a received case keeps its sender's hash; one that carries none
-        derives it here from its carried inputs (ADR-0103) — or when ``attributed_to`` is absent (genesis hash
-        requires an owner as input).
+        derives it here from its carried inputs (ADR-0103) — or when
+        ``attributed_to`` is absent (genesis hash requires an owner as
+        input).
 
         Both spellings of each input are read: the class is its own wire class
         (ADR-0099 detail 3), so an inbound case arrives as ``attributedTo`` and
