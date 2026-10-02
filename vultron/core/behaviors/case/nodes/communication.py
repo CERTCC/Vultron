@@ -38,13 +38,18 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.models.activity import VultronCreateCaseActivity
+from vultron.core.participants.recipients import case_content_recipients
 from vultron.errors import VultronAlreadyExistsError
 
 logger = logging.getLogger(__name__)
 
 
 class CollectCaseAddresseesNode(DataLayerActionWithPorts):
-    """Resolve case object and peer addressees for Create(Case) emission."""
+    """Resolve case object and peer addressees for Create(Case) emission.
+
+    The addressees are the case's active participants other than the sender
+    (CM-10-004), chosen by the shared selection (CM-10-007).
+    """
 
     def __init__(self, name: str | None = None):
         super().__init__(name=name or self.__class__.__name__)
@@ -93,11 +98,9 @@ class CollectCaseAddresseesNode(DataLayerActionWithPorts):
         # Create proceeds. Deliberately unguarded (conformance allowlist).
         case_obj = self.datalayer.read_case(case_id)
         if case_obj is not None:
-            addressees = [
-                actor_id
-                for actor_id in case_obj.actor_participant_index
-                if actor_id != self.actor_id
-            ]
+            addressees = case_content_recipients(
+                case_obj, self.datalayer, excluding={self.actor_id}
+            )
         else:
             addressees = []
 
