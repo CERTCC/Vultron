@@ -170,9 +170,12 @@ Full write-ups in [`notes/testing-pitfalls.md`](../notes/testing-pitfalls.md):
   "failure when X absent" for either is unreachable; assert the reason
   (`assert_failure(result, reason=...)`), not just the status, and note that
   `allow_internal=True` requires a `reason`.
-- **Process-global state** — the `py_trees` blackboard *and* its class registry
-  (define test BT subclasses at module level); test-local `CoreObject`/`CoreRecord`
-  subclasses pollute `CORE_VOCABULARY` and `CORE_TYPE_MAP` (use
+- **Process-global state** — the `py_trees` blackboard (cleared around every
+  test by root `clear_py_trees_blackboard`; add no per-directory copy, #3996)
+  *and* its class registry (define test BT subclasses at module level); a new
+  per-actor registry gets its reset in root `test/conftest.py`; test-local
+  `CoreObject`/`CoreRecord` subclasses pollute `CORE_VOCABULARY` and
+  `CORE_TYPE_MAP` (use
   `isolated_core_registries` from root `test/conftest.py`); `SUBFAILED` in
   `unittest` subtests does not fail pytest; `caplog.set_level()` in a fixture
   captures other fixtures' setup.

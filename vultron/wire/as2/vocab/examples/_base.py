@@ -12,6 +12,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import random
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from pydantic import BaseModel
@@ -30,6 +31,16 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 )
 
 _EXAMPLE_BASE_URL = "https://demo.vultron.local/"
+
+#: The one moment every clock-derived example field is built from.
+#:
+#: Example builders read no clock.  A test compares an activity's embedded
+#: object against a second call to the same builder, and two clock reads that
+#: straddle a tick differ — at second precision for the ``published`` and
+#: ``updated`` default stamps, at minute precision for an embargo
+#: ``start_time`` (#4095).  It also keeps rendered examples from churning on
+#: every docs build.  The date is fixed, so it is in the past.
+EXAMPLE_TIMESTAMP: datetime = datetime(2026, 6, 1, 19, 12, tzinfo=UTC)
 
 
 def _make_id(object_type: str) -> str:

@@ -11,7 +11,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from vultron.wire.as2.factories import (
     activate_embargo_activity,
@@ -31,6 +31,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Remove,
 )
 from vultron.wire.as2.vocab.examples._base import (
+    EXAMPLE_TIMESTAMP,
     case,
     vendor,
 )
@@ -38,16 +39,18 @@ from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 
 def embargo_event(days: int = 90) -> as_EmbargoEvent:
-    start_at = datetime.now().astimezone(tz=None)
-    # zero out the seconds and microseconds
-    start_at = start_at.replace(second=0, microsecond=0)
+    """An embargo of *days* days, starting at :data:`EXAMPLE_TIMESTAMP`.
 
-    # set end time to 90 days from now, with a time of 00:00:00, in UTC
-    end_at = start_at + timedelta(days=days)
-    # zero out the time
-    end_at = end_at.replace(hour=0, minute=0, second=0, microsecond=0)
-    # convert to UTC
-    end_at = end_at.astimezone(tz=None)
+    Reads no clock (#4095): ``start_time`` is the example timestamp, already
+    on a whole minute, and ``end_time`` is midnight UTC *days* days later.
+    Two calls therefore build equal embargoes whenever they run, so a test may
+    compare an activity's embedded embargo with a fresh call.  The dates are
+    fixed and so lie in the past.
+    """
+    start_at = EXAMPLE_TIMESTAMP
+    end_at = (start_at + timedelta(days=days)).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
 
     _case = case()
 
@@ -58,6 +61,8 @@ def embargo_event(days: int = 90) -> as_EmbargoEvent:
         start_time=start_at,
         end_time=end_at,
         content=f"We propose to embargo {_case.name} for {days} days.",
+        published=EXAMPLE_TIMESTAMP,
+        updated=EXAMPLE_TIMESTAMP,
     )
     return event
 

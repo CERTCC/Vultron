@@ -27,7 +27,9 @@ from collections.abc import Callable
 import pytest
 
 import vultron.wire.as2.vocab.examples.vocab_examples as examples
-from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_TransitiveActivity,
+)
 
 
 @pytest.mark.parametrize(
@@ -41,7 +43,7 @@ from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
     ids=lambda f: f.__name__,
 )
 def test_embargo_examples_equal_across_minute_boundary(
-    straddling_clock: type, builder: Callable[[], as_Activity]
+    straddling_clock: type, builder: Callable[[], as_TransitiveActivity]
 ) -> None:
     activity = builder()
     expected = examples.embargo_event()

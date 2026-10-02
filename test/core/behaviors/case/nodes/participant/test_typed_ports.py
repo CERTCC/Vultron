@@ -136,8 +136,8 @@ class TestParticipantCaseInputEnforcement:
 
     # py_trees' blackboard storage is a process-global singleton, so a value
     # left behind would be visible to the next test. The repo-wide autouse
-    # `clear_py_trees_blackboard` in test/core/behaviors/conftest.py clears it
-    # around every test in this tree (TB-06-005).
+    # `clear_py_trees_blackboard` in test/conftest.py clears it
+    # around every test (TB-06-005).
 
     @pytest.mark.parametrize("decl", READERS, ids=decl_id)
     def test_wrong_type_raises_type_error(self, decl: PortDecl) -> None:
