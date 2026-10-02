@@ -78,7 +78,7 @@ from vultron.core.models.use_case_result import (
     SyncLogEntryResult,
     TriggerResult,
 )
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.trigger_dispatcher import TriggerDispatcher
 from vultron.core.states.cs import CS_vf
 from vultron.core.use_cases.triggers.requests import (

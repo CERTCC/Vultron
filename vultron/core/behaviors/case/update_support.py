@@ -26,10 +26,8 @@ from vultron.core.participants.recipients import (
     case_content_recipients,
     inert_participants,
 )
-from vultron.core.ports.case_persistence import (
-    CaseOutboxPersistence,
-    CasePersistence,
-)
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.ports.case_persistence import CasePersistence
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort

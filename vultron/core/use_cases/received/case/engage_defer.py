@@ -17,12 +17,14 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.services.case_replica_seeding import (
+    store_embedded_participants,
+)
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import verdict_from_bt
 
 from ._helpers import (
     _hold_carried_embargo,
-    _store_embedded_participants,
 )
 
 if TYPE_CHECKING:
@@ -75,7 +77,7 @@ class EngageCaseReceivedUseCase:
             refusal = _hold_carried_embargo(case_obj, self._dl, case_id)
             if refusal is not None:
                 return refusal
-            _store_embedded_participants(case_obj, self._dl, case_id)
+            store_embedded_participants(case_obj, self._dl, case_id)
 
         logger.info(
             "Actor '%s' engages case '%s' (RM → ACCEPTED)",

@@ -261,7 +261,7 @@ perform the following natively — no back-fill, no prologue:
    `add_participant_status_to_participant` × N, `add_case_status_to_case`)
 6. Emit `Accept(as_CaseProposal)` with `result=case_id`
 7. Emit `Create(VulnerabilityCase)` with inline participant objects so that
-   `CreateCaseReceivedUseCase._store_embedded_participants` seeds them correctly
+   `store_embedded_participants` seeds them correctly
    on the vendor's replica
 
 The `Create(VulnerabilityCase)` payload MUST embed participant objects inline

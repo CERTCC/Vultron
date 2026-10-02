@@ -34,7 +34,7 @@ from vultron.core.behaviors.status.nodes.threat_termination import (
     resolve_pxa_threat_state,
 )
 from vultron.core.models.protocols import PersistableModel
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.states.composite_state_invariants import (
     violation_pxa_em_entailment,
 )

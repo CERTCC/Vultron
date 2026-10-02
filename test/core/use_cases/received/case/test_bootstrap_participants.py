@@ -218,7 +218,7 @@ class TestBootstrapParticipantStorage:
     def test_save_failure_propagates_from_store_embedded_participants(
         self, dl, create_event
     ):
-        """A DataLayer failure in _store_embedded_participants propagates as an
+        """A DataLayer failure in store_embedded_participants propagates as an
         exception rather than being silently swallowed (leaves replica
         consistent — fail loudly instead of leaving participants missing).
         """
@@ -256,7 +256,7 @@ class TestM4AddParticipantStatusAfterBootstrap:
     Regression test for #563: M4 timeout in two-actor demo.
 
     Before the fix (PRs #561, #562):
-    - ``_store_embedded_participants`` did not persist each embedded participant
+    - ``store_embedded_participants`` did not persist each embedded participant
       as an independent DataLayer record, so vendor's ``as_CaseParticipant`` could
       not be found by its UUID after bootstrap.
     - ``AppendParticipantStatusNode`` did ``dl.read(vendor_participant_id)``
@@ -265,7 +265,7 @@ class TestM4AddParticipantStatusAfterBootstrap:
     - Finder's M4 poll returned 404 until timeout.
 
     After the fix:
-    - ``_store_embedded_participants`` stores all embedded participant objects
+    - ``store_embedded_participants`` stores all embedded participant objects
       during bootstrap (CBT-05-005).
     - ``AppendParticipantStatusNode`` finds the participant and appends the
       status successfully.
@@ -290,7 +290,7 @@ class TestM4AddParticipantStatusAfterBootstrap:
         link = _build_link()
         dl.save(link)
 
-        # Step 1: bootstrap — _store_embedded_participants saves vendor's
+        # Step 1: bootstrap — store_embedded_participants saves vendor's
         # as_CaseParticipant as an independent DataLayer record (CBT-05-005).
         CreateCaseReceivedUseCase(
             dl, bootstrap_event, wire_render_port=As2WireRenderAdapter()

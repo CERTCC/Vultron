@@ -84,7 +84,7 @@ class _FakeDL:
 
 def _as_persistence(dl: "_FakeDL"):
     """Cast the stub to CaseOutboxPersistence so pyright is satisfied."""
-    from vultron.core.ports.case_persistence import CaseOutboxPersistence
+    from vultron.core.ports.case_outbox import CaseOutboxPersistence
 
     return cast(CaseOutboxPersistence, dl)
 

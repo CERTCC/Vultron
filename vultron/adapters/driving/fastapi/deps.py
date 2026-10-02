@@ -59,7 +59,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.trigger_dispatcher import TriggerDispatcher
 from vultron.core.trigger_dispatcher import RegistryTriggerDispatcher

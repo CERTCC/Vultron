@@ -721,7 +721,7 @@ groups:
       receiving vendor's `CreateCaseReceivedUseCase` can seed its local
       participant records without a DataLayer round-trip to the CASE_MANAGER.
     rationale: >-
-      `_store_embedded_participants` and `EnsureReporterParticipantAtAcceptedNode`
+      `store_embedded_participants` and `EnsureReporterParticipantAtAcceptedNode`
       parse embedded participant objects.  Bare IDs produce empty participant
       records on the vendor's replica, causing role-guard failures for
       operations that require `CASE_OWNER` or `CASE_MANAGER` checks.

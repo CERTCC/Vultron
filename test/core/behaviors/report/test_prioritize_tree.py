@@ -200,7 +200,7 @@ def bridge(datalayer):
     from vultron.adapters.driven.trigger_activity_adapter import (
         TriggerActivityAdapter,
     )
-    from vultron.core.ports.case_persistence import CaseOutboxPersistence
+    from vultron.core.ports.case_outbox import CaseOutboxPersistence
 
     return BTBridge(
         datalayer=datalayer,
@@ -219,7 +219,7 @@ def trigger_activity(datalayer):
     from vultron.adapters.driven.trigger_activity_adapter import (
         TriggerActivityAdapter,
     )
-    from vultron.core.ports.case_persistence import CaseOutboxPersistence
+    from vultron.core.ports.case_outbox import CaseOutboxPersistence
 
     return TriggerActivityAdapter(cast(CaseOutboxPersistence, datalayer))
 

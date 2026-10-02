@@ -568,7 +568,7 @@ def test_unprocessable_activity_is_not_committed_to_the_ledger() -> None:
     statement that is recorded, never the unreadable message.
     """
     dead_letter = (
-        _VULTRON / "core" / "behaviors" / "inbox" / "dead_letter_tree.py"
+        _VULTRON / "core" / "behaviors" / "dead_letter" / "dead_letter_tree.py"
     )
     assert dead_letter.is_file(), f"{dead_letter} not found"
     source = dead_letter.read_text(encoding="utf-8")

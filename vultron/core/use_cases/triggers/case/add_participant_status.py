@@ -25,10 +25,8 @@ from vultron.core.behaviors.case.nodes.participant import (
     resolve_participant_state_from_dl,
 )
 from vultron.core.models.use_case_result import StatusResult
-from vultron.core.ports.case_persistence import (
-    CaseOutboxPersistence,
-    CasePersistence,
-)
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.triggers._base import SvcBTTriggerBase

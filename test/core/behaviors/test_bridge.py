@@ -1546,7 +1546,7 @@ class _NestedExecution(py_trees.behaviour.Behaviour):
     """Run a second ``execute_with_setup`` from inside a tick.
 
     Many production nodes do exactly this — ``case/nodes/lifecycle.py`` and
-    ``status/nodes/case_status.py`` among them.  The node records what the
+    ``case_status_snapshot.py`` among them.  The node records what the
     process-global blackboard held immediately before and after the inner call,
     which is the window the outer tree's remaining ticks read from.
     """

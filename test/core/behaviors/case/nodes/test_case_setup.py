@@ -32,9 +32,11 @@ import py_trees
 import pytest
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from vultron.core.behaviors.case.case_setup_tree import (
+    RecordCaseCreationEvents,
+)
 from vultron.core.behaviors.case.nodes import (
     RecordCaseCreatedEventNode,
-    RecordCaseCreationEvents,
     RecordOfferReceivedEventNode,
     UpdateActorOutbox,
 )

@@ -18,7 +18,7 @@
 import logging
 from typing import Any, cast
 
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.errors import VultronAlreadyExistsError
 from vultron.wire.as2.factories import (
     announce_embargo_activity,

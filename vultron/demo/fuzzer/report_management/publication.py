@@ -26,7 +26,7 @@ categorization).
 
 The ``PrioritizePublicationIntents`` Evaluator is the surviving call-out point
 for Production Collapse 2 (ADR-0028 / BT-20-002): it writes a structured
-:class:`~vultron.core.behaviors.report.publication_tree.PublicationIntentDecision`
+:class:`~vultron.core.behaviors.report.publication_intent.PublicationIntentDecision`
 record that gates the three per-artifact arms of
 ``create_publication_tree``.  The ``PublicationIntentsSet`` flag check and the
 ``NoPublish*`` bypass leaves remain here as catalogued simulator stand-ins but
@@ -46,7 +46,7 @@ from __future__ import annotations
 
 from typing import ClassVar
 
-from vultron.core.behaviors.report.publication_tree import (
+from vultron.core.behaviors.report.publication_intent import (
     PublicationIntentDecision,
 )
 from vultron.core.behaviors.report.publish_artifact_tree import (

@@ -175,7 +175,7 @@ class TestEngageDeferCaseBTFailureReason:
 
 
 class TestEngageCaseStoresEmbeddedParticipants:
-    """EngageCaseReceivedUseCase must call _store_embedded_participants (#573).
+    """EngageCaseReceivedUseCase must call store_embedded_participants (#573).
 
     Regression tests: when Join(VulnerabilityCase) arrives with inline
     participant objects, those objects must be persisted as independent
@@ -225,7 +225,7 @@ class TestEngageCaseStoresEmbeddedParticipants:
         """Embedded CaseParticipant is persisted before EngageCaseBT runs.
 
         Even when the BT fails (no pre-registered participant in the DataLayer),
-        _store_embedded_participants must run first and persist the inline
+        store_embedded_participants must run first and persist the inline
         participant object (#573 regression).
         """
         EngageCaseReceivedUseCase(
@@ -245,7 +245,7 @@ class TestEngageCaseStoresEmbeddedParticipants:
     def test_bare_string_participant_is_not_stored(self, dl):
         """When case_participants contains bare strings, nothing is stored.
 
-        _store_embedded_participants is idempotent on strings; no error and
+        store_embedded_participants is idempotent on strings; no error and
         no false record is created (#573 does not regress bare-string path).
         """
         case_str_participants = VulnerabilityCase(id_=self._CASE_ID)
@@ -267,7 +267,7 @@ class TestEngageCaseStoresEmbeddedParticipants:
 
         stored = dl.read(self._PARTICIPANT_ID)
         assert stored is None, (
-            "_store_embedded_participants must skip bare string participant "
+            "store_embedded_participants must skip bare string participant "
             "refs — no CaseParticipant record should be created for a bare "
             "string"
         )

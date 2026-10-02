@@ -20,7 +20,7 @@ from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
 )
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import verdict_from_bt
