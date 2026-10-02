@@ -15,10 +15,12 @@ from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.case_stub import CaseStubReference
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.actor import (
     AcceptCaseOwnershipTransferReceivedEvent,
     AcceptInviteActorToCaseReceivedEvent,
+    InviteActorToCaseReceivedEvent,
     RejectCaseOwnershipTransferReceivedEvent,
     RejectInviteActorToCaseReceivedEvent,
 )
@@ -239,8 +241,6 @@ _CASES = [
         MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
         {"inner_target": _case, "inner_object": _obj},
         [
-            ("case_id", "inner_target_id"),
-            ("case", "inner_target"),
             ("invitee_id", "inner_object_id"),
             ("invitee", "inner_object"),
         ],
@@ -252,7 +252,6 @@ _CASES = [
         [
             ("invite_id", "object_id"),
             ("invite", "object_"),
-            ("case_id", "inner_target_id"),
         ],
     ),
     # ── case_participant.py ───────────────────────────────────────────────────
@@ -473,3 +472,58 @@ def test_aliases_return_none_when_backing_field_is_absent(
         assert getattr(event, alias) is None, (
             f"{cls.__name__}.{alias} should be None when backing field is absent"
         )
+
+
+_stub = CaseStubReference(
+    id_=f"{_CASE_URI}/stub", type_="VulnerabilityCaseStub", case_id=_CASE_URI
+)
+
+_STUB_CASES = [
+    (
+        InviteActorToCaseReceivedEvent,
+        MessageSemantics.INVITE_ACTOR_TO_CASE,
+        {"activity": _activity, "object_": _obj, "target": _stub},
+        "target",
+    ),
+    (
+        AcceptInviteActorToCaseReceivedEvent,
+        MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
+        {"inner_target": _stub, "inner_object": _obj},
+        "inner_target",
+    ),
+    (
+        RejectInviteActorToCaseReceivedEvent,
+        MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE,
+        {"object_": _activity, "activity": _activity, "inner_target": _stub},
+        "inner_target",
+    ),
+]
+
+
+@pytest.mark.spec("CM-11-003")
+@pytest.mark.parametrize(
+    "cls,semantic,fields,slot",
+    _STUB_CASES,
+    ids=[c[0].__name__ for c in _STUB_CASES],
+)
+def test_stub_invite_case_id_is_the_case_the_stub_names(
+    cls, semantic, fields, slot
+):
+    """``case_id`` reads the stub's ``case_id``, never the stub's own ID."""
+    event = _mk(cls, semantic, **fields)
+    assert event.case_id == _CASE_URI
+    assert getattr(event, f"{slot}_id") == f"{_CASE_URI}/stub"
+
+
+@pytest.mark.spec("CM-11-003")
+@pytest.mark.parametrize(
+    "cls,semantic,fields,slot",
+    _STUB_CASES,
+    ids=[c[0].__name__ for c in _STUB_CASES],
+)
+def test_stub_invite_case_id_is_none_when_the_slot_holds_no_stub(
+    cls, semantic, fields, slot
+):
+    """A case in the stub's slot names no stub, so no case is derived from it."""
+    event = _mk(cls, semantic, **{**fields, slot: _case})
+    assert event.case_id is None

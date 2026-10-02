@@ -9,7 +9,7 @@ import py_trees
 from vultron.core.behaviors.bridge import BTBridge
 
 if TYPE_CHECKING:
-    from vultron.core.ports.case_persistence import CaseOutboxPersistence
+    from vultron.core.ports.case_outbox import CaseOutboxPersistence
     from vultron.core.ports.sync_activity import SyncActivityPort
 
 from vultron.core.behaviors.sync.nodes import (
@@ -19,6 +19,7 @@ from vultron.core.behaviors.sync.nodes import (
     FanOutLogEntryNode,
     PersistLogEntryNode,
     ReconstructChainTailNode,
+    RequireSyncPortNode,
 )
 
 
@@ -37,6 +38,15 @@ def create_commit_log_entry_tree(
     a caller still reads a non-SUCCESS result as a real failure — "the canonical
     log is somewhere else, and replication will bring the entry here" is not one
     (ADR-0073, BT-05-006).
+
+    The mint sequence opens with
+    :class:`~vultron.core.behaviors.sync.nodes.port_guard.RequireSyncPortNode`:
+    a store that would mint needs ``/sync_port`` to announce the entry
+    (SYNC-02-003), and refusing before anything is persisted keeps the ledger
+    free of entries no replica receives (#4113).  The raise surfaces as
+    ``internal_error`` on the bridge running this tree, and
+    ``CommitCaseLedgerEntryNode`` carries it to the outer bridge, so a received
+    handler raises rather than reporting a refusal (ADR-0095).
     """
     return py_trees.composites.Selector(
         name="CommitLogEntryBT",
@@ -47,6 +57,9 @@ def create_commit_log_entry_tree(
                 name="MintAndFanOutLogEntry",
                 memory=False,
                 children=[
+                    # Refuse before anything is written: a committed entry
+                    # that cannot be announced is a silent fork (#4113).
+                    RequireSyncPortNode(name="RequireSyncPort"),
                     CheckLedgerFreshnessNode(
                         case_id=case_id, name="CheckLedgerFreshness"
                     ),

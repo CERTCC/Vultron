@@ -27,7 +27,8 @@ from typing import Any
 from pydantic import ValidationError
 
 from vultron.core.models.activity import VultronCreateCaseActivity
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.models.actor import CoreActor
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.errors import (
     VultronActivityConstructionError,
     VultronAlreadyExistsError,
@@ -38,6 +39,7 @@ from vultron.wire.as2.factories.case import (
     reject_case_proposal_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -76,7 +78,17 @@ class _ProposalsMixin:
         sender inlines what it introduces (ADR-0107).  That is how the
         Reporter's proposed embargo terms reach case creation (EP-04-004).
 
+        The sending actor's own profile, read from this store with its
+        ``embargo_policy`` when it has published one, travels inline as the
+        Create's ``actor`` (CP-01-010): it is the only place the CASE_MANAGER
+        reads the CASE_OWNER's actor default from.
+
         Per CP-04-001, CP-04-002.
+
+        Raises:
+            ValueError: when the report, or the sending actor's own profile,
+                is not in this store.
+            TypeError: when the sending actor's record is not an actor.
         """
         report_obj = self._dl.read(report_id)
         if report_obj is None:
@@ -85,6 +97,9 @@ class _ProposalsMixin:
                 " in DataLayer"
             )
         report = _to_wire(report_obj, as_VulnerabilityReport)
+        # Before anything is persisted: a proposal without the profile would
+        # be refused at the CASE_MANAGER's parse edge (CP-01-010).
+        sender = self._sender_profile(actor)
         offer: as_Offer | None = None
         if offer_id is not None:
             stored_offer = self._dl.read(offer_id)
@@ -120,7 +135,7 @@ class _ProposalsMixin:
             )
         recipients = to if to is not None else [case_actor_id]
         activity = create_case_proposal_activity(
-            actor_id=actor,
+            actor=sender,
             proposal=proposal,
             to=recipients,
         )
@@ -133,6 +148,31 @@ class _ProposalsMixin:
             )
         return _seal(self._dl, activity)
 
+    def _sender_profile(self, actor_id: str) -> CoreActor | as_Actor:
+        """Return *actor_id*'s own profile from this store (CP-01-010).
+
+        Raises:
+            ValueError: when the store holds no record for *actor_id*.
+            TypeError: when the record for *actor_id* is not an actor.
+
+        A proposal without the profile would be refused at the CASE_MANAGER's
+        parse edge, so it is not built.
+        """
+        profile = self._dl.read(actor_id)
+        if profile is None:
+            raise ValueError(
+                f"create_case_proposal: the proposing actor '{actor_id}' has"
+                " no actor record in its own store to send inline as the"
+                " Create's actor (CP-01-010)"
+            )
+        if not isinstance(profile, (CoreActor, as_Actor)):
+            raise TypeError(
+                f"create_case_proposal: the record for '{actor_id}' is a"
+                f" {type(profile).__name__}, not an actor profile to send"
+                " inline as the Create's actor (CP-01-010)"
+            )
+        return profile
+
     def reject_case_proposal(
         self,
         actor: str,
@@ -144,12 +184,12 @@ class _ProposalsMixin:
 
         Rebuilds the ``as_CaseProposal`` from the wire dict the inbound
         ``Create`` carried, so the Reject embeds the proposal inline exactly as
-        the vendor sent it (CP-05-004, AKM-03-001).
+        the report receiver sent it (CP-05-004, AKM-03-001).
 
         The proposal is persisted alongside the activity for the same reason
         ``create_case_proposal`` persists it: storage dehydrates an inline
         Activity sub-field to its URI, so the outbox expansion path resolves the
-        proposal by reading it back. Without the stored object the vendor would
+        proposal by reading it back. Without the stored object the report receiver would
         receive a Reject whose ``object_`` is a bare URI it cannot dereference —
         the AKM-03-001 failure that #2482 found on the Create side.  Storing an
         activity payload is not case state; declining still creates no case,
@@ -181,7 +221,7 @@ class _ProposalsMixin:
                 "reject_case_proposal: proposal '%s' already exists — skipping",
                 wire_proposal.id_,
             )
-        # The proposing vendor is the only party owed the refusal.
+        # The proposing report receiver is the only party owed the refusal.
         recipients = (
             to if to is not None else [str(wire_proposal.attributed_to)]
         )
@@ -213,8 +253,8 @@ class _ProposalsMixin:
         """Create and persist an ``Accept(as_CaseProposal)`` activity.
 
         The CASE_MANAGER sends this to acknowledge that it will open (or has
-        already opened) a case for the vendor's proposal (CP-05-002).  The
-        proposal is embedded inline exactly as the vendor sent it (AKM-03-001),
+        already opened) a case for the report receiver's proposal (CP-05-002).  The
+        proposal is embedded inline exactly as the report receiver sent it (AKM-03-001),
         and *result* carries the URI of the case the Accept ties to — the
         existing case for a duplicate proposal (CP-05-006), the new one
         otherwise.

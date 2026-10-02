@@ -1076,36 +1076,32 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      Subject-identity resolution (CLP-10-015) MUST be by **addressee
-      membership**, not by position in the `to:` list. When the receiving actor
-      is among the recipients it is the subject; when exactly one recipient
-      exists and it is not this store's actor, that recipient is the subject;
-      when several recipients exist and none is this store's actor the case is
-      ambiguous and the resolver MUST warn and degrade rather than select
-      `to[0]`.
+      Subject-identity resolution (CLP-10-015) MUST NOT select a subject by its
+      position in the `to:` list.
+    note: >-
+      Where a message names its subject as its sole `to:` recipient, there is
+      no position to choose: the invitee of an `Invite(EmbargoEvent)` is that
+      recipient, and an Invite naming none or several is refused (EP-09-010).
     rationale: >-
-      Selecting `to[0]` positionally makes a multi-recipient message resolve to
-      the same subject in every replica — inviting the wrong participant
-      everywhere except the one store where `to[0]` happens to be correct.
-      Preferring the receiving actor when it is a recipient is what makes a
-      multi-recipient invitation correct in *each* recipient's own replica, and
-      it is canonical by construction because `inbox_handler` normalises the
-      receiving actor against `activity.to` (HP-09-001). Degrading with a WARNING
-      on genuine ambiguity preserves the canonical ledger commit that rides in
-      the same single tree (ADR-0022) rather than dropping the message. Source:
-      ISSUE-2762, ADR-0022.
+      A positional pick resolves a several-recipient message to the same
+      subject in every replica, so each recipient after the first would apply
+      the message to someone else's record. Source: ISSUE-2762, ADR-0022.
     verification: >-
-      Inspection of `resolve_invitee_id()` in
-      `vultron/core/use_cases/received/embargo.py` confirms resolution is by
-      addressee membership with the ordered fallbacks above, mirroring
-      `_is_primary_submit_report_recipient` in `received/report.py`.
+      `test_multi_recipient_invite_is_refused_at_a_recipient` in
+      `test/core/use_cases/received/test_embargo_invite_lapse.py` delivers an
+      `Invite(EmbargoEvent)` whose second recipient is the receiving actor and
+      asserts it is refused with nothing written, rather than resolved to
+      either recipient.
     relationships:
     - rel_type: refines
       spec_id: CLP-10-015
+    - rel_type: depends_on
+      spec_id: EP-09-010
     tags:
     - protocol
     adr:
     - ADR-0022
+    - ADR-0113
   - id: CLP-10-017
     priority: MUST
     kind: project
@@ -1217,6 +1213,31 @@ groups:
       spec_id: CLP-10-005
     - rel_type: refines
       spec_id: ARCH-18-001
+  - id: CLP-10-021
+    priority: MUST
+    kind: project
+    statement: >-
+      A received-side use case that tests whether a message is addressed to
+      the receiving actor MUST compare actor ids with a trailing-slash-tolerant
+      comparison (`is_addressed_to()` or `same_actor_id()` in
+      `vultron/core/predicates/addressing.py`), never an exact string match.
+    rationale: >-
+      `to:` and `cc:` arrive as the sender wrote them while the receiving actor
+      is canonical, so an exact match misses a recipient spelled with a
+      trailing slash and refuses mail that was addressed to this actor.
+      `Offer(Report)` is genuinely several-recipient and reads its eligibility
+      from `to:` (HP-09-001). Source: ISSUE-2667.
+    verification: >-
+      `test_submit_report_trailing_slash_recipient_creates_case` in
+      `test/core/use_cases/received/test_submit_report_received.py` addresses
+      an `Offer(Report)` to the receiver with a trailing slash and asserts the
+      case is created; `test/core/predicates/test_addressing.py` pins the
+      comparison.
+    relationships:
+    - rel_type: refines
+      spec_id: HP-09-001
+    tags:
+    - protocol
 - id: CLP-11
   title: Protocol Request/Reply State Detection
   description: Requirements for querying whether a protocol-level request/reply pair

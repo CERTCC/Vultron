@@ -260,8 +260,17 @@ class TriggerActivityPort(Protocol):
         (CP-01-007).  The CaseActor cannot recover them on its own; see
         ``as_CaseProposal.offer_id`` for why they have to travel on the wire.
 
+        The Create's ``actor`` is ``actor``'s own full profile, read from this
+        DataLayer with its ``embargo_policy``: the CASE_MANAGER reads the
+        CASE_OWNER's actor default from that inline profile and nowhere else
+        (CP-01-010).
+
         Per ``specs/case-proposal.yaml`` CP-04-001, CP-04-002.
         Returns ``(activity_id, activity_dict)``.
+
+        Raises:
+            ValueError: when the report, or ``actor``'s own profile, is not
+                in this DataLayer.
         """
         ...
 
@@ -329,17 +338,17 @@ class TriggerActivityPort(Protocol):
         case_id: str,
         actor: str,
         to: list[str] | None = None,
-        cc: list[str] | None = None,
         id_: str | None = None,
         attributed_to: str | None = None,
         roles: list[str] | None = None,
         target: VulnerabilityCase | None = None,
     ) -> tuple[str, str]:
-        """Create and persist an ``Invite(Actor, Case)`` activity.
+        """Create and persist an ``Invite(Actor, CaseStub)`` activity.
 
-        ``actor`` SHOULD be the Case Actor ID (PCR-08-007); ``attributed_to``
-        MAY carry the case owner's ID for attribution.
-        ``cc`` MAY carry the Case Actor's own ID for self-archival (CLP-10-001).
+        ``actor`` MUST be the CASE_MANAGER's ID (PCR-08-007); ``attributed_to``
+        MAY carry the case owner's ID for attribution.  There is no ``cc``:
+        the CASE_MANAGER commits the Invite in the tree that emits it and
+        never addresses a copy to itself (CM-17-006, ADR-0109).
         ``id_`` allows callers to supply a deterministic ID for idempotency.
         ``roles`` carries the intended CVD roles for the invitee (CM-17-003).
         ``target`` may be a core ``VulnerabilityCase`` (the adapter projects it
@@ -602,6 +611,7 @@ class TriggerActivityPort(Protocol):
         actor: str,
         to: list[str] | None = None,
         attributed_to: str | None = None,
+        activity_id: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Invite(EmbargoEvent, Case)`` proposal.
 
@@ -609,6 +619,10 @@ class TriggerActivityPort(Protocol):
         proposal on a participant's behalf (CM-24-002, EP-09-002): ``actor`` is
         then the CASE_MANAGER and ``attributed_to`` the participant whose terms
         these are.
+        ``activity_id`` is the Invite's id when the caller recorded it before
+        the emission — the creation-time revision is indexed under its
+        Invite's id at registration and relayed only after the initialization
+        sequence completes (EP-04-011, CM-14-007).  ``None`` mints a fresh id.
         Returns ``(activity_id, activity_dict)``.
         """
         ...

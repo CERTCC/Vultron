@@ -79,14 +79,21 @@ class _AnswerOperationsMixin(_PecEffectsMixin):
             transition_mode: ``STRICT`` (default) or ``OBSERVED``.
             em_before: When provided, the service uses this value directly
                 instead of reading it from the case.
+            record_consent: ``False`` when the caller has already recorded
+                the rejecting actor's consent effect through
+                :meth:`record_embargo_rejection` (the received Reject tree
+                and its ledger replay), so it is applied once.
 
         Returns:
             :class:`EmbargoLifecycleResult` describing what changed.
 
         Raises:
-            VultronNotFoundError: If *case_id* does not resolve to a case, or
-                (owner path) the embargo being replaced cannot be read for
-                the EP-05-001 comparison.
+            VultronNotFoundError: If *case_id* does not resolve to a case,
+                or (owner path, when the accept activates *embargo_id*) the
+                embargo being activated or the one it replaces cannot be read
+                (EMB-18-003, EP-05-001) — in either mode, before any write.
+            VultronValidationError: If (owner path) either embargo record is
+                not an ``EmbargoEvent``.
             VultronInvalidStateTransitionError: If the EM state does not allow
                 an ACCEPT transition (``STRICT`` mode, owner only), or if the
                 owner would drive EM to ACTIVE but P/X/A is set (``STRICT``
@@ -113,17 +120,17 @@ class _AnswerOperationsMixin(_PecEffectsMixin):
             active_embargo_id is not None and active_embargo_id != embargo_id
         )
 
-        # Does this accept replace an embargo already in force?  Decide the
-        # EP-05-001 arm *before* anything is written, so an unreadable record
-        # fails closed with EM and active_embargo untouched.
+        # The owner's accept activates B: read B (and any embargo A it
+        # replaces) and decide the EP-05-001 arm *before* anything is
+        # written, so an unreadable record fails closed with EM,
+        # active_embargo, the proposal records and consent untouched
+        # (EMB-18-003).
         ends_no_later = (
-            self._revision_ends_no_later(
+            self._activation_arm(
                 previous_embargo_id=active_embargo_id,
-                revised_embargo_id=embargo_id,
+                activated_embargo_id=embargo_id,
             )
-            if is_owner
-            and active_embargo_id is not None
-            and is_revision_of_active
+            if is_owner and not already_active
             else None
         )
 
@@ -220,6 +227,7 @@ class _AnswerOperationsMixin(_PecEffectsMixin):
         actor_id: str,
         transition_mode: TransitionMode = TransitionMode.STRICT,
         em_before: EM | None = None,
+        record_consent: bool = True,
     ) -> EmbargoLifecycleResult:
         """Reject an embargo proposal or revision on a case.
 
@@ -227,6 +235,12 @@ class _AnswerOperationsMixin(_PecEffectsMixin):
             - ``PROPOSED → NONE``  (initial proposal rejected, ER)
             - ``REVISE → ACTIVE``        (revision rejected, EJ; returns to
               the prior terms)
+
+        — but only when the rejected proposal is the last one open.  Several
+        proposals may be open at once and each is decided on its own
+        (EP-08-001): while another stays open the owner's Reject only forgets
+        this one (EP-08-003) and EM keeps its state, so the case never leaves
+        ``PROPOSED``/``REVISE`` with a proposal still awaiting an answer.
 
         Per EMB-04-002, a REVISE rejection that would return the case to ACTIVE
         is blocked in STRICT mode when P/X/A is set — callers must invoke
@@ -253,6 +267,10 @@ class _AnswerOperationsMixin(_PecEffectsMixin):
             transition_mode: ``STRICT`` (default) or ``OBSERVED``.
             em_before: When provided, the service uses this value directly
                 instead of reading it from the case.
+            record_consent: ``False`` when the caller has already recorded
+                the rejecting actor's consent effect through
+                :meth:`record_embargo_rejection` (the received Reject tree
+                and its ledger replay), so it is applied once.
 
         Returns:
             :class:`EmbargoLifecycleResult` describing what changed.
@@ -279,8 +297,13 @@ class _AnswerOperationsMixin(_PecEffectsMixin):
         # an unknown embargo is a protocol error (ADR-0093), not a consent
         # change.
         is_active = self._assert_rejectable(case, embargo_id)
+        # EP-08-001: another open proposal keeps the negotiation open, so the
+        # owner's Reject of this one decides only this one.
+        others_open = any(
+            open_id != embargo_id for open_id in case.proposed_embargo_ids
+        )
 
-        if is_owner:
+        if is_owner and (is_active or not others_open):
             # In STRICT mode, block REVISE→ACTIVE when P/X/A is set (EMB-04-002):
             # the case must be terminated (ET), not returned to ACTIVE.
             if (
@@ -308,8 +331,12 @@ class _AnswerOperationsMixin(_PecEffectsMixin):
 
         # Consent after the EM guards (a refused transition writes nothing).
         # The owner's EJ changes no record (MSM-07-004).
-        participant_changes = self._rejection_consent(
-            case, actor_id, embargo_id, is_active=is_active
+        participant_changes = (
+            self._rejection_consent(
+                case, actor_id, embargo_id, is_active=is_active
+            )
+            if record_consent
+            else []
         )
 
         if is_owner and case.discard_proposed_embargo(embargo_id):

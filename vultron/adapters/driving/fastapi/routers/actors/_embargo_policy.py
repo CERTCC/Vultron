@@ -15,14 +15,20 @@
 
 An actor's published ``EmbargoPolicy`` is its **actor default**: the standing
 embargo proposal that competes under shortest-wins when a case is created for
-a report it receives (EP-04-003, EP-04-010).  ``owner_embargo_policies`` reads
-that policy from the owner's own store, so publishing one is a write to that
-store and nothing else — which is why this lives on the actors router under the
-per-actor store dependency (ADR-0073) rather than on a shared admin surface.
+a report it receives (EP-04-003, EP-04-010).  The policy is a field of the
+actor's own profile record (EP-01-001, EP-01-004), not a separate object:
+publishing one rewrites that record in the actor's own store, and the profile
+then carries the terms wherever it travels — inline on every
+``Create(CaseProposal)`` the actor sends, which is the only place a
+CASE_MANAGER reads the default from (CP-01-010).  That is why this lives on
+the actors router under the per-actor store dependency (ADR-0073) rather than
+on a shared admin surface.
 
 ``PUT`` publishes (creates or replaces) the policy for a hosted actor; ``GET``
-returns the published record (EP-02-001).  The actor profile lists the
-endpoint URL under ``embargo_policy`` once one is published (EP-02-002).
+returns the record the profile carries inline (EP-02-001, EP-02-002).  Because
+a publish rewrites the whole profile, its write is a compare-and-set against
+the profile it read, so a concurrent profile update is never silently
+overwritten (EP-02-004).
 
 The routes are included by :mod:`._routes` *ahead of* its ``GET
 /{actor_id:path}`` catch-all, which would otherwise swallow the path.
@@ -30,12 +36,13 @@ The routes are included by :mod:`._routes` *ahead of* its ``GET
 
 import logging
 from datetime import timedelta
-from typing import Any, cast
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from vultron.adapters.driving.fastapi.deps import get_actor_dl
+from vultron.adapters.driving.fastapi.errors import conflict_http_exception
 from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
 from vultron.adapters.driving.fastapi.routers.actors._lookup import (
     _resolve_actor_or_404,
@@ -47,26 +54,12 @@ from vultron.core.models.embargo_policy import (
     EmbargoPolicy,
     parse_duration,
 )
-from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer
-from vultron.core.services.embargo_duration import (
-    owner_embargo_policies,
-    select_actor_default_policy,
-)
-from vultron.enums.object_types import VultronObjectType
+from vultron.errors import VultronError
 
 logger = logging.getLogger("uvicorn.error")
 
 router = APIRouter()
-
-
-def embargo_policy_url(actor_id: str) -> str:
-    """The URL an actor's profile lists for its embargo policy (EP-02-002).
-
-    The same string is the published policy's id (``EmbargoPolicy.build_id``):
-    the profile points at the record by name.
-    """
-    return EmbargoPolicy.build_id(actor_id)
 
 
 def _duration(value: Any) -> timedelta | None:
@@ -110,33 +103,42 @@ class EmbargoPolicyPublishRequest(BaseModel):
         return _duration(value)
 
 
+_PUBLISH_ATTEMPTS = 3
+"""How many times a PUT re-reads the profile before refusing with 409 (EP-02-004)."""
+
+
+class ProfileChangedError(VultronError):
+    """The actor's profile changed between this publish's read and its write."""
+
+
 def publish_embargo_policy(
     dl: DataLayer, actor: CoreActor, terms: EmbargoPolicyPublishRequest
 ) -> tuple[EmbargoPolicy, bool]:
-    """Publish *terms* as *actor*'s ``EmbargoPolicy`` in *dl*, its own store.
+    """Publish *terms* as *actor*'s ``EmbargoPolicy`` on its own profile.
 
     ``actor_id`` and ``inbox`` come from the actor's record (EP-01-005); the
     record's own validator has already derived a blank ``inbox`` from its id,
     so nothing is manufactured here.
 
-    The published policy has one well-known id, ``EmbargoPolicy.build_id``
-    (the endpoint URL), and is written with ``save()``: a second publish —
-    the next request or a concurrent one — overwrites that record rather than
-    adding a sibling, so exactly one *published* policy exists for the actor
-    without a delete that could fail half-way (EP-02-003).  Records written
-    under any other id (a seeded store) are then removed so that
-    ``owner_embargo_policies`` sees only the published one; that sweep runs
-    after the write, so a failure in it leaves the actor with its new policy
-    beside a stale one, never with none — and ``select_actor_default_policy``
-    would then pick whichever of the two is shorter (EP-04-010), which is why
-    the sweep is cleanup, not what the exactly-one guarantee rests on.  The
-    actor record then lists the endpoint URL under ``embargo_policy``
-    (EP-02-002).
+    The policy is written into the profile's ``embargo_policy`` field and the
+    profile is saved to *dl*, the actor's own store (EP-01-004).  An actor has
+    one profile and the profile one policy field, so a replace overwrites the
+    field and exactly one policy exists for the actor with nothing to delete
+    (EP-01-001, EP-02-003).
+
+    *actor* is the profile as the caller read it, and the write is a
+    compare-and-set against it (:meth:`DataLayer.save_if_unchanged`): the
+    whole profile is rewritten, so a plain save would overwrite any update
+    another writer made since the read (EP-02-004, #4102).
 
     Returns:
         The stored policy and whether it *replaced* an earlier one.
+
+    Raises:
+        ProfileChangedError: The stored profile is no longer *actor*; nothing
+            was written.
     """
-    previous = owner_embargo_policies(_case_store(dl), actor.id_)
+    replaced = actor.embargo_policy is not None
     policy = EmbargoPolicy(
         id_=EmbargoPolicy.build_id(actor.id_),
         actor_id=actor.id_,
@@ -146,37 +148,66 @@ def publish_embargo_policy(
         maximum_duration=terms.maximum_duration,
         notes=terms.notes,
     )
-    dl.save(policy)
-    for stale in previous:
-        if stale.id_ != policy.id_:
-            dl.delete(VultronObjectType.EMBARGO_POLICY.value, stale.id_)
-
-    listed = embargo_policy_url(actor.id_)
-    if actor.embargo_policy != listed:
-        actor.embargo_policy = listed
-        dl.save(actor)
-    return policy, bool(previous)
-
-
-def _published_policy(dl: DataLayer, actor_id: str) -> EmbargoPolicy | None:
-    """The policy *actor_id* has published in *dl*, or ``None``.
-
-    Read through the same selection the case-creation tree applies
-    (EP-04-010), so what this endpoint shows is what shortest-wins would use.
-    """
-    return select_actor_default_policy(
-        owner_embargo_policies(_case_store(dl), actor_id)
+    # Re-validated, not ``model_copy(update=...)``: the profile's own
+    # validator is what holds the policy to this actor (EP-01-001).
+    updated = type(actor).model_validate(
+        {**dict(actor), "embargo_policy": policy}
     )
+    if not dl.save_if_unchanged(updated, expected=actor):
+        raise ProfileChangedError(
+            f"Actor {actor.id_!r}'s profile changed while its embargo policy"
+            " was being published"
+        )
+    return policy, replaced
 
 
-def _case_store(dl: DataLayer) -> CasePersistence:
-    """View the actor's store through the narrow port the policy helpers take.
+def _publish_on_a_current_read(
+    dl: DataLayer, actor_id: str, terms: EmbargoPolicyPublishRequest
+) -> tuple[CoreActor, EmbargoPolicy, bool]:
+    """Read the profile and publish *terms* on it, re-reading if it went stale.
 
-    ``get_actor_dl`` types the store as the broad ``DataLayer``; the concrete
-    ``SqliteDataLayer`` it hands out satisfies ``CasePersistence`` too, and
-    ``owner_embargo_policies`` needs only ``list_objects`` from it (DL-04).
+    A publish whose read was overtaken by another write is re-applied to a
+    fresh read, so the concurrent update is kept rather than overwritten.
+    After :data:`_PUBLISH_ATTEMPTS` stale reads the request is refused with
+    409 and nothing is written (EP-02-004, #4102).
+
+    Returns:
+        The profile the policy was published on, the policy, and whether it
+        replaced an earlier one.
+
+    Raises:
+        HTTPException: 404 for an actor this node does not host; 409 when
+            every attempt found the profile changed.
     """
-    return cast(CasePersistence, dl)
+    resolved_id = actor_id
+    for attempt in range(1, _PUBLISH_ATTEMPTS + 1):
+        actor = _resolve_actor_or_404(actor_id, dl)
+        resolved_id = actor.id_
+        try:
+            policy, replaced = publish_embargo_policy(dl, actor, terms)
+        except ProfileChangedError:
+            # A stale read is the designed recovery path: INFO, not WARNING.
+            logger.info(
+                "Actor %s embargo policy publish attempt %d/%d found the"
+                " profile changed since it was read",
+                actor.id_,
+                attempt,
+                _PUBLISH_ATTEMPTS,
+            )
+            continue
+        return actor, policy, replaced
+    # Every attempt was overtaken: the client sees a refusal.
+    logger.warning(
+        "Actor %s embargo policy publish refused with 409 after %d stale"
+        " reads; nothing was written",
+        resolved_id,
+        _PUBLISH_ATTEMPTS,
+    )
+    raise conflict_http_exception(
+        f"The profile of actor {resolved_id!r} changed under each of"
+        f" {_PUBLISH_ATTEMPTS} attempts to publish its embargo"
+        " policy; nothing was written. Retry the request."
+    )
 
 
 @router.get(
@@ -192,9 +223,9 @@ def _case_store(dl: DataLayer) -> CasePersistence:
 def get_embargo_policy(
     actor_id: str, datalayer: DataLayer = Depends(get_actor_dl)
 ):
-    """Return the published ``EmbargoPolicy`` for a hosted actor (EP-02-001)."""
+    """Return the hosted actor's profile ``embargo_policy`` (EP-02-001/002)."""
     actor = _resolve_actor_or_404(actor_id, datalayer)
-    policy = _published_policy(datalayer, actor.id_)
+    policy = actor.embargo_policy
     if policy is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -211,7 +242,8 @@ def get_embargo_policy(
         "actor, in that actor's own store. The policy's actor id and inbox are "
         "derived from the actor record. 201 on first publish, 200 on replace; "
         "404 for an actor this node does not host; 422 for a malformed or "
-        "calendar-unit duration."
+        "calendar-unit duration; 409 when the actor's profile kept changing "
+        "under the request, in which case nothing was written."
     ),
     operation_id="actors_put_embargo_policy",
     response_model=EmbargoPolicy,
@@ -224,10 +256,13 @@ def put_embargo_policy(
     """Publish *body* as the hosted actor's ``EmbargoPolicy`` (EP-01-004).
 
     The handler resolves the actor (404 when this node does not host it) and
-    answers; :func:`publish_embargo_policy` holds the replace semantics.
+    answers; :func:`publish_embargo_policy` holds the replace semantics and
+    :func:`_publish_on_a_current_read` the retry-then-409 on a concurrent
+    profile write (EP-02-004).
     """
-    actor = _resolve_actor_or_404(actor_id, datalayer)
-    policy, replaced = publish_embargo_policy(datalayer, actor, body)
+    actor, policy, replaced = _publish_on_a_current_read(
+        datalayer, actor_id, body
+    )
     logger.info(
         "Actor %s published embargo policy %s (preferred %s, %s)",
         actor.id_,

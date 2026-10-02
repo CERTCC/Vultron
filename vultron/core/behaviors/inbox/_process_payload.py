@@ -37,6 +37,7 @@ from vultron.core.behaviors.blackboard_scope import (
     restore_keys,
     snapshot_keys,
 )
+from vultron.core.behaviors.bridge import _BT_GLOBAL_LOCK
 from vultron.core.behaviors.inbox.inbox_tree import create_inbox_bt
 from vultron.core.behaviors.inbox.models import (
     DispatchAdapter,
@@ -208,12 +209,10 @@ def process_payload(
         :class:`InboxOutcomeStatus` member, derived from the handler's
         ``HandlerResult`` when dispatch ran (UCORG-05-011).
     """
-    # Import the shared BT global lock to serialise BT blackboard access
+    # The shared BT global lock serialises BT blackboard access
     # across concurrent FastAPI BackgroundTasks.  The RLock supports
     # re-entrant acquisition so replay paths calling process_payload
     # recursively do not deadlock.
-    from vultron.core.behaviors.bridge import _BT_GLOBAL_LOCK
-
     with _BT_GLOBAL_LOCK:
         storage = py_trees.blackboard.Blackboard.storage
         saved = _save_inbox_keys(storage)

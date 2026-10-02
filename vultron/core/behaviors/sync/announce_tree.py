@@ -1,12 +1,22 @@
 #!/usr/bin/env python
 """Behavior tree factory for inbound Announce(CaseLedgerEntry) handling."""
 
+from collections.abc import Callable
+
 import py_trees
 
-from vultron.core.behaviors.case.nodes.conditions import CheckIsCaseManagerNode
-from vultron.core.behaviors.embargo.nodes import ApplyEmbargoTeardownNode
-from vultron.core.behaviors.sync.nodes import (
+from vultron.core.behaviors.case.nodes.close_case_effect import (
     ApplyCloseCaseFromLedgerNode,
+)
+from vultron.core.behaviors.case.nodes.conditions import CheckIsCaseManagerNode
+from vultron.core.behaviors.embargo.nodes import (
+    ApplyEmbargoAcceptanceFromLedgerNode,
+    ApplyEmbargoInviteFromLedgerNode,
+    ApplyEmbargoProposalFromLedgerNode,
+    ApplyEmbargoRejectionFromLedgerNode,
+    ApplyEmbargoTeardownNode,
+)
+from vultron.core.behaviors.sync.nodes import (
     ApplyInviteAcceptFromLedgerNode,
     ApplyNoteFromLedgerNode,
     ApplyOfferOwnershipTransferFromLedgerNode,
@@ -16,12 +26,16 @@ from vultron.core.behaviors.sync.nodes import (
     BufferPreGenesisEntryNode,
     CheckHashOrRejectOnMismatchNode,
     CheckLedgerEntryAlreadyStoredNode,
+    IsAcceptEmbargoInviteEventNode,
     IsAddNoteEventNode,
     IsCloseCaseEventNode,
+    IsEmbargoInviteRelayEventNode,
+    IsEmbargoProposalEventNode,
     IsInviteAcceptEventNode,
     IsOfferOwnershipTransferEventNode,
     IsOwnershipTransferEventNode,
     IsParticipantStatusEventNode,
+    IsRejectEmbargoInviteEventNode,
     IsRemoveEmbargoEventNode,
     IsSubmitReportEventNode,
     LogDeliveryConfirmationNode,
@@ -34,6 +48,67 @@ from vultron.core.behaviors.sync.nodes import (
 from vultron.core.behaviors.sync.nodes.participant_status_effect import (
     EmitImpossibleStateFaultNode,
 )
+
+
+def _event_effect_slot(
+    label: str,
+    condition: Callable[..., py_trees.behaviour.Behaviour],
+    apply: Callable[..., py_trees.behaviour.Behaviour],
+) -> py_trees.behaviour.Behaviour:
+    """Build one ``Selector(Seq(IsX, ApplyX), Inverter(IsX))`` effect slot.
+
+    *label* names the slot (``"<label>Effects"``) and its nodes, so a tree
+    dump reads the same for every slot.  ``ParticipantStatusEffects`` alone is
+    built by hand: its apply step is an ``ApplyOrFault`` selector (RSH-05-021).
+    """
+    return py_trees.composites.Selector(
+        name=f"{label}Effects",
+        memory=False,
+        children=[
+            py_trees.composites.Sequence(
+                name=f"Apply{label}EffectsSeq",
+                memory=False,
+                children=[
+                    condition(name=f"Is{label}Event"),
+                    apply(name=f"Apply{label}FromLedger"),
+                ],
+            ),
+            py_trees.decorators.Inverter(
+                name=f"SkipIfNot{label}Event",
+                child=condition(name=f"CheckNot{label}Event"),
+            ),
+        ],
+    )
+
+
+def _embargo_relay_effect_slots() -> list[py_trees.behaviour.Behaviour]:
+    """The revision relay's four replay slots (EP-09-007, RSH-08-004, ADR-0113).
+
+    The proposal the CASE_MANAGER received, each Invite it relayed, and each
+    ``Accept``/``Reject`` of an Invite — the owner's decision included.
+    """
+    return [
+        _event_effect_slot(
+            "EmbargoProposal",
+            IsEmbargoProposalEventNode,
+            ApplyEmbargoProposalFromLedgerNode,
+        ),
+        _event_effect_slot(
+            "EmbargoInviteRelay",
+            IsEmbargoInviteRelayEventNode,
+            ApplyEmbargoInviteFromLedgerNode,
+        ),
+        _event_effect_slot(
+            "EmbargoAcceptance",
+            IsAcceptEmbargoInviteEventNode,
+            ApplyEmbargoAcceptanceFromLedgerNode,
+        ),
+        _event_effect_slot(
+            "EmbargoRejection",
+            IsRejectEmbargoInviteEventNode,
+            ApplyEmbargoRejectionFromLedgerNode,
+        ),
+    ]
 
 
 def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
@@ -57,29 +132,10 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
         name="LogEntryEventEffects",
         memory=False,
         children=[
-            py_trees.composites.Selector(
-                name="EmbargoEffects",
-                memory=False,
-                children=[
-                    py_trees.composites.Sequence(
-                        name="ApplyEmbargoEffectsSeq",
-                        memory=False,
-                        children=[
-                            IsRemoveEmbargoEventNode(
-                                name="IsRemoveEmbargoEvent"
-                            ),
-                            ApplyEmbargoTeardownNode(
-                                name="ApplyEmbargoTeardown"
-                            ),
-                        ],
-                    ),
-                    py_trees.decorators.Inverter(
-                        name="SkipIfNotEmbargoEvent",
-                        child=IsRemoveEmbargoEventNode(
-                            name="CheckNotEmbargoEvent"
-                        ),
-                    ),
-                ],
+            _event_effect_slot(
+                "EmbargoTeardown",
+                IsRemoveEmbargoEventNode,
+                ApplyEmbargoTeardownNode,
             ),
             py_trees.composites.Selector(
                 name="ParticipantStatusEffects",
@@ -116,144 +172,37 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
                     ),
                 ],
             ),
-            py_trees.composites.Selector(
-                name="NoteEffects",
-                memory=False,
-                children=[
-                    py_trees.composites.Sequence(
-                        name="ApplyNoteEffectsSeq",
-                        memory=False,
-                        children=[
-                            IsAddNoteEventNode(name="IsAddNoteEvent"),
-                            ApplyNoteFromLedgerNode(
-                                name="ApplyNoteFromLedger"
-                            ),
-                        ],
-                    ),
-                    py_trees.decorators.Inverter(
-                        name="SkipIfNotNoteEvent",
-                        child=IsAddNoteEventNode(name="CheckNotNoteEvent"),
-                    ),
-                ],
+            _event_effect_slot(
+                "Note",
+                IsAddNoteEventNode,
+                ApplyNoteFromLedgerNode,
             ),
-            py_trees.composites.Selector(
-                name="InviteAcceptEffects",
-                memory=False,
-                children=[
-                    py_trees.composites.Sequence(
-                        name="ApplyInviteAcceptEffectsSeq",
-                        memory=False,
-                        children=[
-                            IsInviteAcceptEventNode(
-                                name="IsInviteAcceptEvent"
-                            ),
-                            ApplyInviteAcceptFromLedgerNode(
-                                name="ApplyInviteAcceptFromLedger"
-                            ),
-                        ],
-                    ),
-                    py_trees.decorators.Inverter(
-                        name="SkipIfNotInviteAcceptEvent",
-                        child=IsInviteAcceptEventNode(
-                            name="CheckNotInviteAcceptEvent"
-                        ),
-                    ),
-                ],
+            _event_effect_slot(
+                "InviteAccept",
+                IsInviteAcceptEventNode,
+                ApplyInviteAcceptFromLedgerNode,
             ),
-            py_trees.composites.Selector(
-                name="CloseCaseEffects",
-                memory=False,
-                children=[
-                    py_trees.composites.Sequence(
-                        name="ApplyCloseCaseEffectsSeq",
-                        memory=False,
-                        children=[
-                            IsCloseCaseEventNode(name="IsCloseCaseEvent"),
-                            ApplyCloseCaseFromLedgerNode(
-                                name="ApplyCloseCaseFromLedger"
-                            ),
-                        ],
-                    ),
-                    py_trees.decorators.Inverter(
-                        name="SkipIfNotCloseCaseEvent",
-                        child=IsCloseCaseEventNode(
-                            name="CheckNotCloseCaseEvent"
-                        ),
-                    ),
-                ],
+            _event_effect_slot(
+                "CloseCase",
+                IsCloseCaseEventNode,
+                ApplyCloseCaseFromLedgerNode,
             ),
-            py_trees.composites.Selector(
-                name="OfferReportEffects",
-                memory=False,
-                children=[
-                    py_trees.composites.Sequence(
-                        name="ApplyOfferReportEffectsSeq",
-                        memory=False,
-                        children=[
-                            IsSubmitReportEventNode(
-                                name="IsSubmitReportEvent"
-                            ),
-                            ApplyOfferReportFromLedgerNode(
-                                name="ApplyOfferReportFromLedger"
-                            ),
-                        ],
-                    ),
-                    py_trees.decorators.Inverter(
-                        name="SkipIfNotSubmitReportEvent",
-                        child=IsSubmitReportEventNode(
-                            name="CheckNotSubmitReportEvent"
-                        ),
-                    ),
-                ],
+            _event_effect_slot(
+                "OfferReport",
+                IsSubmitReportEventNode,
+                ApplyOfferReportFromLedgerNode,
             ),
-            py_trees.composites.Selector(
-                name="OwnershipTransferEffects",
-                memory=False,
-                children=[
-                    py_trees.composites.Sequence(
-                        name="ApplyOwnershipTransferEffectsSeq",
-                        memory=False,
-                        children=[
-                            IsOwnershipTransferEventNode(
-                                name="IsOwnershipTransferEvent"
-                            ),
-                            ApplyOwnershipTransferFromLedgerNode(
-                                name="ApplyOwnershipTransferFromLedger"
-                            ),
-                        ],
-                    ),
-                    py_trees.decorators.Inverter(
-                        name="SkipIfNotOwnershipTransferEvent",
-                        child=IsOwnershipTransferEventNode(
-                            name="CheckNotOwnershipTransferEvent"
-                        ),
-                    ),
-                ],
+            _event_effect_slot(
+                "OwnershipTransfer",
+                IsOwnershipTransferEventNode,
+                ApplyOwnershipTransferFromLedgerNode,
             ),
-            py_trees.composites.Selector(
-                name="OfferOwnershipTransferEffects",
-                memory=False,
-                children=[
-                    py_trees.composites.Sequence(
-                        name="ApplyOfferOwnershipTransferEffectsSeq",
-                        memory=False,
-                        children=[
-                            IsOfferOwnershipTransferEventNode(
-                                name="IsOfferOwnershipTransferEvent"
-                            ),
-                            ApplyOfferOwnershipTransferFromLedgerNode(
-                                name="ApplyOfferOwnershipTransferFromLedger"
-                            ),
-                        ],
-                    ),
-                    py_trees.decorators.Inverter(
-                        name="SkipIfNotOfferOwnershipTransferEvent",
-                        child=IsOfferOwnershipTransferEventNode(
-                            name="CheckNotOfferOwnershipTransferEvent"
-                        ),
-                    ),
-                ],
+            _event_effect_slot(
+                "OfferOwnershipTransfer",
+                IsOfferOwnershipTransferEventNode,
+                ApplyOfferOwnershipTransferFromLedgerNode,
             ),
+            *_embargo_relay_effect_slots(),
         ],
     )
     # When the VulnerabilityCase is not yet seeded on this replica, chain tail

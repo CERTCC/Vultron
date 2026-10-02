@@ -552,16 +552,34 @@ def check_event_type_count(
     replicas: dict[str, list[dict]],
     expected_event_type: str,
     min_count: int,
+    *,
+    max_count: int | None = None,
 ) -> list[str]:
-    """Assert that an expected eventType appears at least ``min_count`` times.
+    """Assert that an expected eventType appears between ``min_count`` and ``max_count`` times.
 
-    Useful for scenarios where a given event must repeat (e.g., two invitations).
+    Useful for scenarios where a given event must repeat (e.g., two
+    invitations), or must occur an exact number of times.  ``max_count``
+    defaults to no upper bound; set it when a count above the scenario's own
+    sends is itself a defect — a floor alone is satisfied by a double commit
+    (#4120), so it cannot tell the scenario's sends from a duplicate.
+
+    Raises:
+        ValueError: ``max_count`` is below ``min_count``.
     """
+    if max_count is not None and max_count < min_count:
+        raise ValueError(
+            f"max_count ({max_count}) must not be below min_count ({min_count})"
+        )
     auth = auth_entries(replicas)
     actual_count = sum(1 for e in auth if event_type(e) == expected_event_type)
     if actual_count < min_count:
         return [
             f"Expected eventType {expected_event_type!r} at least {min_count} "
+            f"time(s) in case-actor log; found {actual_count}."
+        ]
+    if max_count is not None and actual_count > max_count:
+        return [
+            f"Expected eventType {expected_event_type!r} at most {max_count} "
             f"time(s) in case-actor log; found {actual_count}."
         ]
     return []
@@ -917,6 +935,39 @@ def check_no_rejected_invite_entries(
                     f"Actor {actor!r} logIndex={log_index(e)}: stale"
                     f" 'disposition' field present on invite_actor_to_case entry"
                     f" (CLP-04-007 / CLP-13-001 violation)"
+                )
+    return violations
+
+
+def check_unique_payload_snapshot_ids(
+    replicas: dict[str, list[dict]],
+) -> list[str]:
+    """No replica holds two entries for the same activity (CLP-07-002).
+
+    A state change is recorded once, so on any one replica no two
+    ``CaseLedgerEntry`` records share a ``payloadSnapshot.id``.  The defect
+    this catches is the double commit ADR-0109 retired: an emitting tree
+    commits the Invite and the CASE_MANAGER commits it again on receipt of its
+    own ``cc:`` copy, giving two canonical entries for one activity.
+
+    Every replica is checked, the ``case-actor`` one included.  An entry whose
+    snapshot carries no ``id`` is not counted.
+
+    Returns one violation string per repeated activity id per replica.
+    """
+    violations: list[str] = []
+    for actor, entries in replicas.items():
+        seen: dict[str, list[int]] = {}
+        for e in entries:
+            snap_id = payload(e).get("id")
+            if isinstance(snap_id, str) and snap_id:
+                seen.setdefault(snap_id, []).append(log_index(e))
+        for snap_id, indices in seen.items():
+            if len(indices) > 1:
+                violations.append(
+                    f"Actor {actor!r}: payloadSnapshot.id {snap_id!r} is"
+                    f" recorded {len(indices)} times (logIndex"
+                    f" {sorted(indices)}; CLP-07-002 violation)"
                 )
     return violations
 

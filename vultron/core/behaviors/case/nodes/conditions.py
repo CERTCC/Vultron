@@ -41,6 +41,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
 )
+from vultron.core.behaviors.node_logger import node_logger
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.participants.authority import resolve_case_manager_id
 
@@ -74,9 +75,7 @@ class CheckAutoCaseCreationEnabledNode(py_trees.behaviour.Behaviour):
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.logger = logging.getLogger(  # type: ignore[assignment]
-            f"{self.__class__.__module__}.{self.__class__.__name__}"
-        )
+        self.logger = node_logger(self)  # type: ignore[assignment]
         self.actor_config = actor_config
 
     def update(self) -> Status:
@@ -122,7 +121,9 @@ class CheckCaseAlreadyExists(DataLayerConditionWithPorts):
             existing = self.datalayer.read(self.case_id)
             if existing is None:
                 self.logger.debug(
-                    f"{self.name}: Case {self.case_id} not found, proceeding"
+                    "%s: Case %s not found, proceeding",
+                    self.name,
+                    self.case_id,
                 )
                 return Status.FAILURE
 
@@ -134,20 +135,23 @@ class CheckCaseAlreadyExists(DataLayerConditionWithPorts):
             participants = getattr(existing, "case_participants", None) or []
             if not participants:
                 self.logger.debug(
-                    f"{self.name}: Case {self.case_id} exists but has no"
-                    " participants — proceeding with initialisation"
+                    "%s: Case %s exists but has no"
+                    " participants — proceeding with initialisation",
+                    self.name,
+                    self.case_id,
                 )
                 return Status.FAILURE
 
             self.logger.info(
-                f"{self.name}: Case {self.case_id} already exists"
-                " — skipping creation (idempotent)"
+                "%s: Case %s already exists — skipping creation (idempotent)",
+                self.name,
+                self.case_id,
             )
             return Status.SUCCESS
 
         except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
-                f"{self.name}: Error checking case existence: {e}"
+                "%s: Error checking case existence: %s", self.name, e
             )
             return Status.FAILURE
 
@@ -175,7 +179,9 @@ class CheckCaseExistsForReport(DataLayerConditionWithPorts):
             existing = self.datalayer.find_case_by_report_id(self.report_id)
             if existing is None:
                 self.logger.debug(
-                    f"{self.name}: No case found for report {self.report_id}"
+                    "%s: No case found for report %s",
+                    self.name,
+                    self.report_id,
                 )
                 return Status.FAILURE
 
@@ -185,8 +191,10 @@ class CheckCaseExistsForReport(DataLayerConditionWithPorts):
             participants = getattr(existing, "case_participants", None) or []
             if not participants:
                 self.logger.debug(
-                    f"{self.name}: Case for report {self.report_id} exists"
-                    " but has no participants — proceeding with initialisation"
+                    "%s: Case for report %s exists"
+                    " but has no participants — proceeding with initialisation",
+                    self.name,
+                    self.report_id,
                 )
                 return Status.FAILURE
 
@@ -201,7 +209,7 @@ class CheckCaseExistsForReport(DataLayerConditionWithPorts):
 
         except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
-                f"{self.name}: Error checking case existence: {e}"
+                "%s: Error checking case existence: %s", self.name, e
             )
             return Status.FAILURE
 
@@ -222,13 +230,25 @@ class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
     1. Constructor arg ``case_id``.
     2. Blackboard key ``/case_id``.
     3. ``activity.log_entry.case_id`` (or ``activity.object_.case_id``).
+
+    A case missing from the executing actor's store is a Regime 1 anomaly by
+    default and fails at ``error`` level (ADR-0087).  Pass
+    ``case_may_be_absent=True`` where the actor legitimately holds no replica
+    yet — an invitee holds only the Invite's case stub until the case is
+    announced (MV-10-004) — and the node then reads that absence as "not the
+    CASE_MANAGER" at ``debug`` level: the manager always holds the case it
+    manages, so an actor without it cannot be the manager (ADR-0087 Regime 3).
     """
 
     def __init__(
-        self, case_id: str | None = None, name: str | None = None
+        self,
+        case_id: str | None = None,
+        name: str | None = None,
+        case_may_be_absent: bool = False,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
+        self._case_may_be_absent = case_may_be_absent
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerConditionWithPorts.INPUT_PORTS,
@@ -277,8 +297,21 @@ class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
 
         if not case_id:
             self.logger.debug(
-                f"{self.name}: no case_id available — cannot check"
-                " CASE_MANAGER role"
+                "%s: no case_id available — cannot check CASE_MANAGER role",
+                self.name,
+            )
+            return Status.FAILURE
+
+        if (
+            self._case_may_be_absent
+            and self.datalayer.read_case(case_id) is None
+        ):
+            # Regime 3: no replica yet, so this actor is not the manager.
+            self.logger.debug(
+                "%s: case '%s' not held by '%s' — not the CASE_MANAGER",
+                self.name,
+                case_id,
+                self.actor_id,
             )
             return Status.FAILURE
 
@@ -289,15 +322,17 @@ class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
         manager_id = resolve_case_manager_id(case, self.datalayer)
         if manager_id is None:
             self.logger.debug(
-                f"{self.name}: no CASE_MANAGER found for case '{case_id}'"
+                "%s: no CASE_MANAGER found for case '%s'", self.name, case_id
             )
             return Status.FAILURE
 
         if manager_id == self.actor_id:
             self._set_output("case_actor_id", manager_id)
             self.logger.debug(
-                f"{self.name}: actor '{self.actor_id}' is CASE_MANAGER for"
-                f" case '{case_id}'"
+                "%s: actor '%s' is CASE_MANAGER for case '%s'",
+                self.name,
+                self.actor_id,
+                case_id,
             )
             return Status.SUCCESS
 
@@ -314,12 +349,12 @@ class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
 class CheckProposalAlreadySentForReport(DataLayerConditionWithPorts):
     """SUCCESS when a proposal for the report has already been sent and not refused.
 
-    The idempotency guard in the slimmed vendor tree (ADR-0041): a
+    The idempotency guard in the slimmed receive-report tree (ADR-0041): a
     ``VultronReportCaseLink`` exists for the report and its proposal was not
     rejected.  That covers both the *pending* link (``case_id is None``, the
     answer has not arrived) and the *answered* one (``case_id`` set, the
     CaseActor accepted and the case is linked).  Only a rejected proposal
-    (``proposal_rejected is True``) falls through, so the vendor proposes
+    (``proposal_rejected is True``) falls through, so the receiver proposes
     again after a ``Reject`` and never otherwise.
 
     The answered link used to fall through too, so a report Offer delivered
@@ -380,7 +415,7 @@ class WritePendingReportCaseLinkNode(DataLayerActionWithPorts):
     """Write a pending ``VultronReportCaseLink`` for the given report (ADR-0041).
 
     Creates or updates the link with ``case_id=None`` and sets
-    ``trusted_case_creator_id`` to the deterministically derived CaseActor ID
+    ``case_creator_id`` to the deterministically derived CaseActor ID
     so that ``_find_report_case_link`` can match the incoming
     ``Create(VulnerabilityCase)`` sender when the CaseActor responds.
 
@@ -416,9 +451,9 @@ class WritePendingReportCaseLinkNode(DataLayerActionWithPorts):
         if case_actor_id is None:
             self.feedback_message = (
                 f"{self.name}: case_actor_service_url not configured"
-                " — cannot resolve trusted_case_creator_id"
+                " — cannot resolve case_creator_id"
             )
-            self.logger.error(self.feedback_message)
+            self.logger.error("%s", self.feedback_message)
             return Status.FAILURE
 
         link_id = VultronReportCaseLink.build_id(self.report_id)
@@ -446,12 +481,12 @@ class WritePendingReportCaseLinkNode(DataLayerActionWithPorts):
 
         link = VultronReportCaseLink(
             report_id=self.report_id,
-            trusted_case_creator_id=case_actor_id,
+            case_creator_id=case_actor_id,
         )
         self.datalayer.create(link)
         self.logger.info(
             "%s: wrote pending ReportCaseLink for report '%s'"
-            " (trusted_case_creator_id='%s')",
+            " (case_creator_id='%s')",
             self.name,
             self.report_id,
             case_actor_id,

@@ -23,13 +23,16 @@ import py_trees
 import pytest
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from vultron.core.behaviors.case.communication_tree import (
+    EmitCreateCaseActivity,
+)
 from vultron.core.behaviors.case.nodes import (
     CollectCaseAddresseesNode,
     CreateAndPersistCaseActivityNode,
-    EmitCreateCaseActivity,
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.report import VulnerabilityReport
 
 # The URL used by tests as the CaseActor service base URL (CP-08-001).
@@ -115,7 +118,7 @@ class TestEmitCreateCaseActivity:
 
     @pytest.mark.spec("CM-06-001")
     @pytest.mark.spec("CM-06-003")
-    def test_collect_case_addressees_filters_sender(
+    def test_collect_case_addressees_filters_sender_and_inert(
         self,
         bt_scenario: BTTestScenario,
         actor: CaseActor,
@@ -128,6 +131,30 @@ class TestEmitCreateCaseActivity:
         case_obj.actor_participant_index["https://example.org/actors/peer"] = (
             "https://example.org/participants/peer"
         )
+        case_obj.actor_participant_index[
+            "https://example.org/actors/invitee"
+        ] = "https://example.org/participants/invitee"
+        for roster_actor, pid, joined in (
+            (actor_id, "https://example.org/participants/vendor", True),
+            (
+                "https://example.org/actors/peer",
+                "https://example.org/participants/peer",
+                True,
+            ),
+            (
+                "https://example.org/actors/invitee",
+                "https://example.org/participants/invitee",
+                False,
+            ),
+        ):
+            bt_scenario.dl.save(
+                CaseParticipant(
+                    id_=pid,
+                    attributed_to=roster_actor,
+                    context=case_obj.id_,
+                    joined=joined,
+                )
+            )
         bt_scenario.dl.save(case_obj)
 
         result = bt_scenario.run(

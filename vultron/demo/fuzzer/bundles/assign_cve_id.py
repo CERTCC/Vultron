@@ -33,125 +33,93 @@ from vultron.core.behaviors.call_out.bundles.assign_cve_id import (
     ASSIGN_CVE_ID_DETERMINISTIC,
     AssignCveIdCallOutBundle,
 )
+from vultron.demo.fuzzer.report_management.assign_vul_id import (
+    AssignId,
+    IdAssigned,
+    InScope,
+    IsMostAppropriateCNA,
+    IsNotDeliberatelyEducational,
+    IsNotDependencyUpdate,
+    IsNotEOLStatusAlone,
+    IsNotMaliciousCode,
+    IsPubliclyAvailableProduct,
+    IsRealVulnerability,
+    MeetsEvidenceBar,
+    NoDuplicateCVE,
+    ProductInCNAScope,
+    RequestId,
+)
 
 
 def _stochastic_id_assigned(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.assign_vul_id import IdAssigned
-
     return IdAssigned(name)
 
 
 def _stochastic_in_scope(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.assign_vul_id import InScope
-
     return InScope(name)
 
 
 def _stochastic_product_in_cna_scope(
     name: str,
 ) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.assign_vul_id import (
-        ProductInCNAScope,
-    )
-
     return ProductInCNAScope(name)
 
 
 def _stochastic_is_most_appropriate_cna(
     name: str,
 ) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.assign_vul_id import (
-        IsMostAppropriateCNA,
-    )
-
     return IsMostAppropriateCNA(name)
 
 
 def _stochastic_is_not_malicious_code(
     name: str,
 ) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.assign_vul_id import (
-        IsNotMaliciousCode,
-    )
-
     return IsNotMaliciousCode(name)
 
 
 def _stochastic_is_not_dependency_update(
     name: str,
 ) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.assign_vul_id import (
-        IsNotDependencyUpdate,
-    )
-
     return IsNotDependencyUpdate(name)
 
 
 def _stochastic_is_not_eol_status_alone(
     name: str,
 ) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.assign_vul_id import (
-        IsNotEOLStatusAlone,
-    )
-
     return IsNotEOLStatusAlone(name)
 
 
 def _stochastic_is_not_deliberately_educational(
     name: str,
 ) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.assign_vul_id import (
-        IsNotDeliberatelyEducational,
-    )
-
     return IsNotDeliberatelyEducational(name)
 
 
 def _stochastic_is_publicly_available_product(
     name: str,
 ) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.assign_vul_id import (
-        IsPubliclyAvailableProduct,
-    )
-
     return IsPubliclyAvailableProduct(name)
 
 
 def _stochastic_no_duplicate_cve(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.assign_vul_id import (
-        NoDuplicateCVE,
-    )
-
     return NoDuplicateCVE(name)
 
 
 def _stochastic_meets_evidence_bar(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.assign_vul_id import (
-        MeetsEvidenceBar,
-    )
-
     return MeetsEvidenceBar(name)
 
 
 def _stochastic_is_real_vulnerability(
     name: str,
 ) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.assign_vul_id import (
-        IsRealVulnerability,
-    )
-
     return IsRealVulnerability(name)
 
 
 def _stochastic_assign_id(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.assign_vul_id import AssignId
-
     return AssignId(name)
 
 
 def _stochastic_request_id(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.assign_vul_id import RequestId
-
     return RequestId(name)
 
 

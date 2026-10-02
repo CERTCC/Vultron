@@ -4,13 +4,16 @@ from typing import cast
 
 import pytest
 
+from test.support.ledger import committed_event_types
+from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.events.base import MessageSemantics
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.use_cases.triggers.embargo import (
@@ -21,26 +24,27 @@ from vultron.core.use_cases.triggers.requests import (
     AcceptEmbargoTriggerRequest,
 )
 from vultron.errors import VultronNotFoundError
-from vultron.wire.as2.factories import em_propose_embargo_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
-from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
 
 from .conftest import (
+    _assert_asked_case_manager,
     _build_active_embargo_case,
     _build_proposed_embargo_case_no_owner_attribution,
     _build_unbound_case_with_case_manager,
+    _case_with_open_proposal,
     _persist_actor,
 )
 
 
-def test_non_owner_accept_embargo_on_active_case_updates_participant_only(
+@pytest.mark.spec("EP-09-008")
+def test_non_manager_accept_embargo_asks_the_case_manager(
     finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """A later participant accept must not re-drive the shared case EM state."""
+    """A participant's accept asks the CASE_MANAGER and writes nothing."""
     finder, finder_dl = finder_actor_and_dl
     owner = _persist_actor(finder_dl, "Vendor Co")
     case, proposal, participant_id = _build_active_embargo_case(
@@ -57,6 +61,7 @@ def test_non_owner_accept_embargo_on_active_case_updates_participant_only(
         finder_dl,
         request,
         trigger_activity=TriggerActivityAdapter(finder_dl),
+        sync_port=SyncActivityAdapter(finder_dl),
         wire_render_port=As2WireRenderAdapter(),
     ).execute()
 
@@ -71,8 +76,18 @@ def test_non_owner_accept_embargo_on_active_case_updates_participant_only(
     updated_participant = cast(as_CaseParticipant, updated_participant)
     assert updated_case.current_status.em.state == EM.ACTIVE
     assert updated_case.active_embargo == case.active_embargo
-    assert updated_participant.embargo_consent_state == PEC.SIGNATORY.value
-    assert case.active_embargo in updated_participant.accepted_embargo_ids
+    # Not the CASE_MANAGER: the consent is asked for, not recorded here; the
+    # replica moves when the manager's commit is announced (EP-09-008).
+    assert updated_participant.embargo_consent_state == PEC.INVITED.value
+    assert case.active_embargo not in updated_participant.accepted_embargo_ids
+    _assert_asked_case_manager(
+        finder_dl,
+        actor_id=finder.id_,
+        case_id=case.id_,
+        manager_id=owner.id_,
+        activity_type="Accept",
+        event_type=MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value,
+    )
 
 
 def test_is_case_owner_fail_closed_when_attributed_to_is_none() -> None:
@@ -118,6 +133,7 @@ def test_accept_embargo_when_attributed_to_is_none_does_not_activate_em(
         finder_dl,
         request,
         trigger_activity=TriggerActivityAdapter(finder_dl),
+        sync_port=SyncActivityAdapter(finder_dl),
         wire_render_port=As2WireRenderAdapter(),
     ).execute()
 
@@ -132,7 +148,7 @@ def test_accept_embargo_when_attributed_to_is_none_does_not_activate_em(
     updated_participant = cast(as_CaseParticipant, updated_participant)
 
     assert updated_case.current_status.em.state == EM.PROPOSED
-    assert updated_participant.embargo_consent_state == PEC.SIGNATORY.value
+    assert updated_participant.embargo_consent_state == PEC.INVITED.value
 
 
 # ---------------------------------------------------------------------------
@@ -146,26 +162,9 @@ def _owner_accept(dl: SqliteDataLayer, request: AcceptEmbargoTriggerRequest):
         dl,
         request,
         trigger_activity=TriggerActivityAdapter(dl),
+        sync_port=SyncActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
     ).execute()
-
-
-def _case_with_open_proposal(
-    dl: SqliteDataLayer, owner_id: str
-) -> tuple[VulnerabilityCase, str]:
-    """A case at EM.PROPOSED whose only open proposal is the owner's."""
-    case = _build_unbound_case_with_case_manager(dl, owner_id)
-    embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now_utc(45))
-    proposal = em_propose_embargo_activity(
-        embargo, context=case.id_, actor=owner_id
-    )
-    dl.create(embargo)
-    dl.create(proposal)
-    case.append_case_status(em_state=EM.PROPOSED)
-    case.proposed_embargoes.append(embargo.id_)
-    case.pending_embargo_proposal_index[embargo.id_] = proposal.id_
-    dl.save(case)
-    return case, proposal.id_
 
 
 @pytest.mark.spec("EP-08-002")
@@ -187,6 +186,13 @@ def test_accept_embargo_activates_the_proposed_embargo(
     updated = cast(VulnerabilityCase, dl.read(case.id_))
     assert updated.current_status.em.state == EM.ACTIVE
     assert updated.active_embargo is not None
+    # As the CASE_MANAGER the decision is a canonical entry every replica
+    # replays (#4085), so the Accept itself is addressed to nobody.
+    assert (
+        MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value
+        in committed_event_types(dl, case.id_)
+    )
+    assert not activity_of(result).get("to")
 
 
 @pytest.mark.spec("EP-08-002")

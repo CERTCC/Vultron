@@ -20,7 +20,7 @@ Where this page and any of those disagree, the specification wins.
 
 ## State Machines at a Glance
 
-Every Participant tracks five state machines ([§12.2](vultron-spec/index.md#122-capability-sets)).
+Every Participant tracks five state machines ([§12.2 Capability Sets](vultron-spec/conformance.md#122-capability-sets)).
 Two of them, the vendor fix path (VFD) and the public state (PXA), together make up the Case State (CS), which the formal protocol pages write as one six-letter string.
 
 | State Machine | Scope | States | Initial | Terminal |
@@ -31,8 +31,8 @@ Two of them, the vendor fix path (VFD) and the public state (PXA), together make
 | **VFD** — Vendor fix path (CS) | Per Participant | Three one-way binary substates in order `vfd`: Vendor aware (`v→V`), Fix ready (`f→F`), Fix deployed (`d→D`) | `vfd` | `VFD` |
 | **PXA** — Public state (CS) | Per case | Three one-way binary substates in order `pxa`: Public aware (`p→P`), eXploit public (`x→X`), Attacks observed (`a→A`) | `pxa` | `PXA` |
 
-The specification names the EM states *Revise* and *eXited* as *Revised* and *Exited* ([§7.1](vultron-spec/index.md#71-states)); the shorthand letters are the same.
-PEC is specified in [§9](vultron-spec/index.md#9-participant-embargo-consent-pec-state-machine-n) and explained in the [Embargo Lifecycle](../topics/behavior_logic/use-cases/embargo-lifecycle.md).
+The specification names the EM states *Revise* and *eXited* as *Revised* and *Exited* ([§7.1 States](vultron-spec/tracking-models.md#71-states)); the shorthand letters are the same.
+PEC is specified in [§9 Participant Embargo Consent (PEC) State Machine](vultron-spec/tracking-models.md#9-participant-embargo-consent-pec-state-machine-n) and explained in the [Embargo Lifecycle](../topics/behavior_logic/use-cases/embargo-lifecycle.md).
 
 !!! note "The formal protocol's triple"
 
@@ -51,7 +51,7 @@ PEC is specified in [§9](vultron-spec/index.md#9-participant-embargo-consent-pe
 
 ## Message Types at a Glance
 
-The complete message set is $M_{i,j} = M^{rm} \cup M^{em} \cup M^{cs} \cup M^{*}$ (28 types), each defined in [§4 of the specification](vultron-spec/index.md#4-semantic-layer-message-meanings-n).
+The complete message set is $M_{i,j} = M^{rm} \cup M^{em} \cup M^{cs} \cup M^{*}$ (28 types), each defined in [§4 Semantic Layer — Message Meanings in the specification](vultron-spec/layers.md#4-semantic-layer-message-meanings-n).
 Every message is emitted by the Participant whose state changed; the "Response Expected" column shows what the recipient is expected to send back.
 
 | Type | Name | Model | Trigger (emit when) | Response Expected |
@@ -61,7 +61,7 @@ Every message is emitted by the Participant whose state changed; the "Response E
 | `RV` | Report Valid | RM | `{R,I}` $\xrightarrow{v}$ `V` | `RK` |
 | `RD` | Report/Case Deferred | RM | `{V,A}` $\xrightarrow{d}$ `D` | `RK` |
 | `RA` | Report/Case Accepted | RM | `{V,D}` $\xrightarrow{a}$ `A` | `RK` |
-| `RC` | Report Closed | RM | `{I,D,A}` $\xrightarrow{c}$ `C` | `RK` |
+| `RC` | Report Closed | RM | `{R,I,D,A}` $\xrightarrow{c}$ `C` | `RK` |
 | `RK` | Report Acknowledgment | RM | Any valid RM message received | — |
 | `RE` | Report Error | RM | Any unexpected RM message received | `RK` + `GI` |
 | `EP` | Embargo Proposal | EM | `{N,P}` $\xrightarrow{p}$ `P` | `EK` (or `ER` if embargo not viable) |
@@ -109,7 +109,7 @@ are in [Transitions](formal_protocol/transitions.md).
 | `{R,I}` | valid ($v$) | `V` | `RV` |
 | `{V,A}` | defer ($d$) | `D` | `RD` |
 | `{V,D}` | accept ($a$) | `A` | `RA` |
-| `{I,D,A}` | close ($c$) | `C` | `RC` |
+| `{R,I,D,A}` | close ($c$) | `C` | `RC` |
 
 ### EM transitions
 
@@ -151,7 +151,7 @@ Each substate advances once, in the order shown, and never reverts.
 ## Actor Roles Summary
 
 All Participants share the same message vocabulary and the same five state machines; roles differ in where they start and which messages they typically originate.
-The roles are defined in [§2.2 of the specification](vultron-spec/index.md#22-roles); see [States](formal_protocol/states.md) for the per-role reachable state spaces and start states.
+The roles are defined in [§2.2 Roles in the specification](vultron-spec/introduction.md#22-roles); see [States](formal_protocol/states.md) for the per-role reachable state spaces and start states.
 Finder is not a protocol role: an actor that discovers a vulnerability and reports it holds the Reporter role (ADR-0078).
 
 | Role | RM start | Typically sends | Typically receives |

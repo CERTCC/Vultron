@@ -23,12 +23,23 @@ import time
 from collections.abc import Callable, Sequence
 
 from vultron.adapters.utils import parse_id, strip_id_prefix
+from vultron.core.models.pending_case_inbox import (
+    VultronPendingCaseInbox,
+)
+from vultron.core.states.cs import CS_pxa
+from vultron.core.states.em import is_em_exited
+from vultron.demo.helpers.verification import (
+    _all_fetchable_participants_rm_closed,
+    _fetch_participant,
+)
 from vultron.demo.utils import (
     CASE_ACTOR_SLUG,
     DataLayerClient,
+    case_actor_id_for_report,
     demo_check,
     logfmt,
 )
+from vultron.enums.object_types import VultronObjectType
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -640,6 +651,7 @@ def _poll_datalayer_for(
     poll_interval: float,
     log_msg: str,
     error_msg: str,
+    id_fn: Callable[[str, dict], str] | None = None,
 ) -> str:
     """Poll the client's own DataLayer until *discriminator_fn* matches.
 
@@ -660,9 +672,12 @@ def _poll_datalayer_for(
         log_msg: ``%``-style format string with a single ``%s`` placeholder
             for the matched object ID; logged at INFO on a successful find.
         error_msg: Message for the ``AssertionError`` raised on timeout.
+        id_fn: Maps a match's raw ID and data to the ID returned; the raw ID
+            itself when omitted.  A record that wraps another object (a
+            received-activity archive) returns the wrapped object's ID.
 
     Returns:
-        The raw ID string of the first matching object.
+        The ID of the first matching object, as *id_fn* derives it.
 
     Raises:
         AssertionError: If no matching object is found within *timeout_seconds*.
@@ -676,7 +691,11 @@ def _poll_datalayer_for(
                     if not isinstance(obj_data, dict):
                         continue
                     if discriminator_fn(obj_data):
-                        obj_id = str(raw_id)
+                        obj_id = (
+                            id_fn(str(raw_id), obj_data)
+                            if id_fn is not None
+                            else str(raw_id)
+                        )
                         logger.info(log_msg, obj_id)
                         return obj_id
         except Exception:  # noqa: BLE001, S110  # ruff-baseline #3326
@@ -690,19 +709,122 @@ def _poll_datalayer_for(
 # ---------------------------------------------------------------------------
 
 
+def _received_activity(obj_data: dict) -> dict:
+    """The received activity *obj_data* holds, as the receiver keeps it.
+
+    Intake archives a dispatched activity as a ``ReceivedActivityRecord``
+    (CLP-10-017, ADR-0111), which wraps it.  An activity the inbox deferred
+    until its case is known — an invitee's Invite, usually — is held bare
+    under the sender's id instead.  Mirrors
+    :func:`vultron.core.use_cases._helpers.read_received_activity`.
+
+    Raises:
+        AssertionError: when a ``ReceivedActivityRecord`` wraps no activity.
+    """
+    if obj_data.get("type") != "ReceivedActivityRecord":
+        return obj_data
+    activity = obj_data.get("activity")
+    if not isinstance(activity, dict):
+        raise AssertionError(  # noqa: TRY004 — demo_check assertion, not a type error
+            f"received-activity record {obj_data.get('id')!r} wraps no"
+            f" activity: {activity!r}"
+        )
+    return activity
+
+
+def _received_activity_id(raw_id: str, obj_data: dict) -> str:
+    """The sender's id for the received activity *obj_data* holds.
+
+    A bare activity is stored under the sender's id (*raw_id*); a record is
+    stored under its own id and names the activity's id inside.
+
+    Raises:
+        AssertionError: when a record's activity carries no id.
+    """
+    if obj_data.get("type") != "ReceivedActivityRecord":
+        return raw_id
+    activity_id = _received_activity(obj_data).get("id")
+    if not activity_id:
+        raise AssertionError(
+            f"received-activity record {raw_id!r} holds an activity with no id"
+        )
+    return str(activity_id)
+
+
 def _is_case_invite_for(obj_data: dict, case_id: str, invitee_id: str) -> bool:
-    """Return True if *obj_data* is an Invite(Actor, Case) for *invitee_id*/*case_id*."""
-    if obj_data.get("type") != "Invite":
+    """Return True if *obj_data* holds a case Invite for *invitee_id*/*case_id*.
+
+    A stub Invite names its case in the stub's ``caseId`` (CM-11-013); the
+    stub's own ``id`` is ``<case-id>/stub`` and is never parsed.  A full-case
+    Invite names the case by URI (AKM-02-003).
+    """
+    invite = _received_activity(obj_data)
+    if invite.get("type") != "Invite":
         return False
-    target_raw = obj_data.get("target")
-    target_id = (
-        target_raw.get("id") if isinstance(target_raw, dict) else target_raw
-    )
-    if target_id != case_id:
+    target_raw = invite.get("target")
+    if isinstance(target_raw, dict):
+        target_case_id = (
+            target_raw.get("caseId")
+            if target_raw.get("type")
+            == VultronObjectType.VULNERABILITY_CASE_STUB.value
+            else target_raw.get("id")
+        )
+    else:
+        target_case_id = target_raw
+    if target_case_id != case_id:
         return False
-    inner = obj_data.get("object")
+    inner = invite.get("object")
     inner_id = inner.get("id") if isinstance(inner, dict) else inner
     return inner_id == invitee_id
+
+
+def read_received_activity_for(
+    client: DataLayerClient, activity_id: str
+) -> dict:
+    """The activity *activity_id* as the actor behind *client* holds it.
+
+    Reads intake's archive record or the inbox's deferred copy, as
+    :func:`_received_activity` describes.
+
+    Raises:
+        AssertionError: If the actor holds no activity *activity_id*.
+    """
+    all_objects = client.get(client.dl_path())
+    if isinstance(all_objects, dict):
+        for raw_id, obj_data in all_objects.items():
+            if (
+                isinstance(obj_data, dict)
+                and _received_activity_id(str(raw_id), obj_data) == activity_id
+            ):
+                return _received_activity(obj_data)
+    raise AssertionError(
+        f"{client.base_url} holds no received activity {activity_id!r}"
+    )
+
+
+def assert_received_from(
+    client: DataLayerClient,
+    activity_id: str,
+    sender_id: str,
+    consequence: str,
+) -> None:
+    """Assert the actor behind *client* received *activity_id* from *sender_id*.
+
+    Args:
+        client: DataLayerClient for the receiving actor's container.
+        activity_id: The sender's id for the received activity.
+        sender_id: The actor the activity must have been emitted as.
+        consequence: What goes wrong when it was not, for the failure message.
+
+    Raises:
+        AssertionError: If the activity is not held, or another actor sent it.
+    """
+    actor = read_received_activity_for(client, activity_id).get("actor")
+    emitted_as = actor.get("id") if isinstance(actor, dict) else actor
+    assert emitted_as == sender_id, (
+        f"'{activity_id}' was emitted as '{emitted_as}', not as"
+        f" '{sender_id}' — {consequence}"
+    )
 
 
 def find_case_invite_for_actor(
@@ -712,13 +834,15 @@ def find_case_invite_for_actor(
     timeout_seconds: float = 15.0,
     poll_interval: float = 0.5,
 ) -> str:
-    """Poll until the CaseActor's Invite(Actor, Case) for *invitee_id* arrives.
+    """Poll until the CaseActor's Invite(Actor, CaseStub) for *invitee_id* arrives.
 
-    In the ADR-0026 flow the CaseActor emits the Invite to the suggested actor
-    after the Case Owner accepts; the invitee must then send Accept(Invite) to
+    The CASE_MANAGER emits every case Invite — after the Case Owner accepts a
+    recommendation (ADR-0026) and on the owner's direct invite alike
+    (CM-17-007, ADR-0109); the invitee must then send Accept(Invite) to
     trigger the trust-bootstrap Announce(VulnerabilityCase) that seeds its case
     replica (MV-10-003/MV-10-004).  This helper polls the invitee's DataLayer
-    for that Invite so the demo can drive the accept step.
+    for that Invite — archived by intake, or held by the inbox until the case
+    bootstrap — so the demo can drive the accept step.
 
     Args:
         client: DataLayerClient connected to the invitee container.
@@ -738,6 +862,7 @@ def find_case_invite_for_actor(
         discriminator_fn=lambda obj: _is_case_invite_for(
             obj, case_id, invitee_id
         ),
+        id_fn=_received_activity_id,
         timeout_seconds=timeout_seconds,
         poll_interval=poll_interval,
         log_msg=f"Found Invite for actor {invitee_id} on case {case_id}: %s",
@@ -1145,11 +1270,6 @@ def _wait_for_participant_status_field(
     Raises:
         AssertionError: If the state is not reached within *timeout_seconds*.
     """
-    # Import here to avoid a circular dependency with verification.py.
-    from vultron.demo.helpers.verification import (
-        _fetch_participant,
-    )
-
     deadline = time.monotonic() + timeout_seconds
     poll_count = 0
     while time.monotonic() < deadline:
@@ -1311,7 +1431,6 @@ def wait_for_case_em_terminated(
     Raises:
         AssertionError: If EM.EXITED is not observed within *timeout_seconds*.
     """
-    from vultron.core.states.em import is_em_exited
 
     def _check() -> bool:
         case_data = client.get(client.dl_path(case_id))
@@ -1384,9 +1503,6 @@ def wait_for_all_participants_rm_closed(
         AssertionError: If any participant is not RM.CLOSED within
             *timeout_seconds*.
     """
-    from vultron.demo.helpers.verification import (
-        _all_fetchable_participants_rm_closed,
-    )
 
     def _check() -> bool:
         case_data = client.get(client.dl_path(case_id))
@@ -1434,11 +1550,6 @@ def wait_for_participant_pxa_state(
 
     Spec: DEMOMA-06-002.
     """
-    from vultron.core.states.cs import CS_pxa
-    from vultron.demo.helpers.verification import (
-        _fetch_participant,
-    )
-
     if expected_states is None:
         expected_states = {CS_pxa.Pxa, CS_pxa.PxA, CS_pxa.PXa, CS_pxa.PXA}
 
@@ -1572,8 +1683,6 @@ def wait_for_initialized_case(
 
     Spec: ISSUE-2359 / ADR-0041.
     """
-    from vultron.demo.utils import case_actor_id_for_report
-
     case_actor_id = case_actor_id_for_report(report_id)
     found: list[as_VulnerabilityCase] = []
 
@@ -1637,10 +1746,6 @@ def wait_for_pending_inbox_quiescent(
 
     Spec: EDF-06-001.
     """
-    from vultron.core.models.pending_case_inbox import (
-        VultronPendingCaseInbox,
-    )
-
     pending_id = VultronPendingCaseInbox.build_id(case_id)
 
     def _check() -> bool:

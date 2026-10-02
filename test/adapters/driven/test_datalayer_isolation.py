@@ -21,6 +21,7 @@ import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
+    get_all_actor_datalayers,
     get_datalayer,
     reset_datalayer,
 )
@@ -443,6 +444,15 @@ class TestResetDatalayer:
 
         assert dl_alice_new is not dl_alice
         assert dl_bob_after is dl_bob
+
+    def test_reset_all_empties_the_registry(self):
+        get_datalayer("alice")
+        get_datalayer("bob")
+        assert set(get_all_actor_datalayers()) >= {"alice", "bob"}
+
+        reset_datalayer()
+
+        assert get_all_actor_datalayers() == {}
 
     def test_reset_nonexistent_actor_is_safe(self):
         reset_datalayer("nobody")  # must not raise

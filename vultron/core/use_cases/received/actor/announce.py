@@ -16,15 +16,12 @@ from vultron.core.models.ledger_gap_buffer import (
     get_ledger_gap_buffer,
 )
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
-from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
 )
-from vultron.core.ports.case_persistence import (
-    CaseOutboxPersistence,
-    CasePersistence,
-)
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.use_cases._helpers import (
@@ -66,27 +63,6 @@ def _sender_is_trusted(
         and pending.case_actor_id is not None
         and pending.case_actor_id == sender_id
     )
-
-
-def _link_report_case_links(dl: CasePersistence, case) -> None:
-    """Attach any matching ``ReportCaseLink`` records to the announced case."""
-    for report_ref in case.vulnerability_reports:
-        report_id = _as_id(report_ref)
-        if report_id is None:
-            continue
-
-        link = dl.read(VultronReportCaseLink.build_id(report_id))
-        if not isinstance(link, VultronReportCaseLink):
-            continue
-        if link.case_id == case.id_:
-            continue
-
-        dl.save(link.model_copy(update={"case_id": case.id_}))
-        logger.info(
-            "AnnounceVulnerabilityCase: linked report '%s' to case '%s'",
-            report_id,
-            case.id_,
-        )
 
 
 class AnnounceVulnerabilityCaseReceivedUseCase:
@@ -171,7 +147,9 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
             request=request,
         )
         bridge = BTBridge(
-            datalayer=self._dl, wire_render_port=self._wire_render_port
+            datalayer=self._dl,
+            wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
         )
         result = bridge.execute_with_setup(
             tree=tree,

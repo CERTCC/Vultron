@@ -17,11 +17,12 @@
 
 import json
 import logging
-from typing import cast
+from typing import ClassVar, cast
 
 import py_trees.behaviour
 
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
+from vultron.core.models.events.base import MessageSemantics
 from vultron.core.use_cases.triggers._base import SvcEmbargoTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
     _coerce_embargo_event,
@@ -36,6 +37,10 @@ logger = logging.getLogger(__name__)
 
 
 class SvcTerminateEmbargoUseCase(SvcEmbargoTriggerBase):
+    _assertion_event_type: ClassVar[str] = (
+        MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE.value
+    )
+
     def _prepare(self) -> None:
         request = cast(TerminateEmbargoTriggerRequest, self._request)
         dl = self._dl
@@ -56,21 +61,24 @@ class SvcTerminateEmbargoUseCase(SvcEmbargoTriggerBase):
             _coerce_embargo_event(dl.read(embargo_id), embargo_id)
         self._embargo_id = embargo_id or ""
 
+    def _assertion_subject(self) -> str | None:
+        return self._embargo_id or None
+
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
-        def _build_activities(case_manager_id: str) -> list[str]:
-            announce_id, announce_dict = self._factory.terminate_embargo(
+        def _build_activity(to: list[str] | None) -> tuple[str, str]:
+            remove_id, remove_blob = self._factory.terminate_embargo(
                 embargo_id=self._embargo_id,
                 case_id=self._case.id_,
                 actor=self._actor_id,
-                to=[case_manager_id],
+                to=to,
             )
-            self._captured["activity"] = json.loads(announce_dict)
-            return [announce_id]
+            self._captured["activity"] = json.loads(remove_blob)
+            return remove_id, remove_blob
 
         return terminate_embargo_bt(
             case_id=self._case.id_,
             result_out=self._result_out,
-            activity_builder=_build_activities,
+            activity_builder=_build_activity,
         )
 
     def _log_lifecycle_result(self) -> None:

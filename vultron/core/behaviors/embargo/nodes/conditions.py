@@ -86,6 +86,46 @@ class IsActiveEmbargoNode(DataLayerConditionWithPorts):
         return Status.SUCCESS
 
 
+class IsRejectableEmbargoNode(DataLayerConditionWithPorts):
+    """Guard that a Reject names an embargo the case can still refuse.
+
+    SUCCESS when ``embargo_id`` is the case's active embargo (consent
+    withdrawal) or one of its open proposals (refusal of those terms) —
+    the two readings MSM-07-004 gives a Reject (ADR-0093).  FAILURE
+    otherwise: a Reject of a proposal already decided, or of an embargo the
+    case never knew, has nothing to change.  Read-only, so it sits ahead of
+    the guarded commit (CLP-10-009): a Reject the effects would refuse is
+    never committed, and no replica is sent an entry it cannot replay
+    (SYNC-12-001).
+    """
+
+    def __init__(self, case_id: str, embargo_id: str, name: str | None = None):
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self.embargo_id = embargo_id
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
+
+        if (
+            self.embargo_id == case.active_embargo_id
+            or self.embargo_id in case.proposed_embargo_ids
+        ):
+            return Status.SUCCESS
+        self.feedback_message = (
+            f"Embargo '{self.embargo_id}' is neither the active embargo nor"
+            f" an open proposal of case '{self.case_id}': nothing to reject"
+        )
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
+
 class LookupParticipantNode(DataLayerConditionWithPorts):
     """Resolve participant from case and actor_id.
 
@@ -143,113 +183,6 @@ class LookupParticipantNode(DataLayerConditionWithPorts):
             )
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
-
-        self._set_output("participant", participant)
-        self.feedback_message = (
-            f"Resolved participant '{participant_id}' for actor"
-            f" '{actor_id}' on case '{self.case_id}'"
-        )
-        self.logger.info("%s: %s", self.name, self.feedback_message)
-        return Status.SUCCESS
-
-
-class OptionalLookupParticipantNode(DataLayerConditionWithPorts):
-    """Optionally resolve participant from case and actor_id.
-
-    Lenient variant of LookupParticipantNode: returns SUCCESS even when the case
-    or participant is not found. This allows the BT to continue with downstream
-    PEC updates (which are then skipped) so that protocol-visible operations
-    (log cascade) can still succeed even if the participant doesn't exist on this
-    peer.
-
-    Stores the participant record on the blackboard 'participant' key if found,
-    or does nothing if case/participant missing. Always returns SUCCESS so the
-    tree continues to cascade the log entry to all peers (idempotent behavior).
-
-    Used in received-side BT workflows where participant may legitimately not
-    exist locally yet.  Every no-op path writes ``None`` to the ``participant``
-    key first (BT-17-003): the blackboard is process-global, so a key left
-    unwritten hands the *previous* execution's participant to the PEC node.
-
-    When ``target_actor_id`` is provided it is used for the participant lookup
-    instead of the BT-execution ``actor_id`` (which is the receiving actor).
-    This is the ADR-0022 single-BT pattern: the tree executes under
-    ``actor_id=receiving_actor_id`` for guarded-commit gating, while the PEC
-    lookup targets the message's actual invitee/subject.
-    """
-
-    def __init__(
-        self,
-        case_id: str,
-        target_actor_id: str | None = None,
-        name: str | None = None,
-    ):
-        super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-        self.target_actor_id = target_actor_id
-
-    OUTPUT_PORTS: dict[str, PortInformation] = {
-        "participant": PortInformation(data_type=object, required=False),
-    }
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"participant": "/participant"}
-
-    def update(self) -> Status:
-        self._set_output("participant", None)
-        if self.datalayer is None:
-            return Status.SUCCESS
-
-        # Regime 2 / optional lookup (ADR-0087): this is the *optional* variant
-        # of the participant lookup — an absent case (e.g. a partial replica)
-        # skips as SUCCESS rather than failing, unlike LookupParticipantNode
-        # which requires the case (conformance allowlist).
-        case = self.datalayer.read_case(self.case_id)
-        if case is None:
-            self.feedback_message = f"Case '{self.case_id}' not found — skipping participant lookup"
-            self.logger.debug("%s: %s", self.name, self.feedback_message)
-            return Status.SUCCESS
-
-        # Use target_actor_id when provided (ADR-0022 single-BT pattern:
-        # tree executes under receiving_actor_id but PEC lookup targets the
-        # actual invitee/subject). Fall back to the BT execution actor_id.
-        actor_id = (
-            self.target_actor_id if self.target_actor_id else self.actor_id
-        )
-        if actor_id is None:
-            self.feedback_message = "actor_id not found in blackboard — skipping participant lookup"
-            self.logger.debug("%s: %s", self.name, self.feedback_message)
-            return Status.SUCCESS
-
-        participant_id = case.actor_participant_index.get(actor_id)
-        if not participant_id:
-            self.feedback_message = (
-                f"No participant found for actor '{actor_id}'"
-                f" on case '{self.case_id}' — skipping PEC update"
-            )
-            if self.target_actor_id:
-                # A subject was named explicitly and did not resolve. That is
-                # not the lenient "no participant on this peer yet" case this
-                # node exists for — the caller asserted whose consent it was
-                # changing and nothing will change. Sender-supplied subject
-                # URIs are not canonicalised (unlike receiving_actor_id, which
-                # inbox_handler normalises per HP-09-001), so a short id or a
-                # trailing slash lands here and would otherwise be a silent
-                # no-op.
-                self.logger.warning("%s: %s", self.name, self.feedback_message)
-            else:
-                self.logger.debug("%s: %s", self.name, self.feedback_message)
-            return Status.SUCCESS
-
-        participant = self.datalayer.read(participant_id)
-        if not isinstance(participant, CaseParticipant):
-            self.feedback_message = (
-                f"Participant '{participant_id}' not found or invalid"
-                " — skipping PEC update"
-            )
-            self.logger.debug("%s: %s", self.name, self.feedback_message)
-            return Status.SUCCESS
 
         self._set_output("participant", participant)
         self.feedback_message = (

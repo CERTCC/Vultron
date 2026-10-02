@@ -25,6 +25,7 @@ import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -200,7 +201,7 @@ def bridge(datalayer):
     from vultron.adapters.driven.trigger_activity_adapter import (
         TriggerActivityAdapter,
     )
-    from vultron.core.ports.case_persistence import CaseOutboxPersistence
+    from vultron.core.ports.case_outbox import CaseOutboxPersistence
 
     return BTBridge(
         datalayer=datalayer,
@@ -208,6 +209,7 @@ def bridge(datalayer):
             cast(CaseOutboxPersistence, datalayer)
         ),
         wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(datalayer),
     )
 
 
@@ -219,7 +221,7 @@ def trigger_activity(datalayer):
     from vultron.adapters.driven.trigger_activity_adapter import (
         TriggerActivityAdapter,
     )
-    from vultron.core.ports.case_persistence import CaseOutboxPersistence
+    from vultron.core.ports.case_outbox import CaseOutboxPersistence
 
     return TriggerActivityAdapter(cast(CaseOutboxPersistence, datalayer))
 
@@ -693,6 +695,7 @@ def test_engage_case_tree_targets_constructor_actor_when_blackboard_differs(
         datalayer=case_manager_datalayer,
         trigger_activity=TriggerActivityAdapter(case_manager_datalayer),
         wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(case_manager_datalayer),
     ).execute_with_setup(
         tree=tree,
         actor_id=case_manager_actor_id,

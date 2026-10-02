@@ -2,6 +2,10 @@
 
 import logging
 
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.dead_letter.dead_letter_tree import (
+    create_store_dead_letter_tree,
+)
 from vultron.core.models.events.unknown import (
     UnknownReceivedEvent,
     UnresolvableObjectReceivedEvent,
@@ -11,6 +15,7 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
@@ -29,10 +34,12 @@ class UnknownUseCase:
         self,
         dl: CasePersistence,
         request: UnknownReceivedEvent,
+        sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
+        self._sync_port = sync_port
         self._request: UnknownReceivedEvent = request
 
     def execute(self) -> HandlerResult:
@@ -52,18 +59,15 @@ class UnresolvableObjectUseCase:
         self,
         dl: CasePersistence,
         request: UnresolvableObjectReceivedEvent,
+        sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
+        self._sync_port = sync_port
         self._request = request
 
     def execute(self) -> HandlerResult:
-        from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.inbox.dead_letter_tree import (
-            create_store_dead_letter_tree,
-        )
-
         request = self._request
         unresolvable_uri = request.object_id or ""
         logger.warning(
@@ -75,7 +79,9 @@ class UnresolvableObjectUseCase:
         )
         tree = create_store_dead_letter_tree(request=request)
         bridge = BTBridge(
-            datalayer=self._dl, wire_render_port=self._wire_render_port
+            datalayer=self._dl,
+            wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
         )
         result = bridge.execute_with_setup(
             tree=tree,

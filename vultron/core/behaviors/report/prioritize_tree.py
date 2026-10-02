@@ -52,6 +52,9 @@ from typing import TYPE_CHECKING
 
 import py_trees
 
+from vultron.core.behaviors.call_out.bundles.prioritization import (
+    PRIORITIZATION_DETERMINISTIC,
+)
 from vultron.core.behaviors.case.engage_defer_trigger_tree import (
     defer_case_trigger_bt,
     engage_case_trigger_bt,
@@ -145,7 +148,9 @@ def create_engage_case_tree(
         ],
     )
 
-    logger.info(f"Created EngageCaseBT for case={case_id}, actor={actor_id}")
+    logger.info(
+        "Created EngageCaseBT for case=%s, actor=%s", case_id, actor_id
+    )
     return root
 
 
@@ -192,7 +197,7 @@ def create_defer_case_tree(
         ],
     )
 
-    logger.info(f"Created DeferCaseBT for case={case_id}, actor={actor_id}")
+    logger.info("Created DeferCaseBT for case=%s, actor=%s", case_id, actor_id)
     return root
 
 
@@ -252,10 +257,6 @@ def create_prioritize_subtree(
     Returns:
         Root node of the prioritize behavior tree (Selector)
     """
-    from vultron.core.behaviors.call_out.bundles.prioritization import (
-        PRIORITIZATION_DETERMINISTIC,
-    )
-
     bundle = call_out if call_out is not None else PRIORITIZATION_DETERMINISTIC
     # Phase 2: bundle.enough_info_factory and bundle.gather_info_factory are reserved for
     # the prioritization info-gathering loop and are not wired into the Phase 1 tree.
@@ -317,5 +318,7 @@ def create_prioritize_subtree(
         memory=False,
         children=[engage_path, defer_path],
     )
-    logger.info(f"Created PrioritizeBT for case={case_id}, actor={actor_id}")
+    logger.info(
+        "Created PrioritizeBT for case=%s, actor=%s", case_id, actor_id
+    )
     return root

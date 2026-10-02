@@ -10,13 +10,12 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Planned ratchet: no RM closure overrides the transition table (RMB-14-005).
+"""Ratchet: no RM closure overrides the transition table (RMB-14-005).
 
 ADR-0114 adds ``R → C`` to the RM table and routes a ``Leave`` from *Valid*
-through *Deferred* (``V → D → C``), so every closure becomes an ordinary
-transition and the ``force_rm_state`` override has no closure use left.
-Strict ``xfail`` until #4044 removes the closure overrides; see
-``notes/case-joining.md``.  The quarantine of the remaining (bootstrap)
+through *Deferred* (``V → D → C``), so every closure is an ordinary
+transition and the ``force_rm_state`` override has no closure use left
+(#4044).  See ``notes/case-joining.md``.  The quarantine of the remaining (bootstrap)
 overrides is pinned separately by ``test_participant_status_validation.py``.
 """
 
@@ -60,13 +59,6 @@ def _forced_closure_sites() -> list[str]:
     return sites
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "RMB-14-005: no RM closure path calls force_rm_state; Leave from"
-        " VALID is V -> D -> C. Tracked by #4044."
-    ),
-)
 @pytest.mark.spec("RMB-14-005")
 def test_no_rm_closure_forces_past_the_transition_table() -> None:
     """No write of ``RM.CLOSED`` in ``vultron/`` bypasses the RM table."""

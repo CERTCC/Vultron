@@ -18,7 +18,7 @@
 import logging
 from typing import Any, cast
 
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.errors import VultronAlreadyExistsError
 from vultron.wire.as2.factories import (
     announce_embargo_activity,
@@ -46,21 +46,23 @@ class _EmbargoMixin:
         actor: str,
         to: list[str] | None = None,
         attributed_to: str | None = None,
+        activity_id: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Invite(as_EmbargoEvent, Case)`` proposal.
 
         ``attributed_to`` names the proposer of a relayed proposal (CM-24-002);
         it is forwarded only when given so a participant's own proposal keeps
-        the factory's default of no attribution.
+        the factory's default of no attribution.  ``activity_id`` likewise:
+        given, it is the Invite's id (EP-04-011); absent, the factory mints one.
         """
         embargo = _to_wire(self._dl.read(embargo_id), as_EmbargoEvent)
-        attribution: dict[str, Any] = (
-            {"attributed_to": attributed_to}
-            if attributed_to is not None
-            else {}
-        )
+        optional: dict[str, Any] = {}
+        if attributed_to is not None:
+            optional["attributed_to"] = attributed_to
+        if activity_id is not None:
+            optional["id_"] = activity_id
         activity = em_propose_embargo_activity(
-            embargo=embargo, context=case_id, actor=actor, to=to, **attribution
+            embargo=embargo, context=case_id, actor=actor, to=to, **optional
         )
         try:
             self._dl.create(activity)
@@ -141,10 +143,19 @@ class _EmbargoMixin:
         actor: str,
         to: list[str] | None = None,
     ) -> tuple[str, str]:
-        """Create and persist a ``Remove(as_EmbargoEvent, origin=case)`` ET activity."""
+        """Create and persist a ``Remove(as_EmbargoEvent, origin=case)`` ET activity.
+
+        ``context`` names the case as well: the CASE_MANAGER commits its own
+        teardown as a canonical entry, whose snapshot must carry the case URI
+        in ``context`` (VM-08-003, #4085).
+        """
         embargo = _to_wire(self._dl.read(embargo_id), as_EmbargoEvent)
         activity = remove_embargo_from_case_activity(
-            embargo=embargo, origin=case_id, actor=actor, to=to
+            embargo=embargo,
+            origin=case_id,
+            context=case_id,
+            actor=actor,
+            to=to,
         )
         try:
             self._dl.create(activity)

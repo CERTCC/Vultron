@@ -295,7 +295,7 @@ The asymmetry follows from what exists at the moment of closure.
 `as:Leave` needs something to leave, and a participant can only leave a case it joined, so `Leave` is the right verb once a case exists ([ADR-0050](../adr/0050-leave-vul-case-canonical-rm-closure.md)).
 Before a case exists there is no membership to end — there is only an outstanding `Offer(VulnerabilityReport)`.
 Closing at that point means refusing the offer, which `as:Reject` already says.
-`Reject(Offer(VulnerabilityReport))` is therefore reachable only from `RM.INVALID`, because a report that reached `RM.VALID` has a case, and closing that case is `Leave(VulnerabilityCase)`'s job.
+`Reject(Offer(VulnerabilityReport))` is therefore reachable only from `RM.RECEIVED` or `RM.INVALID` (both have a close edge, [ADR-0114](../adr/0114-joining-a-case-stub-invite-inert-participant.md)), because a report that reached `RM.VALID` has a case, and closing that case is `Leave(VulnerabilityCase)`'s job.
 
 This is the second design rule at work.
 Reusing `as:Leave` for a report the sender never joined would have claimed a membership that never existed, and minting a third verb for report closure was unnecessary when `as:Reject` expresses refusal.

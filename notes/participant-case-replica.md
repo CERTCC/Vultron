@@ -110,7 +110,7 @@ case through one of two paths:
 1. **Report-submission path**: the receiver has already processed a
    `Create(VulnerabilityCase)` from the case creator, which establishes the
    local CASE_MANAGER identity before any `Announce` arrives.  The
-   `VultronReportCaseLink.trusted_case_actor_id` field carries the
+   `VultronReportCaseLink.case_manager_id` field carries the
    trusted identity; `_find_case_actor_id()` returns it via path 1.
 2. **Invite/Accept path**: the receiver has processed an inbound
    `InviteActorToCase` from the CASE_MANAGER, which leaves an invite trust

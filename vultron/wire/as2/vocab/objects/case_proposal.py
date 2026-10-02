@@ -48,7 +48,7 @@ class as_CaseProposal(as_VultronObject):
     Declares ``object_`` in :attr:`inline_required_refs`, so persistence keeps
     the report inline rather than collapsing it to its id (CP-01-004; #2482).
 
-    A vendor actor creates this object to request that a dedicated
+    A report receiver creates this object to request that a dedicated
     case-actor service initialise a new :class:`VulnerabilityCase`.
     The case-actor evaluates the proposal and responds with either
     ``Accept(as_CaseProposal)`` followed by
@@ -61,7 +61,7 @@ class as_CaseProposal(as_VultronObject):
 
     Fields:
         type_: Always ``"CaseProposal"``; registered in ``VultronObjectType``.
-        attributed_to: Required URI of the vendor actor that originated
+        attributed_to: Required URI of the report receiver that originated
             the proposal (CP-01-003).
         object_: Required inline ``as_VulnerabilityReport`` around which the
             case is to be created.  URI-only references are not permitted
@@ -93,10 +93,10 @@ class as_CaseProposal(as_VultronObject):
         serialization_alias="type",
     )
 
-    # CP-01-003: vendor actor URI that originated the proposal.
+    # CP-01-003: report receiver URI that originated the proposal.
     attributed_to: NonEmptyString = Field(
         ...,
-        description="URI of the vendor actor that originated the proposal.",
+        description="URI of the report receiver that originated the proposal.",
     )
 
     # CP-01-004: fully inline as_VulnerabilityReport; URI references not permitted

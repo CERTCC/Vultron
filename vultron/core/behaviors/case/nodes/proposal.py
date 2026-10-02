@@ -14,7 +14,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 """
-CaseProposal action nodes for the slimmed vendor receive-report tree.
+CaseProposal action nodes for the slimmed receive-report tree.
 
 Provides :class:`ProposeReportCaseToActorNode`, the ADR-0041 variant of the
 proposal send that operates directly from a ``report_id`` without requiring a
@@ -43,13 +43,13 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.models.pending_create_case_activity import (
     PendingCreateCaseActivity,
 )
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 
 
 class ProposeReportCaseToActorNode(DataLayerActionWithPorts):
     """Send ``Create(as_CaseProposal)`` from ``report_id`` without a prior case.
 
-    Used by the slimmed vendor ``receive_report_case_tree`` (ADR-0041).  Unlike
+    Used by the slimmed ``receive_report_case_tree`` (ADR-0041).  Unlike
     :class:`~vultron.core.behaviors.case.nodes.actor.ProposeCaseToActorNode`,
     this node does not require a ``VulnerabilityCase`` to exist — it uses
     ``report_id`` directly and derives ``case_actor_id`` from
@@ -85,7 +85,7 @@ class ProposeReportCaseToActorNode(DataLayerActionWithPorts):
                 f"{self.name}: case_actor_service_url is not configured"
                 " (set VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL)"
             )
-            self.logger.error(self.feedback_message)
+            self.logger.error("%s", self.feedback_message)
         return identity
 
     def update(self) -> Status:

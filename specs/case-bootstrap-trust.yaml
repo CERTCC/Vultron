@@ -63,7 +63,7 @@ groups:
       "the CASE_MANAGER owns the case" true.
     verification: >-
       `test/core/behaviors/case/test_case_proposal_received_tree.py` asserts both halves of the
-      distinction on the bootstrap snapshot: `TestADR0041VendorParticipant` that the proposing report
+      distinction on the bootstrap snapshot: `TestADR0041OwnerParticipant` that the proposing report
       receiver is a participant carrying `CVDRole.CASE_OWNER`, and the case-manager-participant assertions
       that the creating actor carries `CVDRole.CASE_MANAGER` alongside `CVDRole.COORDINATOR` and
       never `CVDRole.CASE_OWNER`.

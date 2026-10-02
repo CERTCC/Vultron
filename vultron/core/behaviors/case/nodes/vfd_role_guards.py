@@ -54,8 +54,47 @@ from vultron.core.predicates.roles import (
     is_sole_observer,
 )
 from vultron.enums.roles import CVDRole
+from vultron.errors import VultronNotFoundError
 
 logger = logging.getLogger(__name__)
+
+
+class ActorNotInCaseError(VultronNotFoundError):
+    """The actor has no entry in ``case.actor_participant_index``."""
+
+    def __init__(self, case_id: str, actor_id: str) -> None:
+        super().__init__("Participant for actor", actor_id)
+        self.case_id = case_id
+
+
+class ParticipantRecordUnreadableError(VultronNotFoundError):
+    """The index names a participant record that is missing or mistyped."""
+
+    def __init__(self, participant_id: str, actor_id: str) -> None:
+        super().__init__("CaseParticipant", participant_id)
+        self.actor_id = actor_id
+
+
+def _read_indexed_participant(
+    datalayer: CasePersistence,
+    case: VulnerabilityCase,
+    actor_id: str,
+) -> CaseParticipant:
+    """Return *actor_id*'s participant in *case* via the roster index.
+
+    Raises :class:`ActorNotInCaseError` when the actor is not indexed, and
+    :class:`ParticipantRecordUnreadableError` when the indexed record is
+    missing or not a :class:`CaseParticipant` (BT-HELPER-01: raise, never
+    return ``None``).  The two are distinct so a caller can tell a policy
+    outcome (not a participant) from a broken store.
+    """
+    participant_id = case.actor_participant_index.get(actor_id)
+    if participant_id is None:
+        raise ActorNotInCaseError(case.id_, actor_id)
+    participant = datalayer.read(participant_id)
+    if not isinstance(participant, CaseParticipant):
+        raise ParticipantRecordUnreadableError(participant_id, actor_id)
+    return participant
 
 
 def _resolve_actor_roles(
@@ -78,19 +117,18 @@ def _resolve_actor_roles(
         logger.warning("%s: case '%s' not found", node_name, case_id)
         return None
 
-    participant_id = case.actor_participant_index.get(actor_id)
-    if participant_id is None:
+    try:
+        participant = _read_indexed_participant(datalayer, case, actor_id)
+    except ActorNotInCaseError:
         logger.warning(
             "%s: actor '%s' not in case '%s'", node_name, actor_id, case_id
         )
         return None
-
-    participant = datalayer.read(participant_id)
-    if not isinstance(participant, CaseParticipant):
+    except ParticipantRecordUnreadableError as exc:
         logger.warning(
             "%s: participant '%s' not found or wrong type",
             node_name,
-            participant_id,
+            exc.resource_id,
         )
         return None
 

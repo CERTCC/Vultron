@@ -44,7 +44,7 @@ from vultron.core.behaviors.sync.nodes.chain import (
 from vultron.core.behaviors.sync.nodes.fanout import (
     CollectLogEntryRecipientsNode,
     CollectNonClosedLogEntryRecipientsNode,
-    _SendLogEntryToEachNode,
+    SendLogEntryToEachNode,
 )
 from vultron.core.behaviors.sync.nodes.ownership_offer_effect import (
     IsOfferOwnershipTransferEventNode,
@@ -85,7 +85,6 @@ LEDGER_NODE_KWARGS: dict[str, dict[str, Any]] = {
     "PersistLogEntryNode": {"name": "PersistLogEntry"},
     "SendLogEntryToEachNode": {},
     "SendMissingEntriesNode": {},
-    "_SendLogEntryToEachNode": {},
 }
 
 #: Extra blackboard context a node needs before its ``initialise()`` reaches
@@ -255,25 +254,25 @@ class TestIsOfferOwnershipTransferEventNodePorts:
 
 
 # ---------------------------------------------------------------------------
-# fanout.py — _SendLogEntryToEachNode
+# fanout.py — SendLogEntryToEachNode
 # ---------------------------------------------------------------------------
 
 
 class TestSendLogEntryToEachNodePorts:
     def test_missing_datalayer_raises_no_data_available(self) -> None:
-        node = _SendLogEntryToEachNode(name="SendLogEntryToEach")
+        node = SendLogEntryToEachNode(name="SendLogEntryToEach")
         node.setup_ports()
         with pytest.raises(NoDataAvailable):
             node.get_input("datalayer")
 
     def test_missing_log_entry_raises_no_data_available(self) -> None:
-        node = _SendLogEntryToEachNode(name="SendLogEntryToEach")
+        node = SendLogEntryToEachNode(name="SendLogEntryToEach")
         node.setup_ports()
         with pytest.raises(NoDataAvailable):
             node.get_input("log_entry")
 
     def test_missing_fanout_recipients_raises_no_data_available(self) -> None:
-        node = _SendLogEntryToEachNode(name="SendLogEntryToEach")
+        node = SendLogEntryToEachNode(name="SendLogEntryToEach")
         node.setup_ports()
         with pytest.raises(NoDataAvailable):
             node.get_input("fanout_recipients")

@@ -57,6 +57,7 @@ Defined in `vultron/core/models/case_participant.py`.
 | `participant_statuses` | Append-only history of `ParticipantStatus` snapshots |
 | `embargo_consent_state` | This participant's current Participant Embargo Consent (PEC) state |
 | `accepted_embargo_ids` | URIs of embargoes the participant has accepted |
+| `joined` | Whether the participant has joined the case: it was seated by case initialization or accepted its stub Invite. Defaults to `true`. One input to `VulnerabilityCase.is_active_participant`, which decides whether the participant is sent case content (CM-10-004, ADR-0114) |
 | `participant_case_name` | Optional human-readable name for this participant in this case |
 | `invite_rsvp_deadline` | The RSVP deadline the CASE_MANAGER stamped as `Invite.end_time` on this participant's `Invite(EmbargoEvent)`; recorded at the manager's commit of that Invite and reaching replicas through the ledger, never derived on receipt (CM-28-012, CM-28-013) |
 

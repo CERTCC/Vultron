@@ -23,15 +23,17 @@ reads the list) agrees with the scalar state about who is a signatory to
 the active embargo.
 
 One store, three actors.  Every trigger here runs against the case's
-canonical store, which is the state the CASE_MANAGER's adjudication of each
-answer produces (EP-09-005; the relay that carries a non-manager's answer to
-it is #3913).  A trigger's BT follows the requesting actor's store when that
-actor is hosted alongside the store's owner, so the three actors are given
-ids under distinct authorities to keep every trigger in this one store.
-The proposal is indexed here by hand for the same reason: indexing a
-relayed proposal at the CASE_MANAGER is the relay's job.
+canonical store, whose owner is the CASE_MANAGER.  The proposer is not, so
+its revision trigger only asks (EP-09-008): the queued ``Invite`` is routed
+back into the store as the owner's inbox would route it, and the owner's
+adjudication moves the case to REVISE and indexes the proposal (EP-09-001).
+The owner then answers by trigger as the CASE_MANAGER.  A trigger's BT
+follows the requesting actor's store when that actor is hosted alongside the
+store's owner, so the three actors are given ids under distinct authorities
+to keep every trigger in this one store.
 """
 
+import inspect
 from datetime import timedelta
 from typing import cast
 
@@ -42,14 +44,17 @@ from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.behaviors.case.update_support import find_excluded_actor_ids
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.use_cases.triggers.embargo import (
@@ -63,6 +68,8 @@ from vultron.core.use_cases.triggers.requests import (
     RejectEmbargoTriggerRequest,
 )
 from vultron.enums.roles import CVDRole
+from vultron.semantic_registry import extract_event, use_case_map
+from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import (
     FinderParticipant,
@@ -139,7 +146,12 @@ class _Revision:
     # -- the steps ---------------------------------------------------------
 
     def propose_revision(self, *, days: int) -> str:
-        """The proposer proposes revision B ending *days* from now; returns B's id."""
+        """The proposer proposes revision B ending *days* from now; returns B's id.
+
+        The proposer is not the CASE_MANAGER, so its trigger only asks
+        (EP-09-008); the owner's adjudication of the queued ``Invite`` is what
+        moves the case to REVISE and indexes the proposal (EP-09-001).
+        """
         result = SvcProposeEmbargoRevisionUseCase(
             self.dl,
             ProposeEmbargoRevisionTriggerRequest(
@@ -148,19 +160,33 @@ class _Revision:
                 end_time=now_utc() + timedelta(days=days),
             ),
             trigger_activity=TriggerActivityAdapter(self.dl),
+            sync_port=SyncActivityAdapter(self.dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
         activity = activity_of(result)
-        revision_id = str(activity["object"]["id"])
-        proposal_id = str(activity["id"])
-        # The CASE_MANAGER indexes a relayed proposal (EP-09-001; #3913).
-        case = self.read_case()
-        case.pending_embargo_proposal_index = {
-            **case.pending_embargo_proposal_index,
-            revision_id: proposal_id,
+        assert activity["to"] == [OWNER]
+        self._receive_as_owner(str(activity["id"]))
+        return str(activity["object"]["id"])
+
+    def _receive_as_owner(self, activity_id: str) -> None:
+        """Route a queued activity into the case's store as the inbox would."""
+        body = read_sealed_body_dict(self.dl, activity_id)
+        assert body is not None, f"'{activity_id}' was never sealed"
+        event = extract_event(parse_activity(body)).model_copy(
+            update={"receiving_actor_id": OWNER}
+        )
+        use_case = use_case_map()[event.semantic_type]
+        offered: dict[str, object] = {
+            "sync_port": SyncActivityAdapter(self.dl),
+            "trigger_activity": TriggerActivityAdapter(self.dl),
+            "wire_render_port": As2WireRenderAdapter(),
         }
-        self.dl.save(case)
-        return revision_id
+        accepted = inspect.signature(use_case).parameters
+        ports = {k: v for k, v in offered.items() if k in accepted}
+        verdict = use_case(self.dl, event, **ports).execute()
+        assert verdict.disposition is HandlerDisposition.APPLIED, (
+            verdict.reason
+        )
 
     def owner_accepts(self, revision_id: str) -> None:
         proposal_id = self.read_case().pending_embargo_proposal_index[
@@ -172,6 +198,7 @@ class _Revision:
                 actor_id=OWNER, case_id=self.case.id_, proposal_id=proposal_id
             ),
             trigger_activity=TriggerActivityAdapter(self.dl),
+            sync_port=SyncActivityAdapter(self.dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -185,6 +212,7 @@ class _Revision:
                 actor_id=OWNER, case_id=self.case.id_, proposal_id=proposal_id
             ),
             trigger_activity=TriggerActivityAdapter(self.dl),
+            sync_port=SyncActivityAdapter(self.dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 

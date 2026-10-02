@@ -31,19 +31,25 @@ module.
 import logging
 
 from py_trees.common import Status
+from py_trees.ports import NoDataAvailable
 
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
 from vultron.core.models.activity import VultronCreateCaseActivity
+from vultron.core.participants.recipients import case_content_recipients
 from vultron.errors import VultronAlreadyExistsError
 
 logger = logging.getLogger(__name__)
 
 
 class CollectCaseAddresseesNode(DataLayerActionWithPorts):
-    """Resolve case object and peer addressees for Create(Case) emission."""
+    """Resolve case object and peer addressees for Create(Case) emission.
+
+    The addressees are the case's active participants other than the sender
+    (CM-10-004), chosen by the shared selection (CM-10-007).
+    """
 
     def __init__(self, name: str | None = None):
         super().__init__(name=name or self.__class__.__name__)
@@ -80,7 +86,9 @@ class CollectCaseAddresseesNode(DataLayerActionWithPorts):
         case_id = self.case_id_bb
         if not isinstance(case_id, str):
             self.logger.error(
-                f"{self.name}: case_id must be a string, got {type(case_id)}"
+                "%s: case_id must be a string, got %s",
+                self.name,
+                type(case_id),
             )
             return Status.FAILURE
 
@@ -90,17 +98,15 @@ class CollectCaseAddresseesNode(DataLayerActionWithPorts):
         # Create proceeds. Deliberately unguarded (conformance allowlist).
         case_obj = self.datalayer.read_case(case_id)
         if case_obj is not None:
-            addressees = [
-                actor_id
-                for actor_id in case_obj.actor_participant_index
-                if actor_id != self.actor_id
-            ]
+            addressees = case_content_recipients(
+                case_obj, self.datalayer, excluding={self.actor_id}
+            )
         else:
             addressees = []
 
         if addressees:
             self.logger.info(
-                f"{self.name}: Notifying addressees: {addressees}"
+                "%s: Notifying addressees: %s", self.name, addressees
             )
 
         self._set_output("create_case_obj", case_obj)
@@ -137,8 +143,6 @@ class CreateAndPersistCaseActivityNode(DataLayerActionWithPorts):
         }
 
     def initialise(self) -> None:
-        from py_trees.ports import NoDataAvailable
-
         super().initialise()
         self.case_id_bb: str = self.get_input("case_id")
         try:
@@ -167,7 +171,9 @@ class CreateAndPersistCaseActivityNode(DataLayerActionWithPorts):
         case_id = self.case_id_bb
         if not isinstance(case_id, str):
             self.logger.error(
-                f"{self.name}: case_id must be a string, got {type(case_id)}"
+                "%s: case_id must be a string, got %s",
+                self.name,
+                type(case_id),
             )
             return Status.FAILURE
 
@@ -176,13 +182,13 @@ class CreateAndPersistCaseActivityNode(DataLayerActionWithPorts):
             self.feedback_message = (
                 f"{self.name}: 'create_case_obj' not on blackboard"
             )
-            self.logger.error(self.feedback_message)
+            self.logger.error("%s", self.feedback_message)
             return Status.FAILURE
 
         addressees = self.create_case_addressees_bb
         if not isinstance(addressees, list):
             self.logger.error(
-                f"{self.name}: create_case_addressees must be a list"
+                "%s: create_case_addressees must be a list", self.name
             )
             return Status.FAILURE
 
@@ -195,13 +201,16 @@ class CreateAndPersistCaseActivityNode(DataLayerActionWithPorts):
         try:
             self.datalayer.create(activity)
             self.logger.info(
-                f"{self.name}: Created CreateCaseActivity activity"
-                f" {activity.id_}"
+                "%s: Created CreateCaseActivity activity %s",
+                self.name,
+                activity.id_,
             )
         except VultronAlreadyExistsError as e:
             self.logger.warning(
-                f"{self.name}: CreateCaseActivity activity {activity.id_}"
-                f" already exists: {e}"
+                "%s: CreateCaseActivity activity %s already exists: %s",
+                self.name,
+                activity.id_,
+                e,
             )
 
         self._set_output("activity_id", activity.id_)

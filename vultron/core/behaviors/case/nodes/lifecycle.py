@@ -39,8 +39,12 @@ from vultron.core.behaviors.ledger_patch import (
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.errors import VultronCanonicalEntryError, VultronValidationError
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.errors import (
+    VultronBTInternalError,
+    VultronCanonicalEntryError,
+    VultronValidationError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -306,8 +310,8 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
         case_id = self._resolve_case_id()
         if not case_id:
             self.logger.error(
-                f"{self.name}: no case_id available — cannot commit ledger"
-                " entry"
+                "%s: no case_id available — cannot commit ledger entry",
+                self.name,
             )
             return Status.FAILURE
 
@@ -367,12 +371,19 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
             payload_snapshot=payload_snapshot,
         )
         result = BTBridge(
-            datalayer=cast(CaseOutboxPersistence, self.datalayer)
-        ).execute_with_setup(
-            tree=tree,
-            actor_id=self.actor_id,
+            datalayer=cast(CaseOutboxPersistence, self.datalayer),
             sync_port=self._sync_port,
-        )
+        ).execute_with_setup(tree=tree, actor_id=self.actor_id)
+        if result.internal_error:
+            # Carry the nested bridge's classification across the hop: a
+            # missing sync port (RequireSyncPortNode) or a crash in the commit
+            # tree is our fault, so the outer bridge must flag it too rather
+            # than let the received verdict read it as a refusal (ADR-0095,
+            # #4113).
+            raise VultronBTInternalError(
+                f"{self.name}: nested ledger commit for case '{case_id}'"
+                f" failed: {result.feedback_message}"
+            )
         if result.status == Status.SUCCESS:
             self.logger.info(
                 "%s: committed log entry '%s' for case '%s'",

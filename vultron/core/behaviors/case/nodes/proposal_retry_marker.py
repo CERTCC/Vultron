@@ -34,12 +34,15 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.models.activity import VultronCreateCaseActivity
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.pending_create_case_activity import (
     PendingCreateCaseActivity,
 )
 from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.wire_keys import wire_key
+from vultron.core.participants.recipients import case_content_participants
+from vultron.core.services.embargo_ordering import read_embargo_event
 from vultron.enums.roles import CVDRole
+from vultron.errors import VultronNotFoundError, VultronValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +54,7 @@ class CheckMarkerExistsNode(DataLayerAction):
     was already sent for this proposal and a ``Create(VulnerabilityCase)``
     delivery is still pending.  The retry runner (#1139) owns recovery; the
     current delivery should be a no-op to avoid duplicate Accepts on the
-    vendor side.
+    report-receiver side.
 
     Returns FAILURE when no marker is found, allowing the outer Selector to
     proceed to the normal / duplicate flow.
@@ -97,12 +100,12 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
     def __init__(
         self,
         proposal_id: str,
-        vendor_uri: str,
+        owner_uri: str,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._proposal_id = proposal_id
-        self._vendor_uri = vendor_uri
+        self._owner_uri = owner_uri
         self._case_id_bb: str | None = None
         self._accept_activity_id_bb: str | None = None
 
@@ -133,36 +136,31 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
             self._accept_activity_id_bb = None
 
     def _collect_reporter_uris(self, raw_case: VulnerabilityCase) -> list[str]:
-        """Return URIs of REPORTER/FINDER participants in *raw_case*, excluding vendor.
+        """Return URIs of active REPORTER/FINDER participants, excluding the owner.
 
-        CaseActor bootstraps non-vendor participants (ADR-0041 AC-5) by including
+        CaseActor bootstraps non-owner participants (ADR-0041 AC-5) by including
         them as direct ``to`` recipients of ``Create(VulnerabilityCase)`` so their
         DataLayers can seed a case replica immediately via
         ``CreateCaseReceivedUseCase`` without waiting for the
         ``Offer(CaseManagerRole)`` round-trip (which ADR-0041 removes).
         """
         assert self.datalayer is not None
-        uris: list[str] = []
-        for p_id in raw_case.actor_participant_index.values():
-            p = self.datalayer.read(p_id)
-            if not isinstance(p, CaseParticipant):
-                continue
-            if (
-                CVDRole.REPORTER not in p.roles
-                and CVDRole.FINDER not in p.roles
-            ):
-                continue
-            uri = getattr(p, "attributed_to", None)
-            if isinstance(uri, str) and uri and uri != self._vendor_uri:
-                uris.append(uri)
-        return uris
+        # Only active participants are sent case content (CM-10-004); the
+        # reporter is seeded SIGNATORY before this node runs (CM-14-005).
+        return [
+            uri
+            for uri, p in case_content_participants(
+                raw_case, self.datalayer, excluding={self._owner_uri}
+            )
+            if CVDRole.REPORTER in p.roles or CVDRole.FINDER in p.roles
+        ]
 
     def _build_case_object(
         self, raw_case: VulnerabilityCase
     ) -> dict[str, Any]:
         assert self.datalayer is not None
-        # Materialise each participant ref so _store_embedded_participants
-        # on the vendor side receives full objects, not bare ID strings (AC-5).
+        # Materialise each participant ref so store_embedded_participants
+        # on the owner's side receives full objects, not bare ID strings (AC-5).
         materialized: list[Any] = []
         for ref in raw_case.case_participants:
             if isinstance(ref, str):
@@ -195,6 +193,20 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
             else:
                 inlined_reports.append(report_ref)
         case_dict["vulnerability_reports"] = inlined_reports
+        # Carry the active embargo inline too: a recipient refuses a case
+        # naming an embargo its own store cannot read (EMB-18-003), and the
+        # CASE_MANAGER minted this one, so no recipient holds it yet.  Raises
+        # when this store cannot read it — sending the bare id would only
+        # hand every recipient a case it must refuse.
+        if isinstance(raw_case.active_embargo, str):
+            embargo = read_embargo_event(
+                self.datalayer, raw_case.active_embargo
+            )
+            embargo_dict = port.render(embargo)
+            embargo_dict.setdefault("type", "EmbargoEvent")
+            case_dict[wire_key("active_embargo", VulnerabilityCase)] = (
+                embargo_dict
+            )
         return case_dict
 
     def update(self) -> Status:
@@ -227,13 +239,21 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
         # EmitCreateVulnerabilityCaseNode so the retry runner (#1139)
         # can reconstruct the exact same activity without re-running the BT.
         # AC-5 (ADR-0041): embed full inline case object with materialised
-        # participants so _store_embedded_participants seeds the vendor replica.
-        case_object = self._build_case_object(case)
+        # participants so store_embedded_participants seeds the owner's replica.
+        try:
+            case_object = self._build_case_object(case)
+        except (VultronNotFoundError, VultronValidationError) as exc:
+            self.feedback_message = (
+                f"Invariant violation (EMB-18-003): case '{case_id}' names an"
+                f" active embargo this store cannot read: {exc}"
+            )
+            logger.exception("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
 
         # ADR-0041 AC-5: bootstrap all known participants directly.
         # Include REPORTER/FINDER URIs so their DataLayers receive the case
         # replica immediately; CreateCaseReceivedUseCase handles them via the
-        # non-vendor participant path (no ReportCaseLink required).
+        # non-owner participant path (no ReportCaseLink required).
         # CP-05-003 / ADR-0045: context = case URI (deferral routing key);
         # in_reply_to = Accept URI (causal antecedent, AS2-correct field).
         reporter_uris = self._collect_reporter_uris(case)
@@ -242,7 +262,7 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
             object_=case_object,
             context=case_id,
             in_reply_to=accept_activity_id,
-            to=[self._vendor_uri, *reporter_uris],
+            to=[self._owner_uri, *reporter_uris],
         )
         # The marker's payload is the AS2 document the retry runner re-sends
         # over HTTP (#1139), and ``create_activity`` is a core-branch object, so
@@ -252,7 +272,8 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
         marker = PendingCreateCaseActivity(
             proposal_id=self._proposal_id,
             case_actor_id=self.actor_id,
-            vendor_uri=self._vendor_uri,
+            # Stored field keeps its pre-rename name (#4128).
+            vendor_uri=self._owner_uri,
             create_activity_payload=payload,
         )
 

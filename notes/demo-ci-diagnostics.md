@@ -171,6 +171,7 @@ missing log pattern.
 | 15 | `test_invariant_15_cs_state_transitions_observed` | active | 1 — Sent |
 | 16 | `test_invariant_16_causal_edges_in_ledger_order` | active | 3 — Committed |
 | — | `test_invariant_clp13_no_rejected_invite_entries` | active | 3 — Committed |
+| — | `test_invariant_clp07_unique_payload_snapshot_ids` | active | 3 — Committed |
 | — | `test_invariant_clp14_timestamp_invariants` | active | 3 — Committed |
 | — | `test_invariant_per_actor_replica_no_rm_state_oscillation` | active | 2 — Received |
 | — | `test_invariant_per_actor_replica_rm_closed_termination` | active | 2 — Received |
@@ -178,9 +179,9 @@ missing log pattern.
 | — | `test_invariant_per_actor_replica_cs_state_transitions_observed` | active | 2 — Received |
 
 **The `#` column is a historical label, not an index.** It skips 8 (that
-invariant is scenario-local — see below) and runs out entirely for the last
-six, which are named for the spec clause or the property they check rather
-than taking the next number. Match a pytest failure to a row by **test
+invariant is scenario-local — see below) and runs out entirely for the
+unnumbered rows, which are named for the spec clause or the property they check
+rather than taking the next number. Match a pytest failure to a row by **test
 function name**, never by number or position.
 
 **The four `per_actor_replica_*` rows are the replica-side halves of 6, 7, 9
@@ -246,9 +247,10 @@ identified which layer broke.
   All five are now active guards. If one goes red, the CASE_MANAGER's terminal
   entry is missing again: check that `CommitCaseActorRMClosedEntryNode` ran on
   the owner-Leave path and that `CLOSE_CASE` still receives a `WireRenderPort`.
-  Every semantic gets one through `with_wire_render_port()` in `make_dispatcher()`
-  (#3930); without it the Leave's own guarded commit raises `VultronWiringError`,
-  while the RM.CLOSED node on its own skips its entry best-effort.
+  Every semantic gets one through `with_received_baseline_ports()` in
+  `make_dispatcher()` (#3930); without it the Leave's own guarded commit raises
+  `VultronWiringError`, while the RM.CLOSED node on its own skips its entry
+  best-effort.
 - **The `per_actor_replica_*` checks are per-replica, not cross-replica.** They
   do not compare replicas against each other. Each runs every non-`case-actor`
   replica **in isolation** (`{actor: entries}`, so `auth_entries()` falls back

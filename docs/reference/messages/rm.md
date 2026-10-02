@@ -130,8 +130,8 @@ rather than a retraction of the earlier deferral.
 ## RC — Report Closed
 
 - **Protocol role:** The Participant has closed the report.
-- **Triggering transition:** Invalid, Deferred, or Accepted → Closed
-  ({I,D,A} → C).
+- **Triggering transition:** Received, Invalid, Deferred, or Accepted → Closed
+  ({R,I,D,A} → C).
 - **Wire activity:** `Reject(Offer(VulnerabilityReport))`. This activity also
   appears as an ordinary refusal in the fault-and-acknowledgment mapping
   (MSM-05-003).

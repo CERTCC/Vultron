@@ -41,12 +41,14 @@ import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.case.nodes import ProposeReportCaseToActorNode
 from vultron.core.behaviors.case.offer_provenance import find_offer_for_report
+from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.report import VulnerabilityReport
@@ -222,7 +224,9 @@ def _run_received_bt(
         offer_actor_id=offer_actor_id,
     )
     activity = as_Create(
-        actor=_VENDOR_URI, object_=proposal, to=[_CASE_ACTOR_URI]
+        actor=VultronOrganization(id_=_VENDOR_URI),
+        object_=proposal,
+        to=[_CASE_ACTOR_URI],
     )
     event = extract_event(activity).model_copy(
         update={"receiving_actor_id": _CASE_ACTOR_URI}
@@ -235,6 +239,7 @@ def _run_received_bt(
         event,
         wire_render_port=As2WireRenderAdapter(),
         trigger_activity=TriggerActivityAdapter(dl),
+        sync_port=SyncActivityAdapter(dl),
     ).execute()
 
 

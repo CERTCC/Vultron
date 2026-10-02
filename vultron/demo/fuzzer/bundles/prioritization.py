@@ -35,41 +35,32 @@ from vultron.core.behaviors.call_out.bundles.prioritization import (
     PRIORITIZATION_DETERMINISTIC,
     PrioritizationCallOutBundle,
 )
+from vultron.demo.fuzzer.report_management.prioritize import (
+    EnoughPrioritizationInfo,
+    EvaluateCasePriority,
+    GatherPrioritizationInfo,
+    OnAccept,
+    OnDefer,
+)
 
 
 def _stochastic_evaluate_priority(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.prioritize import (
-        EvaluateCasePriority,
-    )
-
     return EvaluateCasePriority(name)
 
 
 def _stochastic_on_accept(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.prioritize import OnAccept
-
     return OnAccept(name)
 
 
 def _stochastic_on_defer(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.prioritize import OnDefer
-
     return OnDefer(name)
 
 
 def _stochastic_enough_info(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.prioritize import (
-        EnoughPrioritizationInfo,
-    )
-
     return EnoughPrioritizationInfo(name)
 
 
 def _stochastic_gather_info(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.prioritize import (
-        GatherPrioritizationInfo,
-    )
-
     return GatherPrioritizationInfo(name)
 
 

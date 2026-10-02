@@ -36,11 +36,10 @@ from vultron.core.behaviors.call_out.bundles.case_proposal import (
     CASE_PROPOSAL_DETERMINISTIC,
     CaseProposalCallOutBundle,
 )
+from vultron.demo.fuzzer.case_management import EvaluateCaseProposal
 
 
 def _stochastic_evaluate_proposal(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.case_management import EvaluateCaseProposal
-
     return EvaluateCaseProposal(name)
 
 

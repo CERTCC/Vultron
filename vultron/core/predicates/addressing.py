@@ -35,7 +35,12 @@ This module MUST NOT import from ``vultron.core.behaviors``,
 from collections.abc import Iterable
 
 
-def _normalise_actor_id(actor_id: str) -> str:
+def normalise_actor_id(actor_id: str) -> str:
+    """Return *actor_id* without a trailing slash, its canonical spelling.
+
+    Use it where an id a sender wrote becomes an identity the receiver looks
+    up, so a recipient spelled ``…/vendor/`` still names ``…/vendor``.
+    """
     return actor_id.rstrip("/")
 
 
@@ -44,7 +49,7 @@ def same_actor_id(a: str, b: str) -> bool:
 
     The two differ at most by a trailing slash.
     """
-    return _normalise_actor_id(a) == _normalise_actor_id(b)
+    return normalise_actor_id(a) == normalise_actor_id(b)
 
 
 def is_addressed_to(actor_id: str, recipients: Iterable[str]) -> bool:
@@ -53,5 +58,5 @@ def is_addressed_to(actor_id: str, recipients: Iterable[str]) -> bool:
     Membership uses :func:`same_actor_id`, so a recipient written with a
     trailing slash still addresses *actor_id*.
     """
-    target = _normalise_actor_id(actor_id)
-    return any(_normalise_actor_id(r) == target for r in recipients)
+    target = normalise_actor_id(actor_id)
+    return any(normalise_actor_id(r) == target for r in recipients)

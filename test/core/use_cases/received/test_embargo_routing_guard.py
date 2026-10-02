@@ -33,6 +33,7 @@ from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
 from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
@@ -157,6 +158,7 @@ class TestInviteToEmbargoRoutingGuard:
             embargo,
             context=self.CASE_ID,
             actor=self.AUTHOR_ID,
+            to=[self.CASE_ACTOR_ID],
             id_=f"{self.CASE_ID}/proposals/nostamp",
         )
         dl.create(proposal)
@@ -190,6 +192,7 @@ class TestInviteToEmbargoRoutingGuard:
             embargo,
             context=self.CASE_ID,
             actor=self.AUTHOR_ID,
+            to=[self.CASE_ACTOR_ID],
             id_=f"{self.CASE_ID}/proposals/1",
         )
         dl.create(proposal)
@@ -222,18 +225,23 @@ class TestInviteToEmbargoRoutingGuard:
             embargo,
             context=self.CASE_ID,
             actor=self.AUTHOR_ID,
+            to=[self.INVITEE_ID],
             id_=f"{self.CASE_ID}/proposals/1",
         )
         dl.create(proposal)
 
         event = make_payload(proposal, receiving_actor_id=self.INVITEE_ID)
-        InviteToEmbargoOnCaseReceivedUseCase(
+        result = InviteToEmbargoOnCaseReceivedUseCase(
             dl,
             event,
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
+        assert result.disposition is not HandlerDisposition.REFUSED, (
+            "the Invite must reach the tree, so the absent entry is the"
+            f" guard's doing: {result.reason}"
+        )
         event_types = _ledger_event_types(dl)
         assert "invite_to_embargo_on_case" not in event_types, (
             "Non-CaseActor (invitee) must NOT write an invite_to_embargo_on_case"

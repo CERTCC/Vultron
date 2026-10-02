@@ -46,7 +46,7 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VulnerabilityReport
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +59,7 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
       1. ``create_case``                     actor=CaseActor
       2. ``add_report_to_case``              actor=CaseActor
       3. ``add_participant_status_to_participant`` × N  actor=CaseActor
-      4. ``add_case_status_to_case``         actor=vendor (the vendor set the
+      4. ``add_case_status_to_case``         actor=owner (the receiver set the
          genesis case status; ``("Add","CaseStatus")`` is nonetheless in
          ``_CASE_AUTHORED_SIGNATURES`` per CLP-12-001, so a CaseActor-authored
          entry would also validate)
@@ -80,14 +80,14 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
 
     def __init__(
         self,
-        vendor_uri: str,
+        owner_uri: str,
         report_id: str | None,
         offer_id: str | None = None,
         offer_actor_id: str | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self._vendor_uri = vendor_uri
+        self._owner_uri = owner_uri
         self._report_id = report_id
         self._offer_id = offer_id
         self._offer_actor_id = offer_actor_id
@@ -281,7 +281,7 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
             snapshot = build_add_case_status_snapshot(
                 status,
                 case,
-                self._vendor_uri,
+                self._owner_uri,
                 case_id,
                 self.wire_render_port,
             )
@@ -358,7 +358,7 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
         self._commit_add_reports(case, case_id)
         # 3. add_participant_status × N  (actor = CaseActor)
         self._commit_participant_statuses(case, case_id)
-        # 4. add_case_status  (actor = vendor_uri — provenance, not a guard
+        # 4. add_case_status  (actor = owner_uri — provenance, not a guard
         #    constraint: ("Add","CaseStatus") IS in _CASE_AUTHORED_SIGNATURES
         #    per CLP-12-001, so a CaseActor-authored entry validates too)
         self._commit_case_statuses(case, case_id)

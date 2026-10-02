@@ -134,8 +134,8 @@ groups:
     verification: >-
       `test/adapters/driving/fastapi/routers/test_actors_embargo_policy.py`
       (`TestGetEmbargoPolicy`) confirms the route returns the published record as
-      AS2 JSON, answers 404 when none is published, and shows the same record
-      `select_actor_default_policy` chooses (EP-04-010).
+      AS2 JSON, answers 404 when none is published, and shows the record the actor's
+      profile carries inline, not a free-standing policy record in the store (EP-01-001).
     scope:
     - production
     stories:
@@ -163,31 +163,64 @@ groups:
       A hosted Actor SHOULD be able to publish or replace its embargo policy at
       `PUT /actors/{actor_id}/embargo-policy`, carrying only the terms (EP-01-002,
       EP-01-003). The record's `actor_id` and `inbox` MUST be derived from the addressed
-      actor's own record, never taken from the body, and the record MUST be persisted in
-      that actor's own store so that it is the actor default shortest-wins reads at case
-      creation (EP-04-003, EP-04-010). A replace MUST leave exactly one policy for the actor.
+      actor's own record, never taken from the body, and the record MUST be persisted as
+      the `embargo_policy` field of that actor's profile in its own store (EP-01-004), so
+      that the profile carries it inline as the actor default shortest-wins reads at case
+      creation (CP-01-010, EP-04-003). A replace MUST leave exactly one policy for the actor.
     rationale: >-
       Nothing in the API wrote an `EmbargoPolicy` before #3972; the only writers were tests
       and the demo seeder, so a Receiver could not be given an actor default without reaching
       into its store. Deriving `actor_id` from the path actor keeps a body from publishing
-      terms in another actor's name (EP-01-005); deleting superseded records keeps
-      `owner_embargo_policies` from handing the comparison a default the actor withdrew.
+      terms in another actor's name (EP-01-005). Writing the terms into the one profile field
+      makes a replace an overwrite, so there is never a withdrawn default left beside the
+      current one for anything to read (#4027).
     verification: >-
       `test/adapters/driving/fastapi/routers/test_actors_embargo_policy.py`
       (`TestPutEmbargoPolicy`) confirms 201 on first publish and 200 on replace with one
       record remaining, `actor_id`/`inbox` derived from the actor record, 404 for an actor
       this node does not host, 422 for a malformed or calendar-unit duration or a body that
-      names an actor, and that `owner_embargo_policies` returns the published record. The
-      published record's id is the endpoint URL (`EmbargoPolicy.build_id`), so a replace is an
-      overwrite of one record: `test_two_publishes_that_both_see_no_prior_policy_leave_one_record`
-      confirms two publishes that each read "nothing published" still leave exactly one, and
-      `test_a_publish_sweeps_policies_seeded_under_other_ids` that a record under any other id
-      is removed.
+      names an actor, and that the stored profile's `embargo_policy` is the published record
+      with no free-standing policy record beside it. The published record's id is the
+      endpoint URL (`EmbargoPolicy.build_id`), so a replace keeps the id;
+      `test_a_publish_leaves_a_seeded_policy_record_unread` confirms a record in the store that
+      the profile does not carry is neither read nor counted as a prior publish.
     scope:
     - production
     relationships:
     - rel_type: refines
       spec_id: EP-01-004
+    stories:
+    - story_2022_003
+    - story_2022_009
+  - id: EP-02-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A publish or replace at `PUT /actors/{actor_id}/embargo-policy` MUST NOT overwrite
+      an update to the actor's profile that was written after the request read it. The
+      write MUST succeed only if the stored profile is still the one the request read;
+      otherwise the request MUST re-read the profile and re-apply its terms, and when the
+      profile keeps changing under it for a bounded number of attempts it MUST be refused
+      with 409 Conflict and MUST write nothing.
+    rationale: >-
+      The policy is a field of the profile (EP-01-001), so a publish rewrites the whole
+      profile, and a plain read-then-save loses a write landing between the two without
+      anyone being told (#4102). Re-applying the terms to a fresh read is safe because a
+      publish changes only the policy field; the bound keeps a profile under continuous
+      write from holding the request open.
+    verification: >-
+      `test/adapters/driving/fastapi/routers/test_actors_embargo_policy.py`
+      (`TestConcurrentProfileWrite`) interleaves a profile write between the PUT's read and
+      its write and confirms both the concurrent update and the published policy are kept,
+      and that a profile changed under every attempt yields 409 with the stored profile
+      untouched. `test/adapters/driven/test_sqlite_save_if_unchanged.py` confirms the
+      store's compare-and-set refuses a stale expected record and a row changed between
+      its own read and write.
+    scope:
+    - production
+    relationships:
+    - rel_type: refines
+      spec_id: EP-02-003
     stories:
     - story_2022_003
     - story_2022_009
@@ -272,6 +305,14 @@ groups:
       The implementation MUST apply both the PROPOSE and ACCEPT state machine triggers atomically
       within `InitializeDefaultEmbargoNode`. The intermediate `EM.PROPOSED` state MUST NOT
       be persisted or observable externally.
+    verification: >-
+      The `initialize_creation_embargo` service tests confirm that the creation-time operation
+      hands the store one case write, at `EM.ACTIVE` with the embargo attached, and that a
+      refused P/X/A check, an unheld embargo or a case that has left `EM.NONE` writes nothing.
+      Participant consent records are written after that case write and are not part of it.
+      `TestCreationTimeEmbargoIsOneWrite` refuses the ACCEPT step after PROPOSE has been applied
+      and asserts the stored case stays at `EM.NONE`, and that a rerun then reaches `EM.ACTIVE`
+      with an attached embargo (EP-04-012, #4123).
   - id: EP-04-003
     priority: MUST
     kind: protocol
@@ -508,9 +549,9 @@ groups:
       The 90-day constant and the shared blackboard key are gone (#3390): the fallback is
       `ActorConfig.protocol_default_embargo_duration`, published as
       `protocol_default_embargo_duration` beside `actor_default_embargo_duration`, and the
-      actor default is the shortest published policy, ties broken by policy id. Once #4027
-      lands, the actor default is the one policy the CASE_OWNER's profile carries (EP-01-001,
-      CP-01-010), and the tie-break has nothing left to choose between. The third
+      actor default is the one `embargo_policy` the CASE_OWNER's inline profile carries
+      (`actor_default_duration()`; EP-01-001, CP-01-010), so there is no list to select
+      from. The third
       implicit duration — `EmbargoEvent.end_time`'s 45-day `default_factory` in
       `vultron/core/models/embargo_event.py` — is gone too (#3404): `end_time` is required
       with no default, so every construction site states the end it means, and the protocol
@@ -518,8 +559,9 @@ groups:
     verification: >-
       Inspection of `vultron/core/behaviors/case/nodes/embargo_resolution.py` and
       `vultron/core/services/embargo_duration.py` confirms the actor default and the protocol
-      default are resolved under distinct names, and that actor-default selection is
-      deterministic rather than positional. Inspection of
+      default are resolved under distinct names, and that the actor default is read from
+      the single policy field of the CASE_OWNER's inline profile rather than selected from
+      the store. Inspection of
       `vultron/core/models/embargo_event.py` confirms no independent default embargo duration
       remains on `EmbargoEvent.end_time`.
     adr:
@@ -549,12 +591,21 @@ groups:
       the reporter's longer terms lost, the reporter is the proposer and the case owner is
       invited; when the owner's longer default lost, the owner is the proposer and the
       reporter is invited. An exact tie registers no revision (EP-04-003) and relays nothing.
+      No proposal activity exists at creation, so the committed relayed Invite is itself the
+      proposal entry; no second entry is committed. The open-proposal record is written once
+      the Invite is sent, not at registration: the case reaches every participant whole in
+      the bootstrap `Create`, and a record already naming the Invite would read to the winner
+      as an Invite it had already answered.
     verification: >-
-      A strict `xfail` marker test of `RegisterLongerProposalAsRevisionNode` asserts that
-      after a contested creation the loser's id is present in
-      `pending_embargo_proposal_index`, and names its tracking issue until the implementation
-      lands. The implementation's own tests assert the relayed `Invite(EmbargoEvent)`: `actor`
-      the CASE_MANAGER, `attributedTo` the losing party, queued to the winning party.
+      A marker test of `RegisterLongerProposalAsRevisionNode` asserts that a contested
+      creation registers the loser as an open proposal without indexing it. Tree tests of
+      the case-proposal received tree assert the relayed `Invite(EmbargoEvent)` for both
+      directions — `actor` the CASE_MANAGER, `attributedTo` the losing party, queued to the
+      winning party, committed, then indexed in `pending_embargo_proposal_index` for the
+      owner's default selection, with the bootstrap `Create` carrying no index entry — and
+      that a tie or a redelivered proposal relays nothing. Node tests assert that an owner
+      who reported to itself has nothing relayed or indexed, and that the proposer's replica
+      indexes the replayed Invite while the invitee's does not.
     relationships:
     - rel_type: refines
       spec_id: EP-04-003
@@ -603,12 +654,16 @@ groups:
       the whole creation arm is what leaves the proposal's terms unreconciled: the
       shortest-wins comparison and the pending-revision registration both live inside it.
     verification: >-
-      A strict `xfail` marker test in `test/core/behaviors/case/nodes/test_embargo_resolution.py`
-      runs `InitializeDefaultEmbargoNode` once, terminates the embargo through
+      `test/core/behaviors/case/nodes/test_embargo_resolution.py` runs
+      `InitializeDefaultEmbargoNode` once, terminates the embargo through
       `EmbargoLifecycle`, runs the subtree again and asserts SUCCESS, EM still `EXITED`, no
-      `active_embargo`, and no additional `EmbargoEvent` stored; it names its tracking issue
-      until the guard reads EM state. The implementation's own tests add the half-built
-      case (`EM.NONE`, no embargo) still completing.
+      `active_embargo`, and no additional `EmbargoEvent` stored; the same module covers
+      the guard's SUCCESS for every state but `NONE`, the half-built case (`EM.NONE`, no
+      embargo) still completing, an `ACTIVE` or `REVISE` rerun storing no event and
+      registering no revision, and an unreadable EM state raising. A tree-level test in
+      `test/core/behaviors/case/test_case_proposal_received_tree.py` redelivers the same
+      `Create(CaseProposal)` after exit and asserts it is answered with the case's embargo
+      state and events unchanged.
     relationships:
     - rel_type: refines
       spec_id: EP-04-002
@@ -1415,10 +1470,15 @@ groups:
       no `to` recipient or more than one as a misrouting (OX-08-001), and MUST NOT infer the
       invitee from the receiving actor.
     note: >-
-      Scope: the relayed Invite a participant receives (EP-09-002). A proposal addressed to
-      the CASE_MANAGER is adjudicated under EP-09-001 and relayed under EP-09-002; the
-      CASE_MANAGER is that Invite's adjudicator, not its invitee, and has no invitee to
-      resolve until it relays.
+      Scope: the invitee is resolved for the relayed Invite a participant receives
+      (EP-09-002). A proposal is addressed to the CASE_MANAGER alone (PCR-08-001), so it
+      too names exactly one `to` recipient and is refused when it names none or several;
+      that recipient is its adjudicator under EP-09-001, not its invitee, so the
+      CASE_MANAGER's own record takes no RSVP deadline from it (CM-28-003). The refusal
+      comes before the P/X/A check, so a misrouted Invite on a public, exploited or attacked
+      case gets no ER: EMB-01-002's ER answers a proposal its receiver was sent, and a
+      misrouting is not accepted either way. Two spellings of one actor in `to` (a trailing
+      slash) name one recipient.
     rationale: >-
       Every emitter sends a single-recipient Invite — a participant to the CASE_MANAGER, the
       CASE_MANAGER to one participant per relayed Invite (EP-09-002) — so the multi-recipient
@@ -1428,8 +1488,10 @@ groups:
     verification: >-
       Tests deliver an Invite with two `to` recipients and with none and assert `REFUSED`
       with the recipient count in the reason; a single-recipient Invite resolves that
-      recipient. Until the implementation lands the refusal tests are strict `xfail`s naming
-      their tracking issue.
+      recipient (`test_invite_with_several_recipients_is_refused` and
+      `test_invite_with_no_recipient_is_refused` in `test_embargo_revision_relay.py`;
+      `TestInviteeIsTheAddressee` and `TestInviteeIdProperty` in
+      `test_embargo_invite_lapse.py`).
     relationships:
     - rel_type: depends_on
       spec_id: EP-09-002

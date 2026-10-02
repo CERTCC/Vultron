@@ -134,7 +134,9 @@ def trigger_invalidate_report(
         "and returns it in the response body (TRIG-04-001). "
         "A non-empty note is required (TRIG-03-004). "
         "Persists a ParticipantStatus record with RM.CLOSED for the actor "
-        "and report."
+        "and report. "
+        "Returns HTTP 409 if the report's RM state has no close edge "
+        "(e.g. VALID; VP-02-004): nothing is emitted."
     ),
     operation_id="actors_trigger_reject_report",
     response_model=ActivityResult,
@@ -176,9 +178,11 @@ def trigger_reject_report(
         "response body (TRIG-04-001). "
         "Persists a ParticipantStatus record with RM.CLOSED for the actor "
         "and report. "
-        "Unlike reject-report (which hard-rejects before validation), this "
-        "endpoint closes a report that has already progressed through the RM "
-        "lifecycle. Returns HTTP 409 if the report is already CLOSED."
+        "Unlike reject-report (a hard-reject, which also accepts a repeat "
+        "close as a confirmation), this endpoint closes a report that has "
+        "progressed through the RM lifecycle. Returns HTTP 409 if the report "
+        "is already CLOSED, or if its RM state has no close edge (e.g. VALID; "
+        "VP-02-004)."
     ),
     operation_id="actors_trigger_close_report",
     response_model=ActivityResult,

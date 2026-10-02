@@ -82,50 +82,39 @@ The Coordinator reviews the report and accepts it.  `validate_report` then
 
 ### 3. Participant status records are created
 
-The Case Actor records `add_participant_status_to_participant` for each initial
-participant.
+The Case Actor records `add_participant_status_to_participant` for each initial participant.
+The Finder is one of them: as the reporter, it joins the case as a signatory when the case is created, so the Coordinator never invites it.
 
 *Antecedent:* `engage_case` is in the ledger.
 
-### 4. Coordinator invites the Finder
+### 4. Coordinator invites the Vendor
 
-The Coordinator sends the Finder a formal `invite_actor_to_case` entry.
-
-*Antecedent:* `engage_case` is in the ledger.
-
-### 5. Finder accepts the invitation
-
-The Finder accepts.  An `accept_invite_actor_to_case` entry is recorded.
-
-*Antecedent:* The Finder's `invite_actor_to_case` entry is in the ledger.
-
-### 6. Coordinator invites the Vendor
-
-The Coordinator identifies the Vendor and sends an `invite_actor_to_case` entry.
+The Coordinator identifies the Vendor and asks the Case Actor to invite it.
+The Case Actor sends the Invite and records it as an `invite_actor_to_case` entry, the only one in this scenario.
 
 *Antecedent:* `engage_case` is in the ledger.
 
-### 7. Vendor rejects the invitation
+### 5. Vendor rejects the invitation
 
 The Vendor declines to participate.  The Case Actor records the rejection as a
 `reject_invite_actor_to_case` entry.  **The Vendor is not added as a participant.**
 
 *Antecedent:* The Vendor's `invite_actor_to_case` entry is in the ledger.
 
-### 8. Finder and Coordinator exchange notes
+### 6. Finder and Coordinator exchange notes
 
 Finder and Coordinator communicate through case notes (`add_note_to_case`).
 
 *Antecedent:* `engage_case` is in the ledger.
 
-### 9. Participants publish; embargo terminates
+### 7. Participants publish; embargo terminates
 
 The Coordinator and Finder publish.  The embargo exits ACTIVE without the
 Vendor's participation.
 
 *Antecedent:* `engage_case` is in the ledger.
 
-### 10. Finder and Coordinator close the case
+### 8. Finder and Coordinator close the case
 
 Finder and Coordinator each submit `close_case` entries.  The Vendor, having
 rejected the invitation, has no close entry.

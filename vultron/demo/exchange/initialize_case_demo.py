@@ -119,7 +119,7 @@ def demo_initialize_case(
             content="A remote code execution vulnerability in the web framework.",
             name="Remote Code Execution Vulnerability",
         )
-        logger.info(f"Created report: {logfmt(report)}")
+        logger.info("Created report: %s", logfmt(report))
         report_offer = rm_submit_report_activity(
             report, actor=finder.id_, to=vendor.id_
         )
@@ -143,7 +143,7 @@ def demo_initialize_case(
             name="RCE Case — Web Framework",
             content="Tracking the RCE vulnerability in the web framework.",
         )
-        logger.info(f"Created case object: {logfmt(case)}")
+        logger.info("Created case object: %s", logfmt(case))
         create_case_act = create_case_activity(case, actor=vendor.id_)
         post_to_inbox_and_wait(client, vendor.id_, create_case_act)
         with demo_check("Case stored in data layer"):
@@ -158,7 +158,7 @@ def demo_initialize_case(
             context=case.id_,
         )
         logger.info(
-            f"Created vendor participant: {logfmt(vendor_participant)}"
+            "Created vendor participant: %s", logfmt(vendor_participant)
         )
         create_vendor_participant_activity = as_Create(
             actor=vendor.id_,
@@ -214,7 +214,7 @@ def demo_initialize_case(
             attributed_to=finder.id_,
             context=case.id_,
         )
-        logger.info(f"Created participant: {logfmt(participant)}")
+        logger.info("Created participant: %s", logfmt(participant))
         create_participant_activity = as_Create(
             actor=vendor.id_,
             object_=participant,

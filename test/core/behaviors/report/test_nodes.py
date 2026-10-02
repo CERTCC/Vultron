@@ -33,6 +33,7 @@ import pytest
 
 from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.report.nodes import (
+    CheckReportClosable,
     TransitionRMtoClosed,
     TransitionRMtoInvalid,
     TransitionRMtoValid,
@@ -357,16 +358,104 @@ def test_transition_rm_to_closed_valid_from_deferred(
     bt_scenario.assert_rm_state(report.id_, RM.CLOSED, actor_id=actor.id_)
 
 
-def test_transition_rm_to_closed_invalid_jump_from_received(
+def test_transition_rm_to_closed_fails_without_report_case_link(
     bt_scenario: BTTestScenario,
     actor: CaseActor,
     report: VulnerabilityReport,
     offer: VultronOffer,
 ) -> None:
-    """TransitionRMtoClosed returns FAILURE for RECEIVED→CLOSED (AC-2)."""
+    """TransitionRMtoClosed returns FAILURE when no ReportCaseLink exists."""
     result = bt_scenario.run(
         TransitionRMtoClosed(report_id=report.id_, offer_id=offer.id_),
         actor_id=actor.id_,
+    )
+    bt_scenario.assert_failure(result)
+
+
+@pytest.mark.spec("RMB-14-004")
+def test_transition_rm_to_closed_valid_from_received(
+    bt_scenario: BTTestScenario,
+    actor: CaseActor,
+    report: VulnerabilityReport,
+    offer: VultronOffer,
+) -> None:
+    """TransitionRMtoClosed succeeds from RM.RECEIVED (``R → C``, ADR-0114)."""
+    bt_scenario.seed(
+        VultronReportCaseLink(report_id=report.id_, rm_state=RM.RECEIVED)
+    )
+
+    result = bt_scenario.run(
+        TransitionRMtoClosed(
+            report_id=report.id_,
+            offer_id=offer.id_,
+            sender_actor_id=actor.id_,
+        ),
+        actor_id=actor.id_,
+    )
+    bt_scenario.assert_success(result)
+    bt_scenario.assert_rm_state(report.id_, RM.CLOSED, actor_id=actor.id_)
+
+
+@pytest.mark.spec("VP-02-004")
+def test_transition_rm_to_closed_invalid_jump_from_valid(
+    bt_scenario: BTTestScenario,
+    actor: CaseActor,
+    report: VulnerabilityReport,
+    offer: VultronOffer,
+) -> None:
+    """TransitionRMtoClosed returns FAILURE for VALID→CLOSED (no close edge)."""
+    bt_scenario.seed(
+        VultronReportCaseLink(report_id=report.id_, rm_state=RM.VALID)
+    )
+
+    result = bt_scenario.run(
+        TransitionRMtoClosed(report_id=report.id_, offer_id=offer.id_),
+        actor_id=actor.id_,
+    )
+    bt_scenario.assert_failure(result)
+    bt_scenario.assert_rm_state(report.id_, RM.VALID, actor_id=actor.id_)
+
+
+@pytest.mark.spec("RMB-14-004")
+@pytest.mark.spec("VP-02-004")
+@pytest.mark.parametrize(
+    ("rm_state", "expected"),
+    [
+        (RM.RECEIVED, "SUCCESS"),
+        (RM.INVALID, "SUCCESS"),
+        (RM.ACCEPTED, "SUCCESS"),
+        (RM.DEFERRED, "SUCCESS"),
+        (RM.CLOSED, "SUCCESS"),
+        (RM.VALID, "FAILURE"),
+        (RM.START, "FAILURE"),
+    ],
+    ids=lambda v: v.name if isinstance(v, RM) else v,
+)
+def test_check_report_closable_follows_the_close_edges(
+    bt_scenario: BTTestScenario,
+    actor: CaseActor,
+    report: VulnerabilityReport,
+    rm_state: RM,
+    expected: str,
+) -> None:
+    """CheckReportClosable succeeds exactly where RM has a close edge (or is CLOSED)."""
+    bt_scenario.seed(
+        VultronReportCaseLink(report_id=report.id_, rm_state=rm_state)
+    )
+    result = bt_scenario.run(
+        CheckReportClosable(report_id=report.id_), actor_id=actor.id_
+    )
+    assert result.status.name == expected
+
+
+def test_check_report_closable_fails_without_report_case_link(
+    bt_scenario: BTTestScenario,
+    actor: CaseActor,
+    report: VulnerabilityReport,
+) -> None:
+    """CheckReportClosable fails when the report has no ReportCaseLink."""
+    result = bt_scenario.run(
+        CheckReportClosable(report_id=report.id_), actor_id=actor.id_
     )
     bt_scenario.assert_failure(result)
 
@@ -390,7 +479,7 @@ class TestComputeReportAddresseesFallback:
         """Fallback path returns offer_actor_id from VultronOfferRecord."""
         from typing import cast
 
-        from vultron.core.ports.case_persistence import CaseOutboxPersistence
+        from vultron.core.ports.case_outbox import CaseOutboxPersistence
 
         actor_id = "urn:test:actor:1"
         submitter_id = "urn:test:submitter:1"
@@ -414,7 +503,7 @@ class TestComputeReportAddresseesFallback:
         """Fallback path returns None when offer_record is None."""
         from typing import cast
 
-        from vultron.core.ports.case_persistence import CaseOutboxPersistence
+        from vultron.core.ports.case_outbox import CaseOutboxPersistence
 
         result = _compute_report_addressees(
             report_id="urn:test:report:no-case",
@@ -430,7 +519,7 @@ class TestComputeReportAddresseesFallback:
         """Fallback path excludes actor_id (self) from addressees."""
         from typing import cast
 
-        from vultron.core.ports.case_persistence import CaseOutboxPersistence
+        from vultron.core.ports.case_outbox import CaseOutboxPersistence
 
         actor_id = "urn:test:actor:self"
         offer_record = VultronOfferRecord(

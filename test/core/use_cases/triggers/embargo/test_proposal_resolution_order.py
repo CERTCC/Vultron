@@ -40,6 +40,7 @@ from typing import cast
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -173,6 +174,7 @@ def test_default_selection_picks_the_earliest_expiring_proposal(
         finder_dl,
         request,
         trigger_activity=TriggerActivityAdapter(finder_dl),
+        sync_port=SyncActivityAdapter(finder_dl),
         wire_render_port=As2WireRenderAdapter(),
     )
     use_case._prepare()
@@ -270,6 +272,7 @@ def test_accepting_a_proposal_removes_it_from_the_open_proposal_record(
         owner_dl,
         request,
         trigger_activity=TriggerActivityAdapter(owner_dl),
+        sync_port=SyncActivityAdapter(owner_dl),
         wire_render_port=As2WireRenderAdapter(),
     ).execute()
 
@@ -373,6 +376,7 @@ def test_rejecting_a_proposal_removes_it_from_both_records(
         owner_dl,
         request,
         trigger_activity=TriggerActivityAdapter(owner_dl),
+        sync_port=SyncActivityAdapter(owner_dl),
         wire_render_port=As2WireRenderAdapter(),
     ).execute()
 

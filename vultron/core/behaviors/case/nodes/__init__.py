@@ -27,11 +27,13 @@ Submodules:
   provisioning leaf action nodes
 - ``participant``: Participant creation and attachment leaf action nodes
 - ``embargo``: Default embargo initialization action nodes
+- ``close_case_effect``: Ledger-apply of a ``close_case`` entry on a replica
+  (ApplyCloseCaseFromLedgerNode; composes the participant-status writer)
 - ``communication``: Outbound activity emission action nodes
 - ``intake``: Intake node — archives the received activity as received,
   first in every received tree (ADR-0111)
 - ``lifecycle``: Case log entry commit action node
-- ``proposal``: CaseProposal send nodes (ADR-0041 vendor-side slimmed tree)
+- ``proposal``: CaseProposal send nodes (ADR-0041 receiver-side slimmed tree)
 - ``proposal_admission_conditions``: case-actor-side admission guards (CP-05-002)
 - ``proposal_admission_actions``: case-actor-side admission writes and the
   ``Reject`` emit (CP-05-002, CP-05-004)
@@ -39,21 +41,10 @@ Submodules:
 
 Composite subtrees (``Sequence``/``Selector`` subclasses) are defined in
 sibling ``*_tree.py`` modules at the process-area root per BTND-07-003.
-They are re-exported here for backward compatibility via module
-``__getattr__`` (PEP 562) to avoid circular imports:
-
-- ``RecordCaseCreationEvents``, ``CreateCaseActorNode``
-  → ``vultron.core.behaviors.case.case_setup_tree``
-- ``CreateCaseOwnerParticipant``, ``CreateCaseParticipantNode``
-  → ``vultron.core.behaviors.case.participant_tree``
-- ``EmitCreateCaseActivity``
-  → ``vultron.core.behaviors.case.communication_tree``
-- ``InitializeDefaultEmbargoNode``
-  → ``vultron.core.behaviors.case.embargo_tree``
+They are not re-exported here: the tree modules import leaf nodes from
+this package, so a re-export would close an import cycle (CS-05-003).
+Import each composite from the ``*_tree.py`` module that defines it.
 """
-
-import importlib
-from typing import TYPE_CHECKING
 
 from vultron.core.behaviors.case.nodes.actor import (
     EmitInviteActorToCaseNode,
@@ -69,6 +60,9 @@ from vultron.core.behaviors.case.nodes.case_setup import (
     RecordCaseCreatedEventNode,
     RecordOfferReceivedEventNode,
     SetCaseAttributedTo,
+)
+from vultron.core.behaviors.case.nodes.close_case_effect import (
+    ApplyCloseCaseFromLedgerNode,
 )
 from vultron.core.behaviors.case.nodes.communication import (
     CollectCaseAddresseesNode,
@@ -87,9 +81,8 @@ from vultron.core.behaviors.case.nodes.delegation import (
     EmitRejectCaseParticipantRoleNode,
 )
 from vultron.core.behaviors.case.nodes.embargo import (
-    AdvanceEMStateToActiveNode,
-    AttachEmbargoToCaseNode,
     CreateEmbargoEventNode,
+    InitializeCreationEmbargoNode,
     SeedOwnerAsSignatoryNode,
 )
 from vultron.core.behaviors.case.nodes.embargo_resolution import (
@@ -97,6 +90,10 @@ from vultron.core.behaviors.case.nodes.embargo_resolution import (
     CaseNotEmbargoEligibleNode,
     ResolveEmbargoDurationNode,
 )
+
+# RelayCreationTimeRevisionNode is imported from its own module,
+# ``embargo_revision_relay``: re-exporting it here closes an import cycle
+# through the embargo relay emit, which imports the case role gates.
 from vultron.core.behaviors.case.nodes.embargo_revision import (
     RegisterLongerProposalAsRevisionNode,
 )
@@ -125,7 +122,7 @@ from vultron.core.behaviors.case.nodes.lifecycle import (
 )
 from vultron.core.behaviors.case.nodes.on_behalf_guards import (
     CheckOnBehalfAuthorizedNode,
-    EnsureOnBehalfParticipantExistsNode,
+    CheckOnBehalfTargetIsParticipantNode,
 )
 from vultron.core.behaviors.case.nodes.ownership_transfer import (
     EmitAcceptCaseOwnershipTransferNode,
@@ -161,7 +158,6 @@ from vultron.core.behaviors.case.nodes.proposal_case_resolution import (
 )
 from vultron.core.behaviors.case.nodes.proposal_consent import (
     SeedReporterSignatoryNode,
-    SeedVendorOwnerSignatoryNode,
 )
 from vultron.core.behaviors.case.nodes.proposal_emits import (
     EmitAcceptCaseProposalNode,
@@ -172,7 +168,7 @@ from vultron.core.behaviors.case.nodes.proposal_ledger import (
 )
 from vultron.core.behaviors.case.nodes.proposal_participants import (
     AddCaseActorParticipantNode,
-    AddVendorOwnerParticipantNode,
+    AddOwnerParticipantNode,
 )
 from vultron.core.behaviors.case.nodes.proposal_reporter import (
     AddReporterParticipantNode,
@@ -239,35 +235,27 @@ __all__ = [
     "SetCaseAttributedTo",
     "RecordOfferReceivedEventNode",
     "RecordCaseCreatedEventNode",
-    # case_setup_tree (composite subtrees — lazy via __getattr__)
-    "RecordCaseCreationEvents",
     # participant (leaf nodes)
     "CreateParticipantStatusNode",
     "RecordOwnerJoinedEventNode",
     "_create_and_attach_participant",
     "resolve_participant_state_from_dl",
-    # participant_tree (composite subtrees — lazy via __getattr__)
-    "CreateCaseOwnerParticipant",
-    "CreateCaseParticipantNode",
     # embargo (leaf nodes)
-    "AdvanceEMStateToActiveNode",
-    "AttachEmbargoToCaseNode",
+    "InitializeCreationEmbargoNode",
     "CaseEmbargoAlreadyInitializedNode",
     "CaseNotEmbargoEligibleNode",
     "CreateEmbargoEventNode",
     "RegisterLongerProposalAsRevisionNode",
     "ResolveEmbargoDurationNode",
     "SeedOwnerAsSignatoryNode",
-    # embargo_tree (composite subtree — lazy via __getattr__)
-    "InitializeDefaultEmbargoNode",
     # delegation (leaf nodes)
     "AutoAcceptCaseParticipantRoleNode",
     "EmitRejectCaseParticipantRoleNode",
+    # close_case_effect (ledger-apply leaf node)
+    "ApplyCloseCaseFromLedgerNode",
     # communication (leaf nodes)
     "CollectCaseAddresseesNode",
     "CreateAndPersistCaseActivityNode",
-    # communication_tree (composite subtrees — lazy via __getattr__)
-    "EmitCreateCaseActivity",
     # lifecycle
     "CommitCaseLedgerEntryNode",
     # update
@@ -286,7 +274,7 @@ __all__ = [
     "CheckNotSoleObserverVfdNode",
     # on_behalf_guards (ADR-0084)
     "CheckOnBehalfAuthorizedNode",
-    "EnsureOnBehalfParticipantExistsNode",
+    "CheckOnBehalfTargetIsParticipantNode",
     # suggest_actor (leaf nodes)
     "ActorAlreadyParticipantNode",
     "EmitAcceptActorRecommendationNode",
@@ -304,11 +292,10 @@ __all__ = [
     "StoreProposalReportNode",
     # proposal_participants (leaf nodes)
     "AddCaseActorParticipantNode",
-    "AddVendorOwnerParticipantNode",
+    "AddOwnerParticipantNode",
     # proposal_reporter (leaf node)
     "AddReporterParticipantNode",
-    # proposal_consent (leaf nodes)
-    "SeedVendorOwnerSignatoryNode",
+    # proposal_consent (leaf node)
     "SeedReporterSignatoryNode",
     # proposal_ledger (leaf node)
     "CommitNativeLedgerEntriesNode",
@@ -330,42 +317,3 @@ __all__ = [
     "BackfillCanonicalLedgerToInviteeNode",
     "EmitAnnounceCaseToInviteeNode",
 ]
-
-# TYPE_CHECKING stubs so mypy resolves composite names to their actual types.
-# At runtime these imports are skipped; the lazy __getattr__ below handles them.
-if TYPE_CHECKING:
-    from vultron.core.behaviors.case.case_setup_tree import (
-        RecordCaseCreationEvents,
-    )
-    from vultron.core.behaviors.case.communication_tree import (
-        EmitCreateCaseActivity,
-    )
-    from vultron.core.behaviors.case.embargo_tree import (
-        InitializeDefaultEmbargoNode,
-    )
-    from vultron.core.behaviors.case.participant_tree import (
-        CreateCaseOwnerParticipant,
-        CreateCaseParticipantNode,
-    )
-
-# Composite subtrees live in sibling *_tree.py modules (BTND-07-003).
-# They are re-exported lazily here to avoid circular imports: the tree
-# modules import leaf nodes from this package, so eager re-exports would
-# create a cycle.  PEP 562 module __getattr__ resolves the name only when
-# first accessed, after this __init__ is fully initialized.
-_COMPOSITE_COMPAT: dict[str, str] = {
-    "RecordCaseCreationEvents": "vultron.core.behaviors.case.case_setup_tree",
-    "CreateCaseOwnerParticipant": "vultron.core.behaviors.case.participant_tree",
-    "CreateCaseParticipantNode": "vultron.core.behaviors.case.participant_tree",
-    "EmitCreateCaseActivity": "vultron.core.behaviors.case.communication_tree",
-    "InitializeDefaultEmbargoNode": "vultron.core.behaviors.case.embargo_tree",
-}
-
-
-def __getattr__(name: str) -> object:
-    if name in _COMPOSITE_COMPAT:
-        mod = importlib.import_module(_COMPOSITE_COMPAT[name])
-        obj = getattr(mod, name)
-        globals()[name] = obj  # cache to avoid repeated lookup
-        return obj
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

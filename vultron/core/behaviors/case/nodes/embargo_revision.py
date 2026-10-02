@@ -17,14 +17,23 @@ When both the sender and the case owner carried a proposal at case creation,
 ``ResolveEmbargoDurationNode`` made the shorter one active.  EP-04-003 says the
 longer SHOULD be registered as a pending revision, so the party that wanted
 more can negotiate the contested tail inside the agreed embargo rather than
-losing it outright (ADR-0096).  This node is the last leaf of
-``InitializeDefaultEmbargoNode``; it does nothing when there was no contest.
+losing it outright (ADR-0096).  ``RegisterLongerProposalAsRevisionNode`` is
+the last leaf of ``InitializeDefaultEmbargoNode``; it does nothing when there
+was no contest.
+
+The revision then follows the relay like any other (EP-04-011, ADR-0113): the
+registration mints the id its ``Invite`` will carry and publishes it, and
+``RelayCreationTimeRevisionNode`` (``embargo_revision_relay``) emits that
+``Invite`` on the losing party's behalf, and indexes it for the owner's default
+selection (EP-08-002), only once the initialization sequence is complete
+(CM-14-007).
 """
 
 import logging
 from datetime import timedelta
 
 from py_trees.common import Status
+from pydantic import BaseModel, ConfigDict
 
 from vultron.core.behaviors.case.nodes.embargo import (
     persist_creation_time_embargo,
@@ -33,7 +42,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
-from vultron.core.models._helpers import from_now_utc
+from vultron.core.models._helpers import _new_urn, from_now_utc
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.services.embargo_duration import (
     EmbargoDurationSource,
@@ -41,8 +50,32 @@ from vultron.core.services.embargo_duration import (
 )
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.errors import BtNodePreconditionError, VultronError
+from vultron.primitives import NonEmptyString
 
 logger = logging.getLogger(__name__)
+
+REVISION_KEY = "creation_time_revision"
+
+
+class CreationTimeRevision(BaseModel):
+    """The creation-time revision the registration published, for its relay.
+
+    ``proposal_id`` is the id the relayed ``Invite`` will carry.  The relay
+    records it in ``pending_embargo_proposal_index`` once the Invite is sent,
+    not here: the bootstrap ``Create(VulnerabilityCase)`` carries the case
+    whole, and an index entry already in it would read, at the invitee, as an
+    Invite it had already answered (EP-04-011).
+    ``losing_source`` names whose terms lost shortest-wins and so who the
+    proposer is: the reporter for ``SENDER_PROPOSAL``, the case owner for
+    ``ACTOR_DEFAULT``.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    case_id: NonEmptyString
+    embargo_id: NonEmptyString
+    proposal_id: NonEmptyString
+    losing_source: EmbargoDurationSource
 
 
 class RegisterLongerProposalAsRevisionNode(DataLayerActionWithPorts):
@@ -58,9 +91,15 @@ class RegisterLongerProposalAsRevisionNode(DataLayerActionWithPorts):
       to the case (EP-04-004, EP-04-009).
 
     Either way ``EmbargoLifecycle.propose_embargo`` drives ``ACTIVE → REVISE``
-    (EMB-18-001), which also lapses the signatories seeded so far until they
-    accept the revised terms — the protocol's own meaning of REVISE.  A tie, a
-    protocol-default outcome, or a lone candidate registers nothing.
+    (EMB-18-001); a proposal changes no participant's consent (ADR-0093).  A
+    tie, a protocol-default outcome, or a lone candidate registers nothing.
+
+    A registered revision is published, under a freshly minted proposal id, as
+    ``creation_time_revision`` for
+    :class:`RelayCreationTimeRevisionNode` (EP-04-011).  The key is written
+    (``None``) first whenever this node ticks, and ``BTBridge`` scopes it to
+    one execution, so the relay never reads a revision an earlier execution
+    left on the process-global blackboard (BT-17-003).
     """
 
     def __init__(self, name: str | None = None) -> None:
@@ -83,11 +122,18 @@ class RegisterLongerProposalAsRevisionNode(DataLayerActionWithPorts):
         ),
     }
 
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        REVISION_KEY: PortInformation(
+            data_type=CreationTimeRevision | None, required=True
+        ),
+    }
+
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {
             key: f"/{key}"
             for key in (
+                REVISION_KEY,
                 "case_id",
                 "initial_embargo_duration",
                 "actor_default_embargo_duration",
@@ -135,6 +181,7 @@ class RegisterLongerProposalAsRevisionNode(DataLayerActionWithPorts):
         return None
 
     def update(self) -> Status:
+        self._set_output(REVISION_KEY, None)
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.datalayer is not None
@@ -149,7 +196,7 @@ class RegisterLongerProposalAsRevisionNode(DataLayerActionWithPorts):
                 f"{self.name}: case_id or initial_embargo_duration missing"
                 " from the blackboard"
             )
-            self.logger.error(self.feedback_message)
+            self.logger.error("%s", self.feedback_message)
             return Status.FAILURE
 
         try:
@@ -168,12 +215,13 @@ class RegisterLongerProposalAsRevisionNode(DataLayerActionWithPorts):
                 embargo_id=loser.id_,
                 actor_id=self.actor_id,
             )
+            revision = self._publish_revision(case_id, loser.id_, resolved)
         except VultronError as exc:
             self.feedback_message = (
                 f"{self.name}: could not register the longer proposal as a"
                 f" revision on case '{case_id}': {exc}"
             )
-            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
+            self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
         self.logger.info(
@@ -186,4 +234,21 @@ class RegisterLongerProposalAsRevisionNode(DataLayerActionWithPorts):
             result.em_after,
             resolved.source.value,
         )
+        self._set_output(REVISION_KEY, revision)
         return Status.SUCCESS
+
+    @staticmethod
+    def _publish_revision(
+        case_id: str, embargo_id: str, resolved: InitialEmbargoDuration
+    ) -> CreationTimeRevision:
+        """Name the revision and the id its future Invite will carry."""
+        return CreationTimeRevision(
+            case_id=case_id,
+            embargo_id=embargo_id,
+            proposal_id=_new_urn(),
+            losing_source=(
+                EmbargoDurationSource.ACTOR_DEFAULT
+                if resolved.source is EmbargoDurationSource.SENDER_PROPOSAL
+                else EmbargoDurationSource.SENDER_PROPOSAL
+            ),
+        )

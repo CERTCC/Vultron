@@ -30,6 +30,7 @@ from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.use_cases.received.case.update import (
     UpdateCaseReceivedUseCase,
 )
@@ -51,6 +52,26 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 #: and the ``receiving_actor_id`` on every event below. The sender stays a
 #: separate identity — the owner-gating tests depend on that distinction.
 RECEIVER_ID = "https://example.org/actors/update-receiver"
+
+
+def _seat(dl, case, actor_id, participant_id, **fields):
+    """Store a participant record for *actor_id* and index it on *case*.
+
+    The case-update broadcast reads each roster entry's record to decide
+    whether it is active (CM-10-004, CM-10-007); an index entry with no
+    record behind it is not provably entitled and gets nothing.
+    """
+    from vultron.core.models.case_participant import CaseParticipant
+
+    dl.create(
+        CaseParticipant(
+            id_=participant_id,
+            attributed_to=actor_id,
+            context=case.id_,
+            **fields,
+        )
+    )
+    case.actor_participant_index[actor_id] = participant_id
 
 
 def _make_receiver_the_case_manager(dl, case, receiver_id=None):
@@ -229,10 +250,10 @@ class TestCaseUseCases:
         stored = cast(as_VulnerabilityCase, stored)
         assert stored.name == "Updated"
 
-    def test_update_case_warns_when_participant_has_not_accepted_embargo(
+    def test_update_case_reports_participant_not_signatory_to_embargo(
         self, monkeypatch, caplog, make_payload
     ):
-        """update_case ledgers WARNING per CM-10-004 when a participant has not accepted the active embargo."""
+        """update_case reports a participant not SIGNATORY to the active embargo as inert (CM-10-004)."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id=RECEIVER_ID,
@@ -271,20 +292,22 @@ class TestCaseUseCases:
         activity = update_case_activity(updated_case, actor=owner_id)
         event = make_payload(activity, receiving_actor_id=RECEIVER_ID)
 
-        with caplog.at_level(logging.WARNING):
+        with caplog.at_level(logging.INFO):
             UpdateCaseReceivedUseCase(
                 dl, event, trigger_activity=TriggerActivityAdapter(dl)
             ).execute()
 
         assert any(
-            "has not accepted" in r.message and "CM-10-004" in r.message
+            actor_id in r.message
+            and "not active" in r.message
+            and "CM-10-004" in r.message
             for r in caplog.records
         )
 
-    def test_update_case_no_warning_when_all_participants_accepted_embargo(
+    def test_update_case_logs_no_withholding_when_all_participants_accepted_embargo(
         self, monkeypatch, caplog, make_payload
     ):
-        """update_case does NOT warn when all participants have accepted the active embargo (CM-10-004)."""
+        """update_case reports nobody inert when every participant is SIGNATORY (CM-10-004)."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id=RECEIVER_ID,
@@ -303,6 +326,7 @@ class TestCaseUseCases:
             attributed_to=actor_id,
             context="https://example.org/cases/uc5",
             accepted_embargo_ids=[embargo.id_],
+            embargo_consent_state=PEC.SIGNATORY,
         )
         dl.create(participant)
 
@@ -323,17 +347,17 @@ class TestCaseUseCases:
         activity = update_case_activity(updated_case, actor=owner_id)
         event = make_payload(activity, receiving_actor_id=RECEIVER_ID)
 
-        with caplog.at_level(logging.WARNING):
+        with caplog.at_level(logging.INFO):
             UpdateCaseReceivedUseCase(
                 dl, event, trigger_activity=TriggerActivityAdapter(dl)
             ).execute()
 
-        assert not any("has not accepted" in r.message for r in caplog.records)
+        assert not any("not active" in r.message for r in caplog.records)
 
-    def test_update_case_no_warning_when_no_active_embargo(
+    def test_update_case_logs_no_withholding_when_no_active_embargo(
         self, monkeypatch, caplog, make_payload
     ):
-        """update_case does NOT warn when there is no active embargo (CM-10-004)."""
+        """update_case reports nobody inert when there is no active embargo (CM-10-004)."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id=RECEIVER_ID,
@@ -366,17 +390,28 @@ class TestCaseUseCases:
         activity = update_case_activity(updated_case, actor=owner_id)
         event = make_payload(activity, receiving_actor_id=RECEIVER_ID)
 
-        with caplog.at_level(logging.WARNING):
+        with caplog.at_level(logging.INFO):
             UpdateCaseReceivedUseCase(
                 dl, event, trigger_activity=TriggerActivityAdapter(dl)
             ).execute()
 
-        assert not any("has not accepted" in r.message for r in caplog.records)
+        assert not any("not active" in r.message for r in caplog.records)
 
-    def test_update_case_ignores_non_participant_objects_in_embargo_check(
-        self, make_payload
+    @pytest.mark.parametrize(
+        "inert", ["no-record", "not-signatory", "not-joined"]
+    )
+    @pytest.mark.spec("CM-10-004")
+    def test_update_case_withholds_from_inert_participant(
+        self, make_payload, inert
     ):
-        """Non-participant objects referenced by the case must not be excluded."""
+        """An inert roster entry gets no case update; a SIGNATORY does.
+
+        Entitlement is read from the record (CM-10-004).  An entry pointing at
+        some other object cannot show the actor is active, so the shared
+        selection leaves it out rather than leaking content (CM-10-007); a
+        record that is not SIGNATORY to the active embargo, or that never
+        joined, is inert (ADR-0114).
+        """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id=RECEIVER_ID,
@@ -412,7 +447,27 @@ class TestCaseUseCases:
             attributed_to=owner_id,
             active_embargo=embargo.id_,
         )
-        case.actor_participant_index[actor_id] = bogus_ref.id_
+        if inert == "no-record":
+            case.actor_participant_index[actor_id] = bogus_ref.id_
+        else:
+            _seat(
+                dl,
+                case,
+                actor_id,
+                f"{case_id}/participants/alice",
+                embargo_consent_state=(
+                    PEC.INVITED if inert == "not-signatory" else PEC.SIGNATORY
+                ),
+                joined=inert != "not-joined",
+            )
+        signatory = "https://example.org/users/dave"
+        _seat(
+            dl,
+            case,
+            signatory,
+            f"{case_id}/participants/dave",
+            embargo_consent_state=PEC.SIGNATORY,
+        )
         _make_receiver_the_case_manager(dl, case)
         dl.create(case)
 
@@ -430,13 +485,8 @@ class TestCaseUseCases:
 
         outbox_items = dl.outbox_list()
         assert len(outbox_items) == 1
-
-        broadcast_id = outbox_items[0]
-        broadcast = dl.read(broadcast_id)
-        assert broadcast is not None
-        broadcast = cast(VultronActivity, broadcast)
-        assert broadcast.to is not None
-        assert actor_id in broadcast.to
+        broadcast = cast(VultronActivity, dl.read(outbox_items[0]))
+        assert broadcast.to == [signatory]
 
     # ------------------------------------------------------------------
     # Broadcast tests (CM-06-001, CM-06-002)
@@ -476,8 +526,8 @@ class TestCaseUseCases:
             name="Original",
             attributed_to=owner_id,
         )
-        case.actor_participant_index[participant_id] = (
-            "https://example.org/participants/p-bc1"
+        _seat(
+            dl, case, participant_id, "https://example.org/participants/p-bc1"
         )
         _make_receiver_the_case_manager(dl, case)
         dl.create(case)
@@ -596,12 +646,8 @@ class TestCaseUseCases:
         case = as_VulnerabilityCase(
             id_=case_id, name="Original", attributed_to=owner_id
         )
-        case.actor_participant_index[alice] = (
-            "https://example.org/participants/p-bc4-alice"
-        )
-        case.actor_participant_index[bob] = (
-            "https://example.org/participants/p-bc4-bob"
-        )
+        _seat(dl, case, alice, "https://example.org/participants/p-bc4-alice")
+        _seat(dl, case, bob, "https://example.org/participants/p-bc4-bob")
         _make_receiver_the_case_manager(dl, case)
         dl.create(case)
 

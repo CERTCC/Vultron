@@ -110,7 +110,7 @@ def demo_suggest_actor_accept(
                 f"{case.name}."
             ),
         )
-        logger.info(f"Sending Offer(Actor,Case): {logfmt(recommendation)}")
+        logger.info("Sending Offer(Actor,Case): %s", logfmt(recommendation))
         post_to_inbox_and_wait(client, vendor.id_, recommendation)
         with demo_check("Offer(Actor,Case) stored in data layer"):
             verify_object_stored(client, recommendation.id_)
@@ -132,7 +132,7 @@ def demo_suggest_actor_accept(
                 f"(roles: VENDOR). Origin: {recommendation.id_}"
             ),
         )
-        logger.info(f"Sending Offer(as_CaseParticipant): {logfmt(cp_offer)}")
+        logger.info("Sending Offer(as_CaseParticipant): %s", logfmt(cp_offer))
         post_to_inbox_and_wait(client, vendor.id_, cp_offer)
         with demo_check("Offer(as_CaseParticipant) stored in data layer"):
             verify_object_stored(client, cp_offer.id_)
@@ -151,7 +151,7 @@ def demo_suggest_actor_accept(
             ),
         )
         logger.info(
-            f"Sending Accept(Offer(as_CaseParticipant)): {logfmt(accept)}"
+            "Sending Accept(Offer(as_CaseParticipant)): %s", logfmt(accept)
         )
         post_to_inbox_and_wait(client, vendor.id_, accept)
         with demo_check("Accept stored in data layer"):
@@ -204,7 +204,7 @@ def demo_suggest_actor_reject(
                 f"{case.name}."
             ),
         )
-        logger.info(f"Sending Offer(Actor,Case): {logfmt(recommendation)}")
+        logger.info("Sending Offer(Actor,Case): %s", logfmt(recommendation))
         post_to_inbox_and_wait(client, vendor.id_, recommendation)
         with demo_check("Offer(Actor,Case) stored in data layer"):
             verify_object_stored(client, recommendation.id_)
@@ -223,7 +223,7 @@ def demo_suggest_actor_reject(
                 f"(roles: VENDOR). Origin: {recommendation.id_}"
             ),
         )
-        logger.info(f"Sending Offer(as_CaseParticipant): {logfmt(cp_offer)}")
+        logger.info("Sending Offer(as_CaseParticipant): %s", logfmt(cp_offer))
         post_to_inbox_and_wait(client, vendor.id_, cp_offer)
         with demo_check("Offer(as_CaseParticipant) stored in data layer"):
             verify_object_stored(client, cp_offer.id_)
@@ -241,7 +241,7 @@ def demo_suggest_actor_reject(
             ),
         )
         logger.info(
-            f"Sending Reject(Offer(as_CaseParticipant)): {logfmt(reject)}"
+            "Sending Reject(Offer(as_CaseParticipant)): %s", logfmt(reject)
         )
         post_to_inbox_and_wait(client, vendor.id_, reject)
 

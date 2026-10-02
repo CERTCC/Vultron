@@ -287,7 +287,7 @@ Each Participant's RM process can interact with the case-level EM process in sev
 
 !!! note ""
 
-    Participants SHOULD NOT close reports ($q^{rm} \in \{I,D,A\} \xrightarrow{c} C$) while an embargo is active ($q^{em} \in \{ A,R \}$).
+    Participants SHOULD NOT close reports ($q^{rm} \in \{R,I,D,A\} \xrightarrow{c} C$) while an embargo is active ($q^{em} \in \{ A,R \}$).
 
 The diagram below shows the closures to avoid while the embargo is *Active* or being revised.
 
@@ -298,6 +298,7 @@ title: Avoid Closing a Report During an Active Embargo
 stateDiagram-v2
     direction LR
     state RM {
+        Received --> Closed: close
         Invalid --> Closed: close
         Deferred --> Closed: close
         Accepted --> Closed: close
@@ -320,7 +321,7 @@ Notwithstanding the above,
 
 !!! note ""
 
-    Participants who choose to close a report ($q^{rm} \in \{I,D,A\} \xrightarrow{c} C$) while an embargo remains in force ($q^{em} \in \{A,R\}$) SHOULD communicate their intent to either continue to adhere to the embargo or terminate their compliance with it.
+    Participants who choose to close a report ($q^{rm} \in \{R,I,D,A\} \xrightarrow{c} C$) while an embargo remains in force ($q^{em} \in \{A,R\}$) SHOULD communicate their intent to either continue to adhere to the embargo or terminate their compliance with it.
 
 Report closure or deferral alone does not terminate an embargo.
 
@@ -337,6 +338,7 @@ title: Report Closure Does Not Terminate the Embargo
 stateDiagram-v2
     direction LR
     state RM {
+        Received --> Closed: close
         Invalid --> Closed: close
         Deferred --> Closed: close
         Accepted --> Closed: close

@@ -23,6 +23,7 @@ related_notes:
   - notes/use-case-behavior-trees.md
   - notes/testing-pitfalls.md
   - notes/inbox-orchestration.md
+  - notes/participant-embargo-consent.md
 relevant_packages:
   - py_trees
   - vultron/bt
@@ -221,26 +222,29 @@ to the wrong record (ISSUE-2762):
 
 - **Reusing the resolved receiving actor as a subject.** Satisfies every
   written requirement and inverts the semantics.
-- **A tree factory that accepts a subject argument and only logs it.**
-  `OptionalLookupParticipantNode` falls back to the BT execution actor when
-  `target_actor_id` is falsy, so a dropped subject argument is
-  indistinguishable from one never supplied. The node now logs at WARNING when
-  a subject *was* named and did not resolve, which separates the two.
+- **A tree factory that accepts a subject argument and only logs it.** A
+  lenient lookup that falls back to the BT execution actor when the subject is
+  falsy makes a dropped subject argument indistinguishable from one never
+  supplied. Log at WARNING when a subject *was* named and did not resolve, as
+  `CanAnswerEmbargoInviteNode` does, which separates the two.
 
 Read a subject **from the message**, never from the receiving actor. For an
 `Invite(EmbargoEvent)` the invitee is the Invite's *sole* `to:` recipient
 (EP-09-010, ADR-0113): every emitter sends one recipient (a participant to the
 CASE_MANAGER; the CASE_MANAGER to one participant per relayed Invite), so an
 Invite naming several recipients or none is refused as a misrouting, never
-resolved by membership or guessed at. The earlier "addressee membership"
-resolution in `resolve_invitee_id()` (`vultron/core/use_cases/received/embargo.py`)
-was built for a multi-recipient shape nothing emits, and its fallback to the
-receiving actor put the deadline on the enforcer's own record; #3963 retires it.
+resolved by membership or guessed at. `resolve_invitee_id()`
+(`vultron/core/use_cases/received/embargo.py`) returns the sole recipient in its
+canonical spelling and raises `VultronProtocolViolationError` naming the
+recipient count, which the use case reports as `REFUSED`. A proposal addressed
+to the CASE_MANAGER names the manager as that sole recipient, but the manager
+adjudicates it and is never its invitee, so its own record gets no RSVP
+deadline (CM-28-003, ISSUE-2762).
 Where a message legitimately names several recipients (the report `Offer`),
 test membership with `is_addressed_to()` (`vultron/core/predicates/addressing.py`),
 never a bare `in`: `to:`/`cc:` arrive as the sender wrote them, so a trailing
 slash misses an exact match while the receiver is canonical (#2667); see
-`_is_primary_submit_report_recipient()` in `received/report.py`. Full rule:
+`_not_primary_recipient_reason()` in `received/report.py`. Full rule:
 `vultron/core/AGENTS.md` § "A Message Subject Is Never
 `resolve_receiving_actor_id()`".
 
@@ -644,11 +648,12 @@ in `CaseParticipant.participant_status[].rm_state` from the moment
 of case creation.
 
 > **ADR-0015 is superseded by ADR-0041.** In the CASE_MANAGER-authoritative model
-> the vendor tree no longer creates the `VulnerabilityCase` directly.  The vendor
-> stores the report, writes a pending `VultronReportCaseLink`, and sends
-> `Create(as_CaseProposal)` to the CASE_MANAGER; the CASE_MANAGER creates the case,
-> adds participants, and initializes embargo before emitting
-> `Create(VulnerabilityCase)` back to the vendor.  See `notes/case-proposal.md`
+> the report receiver's tree no longer creates the `VulnerabilityCase` directly.
+> The report receiver stores the report, writes a pending `VultronReportCaseLink`,
+> and sends `Create(as_CaseProposal)` to the CASE_MANAGER; the CASE_MANAGER
+> creates the case, adds participants, and initializes embargo before emitting
+> `Create(VulnerabilityCase)` back to the report receiver, which becomes the
+> CASE_OWNER.  See `notes/case-proposal.md`
 > for the corrected flow (CM-22, CP-09).
 
 `ReportStatus` in the flat status layer is a **transient pre-case

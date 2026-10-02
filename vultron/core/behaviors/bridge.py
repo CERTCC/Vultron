@@ -52,7 +52,11 @@ from vultron.core.behaviors.blackboard_scope import (
 )
 from vultron.core.behaviors.store_scope import port_for_store, store_for_actor
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.errors import VultronError, VultronWiringError
+from vultron.errors import (
+    VultronBTInternalError,
+    VultronError,
+    VultronWiringError,
+)
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -90,7 +94,10 @@ class BTExecutionResult:
       ``SUCCESS``) and is never flagged.
     - Nodes that run a sub-tree through their own ``BTBridge`` discard the inner
       result's flag and return a bare ``Status.FAILURE``, so a crash inside a
-      nested subtree is not visible in the outer result.
+      nested subtree is not visible in the outer result.  The exception is
+      ``CommitCaseLedgerEntryNode``, which raises ``VultronBTInternalError``
+      when its nested commit reports one, so a missing sync port on a
+      received commit is not read as a refusal (#4113).
     """
 
     status: Status
@@ -269,10 +276,12 @@ class BTBridge:
         "not found in DataLayer for actor …", skips delivery, and the invitee is
         never told it was invited (ISSUE-2548).
 
-        This is the delegated-emit path the class docstring on
-        ``SvcInviteActorToCaseUseCase`` describes: a trigger addressed to the case
-        owner runs with ``actor_id`` set to the CaseActor, so the two references
-        disagree by construction rather than by mistake.
+        A trigger that still runs a delegated emit locally has this shape: the
+        trigger is addressed to the requesting participant but runs with
+        ``actor_id`` set to the CaseActor, so the two references disagree by
+        construction rather than by mistake.  CM-24-004 (ADR-0109) retires that
+        shape — #3821 for the invite, #3822 for the ownership-transfer offer — and the reconciliation
+        stays for the triggers that have not moved yet.
 
         A port this bridge was not given is *inherited* from the blackboard
         rather than left alone, because the blackboard is process-global
@@ -341,7 +350,7 @@ class BTBridge:
             - BT-05-002: Sets up py_trees context with DataLayer access
             - BT-05-003: Populates blackboard with activity and actor state
         """
-        self.logger.debug(f"Setting up BT for actor {actor_id}")
+        self.logger.debug("Setting up BT for actor %s", actor_id)
 
         # Create py_trees BehaviourTree wrapper
         bt = py_trees.trees.BehaviourTree(root=tree)
@@ -408,12 +417,13 @@ class BTBridge:
             )
             setattr(blackboard, key, value)
 
-        self.logger.info(f"BT setup complete for actor {actor_id}")
+        self.logger.info("BT setup complete for actor %s", actor_id)
 
         # BT scaffolding, not protocol story — DEBUG only (SL-04-007).
+        # Guard kept: unicode_tree() is a call, which lazy args do not skip.
         if self.logger.isEnabledFor(logging.DEBUG):
             tree_repr = unicode_tree(tree, show_status=True)
-            self.logger.debug(f"BT structure:\n{tree_repr}")
+            self.logger.debug("BT structure:\n%s", tree_repr)
 
         return bt
 
@@ -463,21 +473,25 @@ class BTBridge:
             internal_error: Classification, as described above.  A
                 ``VultronWiringError`` is always internal: a missing DataLayer
                 or port is our composition fault, not the protocol's, whatever
-                base class it shares (#2255).
+                base class it shares (#2255).  A ``VultronBTInternalError`` is
+                internal too: a node raises it to carry a nested bridge's
+                ``internal_error`` across the hop (#4113).
 
         Returns:
             A FAILURE ``BTExecutionResult`` carrying the composed message as
             both ``feedback_message`` and the sole entry in ``errors``.
         """
-        internal_error = internal_error or isinstance(e, VultronWiringError)
+        internal_error = internal_error or isinstance(
+            e, (VultronWiringError, VultronBTInternalError)
+        )
         if internal_error:
             error_msg = (
                 f"{prefix} with internal error: {type(e).__name__}: {e}"
             )
-            self.logger.exception(error_msg)
+            self.logger.exception("%s", error_msg)
         else:
             error_msg = f"{prefix}: {type(e).__name__}: {e}"
-            self.logger.warning(error_msg)
+            self.logger.warning("%s", error_msg)
 
         return BTExecutionResult(
             status=Status.FAILURE,
@@ -554,9 +568,10 @@ class BTBridge:
                         detail,
                     )
                     # Tree dump is scaffolding, not story — DEBUG (SL-04-007).
+                    # Guard kept: lazy args do not skip the unicode_tree call.
                     if self.logger.isEnabledFor(logging.DEBUG):
                         tree_repr = unicode_tree(bt.root, show_status=True)
-                        self.logger.debug(f"Final BT state:\n{tree_repr}")
+                        self.logger.debug("Final BT state:\n%s", tree_repr)
 
                     return BTExecutionResult(
                         status=root_status,
@@ -566,7 +581,7 @@ class BTBridge:
 
                 # RUNNING: continue ticking
                 if root_status == Status.RUNNING:
-                    self.logger.debug(f"BT still running (tick {iteration})")
+                    self.logger.debug("BT still running (tick %s)", iteration)
                     continue
 
                 # INVALID: should not happen during execution
@@ -574,7 +589,7 @@ class BTBridge:
                     # Not a protocol outcome — a tree in INVALID mid-execution
                     # is malformed, so retrying it cannot converge.
                     error_msg = f"BT entered INVALID state at tick {iteration}"
-                    self.logger.error(error_msg)
+                    self.logger.error("%s", error_msg)
                     errors.append(error_msg)
                     return BTExecutionResult(
                         status=Status.FAILURE,
@@ -589,7 +604,7 @@ class BTBridge:
             error_msg = (
                 f"BT execution exceeded max iterations ({max_iterations})"
             )
-            self.logger.error(error_msg)
+            self.logger.error("%s", error_msg)
             errors.append(error_msg)
             return BTExecutionResult(
                 status=Status.FAILURE,
@@ -728,7 +743,7 @@ class BTBridge:
                     "BT execution skipped: this node is not the replication"
                     " leader"
                 )
-                self.logger.warning(msg)
+                self.logger.warning("%s", msg)
                 return BTExecutionResult(
                     status=Status.FAILURE,
                     feedback_message=msg,
@@ -758,6 +773,11 @@ class BTBridge:
                 # node owns "clean up when the Sequence aborts", so the bridge
                 # does, exactly once, for every outcome.
                 "ledger_payload_object_override",
+                # Published by RegisterLongerProposalAsRevisionNode, read by
+                # RelayCreationTimeRevisionNode (EP-04-011).  The writer ticks
+                # only on the creation arm, so a redelivery that skips that arm
+                # would otherwise hand the relay the previous execution's value.
+                "creation_time_revision",
                 # The executing actor's identity is execution-scoped too, and for
                 # a sharper reason than the ports above.  Every node base in
                 # `helpers.py` re-reads `/actor_id` into `self.actor_id` in
@@ -772,7 +792,7 @@ class BTBridge:
                 # `self.datalayer.actor_id` and `/actor_id` the same actor, and
                 # the three sites that pass the store's own actor to a nested
                 # call (`case/nodes/leave/advance.py` twice,
-                # `sync/nodes/close_case_effect.py`) therefore usually pass the
+                # `case/nodes/close_case_effect.py`) therefore usually pass the
                 # value already on the blackboard.  Where they do not — a case
                 # whose CASE_MANAGER sits on another container after a handoff
                 # (CP-08-003) — `OwnerLeaveSeq`

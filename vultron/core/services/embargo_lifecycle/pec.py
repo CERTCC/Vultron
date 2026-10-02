@@ -31,12 +31,11 @@ from collections.abc import Callable, Iterator
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.services.embargo_lifecycle.base import _LifecycleBase
+from vultron.core.services.embargo_lifecycle.activation_arm import (
+    _ActivationArmMixin,
+)
 from vultron.core.services.embargo_lifecycle.results import (
     ParticipantPECChange,
-)
-from vultron.core.services.embargo_ordering import (
-    earliest_expiring_embargo_id,
 )
 from vultron.core.states.participant_embargo_consent import (
     PEC,
@@ -64,7 +63,7 @@ def _pec_change(
     )
 
 
-class _PecEffectsMixin(_LifecycleBase):
+class _PecEffectsMixin(_ActivationArmMixin):
     """PEC bookkeeping shared by the EM transition operations."""
 
     def _participant_for_actor(
@@ -295,6 +294,18 @@ class _PecEffectsMixin(_LifecycleBase):
         """Apply *trigger* to every participant of *case* that *select* picks.
 
         Each moved participant is persisted and reported.
+
+        Every *select* keys on the participant's own record, so an inert
+        participant's consent moves only as its own replies or an embargo
+        termination cause (CM-10-007, #4046 AC-5): the one promotion
+        (:meth:`_advance_holders_of`) needs the activated id on the
+        participant's own ``accepted_embargo_ids``, which only its own
+        acceptance puts there; the lapse demotes a ``SIGNATORY`` that never
+        accepted the longer terms; and the reset is the termination.  Whether
+        the participant has joined, or has recorded RM ``CLOSED``, does not
+        enter into it — a closed signatory that never accepted longer terms
+        lapses like any other, so it is not left ``SIGNATORY`` to terms it
+        never agreed to.
         """
         changes: list[ParticipantPECChange] = []
         for participant_id, participant in self._each_participant(case):
@@ -313,6 +324,8 @@ class _PecEffectsMixin(_LifecycleBase):
 
         Called when an embargo is terminated.  Returns a list of
         :class:`ParticipantPECChange` for every participant that was updated.
+        Inert participants are reset too: with no embargo there is nothing
+        left for any record to consent to (CM-18-001).
         """
         return self._cascade_pec(
             case,
@@ -353,34 +366,14 @@ class _PecEffectsMixin(_LifecycleBase):
         embargo it replaces asks nothing new of an existing signatory
         (agreeing to N days is agreeing to every shorter period), so its
         consent carries over by containment (CM-10-001) with no state change.
+        Only a ``SIGNATORY`` is carried over, so the containment argument is
+        always about consent the participant itself gave.
         """
         for _participant_id, participant in self._each_participant(case):
             if participant.embargo_consent_state != PEC.SIGNATORY.value:
                 continue
             if participant.add_accepted_embargo(revised_embargo_id):
                 self._persistence.save(participant)
-
-    def _revision_ends_no_later(
-        self, *, previous_embargo_id: str, revised_embargo_id: str
-    ) -> bool:
-        """True when revision B ends no later than the embargo A it replaces.
-
-        The A-vs-B comparison shares :func:`earliest_expiring_embargo_id`'s
-        read path (EP-08), so an unreadable record fails closed rather than
-        silently deciding the arm; a tie keeps B, the first candidate, so
-        equal terms carry everyone over.  Call it *before* the case is
-        mutated, so a failure leaves EM and ``active_embargo`` untouched.
-
-        Raises:
-            VultronNotFoundError: If either embargo does not resolve.
-            VultronValidationError: If either record is not an ``EmbargoEvent``.
-        """
-        return (
-            earliest_expiring_embargo_id(
-                self._persistence, [revised_embargo_id, previous_embargo_id]
-            )
-            == revised_embargo_id
-        )
 
     def _reevaluate_consent_at_activation(
         self,

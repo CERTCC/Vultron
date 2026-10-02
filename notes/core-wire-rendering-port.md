@@ -18,10 +18,12 @@ related_specs:
   - case-ledger-processing.yaml (CLP-07-011, CLP-07-006, CLP-07-009, CLP-07-010)
   - status-dimension-objects.yaml (SDO-03-003, SDO-03-005)
   - datalayer.yaml (DL-05-001)
+  - sync-ledger-replication.yaml (SYNC-02-002, SYNC-02-003)
 related_notes:
   - notes/wire-core-boundary.md
   - notes/vocabulary-registry.md
   - notes/wire-artifact-immutability.md
+  - notes/sync-ledger-replication.md
 related_adrs:
   - ADR-0017
   - ADR-0036
@@ -147,8 +149,10 @@ A driven port, per ARCH-01-004 and the `SyncActivityPort` precedent.
 - **Reach**: *every* received use case gets the port, because every received
   tree ends in a guarded ledger commit whose snapshot is an AS2 rendering. The
   inbox dispatcher wraps each semantic's port factory with
-  `with_wire_render_port()` (`inbox_port_factories.py`), and a use case that is
-  not handed one fails closed at its first commit rather than dumping. Trigger
+  `with_received_baseline_ports()` (`inbox_port_factories.py`), and a use case
+  that is not handed one fails closed at its first commit rather than dumping.
+  The same wrapper gives every semantic the `SyncActivityPort`, because that
+  commit is also fanned out (SYNC-02-003, #4113). Trigger
   use cases get it through `RegistryTriggerDispatcher` (built by
   `get_trigger_dispatcher` with an `As2WireRenderAdapter`) and
   `SvcBTTriggerBase` (#3930, #3833).

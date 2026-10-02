@@ -38,8 +38,10 @@ Submodules:
   ThreatTerminationBranchNode, EmitCloseCaseNode)
 - ``rm_anomaly``: RM transition anomaly notification (EmitRMGapNoteNode)
 - ``case_status``: Idempotency guard and append nodes for the
-  AddCaseStatusToCase workflow, plus EmitCaseStatusUpdateNode for direct
-  ledger writes after EM/PXA mutations (RSH-04-002, RSH-04-003)
+  AddCaseStatusToCase workflow.  EmitCaseStatusUpdateNode (direct ledger
+  writes after EM/PXA mutations, RSH-04-002/RSH-04-003) is shared with the
+  embargo trees, so it lives in ``vultron.core.behaviors.case_status_snapshot``
+  (BTND-04-001)
 - ``cs_invariant_diagnostic``: Post-cascade PXA↔EM invariant check
   (PxaEmInvariantDiagnosticNode; CSB-18-002..004, CONCERN-3008)
 - ``cs_invariant_guards``: CS ordering invariant precondition guards
@@ -58,7 +60,6 @@ from vultron.core.behaviors.status.nodes.case_status import (
     CASE_STATUS_ALREADY_PRESENT,
     AppendCaseStatusToCaseNode,
     CheckCaseStatusIdempotencyNode,
-    EmitCaseStatusUpdateNode,
 )
 from vultron.core.behaviors.status.nodes.conditions import (
     AllParticipantsRMClosedConditionNode,
@@ -127,7 +128,6 @@ __all__ = [
     "FilterCsPxaDimensionNode",
     "FinalizeCsFilterNode",
     "AppendCaseStatusToCaseNode",
-    "EmitCaseStatusUpdateNode",
     # cs_invariant_guards
     "CheckCsEphemeralStateNode",
     "CheckCsHistoryPrefixNode",

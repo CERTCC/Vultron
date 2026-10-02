@@ -45,16 +45,16 @@ from test.architecture import _corpus
 #   PROTECTED  — write covered by transition validation.  For the trigger path
 #                ValidateTriggerTransitionsNode runs first, and for the received
 #                path FilterParticipantStatusDimensionsNode does — but neither
-#                is what makes the write-node sites safe, because five call
+#                is what makes the write-node sites safe, because some call
 #                sites reach CreateParticipantStatusNode through *neither*
-#                (develop_fix.py, deploy_fix.py, close_case_effect.py and two
-#                in leave.py).  What protects them is that the write node
+#                (develop_fix.py, deploy_fix.py, and the closure writer
+#                participant/rm_closure.py used by close_case_effect.py and
+#                leave/advance.py).  What protects them is that the write node
 #                validates its own writes against the shared evaluator
 #                (BTND-10-001, BTND-10-003, ADR-0086); the upstream guard is
-#                defence in depth, not the guarantee.  Three of those five
-#                sites force RM.CLOSED and carry a sanctioned `force_rm_state`
-#                override (CM-23-012, resolving #3106) pinned by
-#                test_participant_status_validation.py.
+#                defence in depth, not the guarantee.  No closure write
+#                carries a `force_rm_state` override (RMB-14-005, #4044);
+#                test_rm_closure_no_force.py pins that.
 #   BOOTSTRAP  — initial / authoritative seeding write; no prior state to
 #                violate; outside the scope of transition validation
 #   PREDICATE  — read-only dimension instantiation (guard / is_*() checks),
@@ -96,8 +96,8 @@ AUDITED_SITES: list[tuple[str, str]] = sorted(
         # FILTER — CaseStatus per-dimension carry-forward (ISSUE-2256)
         ("status/nodes/cs_dimension_filter.py", "PxaDimension"),
         # SNAPSHOT — EmitCaseStatusUpdateNode: post-mutation CaseStatus snapshot (ISSUE-2175)
-        # Second PxaDimension: AC-1 _promote_pxa() result applied in AppendCaseStatusToCaseNode
-        ("status/nodes/case_status.py", "PxaDimension"),
+        ("case_status_snapshot.py", "PxaDimension"),
+        # AC-1 promote_pxa() result applied in AppendCaseStatusToCaseNode
         ("status/nodes/case_status.py", "PxaDimension"),
         # REPLICATE — participant_status_effect.py: monotonic RM ratchet
         ("sync/nodes/participant_status_effect.py", "RmDimension"),

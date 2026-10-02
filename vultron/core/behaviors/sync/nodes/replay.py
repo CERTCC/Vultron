@@ -17,7 +17,9 @@
 Replay is catch-up for one peer that has fallen behind, driven by an inbound
 ``Reject(CaseLedgerEntry)``.  The fan-out nodes that used to live here — the
 distribution of a single entry to every recipient — now sit in ``fanout.py``
-alongside their RM.CLOSED-filtered variants (BTND-07-004).
+alongside their RM.CLOSED-filtered variants (BTND-07-004), and the genesis
+pre-seed ``AnnounceCaseOnGenesisRejectNode`` sits in ``genesis_announce.py``
+(CS-18-001).
 """
 
 from __future__ import annotations
@@ -33,6 +35,14 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
+from vultron.core.behaviors.sync.nodes.embargo_pause import (
+    clear_embargo_pause,
+    peer_is_embargo_withheld,
+    peer_is_withheld,
+    record_embargo_pause,
+    send_ledger_suffix,
+    sorted_case_ledger_entries,
+)
 from vultron.core.behaviors.sync.nodes.replay_guard import (
     record_replay,
     replay_from_hash,
@@ -42,18 +52,23 @@ from vultron.core.models.case_ledger_entry import (
     CaseLedgerEntry,
 )
 from vultron.core.participants.authority import resolve_case_manager_id
-from vultron.core.ports.case_persistence import (
-    CaseOutboxPersistence,
-    CasePersistence,
-)
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
-from vultron.core.ports.trigger_activity import TriggerActivityPort
-from vultron.errors import VultronError, VultronWiringError
+from vultron.errors import (
+    VultronError,
+    VultronWiringError,
+)
 
 logger = logging.getLogger(__name__)
 
 
-def _require_rejected_entry(activity: Any, node_name: str) -> CaseLedgerEntry:
+def require_rejected_entry(activity: Any, node_name: str) -> CaseLedgerEntry:
+    """Return the ``CaseLedgerEntry`` a ``Reject(CaseLedgerEntry)`` carries.
+
+    Shared by the replay nodes here and ``AnnounceCaseOnGenesisRejectNode``
+    (``genesis_announce.py``). Raises ``VultronError`` when the activity
+    carries no entry (BT-HELPER-01: helpers raise, ``update()`` catches).
+    """
     entry = getattr(activity, "rejected_entry", None)
     if entry is None:
         entry = getattr(activity, "object_", None)
@@ -126,7 +141,7 @@ class FindCaseActorNode(DataLayerActionWithPorts):
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
-        entry = _require_rejected_entry(self.activity, self.name)
+        entry = require_rejected_entry(self.activity, self.name)
         self._set_output("case_id", entry.case_id)
 
         # Regime 1 (ADR-0087): a peer is asking us to replay this case's log,
@@ -182,20 +197,16 @@ class CollectAndSortCaseLedgerEntriesNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
         activity = self.activity
-        entry = _require_rejected_entry(activity, self.name)
+        entry = require_rejected_entry(activity, self.name)
         peer_id = activity.actor_id
         if not peer_id:
             raise VultronError(
                 f"{self.name}: Reject(CaseLedgerEntry) missing peer actor_id"
             )
 
-        entries: list[CaseLedgerEntry] = [
-            obj
-            for obj in self.datalayer.list_objects("CaseLedgerEntry")
-            if isinstance(obj, CaseLedgerEntry)
-            and obj.case_id == entry.case_id
-        ]
-        entries.sort(key=lambda log_entry: log_entry.log_index)
+        entries = sorted_case_ledger_entries(
+            cast(CasePersistence, self.datalayer), entry.case_id
+        )
 
         self._set_output("replay_entry", entry)
         self._set_output("replay_peer_id", peer_id)
@@ -245,6 +256,17 @@ class FindDivergenceIndexNode(DataLayerActionWithPorts):
 
 
 class SendMissingEntriesNode(DataLayerActionWithPorts):
+    """Replay the ledger suffix a peer's ``Reject(CaseLedgerEntry)`` asks for.
+
+    A peer that is not an active participant (CM-10-004) is sent nothing.
+    When the active embargo is what withholds it, its stream is paused from
+    the first entry it asked for, and the backfill that admits it starts there
+    (CM-10-005, CM-10-006). An admitted peer's
+    replay clears any recorded pause: it resends everything past the
+    contiguous prefix the peer reports holding (SYNC-10-004), so nothing
+    withheld is left to backfill.
+    """
+
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._sync_port: SyncActivityPort | None = None
@@ -303,6 +325,38 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
         peer_id = cast(str, self.replay_peer_id)
         entries = cast(list[CaseLedgerEntry], self.replay_case_ledger_entries)
         from_index = cast(int, self.replay_from_index)
+        datalayer = cast(CasePersistence, self.datalayer)
+
+        # CM-10-005: replay is case content too. A peer that is not an active
+        # participant gets nothing — not even the gap it asked for — and when
+        # the embargo is what withholds it, its pause starts at that gap.
+        try:
+            withheld = peer_is_withheld(
+                datalayer, case_id=entry.case_id, peer_id=peer_id
+            )
+            paused = withheld and peer_is_embargo_withheld(
+                datalayer, case_id=entry.case_id, peer_id=peer_id
+            )
+        except VultronError as exc:
+            self.feedback_message = str(exc)
+            self.logger.exception("%s: embargo gate undecidable", self.name)
+            return Status.FAILURE
+        if withheld:
+            if paused:
+                record_embargo_pause(
+                    datalayer,
+                    case_id=entry.case_id,
+                    peer_id=peer_id,
+                    from_index=from_index + 1,
+                )
+            self.logger.info(
+                "%s: peer '%s' is not an active participant of case"
+                " '%s'; replay withheld (CM-10-004, CM-10-005)",
+                self.name,
+                peer_id,
+                entry.case_id,
+            )
+            return Status.SUCCESS
 
         # SYNC-15-003: rate-limit no-progress replays.  A peer that cannot
         # anchor its hash chain re-Rejects every entry we replay; replaying the
@@ -325,19 +379,18 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
         # The sync port declines to queue a row it already holds for this
         # peer and says so, so only rows actually queued count as sent
         # (SYNC-15-011, #3602).
-        replayed = 0
-        skipped = 0
-        for log_entry in entries:
-            if log_entry.log_index <= from_index:
-                continue
-            if self._sync_port.send_announce_log_entry(
-                entry=log_entry,
-                actor_id=self.case_actor_id_bb,
-                to=[peer_id],
-            ):
-                replayed += 1
-            else:
-                skipped += 1
+        replayed, skipped = send_ledger_suffix(
+            self._sync_port,
+            entries,
+            after_index=from_index,
+            actor_id=self.case_actor_id_bb,
+            peer_id=peer_id,
+        )
+        # An admitted peer's replay ends any pause. A suffix past the paused
+        # index needs no resend either: the Reject reports a contiguous prefix
+        # through from_index (SYNC-10-004), so the replica already holds every
+        # entry withheld below it.
+        clear_embargo_pause(datalayer, case_id=entry.case_id, peer_id=peer_id)
 
         # Record the position only when entries actually went out; a
         # zero-entry replay must not start a cooldown (SYNC-15-003).
@@ -358,98 +411,6 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
             entry.case_id,
             skipped,
         )
-        return Status.SUCCESS
-
-
-class AnnounceCaseOnGenesisRejectNode(DataLayerActionWithPorts):
-    """Queue Announce(VulnerabilityCase) to a peer that rejected from genesis.
-
-    When a peer sends ``Reject(last_accepted_hash="")`` it has no copy of
-    VulnerabilityCase yet.  Replaying ledger entries without first seeding the
-    case object causes ReconstructChainTailNode to fail again on every entry,
-    producing an exponential reject-replay loop (SYNC-15-002).  This node
-    fires first so the VulnerabilityCase arrives before the entry replay.
-
-    Returns SUCCESS unconditionally (missing trigger port is only a WARNING so
-    that the replay still runs in environments without a trigger port).
-
-    Authored as the executing actor, gated on CASE_MANAGER (ADR-0073).
-    """
-
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **DataLayerActionWithPorts.INPUT_PORTS,
-        "activity": PortInformation(data_type=object, required=True),
-        "case_actor_id": PortInformation(data_type=str, required=True),
-    }
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {
-            "activity": "/activity",
-            "case_actor_id": "/case_actor_id",
-        }
-
-    def initialise(self) -> None:
-        super().initialise()
-        self.activity = self.get_input("activity")
-        self.case_actor_id_bb: str = self.get_input("case_actor_id")
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        assert self.datalayer is not None
-        assert self.actor_id is not None
-
-        activity = self.activity
-        if activity.last_accepted_hash != "":
-            return Status.SUCCESS
-
-        factory = cast(
-            TriggerActivityPort | None,
-            self.trigger_activity_factory,
-        )
-        if factory is None:
-            self.logger.warning(
-                "%s: trigger_activity_factory not available;"
-                " cannot pre-seed VulnerabilityCase for peer '%s' (SYNC-15-002)",
-                self.name,
-                activity.actor_id,
-            )
-            return Status.SUCCESS
-
-        entry = _require_rejected_entry(activity, self.name)
-        peer_id = activity.actor_id
-        # `case_actor_id` is no longer read here: the announce is authored by the
-        # executing actor (see below), not by a looked-up CaseActor. The input
-        # port is left declared so the node's contract is unchanged for callers
-        # that already populate it.
-
-        try:
-            activity_id = factory.announce_vulnerability_case(
-                case_id=entry.case_id,
-                # The executing actor, which the CASE_MANAGER gate has already
-                # established holds that role — not a looked-up CaseActor id.
-                actor=self.actor_id,
-                context_id=entry.case_id,
-                to=[peer_id],
-            )
-            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
-                activity_id
-            )
-            self.logger.info(
-                "%s: queued AnnounceVulnerabilityCase '%s' to peer '%s'"
-                " before entry replay (SYNC-15-002)",
-                self.name,
-                activity_id,
-                peer_id,
-            )
-        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3768
-            self.logger.warning(
-                "%s: could not queue AnnounceVulnerabilityCase for peer '%s': %s",
-                self.name,
-                peer_id,
-                exc,
-            )
         return Status.SUCCESS
 
 

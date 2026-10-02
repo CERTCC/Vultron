@@ -14,7 +14,11 @@
 
 import pytest
 
-from vultron.core.predicates.addressing import is_addressed_to, same_actor_id
+from vultron.core.predicates.addressing import (
+    is_addressed_to,
+    normalise_actor_id,
+    same_actor_id,
+)
 
 VENDOR = "https://example.org/actors/vendor"
 
@@ -36,6 +40,7 @@ VENDOR = "https://example.org/actors/vendor"
         "other-host",
     ],
 )
+@pytest.mark.spec("CLP-10-021")
 def test_same_actor_id(a: str, b: str, expected: bool) -> None:
     assert same_actor_id(a, b) is expected
 
@@ -50,5 +55,11 @@ def test_same_actor_id(a: str, b: str, expected: bool) -> None:
     ],
     ids=["exact", "trailing-slash-among-others", "slug", "empty"],
 )
+@pytest.mark.spec("CLP-10-021")
 def test_is_addressed_to(recipients: list[str], expected: bool) -> None:
     assert is_addressed_to(VENDOR, recipients) is expected
+
+
+@pytest.mark.parametrize("spelling", [VENDOR, VENDOR + "/"])
+def test_normalise_actor_id_drops_trailing_slash(spelling: str) -> None:
+    assert normalise_actor_id(spelling) == VENDOR

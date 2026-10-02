@@ -50,7 +50,7 @@ class MyTestCase(unittest.TestCase):
 
     def test_rm_closable(self):
         self.assertNotIn(RM.S, RM_CLOSABLE)
-        self.assertNotIn(RM.R, RM_CLOSABLE)
+        self.assertIn(RM.R, RM_CLOSABLE)
 
         self.assertIn(RM.I, RM_CLOSABLE)
 

@@ -31,7 +31,7 @@ ready, and nothing is deployed.
 
 Which participant may cause which VFD transition depends on the roles it holds,
 and is specified at
-[§12.4.1](index.md#1241-participant-specific-cs-transitions-vfd).
+[§12.4.1 Participant-Specific CS Transitions (VFD)](conformance.md#1241-participant-specific-cs-transitions-vfd).
 
 !!! info "See also"
     - [CS Process Model](../../topics/process_models/cs/index.md)
@@ -41,7 +41,7 @@ and is specified at
 
 PXA records the state of the world, not the state of any participant. There is one
 PXA value for the case, it is shared case state, and only the CASE_MANAGER writes
-it ([§5.4.1](index.md#541-single-writer-authority)).
+it ([§5.4.1 Single-Writer Authority](layers.md#541-single-writer-authority)).
 
 Unlike VFD, the three axes are independent: any combination can occur, in any
 order.
@@ -57,8 +57,8 @@ by setting each letter to upper or lower case: `pxa`, `Pxa`, `pXa`, `pxA`, `PXa`
 Any participant MAY report a PXA observation, because a PXA fact is not any
 participant's to own — anyone may notice that an exploit has appeared. Reporting
 is not the same as the case adopting the observation
-([§12.4.2](index.md#1242-participant-agnostic-cs-transitions-pxa),
-[§10.3](index.md#103-status-adoption-the-two-seam-model)).
+([§12.4.2 Participant-Agnostic CS Transitions (PXA)](conformance.md#1242-participant-agnostic-cs-transitions-pxa),
+[§10.3 Status Adoption: The Two-Seam Model](interactions.md#103-status-adoption-the-two-seam-model)).
 
 !!! note "Two PXA states are passed through, not rested in"
     Publishing an exploit makes the vulnerability public. The two states in which
@@ -73,7 +73,7 @@ is not the same as the case adopting the observation
     in.
 
     This specification does not say where the `pX→PX` resolution is enforced. See
-    the open question in [§8.3](index.md#83-case-state-as-a-compound-tuple).
+    the open question in [§8.3 Case State as a Compound Tuple](tracking-models.md#83-case-state-as-a-compound-tuple).
 
 ### 8.3 Case State as a Compound Tuple
 
@@ -88,7 +88,7 @@ cover them.
 One ordering relationship *is* specified, because it is a cascade rather than an
 ordering constraint: adopting a status that sets Public Aware, Exploit Public or
 Attacks Observed requires the CASE_MANAGER to evaluate embargo teardown
-([§10.3](index.md#103-status-adoption-the-two-seam-model)). The embargo therefore
+([§10.3 Status Adoption: The Two-Seam Model](interactions.md#103-status-adoption-the-two-seam-model)). The embargo therefore
 ends after public awareness is recorded, not before.
 
 ### 8.4 Receiving CS Messages: Own State vs. Model of Others
@@ -100,14 +100,14 @@ participants' states to be. Different events update each one.
   the **sender's** VFD state. The receiver's own VFD state does not change. No
   acknowledgment is sent: a participant confirms it has the case history by the
   fact that its ledger replica is unbroken, not by acknowledging each entry
-  ([§4.6](index.md#46-error-and-acknowledgment-messages)).
+  ([§4.6 Error and Acknowledgment Messages](layers.md#46-error-and-acknowledgment-messages)).
 - **Driving one's own VFD transition** happens locally, subject to the role
   requirements of
-  [§12.4.1](index.md#1241-participant-specific-cs-transitions-vfd), and is then
+  [§12.4.1 Participant-Specific CS Transitions (VFD)](conformance.md#1241-participant-specific-cs-transitions-vfd), and is then
   announced.
 - **PXA is shared case state**, so an adopted PXA observation updates the case's
   canonical status rather than any per-participant model
-  ([§10.3](index.md#103-status-adoption-the-two-seam-model)).
+  ([§10.3 Status Adoption: The Two-Seam Model](interactions.md#103-status-adoption-the-two-seam-model)).
 
 !!! info "See also"
     - [CS Global vs. Local State](../../topics/process_models/model_interactions/_cs_global_local.md)

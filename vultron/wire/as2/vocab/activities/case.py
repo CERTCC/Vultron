@@ -306,7 +306,9 @@ class _RmInviteToCaseActivity(as_Invite):
     This corresponds to the Vultron Message Type RS when a case already exists.
     See also _RmSubmitReportActivity for the scenario when a case does not exist yet.
     object_: the Actor being invited
-    target: as_VulnerabilityCase
+    target: the ``as_VulnerabilityCaseStub`` naming the case (CM-11-013);
+        required, so an Invite whose target is a URI or a full case is not
+        this class
     roles: inherited from as_Invite (CM-17-003)
 
     Declares ``object_`` in :attr:`inline_required_refs` (DL-08-003). The
@@ -322,7 +324,7 @@ class _RmInviteToCaseActivity(as_Invite):
     object_: as_Actor = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
-    target: as_VulnerabilityCaseStub | NonEmptyString | None = None
+    target: as_VulnerabilityCaseStub = Field(...)
 
     inline_required_refs: ClassVar[frozenset[str]] = frozenset({"object_"})
 

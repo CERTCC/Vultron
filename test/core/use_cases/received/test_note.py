@@ -31,6 +31,7 @@ from vultron.core.use_cases.received.note import (
     CreateNoteReceivedUseCase,
     RemoveNoteFromCaseReceivedUseCase,
 )
+from vultron.errors import VultronBTInternalError
 from vultron.wire.as2.factories import add_note_to_case_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Create,
@@ -64,7 +65,10 @@ class TestNoteUseCases:
         event = make_payload(activity)
 
         result = CreateNoteReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
         assert result.disposition == HandlerDisposition.APPLIED
 
@@ -90,7 +94,10 @@ class TestNoteUseCases:
 
         dl.create(note)
         CreateNoteReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         stored = dl.get(note.type_.value, note.id_)
@@ -122,7 +129,10 @@ class TestNoteUseCases:
         event = make_payload(activity)
 
         CreateNoteReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         refreshed = dl.read(case.id_)
@@ -158,7 +168,10 @@ class TestNoteUseCases:
         event = make_payload(activity)
 
         CreateNoteReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         refreshed = dl.read(case.id_)
@@ -227,7 +240,10 @@ class TestNoteUseCases:
         )
 
         result = AddNoteToCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         refreshed = dl.read(case_id)
@@ -263,7 +279,10 @@ class TestNoteUseCases:
         )
 
         AddNoteToCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         refreshed = dl.read(case_id)
@@ -311,7 +330,10 @@ class TestNoteUseCases:
         )
 
         result = AddNoteToCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         refreshed = dl.read(case.id_)
@@ -351,7 +373,10 @@ class TestNoteUseCases:
         event = make_payload(activity)
 
         result = RemoveNoteFromCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         case = dl.read(case.id_)
@@ -385,7 +410,10 @@ class TestNoteUseCases:
         event = make_payload(activity)
 
         result = RemoveNoteFromCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
         # HP-01-003: an idempotent re-removal is a no-op.
         assert result.disposition == HandlerDisposition.SKIPPED
@@ -405,7 +433,10 @@ class TestNoteUseCases:
         event = make_payload(activity)
 
         result = RemoveNoteFromCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
@@ -439,7 +470,10 @@ class TestNoteUseCases:
         event.note = None
 
         result = CreateNoteReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
@@ -462,7 +496,10 @@ class TestNoteUseCases:
         event = make_payload(activity)
 
         result = CreateNoteReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
@@ -486,7 +523,10 @@ class TestNoteUseCases:
         )
 
         result = AddNoteToCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
@@ -583,11 +623,18 @@ class TestNoteUseCases:
         assert entry.event_type == "add_note_to_case"
         assert entry.log_object_id == activity.id_
 
-    def test_add_note_no_fanout_without_sync_port(self, make_payload):
-        """No fan-out Announce(CaseLedgerEntry) is sent when sync_port is None.
+    @pytest.mark.spec("SYNC-02-002")
+    @pytest.mark.spec("BT-14-001")
+    def test_add_note_without_sync_port_raises_as_wiring_fault(
+        self, make_payload
+    ):
+        """A missing sync_port fails the commit instead of skipping fan-out.
 
-        The log entry IS committed locally, but no outbox messages are queued
-        for delivery to participants.
+        ``RequireSyncPortNode`` raises ``VultronWiringError`` before the entry
+        is minted (#4113).  ``CommitCaseLedgerEntryNode`` carries the nested
+        bridge's ``internal_error`` across the hop, so the handler raises
+        ``VultronBTInternalError`` rather than reporting the sender as refused
+        (ADR-0095).  The note is not attached and nothing is announced.
         """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
@@ -648,19 +695,28 @@ class TestNoteUseCases:
         )
         event = make_payload(activity, receiving_actor_id=case_actor_id)
 
-        # No sync_port — log entry is committed but fan-out is skipped.
-        AddNoteToCaseReceivedUseCase(
-            dl, event, sync_port=None, wire_render_port=As2WireRenderAdapter()
-        ).execute()
+        # No sync_port — the commit's fan-out is a wiring fault.
+        with pytest.raises(VultronBTInternalError, match="sync_port"):
+            AddNoteToCaseReceivedUseCase(
+                dl,
+                event,
+                sync_port=None,
+                wire_render_port=As2WireRenderAdapter(),
+            ).execute()
 
-        # Log entry MUST be committed locally even without a sync_port.
+        stored_case = cast(as_VulnerabilityCase, dl.read(case_id))
+        assert stored_case is not None
+        assert note.id_ not in stored_case.notes
+
+        # The port guard refuses before the mint, so no entry is written
+        # that no replica would ever receive.
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
             if isinstance(obj, CaseLedgerEntry)
             and cast(CaseLedgerEntry, obj).case_id == case_id
         ]
-        assert len(entries) == 1
+        assert entries == []
 
-        # But no outbox activities should be queued for fan-out.
+        # Nothing is announced to participants.
         assert dl.outbox_list() == []

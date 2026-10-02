@@ -73,11 +73,13 @@ from vultron.core.behaviors.case.nodes.vfd_role_guards import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.case_status_snapshot import (
+    EmitCaseStatusUpdateNode,
+)
 from vultron.core.behaviors.status.append_participant_status_tree import (
     append_participant_status_tree,
 )
 from vultron.core.behaviors.status.nodes import (
-    EmitCaseStatusUpdateNode,
     EmitRMGapNoteNode,
     FilterParticipantStatusDimensionsNode,
     VerifySenderIsParticipantNode,

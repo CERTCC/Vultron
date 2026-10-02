@@ -36,11 +36,15 @@ from vultron.core.states.participant_embargo_consent import PEC
 from vultron.errors import (
     VultronInvalidStateTransitionError,
     VultronNotFoundError,
+    VultronValidationError,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
 from .conftest import (
+    UNHELD_EMBARGO_ID,
     _accepted_ids_of,
+    _assert_activation_wrote_nothing,
+    _case_awaiting_activation,
     _make_actor,
     _make_case,
     _make_embargo,
@@ -55,9 +59,10 @@ def test_activate_embargo_prunes_the_proposal_from_both_records(
 ) -> None:
     """Activation decides the proposal that carried the embargo.
 
-    ``activate_embargo`` is the received-side ``Add(EmbargoEvent)`` and the
-    case-creation path; after it the embargo is active and no longer an open
-    proposal in either record (EP-08-003, #3470).
+    ``activate_embargo`` is the received-side ``Add(EmbargoEvent)`` path
+    (case creation uses ``initialize_creation_embargo``); after it the
+    embargo is active and no longer an open proposal in either record
+    (EP-08-003, #3470).
     """
     owner, dl = owner_and_dl
     case, _ = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
@@ -440,8 +445,13 @@ def test_activate_embargo_records_the_owners_acceptance_before_the_cascade(
     ] == [(signer_p.id_, PEC.LAPSED.value)]
 
 
+@pytest.mark.spec("EMB-18-003")
+@pytest.mark.parametrize(
+    "mode", [TransitionMode.STRICT, TransitionMode.OBSERVED], ids=str
+)
 def test_activate_embargo_with_an_unreadable_previous_embargo_changes_nothing(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
+    mode: TransitionMode,
 ) -> None:
     """The A-vs-B read fails closed *before* EM or active_embargo move."""
     owner, dl = owner_and_dl
@@ -453,7 +463,10 @@ def test_activate_embargo_with_an_unreadable_previous_embargo_changes_nothing(
 
     with pytest.raises(VultronNotFoundError):
         EmbargoLifecycle(persistence=dl).activate_embargo(
-            case_id=case.id_, embargo_id=revision.id_, actor_id=owner.id_
+            case_id=case.id_,
+            embargo_id=revision.id_,
+            actor_id=owner.id_,
+            transition_mode=mode,
         )
 
     untouched = cast(VulnerabilityCase, dl.read(case.id_))
@@ -462,3 +475,75 @@ def test_activate_embargo_with_an_unreadable_previous_embargo_changes_nothing(
         "https://example.org/embargoes/not-replicated"
     )
     assert untouched.proposed_embargoes == [revision.id_]
+
+
+@pytest.mark.spec("EMB-18-003")
+@pytest.mark.parametrize(
+    "mode", [TransitionMode.STRICT, TransitionMode.OBSERVED], ids=str
+)
+@pytest.mark.parametrize(
+    "replaces", [False, True], ids=["first-activation", "revision"]
+)
+def test_activation_of_an_unheld_embargo_writes_nothing(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+    mode: TransitionMode,
+    replaces: bool,
+) -> None:
+    """The activated embargo is read first: an unheld one raises, no write."""
+    owner, dl = owner_and_dl
+    case, owner_p, active_id = _case_awaiting_activation(
+        dl, owner.id_, replaces=replaces, activated_id=UNHELD_EMBARGO_ID
+    )
+
+    with pytest.raises(VultronNotFoundError) as excinfo:
+        EmbargoLifecycle(persistence=dl).activate_embargo(
+            case_id=case.id_,
+            embargo_id=UNHELD_EMBARGO_ID,
+            actor_id=owner.id_,
+            transition_mode=mode,
+        )
+
+    assert excinfo.value.resource_id == UNHELD_EMBARGO_ID
+    _assert_activation_wrote_nothing(
+        dl,
+        case,
+        owner_p,
+        active_id=active_id,
+        activated_id=UNHELD_EMBARGO_ID,
+    )
+
+
+@pytest.mark.spec("EMB-18-003")
+@pytest.mark.parametrize(
+    "mode", [TransitionMode.STRICT, TransitionMode.OBSERVED], ids=str
+)
+@pytest.mark.parametrize(
+    "replaces", [False, True], ids=["first-activation", "revision"]
+)
+def test_activation_of_a_non_embargo_record_writes_nothing(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+    mode: TransitionMode,
+    replaces: bool,
+) -> None:
+    """An id that resolves to something other than an EmbargoEvent fails closed."""
+    owner, dl = owner_and_dl
+    stranger = _make_actor(dl, "not an embargo")
+    case, owner_p, active_id = _case_awaiting_activation(
+        dl, owner.id_, replaces=replaces, activated_id=stranger.id_
+    )
+
+    with pytest.raises(VultronValidationError):
+        EmbargoLifecycle(persistence=dl).activate_embargo(
+            case_id=case.id_,
+            embargo_id=stranger.id_,
+            actor_id=owner.id_,
+            transition_mode=mode,
+        )
+
+    _assert_activation_wrote_nothing(
+        dl,
+        case,
+        owner_p,
+        active_id=active_id,
+        activated_id=stranger.id_,
+    )

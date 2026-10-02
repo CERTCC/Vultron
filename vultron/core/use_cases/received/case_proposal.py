@@ -3,18 +3,18 @@
 Three use cases covering the full CP message flow (ADR-0023):
 
 - ``CreateCaseProposalReceivedUseCase`` — case-actor service receives
-  ``Create(as_CaseProposal)`` from a vendor; creates a VulnerabilityCase
+  ``Create(as_CaseProposal)`` from a report receiver; creates a VulnerabilityCase
   and emits ``Accept(as_CaseProposal)`` + ``Create(VulnerabilityCase)``
   (CP-05-001 through CP-05-004).
 
-- ``AcceptCaseProposalReceivedUseCase`` — vendor receives
+- ``AcceptCaseProposalReceivedUseCase`` — report receiver receives
   ``Accept(as_CaseProposal)`` from the case-actor service; records the
-  case-actor URI in the vendor's VultronReportCaseLink (CP-06-001,
+  case-actor URI in the receiver's VultronReportCaseLink (CP-06-001,
   CP-06-003).
 
-- ``RejectCaseProposalReceivedUseCase`` — vendor receives
+- ``RejectCaseProposalReceivedUseCase`` — report receiver receives
   ``Reject(as_CaseProposal)`` from the case-actor service; logs the
-  rejection so the vendor can surface it (CP-06-002, CP-06-004).
+  rejection so the receiver can surface it (CP-06-002, CP-06-004).
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -52,6 +52,15 @@ from vultron.core.behaviors.case.accept_case_proposal_received_tree import (
 from vultron.core.behaviors.case.case_proposal_received_tree import (
     create_case_proposal_received_tree,
 )
+from vultron.core.behaviors.case.nodes.proposal_admission_actions import (
+    RecordProposalDeclineNode,
+)
+from vultron.core.behaviors.case.nodes.proposal_admission_conditions import (
+    CheckDeclineRecordExistsNode,
+)
+from vultron.core.behaviors.case.nodes.proposal_retry_marker import (
+    CheckMarkerExistsNode,
+)
 from vultron.core.behaviors.case.reject_case_proposal_received_tree import (
     RecordCaseProposalRejectionNode,
     create_reject_case_proposal_received_tree,
@@ -66,10 +75,8 @@ from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
 )
-from vultron.core.ports.case_persistence import (
-    CaseOutboxPersistence,
-    CasePersistence,
-)
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
     find_node,
@@ -110,8 +117,8 @@ class CreateCaseProposalReceivedUseCase:
     Delegates to ``CreateCaseProposalReceivedBT``, which creates a
     VulnerabilityCase and emits two outbound activities:
 
-    1. ``Accept(as_CaseProposal)`` — acknowledgement to the vendor
-    2. ``Create(VulnerabilityCase)`` — case announcement to the vendor
+    1. ``Accept(as_CaseProposal)`` — acknowledgement to the report receiver
+    2. ``Create(VulnerabilityCase)`` — case announcement to the report receiver
 
     BT-15-001 audit: all DataLayer mutations and outbox enqueues are
     delegated to leaf nodes of the BT tree.
@@ -198,8 +205,9 @@ class CreateCaseProposalReceivedUseCase:
                 "Create(CaseProposal) carries no proposal id"
             )
 
-        # The vendor who sent Create(as_CaseProposal) is the activity actor.
-        vendor_uri = request.actor_id
+        # The report receiver who sent Create(as_CaseProposal) is the activity
+        # actor, and becomes the CASE_OWNER if the proposal is admitted.
+        proposer_uri = request.actor_id
 
         # The inner object is the VulnerabilityReport embedded in the proposal.
         report_id = request.inner_object_id
@@ -243,7 +251,7 @@ class CreateCaseProposalReceivedUseCase:
         tree = create_case_proposal_received_tree(
             report_id=report_id,
             proposal_id=proposal_id,
-            vendor_uri=vendor_uri,
+            proposer_uri=proposer_uri,
             proposal_dict=proposal_dict,
             actor_config=self._actor_config,
             inline_report=inline_report,
@@ -258,6 +266,9 @@ class CreateCaseProposalReceivedUseCase:
             tree=tree,
             actor_id=receiving_actor_id,
             activity=request,
+            # The proposer's inline profile is the only source of the
+            # CASE_OWNER's actor default (CP-01-010).
+            owner_profile=request.proposer_profile,
             **sender_embargo_proposal_inputs(request),
         )
         verdict = verdict_from_bt(
@@ -288,16 +299,6 @@ class CreateCaseProposalReceivedUseCase:
         FAILED and the ones after it INVALID, so the first guard that
         succeeded names the arm.
         """
-        from vultron.core.behaviors.case.nodes.proposal_admission_actions import (
-            RecordProposalDeclineNode,
-        )
-        from vultron.core.behaviors.case.nodes.proposal_admission_conditions import (
-            CheckDeclineRecordExistsNode,
-        )
-        from vultron.core.behaviors.case.nodes.proposal_retry_marker import (
-            CheckMarkerExistsNode,
-        )
-
         if node_succeeded(tree, CheckMarkerExistsNode):
             # CP-05-005: Accept already sent; the retry runner owns the Create.
             return HandlerResult.skipped(
@@ -319,9 +320,9 @@ class CreateCaseProposalReceivedUseCase:
 
 
 class AcceptCaseProposalReceivedUseCase:
-    """Handle an inbound ``Accept(as_CaseProposal)`` on the vendor actor.
+    """Handle an inbound ``Accept(as_CaseProposal)`` on the report receiver.
 
-    Updates the vendor's ``VultronReportCaseLink`` with the case-actor URI
+    Updates the receiver's ``VultronReportCaseLink`` with the case-actor URI
     so the subsequent ``Create(VulnerabilityCase)`` bootstrap can validate
     the sender (CP-06-001, CP-06-003).
 
@@ -334,10 +335,12 @@ class AcceptCaseProposalReceivedUseCase:
         self,
         dl: CasePersistence,
         request: AcceptCaseProposalReceivedEvent,
+        sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
+        self._sync_port = sync_port
         self._request: AcceptCaseProposalReceivedEvent = request
 
     def execute(self) -> HandlerResult:
@@ -365,7 +368,9 @@ class AcceptCaseProposalReceivedUseCase:
             case_actor_id=case_actor_id,
         )
         result = BTBridge(
-            datalayer=self._dl, wire_render_port=self._wire_render_port
+            datalayer=self._dl,
+            wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
         ).execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
@@ -395,9 +400,9 @@ class AcceptCaseProposalReceivedUseCase:
 
 
 class RejectCaseProposalReceivedUseCase:
-    """Handle an inbound ``Reject(as_CaseProposal)`` on the vendor actor.
+    """Handle an inbound ``Reject(as_CaseProposal)`` on the report receiver.
 
-    Updates the vendor's ``VultronReportCaseLink`` to reflect the rejection,
+    Updates the receiver's ``VultronReportCaseLink`` to reflect the rejection,
     setting ``proposal_rejected=True`` and recording any ``rejection_reason``
     present in the activity's ``summary`` field (CP-06-002, CP-06-004).
 
@@ -410,10 +415,12 @@ class RejectCaseProposalReceivedUseCase:
         self,
         dl: CasePersistence,
         request: RejectCaseProposalReceivedEvent,
+        sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
+        self._sync_port = sync_port
         self._request: RejectCaseProposalReceivedEvent = request
 
     def execute(self) -> HandlerResult:
@@ -444,7 +451,9 @@ class RejectCaseProposalReceivedUseCase:
             rejection_reason=rejection_reason,
         )
         result = BTBridge(
-            datalayer=self._dl, wire_render_port=self._wire_render_port
+            datalayer=self._dl,
+            wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
         ).execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,

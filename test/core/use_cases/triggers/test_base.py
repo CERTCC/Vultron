@@ -12,6 +12,9 @@ from vultron.core.use_cases.triggers._base import (
     SvcEmbargoTriggerBase,
 )
 
+_ACTOR_ID = "https://example.org/actor"
+_CASE_ID = "https://example.org/cases/c1"
+
 # ---------------------------------------------------------------------------
 # Minimal concrete subclasses for testing base-class hooks
 # ---------------------------------------------------------------------------
@@ -43,16 +46,25 @@ class _MinimalTrigger(SvcActivityTriggerBase):
 class _EmbargoTrigger(SvcEmbargoTriggerBase):
     """Minimal concrete embargo subclass for testing."""
 
-    def __init__(self, dl, request, trigger_activity=None):
+    _assertion_event_type = "test_embargo_event"
+
+    def __init__(self, dl, request, trigger_activity=None, subject=None):
         super().__init__(dl, request, trigger_activity)
         self.log_called = False
+        self.tree_built = False
+        self._subject: str | None = subject
+        self._case = MagicMock(id_=_CASE_ID)
 
     def _prepare(self) -> None:
-        self._actor_id = "https://example.org/actor"
+        self._actor_id = _ACTOR_ID
+
+    def _assertion_subject(self) -> str | None:
+        return self._subject
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         from py_trees.behaviours import Success
 
+        self.tree_built = True
         return Success(name="embargo-test-tree")
 
     def _log_lifecycle_result(self) -> None:
@@ -226,6 +238,87 @@ def test_embargo_handle_result_stores_lifecycle_result_and_delegates():
     uc._handle_result()
     assert uc._lifecycle_result is lr
     assert uc.log_called
+
+
+@pytest.mark.spec("EP-09-008", "SYNC-11-002")
+def test_embargo_handle_result_records_the_ask_and_skips_the_lifecycle():
+    """An ask of the CASE_MANAGER is recorded pending; no lifecycle result.
+
+    The non-manager arm writes no EM state, so ``lifecycle_result`` is absent
+    and is not demanded.
+    """
+    from vultron.core.behaviors.embargo.trigger_tree import (
+        ASSERTED_ACTIVITY_KEY,
+    )
+    from vultron.core.models.pending_assertion import (
+        get_pending_assertion_store,
+    )
+
+    uc = _EmbargoTrigger(
+        dl=MagicMock(),
+        request=object(),
+        trigger_activity=MagicMock(),
+        subject="proposal-1",
+    )
+    uc._actor_id = _ACTOR_ID
+    uc._result_out = {ASSERTED_ACTIVITY_KEY: "https://example.org/act/1"}
+    uc._handle_result()
+
+    assert not uc.log_called
+    pending = get_pending_assertion_store(_ACTOR_ID).pending_for_subject(
+        _CASE_ID, "test_embargo_event", "proposal-1"
+    )
+    assert pending is not None
+    assert pending.object_id == "https://example.org/act/1"
+
+
+@pytest.mark.spec("SYNC-11-002")
+def test_embargo_duplicate_ask_is_suppressed_before_the_tree_runs():
+    """A repeat of a pending ask is reported with no activity, not re-sent."""
+    from vultron.core.models.pending_assertion import (
+        record_pending_assertion,
+    )
+
+    record_pending_assertion(
+        _ACTOR_ID,
+        _CASE_ID,
+        "test_embargo_event",
+        "https://example.org/act/1",
+        subject_id="proposal-1",
+    )
+    uc = _EmbargoTrigger(
+        dl=MagicMock(),
+        request=object(),
+        trigger_activity=MagicMock(),
+        subject="proposal-1",
+    )
+    result = uc.execute()
+
+    assert result == ActivityResult(activity=None, emitting_actor_id=_ACTOR_ID)
+    assert not uc.tree_built
+
+
+def test_embargo_ask_about_another_subject_is_not_suppressed():
+    """Only the same subject is a duplicate; other asks still run."""
+    from vultron.core.models.pending_assertion import (
+        record_pending_assertion,
+    )
+
+    record_pending_assertion(
+        _ACTOR_ID,
+        _CASE_ID,
+        "test_embargo_event",
+        "https://example.org/act/1",
+        subject_id="proposal-1",
+    )
+    uc = _EmbargoTrigger(
+        dl=MagicMock(),
+        request=object(),
+        trigger_activity=MagicMock(),
+        subject="proposal-2",
+    )
+    uc._actor_id = _ACTOR_ID
+    assert uc._suppressed_duplicate() is None
 
 
 # ---------------------------------------------------------------------------

@@ -27,7 +27,8 @@ from typing import TYPE_CHECKING, TypeVar
 
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.errors import VultronNotFoundError, VultronValidationError
+from vultron.core.ports.datalayer import DataLayer
+from vultron.errors import VultronNotAnEmbargoError, VultronNotFoundError
 
 if TYPE_CHECKING:
     from _typeshed import SupportsRichComparison
@@ -73,21 +74,39 @@ def earliest_expiring_embargo_id(
 
     Raises:
         VultronNotFoundError: If an id does not resolve in *store*.
-        VultronValidationError: If a record is not an ``EmbargoEvent``.
+        VultronNotAnEmbargoError: If a record is not an ``EmbargoEvent``.
         ValueError: If *embargo_ids* is empty.
     """
-    events: list[EmbargoEvent] = []
-    for embargo_id in embargo_ids:
-        record = store.read(embargo_id)
-        if record is None:
-            raise VultronNotFoundError("EmbargoEvent", embargo_id)
-        if not isinstance(record, EmbargoEvent):
-            raise VultronValidationError(
-                f"Open embargo proposal '{embargo_id}' is not an"
-                f" EmbargoEvent (got {type(record).__name__})."
-            )
-        events.append(record)
+    events = [
+        read_embargo_event(store, embargo_id) for embargo_id in embargo_ids
+    ]
     return earliest_ending(events, end=lambda e: e.end_time).id_
 
 
-__all__ = ["earliest_ending", "earliest_expiring_embargo_id"]
+def read_embargo_event(
+    store: CasePersistence | DataLayer, embargo_id: str
+) -> EmbargoEvent:
+    """Read the stored ``EmbargoEvent`` *embargo_id*, failing closed.
+
+    The one embargo read path of the comparator and of the activation
+    writers (EMB-18-003): an id that does not resolve, or resolves to
+    something other than an ``EmbargoEvent``, raises rather than reading as
+    absent.
+
+    Raises:
+        VultronNotFoundError: If *embargo_id* does not resolve in *store*.
+        VultronNotAnEmbargoError: If the record is not an ``EmbargoEvent``.
+    """
+    record = store.read(embargo_id)
+    if record is None:
+        raise VultronNotFoundError("EmbargoEvent", embargo_id)
+    if not isinstance(record, EmbargoEvent):
+        raise VultronNotAnEmbargoError(embargo_id, type(record).__name__)
+    return record
+
+
+__all__ = [
+    "earliest_ending",
+    "earliest_expiring_embargo_id",
+    "read_embargo_event",
+]

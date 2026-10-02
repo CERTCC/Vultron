@@ -13,15 +13,49 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Trigger-side embargo BT compositions."""
+"""Trigger-side embargo BT compositions.
+
+A trigger writes shared EM state only as the CASE_MANAGER (EP-09-008,
+ADR-0113).  Each of the five trigger trees therefore splits, after its
+read-only routing guards, into two mutually exclusive arms
+(``create_case_manager_gated_tree`` beside
+``create_participant_replica_gated_tree``, BT-17-001):
+
+- **As the CASE_MANAGER** the actor's decision is canonical: the
+  ``EmbargoLifecycle`` write runs ``STRICT``, the decision activity is
+  committed as a ledger entry the announce slots replay (EP-09-007,
+  RSH-08-004, #4085), and the ``Add(CaseStatus)`` declaration follows.
+  Nothing is addressed to the manager itself (CLP-10-001): its own proposal
+  is relayed to each participant (EP-09-002) and its teardown is told to
+  every other one (EMB-19-001, #4112).
+- **As any other participant** the tree writes no EM state and declares none:
+  it builds the activity, queues it to the CASE_MANAGER (PCR-08-001) and
+  writes the activity id to ``result_out[ASSERTED_ACTIVITY_KEY]``, which the
+  use case records in the pending-assertion store (SYNC-11-002).  The replica
+  moves when the manager's commit is announced.
+"""
 
 from collections.abc import Callable
 
 import py_trees
 
+from vultron.core.behaviors.case.nodes.role_gates import (
+    create_case_manager_gated_tree,
+    create_participant_replica_gated_tree,
+)
+from vultron.core.behaviors.case_status_snapshot import (
+    EmitCaseStatusUpdateNode,
+)
 from vultron.core.behaviors.embargo.nodes import (
+    EMBARGO_INVITE_EVENT_TYPE,
+    EMBARGO_TEARDOWN_EVENT_TYPE,
     AcceptEmbargoLifecycleNode,
+    CollectEmbargoInviteRecipientsNode,
+    CommitEmbargoDecisionNode,
+    CommitEmbargoTeardownNode,
+    EmbargoActivityBuilder,
     HasActiveEmbargoNode,
+    IndexOwnEmbargoProposalNode,
     IsProposedEmbargoNode,
     PersistEmbargoEventNode,
     ProposeEmbargoLifecycleNode,
@@ -30,9 +64,11 @@ from vultron.core.behaviors.embargo.nodes import (
     ReadProposedEmbargoIdNode,
     RejectEmbargoLifecycleNode,
     RejectProposedEmbargoLifecycleNode,
+    RelayEmbargoInviteToEachNode,
     SendRejectEmbargoActivityNode,
     SendTerminateEmbargoActivityNode,
     TerminateEmbargoLifecycleNode,
+    ValidateEmbargoProposalStateNode,
     ValidateEmbargoRevisionStateNode,
 )
 from vultron.core.behaviors.sender.nodes import (
@@ -42,39 +78,184 @@ from vultron.core.behaviors.sender.nodes import (
 )
 from vultron.core.behaviors.sender.send_tree import sender_side_bt
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.events.base import MessageSemantics
+from vultron.core.models.pending_assertion import (
+    ASSERTED_ACTIVITY_KEY,
+)
+
+_ACCEPT_EVENT_TYPE = MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value
+_REJECT_EVENT_TYPE = MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE.value
 
 
 def _make_emit_node(case_id: str) -> py_trees.behaviour.Behaviour:
-    # Lazy import breaks the cycle: status.nodes.__init__ → lifecycle → trigger_tree
-    from vultron.core.behaviors.status.nodes.case_status import (
-        EmitCaseStatusUpdateNode,
-    )
-
     return EmitCaseStatusUpdateNode(
         case_id=case_id, name="EmitCaseStatusUpdate"
     )
 
 
-def propose_embargo_trigger_bt(
-    *,
+def _asserting(
+    builder: EmbargoActivityBuilder, result_out: dict[str, object]
+) -> Callable[[str], list[str]]:
+    """Adapt *builder* to the sender nodes' one-recipient shape.
+
+    The activity goes to the CASE_MANAGER alone, and its id is written to
+    ``result_out[ASSERTED_ACTIVITY_KEY]`` for the pending-assertion record.
+    """
+
+    def _build(case_manager_id: str) -> list[str]:
+        activity_id, _blob = builder([case_manager_id])
+        result_out[ASSERTED_ACTIVITY_KEY] = activity_id
+        return [activity_id]
+
+    return _build
+
+
+def _by_role(
+    name: str,
     case_id: str,
+    as_case_manager: list[py_trees.behaviour.Behaviour],
+    otherwise: list[py_trees.behaviour.Behaviour],
+) -> list[py_trees.behaviour.Behaviour]:
+    """The two mutually exclusive arms every embargo trigger tree ends with."""
+    return [
+        create_case_manager_gated_tree(
+            name=f"{name}AsCaseManager",
+            case_id=case_id,
+            children=as_case_manager,
+        ),
+        create_participant_replica_gated_tree(
+            name=f"{name}AskCaseManager",
+            case_id=case_id,
+            children=otherwise,
+        ),
+    ]
+
+
+def _answer_arms(
+    name: str,
+    case_id: str,
+    lifecycle_node: py_trees.behaviour.Behaviour,
+    event_type: str,
+    result_out: dict[str, object],
+    activity_builder: EmbargoActivityBuilder,
+) -> list[py_trees.behaviour.Behaviour]:
+    """Manager: write, commit, declare; otherwise: ask the manager.
+
+    The manager's Accept or Reject is addressed to nobody: every replica
+    learns it from the committed entry (EP-09-007).
+    """
+    return _by_role(
+        name,
+        case_id,
+        as_case_manager=[
+            lifecycle_node,
+            CommitEmbargoDecisionNode(
+                case_id=case_id,
+                event_type=event_type,
+                builder=activity_builder,
+            ),
+            _make_emit_node(case_id),
+        ],
+        otherwise=[
+            sender_side_bt(
+                case_id=case_id,
+                activity_builder=_asserting(activity_builder, result_out),
+            )
+        ],
+    )
+
+
+def _propose_arms(
+    name: str,
+    case_id: str,
+    actor_id: str,
     embargo: EmbargoEvent,
     result_out: dict[str, object],
-    activity_builder: Callable[[str], list[str]],
-) -> py_trees.behaviour.Behaviour:
-    """Build trigger-side BT for proposing or revising an embargo."""
-    return py_trees.composites.Sequence(
-        name="ProposeEmbargoTriggerBT",
-        memory=False,
-        children=[
+    activity_builder: EmbargoActivityBuilder,
+) -> list[py_trees.behaviour.Behaviour]:
+    """Manager: adjudicate and relay its own terms; otherwise: ask.
+
+    The CASE_MANAGER's own proposal takes the shape of one it receives
+    (EP-09-001, EP-09-002): collect the invitees before the EM write
+    (BT-19-001), write ``STRICT``, commit the proposal, relay one
+    ``Invite`` per participant, and only then index the proposal the manager
+    will answer (ID-04-005).  ``PersistEmbargoEventNode`` runs in both
+    arms — the factory renders the stored record — and stores the object,
+    not case state (EP-09-003).  In the other arm it runs after the
+    CASE_MANAGER is resolved, so a failed routing guard leaves no orphan
+    record (BT-19-001).
+    """
+    return _by_role(
+        name,
+        case_id,
+        as_case_manager=[
+            CollectEmbargoInviteRecipientsNode(
+                case_id=case_id, proposer_id=actor_id
+            ),
             ProposeEmbargoLifecycleNode(
                 case_id=case_id,
                 embargo_id=embargo.id_,
                 result_out=result_out,
             ),
             PersistEmbargoEventNode(embargo=embargo),
+            CommitEmbargoDecisionNode(
+                case_id=case_id,
+                event_type=EMBARGO_INVITE_EVENT_TYPE,
+                builder=activity_builder,
+                result_out=result_out,
+            ),
             _make_emit_node(case_id),
-            sender_side_bt(case_id=case_id, activity_builder=activity_builder),
+            RelayEmbargoInviteToEachNode(
+                case_id=case_id,
+                embargo_id=embargo.id_,
+                proposer_id=actor_id,
+            ),
+            IndexOwnEmbargoProposalNode(
+                case_id=case_id,
+                embargo_id=embargo.id_,
+                result_out=result_out,
+            ),
+        ],
+        otherwise=[
+            ResolveCaseManagerNode(case_id=case_id),
+            PersistEmbargoEventNode(embargo=embargo),
+            ConstructActivitiesNode(
+                activity_builder=_asserting(activity_builder, result_out)
+            ),
+            QueueToOutboxNode(),
+        ],
+    )
+
+
+def propose_embargo_trigger_bt(
+    *,
+    case_id: str,
+    actor_id: str,
+    embargo: EmbargoEvent,
+    result_out: dict[str, object],
+    activity_builder: EmbargoActivityBuilder,
+) -> py_trees.behaviour.Behaviour:
+    """Build trigger-side BT for proposing an embargo (EP-09-008).
+
+    ``ValidateEmbargoProposalStateNode`` refuses an ``EXITED`` case before
+    either arm runs, so a participant that is not the CASE_MANAGER fails
+    fast rather than asking for a proposal the manager will not take.
+    """
+    return py_trees.composites.Sequence(
+        name="ProposeEmbargoTriggerBT",
+        memory=False,
+        children=[
+            ValidateEmbargoProposalStateNode(
+                case_id=case_id, result_out=result_out
+            ),
+            *_propose_arms(
+                "ProposeEmbargo",
+                case_id,
+                actor_id,
+                embargo,
+                result_out,
+                activity_builder,
+            ),
         ],
     )
 
@@ -82,16 +263,16 @@ def propose_embargo_trigger_bt(
 def propose_embargo_revision_trigger_bt(
     *,
     case_id: str,
+    actor_id: str,
     embargo: EmbargoEvent,
     result_out: dict[str, object],
-    activity_builder: Callable[[str], list[str]],
+    activity_builder: EmbargoActivityBuilder,
 ) -> py_trees.behaviour.Behaviour:
     """Build trigger-side BT for proposing an embargo revision.
 
     Differs from :func:`propose_embargo_trigger_bt` by first asserting that
     the case EM state is ACTIVE or REVISE (a revision requires an existing
-    active embargo).  The lifecycle and outbound fan-out nodes are otherwise
-    identical.
+    active embargo).  The role arms are otherwise identical.
     """
     return py_trees.composites.Sequence(
         name="ProposeEmbargoRevisionTriggerBT",
@@ -101,14 +282,14 @@ def propose_embargo_revision_trigger_bt(
                 case_id=case_id,
                 result_out=result_out,
             ),
-            ProposeEmbargoLifecycleNode(
-                case_id=case_id,
-                embargo_id=embargo.id_,
-                result_out=result_out,
+            *_propose_arms(
+                "ProposeEmbargoRevision",
+                case_id,
+                actor_id,
+                embargo,
+                result_out,
+                activity_builder,
             ),
-            PersistEmbargoEventNode(embargo=embargo),
-            _make_emit_node(case_id),
-            sender_side_bt(case_id=case_id, activity_builder=activity_builder),
         ],
     )
 
@@ -118,21 +299,24 @@ def accept_embargo_trigger_bt(
     case_id: str,
     embargo_id: str,
     result_out: dict[str, object],
-    activity_builder: Callable[[str], list[str]],
+    activity_builder: EmbargoActivityBuilder,
 ) -> py_trees.behaviour.Behaviour:
-    """Build trigger-side BT for accepting an embargo invite."""
+    """Build trigger-side BT for accepting an embargo invite (EP-09-008)."""
     return py_trees.composites.Sequence(
         name="AcceptEmbargoTriggerBT",
         memory=False,
-        children=[
+        children=_answer_arms(
+            "AcceptEmbargo",
+            case_id,
             AcceptEmbargoLifecycleNode(
                 case_id=case_id,
                 embargo_id=embargo_id,
                 result_out=result_out,
             ),
-            _make_emit_node(case_id),
-            sender_side_bt(case_id=case_id, activity_builder=activity_builder),
-        ],
+            _ACCEPT_EVENT_TYPE,
+            result_out,
+            activity_builder,
+        ),
     )
 
 
@@ -141,21 +325,24 @@ def reject_embargo_trigger_bt(
     case_id: str,
     embargo_id: str,
     result_out: dict[str, object],
-    activity_builder: Callable[[str], list[str]],
+    activity_builder: EmbargoActivityBuilder,
 ) -> py_trees.behaviour.Behaviour:
-    """Build trigger-side BT for rejecting an embargo invite."""
+    """Build trigger-side BT for rejecting an embargo invite (EP-09-008)."""
     return py_trees.composites.Sequence(
         name="RejectEmbargoTriggerBT",
         memory=False,
-        children=[
+        children=_answer_arms(
+            "RejectEmbargo",
+            case_id,
             RejectEmbargoLifecycleNode(
                 case_id=case_id,
                 embargo_id=embargo_id,
                 result_out=result_out,
             ),
-            _make_emit_node(case_id),
-            sender_side_bt(case_id=case_id, activity_builder=activity_builder),
-        ],
+            _REJECT_EVENT_TYPE,
+            result_out,
+            activity_builder,
+        ),
     )
 
 
@@ -204,33 +391,49 @@ def terminate_embargo_bt(
     *,
     case_id: str,
     result_out: dict[str, object],
-    activity_builder: Callable[[str], list[str]] | None = None,
+    activity_builder: EmbargoActivityBuilder | None = None,
 ) -> py_trees.behaviour.Behaviour:
-    """Shared BT for terminating the active embargo (BT-19-001).
+    """Shared BT for terminating the active embargo (BT-19-001, EP-09-008).
 
     Satisfies the routing-gated state-mutation ordering:
 
-    1. ``ReadEmbargoIdNode`` — read embargo_id from case; FAILURE if absent.
+    1. ``HasActiveEmbargoNode`` / ``ReadEmbargoIdNode`` — read embargo_id
+       from the case; FAILURE if absent.
     2. ``ResolveCaseManagerNode`` — routing guard; FAILURE = no state change.
-    3. ``TerminateEmbargoLifecycleNode`` — EM state mutation (after guard).
-    4. Activity dispatch:
-       - When ``activity_builder`` is provided: ``ConstructActivitiesNode``
-         + ``QueueToOutboxNode`` (trigger path, builder closes over embargo_id).
-       - When ``activity_builder`` is ``None``: ``SendTerminateEmbargoActivityNode``
-         reads embargo_id and factory from the blackboard at runtime (cascade path).
+    3. As the CASE_MANAGER: ``TerminateEmbargoLifecycleNode`` (EM write), then
+       commit the ``Remove(EmbargoEvent)`` as the canonical entry the
+       ``EmbargoTeardown`` slot replays, addressed to every other participant
+       and never to the manager (EMB-19-001, CLP-10-001, #4112), then the
+       ``Add(CaseStatus)`` declaration.
+    4. As any other participant: no EM write; the ``Remove`` is queued to the
+       CASE_MANAGER as a request (PCR-08-001).
 
-    Both the trigger path (``SvcTerminateEmbargoUseCase``) and the
-    automatic-cascade path (``PublicDisclosureBranchNode``) MUST use this
-    factory so that routing prerequisites are always verified before the
-    DataLayer state change is committed (BT-19-002).
+    With ``activity_builder`` (the trigger path) the use case builds the
+    activity; with ``None`` (the CS.P/X/A and threat cascades) the nodes read
+    ``/embargo_id`` and the factory from the blackboard.  Every path MUST use
+    this factory so routing prerequisites are verified before the DataLayer
+    state change is committed (BT-19-002).
     """
     if activity_builder is not None:
-        dispatch_nodes: list[py_trees.behaviour.Behaviour] = [
-            ConstructActivitiesNode(activity_builder=activity_builder),
-            QueueToOutboxNode(),
-        ]
+        commit: py_trees.behaviour.Behaviour = CommitEmbargoDecisionNode(
+            case_id=case_id,
+            event_type=EMBARGO_TEARDOWN_EVENT_TYPE,
+            builder=activity_builder,
+            notify_participants=True,
+        )
+        ask: py_trees.behaviour.Behaviour = py_trees.composites.Sequence(
+            name="QueueToCaseManager",
+            memory=False,
+            children=[
+                ConstructActivitiesNode(
+                    activity_builder=_asserting(activity_builder, result_out)
+                ),
+                QueueToOutboxNode(),
+            ],
+        )
     else:
-        dispatch_nodes = [SendTerminateEmbargoActivityNode(case_id=case_id)]
+        commit = CommitEmbargoTeardownNode(case_id=case_id)
+        ask = SendTerminateEmbargoActivityNode(case_id=case_id)
 
     return py_trees.composites.Sequence(
         name="TerminateEmbargoBT",
@@ -239,10 +442,17 @@ def terminate_embargo_bt(
             HasActiveEmbargoNode(case_id=case_id, result_out=result_out),
             ReadEmbargoIdNode(case_id=case_id),
             ResolveCaseManagerNode(case_id=case_id),
-            TerminateEmbargoLifecycleNode(
-                case_id=case_id, result_out=result_out
+            *_by_role(
+                "TerminateEmbargo",
+                case_id,
+                as_case_manager=[
+                    TerminateEmbargoLifecycleNode(
+                        case_id=case_id, result_out=result_out
+                    ),
+                    commit,
+                    _make_emit_node(case_id),
+                ],
+                otherwise=[ask],
             ),
-            _make_emit_node(case_id),
-            *dispatch_nodes,
         ],
     )

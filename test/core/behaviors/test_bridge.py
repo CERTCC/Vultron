@@ -29,6 +29,10 @@ from vultron.core.behaviors.store_scope import same_authority
 from vultron.errors import VultronError
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
+# A plain py_trees node's ``self.logger`` is py_trees' own logger, whose
+# ``debug()`` takes a single message and no lazy args; use a stdlib logger.
+logger = logging.getLogger(__name__)
+
 
 @pytest.fixture(autouse=True)
 def clear_blackboard():
@@ -85,8 +89,8 @@ class RunNTimes(py_trees.behaviour.Behaviour):
 
     def update(self) -> Status:
         self.tick_count += 1
-        self.logger.debug(
-            f"RunNTimes: tick {self.tick_count}/{self.target_ticks}"
+        logger.debug(
+            "RunNTimes: tick %s/%s", self.tick_count, self.target_ticks
         )
 
         if self.tick_count < self.target_ticks:
@@ -1542,7 +1546,7 @@ class _NestedExecution(py_trees.behaviour.Behaviour):
     """Run a second ``execute_with_setup`` from inside a tick.
 
     Many production nodes do exactly this — ``case/nodes/lifecycle.py`` and
-    ``status/nodes/case_status.py`` among them.  The node records what the
+    ``case_status_snapshot.py`` among them.  The node records what the
     process-global blackboard held immediately before and after the inner call,
     which is the window the outer tree's remaining ticks read from.
     """

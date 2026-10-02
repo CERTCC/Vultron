@@ -40,6 +40,7 @@ import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -52,6 +53,7 @@ from vultron.core.behaviors.call_out.bundles.case_proposal import (
 from vultron.core.behaviors.case.case_proposal_received_tree import (
     create_case_proposal_received_tree,
 )
+from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_proposal_decline import (
     CaseProposalDeclineRecord,
@@ -164,7 +166,9 @@ def _run_tree(
     """
     proposal = _proposal()
     activity = as_Create(
-        actor=_VENDOR_URI, object_=proposal, to=[_CASE_ACTOR_URI]
+        actor=VultronOrganization(id_=_VENDOR_URI),
+        object_=proposal,
+        to=[_CASE_ACTOR_URI],
     )
     event = extract_event(activity).model_copy(
         update={"receiving_actor_id": _CASE_ACTOR_URI}
@@ -172,7 +176,7 @@ def _run_tree(
     tree = create_case_proposal_received_tree(
         report_id=report_id,
         proposal_id=_PROPOSAL_URI,
-        vendor_uri=_VENDOR_URI,
+        proposer_uri=_VENDOR_URI,
         proposal_dict=(
             proposal.model_dump(by_alias=True, serialize_as_any=True)
             if with_proposal_dict
@@ -189,7 +193,13 @@ def _run_tree(
         trigger_activity=(
             TriggerActivityAdapter(dl) if with_trigger_port else None
         ),
-    ).execute_with_setup(tree=tree, actor_id=_CASE_ACTOR_URI, activity=event)
+        sync_port=SyncActivityAdapter(dl),
+    ).execute_with_setup(
+        tree=tree,
+        actor_id=_CASE_ACTOR_URI,
+        activity=event,
+        owner_profile=activity.actor,
+    )
     return result.status
 
 
@@ -788,7 +798,7 @@ class TestTheGateIsKeyedOnTheProposalNotTheReport:
 
     def test_a_second_proposal_on_the_same_report_is_still_adjudicated(self):
         second_proposal_uri = "https://evil.example.org/proposals/p-002"
-        second_vendor_uri = "https://evil.example.org/actors/attacker"
+        second_proposer_uri = "https://evil.example.org/actors/attacker"
 
         _dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
         _dl.clear_all()
@@ -799,22 +809,24 @@ class TestTheGateIsKeyedOnTheProposalNotTheReport:
                 Status.SUCCESS
             )
             assert len(_cases(_dl)) == 1
-            _dl.outbox_pop()
-            _dl.outbox_pop()
-            assert _dl.outbox_list() == []
+            # Drain the first admission's mail: its Create and Accept, plus
+            # the Announce(CaseLedgerEntry) fan-out of every entry it
+            # committed (SYNC-02-003).
+            while _dl.outbox_list():
+                _dl.outbox_pop()
 
             # A different proposal, from a different actor, naming the same
             # report. The deployment's policy refuses it.
             proposal = as_CaseProposal(
                 id_=second_proposal_uri,
-                attributed_to=second_vendor_uri,
+                attributed_to=second_proposer_uri,
                 object_=as_VulnerabilityReport(
                     id_=_REPORT_URI, attributed_to=_REPORTER_URI
                 ),
                 target=_CASE_ACTOR_URI,
             )
             activity = as_Create(
-                actor=second_vendor_uri,
+                actor=VultronOrganization(id_=second_proposer_uri),
                 object_=proposal,
                 to=[_CASE_ACTOR_URI],
             )
@@ -825,7 +837,7 @@ class TestTheGateIsKeyedOnTheProposalNotTheReport:
             tree = create_case_proposal_received_tree(
                 report_id=_REPORT_URI,
                 proposal_id=second_proposal_uri,
-                vendor_uri=second_vendor_uri,
+                proposer_uri=second_proposer_uri,
                 proposal_dict=proposal.model_dump(
                     by_alias=True, serialize_as_any=True
                 ),
@@ -839,9 +851,13 @@ class TestTheGateIsKeyedOnTheProposalNotTheReport:
                     datalayer=_dl,
                     wire_render_port=As2WireRenderAdapter(),
                     trigger_activity=TriggerActivityAdapter(_dl),
+                    sync_port=SyncActivityAdapter(_dl),
                 )
                 .execute_with_setup(
-                    tree=tree, actor_id=_CASE_ACTOR_URI, activity=event
+                    tree=tree,
+                    actor_id=_CASE_ACTOR_URI,
+                    activity=event,
+                    owner_profile=activity.actor,
                 )
                 .status
             )
@@ -868,7 +884,7 @@ class TestTheGateIsKeyedOnTheProposalNotTheReport:
             participants = [
                 p
                 for p in _dl.list_objects("CaseParticipant")
-                if second_vendor_uri in str(getattr(p, "actor_id", ""))
+                if second_proposer_uri in str(getattr(p, "actor_id", ""))
             ]
             assert participants == [], (
                 "a refused actor must not end up on the roster of the case it "

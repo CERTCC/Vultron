@@ -19,7 +19,7 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.participants.authority import resolve_case_manager_id
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases._helpers import (
     _idempotent_create,
@@ -155,12 +155,12 @@ class OfferCaseOwnershipTransferReceivedUseCase:
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
         )
         result = bridge.execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
             activity=request,
-            sync_port=self._sync_port,
         )
         verdict = verdict_from_bt(
             tree, result, label="OfferOwnershipTransferBT"
@@ -212,13 +212,14 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
             new_owner_id=new_owner_id,
         )
         bridge = BTBridge(
-            datalayer=self._dl, wire_render_port=self._wire_render_port
+            datalayer=self._dl,
+            wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
         )
         result = bridge.execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
             activity=request,
-            sync_port=self._sync_port,
         )
         verdict = verdict_from_bt(
             tree, result, label="AcceptOwnershipTransferBT"
@@ -239,10 +240,12 @@ class RejectCaseOwnershipTransferReceivedUseCase:
         self,
         dl: CaseOutboxPersistence,
         request: RejectCaseOwnershipTransferReceivedEvent,
+        sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
+        self._sync_port = sync_port
         self._request: RejectCaseOwnershipTransferReceivedEvent = request
 
     def execute(self) -> HandlerResult:

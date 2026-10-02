@@ -233,8 +233,9 @@ def _invite_response_body(activity_type: str) -> dict[str, object]:
                 "name": "Coordinator",
             },
             "target": {
-                "type": "VulnerabilityCase",
-                "id": "https://example.org/cases/case-1",
+                "type": "VulnerabilityCaseStub",
+                "id": "https://example.org/cases/case-1/stub",
+                "caseId": "https://example.org/cases/case-1",
             },
             "to": ["https://example.org/actors/coordinator"],
         },
@@ -260,11 +261,10 @@ def test_parse_activity_extracts_invite_response_semantics_from_nested_stub_case
     assert event.object_ is not None
     assert event.object_.id_ == "urn:uuid:invite-1"
 
+    assert (
+        getattr(event, "case_id", None) == "https://example.org/cases/case-1"
+    )
     if activity_type == "Accept":
-        assert (
-            getattr(event, "case_id", None)
-            == "https://example.org/cases/case-1"
-        )
         assert (
             getattr(event, "invitee_id", None)
             == "https://example.org/actors/coordinator"

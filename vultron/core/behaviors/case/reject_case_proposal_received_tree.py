@@ -1,7 +1,7 @@
 """BT tree for the RejectCaseProposal received-side use case.
 
-Vendor side: handles an inbound ``Reject(as_CaseProposal)`` by recording
-the rejection state in the vendor's ``VultronReportCaseLink``.
+Report-receiver side: handles an inbound ``Reject(as_CaseProposal)`` by recording
+the rejection state in the receiver's ``VultronReportCaseLink``.
 
 Spec: ``specs/case-proposal.yaml`` CP-06-002, CP-06-004.
 """
@@ -32,13 +32,13 @@ logger = logging.getLogger(__name__)
 
 
 class RecordCaseProposalRejectionNode(DataLayerAction):
-    """Mark the vendor's VultronReportCaseLink as rejected.
+    """Mark the receiver's VultronReportCaseLink as rejected.
 
-    When the case-actor service rejects the proposal, the vendor records
+    When the case-actor service rejects the proposal, the receiver records
     ``proposal_rejected=True`` and, when provided, the ``rejection_reason``
     so it can be surfaced to the operator (CP-06-004).
 
-    Returns SUCCESS even when no matching link is found, because the vendor
+    Returns SUCCESS even when no matching link is found, because the receiver
     may not always have submitted a report offer before the proposal flow
     (e.g. relay scenarios).  Missing-link situations are logged at WARNING,
     and ``link_found`` stays ``False`` so the handler can report the no-op
@@ -96,8 +96,8 @@ def create_reject_case_proposal_received_tree(
 ) -> py_trees.behaviour.Behaviour:
     """Return the received-side BT for processing ``Reject(as_CaseProposal)``.
 
-    Marks the vendor's ``VultronReportCaseLink`` as rejected and records
-    the rejection reason when present, allowing the vendor to surface the
+    Marks the receiver's ``VultronReportCaseLink`` as rejected and records
+    the rejection reason when present, allowing the receiver to surface the
     rejection to the operator (CP-06-002, CP-06-004).
 
     Args:

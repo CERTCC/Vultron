@@ -23,7 +23,7 @@ import logging
 
 import py_trees
 
-from vultron.core.behaviors.inbox.nodes.dead_letter import (
+from vultron.core.behaviors.dead_letter.nodes import (
     StoreDeadLetterRecordNode,
 )
 from vultron.core.models.events.unknown import UnresolvableObjectReceivedEvent

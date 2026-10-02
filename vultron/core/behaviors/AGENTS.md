@@ -146,7 +146,7 @@ then return here), then apply these BT-specific checks
    | Domain | Base class | File |
    |--------|-----------|------|
    | Report | `_EmitCaseActorReportActivityBase` | `report/nodes/emit.py` |
-   | Embargo | `_SendEmbargoActivityBase` | `embargo/nodes/emit.py` |
+   | Embargo (send; CASE_MANAGER decision: build → commit → queue) | `_SendEmbargoActivityBase`; `_CommitEmbargoDecisionBase` | `embargo/nodes/emit.py`; `embargo/nodes/manager_commit.py` |
    | Participant-status | `_EmitParticipantStatusActivityBase` | `report/nodes/develop_fix.py` |
    | Single-activity (invite, ownership, other case domains) | `_EmitSingleActivityBase` | `helpers.py` |
 
@@ -171,9 +171,8 @@ directly** (EMB-18-001) — every EM write routes through `EmbargoLifecycle`
 (`vultron/core/services/embargo_lifecycle/`); `WriteEmStateNode` was retired
 in issue #2712. Direct field access bypasses the canonical channel: the read is
 invisible to the BT audit trail and lets state diverge from what the canonical
-nodes report. The in-node read pattern (a `ReadEmStateNode` with a `result_out`
-dict) is in `notes/embargo-lifecycle.md` § "Guidance for Agents". Source:
-CONCERN-2559
+nodes report. In-node reads call `read_case_em_state()` (same module; raises):
+`notes/embargo-lifecycle.md` § "Guidance for Agents". Source: CONCERN-2559
 
 ---
 

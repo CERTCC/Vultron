@@ -43,26 +43,37 @@ instead: it runs only under the CASE_MANAGER gate, so ``actor`` is the role
 holder by construction, and ``attributed_to`` is the adjudicated proposer.
 """
 
-from typing import TYPE_CHECKING, cast
+import json
+from datetime import datetime
+from typing import TYPE_CHECKING, Any, cast
 
 import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.embargo.nodes.em_state import ReadEmStateNode
+from vultron.core.behaviors.case.nodes.role_gates import (
+    create_case_manager_gated_tree,
+)
+from vultron.core.behaviors.embargo.nodes.em_state import read_case_em_state
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
     PortInformation,
 )
 from vultron.core.behaviors.idempotency import SilentIdempotencyGuardMixin
-from vultron.core.models.case import case_addressees
-from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
+from vultron.core.models._helpers import parse_published
 from vultron.core.models.dimensions import EmDimension
 from vultron.core.models.events.base import MessageSemantics
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.core.states.em import EM, EM_Trigger
-from vultron.core.states.participant_embargo_consent import PEC_Trigger
-from vultron.errors import VultronInvalidStateTransitionError
+from vultron.core.models.wire_keys import wire_key
+from vultron.core.participants.recipients import invitation_recipients
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
+from vultron.core.states.em import EM_Trigger
+from vultron.errors import (
+    BtNodePreconditionError,
+    VultronInvalidStateTransitionError,
+    VultronNotFoundError,
+)
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -144,16 +155,11 @@ class EmStateAdmitsProposalNode(DataLayerConditionWithPorts):
             return f
         assert self.datalayer is not None
 
-        result_out: dict[str, object] = {}
-        read_node = ReadEmStateNode(
-            case_id=self._case_id, result_out=result_out
-        )
-        read_node.datalayer = self.datalayer
-        if read_node.update() != Status.SUCCESS:
-            self.feedback_message = read_node.feedback_message
+        try:
+            em_before = read_case_em_state(self.datalayer, self._case_id)
+        except BtNodePreconditionError as exc:
+            self.feedback_message = str(exc)
             return Status.FAILURE
-        em_before = result_out["em_before"]
-        assert isinstance(em_before, EM)
 
         try:
             EmDimension(state=em_before).transition(EM_Trigger.PROPOSE)
@@ -167,6 +173,16 @@ class EmStateAdmitsProposalNode(DataLayerConditionWithPorts):
         return Status.SUCCESS
 
 
+def invite_rsvp_deadline(invite: dict[str, Any]) -> datetime | None:
+    """The RSVP deadline (``endTime``) a relayed Invite's wire body carries.
+
+    The relay and its ledger replay both read it from the same sealed body,
+    so the invitee's record takes the same deadline in every store
+    (CM-28-013, EP-09-007).
+    """
+    return parse_published(invite.get(wire_key("end_time")))
+
+
 def case_manager_admits_proposal_guard(
     case_id: str,
 ) -> py_trees.composites.Selector:
@@ -178,14 +194,6 @@ def case_manager_admits_proposal_guard(
     canonical case cannot take is refused before the guarded commit writes
     an entry for it.
     """
-    # Deferred import: ``case.nodes`` (the package ``role_gates`` lives in)
-    # reaches ``sync`` through ``accept_invite``, and ``sync`` imports the
-    # embargo nodes for its teardown replay — the same embargo/nodes <-> sync
-    # cycle as ``_commit_emission`` (notes/lint-tooling.md).
-    from vultron.core.behaviors.case.nodes.role_gates import (  # #3950
-        create_case_manager_gated_tree,
-    )
-
     return create_case_manager_gated_tree(
         name="AdmitsEmbargoProposalIfCaseManager",
         case_id=case_id,
@@ -234,13 +242,14 @@ class CollectEmbargoInviteRecipientsNode(DataLayerActionWithPorts):
         if failure is not None:
             return failure  # Regime 1 (ADR-0087)
 
-        recipients = [
-            actor_id
-            for actor_id in case_addressees(
-                case, excluding_actor_id=self.actor_id
-            )
-            if actor_id != self._proposer_id
-        ]
+        # An Invite asks for consent, so an inert participant — the one that
+        # has not consented — is exactly who it must reach; a participant at
+        # RM.CLOSED gets none (CM-10-007, EP-09-002).
+        recipients = invitation_recipients(
+            case,
+            self.datalayer,
+            excluding={self.actor_id, self._proposer_id},
+        )
         self._set_output(_RECIPIENTS_KEY, recipients)
         self.feedback_message = (
             f"{len(recipients)} participant(s) to invite on case"
@@ -309,13 +318,25 @@ class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
 
     def initialise(self) -> None:
         super().initialise()
-        self._recipients = cast(list[str], self.get_input(_RECIPIENTS_KEY))
+        self._load_relay_inputs()
         try:
             self._sync_port = cast(
                 "SyncActivityPort | None", self.get_input("sync_port")
             )
         except (py_trees.ports.NoDataAvailable, NotImplementedError):
             self._sync_port = None
+
+    def _load_relay_inputs(self) -> None:
+        """Read what to relay; the recipients the collect node resolved.
+
+        A subclass that learns its case, embargo and proposer only at tick
+        time overrides this rather than the emit path (EP-04-011).
+        """
+        self._recipients = cast(list[str], self.get_input(_RECIPIENTS_KEY))
+
+    def _activity_id_for(self, recipient_id: str) -> str | None:
+        """The id the Invite to *recipient_id* takes; ``None`` mints a fresh one."""
+        return None
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -343,10 +364,13 @@ class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
             actor=self.actor_id,
             to=[recipient_id],
             attributed_to=self._proposer_id,
+            activity_id=self._activity_id_for(recipient_id),
         )
         self._commit_emission(activity_id, blob)
         dl.outbox_append(activity_id)
-        self._invite_where_legal(dl, recipient_id)
+        self._invite_where_legal(
+            dl, recipient_id, invite_rsvp_deadline(json.loads(blob))
+        )
         self.logger.info(
             "CASE_MANAGER '%s' relayed embargo '%s' to '%s' for '%s' (EP-09-002)",
             self.actor_id,
@@ -357,13 +381,6 @@ class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
 
     def _commit_emission(self, activity_id: str, blob: str) -> None:
         """Commit the emitted Invite as a canonical entry (ADR-0109, VM-08-003)."""
-        # Deferred import: ``sync`` imports the embargo nodes for its teardown
-        # replay (``announce_tree``), so a module-level import here is a cycle
-        # (embargo/nodes <-> sync, notes/lint-tooling.md).
-        from vultron.core.behaviors.sync.commit_tree import (  # #3950
-            commit_emitted_activity,
-        )
-
         commit_emitted_activity(
             datalayer=cast(CaseOutboxPersistence, self.datalayer),
             actor_id=cast(str, self.actor_id),
@@ -375,30 +392,34 @@ class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
         )
 
     def _invite_where_legal(
-        self, dl: CaseOutboxPersistence, recipient_id: str
+        self,
+        dl: CaseOutboxPersistence,
+        recipient_id: str,
+        rsvp_deadline: datetime | None,
     ) -> None:
         """Apply PEC INVITE to *recipient_id* if CM-18-003 allows it (EP-09-004)."""
         # Regime 1 (ADR-0087): the relay follows the manager's own EM write on
-        # this case, so a missing case is an anomaly, not a lenient skip.
-        case, failure = self._require_case(self._case_id)
-        if failure is not None:
-            raise RuntimeError(self.feedback_message)
-        participant_id = case.actor_participant_index.get(recipient_id)
-        participant = dl.read(participant_id) if participant_id else None
-        if not isinstance(participant, CaseParticipant):
-            raise RuntimeError(  # noqa: TRY004  # ruff-baseline #3353
-                f"no participant record for invitee '{recipient_id}' on case"
-                f" '{self._case_id}'"
+        # this case, so a missing case or invitee is an anomaly, not a lenient
+        # skip.  ``record_embargo_invite`` raises a ``VultronNotFoundError``,
+        # which would read as the sender's fault (REFUSED, ADR-0095), so it is
+        # re-raised as the internal error it is in the manager's own store.
+        try:
+            result = EmbargoLifecycle(persistence=dl).record_embargo_invite(
+                case_id=self._case_id,
+                invitee_id=recipient_id,
+                rsvp_deadline=rsvp_deadline,
             )
-        if not participant.apply_pec_transition_if_legal(PEC_Trigger.INVITE):
+        except VultronNotFoundError as exc:
+            raise RuntimeError(
+                f"{self.name}: the CASE_MANAGER's roster names '{recipient_id}'"
+                f" but its store has no record for it: {exc}"
+            ) from exc
+        if not result.participant_changes:
             self.logger.info(
-                "%s: '%s' is %s — INVITE does not apply (EP-09-004)",
+                "%s: INVITE does not apply to '%s' (EP-09-004)",
                 self.name,
                 recipient_id,
-                participant.embargo_consent_state.name,
             )
-            return
-        dl.save(participant)
 
 
 __all__ = [

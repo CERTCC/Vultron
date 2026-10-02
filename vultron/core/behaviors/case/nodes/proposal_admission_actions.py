@@ -81,12 +81,12 @@ class RecordProposalAdmissionNode(DataLayerAction):
     def __init__(
         self,
         proposal_id: str,
-        vendor_uri: str,
+        proposer_uri: str,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._proposal_id = proposal_id
-        self._vendor_uri = vendor_uri
+        self._proposer_uri = proposer_uri
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -107,7 +107,8 @@ class RecordProposalAdmissionNode(DataLayerAction):
             record = CaseProposalAdmissionRecord(
                 proposal_id=self._proposal_id,
                 case_actor_id=self.actor_id,
-                vendor_uri=self._vendor_uri,
+                # Stored field keeps its pre-rename name (#4128).
+                vendor_uri=self._proposer_uri,
             )
             self.datalayer.create(record)
         except ValueError as exc:
@@ -155,12 +156,12 @@ class RecordProposalDeclineNode(DataLayerAction):
     def __init__(
         self,
         proposal_id: str,
-        vendor_uri: str,
+        proposer_uri: str,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._proposal_id = proposal_id
-        self._vendor_uri = vendor_uri
+        self._proposer_uri = proposer_uri
 
     def update(self) -> Status:
         if self.datalayer is None or self.actor_id is None:
@@ -189,7 +190,8 @@ class RecordProposalDeclineNode(DataLayerAction):
             record = CaseProposalDeclineRecord(
                 proposal_id=self._proposal_id,
                 case_actor_id=self.actor_id,
-                vendor_uri=self._vendor_uri,
+                # Stored field keeps its pre-rename name (#4128).
+                vendor_uri=self._proposer_uri,
             )
             self.datalayer.create(record)
         except ValueError as exc:
@@ -211,32 +213,32 @@ class EmitRejectCaseProposalNode(_EmitSingleActivityBase):
 
     CP-05-004: when the case actor service declines a proposal it MUST send
     ``Reject(as_CaseProposal)`` with the proposal embedded inline as ``object_``
-    so the vendor has full context without a second round-trip (AKM-03-001).
+    so the report receiver has full context without a second round-trip (AKM-03-001).
 
     The node writes no case state and creates no participants.  It is reachable
     only from the decline arm, which runs ahead of ``ResolveCaseIdSelector`` and
     is guarded so it cannot be entered once case creation has begun — a Reject
-    emitted after the accept flow's effects would tell the vendor "declined"
+    emitted after the accept flow's effects would tell the receiver "declined"
     while this store held a half-built case with committed ledger entries, the
     canonical/replica divergence CLP-10-009 exists to prevent.
 
     Unlike its sibling ``EmitAcceptCaseProposalNode``, this node routes through
     ``_EmitSingleActivityBase`` rather than calling ``outbox_append`` in its own
     ``update()`` (OX-14-001).  That is where the outstanding-ask hook will live
-    (ASK-04-008), and a Reject is precisely what *closes* the vendor's proposal.
+    (ASK-04-008), and a Reject is precisely what *closes* the receiver's proposal.
     Migrating the Accept node to the same seam is #2881's remaining work.
     """
 
     def __init__(
         self,
         proposal_id: str,
-        vendor_uri: str,
+        proposer_uri: str,
         proposal_dict: dict | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._proposal_id = proposal_id
-        self._vendor_uri = vendor_uri
+        self._proposer_uri = proposer_uri
         self._proposal_dict = proposal_dict
 
     def _call_factory(self) -> tuple[str, str]:
@@ -244,9 +246,9 @@ class EmitRejectCaseProposalNode(_EmitSingleActivityBase):
         assert self.actor_id is not None
         assert self.datalayer is not None
         if self._proposal_dict is None:
-            # A bare URI would be unreadable to the vendor (AKM-03-001), and
+            # A bare URI would be unreadable to the receiver (AKM-03-001), and
             # there is no inline proposal to fall back on, so refuse loudly
-            # rather than sending a Reject the vendor cannot interpret.
+            # rather than sending a Reject the receiver cannot interpret.
             raise ValueError(
                 f"{self.name}: no wire proposal available for"
                 f" '{self._proposal_id}'; cannot build an inline Reject"
@@ -261,7 +263,7 @@ class EmitRejectCaseProposalNode(_EmitSingleActivityBase):
         return self.trigger_activity_factory.reject_case_proposal(
             actor=self.actor_id,
             proposal=self._proposal_dict,
-            to=[self._vendor_uri],
+            to=[self._proposer_uri],
             summary=reason,
         )
 
@@ -292,11 +294,11 @@ class EmitRejectCaseProposalNode(_EmitSingleActivityBase):
             )
         logger.info(
             "%s: Declined proposal '%s' — queued Reject '%s' to outbox "
-            "for vendor '%s'",
+            "for report receiver '%s'",
             self.name,
             self._proposal_id,
             activity_id,
-            self._vendor_uri,
+            self._proposer_uri,
         )
 
 

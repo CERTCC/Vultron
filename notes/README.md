@@ -570,7 +570,7 @@ embargo status transitions, or debugging action rule filtering.
 Canonical communication model for post-case-creation participant messaging:
 all messages route through the CASE_MANAGER only
 (`participant → CASE_MANAGER → CaseLedgerEntry → broadcast → participants`). Covers
-the routing rule, its rationale, the `case_addressees()` antipattern, how to
+the routing rule, its rationale, the roster-wide recipient antipattern, how to
 resolve the CASE_MANAGER ID, and the automatic `CaseLedgerEntry + broadcast`
 cascade. Normative requirements: `specs/participant-case-replica.yaml` PCR-08.
 **Load when**: implementing any trigger use case or BT that causes a
@@ -1062,13 +1062,22 @@ debugging a spec-lint / `spec-dump` failure. Pair with
 `specs-vs-adrs.md` for *whether* the requirement belongs in a spec at all.
 
 **`rfc-spec-authoring.md`**
-Structural and editorial decisions for building `docs/reference/vultron-spec/`
-from the existing `draft-vultron-spec.md` outline. Covers file layout and naming
-conventions (`_` prefix, semantic slugs), DAG-first authoring workflow, source
-treatment rules, annex → source page mapping, §4.6 rewrite sources, and the
-resolved open questions table for issue #3255.
-**Load when**: working on issue #3255 (write full Vultron Protocol Specification),
-planning the modular document structure, or authoring new spec sections.
+Structural and editorial conventions for the Protocol Specification under
+`docs/reference/vultron-spec/`: the page map (routing landing page, six body
+pages, seven annex pages, Open Questions, hidden `full.md`) and the fragments
+each page includes, fragment naming, the per-annex fragments and shared tip, the
+section citation convention (number plus name), annex sources, source treatment,
+and the DAG-first authoring workflow.
+**Load when**: adding, moving or splitting a specification section or page,
+linking or citing a specification section, or authoring new spec sections.
+
+**`rfc-review-rubric.md`**
+Living checklist for reviewing the Protocol Specification against the codebase,
+specs and design: structural completeness per page, terminology, protocol model
+fidelity, cross-reference integrity (links to the owning page, citations with
+number and name), and the checks already mechanized by CI.
+**Load when**: reviewing or revising the Protocol Specification, or adding a
+check after a review round.
 
 **`notes-frontmatter.md`**
 Design decisions for YAML frontmatter schema in `notes/*.md` files: required

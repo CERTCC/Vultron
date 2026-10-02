@@ -22,17 +22,21 @@ imported here and MUST NOT be imported by callers.
 Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 """
 
+import json
 import logging
 from typing import Any, cast
 
 from pydantic import ValidationError
 
+from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.dimensions import (
     EmDimension,
 )
 from vultron.core.states.em import EM
+from vultron.enums.object_types import VultronObjectType
 from vultron.enums.roles import CVDRole
+from vultron.wire.as2.enums import as_TransitiveActivityType
 from vultron.wire.as2.factories._context import (
     case_target_ref,
     case_uri_of,
@@ -118,7 +122,7 @@ def _project_case_to_stub(
     try:
         current_status = case.current_status
     except (ValueError, AttributeError):
-        return as_VulnerabilityCaseStub(id_=case_id)
+        return as_VulnerabilityCaseStub(case_id=case_id)
     # Support both core CaseStatus (.em.state) and wire as_CaseStatus (.em_state)
     if hasattr(current_status, "em") and hasattr(current_status.em, "state"):
         em_state = current_status.em.state
@@ -126,10 +130,10 @@ def _project_case_to_stub(
         em_state = getattr(current_status, "em_state", None)
     active_embargo = getattr(case, "active_embargo", None)
     if em_state != EM.ACTIVE or active_embargo is None:
-        return as_VulnerabilityCaseStub(id_=case_id)
+        return as_VulnerabilityCaseStub(case_id=case_id)
     embargo_ref = _stub_embargo_ref(active_embargo, embargo_obj, case_id)
     if embargo_ref is None:
-        return as_VulnerabilityCaseStub(id_=case_id)
+        return as_VulnerabilityCaseStub(case_id=case_id)
     # ``context`` names the case this status belongs to.  It is required on the
     # core class (fail-fast, ARCH-10-001); the deleted wire class allowed it to be
     # absent because the wire branch was deliberately lenient (ARCH-12-002).
@@ -137,7 +141,7 @@ def _project_case_to_stub(
         context=case_id, em=EmDimension(state=em_state)
     )
     return as_VulnerabilityCaseStub(
-        id_=case_id,
+        case_id=case_id,
         active_embargo=embargo_ref,
         case_status=wire_status,
     )
@@ -682,12 +686,12 @@ def reject_case_ownership_transfer_activity(
 
 def rm_invite_to_case_activity(
     invitee: as_Actor | str,
-    target: Any = None,
+    target: Any,
     roles: list[str] | None = None,
     embargo_obj: Any = None,
     **kwargs,
 ) -> as_Invite:
-    """Build an Invite(Actor, target=as_VulnerabilityCase) — the RS message.
+    """Build an Invite(Actor, target=VulnerabilityCaseStub) — the RS message.
 
     Invites an actor to join a case that already exists.  See
     :func:`vultron.wire.as2.factories.report.rm_submit_report_activity`
@@ -698,7 +702,8 @@ def rm_invite_to_case_activity(
         target: The case to join — either a ``as_VulnerabilityCase`` (core or wire;
             projected to an enriched ``as_VulnerabilityCaseStub`` via
             :func:`_project_case_to_stub`), a pre-built ``as_VulnerabilityCaseStub``,
-            or a bare URI string.
+            or the case URI (wrapped in a bare stub).  The Invite's
+            ``context`` defaults to the case URI, never the stub's ID.
         roles: Optional list of intended CVD role strings for the invitee
             (CM-17-003).  When provided the Invite carries the intended
             participant roles so ``CreateInviteeParticipantNode``
@@ -717,6 +722,11 @@ def rm_invite_to_case_activity(
     """
     if isinstance(target, (VulnerabilityCase, as_VulnerabilityCase)):
         target = _project_case_to_stub(target, embargo_obj)
+    elif isinstance(target, str):
+        # A case named by URI alone still travels as a stub: the invitee does
+        # not hold the case, and the stub Invite is told apart by its target's
+        # ``type`` (CM-11-013, VAM-04-004).
+        target = as_VulnerabilityCaseStub(case_id=target)
     if isinstance(invitee, str):
         invitee = as_Actor(id_=invitee)
     if roles is not None:
@@ -736,6 +746,62 @@ def rm_invite_to_case_activity(
         ) from exc
 
 
+def validate_held_case_invite(data: dict[str, Any]) -> as_Invite:
+    """Validate a held Invite's JSON form into ``as_Invite``, stub and all.
+
+    ``as_Invite.target`` is a generic ``as_Object`` slot, which keeps none of
+    a stub's own fields, so a target whose ``type`` is ``VulnerabilityCaseStub``
+    is validated as the stub itself (CM-11-013).  Any other target is kept as
+    the generic slot holds it, for :func:`_as_case_invite` to refuse.
+
+    Raises:
+        pydantic.ValidationError: when *data* is not an Invite, or its stub
+            does not validate (for example, it has no ``caseId``).
+    """
+    invite = as_Invite.model_validate(data)
+    stub = data.get("target")
+    if (
+        isinstance(stub, dict)
+        and stub.get("type") == VultronObjectType.VULNERABILITY_CASE_STUB.value
+    ):
+        invite = invite.model_copy(
+            update={"target": as_VulnerabilityCaseStub.model_validate(stub)}
+        )
+    return invite
+
+
+def _as_case_invite(invite: as_Invite) -> _RmInviteToCaseActivity:
+    """Return *invite* as the case-Invite class the reply activities embed.
+
+    An Invite the invitee holds came through intake, which archives the
+    activity as the event carried it (CLP-10-017, ADR-0111) — not as this
+    class.  The caller validates that record into ``as_Invite`` at its edge
+    (ADR-0032); this function validates it on into the case-Invite class from
+    its JSON form.  Neither class checks the input's ``type`` (both set their
+    own), so it is checked here first.
+
+    Raises:
+        VultronActivityConstructionError: when *invite* is not an Invite, or
+            does not validate as a case Invite.
+    """
+    if isinstance(invite, _RmInviteToCaseActivity):
+        return invite
+    data = json.loads(
+        invite.model_dump_json(by_alias=True, serialize_as_any=True)
+    )
+    if data.get("type") != as_TransitiveActivityType.INVITE.value:
+        raise VultronActivityConstructionError(
+            f"activity '{data.get('id')}' is not a case Invite:"
+            f" its type is {data.get('type')!r}"
+        )
+    try:
+        return _RmInviteToCaseActivity.model_validate(data)
+    except ValidationError as exc:
+        raise VultronActivityConstructionError(
+            f"activity '{data.get('id')}' is not a case Invite"
+        ) from exc
+
+
 def rm_accept_invite_to_case_activity(
     invite: as_Invite,
     **kwargs,
@@ -744,9 +810,10 @@ def rm_accept_invite_to_case_activity(
 
     Accepts a case invitation.  The internal class automatically sets
     ``in_reply_to`` to the invite's ``id_`` if not provided.
-    The ``invite`` MUST be the value returned by
-    :func:`rm_invite_to_case_activity`; a plain ``as_Invite`` that does
-    not carry a ``as_VulnerabilityCase`` target will fail validation.
+    The ``invite`` is the value :func:`rm_invite_to_case_activity`
+    returned, or a received Invite the caller has validated into
+    ``as_Invite``; it is validated on into the case-Invite class, and
+    anything that is not a case Invite fails.
 
     Args:
         invite: The ``_RmInviteToCaseActivity`` being accepted.
@@ -761,7 +828,7 @@ def rm_accept_invite_to_case_activity(
     """
     try:
         return _RmAcceptInviteToCaseActivity(
-            object_=cast(_RmInviteToCaseActivity, invite),
+            object_=_as_case_invite(invite),
             **kwargs,
         )
     except ValidationError as exc:
@@ -781,9 +848,10 @@ def rm_reject_invite_to_case_activity(
 
     Rejects a case invitation.  The internal class automatically sets
     ``in_reply_to`` to the invite's ``id_`` if not provided.
-    The ``invite`` MUST be the value returned by
-    :func:`rm_invite_to_case_activity`; a plain ``as_Invite`` will fail
-    validation.
+    The ``invite`` is the value :func:`rm_invite_to_case_activity`
+    returned, or a received Invite the caller has validated into
+    ``as_Invite``; it is validated on into the case-Invite class, and
+    anything that is not a case Invite fails.
 
     Args:
         invite: The ``_RmInviteToCaseActivity`` being rejected.
@@ -798,7 +866,7 @@ def rm_reject_invite_to_case_activity(
     """
     try:
         return _RmRejectInviteToCaseActivity(
-            object_=cast(_RmInviteToCaseActivity, invite),
+            object_=_as_case_invite(invite),
             **kwargs,
         )
     except ValidationError as exc:
@@ -927,20 +995,24 @@ def bootstrap_replay_question_activity(
 
 
 def create_case_proposal_activity(
-    actor_id: str,
+    actor: CoreActor | as_Actor,
     proposal: as_CaseProposal,
     to: list[str],
     **kwargs,
 ) -> as_Create:
-    """Build a ``Create(as_CaseProposal)`` sent by the vendor actor.
+    """Build a ``Create(as_CaseProposal)`` sent by the report receiver.
 
-    The vendor actor sends this to the case-actor service to initiate the
+    The report receiver sends this to the case-actor service to initiate the
     case initialization protocol (CP-04-001).  The ``as_CaseProposal``
     is embedded inline so the case-actor service has full context without
-    an additional round-trip.
+    an additional round-trip, and so is the sender's own actor profile: it
+    carries the embargo policy that is the CASE_OWNER's actor default, and
+    the CASE_MANAGER reads that default from nowhere else (CP-01-010).
 
     Args:
-        actor_id: URI of the vendor actor that is sending the proposal.
+        actor: The sending actor's full profile, with its ``embargo_policy``
+            when it has published one.  Its ``id`` must be the proposal's
+            ``attributed_to``.
         proposal: The ``as_CaseProposal`` being created (embedded inline as
             ``object_``).
         to: List of recipient URIs (typically the case-actor service URI).
@@ -950,11 +1022,18 @@ def create_case_proposal_activity(
         An ``as_Create`` whose ``object_`` is the ``as_CaseProposal``.
 
     Raises:
-        VultronActivityConstructionError: If Pydantic validation fails.
+        VultronActivityConstructionError: If Pydantic validation fails, or
+            *actor* is not the proposal's ``attributed_to``.
     """
+    if actor.id_ != proposal.attributed_to:
+        raise VultronActivityConstructionError(
+            f"create_case_proposal_activity: actor {actor.id_!r} is not the"
+            f" proposal's attributed_to {proposal.attributed_to!r}"
+            " (CP-01-010)"
+        )
     try:
         return as_Create(
-            actor=actor_id,
+            actor=actor,
             object_=proposal,
             to=to,
             **kwargs,
@@ -977,14 +1056,14 @@ def accept_case_proposal_activity(
     """Build an ``Accept(as_CaseProposal)`` sent by the case-actor service.
 
     The case-actor service sends this to acknowledge that it will create a
-    ``as_VulnerabilityCase`` from the vendor's proposal.  A separate
+    ``as_VulnerabilityCase`` from the report receiver's proposal.  A separate
     ``Create(as_VulnerabilityCase)`` follows (CP-05-003).
 
     Args:
         actor_id: URI of the case-actor service that is accepting the proposal.
         proposal: The ``as_CaseProposal`` being accepted (embedded inline as
             ``object_``).
-        to: List of recipient URIs (typically the vendor actor URI).
+        to: List of recipient URIs (typically the report receiver URI).
         **kwargs: Optional AS2 fields forwarded to the constructor.
 
     Returns:
@@ -1017,15 +1096,15 @@ def reject_case_proposal_activity(
 ) -> as_Reject:
     """Build a ``Reject(as_CaseProposal)`` sent by the case-actor service.
 
-    The case-actor service sends this when it declines the vendor's proposal
-    (CP-05-004).  The ``as_CaseProposal`` is embedded inline so the vendor
+    The case-actor service sends this when it declines the report receiver's proposal
+    (CP-05-004).  The ``as_CaseProposal`` is embedded inline so the report receiver
     has full proposal context without an additional round-trip.
 
     Args:
         actor_id: URI of the case-actor service that is rejecting the proposal.
         proposal: The ``as_CaseProposal`` being rejected (embedded inline as
             ``object_``).
-        to: List of recipient URIs (typically the vendor actor URI).
+        to: List of recipient URIs (typically the report receiver URI).
         **kwargs: Optional AS2 fields forwarded to the constructor.
 
     Returns:

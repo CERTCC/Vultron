@@ -8,13 +8,16 @@ from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
+from vultron.core.services.case_replica_seeding import (
+    store_embedded_participants,
+)
 from vultron.errors import VultronAlreadyExistsError
 
 from ._helpers import (
     _find_report_case_link,
-    _store_embedded_embargo,
-    _store_embedded_participants,
+    _hold_carried_embargo,
 )
 
 logger = logging.getLogger(__name__)
@@ -28,20 +31,22 @@ class CreateCaseReceivedUseCase:
 
     Bootstrap trust path (CBT-01-005 / CBT-01-006):
     1. Locate the ``VultronReportCaseLink`` for any report listed in the case.
-    2. Validate that the sender matches ``link.trusted_case_creator_id``.
+    2. Validate that the sender matches ``link.case_creator_id``.
     3. Extract the ``CaseActor`` ID from the ``CASE_MANAGER`` participant.
     4. Seed a local replica of the case via the case-replica BT.
-    5. Update the link with ``case_id`` and ``trusted_case_actor_id``.
+    5. Update the link with ``case_id`` and ``case_manager_id``.
     """
 
     def __init__(
         self,
         dl: CasePersistence,
         request: CreateCaseReceivedEvent,
+        sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
+        self._sync_port = sync_port
         self._request: CreateCaseReceivedEvent = request
 
     def execute(self) -> HandlerResult:
@@ -78,7 +83,7 @@ class CreateCaseReceivedUseCase:
             return HandlerResult.skipped(
                 f"bootstrap of case '{case_id}' already accepted"
             )
-        # Non-vendor participant path (ADR-0041 AC-5)
+        # Non-owner participant path (ADR-0041 AC-5)
         return self._handle_direct_participant_bootstrap(
             actor_id, case_id, case_obj
         )
@@ -88,7 +93,7 @@ class CreateCaseReceivedUseCase:
         return any(
             isinstance(obj, VultronReportCaseLink)
             and obj.case_id == case_id
-            and obj.trusted_case_creator_id == actor_id
+            and obj.case_creator_id == actor_id
             for obj in self._dl.list_objects("ReportCaseLink")
         )
 
@@ -120,7 +125,7 @@ class CreateCaseReceivedUseCase:
         case_id: str,
         case_obj: VulnerabilityCase,
     ) -> HandlerResult:
-        """Seed the case replica when receiver is a non-vendor participant.
+        """Seed the case replica when the receiver is a non-owner participant.
 
         Under ADR-0041 AC-5, CaseActor bootstraps reporters/finders directly by
         including them in the ``to`` field of ``Create(VulnerabilityCase)``.
@@ -141,13 +146,16 @@ class CreateCaseReceivedUseCase:
                 f"untrusted Create of case '{case_id}': no ReportCaseLink and"
                 f" sender '{actor_id}' is not its CASE_MANAGER (ADR-0041 AC-5)"
             )
+        if (
+            refusal := _hold_carried_embargo(case_obj, self._dl, case_id)
+        ) is not None:
+            return refusal
         stored = self._store_replica(case_id, case_obj)
-        _store_embedded_participants(case_obj, self._dl, case_id)
-        _store_embedded_embargo(case_obj, self._dl, case_id)
+        store_embedded_participants(case_obj, self._dl, case_id)
         if not stored:
             return HandlerResult.skipped(f"case '{case_id}' already seeded")
         logger.info(
-            "create_case_received: stored case '%s' replica for non-vendor"
+            "create_case_received: stored case '%s' replica for non-owner"
             " participant from CaseActor '%s' (ADR-0041 AC-5)",
             case_id,
             actor_id,
@@ -163,8 +171,8 @@ class CreateCaseReceivedUseCase:
     ) -> HandlerResult:
         """Validate trust and seed the case replica."""
         # CBT-01-005: sender must match the actor we sent the report to
-        if link.trusted_case_creator_id is not None:
-            if actor_id != link.trusted_case_creator_id:
+        if link.case_creator_id is not None:
+            if actor_id != link.case_creator_id:
                 logger.warning(
                     "create_case_received: bootstrap rejected for case '%s' — "
                     "sender does not match trusted case creator "
@@ -178,7 +186,7 @@ class CreateCaseReceivedUseCase:
                 )
         else:
             logger.warning(
-                "create_case_received: no trusted_case_creator_id in link "
+                "create_case_received: no case_creator_id in link "
                 "for case '%s'; accepting bootstrap unchecked",
                 case_id,
             )
@@ -215,6 +223,13 @@ class CreateCaseReceivedUseCase:
             actor_id,
         )
 
+        # Hold the embargo the case names before the replica is saved, and
+        # refuse a case naming one this store cannot read (EMB-18-003).
+        if (
+            refusal := _hold_carried_embargo(case_obj, self._dl, case_id)
+        ) is not None:
+            return refusal
+
         # Seed the local case replica
         # Idempotency guard (CBT-01-006, ID-04-004)
         stored = self._store_replica(case_id, case_obj)
@@ -225,11 +240,11 @@ class CreateCaseReceivedUseCase:
 
         # CBT-01-006: persist trust anchors in the link
         link.case_id = case_id
-        link.trusted_case_actor_id = case_actor_id
+        link.case_manager_id = case_actor_id
         self._dl.save(link)
         logger.info(
             "create_case_received: ReportCaseLink updated with case_id='%s' "
-            "and trusted_case_actor_id='%s' (CBT-01-006)",
+            "and case_manager_id='%s' (CBT-01-006)",
             case_id,
             case_actor_id,
         )
@@ -239,8 +254,7 @@ class CreateCaseReceivedUseCase:
         # find them by UUID via ``datalayer.read(participant_id)``.
         # This must happen regardless of the idempotency guard above because
         # the inbox router may have already seeded the case before dispatch.
-        _store_embedded_participants(case_obj, self._dl, case_id)
-        _store_embedded_embargo(case_obj, self._dl, case_id)
+        store_embedded_participants(case_obj, self._dl, case_id)
         if not stored:
             # The trust anchors and embedded objects above are re-applied
             # idempotently; only the replica itself already existed.
