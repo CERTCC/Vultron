@@ -53,11 +53,6 @@ from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
 )
-from vultron.core.states.cs import (
-    is_pxa_attacks_observed,
-    is_pxa_exploit_public,
-    is_pxa_public_aware,
-)
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC_Trigger
 from vultron.core.use_cases._helpers import (
@@ -70,6 +65,11 @@ from vultron.core.use_cases.received._bt_verdict import (
     node_failed,
     not_case_manager_refusal,
     verdict_from_bt,
+)
+from vultron.core.use_cases.received._embargo_pxa import (
+    _pxa_embargo_ineligible,
+    queue_pxa_reject,
+    refuse_pxa_invite,
 )
 from vultron.core.use_cases.triggers._helpers import (
     _prepare_delegated_context,
@@ -84,23 +84,6 @@ if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
-
-
-def _pxa_embargo_ineligible(dl: CasePersistence, case_id: str) -> bool:
-    """Return True when P/X/A is set on the case (EMB-01-002, EMB-02-002).
-
-    Reads the case from the DataLayer; returns False (eligible) when the case
-    cannot be resolved so normal processing can continue.
-    """
-    case = dl.read_case(case_id)
-    if case is None:
-        return False
-    pxa_state = case.current_status.pxa.state
-    return (
-        is_pxa_public_aware(pxa_state)
-        or is_pxa_exploit_public(pxa_state)
-        or is_pxa_attacks_observed(pxa_state)
-    )
 
 
 def resolve_invitee_id(
@@ -404,48 +387,6 @@ class InviteToEmbargoOnCaseReceivedUseCase:
         self._sync_port = sync_port
         self._trigger_activity = trigger_activity
 
-    def _refuse_pxa_ineligible(
-        self, case_id: str, invite_id: str, receiving_actor_id: str
-    ) -> HandlerResult:
-        """Refuse an EP on a public/exploited/attacked case and emit ER.
-
-        EMB-01-002: MUST NOT process EP when P/X/A is set; MUST emit ER.
-        """
-        request = self._request
-        logger.info(
-            "invite_to_embargo_on_case: P/X/A set on case '%s'"
-            " — rejecting EP '%s' (EMB-01-002)",
-            case_id,
-            invite_id,
-        )
-        if self._trigger_activity is not None:
-            _idempotent_create(
-                self._dl,
-                request.activity_type,
-                invite_id,
-                request.activity,
-                "InviteToEmbargoOnCase",
-                invite_id,
-            )
-            reject_id, _ = self._trigger_activity.reject_embargo(
-                proposal_id=invite_id,
-                case_id=case_id,
-                actor=receiving_actor_id,
-                to=[request.actor_id],
-            )
-            add_activity_to_outbox(receiving_actor_id, reject_id, self._dl)
-        else:
-            logger.warning(
-                "invite_to_embargo_on_case: trigger_activity unavailable"
-                " — ER not emitted for EP '%s' on case '%s'",
-                invite_id,
-                case_id,
-            )
-        return HandlerResult.refused(
-            f"EMB-01-002: P/X/A set on case '{case_id}'; embargo"
-            " proposal rejected"
-        )
-
     def execute(self) -> HandlerResult:
         request = self._request
         case_id = request.context_id or ""
@@ -488,8 +429,14 @@ class InviteToEmbargoOnCaseReceivedUseCase:
             self._dl, request.receiving_actor_id
         )
         if case_id and _pxa_embargo_ineligible(self._dl, case_id):
-            return self._refuse_pxa_ineligible(
-                case_id, invite_id, receiving_actor_id
+            return refuse_pxa_invite(
+                self._dl,
+                self._trigger_activity,
+                request,
+                case_id=case_id,
+                invite_id=invite_id,
+                embargo_id=embargo_id,
+                receiving_actor_id=receiving_actor_id,
             )
 
         # Single BT execution under receiving_actor_id (ADR-0022 / CLP-10-005).
@@ -797,19 +744,20 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
                 " — rejecting EA (EMB-02-002)",
                 case_id,
             )
-            if self._trigger_activity is not None and invite_id:
-                reject_id, _ = self._trigger_activity.reject_embargo(
-                    proposal_id=invite_id,
+            if invite_id:
+                queue_pxa_reject(
+                    self._dl,
+                    self._trigger_activity,
+                    invite_id=invite_id,
                     case_id=case_id,
-                    actor=receiving_actor_id,
-                    to=[request.actor_id],
+                    actor_id=receiving_actor_id,
+                    recipient_id=request.actor_id,
+                    label="accept_invite_to_embargo_on_case",
                 )
-                add_activity_to_outbox(receiving_actor_id, reject_id, self._dl)
             else:
                 logger.warning(
-                    "accept_invite_to_embargo_on_case: trigger_activity"
-                    " unavailable or missing invite_id — ER not emitted"
-                    " for EA on case '%s'",
+                    "accept_invite_to_embargo_on_case: missing invite_id"
+                    " — ER not emitted for EA on case '%s'",
                     case_id,
                 )
             return HandlerResult.refused(

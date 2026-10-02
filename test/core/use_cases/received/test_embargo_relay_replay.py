@@ -42,6 +42,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.semantic_registry import extract_event, use_case_map
@@ -313,3 +314,98 @@ def test_the_owners_rejection_returns_every_store_to_the_prior_terms():
         assert case.current_status.em.state == EM.ACTIVE, actor_id
         assert case.active_embargo_id == net.initial_embargo_id, actor_id
         assert case.proposed_embargo_ids == [], actor_id
+
+
+def _set_pxa(net: _Network, actor_id: str) -> None:
+    """Make the case public in *actor_id*'s store (P/X/A set)."""
+    case = net.case(actor_id)
+    case.current_status.pxa.state = CS_pxa.Pxa
+    net.stores[actor_id].save(case)
+
+
+def _consent_states(net: _Network, actor_id: str) -> dict[str, PEC]:
+    """Every participant's consent state as *actor_id*'s store holds it."""
+    case = net.case(actor_id)
+    states: dict[str, PEC] = {}
+    for member, participant_id in case.actor_participant_index.items():
+        participant = net.stores[actor_id].read(participant_id)
+        assert isinstance(participant, CaseParticipant)
+        states[member] = participant.embargo_consent_state
+    return states
+
+
+@pytest.mark.spec("EMB-01-002")
+@pytest.mark.spec("EP-09-003")
+@pytest.mark.spec("TB-06-007")
+def test_a_participant_with_pxa_set_rejects_a_relayed_invite_to_the_case_manager():
+    """A public case refuses the relayed Invite and answers ER (#4104)."""
+    net = _Network("https://example.org/cases/relay-replay-pxa")
+    _propose(net, "public", 90)
+    _set_pxa(net, OWNER)
+    em_before = net.case(OWNER).current_status.em.state
+    consent_before = _consent_states(net, OWNER)
+    (invite,) = net.queued(MANAGER, to=OWNER, type_="Invite")
+
+    ((_, verdict),) = net.deliver(MANAGER, to=OWNER, type_="Invite")
+
+    assert verdict.disposition is HandlerDisposition.REFUSED
+    assert verdict.reason is not None and "EMB-01-002" in verdict.reason
+    (reject,) = net.queued(OWNER, to=MANAGER, type_="Reject")
+    assert reject.to == [MANAGER]
+    sealed = read_sealed_body_dict(net.stores[OWNER], reject.id_)
+    assert sealed is not None
+    assert sealed["object"]["id"] == invite.id_
+    # The refusal moves no case EM or consent state (EP-09-003).
+    assert net.case(OWNER).current_status.em.state == em_before
+    assert _consent_states(net, OWNER) == consent_before
+    # The ER reaches the CASE_MANAGER as a routable activity.
+    ((type_, answered),) = net.deliver(OWNER, to=MANAGER, type_="Reject")
+    assert answered.disposition is HandlerDisposition.APPLIED, (
+        type_,
+        answered.reason,
+    )
+
+
+@pytest.mark.spec("EMB-01-002")
+def test_a_bare_uri_invite_with_pxa_set_is_refused_without_raising(caplog):
+    """No copy of the terms means no ER can be built: refuse, never raise."""
+    net = _Network("https://example.org/cases/relay-replay-pxa-uri")
+    _propose(net, "public-uri", 90)
+    _set_pxa(net, OWNER)
+    (invite,) = net.queued(MANAGER, to=OWNER, type_="Invite")
+    body = read_sealed_body_dict(net.stores[MANAGER], invite.id_)
+    assert body is not None
+    body["object"] = body["object"]["id"]
+
+    with caplog.at_level("WARNING"):
+        verdict = net.receive(OWNER, body)
+
+    assert verdict.disposition is HandlerDisposition.REFUSED
+    assert verdict.reason is not None and "EMB-01-002" in verdict.reason
+    assert net.queued(OWNER, to=MANAGER) == []
+    assert any(
+        "ER not emitted" in record.getMessage()
+        and record.levelname == "WARNING"
+        for record in caplog.records
+    )
+
+
+@pytest.mark.spec("EMB-02-002")
+@pytest.mark.spec("TB-06-007")
+def test_a_case_manager_with_pxa_set_rejects_an_owners_acceptance():
+    """A public case at the CASE_MANAGER answers an Accept with ER."""
+    net = _Network("https://example.org/cases/relay-replay-pxa-accept")
+    _propose(net, "public-accept", 90)
+    net.deliver(MANAGER, to=OWNER, type_="Invite")
+    (invite,) = net.queued(MANAGER, to=OWNER, type_="Invite")
+    _set_pxa(net, MANAGER)
+
+    ((_, verdict),) = net.deliver(OWNER, to=MANAGER, type_="Accept")
+
+    assert verdict.disposition is HandlerDisposition.REFUSED
+    assert verdict.reason is not None and "EMB-02-002" in verdict.reason
+    (reject,) = net.queued(MANAGER, to=OWNER, type_="Reject")
+    assert reject.to == [OWNER]
+    sealed = read_sealed_body_dict(net.stores[MANAGER], reject.id_)
+    assert sealed is not None
+    assert sealed["object"]["id"] == invite.id_
