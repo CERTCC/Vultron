@@ -20,9 +20,12 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, cast
 
-from vultron.core.models._helpers import _as_id
-from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.case import UpdateCaseReceivedEvent
+from vultron.core.participants.recipients import (
+    case_content_recipients,
+    inert_participants,
+)
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
@@ -48,44 +51,36 @@ def apply_update_case_fields(
     return True
 
 
-def find_excluded_actor_ids(case: Any, dl: CasePersistence) -> set[str]:
-    """Return actor IDs excluded from case-update broadcast by active embargo."""
-    excluded: set[str] = set()
-    active_embargo = getattr(case, "active_embargo", None)
-    if active_embargo is None:
-        return excluded
+def find_excluded_actor_ids(
+    case: VulnerabilityCase, dl: CasePersistence
+) -> set[str]:
+    """Return the inert participants a case-update broadcast leaves out.
 
-    embargo_id = _as_id(active_embargo)
-    for actor_id, participant_id in getattr(
-        case, "actor_participant_index", {}
-    ).items():
-        participant = dl.read(participant_id)
-        if participant is None:
-            logger.warning(
-                "update_case: could not read participant '%s' for embargo acceptance check",
-                participant_id,
-            )
-            continue
-        if not isinstance(participant, CaseParticipant):
-            continue
-        accepted_ids = getattr(participant, "accepted_embargo_ids", []) or []
-        if embargo_id not in accepted_ids:
-            logger.warning(
-                "update_case: participant '%s' (actor '%s') has not accepted the active "
-                "embargo '%s' — case update will not be broadcast to this participant "
-                "(CM-10-004)",
-                participant_id,
-                actor_id,
-                embargo_id,
-            )
-            excluded.add(actor_id)
+    Delegates to the shared selection (CM-10-007): the roster less the active
+    participants (CM-10-004).  Kept as its own step so the update tree can
+    report whom it withheld the broadcast from; :func:`broadcast_case_update`
+    applies the active check itself whatever this returns.
+    """
+    excluded = inert_participants(case, dl)
+    if excluded:
+        # One line per broadcast, not per participant: an inert participant
+        # is routine under ADR-0114, but whom an update skipped is worth
+        # one operator-visible line.
+        logger.info(
+            "update_case: %d participant(s) not active on case '%s' (not"
+            " joined, or not SIGNATORY to the active embargo) — case update"
+            " will not be broadcast to them (CM-10-004): %s",
+            len(excluded),
+            case.id_,
+            ", ".join(sorted(excluded)),
+        )
     return excluded
 
 
 def broadcast_case_update(
     dl: CasePersistence,
     case_id: str,
-    case: Any,
+    case: VulnerabilityCase,
     actor_id: str,
     trigger_activity: TriggerActivityPort,
     excluded_actor_ids: set[str] | None = None,
@@ -104,7 +99,9 @@ def broadcast_case_update(
             ``Announce(VulnerabilityCase)``.  Core used to construct the
             activity itself; routing it through the adapter is what lets the
             outbox deliver the sealed body rather than a re-read (VM-08-003).
-        excluded_actor_ids: Participants to omit (CM-10-004).
+        excluded_actor_ids: Further participants to omit.  The active check
+            (CM-10-004) is applied regardless: recipients come from the shared
+            selection (CM-10-007).
 
     This used to resolve the announcing identity itself, via a scan for a
     ``Service`` whose ``context`` matched *case_id*, and then enqueue against
@@ -116,13 +113,9 @@ def broadcast_case_update(
     now a role gate in the tree, so the executing actor *is* the announcer and
     both halves of the emit land in one store (ADR-0073, CLP-09 precedent).
     """
-    excluded = excluded_actor_ids or set()
-
-    participant_ids = [
-        actor_id
-        for actor_id in getattr(case, "actor_participant_index", {})
-        if actor_id not in excluded
-    ]
+    participant_ids = case_content_recipients(
+        case, dl, excluding=excluded_actor_ids or set()
+    )
     if not participant_ids:
         logger.debug(
             "update_case: no eligible participants in case '%s' — skipping broadcast",

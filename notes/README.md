@@ -570,7 +570,7 @@ embargo status transitions, or debugging action rule filtering.
 Canonical communication model for post-case-creation participant messaging:
 all messages route through the CASE_MANAGER only
 (`participant → CASE_MANAGER → CaseLedgerEntry → broadcast → participants`). Covers
-the routing rule, its rationale, the `case_addressees()` antipattern, how to
+the routing rule, its rationale, the roster-wide recipient antipattern, how to
 resolve the CASE_MANAGER ID, and the automatic `CaseLedgerEntry + broadcast`
 cascade. Normative requirements: `specs/participant-case-replica.yaml` PCR-08.
 **Load when**: implementing any trigger use case or BT that causes a

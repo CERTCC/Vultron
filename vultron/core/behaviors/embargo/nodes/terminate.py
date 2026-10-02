@@ -19,7 +19,7 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.embargo.nodes.emit import _SendEmbargoActivityBase
 from vultron.core.behaviors.helpers import PortInformation
-from vultron.core.models.case import case_addressees
+from vultron.core.participants.recipients import case_content_recipients
 
 
 class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
@@ -115,7 +115,9 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
         case = self.datalayer.read_case(self._case_id)
         if case is None:
             return [case_manager_id]
-        return case_addressees(case, actor_id)
+        return case_content_recipients(
+            case, self.datalayer, excluding={actor_id}
+        )
 
     def _call_factory(
         self, actor_id: str, embargo_id: str, _case_manager_id: str

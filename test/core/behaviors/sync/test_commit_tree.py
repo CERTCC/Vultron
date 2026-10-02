@@ -21,6 +21,7 @@ from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.ports.sync_activity import SyncActivityPort
 
 _ZERO_HASH: str = "0" * 64  # arbitrary hash for test chains
@@ -75,6 +76,11 @@ def case_obj(datalayer):
             PEER_ID: f"{CASE_ID}/participants/reporter",
         },
     )
+    # The fan-out reads each roster entry's record (CM-10-007).
+    for actor_id, pid in case.actor_participant_index.items():
+        datalayer.save(
+            CaseParticipant(id_=pid, attributed_to=actor_id, context=CASE_ID)
+        )
     datalayer.save(case)
     return case
 

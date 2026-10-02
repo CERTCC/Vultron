@@ -58,10 +58,10 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.behaviors.idempotency import SilentIdempotencyGuardMixin
 from vultron.core.models._helpers import parse_published
-from vultron.core.models.case import case_addressees
 from vultron.core.models.dimensions import EmDimension
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.wire_keys import wire_key
+from vultron.core.participants.recipients import invitation_recipients
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.states.em import EM, EM_Trigger
@@ -250,13 +250,14 @@ class CollectEmbargoInviteRecipientsNode(DataLayerActionWithPorts):
         if failure is not None:
             return failure  # Regime 1 (ADR-0087)
 
-        recipients = [
-            actor_id
-            for actor_id in case_addressees(
-                case, excluding_actor_id=self.actor_id
-            )
-            if actor_id != self._proposer_id
-        ]
+        # An Invite asks for consent, so an inert participant — the one that
+        # has not consented — is exactly who it must reach; a participant at
+        # RM.CLOSED gets none (CM-10-007, EP-09-002).
+        recipients = invitation_recipients(
+            case,
+            self.datalayer,
+            excluding={self.actor_id, self._proposer_id},
+        )
         self._set_output(_RECIPIENTS_KEY, recipients)
         self.feedback_message = (
             f"{len(recipients)} participant(s) to invite on case"

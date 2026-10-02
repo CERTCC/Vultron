@@ -107,16 +107,21 @@ directly to each other:
 
 ---
 
-## Antipattern: `case_addressees()` as Recipient List
+## Antipattern: the Whole Roster as Recipient List
 
-`case_addressees(case, excluding_actor_id)` returns **all** actor IDs in
-the case participant index except the caller. Using this as the sole
-`to:` recipient list for outbound participant activities is incorrect
-after case creation:
+The retired `case_addressees(case, excluding_actor_id)` returned **all**
+actor IDs in the case participant index except the caller. Two things were
+wrong with using any such roster-wide list as `to:`:
+
+1. On the **participant sender** side it bypasses the CASE_MANAGER
+   (PCR-08-001/002).
+2. On the **CASE_MANAGER broadcast** side it reaches inert participants —
+   those that have not accepted the stub Invite, or are not SIGNATORY to an
+   active embargo (CM-10-004, ADR-0114).
 
 ```python
 # ❌ WRONG — sends to all participants directly, bypassing the CASE_MANAGER
-addressees = case_addressees(case, actor_id)   # [vendor, finder]  (excludes caller)
+addressees = list(case.actor_participant_index)   # [vendor, finder]
 activity = add_note_to_case_activity(
     note=note, target=case_id, actor=actor_id, to=addressees
 )
@@ -130,9 +135,12 @@ activity = add_note_to_case_activity(
 )
 ```
 
-`case_addressees()` is still correct for the CASE_MANAGER's **outbound
-broadcast** (when the CASE_MANAGER fans out a `CaseLedgerEntry` to all
-participants). It is wrong on the **participant sender** side.
+The CASE_MANAGER's **outbound broadcast** picks its recipients from
+`vultron/core/participants/recipients.py` (CM-10-007): case content goes to
+`case_content_recipients()` (active participants only), and a consent Invite
+goes to `invitation_recipients()` (every participant not at RM.CLOSED, inert
+ones included). `test/architecture/test_active_participant_recipient_selection.py`
+keeps every other module from listing roster actor IDs for addressing.
 
 ---
 
@@ -215,7 +223,7 @@ SenderBT (Sequence)
 ```
 
 Until BTs are implemented, the interim fix is to ensure all trigger use
-cases use `_resolve_case_manager_id()` instead of `case_addressees()` as
+cases use `_resolve_case_manager_id()` instead of a roster-wide list as
 the recipient when building outbound participant activities.
 
 ---

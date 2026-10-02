@@ -382,6 +382,63 @@ class TestWriteCreateCaseMarkerNode:
         assert activity.context == case_id
         assert activity.actor == _CASE_ACTOR_URI
 
+    @pytest.mark.spec("CM-10-004")
+    def test_bootstrap_addressees_withhold_an_inert_finder(self) -> None:
+        """Under an active embargo only a SIGNATORY reporter is bootstrapped.
+
+        The ``Create(VulnerabilityCase)`` copy is case content, so its
+        REPORTER/FINDER addressees come from the shared active selection
+        (#4046 AC-2): a FINDER that is not SIGNATORY is left out.
+        """
+        from vultron.core.models._helpers import days_from_now_utc
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.core.models.embargo_event import EmbargoEvent
+        from vultron.core.states.participant_embargo_consent import PEC
+        from vultron.enums.roles import CVDRole
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        case_id = "https://example.org/cases/c-inert"
+        embargo = EmbargoEvent(
+            id_=f"{case_id}/embargo",
+            context=case_id,
+            end_time=days_from_now_utc(45),
+        )
+        dl.save(embargo)
+        case = VulnerabilityCase(
+            id_=case_id,
+            attributed_to=_CASE_ACTOR_URI,
+            active_embargo=embargo.id_,
+        )
+        reporter = "https://example.org/actors/reporter"
+        finder = "https://example.org/actors/finder"
+        for actor_id, role, pec in (
+            (reporter, CVDRole.REPORTER, PEC.SIGNATORY),
+            (finder, CVDRole.FINDER, PEC.UNBOUND),
+        ):
+            participant = CaseParticipant(
+                id_=f"{actor_id}/participant",
+                attributed_to=actor_id,
+                context=case_id,
+                case_roles=[role],
+                embargo_consent_state=pec,
+            )
+            dl.save(participant)
+            case.add_participant(participant)
+        dl.save(case)
+
+        status = self._run_node(
+            dl,
+            actor_id=_CASE_ACTOR_URI,
+            case_id=case_id,
+            accept_id="https://example.org/activities/a-inert",
+            seed=False,
+        )
+
+        assert status == py_trees.common.Status.SUCCESS
+        marker = dl.read(PendingCreateCaseActivity.build_id(_PROPOSAL_URI))
+        assert isinstance(marker, PendingCreateCaseActivity)
+        assert marker.create_activity_payload["to"] == [_VENDOR_URI, reporter]
+
     def test_fails_when_case_id_missing(self):
         """FAILURE returned when case_id is absent from blackboard."""
         dl = SqliteDataLayer(

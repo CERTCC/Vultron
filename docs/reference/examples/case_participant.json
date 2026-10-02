@@ -39,5 +39,6 @@
   ],
   "acceptedEmbargoIds": [],
   "embargoConsentState": "UNBOUND",
+  "joined": true,
   "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
 }

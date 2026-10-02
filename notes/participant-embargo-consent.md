@@ -113,9 +113,11 @@ Decision: ADR-0093 (revised 2026-09-29, Concern #3884).*
 
 Consent is given to specific terms — an `EmbargoEvent` — and there are two
 records of it. `CaseParticipant.accepted_embargo_ids` (CM-10-001) lists every
-embargo, active or proposed, the participant has accepted; it is what the
-content gate reads (`find_excluded_actor_ids`, CM-10-004). The scalar PEC state
+embargo, active or proposed, the participant has accepted. The scalar PEC state
 answers one question only: *is this participant bound by the active embargo?*
+— and that is what the content gate reads
+(`VulnerabilityCase.is_active_participant`, CM-10-004, #4046), so the rules
+below that keep the two records in agreement are what make the gate right.
 A participant can be `SIGNATORY` to active embargo A and have B, a proposed
 revision, in its list at the same time.
 
@@ -153,7 +155,7 @@ model, in which coverage never breaks during a revision, and it had concrete
 costs: a rejected revision stranded every signatory (no trigger restores
 `LAPSED → SIGNATORY`, and the `LAPSED → DECLINED` timer was never
 implemented); `embargo_adherence` read false for participants still bound by A
-and still receiving embargoed content, because the gate reads the list and not
+and still receiving embargoed content, because the gate then read the list and not
 the scalar; the proposer lapsed too; and the owner's own EJ recorded the owner
 as `DECLINED`. The cascade also ran only in the proposer's store, because at the
 time no received path moved any other store's EM to `REVISE` (#3892; closed by
@@ -320,7 +322,7 @@ service once (`_assert_rejectable`) rather than in a node.
 
 Three rules keep the scalar state and `accepted_embargo_ids` in agreement
 about who is bound by the active embargo (the disagreement Concern #3884
-found; the content gate `find_excluded_actor_ids` reads the *list*):
+found; the content gate `is_active_participant` reads the *scalar*):
 
 - **Every activation advances the holders of the new id.**
   `_consent_at_activation` is the one consent effect of an activation, shared
@@ -547,9 +549,11 @@ notes with sensitive information) is gated on `embargo_adherence=True`.
 
 ### Ledger Fan-Out Is Case Content (CM-10-005, CM-10-006)
 
-*Source: Concern #3917 (2026-10-01). Not yet implemented; tracked in #4042.*
+*Source: Concern #3917 (2026-10-01). Fan-out gate implemented by #4046 (the
+shared selection in `vultron/core/participants/recipients.py`); the replay gate
+and the backfill on admission are tracked in #4042.*
 
-The gate (`find_excluded_actor_ids`, CM-10-004) was first applied only to
+The gate (CM-10-004) was first applied only to
 `Announce(VulnerabilityCase)`. The `Announce(CaseLedgerEntry)` fan-out, which
 is how participants actually learn of an added report or note, filtered on
 RM-closed alone, so a non-signatory received every entry's payload verbatim.
@@ -564,7 +568,7 @@ participant **stream**, not per entry:
   replay would send the withheld entry anyway. The replay path therefore needs
   the gate as much as fan-out does.
 - **So: pause, then backfill in order.** While an embargo is active, a
-  participant whose `accepted_embargo_ids` lacks it is sent no ledger entries,
+  participant that is not `SIGNATORY` to it is sent no ledger entries,
   by fan-out or by replay; its replica is a contiguous prefix ending where the
   pause began. When the gate admits it — it accepts, or the embargo ends — the
   CASE_MANAGER sends the withheld suffix in log order, starting with the first
