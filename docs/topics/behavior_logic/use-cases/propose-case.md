@@ -72,6 +72,8 @@ The two emissions are separate steps for a reason worth understanding.
 The `Accept` is irrevocable once sent: the service has committed to managing the case.
 The replica delivery can still fail.
 So a durable marker is written between them, and a retry runner completes only the `Create` — never resending the `Accept` (CP-05-005).
+The marker is deleted once the `Create` is queued, so it cannot tell a redelivered proposal that the case was already announced.
+The `Create` therefore takes an id derived from the proposal: a redelivery that finds that activity already stored announces nothing again, and one that finds a `Create` for a different case under it fails rather than leave the new case unannounced.
 Sending a second `Accept` would tell the proposer it had been accepted twice, and there is no such thing.
 
 ---
