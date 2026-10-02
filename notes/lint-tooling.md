@@ -215,6 +215,7 @@ module, so each fix removes the one package-level edge pointing back:
 | hypercube ↔ its pattern modules | `valid_states()` and `CS_EVENT_LETTERS` moved from the hypercube to `case_states/validations.py`, which imports neither the hypercube nor the patterns |
 | BT node → use-case helper (BTND-04-003) | the replica-seeding helpers moved to `core/services/case_replica_seeding.py` (BT-22-005) |
 | embargo tree and nodes ↔ status/sync node packages | `EmitCaseStatusUpdateNode` moved to the shared `behaviors/case_status_snapshot.py` (BTND-04-001); `sync/__init__` stopped re-exporting the announce tree; the `close_case` effect moved from `sync/nodes` to `case/nodes` |
+| `sync` package ↔ `case/nodes` | `sync/__init__` stopped re-exporting the reject and commit trees: `reject_tree` imports `case.nodes`, whose `actor` node commits through `sync.commit_tree`. This cycle carried no marker; the code review on #4114 found it |
 | inbox pipeline ↔ use cases | the dead-letter tree left the inbox package for its own area, `behaviors/dead_letter/` (IO-02-003) |
 
 Each was a CS-05-003 finding: a shared symbol that belongs in a neutral module
