@@ -35,7 +35,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.examples._base import (
     _COORDINATOR,
-    EXAMPLE_TIMESTAMP,
+    _example_stamp,
     case,
     finder,
     vendor,
@@ -155,8 +155,7 @@ def rm_invite_to_case() -> as_Invite:
         target=_case.id_,
         to=_coordinator.id_,
         content=f"We're inviting you to participate in {_case.name}.",
-        published=EXAMPLE_TIMESTAMP,
-        updated=EXAMPLE_TIMESTAMP,
+        **_example_stamp(),
     )
     return _activity
 
@@ -217,8 +216,7 @@ def case_participant() -> as_CaseParticipant:
         context="https://vultron.example/cases/1",
         case_roles=[CVDRole.VENDOR],
         participant_statuses=[participant_status()],
-        published=EXAMPLE_TIMESTAMP,
-        updated=EXAMPLE_TIMESTAMP,
+        **_example_stamp(),
     )
     return participant
 
@@ -240,8 +238,7 @@ def invite_to_case():
         target=_case.id_,
         to=_coordinator.id_,
         content=f"We're inviting you to participate in case {_case.name}.",
-        published=EXAMPLE_TIMESTAMP,
-        updated=EXAMPLE_TIMESTAMP,
+        **_example_stamp(),
     )
     return activity
 

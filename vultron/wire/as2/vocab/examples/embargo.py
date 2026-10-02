@@ -32,6 +32,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.examples._base import (
     EXAMPLE_TIMESTAMP,
+    _example_stamp,
     case,
     vendor,
 )
@@ -61,8 +62,7 @@ def embargo_event(days: int = 90) -> as_EmbargoEvent:
         start_time=start_at,
         end_time=end_at,
         content=f"We propose to embargo {_case.name} for {days} days.",
-        published=EXAMPLE_TIMESTAMP,
-        updated=EXAMPLE_TIMESTAMP,
+        **_example_stamp(),
     )
     return event
 

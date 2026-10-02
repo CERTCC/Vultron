@@ -29,7 +29,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.examples._base import (
     _VENDOR,
-    EXAMPLE_TIMESTAMP,
+    _example_stamp,
     gen_report,
 )
 from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
@@ -72,11 +72,9 @@ def vendor_profile() -> VultronOrganization:
             actor_id=_VENDOR.id_,
             inbox=f"{_VENDOR.id_}/inbox",
             preferred_duration=timedelta(days=45),
-            published=EXAMPLE_TIMESTAMP,
-            updated=EXAMPLE_TIMESTAMP,
+            **_example_stamp(),
         ),
-        published=EXAMPLE_TIMESTAMP,
-        updated=EXAMPLE_TIMESTAMP,
+        **_example_stamp(),
     )
 
 

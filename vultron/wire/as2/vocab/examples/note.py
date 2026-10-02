@@ -20,7 +20,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.examples._base import (
-    EXAMPLE_TIMESTAMP,
+    _example_stamp,
     base_url,
     case,
     finder,
@@ -35,8 +35,7 @@ def note() -> as_Note:
         id_=f"{base_url}/notes/1",
         content="This is a note.",
         context=_case.id_,
-        published=EXAMPLE_TIMESTAMP,
-        updated=EXAMPLE_TIMESTAMP,
+        **_example_stamp(),
     )
     return _note
 

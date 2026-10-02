@@ -31,7 +31,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Create,
 )
 from vultron.wire.as2.vocab.examples._base import (
-    EXAMPLE_TIMESTAMP,
+    _example_stamp,
     case,
     vendor,
 )
@@ -47,8 +47,7 @@ def case_status() -> as_CaseStatus:
         context="https://vultron.example/cases/1",
         em=EmDimension(state=EM.EMBARGO_MANAGEMENT_NONE),
         pxa=PxaDimension(state=CS_pxa.pxa),
-        published=EXAMPLE_TIMESTAMP,
-        updated=EXAMPLE_TIMESTAMP,
+        **_example_stamp(),
     )
     return status
 
@@ -82,8 +81,7 @@ def participant_status() -> as_ParticipantStatus:
         rm=RmDimension(state=RM.RECEIVED),
         vf=VfDimension(state=CS_vf.Vf),
         case_status=case_status(),
-        published=EXAMPLE_TIMESTAMP,
-        updated=EXAMPLE_TIMESTAMP,
+        **_example_stamp(),
     )
     return status
 
