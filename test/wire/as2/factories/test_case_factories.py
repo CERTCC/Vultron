@@ -582,9 +582,7 @@ def test_reply_embeds_an_invite_as_intake_archived_it(sample_actor, factory):
     invite = rm_invite_to_case_activity(
         invitee=sample_actor,
         actor=_ACTOR_URI,
-        target=as_VulnerabilityCaseStub(
-            case_id="https://example.org/cases/c1"
-        ),
+        target="https://example.org/cases/c1",
         roles=["vendor"],
     )
     archived = extract_event(invite).activity

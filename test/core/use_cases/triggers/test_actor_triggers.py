@@ -67,7 +67,6 @@ from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-    as_VulnerabilityCaseStub,
 )
 
 _BASE = "http://coordinator:7999/api/v2/actors"
@@ -832,7 +831,7 @@ class TestSvcAcceptCaseInviteUseCase:
 
         invite = rm_invite_to_case_activity(
             invitee,
-            target=as_VulnerabilityCaseStub(case_id=case.id_),
+            target=case.id_,
             actor=inviter.id_,
             to=[invitee.id_],
         )
@@ -895,7 +894,7 @@ class TestSvcAcceptCaseInviteUseCase:
 
         invite = rm_invite_to_case_activity(
             invitee,
-            target=as_VulnerabilityCaseStub(case_id=case.id_),
+            target=case.id_,
             actor=inviter.id_,
             to=[invitee.id_],
         )
@@ -930,7 +929,7 @@ class TestSvcAcceptCaseInviteUseCase:
 
         invite = rm_invite_to_case_activity(
             invitee,
-            target=as_VulnerabilityCaseStub(case_id=case.id_),
+            target=case.id_,
             actor=inviter.id_,
             to=[invitee.id_],
         )
@@ -967,7 +966,7 @@ class TestSvcRejectCaseInviteUseCase:
 
         invite = rm_invite_to_case_activity(
             invitee,
-            target=as_VulnerabilityCaseStub(case_id=case.id_),
+            target=case.id_,
             actor=inviter.id_,
             to=[invitee.id_],
         )
@@ -1021,7 +1020,7 @@ class TestSvcRejectCaseInviteUseCase:
 
         invite = rm_invite_to_case_activity(
             invitee,
-            target=as_VulnerabilityCaseStub(case_id=case.id_),
+            target=case.id_,
             actor=inviter.id_,
             to=[invitee.id_],
         )

@@ -39,7 +39,6 @@ from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-    as_VulnerabilityCaseStub,
 )
 
 # ---------------------------------------------------------------------------
@@ -188,7 +187,7 @@ def invite(other_actor_and_dl, actor, case_obj):
     other, other_dl = other_actor_and_dl
     invite_activity = rm_invite_to_case_activity(
         other,
-        target=as_VulnerabilityCaseStub(case_id=case_obj.id_),
+        target=case_obj.id_,
         actor=actor.id_,
     )
     archive_received(other_dl, invite_activity)
