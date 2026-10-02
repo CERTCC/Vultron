@@ -14,6 +14,7 @@ related_specs:
   - specs/case-proposal.yaml
   - specs/code-style.yaml
   - specs/received-status-handling.yaml
+  - specs/participant-case-replica.yaml
 related_notes:
   - notes/bt-integration.md
   - notes/sync-ledger-replication.md
@@ -25,6 +26,7 @@ related_notes:
   - notes/received-status-authorization.md
   - notes/testing-pitfalls.md
   - notes/protocol-asks.md
+  - notes/peer-broadcast-failure-semantics.md
 relevant_packages:
   - py_trees
   - vultron/core/behaviors
@@ -1249,3 +1251,15 @@ Two corollaries worth keeping:
 
 *Source: ISSUE-3399, found by two pre-PR review passes on #1315 — the second
 pass broke the first pass's fix.*
+
+---
+
+## Emit and Broadcast Nodes Fail Loudly
+
+- **An emit node in a case-scoped trigger BT resolves the CASE_MANAGER
+  recipient before enqueueing** and returns FAILURE when it cannot (PCR-08-011).
+  An emit that returns without setting `to` surfaces far away, as
+  `VultronOutboxToFieldMissingError` in the outbox handler (#927).
+- **A peer broadcast node must not mask delivery failure**: it returns FAILURE
+  when broadcast preparation or outbox enqueueing fails, never a guaranteed
+  SUCCESS fallback (BT-14-001). See `notes/peer-broadcast-failure-semantics.md`.

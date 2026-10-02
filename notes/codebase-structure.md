@@ -7,6 +7,9 @@ description: >
   hexagonal architecture layout.
 related_specs:
   - specs/prototype-shortcuts.yaml
+  - specs/code-style.yaml
+  - specs/behavior-tree-node-design.yaml
+  - specs/architecture.yaml
 related_notes:
   - notes/codebase-structure-fastapi-patterns.md
   - notes/bt-integration.md
@@ -466,6 +469,61 @@ another with import path changes), the following approach works reliably:
 - **Find all callers first.** Use `grep -r "from old.path\|import old.path"`
   across `vultron/` and `test/` to get the complete call-site list before
   starting.
+
+---
+
+## Module Splits: No New God Modules, Always Re-Export
+
+- **A split must not produce a new god module.** Submodules stay at or under
+  500 lines and are split again when they re-accumulate (CS-18-001 through
+  CS-18-004). A flat `nodes.py` in a BT process area fails; leaf modules go in a
+  `nodes/` subpackage grouped by semantic concern (BTND-07-001, BTND-07-003,
+  BTND-07-006).
+- **Check `wc -l` before documenting a leaf.** A BT leaf module within ~20
+  lines of the 500-line cap (BTND-07-004) is split *before* docstrings or audit
+  comments are added: extract a semantic concern into a sibling submodule first,
+  then write the documentation.
+- **A split re-exports what it moved.** A use-case subpackage re-exports its
+  classes *and* their request models. A module split re-imports each moved name
+  in the old module (`# noqa: F401`) so `monkeypatch` targets keep resolving
+  (#972). A FastAPI router package re-exports the names used as
+  `dependency_overrides` keys (#970).
+- **Deleting a module instead of re-exporting needs importer proof**: no live
+  importers in `vultron/` or `test/`. See also "Bulk Module-Rename Lessons
+  Learned" above for the no-shim case.
+
+---
+
+## Small Coding Habits
+
+- **mypy infers a variable's type from its first assignment.** Use distinct
+  names per `except` or `if`/`else` branch rather than reusing one name with
+  different types.
+- **Pre-build dedup sets before fallback loops** — `seen = set(d.values())`
+  turns an O(n×m) membership scan into O(n+m).
+- **Use the walrus operator for single-assignment guards**:
+  `if (f := self._require_factory()) is not None:`.
+
+---
+
+## Protocol Declarations Stay in Sync With Concrete Classes (CS-20)
+
+When a field or method leaves a class that structurally conforms to a
+`Protocol` (`vultron/core/models/protocols.py`, `vultron/core/ports/`), remove the
+matching Protocol member too, and vice versa (CS-20-001) — type checkers never flag a
+Protocol member that no implementation still has. No `TypeGuard` discriminators
+remain: #1504 replaced most with concrete `isinstance` checks, and the last,
+`has_outbox`, went in #4143. A new one MAY `hasattr`-check only Protocol-declared
+members (CS-20-002).
+
+---
+
+## `HashChainLedgerRecord` ≠ `CaseLedgerEntry`
+
+`HashChainLedgerRecord` (`core/models/case_ledger.py`) is the in-memory
+hash-chain record, a plain `BaseModel`; `CaseLedgerEntry`
+(`core/models/case_ledger_entry.py`) is the wire-serializable `CoreObject`
+(ARCH-12-007). They are distinct types: import each by its full module path.
 
 ---
 
