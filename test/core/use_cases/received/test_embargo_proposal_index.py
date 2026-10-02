@@ -32,6 +32,7 @@ import pytest
 
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -128,7 +129,10 @@ class TestInviteToEmbargoRecordsIndex:
         )
 
         InviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         updated_case = dl.read(case.id_)
@@ -172,10 +176,16 @@ class TestInviteToEmbargoRecordsIndex:
         )
 
         InviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
         InviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         updated_case = dl.read(case.id_)
@@ -215,6 +225,7 @@ class TestProposeTriggerRecordsIndex:
             request,
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert result.activity is not None
@@ -275,6 +286,7 @@ class TestAcceptRejectFromCoreState:
             request,
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert result.activity is not None
@@ -326,6 +338,7 @@ class TestAcceptRejectFromCoreState:
             request,
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert result.activity is not None
@@ -359,6 +372,7 @@ class TestAcceptRejectFromCoreState:
             request,
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert result.activity is not None
@@ -389,6 +403,7 @@ class TestAcceptRejectFromCoreState:
                 request,
                 trigger_activity=TriggerActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
 
     def test_reject_raises_notfound_when_index_empty(self):
@@ -413,6 +428,7 @@ class TestAcceptRejectFromCoreState:
                 request,
                 trigger_activity=TriggerActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
 
 
@@ -477,6 +493,7 @@ class TestReceivedRejectPrunesOpenProposals:
             dl,
             received_reject_by(self._OWNER),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert result.disposition is HandlerDisposition.APPLIED
@@ -496,6 +513,7 @@ class TestReceivedRejectPrunesOpenProposals:
             dl,
             received_reject_by(participant),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert result.disposition is HandlerDisposition.APPLIED
@@ -595,6 +613,7 @@ class TestRejectEventCarriesCaseAndEmbargoIds:
                 dl,
                 event,
                 wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 

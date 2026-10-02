@@ -24,6 +24,7 @@ import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.outbox_sealed_body import dump_outbound_body
 from vultron.core.behaviors.bridge import BTBridge
@@ -87,7 +88,11 @@ def dl(store_for):
 
 @pytest.fixture
 def bridge(dl):
-    return BTBridge(datalayer=dl, wire_render_port=As2WireRenderAdapter())
+    return BTBridge(
+        datalayer=dl,
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(dl),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -612,6 +617,7 @@ class TestEmitInviteActorToCaseNodeCommitsBeforeQueuing:
             datalayer=dl,
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute_with_setup(tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
@@ -697,6 +703,7 @@ class TestEmitInviteActorToCaseNodePassesRolesNoneToFactory:
             datalayer=dl,
             trigger_activity=mock_factory,
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         )
         node = EmitInviteActorToCaseNode(
             invitee_id=INVITEE_ID,
@@ -801,6 +808,7 @@ class TestEmitAddCaseParticipantNode:
             datalayer=dl,
             trigger_activity=mock_factory,
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         )
         node = EmitAddCaseParticipantNode(
             case_id=EMIT_ADD_CASE_ID, invitee_id=EMIT_ADD_INVITEE_ID
@@ -883,6 +891,7 @@ class TestEmitAddCaseParticipantNode:
             datalayer=dl,
             trigger_activity=mock_factory,
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         )
         node = EmitAddCaseParticipantNode(
             case_id=EMIT_ADD_CASE_ID, invitee_id=EMIT_ADD_INVITEE_ID
@@ -939,6 +948,7 @@ class TestEmitAddCaseParticipantNode:
             datalayer=dl,
             trigger_activity=mock_factory,
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         )
         node = EmitAddCaseParticipantNode(
             case_id=EMIT_ADD_CASE_ID, invitee_id=EMIT_ADD_INVITEE_ID
@@ -978,6 +988,7 @@ class TestEmitAddCaseParticipantNode:
             datalayer=dl,
             trigger_activity=mock_factory,
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         )
         node = EmitAddCaseParticipantNode(
             case_id=EMIT_ADD_CASE_ID, invitee_id=EMIT_ADD_INVITEE_ID
@@ -1096,6 +1107,7 @@ class TestEmitAddCaseParticipantNode:
             datalayer=dl,
             trigger_activity=mock_factory,
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         )
         node = EmitAddCaseParticipantNode(
             case_id=EMIT_ADD_CASE_ID, invitee_id=EMIT_ADD_INVITEE_ID
@@ -1206,6 +1218,7 @@ class TestEmitOwnershipTransferNodes:
             datalayer=dl,
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         )
         result = bridge.execute_with_setup(tree=node, actor_id=_OT_OWNER_ID)
 
@@ -1261,6 +1274,7 @@ class TestEmitOwnershipTransferNodes:
             datalayer=dl,
             trigger_activity=mock_factory,
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         )
         result = bridge.execute_with_setup(
             tree=node, actor_id=_OT_TRANSFEREE_ID

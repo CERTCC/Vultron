@@ -314,9 +314,8 @@ def test_replay_missing_entries_node_replays_from_divergence(
     assert kwargs["to"] == [PARTICIPANT_ACTOR_ID]
 
 
-@pytest.mark.spec("SYNC-02-001")
-@pytest.mark.spec("SYNC-02-003")
-def test_fanout_log_entry_node_sends_to_active_participants(bridge, datalayer):
+def _seed_owner_and_participant_case(datalayer) -> None:
+    """Seed a case whose only peer of the owner is the participant."""
     case_obj = VulnerabilityCase(
         id_=CASE_ID,
         attributed_to=OWNER_ACTOR_ID,
@@ -330,6 +329,12 @@ def test_fanout_log_entry_node_sends_to_active_participants(bridge, datalayer):
             CaseParticipant(id_=pid, attributed_to=actor_id, context=CASE_ID)
         )
     datalayer.save(case_obj)
+
+
+@pytest.mark.spec("SYNC-02-001")
+@pytest.mark.spec("SYNC-02-003")
+def test_fanout_log_entry_node_sends_to_active_participants(bridge, datalayer):
+    _seed_owner_and_participant_case(datalayer)
     entry = _make_entry(0)
     sync_port = MagicMock(spec=SyncActivityPort)
 
@@ -346,6 +351,30 @@ def test_fanout_log_entry_node_sends_to_active_participants(bridge, datalayer):
     assert kwargs["entry"].id_ == entry.id_
     assert kwargs["actor_id"] == OWNER_ACTOR_ID
     assert kwargs["to"] == [PARTICIPANT_ACTOR_ID]
+
+
+@pytest.mark.spec("SYNC-02-003")
+@pytest.mark.spec("BT-14-001")
+def test_fanout_log_entry_node_without_sync_port_is_a_wiring_fault(
+    bridge, datalayer
+):
+    """No port is a wiring fault, never a silent SUCCESS (#4113).
+
+    The close-case tree runs this node outside the commit tree, so its own
+    check is the only guard on that path.
+    """
+    _seed_owner_and_participant_case(datalayer)
+
+    result = bridge.execute_with_setup(
+        tree=FanOutLogEntryNode(case_id=CASE_ID, name="FanOutLogEntry"),
+        actor_id=OWNER_ACTOR_ID,
+        log_entry=_make_entry(0),
+    )
+
+    assert result.status == Status.FAILURE
+    assert result.internal_error is True
+    assert "sync_port" in result.feedback_message
+    assert datalayer.outbox_list() == []
 
 
 # ---------------------------------------------------------------------------

@@ -39,12 +39,19 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.participants.recipients import case_content_recipients
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.errors import VultronWiringError
 
 logger = logging.getLogger(__name__)
 
 
 class _SendLogEntryToEachNode(DataLayerActionWithPorts):
-    """Send the log entry to each recipient in ``fanout_recipients``."""
+    """Send the log entry to each recipient in ``fanout_recipients``.
+
+    A missing ``sync_port`` is a wiring fault and raises
+    ``VultronWiringError``.  It used to skip at DEBUG and return
+    ``SUCCESS``, which committed an entry no replica would ever receive
+    (SYNC-02-003, BT-14-001; #4113).
+    """
 
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
@@ -84,12 +91,10 @@ class _SendLogEntryToEachNode(DataLayerActionWithPorts):
         entry = cast(CaseLedgerEntry, self.log_entry)
         recipients = self.fanout_recipients
         if self._sync_port is None:
-            self.logger.debug(
-                "%s: sync_port not injected; skipping fan-out for '%s'",
-                self.name,
-                entry.id_,
+            raise VultronWiringError(
+                f"{self.name}: sync_port must be injected to fan out"
+                f" log entry '{entry.id_}' (SYNC-02-003)"
             )
-            return Status.SUCCESS
 
         for recipient_id in recipients:
             self._sync_port.send_announce_log_entry(
@@ -249,12 +254,10 @@ class SendLogEntryToEachNode(DataLayerActionWithPorts):
         entry = cast(CaseLedgerEntry, self.log_entry)
         recipients = cast(list[str], self.fanout_recipients)
         if self._sync_port is None:
-            self.logger.debug(
-                "%s: sync_port not injected; skipping fan-out for '%s'",
-                self.name,
-                entry.id_,
+            raise VultronWiringError(
+                f"{self.name}: sync_port must be injected to fan out"
+                f" log entry '{entry.id_}' (SYNC-02-003)"
             )
-            return Status.SUCCESS
 
         for recipient_id in recipients:
             self._sync_port.send_announce_log_entry(

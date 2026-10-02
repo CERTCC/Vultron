@@ -7,6 +7,7 @@ related_specs:
   - specs/case-ledger-processing.yaml
   - specs/case-proposal.yaml
   - specs/case-management.yaml
+  - specs/behavior-tree-integration.yaml
 related_notes:
   - notes/case-ledger-authority.md
   - notes/outbox-delivery-reliability.md
@@ -16,6 +17,8 @@ related_notes:
   - notes/testing-pitfalls.md
   - notes/participant-embargo-consent.md
   - notes/case-joining.md
+  - notes/core-wire-rendering-port.md
+  - notes/bt-pitfalls.md
 relevant_packages:
   - vultron/core/behaviors
   - vultron/wire/as2
@@ -349,28 +352,42 @@ port being permanently `True` in single-node imposes zero runtime cost.
 
 ---
 
-## Fan-Out Graceful Degradation
+## A Missing Sync Port Is a Wiring Fault
 
-`_fan_out_log_entry` (in `vultron/core/use_cases/triggers/sync.py`) queues one
-`Announce(CaseLedgerEntry)` per peer participant. `sync_port` is an **optional**
-injection: when it is absent (single-actor context, tests, or configurations
-without a `SyncActivityAdapter`), the function logs at `DEBUG` level and
-returns immediately instead of raising.
+`SendLogEntryToEachNode` (in `vultron/core/behaviors/sync/nodes/fanout.py`)
+queues one `Announce(CaseLedgerEntry)` per active participant. It reads the
+`SyncActivityPort` from `/sync_port`, and when the port is absent it **raises
+`VultronWiringError`**. The rejection sender (`receive.py`) and the replay
+sender (`replay.py`) already did the same.
 
-This differs from the two functions that **require** `sync_port`:
+The commit tree checks earlier. `RequireSyncPortNode` (`port_guard.py`) is
+the first step of the mint sequence, so a commit with no port raises before
+any entry is written. Without it, the ledger would keep an entry that no
+replica receives, for an effect the outer tree then never applies.
 
-- `_send_rejection` — must be able to send a rejection; raises `VultronError`
-  if `sync_port` is absent.
-- `replay_missing_entries_trigger` — replaying entries to a peer requires an
-  outbound channel; raises `VultronError` if `sync_port` is absent.
+Fan-out used to be treated as optional: a missing port logged at `DEBUG` and
+returned `SUCCESS`. That hid #4113. Three received use cases committed
+CASE_MANAGER entries with no port, so no replica got those entries until a
+`Reject(CaseLedgerEntry)` caught it up, and the `fcv-reject` demo timed out. A
+committed entry that is never announced breaks SYNC-02-003. A node that skips
+and still reports success masks a delivery failure (BT-14-001).
 
-**Rule**: fan-out is optional behaviour — skipping it silently is correct when
-no sync port is configured. Rejection and replay paths are not optional; they
-MUST raise if the port is missing.
+**Rule**: wherever a ledger commit can run, the sync port must reach it.
 
-This means BT node tests and single-actor integration tests do **not** need a
-`sync_port` injected on the blackboard or as a use-case parameter — the absence
-is handled gracefully without patching.
+- The inbox dispatcher gives every semantic the port through
+  `with_received_baseline_ports()` (`inbox_port_factories.py`).
+- Every received use case accepts the port and passes it to the `BTBridge`
+  constructor, never as an `execute_with_setup` context kwarg.
+  `test/architecture/test_received_use_cases_fan_out_commits.py` enforces
+  this.
+- Tests that reach a commit inject one too: `SyncActivityAdapter(dl)`, or
+  `MagicMock(spec=SyncActivityPort)` where the test is not about fan-out.
+  `BTTestScenario` injects the real adapter.
+
+When the port is missing inside a nested commit, the outer node catches the
+wiring fault and the verdict is `REFUSED`, not `internal_error`. See
+[bt-pitfalls.md](bt-pitfalls.md) § "…And That Idiom Is Why `internal_error`
+Cannot See a Nested Crash".
 
 ---
 

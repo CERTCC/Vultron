@@ -19,6 +19,7 @@ from vultron.core.behaviors.sync.nodes import (
     FanOutLogEntryNode,
     PersistLogEntryNode,
     ReconstructChainTailNode,
+    RequireSyncPortNode,
 )
 
 
@@ -47,6 +48,9 @@ def create_commit_log_entry_tree(
                 name="MintAndFanOutLogEntry",
                 memory=False,
                 children=[
+                    # Refuse before anything is written: a committed entry
+                    # that cannot be announced is a silent fork (#4113).
+                    RequireSyncPortNode(name="RequireSyncPort"),
                     CheckLedgerFreshnessNode(
                         case_id=case_id, name="CheckLedgerFreshness"
                     ),

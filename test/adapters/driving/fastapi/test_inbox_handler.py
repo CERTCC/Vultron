@@ -898,6 +898,51 @@ def test_make_dispatcher_gives_every_semantic_a_wire_render_port(monkeypatch):
         )
 
 
+@pytest.mark.spec("SYNC-02-003")
+def test_make_dispatcher_gives_every_semantic_a_sync_port(monkeypatch):
+    """Every received use case is constructed with a ``SyncActivityPort``.
+
+    Every received tree that names a case commits a ledger entry, and the
+    CASE_MANAGER announces each entry to the participants through this port
+    (SYNC-02-003).  A semantic left off a hand-kept list committed without
+    fan-out: ``OFFER_ACTOR_TO_CASE``, ``VALIDATE_REPORT`` and
+    ``REJECT_INVITE_ACTOR_TO_CASE`` did, and the ``fcv-reject`` demo's ledger
+    coverage gate timed out on the gap (#4113).
+    """
+    import inspect
+
+    from vultron.adapters.driven.sync_activity_adapter import (
+        SyncActivityAdapter,
+    )
+    from vultron.semantic_registry import use_case_map
+
+    captured: dict = {}
+
+    def fake_get_dispatcher(use_case_map, port_factories=None):
+        captured["port_factories"] = port_factories
+        return Mock()
+
+    monkeypatch.setattr(ih, "get_dispatcher", fake_get_dispatcher)
+    monkeypatch.setattr(
+        ih.inbox_port_factories, "_resolve_actor_config", lambda: None
+    )
+    ih.make_dispatcher()
+
+    real_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
+    for sem, use_case in use_case_map().items():
+        factory = captured["port_factories"].get(sem)
+        assert factory is not None, f"{sem.name} has no port factory"
+        assert isinstance(
+            factory(real_dl).get("sync_port"), SyncActivityAdapter
+        ), f"{sem.name} is dispatched without a SyncActivityPort"
+        assert "sync_port" in inspect.signature(use_case).parameters, (
+            f"{use_case.__name__} does not accept sync_port"
+        )
+
+
 def test_case_proposal_port_factory_injects_actor_config(monkeypatch):
     """_case_proposal_port_factory returns actor_config and both ports.
 

@@ -82,15 +82,6 @@ def _wire_render_port_factory(dl: DataLayer) -> dict[str, Any]:
     return {"wire_render_port": As2WireRenderAdapter()}
 
 
-def with_wire_render_port(factory: PortFactory) -> PortFactory:
-    """Return *factory* extended with :func:`_wire_render_port_factory`."""
-
-    def _factory(dl: DataLayer) -> dict[str, Any]:
-        return {**factory(dl), **_wire_render_port_factory(dl)}
-
-    return _factory
-
-
 def _sync_port_factory(dl: DataLayer) -> dict[str, Any]:
     """Create a ``SyncActivityAdapter`` for the given DataLayer.
 
@@ -99,6 +90,33 @@ def _sync_port_factory(dl: DataLayer) -> dict[str, Any]:
     ARCH-13-002).
     """
     return {"sync_port": SyncActivityAdapter(cast(CaseOutboxPersistence, dl))}
+
+
+def with_received_baseline_ports(factory: PortFactory) -> PortFactory:
+    """Return *factory* extended with the ports every received use case gets.
+
+    Every received tree that names a case runs a guarded ledger commit
+    (CLP-10-006).  The commit snapshots the activity as an AS2 rendering, which
+    needs the ``WireRenderPort`` (ARCH-20-001, CLP-07-009), and the
+    CASE_MANAGER announces the entry to every active participant, which needs
+    the ``SyncActivityPort`` (SYNC-02-003).  Both are given to every use case
+    rather than to a hand-kept list of those whose trees commit: a list that
+    falls behind is how the snapshot path ran portless before #3930, and how
+    ``OFFER_ACTOR_TO_CASE``, ``VALIDATE_REPORT`` and
+    ``REJECT_INVITE_ACTOR_TO_CASE`` committed without fan-out until #4113.
+    The per-semantic sets below still name ``sync_port`` where a semantic
+    needs it for more than its commit; the baseline makes that redundant,
+    never wrong.
+    """
+
+    def _factory(dl: DataLayer) -> dict[str, Any]:
+        return {
+            **factory(dl),
+            **_sync_port_factory(dl),
+            **_wire_render_port_factory(dl),
+        }
+
+    return _factory
 
 
 def _trigger_activity_port_factory(dl: DataLayer) -> dict[str, Any]:

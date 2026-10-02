@@ -797,11 +797,17 @@ class TestParticipantStatusLogEntryCascade:
             "add_participant_status_to_participant"
         )
 
-    def test_no_fanout_without_sync_port(self, make_payload):
-        """No fan-out Announce(CaseLedgerEntry) is sent when sync_port is None.
+    @pytest.mark.spec("SYNC-02-002")
+    @pytest.mark.spec("BT-14-001")
+    def test_status_without_sync_port_is_refused_as_wiring_fault(
+        self, make_payload
+    ):
+        """A missing sync_port fails the commit instead of skipping fan-out.
 
-        The log entry IS committed locally, but no outbox messages are queued
-        for delivery to participants.
+        ``RequireSyncPortNode`` raises ``VultronWiringError`` before the entry
+        is minted (#4113).  The nested commit tree reports it to ``CommitCaseLedgerEntryNode``, which turns
+        it into FAILURE, so the use case refuses and the status is not
+        attached.  Nothing is announced to participants.
         """
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             as_VulnerabilityCase,
@@ -822,23 +828,32 @@ class TestParticipantStatusLogEntryCascade:
             context=case,
         )
         event = make_payload(activity, receiving_actor_id=case_actor_id)
-        AddParticipantStatusToParticipantReceivedUseCase(
+        result = AddParticipantStatusToParticipantReceivedUseCase(
             dl,
             event,
             sync_port=None,
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        # Log entry MUST be committed locally even without a sync_port.
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert "CommitCaseLedgerEntryNode" in (result.reason or "")
+        stored = dl.read(participant.id_)
+        assert stored is not None
+        assert pstatus.id_ not in [
+            getattr(st, "id_", st) for st in stored.participant_statuses
+        ]
+
+        # The port guard refuses before the mint, so no entry is written
+        # that no replica would ever receive.
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
             if isinstance(obj, CaseLedgerEntry)
             and cast(CaseLedgerEntry, obj).case_id == case_id
         ]
-        assert len(entries) == 1
+        assert entries == []
 
-        # But no outbox activities should be queued for fan-out.
+        # Nothing is announced to participants.
         assert dl.outbox_list() == []
 
     def test_terminal_closed_update_does_not_commit_log_entry(

@@ -103,11 +103,11 @@ class InviteActorToCaseReceivedUseCase:
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
         ).execute_with_setup(
             tree=tree,
             actor_id=actor_id,
             activity=request,
-            sync_port=self._sync_port,
         )
         verdict = intake_verdict(
             tree, result, label="InviteActorToCaseReceivedBT"
@@ -179,11 +179,11 @@ class AcceptInviteActorToCaseReceivedUseCase:
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
         ).execute_with_setup(
             tree=tree,
             actor_id=actor_id,
             activity=request,
-            sync_port=self._sync_port,
         )
 
         # The idempotency guard fails both for a fully joined invitee (a
@@ -269,11 +269,11 @@ class RejectInviteActorToCaseReceivedUseCase:
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
         ).execute_with_setup(
             tree=tree,
             actor_id=actor_id,
             activity=request,
-            sync_port=self._sync_port,
         )
         verdict = verdict_from_bt(
             tree, result, label="RejectInviteActorToCaseReceivedBT"

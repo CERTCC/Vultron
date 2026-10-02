@@ -40,10 +40,12 @@ class CreateNoteReceivedUseCase:
         self,
         dl: CasePersistence,
         request: CreateNoteReceivedEvent,
+        sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
+        self._sync_port = sync_port
         self._request: CreateNoteReceivedEvent = request
 
     def execute(self) -> HandlerResult:
@@ -65,7 +67,9 @@ class CreateNoteReceivedUseCase:
         )
 
         bridge = BTBridge(
-            datalayer=self._dl, wire_render_port=self._wire_render_port
+            datalayer=self._dl,
+            wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
         )
         tree = create_note_tree(note_obj=note, case_id=case_id)
         result = bridge.execute_with_setup(
@@ -135,12 +139,13 @@ class AddNoteToCaseReceivedUseCase:
             case_id=case_id,
         )
         result = BTBridge(
-            datalayer=self._dl, wire_render_port=self._wire_render_port
+            datalayer=self._dl,
+            wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
         ).execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
             activity=request,
-            sync_port=self._sync_port,
         )
         verdict = verdict_from_bt(
             tree, result, label="GuardedAttachAndCommitBT"
@@ -166,10 +171,12 @@ class RemoveNoteFromCaseReceivedUseCase:
         self,
         dl: CasePersistence,
         request: RemoveNoteFromCaseReceivedEvent,
+        sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
+        self._sync_port = sync_port
         self._request: RemoveNoteFromCaseReceivedEvent = request
 
     def execute(self) -> HandlerResult:

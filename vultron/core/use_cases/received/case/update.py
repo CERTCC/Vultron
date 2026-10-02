@@ -18,6 +18,7 @@ from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import verdict_from_bt
 
 if TYPE_CHECKING:
+    from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
@@ -29,10 +30,12 @@ class UpdateCaseReceivedUseCase:
         dl: CaseOutboxPersistence,
         request: UpdateCaseReceivedEvent,
         trigger_activity: "TriggerActivityPort | None" = None,
+        sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
+        self._sync_port = sync_port
         self._request: UpdateCaseReceivedEvent = request
         # The CM-06-001 broadcast is emitted through this port so the adapter
         # persists and seals it (VM-08-003); the inbox pipeline injects it.
@@ -66,6 +69,7 @@ class UpdateCaseReceivedUseCase:
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
         )
         result = bridge.execute_with_setup(
             tree=tree,

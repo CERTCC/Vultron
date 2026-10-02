@@ -16,6 +16,7 @@ related_specs:
   - specs/received-status-handling.yaml
 related_notes:
   - notes/bt-integration.md
+  - notes/sync-ledger-replication.md
   - notes/call-out-configuration.md
   - notes/bt-canonical-reference.md
   - notes/bt-design-patterns.md

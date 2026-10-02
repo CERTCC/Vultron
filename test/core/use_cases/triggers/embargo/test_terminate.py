@@ -5,6 +5,7 @@ from typing import cast
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -54,6 +55,7 @@ def test_terminate_embargo_transitions_case_to_exited_via_bt_path(
         owner_dl,
         request,
         trigger_activity=TriggerActivityAdapter(owner_dl),
+        sync_port=SyncActivityAdapter(owner_dl),
         wire_render_port=As2WireRenderAdapter(),
     ).execute()
 
@@ -87,6 +89,7 @@ def test_terminate_embargo_no_active_embargo_raises_via_bt_node(
             owner_dl,
             request,
             trigger_activity=TriggerActivityAdapter(owner_dl),
+            sync_port=SyncActivityAdapter(owner_dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -125,6 +128,7 @@ def test_terminate_embargo_forgets_every_open_revision_via_bt_path(
         owner_dl,
         TerminateEmbargoTriggerRequest(actor_id=owner.id_, case_id=case.id_),
         trigger_activity=TriggerActivityAdapter(owner_dl),
+        sync_port=SyncActivityAdapter(owner_dl),
         wire_render_port=As2WireRenderAdapter(),
     ).execute()
 
@@ -153,6 +157,7 @@ def test_terminate_embargo_queues_the_announce_in_the_outbox(
         dl,
         TerminateEmbargoTriggerRequest(actor_id=owner.id_, case_id=case.id_),
         trigger_activity=TriggerActivityAdapter(dl),
+        sync_port=SyncActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
     ).execute()
 
@@ -174,5 +179,6 @@ def test_terminate_embargo_unknown_actor_raises_not_found(
                 actor_id="urn:uuid:no-such-actor", case_id=case.id_
             ),
             trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()

@@ -23,6 +23,7 @@ import pytest
 
 from test.core.behaviors.embargo.nodes.conftest import make_case_and_embargo
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.embargo.nodes.lifecycle import (
@@ -113,6 +114,7 @@ class TestTerminateEmbargoBT:
             datalayer=dl,
             trigger_activity=factory,
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         )
         tree = terminate_embargo_bt(
             case_id=case.id_, result_out=result_out, activity_builder=builder
@@ -145,6 +147,7 @@ class TestTerminateEmbargoBT:
             datalayer=dl,
             trigger_activity=factory,
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         )
         tree = terminate_embargo_bt(
             case_id=case.id_, result_out=result_out, activity_builder=builder
@@ -180,6 +183,7 @@ class TestTerminateEmbargoBT:
             datalayer=dl,
             trigger_activity=factory,
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         )
         tree = terminate_embargo_bt(
             case_id=case.id_, result_out=result_out, activity_builder=builder
@@ -207,6 +211,7 @@ class TestTerminateEmbargoBT:
             datalayer=dl,
             trigger_activity=factory,
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         )
         tree = terminate_embargo_bt(
             case_id=case.id_,
@@ -250,6 +255,7 @@ class TestTerminateEmbargoBT:
             datalayer=dl,
             trigger_activity=factory,
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         )
         tree = terminate_embargo_bt(
             case_id=case.id_, result_out=result_out, activity_builder=builder
@@ -270,7 +276,9 @@ class TestTerminateEmbargoBT:
 
         # No trigger_activity in BTBridge → factory is None on blackboard
         bridge = BTBridge(
-            datalayer=dl, wire_render_port=As2WireRenderAdapter()
+            datalayer=dl,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         )
         tree = terminate_embargo_bt(
             case_id=case.id_,
@@ -290,6 +298,7 @@ class TestTerminateEmbargoBT:
             datalayer=dl,
             trigger_activity=factory,
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         )
         tree = terminate_embargo_bt(
             case_id=case.id_,
@@ -322,6 +331,7 @@ class TestTerminateEmbargoBT:
             datalayer=dl,
             trigger_activity=factory,
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         )
         tree = terminate_embargo_bt(
             case_id=case.id_,
@@ -934,7 +944,10 @@ class TestProposeEmbargoLifecycleNodeOnBehalfOfAProposer:
         self, dl: SqliteDataLayer, node: ProposeEmbargoLifecycleNode
     ) -> py_trees.common.Status:
         return (
-            BTBridge(datalayer=dl)
+            BTBridge(
+                datalayer=dl,
+                sync_port=SyncActivityAdapter(dl),
+            )
             .execute_with_setup(tree=node, actor_id=CASE_MANAGER_ACTOR)
             .status
         )
