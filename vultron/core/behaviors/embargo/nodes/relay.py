@@ -43,7 +43,9 @@ instead: it runs only under the CASE_MANAGER gate, so ``actor`` is the role
 holder by construction, and ``attributed_to`` is the adjudicated proposer.
 """
 
-from typing import TYPE_CHECKING, cast
+import json
+from datetime import datetime
+from typing import TYPE_CHECKING, Any, cast
 
 import py_trees
 from py_trees.common import Status
@@ -59,16 +61,18 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.behaviors.idempotency import SilentIdempotencyGuardMixin
 from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
-from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models._helpers import parse_published
 from vultron.core.models.dimensions import EmDimension
 from vultron.core.models.events.base import MessageSemantics
+from vultron.core.models.wire_keys import wire_key
 from vultron.core.participants.recipients import invitation_recipients
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.states.em import EM_Trigger
-from vultron.core.states.participant_embargo_consent import PEC_Trigger
 from vultron.errors import (
     BtNodePreconditionError,
     VultronInvalidStateTransitionError,
+    VultronNotFoundError,
 )
 
 if TYPE_CHECKING:
@@ -167,6 +171,16 @@ class EmStateAdmitsProposalNode(DataLayerConditionWithPorts):
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
         return Status.SUCCESS
+
+
+def invite_rsvp_deadline(invite: dict[str, Any]) -> datetime | None:
+    """The RSVP deadline (``endTime``) a relayed Invite's wire body carries.
+
+    The relay and its ledger replay both read it from the same sealed body,
+    so the invitee's record takes the same deadline in every store
+    (CM-28-013, EP-09-007).
+    """
+    return parse_published(invite.get(wire_key("end_time")))
 
 
 def case_manager_admits_proposal_guard(
@@ -354,7 +368,9 @@ class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
         )
         self._commit_emission(activity_id, blob)
         dl.outbox_append(activity_id)
-        self._invite_where_legal(dl, recipient_id)
+        self._invite_where_legal(
+            dl, recipient_id, invite_rsvp_deadline(json.loads(blob))
+        )
         self.logger.info(
             "CASE_MANAGER '%s' relayed embargo '%s' to '%s' for '%s' (EP-09-002)",
             self.actor_id,
@@ -376,30 +392,34 @@ class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
         )
 
     def _invite_where_legal(
-        self, dl: CaseOutboxPersistence, recipient_id: str
+        self,
+        dl: CaseOutboxPersistence,
+        recipient_id: str,
+        rsvp_deadline: datetime | None,
     ) -> None:
         """Apply PEC INVITE to *recipient_id* if CM-18-003 allows it (EP-09-004)."""
         # Regime 1 (ADR-0087): the relay follows the manager's own EM write on
-        # this case, so a missing case is an anomaly, not a lenient skip.
-        case, failure = self._require_case(self._case_id)
-        if failure is not None:
-            raise RuntimeError(self.feedback_message)
-        participant_id = case.actor_participant_index.get(recipient_id)
-        participant = dl.read(participant_id) if participant_id else None
-        if not isinstance(participant, CaseParticipant):
-            raise RuntimeError(  # noqa: TRY004  # ruff-baseline #3353
-                f"no participant record for invitee '{recipient_id}' on case"
-                f" '{self._case_id}'"
+        # this case, so a missing case or invitee is an anomaly, not a lenient
+        # skip.  ``record_embargo_invite`` raises a ``VultronNotFoundError``,
+        # which would read as the sender's fault (REFUSED, ADR-0095), so it is
+        # re-raised as the internal error it is in the manager's own store.
+        try:
+            result = EmbargoLifecycle(persistence=dl).record_embargo_invite(
+                case_id=self._case_id,
+                invitee_id=recipient_id,
+                rsvp_deadline=rsvp_deadline,
             )
-        if not participant.apply_pec_transition_if_legal(PEC_Trigger.INVITE):
+        except VultronNotFoundError as exc:
+            raise RuntimeError(
+                f"{self.name}: the CASE_MANAGER's roster names '{recipient_id}'"
+                f" but its store has no record for it: {exc}"
+            ) from exc
+        if not result.participant_changes:
             self.logger.info(
-                "%s: '%s' is %s — INVITE does not apply (EP-09-004)",
+                "%s: INVITE does not apply to '%s' (EP-09-004)",
                 self.name,
                 recipient_id,
-                participant.embargo_consent_state.name,
             )
-            return
-        dl.save(participant)
 
 
 __all__ = [

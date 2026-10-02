@@ -80,6 +80,13 @@ This one-way sending of entries from the CASE_MANAGER to every participant is th
 Participants never send ledger entries to each other; every copy comes from the one writer ([ADR-0077](../../adr/0077-ledger-replication-companion-spec.md)).
 A replica is synchronized when the last entry it holds is the last entry the CASE_MANAGER wrote.
 
+An active embargo is the one exception to sending every entry at once.
+The ledger is case content, so the CASE_MANAGER sends no entry to a participant that has not accepted the active embargo ([CM-10-004, CM-10-005](../../reference/specs/protocol.md#cm-10)).
+It also answers that participant's request for missing entries with nothing.
+It records the first entry it held back.
+When the participant accepts the embargo, or the embargo ends, the CASE_MANAGER sends it every entry from that one on, in order ([CM-10-006](../../reference/specs/protocol.md#cm-10-006)).
+Embargo invitations are not ledger entries, so they still reach that participant.
+
 A participant checks each entry before it applies it.
 An entry that does not follow on from the participant's last entry is not applied.
 The participant tells the CASE_MANAGER where its history ends, so that the CASE_MANAGER can send what is missing ([SYNC-03-001, SYNC-03-002](../../reference/specs/protocol.md#sync-03)).

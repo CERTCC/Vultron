@@ -372,7 +372,7 @@ class TestAnnounceLogEntryAppliesEmbargoTeardown:
         event = _make_event(entry, actor_id=case_actor.id_)
 
         tree = create_announce_log_entry_tree()
-        apply_node = _find_node_by_name(tree, "ApplyEmbargoTeardown")
+        apply_node = _find_node_by_name(tree, "ApplyEmbargoTeardownFromLedger")
         assert apply_node is not None
         call_count = 0
         real_update = apply_node.update
@@ -505,24 +505,18 @@ class TestAnnounceLogEntryAppliesEmbargoInviteRelay:
     """Replicas learn the RSVP deadline and a lapse from the ledger, never
     by computing either themselves (CM-28-013, CM-28-014; ADR-0113)."""
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "CM-28-013: no replica apply node records the relayed Invite's "
-            "end_time as the invitee's RSVP deadline. Tracked by #3961 "
-            "(Concern #3918, ADR-0113)."
-        ),
-    )
     @pytest.mark.spec("CM-28-013")
+    @pytest.mark.spec("EP-09-007")
     def test_replica_records_invitee_deadline_from_relayed_invite_entry(
-        self, bridge, datalayer, case_actor, case_obj
+        self, bridge, datalayer, case_obj
     ):
         """The invitee's deadline appears in the replica after replay."""
+        _seed_case_manager(datalayer, case_obj)
         participant_id = _seed_invited_participant(
             datalayer, case_obj, PEC.UNBOUND
         )
         entry = _make_relayed_invite_entry(0, case_obj.genesis_hash)
-        event = _make_event(entry, actor_id=case_actor.id_)
+        event = _make_event(entry, actor_id=CASE_ACTOR_ACTOR_ID)
 
         result = bridge.execute_with_setup(
             tree=create_announce_log_entry_tree(),
@@ -535,6 +529,7 @@ class TestAnnounceLogEntryAppliesEmbargoInviteRelay:
         updated = datalayer.read(participant_id)
         assert isinstance(updated, CaseParticipant)
         assert updated.invite_rsvp_deadline is not None
+        assert updated.embargo_consent_state == PEC.INVITED
 
     @pytest.mark.xfail(
         strict=True,
@@ -883,7 +878,7 @@ class TestEffectsFailureBlocksPersist:
         event = _make_event(entry, actor_id=case_actor.id_)
 
         tree = create_announce_log_entry_tree()
-        apply_node = _find_node_by_name(tree, "ApplyEmbargoTeardown")
+        apply_node = _find_node_by_name(tree, "ApplyEmbargoTeardownFromLedger")
         assert apply_node is not None
         apply_node.update = lambda: Status.FAILURE  # type: ignore[method-assign]
 
