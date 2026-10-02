@@ -355,7 +355,9 @@ def create_case_proposal_received_tree(
             # InitializeCreationEmbargoNode seeds the case owner — the
             # CASE_OWNER this case is attributed to — as SIGNATORY
             # (CM-14-003), the one owner-seeding path.
-            InitializeDefaultEmbargoNode(actor_config=actor_config),
+            InitializeDefaultEmbargoNode(
+                actor_config=actor_config, report_id=report_id
+            ),
             # CM-14-005: seed the reporter as embargo SIGNATORY.
             # Reporter consent is implicit in submitting the report (ADR-0048);
             # no invitation round-trip is needed or appropriate.

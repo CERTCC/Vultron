@@ -30,6 +30,9 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
+from vultron.core.services.embargo_lifecycle.creation import (
+    CreationRevision,
+)
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
@@ -363,7 +366,7 @@ def test_a_revision_is_stored_and_proposed_in_the_same_commit(
         case_id=case.id_,
         embargo_id=embargo.id_,
         actor_id=owner.id_,
-        revision=revision,
+        revision=CreationRevision(embargo=revision, proposer_id=owner.id_),
     )
 
     assert [{obj.id_ for obj in batch} for batch in batches] == [
@@ -379,6 +382,37 @@ def test_a_revision_is_stored_and_proposed_in_the_same_commit(
     # terms: one record carries both through the commit (MSM-07-005).
     assert _pec_of(dl, owner_p.id_) == PEC.SIGNATORY.value
     assert _accepted_ids_of(dl, owner_p.id_) == [embargo.id_, revision.id_]
+
+
+@pytest.mark.spec("MSM-07-005")
+def test_the_revision_is_consented_to_by_its_proposer_not_the_executor(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """The reporter's lost terms land on the reporter's record (#4152).
+
+    The CASE_MANAGER path runs the initialization as someone other than
+    either party, so the executing actor is not who proposed the revision.
+    """
+    owner, dl = owner_and_dl
+    reporter_id = "https://example.org/actors/reporter"
+    executor_id = "https://example.org/actors/case-manager"
+    case, (owner_p, reporter_p) = _make_case(
+        dl, owner.id_, extra_participant_ids=[reporter_id]
+    )
+    embargo = _make_embargo(dl, case.id_)
+    revision = _revision(case.id_)
+
+    EmbargoLifecycle(persistence=dl).initialize_creation_embargo(
+        case_id=case.id_,
+        embargo_id=embargo.id_,
+        actor_id=executor_id,
+        revision=CreationRevision(embargo=revision, proposer_id=reporter_id),
+    )
+
+    assert _accepted_ids_of(dl, reporter_p.id_) == [revision.id_]
+    # Proposing changes no consent state (EP-05-002).
+    assert _pec_of(dl, reporter_p.id_) == PEC.UNBOUND.value
+    assert _accepted_ids_of(dl, owner_p.id_) == [embargo.id_]
 
 
 @pytest.mark.spec("EP-04-003")
@@ -398,7 +432,9 @@ def test_a_failed_revision_commit_leaves_the_revision_unstored(
                 case_id=case.id_,
                 embargo_id=embargo.id_,
                 actor_id=owner.id_,
-                revision=revision,
+                revision=CreationRevision(
+                    embargo=revision, proposer_id=owner.id_
+                ),
             )
 
     _assert_untouched(dl, case.id_)
@@ -423,7 +459,7 @@ def test_a_revision_id_held_by_other_terms_is_refused_unchanged(
             case_id=case.id_,
             embargo_id=embargo.id_,
             actor_id=owner.id_,
-            revision=revision,
+            revision=CreationRevision(embargo=revision, proposer_id=owner.id_),
         )
 
     _assert_untouched(dl, case.id_)

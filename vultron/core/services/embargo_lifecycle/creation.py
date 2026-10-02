@@ -31,6 +31,8 @@ finished them (#4142).
 
 import logging
 
+from pydantic import BaseModel, ConfigDict
+
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
@@ -53,6 +55,7 @@ from vultron.errors import (
     VultronInvalidStateTransitionError,
     VultronNotFoundError,
 )
+from vultron.primitives import NonEmptyString
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +99,21 @@ def persist_creation_time_embargo(
         )
 
 
+class CreationRevision(BaseModel):
+    """The longer creation-time proposal, with the party that proposed it.
+
+    ``proposer_id`` is the party whose terms lost shortest-wins (EP-04-003):
+    the reporter when the sender's proposal lost, the case owner when its
+    actor default did.  Proposing is consenting (MSM-07-005), so its record,
+    not the executing actor's, gains the revision id (#4152).
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    embargo: EmbargoEvent
+    proposer_id: NonEmptyString
+
+
 class _CreationOperationsMixin(_ProposalOperationsMixin):
     """``initialize_creation_embargo``."""
 
@@ -105,7 +123,7 @@ class _CreationOperationsMixin(_ProposalOperationsMixin):
         case_id: str,
         embargo_id: str,
         actor_id: str | None = None,
-        revision: EmbargoEvent | None = None,
+        revision: CreationRevision | None = None,
     ) -> EmbargoLifecycleResult:
         """Initialize a case's creation-time embargo in one commit.
 
@@ -131,7 +149,7 @@ class _CreationOperationsMixin(_ProposalOperationsMixin):
         A *revision* is the longer creation-time proposal that lost
         shortest-wins (EP-04-003).  It is stored and proposed through
         ``propose_embargo`` (``ACTIVE → REVISE``, EMB-18-001) on behalf of
-        *actor_id*.
+        its ``proposer_id``, whose consent record gains it (MSM-07-005).
 
         All of it is staged and committed through one ``save_many``, so any
         refusal or fault leaves the case at ``EM.NONE`` with nothing else
@@ -142,8 +160,9 @@ class _CreationOperationsMixin(_ProposalOperationsMixin):
             embargo_id: ID of the stored ``EmbargoEvent`` to activate.
             actor_id: Optional ID of the proposing actor, for logging and the
                 proposer's consent record.
-            revision: The losing creation-time proposal to register as a
-                pending revision, or ``None`` when there was no contest.
+            revision: The losing creation-time proposal and its proposer, to
+                register as a pending revision, or ``None`` when there was no
+                contest.
 
         Returns:
             :class:`EmbargoLifecycleResult` from ``NONE`` to the state the
@@ -217,9 +236,11 @@ class _CreationOperationsMixin(_ProposalOperationsMixin):
             work._record_actor_pec_acceptance(case, owner_id, embargo_id)
         )
         if revision is not None:
-            persist_creation_time_embargo(staged, revision, case_id)
+            persist_creation_time_embargo(staged, revision.embargo, case_id)
             em_after = work.propose_embargo(
-                case_id=case_id, embargo_id=revision.id_, actor_id=actor_id
+                case_id=case_id,
+                embargo_id=revision.embargo.id_,
+                actor_id=revision.proposer_id,
             ).em_after
         staged.flush()
 
@@ -231,7 +252,7 @@ class _CreationOperationsMixin(_ProposalOperationsMixin):
             case_id,
             em_before,
             em_after,
-            revision.id_ if revision is not None else None,
+            revision.embargo.id_ if revision is not None else None,
         )
         return self._activation_result(
             em_before=em_before,

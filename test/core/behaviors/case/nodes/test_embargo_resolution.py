@@ -19,6 +19,7 @@ Drives ``InitializeDefaultEmbargoNode`` end to end, so each assertion is about
 the embargo the case is actually created with, not a blackboard value.
 """
 
+import functools
 import logging
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
@@ -54,6 +55,7 @@ from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_policy import EmbargoPolicy
+from vultron.core.models.report import VulnerabilityReport
 from vultron.core.services.embargo_duration import (
     EmbargoDurationSource,
     InitialEmbargoDuration,
@@ -72,6 +74,7 @@ from vultron.errors import (
 ACTOR_ID = "https://example.org/actors/vendor"
 CASE_ID = "https://example.org/cases/case-resolution"
 REPORT_ID = "https://example.org/reports/report-resolution"
+REPORTER_ID = "https://example.org/actors/reporter"
 
 # Distinct from every default in play, so a pinned duration names its source.
 SENDER_PROPOSAL = timedelta(days=20)
@@ -85,6 +88,15 @@ def case_obj(bt_scenario: BTTestScenario) -> VulnerabilityCase:
     case = VulnerabilityCase(id_=CASE_ID, name="Case", attributed_to=ACTOR_ID)
     seed_case_owner_participant(bt_scenario.dl, case)
     bt_scenario.dl.create(case)
+    # The sender's terms are the reporter's (EP-04-004, #4152).
+    bt_scenario.dl.create(
+        VulnerabilityReport(
+            id_=REPORT_ID,
+            name="Report",
+            content="Report",
+            attributed_to=REPORTER_ID,
+        )
+    )
     return case
 
 
@@ -162,7 +174,8 @@ def _run(
     result = bt_scenario.run(
         InitializeDefaultEmbargoNode(
             actor_config=actor_config
-            or ActorConfig(protocol_default_embargo_duration=PROTOCOL_DEFAULT)
+            or ActorConfig(protocol_default_embargo_duration=PROTOCOL_DEFAULT),
+            report_id=REPORT_ID,
         ),
         actor_id=ACTOR_ID,
         case_id=CASE_ID,
@@ -431,7 +444,7 @@ class TestCaseNotEmbargoEligibleNode:
     ) -> None:
         """An unreadable case is not silently treated as "no embargo"."""
         result = bt_scenario.run(
-            InitializeDefaultEmbargoNode(),
+            InitializeDefaultEmbargoNode(report_id=REPORT_ID),
             actor_id=ACTOR_ID,
             case_id="https://example.org/cases/absent",
         )
@@ -454,7 +467,9 @@ class TestCaseNotEmbargoEligibleNode:
         )
 
         result = bt_scenario.run(
-            InitializeDefaultEmbargoNode(), actor_id=ACTOR_ID, case_id=CASE_ID
+            InitializeDefaultEmbargoNode(report_id=REPORT_ID),
+            actor_id=ACTOR_ID,
+            case_id=CASE_ID,
         )
 
         assert result.status == Status.FAILURE
@@ -529,7 +544,8 @@ def _run_probing_revision(
             InitializeDefaultEmbargoNode(
                 actor_config=ActorConfig(
                     protocol_default_embargo_duration=PROTOCOL_DEFAULT
-                )
+                ),
+                report_id=REPORT_ID,
             ),
             probe,
         ],
@@ -1109,7 +1125,9 @@ class TestCaseEmbargoAlreadyInitializedNode:
         )
 
         result = bt_scenario.run(
-            InitializeDefaultEmbargoNode(), actor_id=ACTOR_ID, case_id=CASE_ID
+            InitializeDefaultEmbargoNode(report_id=REPORT_ID),
+            actor_id=ACTOR_ID,
+            case_id=CASE_ID,
         )
 
         assert result.status == Status.FAILURE
@@ -1233,17 +1251,26 @@ class TestCreationTimeEmbargoCommitsItsEffectsWithIt:
         monkeypatch.setattr(dl, "save_many", failing_save_many)
         monkeypatch.setattr(dl, "create", failing_create)
 
+    @functools.cached_property
+    def _sender_event(self) -> EmbargoEvent:
+        """The sender's terms, built once so a rerun carries the same ones.
+
+        A second ``from_now_utc`` would give the rerun a different
+        ``end_time``, which the stored twin then refuses (EP-04-004).
+        """
+        return EmbargoEvent(
+            id_=self.SENDER_EVENT_ID,
+            context=REPORT_ID,
+            end_time=from_now_utc(SENDER_PROPOSAL),
+        )
+
     def _run_contest(self, bt_scenario: BTTestScenario) -> Status:
         """The sender's shorter terms win; the owner's default is the loser."""
         status, _, _ = _run(
             bt_scenario,
             owner_policy=ACTOR_DEFAULT,
             sender_proposal=SENDER_PROPOSAL,
-            sender_proposed_embargo=EmbargoEvent(
-                id_=self.SENDER_EVENT_ID,
-                context=REPORT_ID,
-                end_time=from_now_utc(SENDER_PROPOSAL),
-            ),
+            sender_proposed_embargo=self._sender_event,
         )
         return status
 
@@ -1382,3 +1409,65 @@ class TestCreationTimeEmbargoCommitsItsEffectsWithIt:
         assert writes == [
             sorted(["VulnerabilityCase", participant, "EmbargoEvent"])
         ]
+
+
+def _seed_reporter_participant(bt_scenario: BTTestScenario) -> str:
+    """Add the reporter's participant to the fixture case; return its id."""
+    case = cast(VulnerabilityCase, bt_scenario.dl.read(CASE_ID))
+    participant = CaseParticipant(attributed_to=REPORTER_ID, context=CASE_ID)
+    bt_scenario.dl.create(participant)
+    case.case_participants.append(participant.id_)
+    case.actor_participant_index[REPORTER_ID] = participant.id_
+    bt_scenario.dl.save(case)
+    return participant.id_
+
+
+@pytest.mark.spec("MSM-07-005")
+@pytest.mark.spec("EP-04-003")
+class TestTheRevisionIsConsentedToByItsProposer:
+    """The party whose terms lost proposed the revision (#4152).
+
+    Proposing is consenting (MSM-07-005), so that party's record gains the
+    revision — not the executing actor's, which on the CASE_MANAGER's path is
+    neither party.
+    """
+
+    def test_the_reporters_lost_terms_land_on_the_reporters_record(
+        self, bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
+    ) -> None:
+        reporter_participant_id = _seed_reporter_participant(bt_scenario)
+
+        status, _, _ = _run(
+            bt_scenario,
+            owner_policy=timedelta(days=10),
+            sender_proposal=SENDER_PROPOSAL,
+        )
+
+        assert status == Status.SUCCESS
+        case = cast(VulnerabilityCase, bt_scenario.dl.read(CASE_ID))
+        (revision_id,) = case.proposed_embargoes
+        reporter = bt_scenario.dl.read(reporter_participant_id)
+        assert isinstance(reporter, CaseParticipant)
+        assert reporter.accepted_embargo_ids == [revision_id]
+        # The owner holds only the terms it set and is signatory of.
+        owner = _owner_participant(bt_scenario)
+        assert owner.accepted_embargo_ids == [case.active_embargo_id]
+
+    def test_a_contest_with_no_report_fails_before_any_write(
+        self, bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
+    ) -> None:
+        """No report, no reporter: the revision has no proposer to name."""
+        result = bt_scenario.run(
+            InitializeDefaultEmbargoNode(),
+            actor_id=ACTOR_ID,
+            case_id=CASE_ID,
+            owner_profile=_profile(timedelta(days=10)),
+            sender_proposed_embargo_duration=SENDER_PROPOSAL,
+            sender_proposed_embargo=EmbargoEvent(
+                context=REPORT_ID, end_time=from_now_utc(SENDER_PROPOSAL)
+            ),
+        )
+
+        assert result.status == Status.FAILURE
+        assert _em_state(bt_scenario) == EM.NONE
+        assert _owner_participant(bt_scenario).accepted_embargo_ids == []

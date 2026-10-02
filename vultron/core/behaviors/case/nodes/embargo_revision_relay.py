@@ -33,8 +33,8 @@ from py_trees.common import Status
 from vultron.core.behaviors.case.nodes.embargo_revision import (
     REVISION_KEY,
     CreationTimeRevision,
+    creation_revision_parties,
 )
-from vultron.core.behaviors.case.report_author import report_author_id
 from vultron.core.behaviors.embargo.nodes.relay import (
     RelayEmbargoInviteToEachNode,
 )
@@ -48,7 +48,6 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.participants.recipients import invitation_recipients
-from vultron.core.services.embargo_duration import EmbargoDurationSource
 from vultron.core.sync_helpers import recorded_entries_for_case
 from vultron.errors import BtNodePreconditionError, VultronError
 
@@ -211,21 +210,9 @@ class RelayCreationTimeRevisionNode(RelayEmbargoInviteToEachNode):
         """Set the proposer (the loser) and the one invitee (the winner)."""
         assert self.datalayer is not None
         assert self.actor_id is not None
-        owner_id = _as_id(case.attributed_to)
-        if not owner_id:
-            raise BtNodePreconditionError(
-                f"case '{case.id_}' names no CASE_OWNER (CP-09-001)"
-            )
-        if not self._report_id:
-            raise BtNodePreconditionError(
-                "no report id, so the reporter cannot be resolved"
-            )
-        # The reporter's terms arrived as the sender proposal (EP-04-004).
-        reporter_id = report_author_id(self.datalayer, self._report_id)
-        if revision.losing_source is EmbargoDurationSource.SENDER_PROPOSAL:
-            self._proposer_id, winner_id = reporter_id, owner_id
-        else:
-            self._proposer_id, winner_id = owner_id, reporter_id
+        self._proposer_id, winner_id = creation_revision_parties(
+            self.datalayer, case, revision.losing_source, self._report_id
+        )
         # Shared recipient selection (CM-10-007), narrowed to the other party:
         # nobody else held terms at creation (EP-04-011).
         self._recipients = [

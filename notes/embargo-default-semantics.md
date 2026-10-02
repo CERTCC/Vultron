@@ -352,7 +352,12 @@ the CASE_MANAGER", in two steps that sit at two different places in the tree:
 
 The loser is the proposer and is not invited: when the reporter's longer terms
 lost (the reporter is the report's `attributedTo`), the owner is invited; when the
-owner's longer default lost, the reporter is. Both were just seeded SIGNATORY, so
+owner's longer default lost, the reporter is. Proposing is consenting
+(MSM-07-005), so the proposer's record, not the executing actor's, gains the
+revision id: on the CASE_MANAGER's creation path the executor is neither party
+(#4152). `creation_revision_parties` (`nodes/embargo_revision.py`) resolves both
+parties from the case owner and the report's author, for the registration and the
+relay alike. Both were just seeded SIGNATORY, so
 the relay's PEC `INVITE` is not legal for the invitee and changes no consent
 (EP-09-004). A tie registers nothing and relays nothing. The relay also sends
 nothing when the published revision names another case, when the embargo is no

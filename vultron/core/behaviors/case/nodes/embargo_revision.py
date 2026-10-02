@@ -37,12 +37,15 @@ from datetime import timedelta
 from py_trees.common import Status
 from pydantic import BaseModel, ConfigDict
 
+from vultron.core.behaviors.case.report_author import report_author_id
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
-from vultron.core.models._helpers import _new_urn, from_now_utc
+from vultron.core.models._helpers import _as_id, _new_urn, from_now_utc
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.embargo_duration import (
     EmbargoDurationSource,
     InitialEmbargoDuration,
@@ -54,6 +57,41 @@ logger = logging.getLogger(__name__)
 
 REVISION_KEY = "creation_time_revision"
 CANDIDATE_KEY = "creation_time_revision_candidate"
+
+
+def creation_revision_parties(
+    dl: CasePersistence,
+    case: VulnerabilityCase,
+    losing_source: EmbargoDurationSource,
+    report_id: str | None,
+) -> tuple[str, str]:
+    """Return ``(proposer, winner)`` for *case*'s creation-time revision.
+
+    The two parties are the case owner and the reporter of *report_id*, whose
+    terms arrived as the sender proposal (EP-04-004).  The party whose terms
+    lost shortest-wins proposed the revision (``losing_source``): the reporter
+    for ``SENDER_PROPOSAL``, the owner for ``ACTOR_DEFAULT``.  The proposer's
+    consent record gains the revision (MSM-07-005, #4152) and the relay is
+    attributed to it (EP-04-011), so both read it here.
+
+    Raises:
+        BtNodePreconditionError: If *case* names no owner, *report_id* is
+            missing, or the report names no author.
+        VultronNotFoundError: If no report is stored under *report_id*.
+    """
+    owner_id = _as_id(case.attributed_to)
+    if not owner_id:
+        raise BtNodePreconditionError(
+            f"case '{case.id_}' names no CASE_OWNER (CP-09-001)"
+        )
+    if not report_id:
+        raise BtNodePreconditionError(
+            "no report id, so the reporter cannot be resolved"
+        )
+    reporter_id = report_author_id(dl, report_id)
+    if losing_source is EmbargoDurationSource.SENDER_PROPOSAL:
+        return reporter_id, owner_id
+    return owner_id, reporter_id
 
 
 class CreationTimeRevision(BaseModel):

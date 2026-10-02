@@ -73,12 +73,15 @@ class InitializeDefaultEmbargoNode(py_trees.composites.Selector):
     Args:
         actor_config: Source of the protocol default embargo duration
             (EP-04-005).  ``None`` uses the ``ActorConfig`` defaults.
+        report_id: The report the sender's terms came with, whose author
+            proposes a revision when those terms lost (#4152).
         name: Optional node name.
     """
 
     def __init__(
         self,
         actor_config: ActorConfig | None = None,
+        report_id: str | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(
@@ -102,7 +105,7 @@ class InitializeDefaultEmbargoNode(py_trees.composites.Selector):
                         # (ACTIVE → REVISE) are one commit, so EM.PROPOSED is
                         # never persisted and no failure leaves the case
                         # active but unfinished (#4142).
-                        InitializeCreationEmbargoNode(),
+                        InitializeCreationEmbargoNode(report_id=report_id),
                     ],
                 ),
             ],

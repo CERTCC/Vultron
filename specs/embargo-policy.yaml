@@ -610,7 +610,10 @@ groups:
       owner's default selection, with the bootstrap `Create` carrying no index entry — and
       that a tie or a redelivered proposal relays nothing. Node tests assert that an owner
       who reported to itself has nothing relayed or indexed, and that the proposer's replica
-      indexes the replayed Invite while the invitee's does not.
+      indexes the replayed Invite while the invitee's does not. Node and service tests
+      (`TestTheRevisionIsConsentedToByItsProposer`) assert that the losing party's record,
+      not the executing actor's, gains the revision id, and that a contest with no report
+      to name the reporter fails before any write (MSM-07-005, #4152).
     relationships:
     - rel_type: refines
       spec_id: EP-04-003

@@ -41,6 +41,7 @@ from vultron.core.behaviors.case.nodes.embargo_revision import (
     REVISION_KEY,
     CreationTimeRevision,
     CreationTimeRevisionCandidate,
+    creation_revision_parties,
 )
 from vultron.core.behaviors.embargo.nodes.em_state import read_case_em_state
 from vultron.core.behaviors.helpers import (
@@ -57,6 +58,7 @@ from vultron.core.services.embargo_duration import (
 )
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.services.embargo_lifecycle.creation import (
+    CreationRevision,
     persist_creation_time_embargo,
 )
 from vultron.core.states.em import EM
@@ -256,6 +258,11 @@ class InitializeCreationEmbargoNode(DataLayerActionWithPorts):
     seeding and registering in nodes after the activation could leave an
     ``ACTIVE`` case unseeded or with its revision missing (#4142).
 
+    The revision is proposed by the party whose terms lost: the reporter of
+    *report_id* or the case owner (``creation_revision_parties``), so that
+    party's consent record, not the executing actor's, gains it (MSM-07-005,
+    #4152).  A contest with no resolvable reporter fails before any write.
+
     A registered revision is published, under a freshly minted proposal id,
     as ``creation_time_revision`` for ``RelayCreationTimeRevisionNode``
     (EP-04-011).  The key is written (``None``) first whenever this node
@@ -267,10 +274,18 @@ class InitializeCreationEmbargoNode(DataLayerActionWithPorts):
     with an embargo already attached is inconsistent: the service refuses
     it and the node fails, rather than report an initialization it did not
     make (ARCH-15).
+
+    Args:
+        report_id: The report whose author proposed the sender's terms; only
+            read when a revision was selected.
+        name: Optional node name.
     """
 
-    def __init__(self, name: str | None = None) -> None:
+    def __init__(
+        self, report_id: str | None = None, name: str | None = None
+    ) -> None:
         super().__init__(name=name or self.__class__.__name__)
+        self._report_id = report_id
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
@@ -355,13 +370,26 @@ class InitializeCreationEmbargoNode(DataLayerActionWithPorts):
             return Status.FAILURE
 
         try:
+            revision = (
+                None
+                if candidate is None
+                else CreationRevision(
+                    embargo=candidate.embargo,
+                    proposer_id=creation_revision_parties(
+                        self.datalayer,
+                        stored_case,
+                        candidate.losing_source,
+                        self._report_id,
+                    )[0],
+                )
+            )
             EmbargoLifecycle(
                 persistence=self.datalayer
             ).initialize_creation_embargo(
                 case_id=case_id,
                 embargo_id=embargo_id,
                 actor_id=self.actor_id,
-                revision=candidate.embargo if candidate else None,
+                revision=revision,
             )
         except VultronError as exc:
             self.feedback_message = (

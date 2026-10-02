@@ -289,9 +289,16 @@ class TestInitializeDefaultEmbargoNode:
             context="https://example.org/reports/r-1",
             end_time=days_from_now_utc(10),
         )
+        # The contest's other party is the reporter (#4152).
+        report = VulnerabilityReport(
+            name="TEST-REV",
+            content="Test report",
+            attributed_to="https://example.org/actors/reporter",
+        )
+        bt_scenario.dl.create(report)
         for _ in range(2):
             result = bt_scenario.run(
-                InitializeDefaultEmbargoNode(),
+                InitializeDefaultEmbargoNode(report_id=report.id_),
                 actor_id=actor_id,
                 case_id=case_obj.id_,
                 sender_proposed_embargo_duration=timedelta(days=10),
