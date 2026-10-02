@@ -171,6 +171,7 @@ def add_case_status_tree(
                             status_obj=status_obj,
                             case_id=case_id or None,
                             name="ThreatTerminationBranch",
+                            sender_actor_id=sender_actor_id,
                         ),
                     ],
                 ),

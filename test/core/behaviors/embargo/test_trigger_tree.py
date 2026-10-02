@@ -29,15 +29,19 @@ from vultron.core.behaviors.case_status_snapshot import (
     EmitCaseStatusUpdateNode,
 )
 from vultron.core.behaviors.embargo.nodes import (
+    AbandonEmbargoProposalsLifecycleNode,
     AcceptEmbargoLifecycleNode,
+    CommitEmbargoAbandonmentNode,
     CommitEmbargoDecisionNode,
     CommitEmbargoTeardownNode,
+    LeaveAbandonmentToCaseManagerNode,
     ProposeEmbargoLifecycleNode,
+    ReadOpenEmbargoProposalsNode,
     RejectEmbargoLifecycleNode,
-    RejectProposedEmbargoLifecycleNode,
     TerminateEmbargoLifecycleNode,
 )
 from vultron.core.behaviors.embargo.trigger_tree import (
+    ABANDONMENT_LEFT_TO_CASE_MANAGER,
     accept_embargo_trigger_bt,
     propose_embargo_revision_trigger_bt,
     propose_embargo_trigger_bt,
@@ -106,6 +110,7 @@ def _assert_manager_arm_order(
     tree: py_trees.behaviour.Behaviour,
     lifecycle_type: type,
     commit_type: type = CommitEmbargoDecisionNode,
+    other_suffix: str = "AskCaseManager",
 ) -> None:
     """Write → commit → declare, as the CASE_MANAGER only."""
     manager = _arm(tree, "AsCaseManager")
@@ -117,7 +122,7 @@ def _assert_manager_arm_order(
         < index[commit_type]
         < index[EmitCaseStatusUpdateNode]
     ), "the EM write is committed before it is declared"
-    other = _arm(tree, "AskCaseManager")
+    other = _arm(tree, other_suffix)
     assert not any(
         isinstance(n, (lifecycle_type, commit_type, EmitCaseStatusUpdateNode))
         for n in other
@@ -186,46 +191,41 @@ class TestRejectEmbargoTriggerBt:
         _assert_manager_arm_order(tree, RejectEmbargoLifecycleNode)
 
 
+@pytest.mark.spec("RSH-04-002")
+@pytest.mark.spec("EP-09-008")
+@pytest.mark.spec("EMB-16-001")
 class TestRejectProposedEmbargoBt:
-    @pytest.mark.spec("RSH-04-002")
-    def test_emit_node_present(self, result_out):
+    def test_manager_arm_writes_commits_then_declares(self, result_out):
         tree = reject_proposed_embargo_bt(
             case_id=CASE_ID,
             result_out=result_out,
         )
-        all_nodes = _collect_nodes(tree)
-        node_types = [type(n).__name__ for n in all_nodes]
-        assert "EmitCaseStatusUpdateNode" in node_types, (
-            "EmitCaseStatusUpdateNode must be present in reject_proposed_embargo_bt (RSH-04-002)"
+        _assert_manager_arm_order(
+            tree,
+            AbandonEmbargoProposalsLifecycleNode,
+            CommitEmbargoAbandonmentNode,
+            other_suffix=ABANDONMENT_LEFT_TO_CASE_MANAGER,
         )
 
-    @pytest.mark.spec("RSH-04-002")
-    def test_emit_node_after_lifecycle_node(self, result_out):
+    @pytest.mark.spec("EMB-16-002")
+    def test_non_manager_arm_neither_writes_nor_asks(self, result_out):
         tree = reject_proposed_embargo_bt(
             case_id=CASE_ID,
             result_out=result_out,
         )
-        children = _top_level_children(tree)
-        lifecycle_idx = next(
-            (
-                i
-                for i, c in enumerate(children)
-                if isinstance(c, RejectProposedEmbargoLifecycleNode)
-            ),
-            None,
+        assert not any(
+            n.name.endswith("AskCaseManager") for n in _collect_nodes(tree)
+        ), "the non-manager arm asks nothing, and is not named as if it did"
+        other = _arm(tree, ABANDONMENT_LEFT_TO_CASE_MANAGER)
+        assert any(
+            isinstance(n, LeaveAbandonmentToCaseManagerNode) for n in other
         )
-        emit_idx = next(
-            (
-                i
-                for i, c in enumerate(children)
-                if isinstance(c, EmitCaseStatusUpdateNode)
-            ),
-            None,
-        )
-        assert lifecycle_idx is not None
-        assert emit_idx is not None
-        assert emit_idx == lifecycle_idx + 1, (
-            "EmitCaseStatusUpdateNode must immediately follow RejectProposedEmbargoLifecycleNode"
+        assert not any(
+            isinstance(n, ReadOpenEmbargoProposalsNode) for n in other
+        ), "only the manager reads the proposals it answers"
+        manager = _arm(tree, "AsCaseManager")
+        assert any(
+            isinstance(n, ReadOpenEmbargoProposalsNode) for n in manager
         )
 
 

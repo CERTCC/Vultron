@@ -37,6 +37,7 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.errors import VultronWiringError
 
 logger = logging.getLogger(__name__)
 
@@ -142,7 +143,11 @@ class CapturePreCommitBackfillTargetNode(DataLayerActionWithPorts):
 
 
 class BackfillCanonicalLedgerToInviteeNode(DataLayerActionWithPorts):
-    """Send canonical CaseLedgerEntry history to a joiner in strict order."""
+    """Send canonical CaseLedgerEntry history to a joiner in strict order.
+
+    A missing ``sync_port`` is a wiring fault and raises
+    ``VultronWiringError``, as the fan-out does (SYNC-02-003, #4126).
+    """
 
     def __init__(
         self, case_id: str, invitee_id: str, name: str | None = None
@@ -202,11 +207,11 @@ class BackfillCanonicalLedgerToInviteeNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         assert self.actor_id is not None
         if self._sync_port is None:
-            self.logger.error(
-                "%s: sync_port not injected; cannot perform join-time backfill",
-                self.name,
+            raise VultronWiringError(
+                f"{self.name}: sync_port must be injected to backfill the"
+                f" ledger of case '{self.case_id}' to '{self.invitee_id}'"
+                " (SYNC-02-003, #4126)"
             )
-            return Status.FAILURE
 
         entries: list[CaseLedgerEntry] = [
             obj

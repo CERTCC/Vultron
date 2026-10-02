@@ -99,6 +99,9 @@ _FACTORIES: dict[str, Callable[[], py_trees.behaviour.Behaviour]] = {
     "terminate_embargo_bt (cascade)": lambda: (
         trigger_tree.terminate_embargo_bt(case_id=_CASE, result_out={})
     ),
+    "reject_proposed_embargo_bt": lambda: (
+        trigger_tree.reject_proposed_embargo_bt(case_id=_CASE, result_out={})
+    ),
     "create_terminate_active_embargo_tree": lambda: (
         create_terminate_active_embargo_tree(
             case_id=_CASE, result_out={}, activity_builder=_builder
@@ -107,13 +110,9 @@ _FACTORIES: dict[str, Callable[[], py_trees.behaviour.Behaviour]] = {
 }
 
 #: Public ``trigger_tree`` factories this ratchet deliberately does not gate,
-#: with the reason.  Each is a known gap, not a licence (#4131).
-_EXEMPT: dict[str, str] = {
-    "reject_proposed_embargo_bt": (
-        "receive-side P/X/A cascade abandoning a proposal; writes through"
-        " RejectProposedEmbargoLifecycleNode, not an _EmbargoLifecycleNode"
-    ),
-}
+#: with the reason and an issue.  Each is a known gap, not a licence; none is
+#: left (#4131 gated the P/X/A abandonment cascade).
+_EXEMPT: dict[str, str] = {}
 
 
 def _walk(

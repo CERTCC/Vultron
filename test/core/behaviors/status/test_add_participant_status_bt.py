@@ -69,7 +69,6 @@ from vultron.core.behaviors.status.nodes import (
     CloseNotYetEmittedConditionNode,
     EmitRMGapNoteNode,
     LoadParticipantNode,
-    PublicDisclosureBranchNode,
     ResolveAndPersistStatusObjectNode,
     ValidateRMTransitionNode,
     VerifySenderIsParticipantNode,
@@ -78,7 +77,6 @@ from vultron.core.behaviors.status.nodes.dimension_filter import BB_RM_ANOMALY
 from vultron.core.behaviors.status.nodes.threat_termination import (
     ThreatTerminationBranchNode,
 )
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import (
@@ -715,119 +713,6 @@ class TestAppendParticipantStatusSubtree:
 
 
 # ---------------------------------------------------------------------------
-# Step 4: PublicDisclosureBranchNode
-# ---------------------------------------------------------------------------
-
-
-class TestPublicDisclosureBranchNode:
-    @pytest.mark.executes_as(CASE_MANAGER_ID)
-    def test_skips_when_no_pxa_state(self, populated_bridge, status_obj):
-        """Status without case_status.pxa_state → skips teardown, SUCCESS."""
-        node = PublicDisclosureBranchNode(
-            status_obj=status_obj,
-            sender_actor_id=ACTOR_ID,
-            case_id=CASE_ID,
-        )
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=CASE_MANAGER_ID
-        )
-        assert result.status == Status.SUCCESS
-
-    @pytest.mark.executes_as(CASE_MANAGER_ID)
-    def test_skips_when_status_is_none(self, populated_bridge):
-        node = PublicDisclosureBranchNode(
-            status_obj=None,
-            sender_actor_id=ACTOR_ID,
-            case_id=CASE_ID,
-        )
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=CASE_MANAGER_ID
-        )
-        assert result.status == Status.SUCCESS
-
-    @pytest.mark.executes_as(CASE_MANAGER_ID)
-    def test_skips_when_sender_is_not_case_owner(
-        self, populated_dl, populated_bridge, status_obj
-    ):
-        """CASE_MANAGER sender (not CASE_OWNER) → skips teardown, SUCCESS."""
-        from vultron.core.states.cs import CS_pxa
-        from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
-
-        # ``context`` is required by core CaseStatus; omitting it made the
-        # nested status unprojectable to the core shape (#2232).
-        cs = as_CaseStatus(context=CASE_ID)
-        object.__setattr__(cs, "pxa_state", CS_pxa.Pxa)  # public-aware
-        object.__setattr__(status_obj, "case_status", cs)
-        populated_dl.save(status_obj)
-
-        node = PublicDisclosureBranchNode(
-            status_obj=status_obj,
-            sender_actor_id=CASE_MANAGER_ID,  # not CASE_OWNER
-            case_id=CASE_ID,
-        )
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=CASE_MANAGER_ID
-        )
-        assert result.status == Status.SUCCESS
-
-    @pytest.mark.executes_as(CASE_MANAGER_ID)
-    def test_triggers_teardown_on_public_aware_case_owner(
-        self, populated_dl, populated_bridge, case, status_obj
-    ):
-        """CS.P + CASE_OWNER sender → embargo terminated (EM=EXITED), but
-        FAILURE when no broadcast factory (BT-14-001).
-
-        State transitions are committed before broadcast; the FAILURE propagates
-        from the missing factory so callers can handle delivery errors.
-        """
-        from vultron.core.states.cs import CS_pxa
-        from vultron.core.states.em import EM
-        from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
-        from vultron.wire.as2.vocab.objects.embargo_event import (
-            as_EmbargoEvent,
-        )
-
-        # Give the case an active embargo in ACTIVE state
-        embargo = as_EmbargoEvent(
-            id_=f"{CASE_ID}/embargo_events/e1",
-            context=CASE_ID,
-            end_time=days_from_now_utc(45),
-        )
-        case.active_embargo = embargo.id_
-        case.append_case_status(em_state=EM.ACTIVE)
-        populated_dl.create(embargo)
-        populated_dl.save(case)
-
-        # ``context`` is required by core CaseStatus; omitting it made the
-        # nested status unprojectable to the core shape (#2232).
-        cs = as_CaseStatus(context=CASE_ID)
-        object.__setattr__(cs, "pxa_state", CS_pxa.Pxa)  # public-aware
-        object.__setattr__(status_obj, "case_status", cs)
-        populated_dl.save(status_obj)
-
-        # ACTOR_ID holds CASE_OWNER role (see `participant` fixture)
-        node = PublicDisclosureBranchNode(
-            status_obj=status_obj,
-            sender_actor_id=ACTOR_ID,
-            case_id=CASE_ID,
-        )
-        # No factory → broadcast fails → FAILURE (BT-14-001)
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=CASE_MANAGER_ID
-        )
-        assert result.status == Status.FAILURE
-
-        from typing import cast as c
-
-        from vultron.core.models.case import VulnerabilityCase
-
-        # State was still applied before the broadcast attempt
-        updated = c(VulnerabilityCase, populated_dl.read(CASE_ID))
-        assert updated.current_status.em.state == EM.EXITED
-        assert updated.active_embargo is None
-
-
-# ---------------------------------------------------------------------------
 # Step 5: AllParticipantsRMClosedConditionNode (DEMOMA-07-006)
 # ---------------------------------------------------------------------------
 
@@ -1226,6 +1111,38 @@ class TestAddParticipantStatusTree:
             "(RSH-03-001: ThreatTerminationBranchNode under TeardownEffects "
             "replaced it)"
         )
+
+    @pytest.mark.spec("RSH-03-004")
+    def test_teardown_branch_is_given_the_statuss_sender(
+        self,
+        populated_dl,
+        make_payload,
+    ):
+        """The tree hands ``ThreatTerminationBranchNode`` the status's sender.
+
+        RSH-03-004 decides at a replica whether the CASE_MANAGER declared the
+        P/X/A status; without the sender the skip never fires (#4149)."""
+        from vultron.core.behaviors.status.nodes.threat_termination import (
+            _DeclaredByCaseManagerNode,
+        )
+
+        activity = add_status_to_participant_activity(
+            status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
+            target=as_CaseParticipant(
+                id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
+            ),
+            actor=ACTOR_ID,
+            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
+        )
+        event = make_payload(activity)
+        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+
+        declared = [
+            n
+            for n in tree.iterate()
+            if isinstance(n, _DeclaredByCaseManagerNode)
+        ]
+        assert [n.sender_actor_id for n in declared] == [ACTOR_ID]
 
     @pytest.mark.spec("RSH-01-001")
     @pytest.mark.spec("RSH-01-002")
