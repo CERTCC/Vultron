@@ -77,7 +77,7 @@ def _seed_case_actor_store(
 ) -> None:
     """Seed the case in the CaseActor's own store.
 
-    ``AddVendorOwnerParticipantNode`` adds the report receiver as the
+    ``AddOwnerParticipantNode`` adds the report receiver as the
     ``CASE_OWNER`` participant.  *attributed_to* defaults to the CaseActor,
     so the CASE_OWNER participant is the only correct record of who owns the
     case and a node that reads ``attributed_to`` first fails.

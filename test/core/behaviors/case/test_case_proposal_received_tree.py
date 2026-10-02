@@ -22,8 +22,8 @@ AC-4: Verifies that
     successfully (AC-3).
   - The marker remains when Create(as_VulnerabilityCase) delivery fails (AC-2
     partial-failure path).
-  - The marker stores at minimum: proposal_id, case_actor_id, vendor_uri,
-    and the pre-constructed Create(as_VulnerabilityCase) payload (AC-1).
+  - The marker stores at minimum: proposal_id, case_actor_id, vendor_uri
+    (the stored name of the owner URI, #4128), and the pre-constructed Create(as_VulnerabilityCase) payload (AC-1).
 """
 
 import logging
@@ -188,7 +188,7 @@ class TestWriteCreateCaseMarkerNode:
         if seed:
             self._seed_case(dl, case_id)
         node = WriteCreateCaseMarkerNode(
-            proposal_id=_PROPOSAL_URI, vendor_uri=_VENDOR_URI
+            proposal_id=_PROPOSAL_URI, owner_uri=_VENDOR_URI
         )
         # Wrap in a Sequence so BTBridge can set up the blackboard.
         tree = py_trees.composites.Sequence(
@@ -446,7 +446,7 @@ class TestWriteCreateCaseMarkerNode:
             actor_id=_CASE_ACTOR_URI,
         )
         node = WriteCreateCaseMarkerNode(
-            proposal_id=_PROPOSAL_URI, vendor_uri=_VENDOR_URI
+            proposal_id=_PROPOSAL_URI, owner_uri=_VENDOR_URI
         )
         tree = py_trees.composites.Sequence(
             name="TestSeq", memory=False, children=[node]
@@ -470,7 +470,7 @@ class TestWriteCreateCaseMarkerNode:
             actor_id=_CASE_ACTOR_URI,
         )
         node = WriteCreateCaseMarkerNode(
-            proposal_id=_PROPOSAL_URI, vendor_uri=_VENDOR_URI
+            proposal_id=_PROPOSAL_URI, owner_uri=_VENDOR_URI
         )
         tree = py_trees.composites.Sequence(
             name="TestSeq", memory=False, children=[node]
@@ -836,10 +836,10 @@ def _owner_roles(dl: SqliteDataLayer) -> list:
 
 @pytest.mark.spec("CP-09-001")
 @pytest.mark.spec("CP-09-002")
-class TestADR0041VendorParticipant:
-    """ADR-0041 AC-1: vendor added as CASE_OWNER at RM.RECEIVED."""
+class TestADR0041OwnerParticipant:
+    """ADR-0041 AC-1: report receiver added as CASE_OWNER at RM.RECEIVED."""
 
-    def test_vendor_participant_created(self, make_payload):
+    def test_owner_participant_created(self, make_payload):
         from vultron.core.models.case import VulnerabilityCase
 
         dl = SqliteDataLayer(
@@ -855,10 +855,10 @@ class TestADR0041VendorParticipant:
         case = cases[0]
         assert isinstance(case, VulnerabilityCase)
         assert _VENDOR_URI in case.actor_participant_index, (
-            "Vendor must be in actor_participant_index as CASE_OWNER (AC-1)"
+            "The report receiver must be in actor_participant_index as CASE_OWNER (AC-1)"
         )
 
-    def test_vendor_participant_rm_received(self, make_payload):
+    def test_owner_participant_rm_received(self, make_payload):
         from vultron.core.models.case import VulnerabilityCase
         from vultron.core.states.rm import RM
 
@@ -875,17 +875,17 @@ class TestADR0041VendorParticipant:
         assert isinstance(case, VulnerabilityCase)
 
         participant_id = case.actor_participant_index.get(_VENDOR_URI)
-        assert participant_id is not None, "Vendor participant must exist"
+        assert participant_id is not None, "Owner participant must exist"
         participant = dl.read(participant_id)
-        assert participant is not None, "Vendor participant must be readable"
+        assert participant is not None, "Owner participant must be readable"
         statuses = getattr(participant, "participant_statuses", [])
-        assert statuses, "Vendor participant must have at least one status"
+        assert statuses, "Owner participant must have at least one status"
         rm_state = statuses[0].rm.state
         assert rm_state == RM.RECEIVED, (
-            f"Vendor must be at RM.RECEIVED, got {rm_state}"
+            f"Owner must be at RM.RECEIVED, got {rm_state}"
         )
 
-    def test_vendor_has_case_owner_role(self, make_payload):
+    def test_owner_has_case_owner_role(self, make_payload):
         from vultron.core.models.case import VulnerabilityCase
         from vultron.enums.roles import CVDRole
 
@@ -907,7 +907,7 @@ class TestADR0041VendorParticipant:
         assert participant is not None
         roles = getattr(participant, "case_roles", [])
         assert CVDRole.CASE_OWNER in roles, (
-            f"Vendor must have CASE_OWNER role, got {roles}"
+            f"Owner must have CASE_OWNER role, got {roles}"
         )
 
 
@@ -1327,7 +1327,7 @@ class TestADR0041ReporterParticipant:
         assert cases, "Case must still be created even without a seeded report"
         case = cases[0]
         assert isinstance(case, VulnerabilityCase)
-        # Vendor participant must still be present even without the reporter
+        # Owner participant must still be present even without the reporter
         assert _VENDOR_URI in case.actor_participant_index
 
 
@@ -1891,7 +1891,7 @@ class TestCM14005ReporterSignatory:
         assert cases, "Case must still be created even without a seeded report"
         case = cases[0]
         assert isinstance(case, VulnerabilityCase)
-        # Vendor participant must still be present
+        # Owner participant must still be present
         assert _VENDOR_URI in case.actor_participant_index
 
 
@@ -2345,7 +2345,7 @@ class TestADR0041GenesisCommitFailure:
         )
 
         node = CommitNativeLedgerEntriesNode(
-            vendor_uri=_VENDOR_URI, report_id=_REPORT_URI
+            owner_uri=_VENDOR_URI, report_id=_REPORT_URI
         )
 
         dl = SqliteDataLayer(
@@ -2389,7 +2389,7 @@ class TestADR0041GenesisCommitFailure:
         )
 
         node = CommitNativeLedgerEntriesNode(
-            vendor_uri=_VENDOR_URI, report_id=_REPORT_URI
+            owner_uri=_VENDOR_URI, report_id=_REPORT_URI
         )
         dl = SqliteDataLayer(
             "sqlite:///:memory:",

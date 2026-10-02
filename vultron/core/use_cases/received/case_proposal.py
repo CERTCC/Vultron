@@ -3,18 +3,18 @@
 Three use cases covering the full CP message flow (ADR-0023):
 
 - ``CreateCaseProposalReceivedUseCase`` — case-actor service receives
-  ``Create(as_CaseProposal)`` from a vendor; creates a VulnerabilityCase
+  ``Create(as_CaseProposal)`` from a report receiver; creates a VulnerabilityCase
   and emits ``Accept(as_CaseProposal)`` + ``Create(VulnerabilityCase)``
   (CP-05-001 through CP-05-004).
 
-- ``AcceptCaseProposalReceivedUseCase`` — vendor receives
+- ``AcceptCaseProposalReceivedUseCase`` — report receiver receives
   ``Accept(as_CaseProposal)`` from the case-actor service; records the
-  case-actor URI in the vendor's VultronReportCaseLink (CP-06-001,
+  case-actor URI in the receiver's VultronReportCaseLink (CP-06-001,
   CP-06-003).
 
-- ``RejectCaseProposalReceivedUseCase`` — vendor receives
+- ``RejectCaseProposalReceivedUseCase`` — report receiver receives
   ``Reject(as_CaseProposal)`` from the case-actor service; logs the
-  rejection so the vendor can surface it (CP-06-002, CP-06-004).
+  rejection so the receiver can surface it (CP-06-002, CP-06-004).
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -117,8 +117,8 @@ class CreateCaseProposalReceivedUseCase:
     Delegates to ``CreateCaseProposalReceivedBT``, which creates a
     VulnerabilityCase and emits two outbound activities:
 
-    1. ``Accept(as_CaseProposal)`` — acknowledgement to the vendor
-    2. ``Create(VulnerabilityCase)`` — case announcement to the vendor
+    1. ``Accept(as_CaseProposal)`` — acknowledgement to the report receiver
+    2. ``Create(VulnerabilityCase)`` — case announcement to the report receiver
 
     BT-15-001 audit: all DataLayer mutations and outbox enqueues are
     delegated to leaf nodes of the BT tree.
@@ -205,8 +205,9 @@ class CreateCaseProposalReceivedUseCase:
                 "Create(CaseProposal) carries no proposal id"
             )
 
-        # The vendor who sent Create(as_CaseProposal) is the activity actor.
-        vendor_uri = request.actor_id
+        # The report receiver who sent Create(as_CaseProposal) is the activity
+        # actor, and becomes the CASE_OWNER.
+        owner_uri = request.actor_id
 
         # The inner object is the VulnerabilityReport embedded in the proposal.
         report_id = request.inner_object_id
@@ -250,7 +251,7 @@ class CreateCaseProposalReceivedUseCase:
         tree = create_case_proposal_received_tree(
             report_id=report_id,
             proposal_id=proposal_id,
-            vendor_uri=vendor_uri,
+            owner_uri=owner_uri,
             proposal_dict=proposal_dict,
             actor_config=self._actor_config,
             inline_report=inline_report,
@@ -319,9 +320,9 @@ class CreateCaseProposalReceivedUseCase:
 
 
 class AcceptCaseProposalReceivedUseCase:
-    """Handle an inbound ``Accept(as_CaseProposal)`` on the vendor actor.
+    """Handle an inbound ``Accept(as_CaseProposal)`` on the report receiver.
 
-    Updates the vendor's ``VultronReportCaseLink`` with the case-actor URI
+    Updates the receiver's ``VultronReportCaseLink`` with the case-actor URI
     so the subsequent ``Create(VulnerabilityCase)`` bootstrap can validate
     the sender (CP-06-001, CP-06-003).
 
@@ -395,9 +396,9 @@ class AcceptCaseProposalReceivedUseCase:
 
 
 class RejectCaseProposalReceivedUseCase:
-    """Handle an inbound ``Reject(as_CaseProposal)`` on the vendor actor.
+    """Handle an inbound ``Reject(as_CaseProposal)`` on the report receiver.
 
-    Updates the vendor's ``VultronReportCaseLink`` to reflect the rejection,
+    Updates the receiver's ``VultronReportCaseLink`` to reflect the rejection,
     setting ``proposal_rejected=True`` and recording any ``rejection_reason``
     present in the activity's ``summary`` field (CP-06-002, CP-06-004).
 

@@ -33,7 +33,7 @@ Submodules:
 - ``intake``: Intake node — archives the received activity as received,
   first in every received tree (ADR-0111)
 - ``lifecycle``: Case log entry commit action node
-- ``proposal``: CaseProposal send nodes (ADR-0041 vendor-side slimmed tree)
+- ``proposal``: CaseProposal send nodes (ADR-0041 receiver-side slimmed tree)
 - ``proposal_admission_conditions``: case-actor-side admission guards (CP-05-002)
 - ``proposal_admission_actions``: case-actor-side admission writes and the
   ``Reject`` emit (CP-05-002, CP-05-004)
@@ -169,7 +169,7 @@ from vultron.core.behaviors.case.nodes.proposal_ledger import (
 )
 from vultron.core.behaviors.case.nodes.proposal_participants import (
     AddCaseActorParticipantNode,
-    AddVendorOwnerParticipantNode,
+    AddOwnerParticipantNode,
 )
 from vultron.core.behaviors.case.nodes.proposal_reporter import (
     AddReporterParticipantNode,
@@ -294,7 +294,7 @@ __all__ = [
     "StoreProposalReportNode",
     # proposal_participants (leaf nodes)
     "AddCaseActorParticipantNode",
-    "AddVendorOwnerParticipantNode",
+    "AddOwnerParticipantNode",
     # proposal_reporter (leaf node)
     "AddReporterParticipantNode",
     # proposal_consent (leaf node)

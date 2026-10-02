@@ -46,7 +46,7 @@ class PendingCreateCaseActivity(CoreRecord):
         case_actor_id: URI of the case-actor service that issued the
             ``Accept(CaseProposal)`` and owns the ``Create(VulnerabilityCase)``
             obligation.
-        vendor_uri: URI of the vendor actor to whom
+        vendor_uri: URI of the report receiver (the CASE_OWNER) to whom
             ``Create(VulnerabilityCase)`` must be delivered.
         create_activity_payload: Pre-constructed
             ``Create(VulnerabilityCase)`` payload as a plain dict
@@ -70,7 +70,7 @@ class PendingCreateCaseActivity(CoreRecord):
     )
     vendor_uri: UriString = Field(
         ...,
-        description="URI of the vendor recipient of Create(VulnerabilityCase)",
+        description="URI of the report receiver owed Create(VulnerabilityCase)",
     )
     create_activity_payload: dict[NonEmptyString, Any] = Field(
         default_factory=dict,

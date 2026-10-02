@@ -1,7 +1,7 @@
 """BT tree for the AcceptCaseProposal received-side use case.
 
-Vendor side: handles an inbound ``Accept(as_CaseProposal)`` by recording
-the case-actor URI in the vendor's ``VultronReportCaseLink``, making it
+Report-receiver side: handles an inbound ``Accept(as_CaseProposal)`` by recording
+the case-actor URI in the receiver's ``VultronReportCaseLink``, making it
 available for the subsequent ``Create(VulnerabilityCase)`` bootstrap.
 
 Spec: ``specs/case-proposal.yaml`` CP-06-001, CP-06-003.
@@ -33,14 +33,14 @@ logger = logging.getLogger(__name__)
 
 
 class RecordCaseActorAcceptanceNode(DataLayerAction):
-    """Update the vendor's VultronReportCaseLink with the case-actor URI.
+    """Update the receiver's VultronReportCaseLink with the case-actor URI.
 
-    When the case-actor service accepts the proposal, the vendor records
+    When the case-actor service accepts the proposal, the receiver records
     the case-actor URI as ``case_manager_id`` so the subsequent
     ``Create(VulnerabilityCase)`` bootstrap can validate the sender
     (CP-06-003, CBT-01-006).
 
-    Returns SUCCESS even when no matching link is found, because the vendor
+    Returns SUCCESS even when no matching link is found, because the receiver
     may not always have submitted a report offer before the proposal flow
     (e.g. relay scenarios).  Missing-link situations are logged at WARNING,
     and ``link_found`` stays ``False`` so the handler can report the no-op
@@ -96,7 +96,7 @@ def create_accept_case_proposal_received_tree(
 ) -> py_trees.behaviour.Behaviour:
     """Return the received-side BT for processing ``Accept(as_CaseProposal)``.
 
-    Records the case-actor URI in the vendor's ``VultronReportCaseLink``
+    Records the case-actor URI in the receiver's ``VultronReportCaseLink``
     so the subsequent ``Create(VulnerabilityCase)`` bootstrap step can
     validate the sender (CP-06-003, CBT-01-006).
 

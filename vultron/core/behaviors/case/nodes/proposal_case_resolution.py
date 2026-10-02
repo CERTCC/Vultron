@@ -80,7 +80,7 @@ class CreateCaseFromProposalNode(DataLayerActionWithPorts):
     the ``Create(VulnerabilityCase)`` it emits (CP-05-003).
 
     *owner_id* is the actor that sent the ``Create(as_CaseProposal)``, the one
-    ``AddVendorOwnerParticipantNode`` records as CASE_OWNER, so the owner field
+    ``AddOwnerParticipantNode`` records as CASE_OWNER, so the owner field
     and the CASE_OWNER participant cannot name different actors.  The proposal's
     ``attributed_to`` names the same actor (CP-01-010).
 
@@ -155,7 +155,7 @@ class StoreProposalReportNode(DataLayerAction):
     three places, and the visible symptom was a participant who never appeared
     and a replica the reporter never received.
 
-    A shared store hid it: the *vendor* had stored the report when it received
+    A shared store hid it: the *report receiver* had stored the report when it received
     the Offer, and that row was visible to everyone. With per-actor stores the
     CaseActor has its own, and the report only reaches it inline on the proposal
     (CP-01-004) — so it has to be written here.

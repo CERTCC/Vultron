@@ -7,11 +7,10 @@ description: >
 
 # Case Proposal Messages
 
-A *case proposal* is a pre-case bootstrap message flow described in
-[ADR-0023](../../adr/0023-case-proposal-protocol.md). It allows an actor
-(typically a finder or coordinator) to request case initialization from a
-case-actor service **before a case exists**. No case URI is in scope; the
-proposal itself is the shared object.
+A *case proposal* is a pre-case bootstrap message flow described in [ADR-0023](../../adr/0023-case-proposal-protocol.md).
+It allows the **report receiver** — the actor that received the `Offer(VulnerabilityReport)`, whether a Vendor, a Coordinator, or any other role — to request case initialization from a case-actor service **before a case exists**.
+The report receiver is the proposer, and it becomes the case's Case Owner (CP-01-003, CP-09-001).
+No case URI is in scope; the proposal itself is the shared object.
 
 The flow is: `Create(CaseProposal)` → service accepts or rejects
 (`Accept(CaseProposal)` / `Reject(CaseProposal)`). On acceptance the service
@@ -32,11 +31,10 @@ print(render_page("case_proposal", heading=False))
 
 ## Create Case Proposal
 
-When the vendor still holds the `Offer(VulnerabilityReport)` that brought it the report, the proposal carries that Offer whole as `inReplyTo`, alongside the bare `offerId` and `offerActorId` provenance.
+When the report receiver still holds the `Offer(VulnerabilityReport)` that brought it the report, the proposal carries that Offer whole as `inReplyTo`, alongside the bare `offerId` and `offerActorId` provenance.
 That is how a Reporter's proposed embargo terms reach the case-actor (EP-04-004).
 
-- **Protocol role:** An actor submits a `CaseProposal` to a case-actor
-  service requesting that a case be opened for the attached report (CP-04-001).
+- **Protocol role:** The report receiver submits a `CaseProposal` to a case-actor service requesting that a case be opened for the attached report (CP-04-001).
 - **Triggering transition:** none — initiates the proposal sub-protocol.
 - **Wire activity:** `Create(CaseProposal)` sent to the service's inbox.
   Its `actor` is the proposing actor's full profile inline, not a URI, and its `id` is the proposal's `attributedTo`.

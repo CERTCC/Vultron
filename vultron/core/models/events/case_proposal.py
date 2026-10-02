@@ -27,7 +27,7 @@ from vultron.core.models.events.base import MessageSemantics, VultronEvent
 
 
 class CreateCaseProposalReceivedEvent(VultronEvent):
-    """Case-actor received a Create(CaseProposal) from a vendor actor.
+    """Case-actor received a Create(CaseProposal) from a report receiver.
 
     ``object_`` contains a minimal ``CoreObject`` wrapping the
     ``as_CaseProposal`` wire object; the full proposal is accessible via the
@@ -54,9 +54,9 @@ class CreateCaseProposalReceivedEvent(VultronEvent):
 
 
 class AcceptCaseProposalReceivedEvent(VultronEvent):
-    """Vendor received an Accept(CaseProposal) from the case-actor service.
+    """Report receiver received an Accept(CaseProposal) from the case-actor service.
 
-    The case-actor accepted the vendor's proposal; a
+    The case-actor accepted the report receiver's proposal; a
     Create(VulnerabilityCase) will follow separately (CP-05-003).
     ``object_`` contains a minimal ``CoreObject`` wrapping the
     ``as_CaseProposal`` that was accepted.
@@ -73,9 +73,9 @@ class AcceptCaseProposalReceivedEvent(VultronEvent):
 
 
 class RejectCaseProposalReceivedEvent(VultronEvent):
-    """Vendor received a Reject(CaseProposal) from the case-actor service.
+    """Report receiver received a Reject(CaseProposal) from the case-actor service.
 
-    The case-actor declined the vendor's proposal (CP-05-004).
+    The case-actor declined the report receiver's proposal (CP-05-004).
     ``object_`` contains a minimal ``CoreObject`` wrapping the
     ``as_CaseProposal`` that was rejected.
     """

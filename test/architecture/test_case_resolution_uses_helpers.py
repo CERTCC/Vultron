@@ -154,7 +154,7 @@ KNOWN_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         ),
         (
             f"{_NODES}/proposal_participants.py",
-            "AddVendorOwnerParticipantNode.update",
+            "AddOwnerParticipantNode.update",
         ),
         (
             f"{_NODES}/proposal_reporter.py",
