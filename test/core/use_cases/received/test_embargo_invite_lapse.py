@@ -760,6 +760,7 @@ class TestInviteeIsTheAddressee:
             event,
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert result.disposition is HandlerDisposition.APPLIED
