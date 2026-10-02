@@ -35,9 +35,14 @@ See: GitHub issue #2982.
 
 import importlib
 import pkgutil
+from typing import ClassVar
+
+from pydantic import Field
 
 import vultron.wire.as2.vocab as _vocab
+from vultron.wire.as2.enums import as_ObjectType
 from vultron.wire.as2.vocab.base.base import as_Base
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.base.registry import (
     VOCABULARY,
     WIRE_TYPE_MAP,
@@ -162,21 +167,59 @@ def test_every_declared_wire_type_resolves() -> None:
     )
 
 
+def _registered_aliases(type_map: dict[str, type]) -> dict[str, str]:
+    """The keys of *type_map* held by a class that declares itself an alias."""
+    return {
+        key: cls.__name__
+        for key, cls in type_map.items()
+        if is_wire_type_alias(cls)
+    }
+
+
 def test_declared_aliases_do_not_own_a_registry_key() -> None:
     """A class flagged an alias must not appear in ``WIRE_TYPE_MAP`` at all."""
     _force_full_registration()
 
-    registered_aliases = {
-        key: cls.__name__
-        for key, cls in WIRE_TYPE_MAP.items()
-        if is_wire_type_alias(cls)
-    }
+    registered_aliases = _registered_aliases(WIRE_TYPE_MAP)
 
     assert not registered_aliases, (
         "A class declaring `_wire_type_alias = True` shares another class's "
         "wire 'type' value and must not hold a registry key of its own "
         "{key: class}: " + repr(registered_aliases)
     )
+
+
+def test_an_alias_declaration_keeps_the_class_out_of_the_registry() -> None:
+    """Self-test: the alias mechanism works and the guard above can fail.
+
+    No production class declares ``_wire_type_alias`` since #4045 gave the
+    case stub its own ``type``, so the guard above would pass whatever the
+    mechanism did.  A throwaway alias proves both halves: declaring the flag
+    keeps the class out of ``WIRE_TYPE_MAP``, and a map that did hold it is
+    flagged.
+    """
+    _force_full_registration()
+    snapshot = dict(WIRE_TYPE_MAP)
+    try:
+
+        class _ThrowawayNoteAlias(as_Note):
+            _wire_type_alias: ClassVar[bool] = True
+            type_: as_ObjectType = Field(
+                default=as_ObjectType.NOTE,
+                validation_alias="type",
+                serialization_alias="type",
+            )
+
+        assert declares_registrable_type(_ThrowawayNoteAlias)
+        assert is_wire_type_alias(_ThrowawayNoteAlias)
+        assert WIRE_TYPE_MAP["Note"] is snapshot["Note"]
+        assert _ThrowawayNoteAlias not in WIRE_TYPE_MAP.values()
+        assert _registered_aliases({"Note": _ThrowawayNoteAlias}) == {
+            "Note": "_ThrowawayNoteAlias"
+        }
+    finally:
+        WIRE_TYPE_MAP.clear()
+        WIRE_TYPE_MAP.update(snapshot)
 
 
 def _registrable_wire_classes() -> list[type[as_Base]]:

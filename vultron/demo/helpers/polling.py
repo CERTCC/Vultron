@@ -39,6 +39,7 @@ from vultron.demo.utils import (
     demo_check,
     logfmt,
 )
+from vultron.enums.object_types import VultronObjectType
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -764,7 +765,8 @@ def _is_case_invite_for(obj_data: dict, case_id: str, invitee_id: str) -> bool:
     if isinstance(target_raw, dict):
         target_case_id = (
             target_raw.get("caseId")
-            if target_raw.get("type") == "VulnerabilityCaseStub"
+            if target_raw.get("type")
+            == VultronObjectType.VULNERABILITY_CASE_STUB.value
             else target_raw.get("id")
         )
     else:
@@ -832,7 +834,7 @@ def find_case_invite_for_actor(
     timeout_seconds: float = 15.0,
     poll_interval: float = 0.5,
 ) -> str:
-    """Poll until the CaseActor's Invite(Actor, Case) for *invitee_id* arrives.
+    """Poll until the CaseActor's Invite(Actor, CaseStub) for *invitee_id* arrives.
 
     The CASE_MANAGER emits every case Invite — after the Case Owner accepts a
     recommendation (ADR-0026) and on the owner's direct invite alike

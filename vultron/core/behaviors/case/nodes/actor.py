@@ -63,7 +63,7 @@ from vultron.enums.roles import CVDRole, serialize_roles
 
 
 class EmitInviteActorToCaseNode(_EmitSingleActivityBase):
-    """Create Invite(Actor, Case), commit it, and queue it in this actor's outbox.
+    """Create Invite(Actor, CaseStub), commit it, and queue it in this actor's outbox.
 
     Runs only in a CASE_MANAGER-gated received tree, so ``self.actor_id`` is
     the CASE_MANAGER and the store is its own (BT-05-006, CM-24-004).  The
@@ -145,12 +145,12 @@ class EmitInviteActorToCaseNode(_EmitSingleActivityBase):
         return None
 
     def _call_factory(self) -> tuple[str, str]:
-        """Build Invite(Actor, Case) activity and commit the ledger correlation marker."""
+        """Build Invite(Actor, CaseStub) activity and commit the ledger correlation marker."""
         roles = self._read_suggested_roles()
         if roles is not None and not roles:
             raise ValueError(
                 f"suggested_roles for actor '{self.invitee_id}' is empty"
-                " — cannot emit Invite(Actor, Case) without at least one role"
+                " — cannot emit Invite(Actor, CaseStub) without at least one role"
             )
         # CM-17-002: pass the full case object so the adapter+factory can
         # project it to an enriched stub (with end_time) when em_state==ACTIVE.
@@ -189,7 +189,7 @@ class EmitInviteActorToCaseNode(_EmitSingleActivityBase):
 
     def _on_success(self, activity_id: str, activity_blob: str) -> None:
         self.logger.info(
-            "Actor '%s' emitted Invite(Actor, Case) to '%s' for case '%s'",
+            "Actor '%s' emitted Invite(Actor, CaseStub) to '%s' for case '%s'",
             self.actor_id,
             self.invitee_id,
             self.case_id,

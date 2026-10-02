@@ -47,6 +47,9 @@ from vultron.wire.as2.factories import (
     rm_reject_invite_to_case_activity,
     update_case_activity,
 )
+from vultron.wire.as2.factories.case import (
+    validate_held_case_invite,
+)
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Add,
@@ -469,12 +472,16 @@ def test_reject_ownership_transfer_plain_offer_raises(sample_report):
 
 @pytest.mark.spec("AF-01-002")
 def test_rm_invite_to_case_returns_invite(sample_actor):
-    result = rm_invite_to_case_activity(invitee=sample_actor, actor=_ACTOR_URI)
+    result = rm_invite_to_case_activity(
+        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+    )
     assert isinstance(result, as_Invite)
 
 
 def test_rm_invite_to_case_object_is_actor(sample_actor):
-    result = rm_invite_to_case_activity(invitee=sample_actor, actor=_ACTOR_URI)
+    result = rm_invite_to_case_activity(
+        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+    )
     assert result.object_ == sample_actor
 
 
@@ -519,7 +526,8 @@ def test_rm_invite_stub_carries_no_case_content(sample_actor):
 def test_rm_invite_to_case_invalid_raises():
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         rm_invite_to_case_activity(
-            invitee="not-an-actor"  # type: ignore[arg-type]
+            invitee="not-an-actor",  # type: ignore[arg-type]
+            target=_CASE_URI,
         )
     assert exc_info.value.__cause__ is not None
 
@@ -531,27 +539,35 @@ def test_rm_invite_to_case_invalid_raises():
 
 @pytest.mark.spec("AF-01-002")
 def test_rm_accept_invite_to_case_returns_accept(sample_actor):
-    invite = rm_invite_to_case_activity(invitee=sample_actor, actor=_ACTOR_URI)
+    invite = rm_invite_to_case_activity(
+        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+    )
     result = rm_accept_invite_to_case_activity(invite=invite, actor=_ACTOR_URI)
     assert isinstance(result, as_Accept)
 
 
 def test_rm_accept_invite_to_case_object_is_invite(sample_actor):
-    invite = rm_invite_to_case_activity(invitee=sample_actor, actor=_ACTOR_URI)
+    invite = rm_invite_to_case_activity(
+        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+    )
     result = rm_accept_invite_to_case_activity(invite=invite, actor=_ACTOR_URI)
     assert result.object_ == invite
 
 
 def test_rm_accept_invite_to_case_in_reply_to_auto_set(sample_actor):
     """Model validator auto-populates in_reply_to from invite.id_."""
-    invite = rm_invite_to_case_activity(invitee=sample_actor, actor=_ACTOR_URI)
+    invite = rm_invite_to_case_activity(
+        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+    )
     result = rm_accept_invite_to_case_activity(invite=invite, actor=_ACTOR_URI)
     assert result.in_reply_to == invite.id_
 
 
 def test_rm_accept_invite_to_case_explicit_in_reply_to_preserved(sample_actor):
     """Explicitly provided in_reply_to is not overwritten."""
-    invite = rm_invite_to_case_activity(invitee=sample_actor, actor=_ACTOR_URI)
+    invite = rm_invite_to_case_activity(
+        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+    )
     explicit_id = "https://example.org/activities/explicit-invite-id"
     result = rm_accept_invite_to_case_activity(
         invite=invite, in_reply_to=explicit_id, actor=_ACTOR_URI
@@ -628,17 +644,7 @@ def _as_plain_invite(activity: BaseModel | None) -> as_Invite:
     data = json.loads(
         activity.model_dump_json(by_alias=True, serialize_as_any=True)
     )
-    held = as_Invite.model_validate(data)
-    # As the adapter does: the generic ``as_Object`` target slot keeps none of
-    # the stub's own fields, so the stub is validated as itself.
-    target = data.get("target")
-    if (
-        isinstance(target, dict)
-        and target.get("type") == "VulnerabilityCaseStub"
-    ):
-        held = held.model_copy(
-            update={"target": as_VulnerabilityCaseStub.model_validate(target)}
-        )
+    held = validate_held_case_invite(data)
     return held
 
 
@@ -649,27 +655,35 @@ def _as_plain_invite(activity: BaseModel | None) -> as_Invite:
 
 @pytest.mark.spec("AF-01-002")
 def test_rm_reject_invite_to_case_returns_reject(sample_actor):
-    invite = rm_invite_to_case_activity(invitee=sample_actor, actor=_ACTOR_URI)
+    invite = rm_invite_to_case_activity(
+        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+    )
     result = rm_reject_invite_to_case_activity(invite=invite, actor=_ACTOR_URI)
     assert isinstance(result, as_Reject)
 
 
 def test_rm_reject_invite_to_case_object_is_invite(sample_actor):
-    invite = rm_invite_to_case_activity(invitee=sample_actor, actor=_ACTOR_URI)
+    invite = rm_invite_to_case_activity(
+        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+    )
     result = rm_reject_invite_to_case_activity(invite=invite, actor=_ACTOR_URI)
     assert result.object_ == invite
 
 
 def test_rm_reject_invite_to_case_in_reply_to_auto_set(sample_actor):
     """Model validator auto-populates in_reply_to from invite.id_."""
-    invite = rm_invite_to_case_activity(invitee=sample_actor, actor=_ACTOR_URI)
+    invite = rm_invite_to_case_activity(
+        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+    )
     result = rm_reject_invite_to_case_activity(invite=invite, actor=_ACTOR_URI)
     assert result.in_reply_to == invite.id_
 
 
 def test_rm_reject_invite_to_case_explicit_in_reply_to_preserved(sample_actor):
     """Explicitly provided in_reply_to is not overwritten."""
-    invite = rm_invite_to_case_activity(invitee=sample_actor, actor=_ACTOR_URI)
+    invite = rm_invite_to_case_activity(
+        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+    )
     explicit_id = "https://example.org/activities/explicit-invite-id"
     result = rm_reject_invite_to_case_activity(
         invite=invite, in_reply_to=explicit_id, actor=_ACTOR_URI

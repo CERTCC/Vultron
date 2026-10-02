@@ -34,6 +34,7 @@ from vultron.core.models.dimensions import (
     EmDimension,
 )
 from vultron.core.states.em import EM
+from vultron.enums.object_types import VultronObjectType
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.enums import as_TransitiveActivityType
 from vultron.wire.as2.factories._context import (
@@ -685,7 +686,7 @@ def reject_case_ownership_transfer_activity(
 
 def rm_invite_to_case_activity(
     invitee: as_Actor | str,
-    target: Any = None,
+    target: Any,
     roles: list[str] | None = None,
     embargo_obj: Any = None,
     **kwargs,
@@ -743,6 +744,30 @@ def rm_invite_to_case_activity(
         raise VultronActivityConstructionError(
             "rm_invite_to_case_activity: invalid arguments"
         ) from exc
+
+
+def validate_held_case_invite(data: dict[str, Any]) -> as_Invite:
+    """Validate a held Invite's JSON form into ``as_Invite``, stub and all.
+
+    ``as_Invite.target`` is a generic ``as_Object`` slot, which keeps none of
+    a stub's own fields, so a target whose ``type`` is ``VulnerabilityCaseStub``
+    is validated as the stub itself (CM-11-013).  Any other target is kept as
+    the generic slot holds it, for :func:`_as_case_invite` to refuse.
+
+    Raises:
+        pydantic.ValidationError: when *data* is not an Invite, or its stub
+            does not validate (for example, it has no ``caseId``).
+    """
+    invite = as_Invite.model_validate(data)
+    stub = data.get("target")
+    if (
+        isinstance(stub, dict)
+        and stub.get("type") == VultronObjectType.VULNERABILITY_CASE_STUB.value
+    ):
+        invite = invite.model_copy(
+            update={"target": as_VulnerabilityCaseStub.model_validate(stub)}
+        )
+    return invite
 
 
 def _as_case_invite(invite: as_Invite) -> _RmInviteToCaseActivity:

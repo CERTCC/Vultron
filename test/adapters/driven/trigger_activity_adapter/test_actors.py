@@ -306,31 +306,47 @@ class TestAcceptCaseInvite:
                 invite_id="urn:uuid:held-oddly", actor=_INVITEE
             )
 
+    @pytest.mark.spec("CM-11-013")
     @pytest.mark.parametrize(
-        "held_target",
-        [{"type": "VulnerabilityCase"}, {"type": "VulnerabilityCaseStub"}],
-        ids=["case-without-id", "stub-without-case-id"],
+        ("held_target", "error", "reason"),
+        [
+            (
+                {"type": "VulnerabilityCase", "id": _CASE_ID},
+                VultronActivityConstructionError,
+                "not a case Invite",
+            ),
+            (_CASE_ID, VultronActivityConstructionError, "not a case Invite"),
+            (
+                {"type": "VulnerabilityCaseStub"},
+                VultronValidationError,
+                "does not validate as an Invite",
+            ),
+        ],
+        ids=["full-case-target", "uri-target", "stub-without-case-id"],
     )
-    def test_a_held_invite_that_does_not_name_its_case_is_refused(
-        self, adapter, monkeypatch, held_target
+    def test_a_held_invite_that_does_not_carry_a_valid_stub_is_refused(
+        self, adapter, monkeypatch, held_target, error, reason
     ):
+        """Only a stub Invite is answered here, and a stub is recognised by
+        its ``type`` alone (CM-11-013).  A stub without ``caseId`` fails its
+        own validation, so the reply never has to guess the case."""
         from pydantic import BaseModel
 
         from vultron.adapters.driven.trigger_activity_adapter import actors
 
         class _Held(BaseModel):
+            type: str = "Invite"
             actor: str = _ACTOR
-            target: dict[str, str] = held_target
+            object: dict[str, str] = {"type": "Organization", "id": _INVITEE}
+            target: dict[str, str] | str = held_target
 
         monkeypatch.setattr(
             actors, "read_received_activity", lambda *_args: _Held()
         )
 
-        with pytest.raises(
-            VultronValidationError, match="does not validate as an Invite"
-        ):
+        with pytest.raises(error, match=reason):
             adapter.accept_case_invite(
-                invite_id="urn:uuid:held-without-case-id", actor=_INVITEE
+                invite_id="urn:uuid:held-without-a-stub", actor=_INVITEE
             )
 
     def test_a_held_record_that_does_not_validate_as_an_invite_is_refused(

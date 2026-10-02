@@ -65,7 +65,7 @@ def create_invite_actor_to_case_received_tree(
     invitee_id: str,
     inviter_id: str,
 ) -> py_trees.composites.Sequence:
-    """Received-side BT for ``Invite(Actor, Case)`` — one tree for every receiver.
+    """Received-side BT for ``Invite(Actor, CaseStub)`` — one tree for every receiver.
 
     The CASE_MANAGER emits the Invite from its own store and commits it in
     the emitting tree; it never receives its own Invite (CM-17-006,

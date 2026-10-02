@@ -29,12 +29,15 @@ class CaseStubReference(CoreObject):
     """A reference to a case stub, naming the case it stands for.
 
     ``id_`` and ``type_`` are the stub's own (``<case-id>/stub``,
-    ``VulnerabilityCaseStub``); :attr:`case_id` is the case.  The class keeps
-    ``type_`` abstract, so it registers in no type map: it is an in-process
-    projection the extractor builds, like the bare :class:`CoreObject` it wraps
-    an otherwise-unmodelled object in.  It is never stored as a record of its
-    own: it travels only inline, inside the activity that carries it, and
-    persistence keeps it inline there (``_KEEP_INLINE_NESTED_TYPES``).
+    ``VulnerabilityCaseStub``); :attr:`case_id` is the case.  The class
+    declares no ``Literal`` ``type_``, so ``CORE_TYPE_MAP`` keys it on its
+    class name, ``CaseStubReference``, which no wire or stored ``type``
+    carries; a persisted ``VulnerabilityCaseStub`` resolves to the wire class.
+    It is an in-process projection the extractor builds, like the bare
+    :class:`CoreObject` it wraps an otherwise-unmodelled object in.  It is
+    never stored as a record of its own: it travels only inline, inside the
+    activity that carries it, and persistence keeps it inline there
+    (``_KEEP_INLINE_NESTED_TYPES``).
     """
 
     case_id: NonEmptyString

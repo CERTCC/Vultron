@@ -459,7 +459,7 @@ def _phase_c2_suggests_vendor(
             )
     logger.info("C1 sent Accept(Offer(CaseParticipant)) to CaseActor")
 
-    # CaseActor receives Accept → emits Invite(Actor, Case) to Vendor.  Poll
+    # CaseActor receives Accept → emits Invite(Actor, CaseStub) to Vendor.  Poll
     # Vendor's DataLayer for the arriving Invite, then puppeteer Vendor's accept.
     # The invite is the causal precondition for the accept, so this is a
     # demo_gate with the accept nested inside it — a timeout skips the accept

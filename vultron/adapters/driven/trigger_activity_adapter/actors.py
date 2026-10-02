@@ -32,7 +32,6 @@ from vultron.core.models.ownership_transfer_offer_record import (
 )
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import read_received_activity
-from vultron.enums.object_types import VultronObjectType
 from vultron.enums.roles import CVDRole
 from vultron.errors import (
     VultronAlreadyExistsError,
@@ -57,6 +56,7 @@ from vultron.wire.as2.factories.case import (
     offer_case_participant_role_activity,
     reject_case_participant_role_activity,
     rm_reject_invite_to_case_activity,
+    validate_held_case_invite,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Invite,
@@ -67,7 +67,6 @@ from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-    as_VulnerabilityCaseStub,
 )
 
 from ._base import _case_for_wire, _seal, _to_wire
@@ -91,9 +90,6 @@ def _active_embargo_of(
     return active_embargo
 
 
-_STUB_TYPE = VultronObjectType.VULNERABILITY_CASE_STUB.value
-
-
 def _stored_case_invite(
     dl: CaseOutboxPersistence, invite_id: str
 ) -> as_Invite:
@@ -114,7 +110,7 @@ def _stored_case_invite(
     Raises:
         VultronNotFoundError: when no activity with *invite_id* was received.
         VultronValidationError: when the stored record is not a model, or it
-            does not validate as an Invite.
+            does not validate as an Invite (a stub without ``caseId`` included).
     """
     held = read_received_activity(dl, invite_id, "RmInviteToCaseActivity")
     if not isinstance(held, BaseModel):
@@ -130,16 +126,7 @@ def _stored_case_invite(
         invite.model_dump_json(by_alias=True, serialize_as_any=True)
     )
     try:
-        validated = as_Invite.model_validate(data)
-        # ``as_Invite.target`` is a generic ``as_Object`` slot, which keeps
-        # none of a stub's own fields, so the stub is validated as itself.
-        stub = data.get("target")
-        if isinstance(stub, dict) and stub.get("type") == _STUB_TYPE:
-            validated = validated.model_copy(
-                update={
-                    "target": as_VulnerabilityCaseStub.model_validate(stub)
-                }
-            )
+        validated = validate_held_case_invite(data)
     except ValidationError as exc:
         raise VultronValidationError(
             f"invite '{invite_id}' does not validate as an Invite"
@@ -165,7 +152,7 @@ class _ActorsMixin:
         roles: list[str] | None = None,
         target: VulnerabilityCase | None = None,
     ) -> tuple[str, str]:
-        """Create and persist an ``Invite(Actor, Case)`` activity.
+        """Create and persist an ``Invite(Actor, CaseStub)`` activity.
 
         ``actor`` MUST be the CASE_MANAGER's ID (PCR-08-007); ``attributed_to``
         MAY carry the case owner's ID for attribution.  The Invite carries no

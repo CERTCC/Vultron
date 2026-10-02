@@ -62,14 +62,10 @@ Two paths bring an actor into a case, and they differ in who initiates:
 
 - **Direct invitation.** The CASE_MANAGER sends `Invite(Actor, target=VulnerabilityCaseStub)` to the actor.
   The actor answers `Accept(Invite)` or `Reject(Invite)`.
-  `Accept(Invite)` admits the actor at RM Received and, where an embargo is in
-  force, records its consent to those terms.
-- **Suggested actor.** An existing participant proposes a third party — "this
-  vendor is also affected" — by sending `Offer(CaseParticipant)` to the
-  CASE_MANAGER. The proposal is a recommendation, not an invitation: the Case
-  Owner decides whether to act on it, and if it does, the CASE_MANAGER then sends
-  the `Invite` above. An implementation MUST NOT treat
-  `Offer(CaseParticipant)` as an invitation to the proposed actor.
+  `Accept(Invite)` admits the actor at RM Received and, where an embargo is in force, records its consent to those terms.
+- **Suggested actor.** An existing participant proposes a third party — "this vendor is also affected" — by sending `Offer(CaseParticipant)` to the CASE_MANAGER.
+  The proposal is a recommendation, not an invitation: the Case Owner decides whether to act on it, and if it does, the CASE_MANAGER then sends the `Invite` above.
+  An implementation MUST NOT treat `Offer(CaseParticipant)` as an invitation to the proposed actor.
 
 Both paths converge on `Accept(Invite)`. The suggested-actor path adds one
 round-trip, because the Case Owner's decision sits between the proposal and the

@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 
 
 class InviteActorToCaseReceivedUseCase:
-    """Handle an incoming ``Invite(Actor, Case)`` activity.
+    """Handle an incoming ``Invite(Actor, CaseStub)`` activity.
 
     One path for every receiver (CLP-10-005, CLP-10-013): the use case builds
     ``InviteActorToCaseReceivedBT`` and runs it once as the receiving actor.

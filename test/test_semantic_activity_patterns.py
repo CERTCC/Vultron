@@ -21,7 +21,10 @@ from vultron.wire.as2.factories import (
     rm_invite_to_case_activity,
 )
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
-from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Accept
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Accept,
+    as_Invite,
+)
 from vultron.wire.as2.vocab.base.objects.actors import (
     as_Actor,
     as_Organization,
@@ -325,6 +328,44 @@ def _make_case() -> as_VulnerabilityCaseStub:
 
 
 @pytest.mark.parametrize(
+    ("invitee", "target"),
+    [
+        (as_Actor(id_=ACTOR_URI), CASE_URI),
+        (
+            as_Actor(id_=ACTOR_URI),
+            as_VulnerabilityCase(id_=CASE_URI, name="Full case"),
+        ),
+        (ACTOR_URI, as_VulnerabilityCaseStub(case_id=CASE_URI)),
+    ],
+    ids=["uri-target", "full-case-target", "bare-uri-invitee"],
+)
+@pytest.mark.spec("CM-11-013")
+@pytest.mark.spec("VAM-04-004")
+@pytest.mark.spec("SE-08-004")
+def test_only_a_stub_invite_matches_the_stub_invite_pattern(invitee, target):
+    """The stub Invite pattern is strict (AC-2 of #4045).
+
+    A stub is recognised by its target's ``type`` alone, so neither a case
+    named by URI nor an inline full case matches it.  Strictness covers
+    ``object`` too: an invitee left as a bare URI after rehydration cannot be
+    confirmed as an actor, so the Invite matches no stub pattern either.
+    """
+    invite = as_Invite(
+        id_="https://example.org/invitations/not-a-stub",
+        actor=OWNER_URI,
+        object_=invitee,
+        target=target,
+    )
+    assert find_matching_semantics(invite) != (
+        MessageSemantics.INVITE_ACTOR_TO_CASE
+    )
+    reply = as_Accept(actor=ACTOR_URI, object_=invite)
+    assert find_matching_semantics(reply) != (
+        MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE
+    )
+
+
+@pytest.mark.parametrize(
     "actor_obj",
     [
         as_Actor(id_=ACTOR_URI),
@@ -448,6 +489,17 @@ def test_vulnerability_case_stub_serialises_minimally():
     assert dumped.get("id") == "https://example.org/cases/case-stub-001/stub"
     assert dumped.get("type") == "VulnerabilityCaseStub"
     assert dumped.get("caseId") == "https://example.org/cases/case-stub-001"
+
+
+@pytest.mark.spec("CM-11-013")
+def test_a_stub_that_claims_another_type_is_refused():
+    """The type alone identifies a stub, so the stub class pins it."""
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        as_VulnerabilityCaseStub.model_validate(
+            {"type": "VulnerabilityCase", "caseId": CASE_URI}
+        )
 
 
 @pytest.mark.spec("VM-07-001")
