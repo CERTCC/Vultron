@@ -511,13 +511,14 @@ subtree was not until #3393: `InitializeDefaultEmbargoNode`'s creation arm
 re-ran on the existing case, minting an orphan `EmbargoEvent` on the default
 path and registering the losing candidate as a *second* pending revision on
 the contested one (EP-04-003) — one revision per delivery of the same report.
-`CaseEmbargoAlreadyInitializedNode` is now the subtree's first arm: an active
-embargo attached means initialization already ran. The vendor stops feeding
-the duplicate too — `CheckProposalAlreadySentForReport` treats an answered
-`ReportCaseLink` (case linked) as "already proposed", so a re-delivered Offer
-does not re-propose. What the case-actor *answers* a same-report duplicate
-with — a fresh `Accept`, as this section describes, or the stored original
-CP-05-006 now requires — is open in #3977.
+`CaseEmbargoAlreadyInitializedNode` is now the subtree's first arm: an EM
+state other than `NONE` means initialization already ran (EP-04-012, #4019;
+the active-embargo reference it first read is cleared by termination). The
+vendor stops feeding the duplicate too — `CheckProposalAlreadySentForReport`
+treats an answered `ReportCaseLink` (case linked) as "already proposed", so a
+re-delivered Offer does not re-propose. What the case-actor *answers* a
+same-report duplicate with — a fresh `Accept`, as this section describes, or
+the stored original CP-05-006 now requires — is open in #3977.
 
 **What "duplicate" means here.** An exact redelivery of the same proposal —
 at-least-once delivery, or the vendor asking again because the `Accept` was lost

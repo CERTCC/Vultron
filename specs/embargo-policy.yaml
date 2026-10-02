@@ -605,12 +605,16 @@ groups:
       the whole creation arm is what leaves the proposal's terms unreconciled: the
       shortest-wins comparison and the pending-revision registration both live inside it.
     verification: >-
-      A strict `xfail` marker test in `test/core/behaviors/case/nodes/test_embargo_resolution.py`
-      runs `InitializeDefaultEmbargoNode` once, terminates the embargo through
+      `test/core/behaviors/case/nodes/test_embargo_resolution.py` runs
+      `InitializeDefaultEmbargoNode` once, terminates the embargo through
       `EmbargoLifecycle`, runs the subtree again and asserts SUCCESS, EM still `EXITED`, no
-      `active_embargo`, and no additional `EmbargoEvent` stored; it names its tracking issue
-      until the guard reads EM state. The implementation's own tests add the half-built
-      case (`EM.NONE`, no embargo) still completing.
+      `active_embargo`, and no additional `EmbargoEvent` stored; the same module covers
+      the guard's SUCCESS for every state but `NONE`, the half-built case (`EM.NONE`, no
+      embargo) still completing, an `ACTIVE` or `REVISE` rerun storing no event and
+      registering no revision, and an unreadable EM state raising. A tree-level test in
+      `test/core/behaviors/case/test_case_proposal_received_tree.py` redelivers the same
+      `Create(CaseProposal)` after exit and asserts it is answered with the case's embargo
+      state and events unchanged.
     relationships:
     - rel_type: refines
       spec_id: EP-04-002

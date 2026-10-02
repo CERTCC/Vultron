@@ -18,15 +18,20 @@
 from unittest.mock import MagicMock, PropertyMock
 
 import py_trees
+import pytest
 
 from test.core.behaviors.embargo.nodes.conftest import (
     make_case_and_embargo,
     setup_blackboard,
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.core.behaviors.embargo.nodes.em_state import ReadEmStateNode
+from vultron.core.behaviors.embargo.nodes.em_state import (
+    ReadEmStateNode,
+    read_case_em_state,
+)
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.states.em import EM
+from vultron.errors import BtNodePreconditionError
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )
@@ -160,3 +165,50 @@ class TestReadEmStateNode:
 
         assert status == py_trees.common.Status.FAILURE
         assert "error" in result_out
+
+
+class TestReadCaseEmState:
+    """``read_case_em_state`` returns the EM state or raises (BT-HELPER-01)."""
+
+    @staticmethod
+    def _dl() -> SqliteDataLayer:
+        return SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+
+    def test_returns_em_state_and_fills_result_out(self):
+        dl = self._dl()
+        case, _ = make_case_and_embargo("rces1", em_state=EM.REVISE)
+        dl.create(case)
+
+        result_out: dict[str, object] = {}
+        assert read_case_em_state(dl, case.id_, result_out) == EM.REVISE
+        assert result_out["em_before"] == EM.REVISE
+
+    def test_result_out_is_optional(self):
+        dl = self._dl()
+        case, _ = make_case_and_embargo("rces2", em_state=EM.EXITED)
+        dl.create(case)
+
+        assert read_case_em_state(dl, case.id_) == EM.EXITED
+
+    def test_missing_case_raises_and_records_error(self):
+        dl = self._dl()
+        absent = "https://example.org/cases/absent"
+        result_out: dict[str, object] = {}
+
+        with pytest.raises(BtNodePreconditionError, match=absent):
+            read_case_em_state(dl, absent, result_out)
+        assert "error" in result_out
+
+    def test_stale_em_before_does_not_mask_a_failed_read(self):
+        """A shared dict still holding an earlier tick's state must not turn
+        a failed read into a success."""
+        dl = self._dl()
+        result_out: dict[str, object] = {"em_before": EM.ACTIVE}
+
+        with pytest.raises(BtNodePreconditionError):
+            read_case_em_state(
+                dl, "https://example.org/cases/absent", result_out
+            )
