@@ -21,6 +21,7 @@ related_notes:
   - notes/sync-ledger-replication.md
   - notes/case-joining.md
   - notes/bt-integration.md
+  - notes/domain-validation.md
 relevant_packages:
   - transitions
   - vultron/bt/embargo_management
@@ -463,9 +464,10 @@ Before the relay, no trigger set `end_time`, so every receiving store fell to
 the EP-07-001 fallback and derived its own deadline from its own `ActorConfig` —
 two replicas could disagree about when one invitation closed.
 `EmbargoLifecycle.detect_and_apply_expiry()` reads the record of the actor whose
-lapse it is evaluating. If the write and the read name different participants,
-enforcement cannot fire and nothing raises: the invitee has no deadline to lapse
-against, and the record that *did* receive one is not the one being checked.
+expiry it is evaluating. If the write and the read name different participants,
+enforcement cannot fire and nothing raises: the invitee has no deadline to
+expire against, and the record that *did* receive one is not the one being
+checked.
 
 The failure is silent in both directions, which is why it survived for a
 release: the participant lookup on that path was lenient by design and the PEC

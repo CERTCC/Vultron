@@ -381,9 +381,9 @@ per other participant, its `Accept`/`Reject` is addressed to nobody, and its
 `notes/embargo-lifecycle.md` § "A trigger writes shared EM state only as the
 CASE_MANAGER"). The manager's commit is also the acknowledgement the
 behavioural specs call EK (EP-09-009).
-Only the CASE_MANAGER evaluates invite lapse; it commits the lapse entry behind
-the role gate, and a replica learns a lapse from that entry and never computes
-one (CM-28-014).
+Only the CASE_MANAGER evaluates invite expiry; it commits the expiry entry
+behind the role gate, and a replica learns an expiry from that entry and never
+computes one (CM-28-014, ADR-0117).
 
 The rule this pins down, because it kept getting mixed up: **an
 `Announce(CaseLedgerEntry)` is a channel for case state, not a protocol

@@ -191,7 +191,7 @@ class _ProposalOperationsMixin(_PecActivationMixin):
             em_after=em_after,
             case_changed=case_mutated,
             case_embargo_changed=False,
-            pec_reset=False,
+            pec_exited=False,
             participant_changes=[],
         )
 
@@ -290,7 +290,7 @@ class _ProposalOperationsMixin(_PecActivationMixin):
             em_after=em_after,
             case_changed=case_mutated,
             case_embargo_changed=False,
-            pec_reset=False,
+            pec_exited=False,
             participant_changes=[],
         )
 

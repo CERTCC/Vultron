@@ -248,12 +248,19 @@ def test_a_replica_follows_a_revision_from_proposal_to_activation():
 @pytest.mark.spec("EP-09-007")
 @pytest.mark.spec("SYNC-12-001")
 def test_a_ledger_only_replica_resolves_two_successive_revisions():
-    """Proposal A, accept A, proposal B, accept B: both resolve in the replica."""
+    """Proposal A, accept A, proposal B, accept B: both resolve in the replica.
+
+    Each revision is shorter than the terms it replaces, so every signatory
+    carries over (ADR-0093) and the bystander's ledger stream is never paused.
+    A longer revision lapses the bystander, which never answered its Invite,
+    and the content gate then pauses its stream (CM-10-005; see
+    ``test_a_lapsed_bystander_gets_its_invite_but_no_ledger_entry``).
+    """
     net = _Network("https://example.org/cases/relay-replay-twice")
 
-    first = _propose(net, "first", 90)
+    first = _propose(net, "first", 30)
     _owner_answers(net)
-    second = _propose(net, "second", 120)
+    second = _propose(net, "second", 20)
     _owner_answers(net)
     _replay_to_bystander(net)
 
@@ -645,6 +652,28 @@ def _manager_ports(net: _Network) -> dict[str, Any]:
     }
 
 
+def _managing_owner_network(case_id: str, **kwargs: Any) -> _Network:
+    """A network whose case owner is the CASE_MANAGER and has an actor."""
+    net = _Network(case_id, owner=MANAGER, **kwargs)
+    net.stores[MANAGER].create(as_Service(id_=MANAGER, name="Coordinator"))
+    return net
+
+
+def _manager_revises(net: _Network, *, days: int = 90) -> str:
+    """The managing owner proposes a revision by trigger; return its id."""
+    SvcProposeEmbargoRevisionUseCase(
+        net.stores[MANAGER],
+        ProposeEmbargoRevisionTriggerRequest(
+            actor_id=MANAGER,
+            case_id=net.case_id,
+            end_time=days_from_now_utc(days),
+        ),
+        **_manager_ports(net),
+    ).execute()
+    (revision_id,) = net.case(MANAGER).proposed_embargo_ids
+    return revision_id
+
+
 @pytest.mark.spec("EP-09-007")
 @pytest.mark.spec("EP-09-008")
 @pytest.mark.spec("RSH-08-004")
@@ -654,22 +683,14 @@ def test_a_replica_follows_the_managing_owners_revision_by_trigger():
 
     Its revision and its own acceptance are committed as ledger entries, so a
     replica that receives nothing but the ``Announce(CaseLedgerEntry)``
-    fan-out converges ``ACTIVE → REVISE → ACTIVE`` with it.
+    fan-out converges ``ACTIVE → REVISE → ACTIVE`` with it.  The revision is
+    shorter than the initial terms, so the bystander stays a signatory
+    (ADR-0093) and its stream is not paused (CM-10-005).
     """
-    net = _Network("https://example.org/cases/manager-owner", owner=MANAGER)
+    net = _managing_owner_network("https://example.org/cases/manager-owner")
     dl = net.stores[MANAGER]
-    dl.create(as_Service(id_=MANAGER, name="Coordinator"))
 
-    SvcProposeEmbargoRevisionUseCase(
-        dl,
-        ProposeEmbargoRevisionTriggerRequest(
-            actor_id=MANAGER,
-            case_id=net.case_id,
-            end_time=days_from_now_utc(90),
-        ),
-        **_manager_ports(net),
-    ).execute()
-    (revision_id,) = net.case(MANAGER).proposed_embargo_ids
+    revision_id = _manager_revises(net, days=30)
     # The manager mails itself nothing (CLP-10-001); each participant gets
     # its relayed Invite (EP-09-002).
     assert net.queued(MANAGER, to=MANAGER) == []
@@ -697,26 +718,53 @@ def test_a_replica_follows_the_managing_owners_revision_by_trigger():
         assert case.proposed_embargo_ids == [], actor_id
 
 
-def _managing_owner_network(case_id: str, **kwargs: Any) -> _Network:
-    """A network whose case owner is the CASE_MANAGER and has an actor."""
-    net = _Network(case_id, owner=MANAGER, **kwargs)
-    net.stores[MANAGER].create(as_Service(id_=MANAGER, name="Coordinator"))
-    return net
+@pytest.mark.spec("CM-10-005")
+@pytest.mark.spec("CM-10-006")
+@pytest.mark.spec("EP-09-002")
+@pytest.mark.spec("TB-06-007")
+def test_a_lapsed_bystander_gets_its_invite_but_no_ledger_entry():
+    """Longer terms lapse a silent signatory and pause its ledger stream.
 
+    The managing owner activates a revision longer than the terms the
+    bystander signed, before the bystander answers its Invite, so the
+    bystander lapses (ADR-0093).  The content gate then withholds every
+    ``Announce(CaseLedgerEntry)`` from it (CM-10-005), while its relayed
+    Invite, which is embargo meta-protocol traffic, still reaches it
+    directly.  Once it accepts, the paused stream is backfilled in log order
+    and its replica converges on the new terms (CM-10-006).
+    """
+    net = _managing_owner_network("https://example.org/cases/lapsed-bystander")
+    dl = net.stores[MANAGER]
 
-def _manager_revises(net: _Network) -> str:
-    """The managing owner proposes a revision by trigger; return its id."""
-    SvcProposeEmbargoRevisionUseCase(
-        net.stores[MANAGER],
-        ProposeEmbargoRevisionTriggerRequest(
-            actor_id=MANAGER,
-            case_id=net.case_id,
-            end_time=days_from_now_utc(90),
-        ),
+    revision_id = _manager_revises(net, days=90)
+    _replay_to_bystander(net)
+    SvcAcceptEmbargoUseCase(
+        dl,
+        AcceptEmbargoTriggerRequest(actor_id=MANAGER, case_id=net.case_id),
         **_manager_ports(net),
     ).execute()
-    (revision_id,) = net.case(MANAGER).proposed_embargo_ids
-    return revision_id
+
+    assert _consent_states(net, MANAGER)[BYSTANDER] is PEC.LAPSED
+    assert net.deliver(MANAGER, to=BYSTANDER, type_="Announce") == []
+    assert net.case(BYSTANDER).current_status.em.state == EM.REVISE
+    (invite,) = net.queued(MANAGER, to=BYSTANDER, type_="Invite")
+    assert invite.to == [BYSTANDER]
+
+    net.deliver(MANAGER, to=BYSTANDER, type_="Invite")
+    delivered = net.deliver(BYSTANDER, to=MANAGER, type_="Accept")
+    assert delivered, "the bystander did not answer its relayed Invite"
+    for type_, verdict in delivered:
+        assert verdict.disposition is HandlerDisposition.APPLIED, (
+            type_,
+            verdict.reason,
+        )
+    assert _consent_states(net, MANAGER)[BYSTANDER] is PEC.SIGNATORY
+    _replay_to_bystander(net)
+
+    replica = net.case(BYSTANDER)
+    assert replica.current_status.em.state == EM.ACTIVE
+    assert replica.active_embargo_id == revision_id
+    assert replica.proposed_embargo_ids == []
 
 
 @pytest.mark.spec("EP-09-007")
@@ -833,15 +881,6 @@ def test_termination_exits_every_participant_in_every_store():
     net = _managing_owner_network(
         "https://example.org/cases/manager-owner-terminate-pec"
     )
-    # The shared fixture fills only ``actor_participant_index``; list every
-    # record in ``case_participants`` too, as ``add_participant`` does, since
-    # the PEC cascade walks that list.
-    for actor_id, dl in net.stores.items():
-        case = net.case(actor_id)
-        for participant_id in case.actor_participant_index.values():
-            if participant_id not in case.case_participants:
-                case.case_participants.append(participant_id)
-        dl.save(case)
     SvcTerminateEmbargoUseCase(
         net.stores[MANAGER],
         TerminateEmbargoTriggerRequest(actor_id=MANAGER, case_id=net.case_id),

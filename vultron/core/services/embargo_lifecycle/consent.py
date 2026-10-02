@@ -52,7 +52,7 @@ def _unchanged(
         em_after=em_state,
         case_changed=False,
         case_embargo_changed=False,
-        pec_reset=False,
+        pec_exited=False,
         participant_changes=participant_changes or [],
         is_expired=is_expired,
     )

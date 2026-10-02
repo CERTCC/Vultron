@@ -71,7 +71,7 @@ def test_propose_embargo_none_to_proposed(
     assert result.em_after == EM.PROPOSED
     assert result.case_changed is True
     assert result.case_embargo_changed is False
-    assert result.pec_reset is False
+    assert result.pec_exited is False
     assert result.participant_changes == []
 
     updated = cast(VulnerabilityCase, dl.read(case.id_))

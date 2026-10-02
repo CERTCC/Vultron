@@ -471,7 +471,7 @@ do about it? The answer, in order:
    replayed (CM-28-014). Replay nodes reconstruct the proposal, each relayed
    Invite, each answer and the owner's decision via `EmbargoLifecycle(OBSERVED)`
    (EP-09-007, RSH-08-004, built in #3915), which is what made the
-   participant-side Invite tree gateable; the lapse replay is #3961's. The
+   participant-side Invite tree gateable; the expiry replay is #3961's. The
    slot table is in `notes/case-communication-model.md` § "What the
    participant and its replica do".
 

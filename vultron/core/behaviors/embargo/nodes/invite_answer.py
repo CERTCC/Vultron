@@ -39,6 +39,12 @@ class CanAnswerEmbargoInviteNode(DataLayerConditionWithPorts):
     Invite proposes, since the answer carries the Invite whole.  An invitee
     missing either is a partial replica (Regime 2, ADR-0087): it keeps the
     Invite and answers nothing, and the WARNING says so.
+
+    A copy addressed to neither ``to`` nor ``cc`` of this actor never gets
+    here: ``unaddressed_copy_refusal()`` refuses it at the door, before any
+    tree runs (HP-01-005, ADR-0117).  The not-the-invitee arm below is the
+    backstop for a copy that *is* addressed to this actor (a ``cc``
+    recipient) while it names someone else as the invitee.
     """
 
     def __init__(
@@ -59,8 +65,9 @@ class CanAnswerEmbargoInviteNode(DataLayerConditionWithPorts):
                 f"'{self.actor_id}' is not the invitee '{self._invitee_id}'"
                 " — the Invite is stored and not answered here"
             )
-            # A participant store holding an Invite addressed to somebody else
-            # is a misrouting, not a decision (EP-09-010).
+            # The door check already refused an unaddressed copy, so this is
+            # a copy addressed to this actor (cc) naming another invitee: the
+            # Invite is not this store's to answer (EP-09-010).
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
         if self.datalayer is None:

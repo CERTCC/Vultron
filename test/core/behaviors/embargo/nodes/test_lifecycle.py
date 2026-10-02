@@ -787,7 +787,7 @@ class TestSetEmbargoActiveNode:
             em_after=EM.ACTIVE,
             case_changed=True,
             case_embargo_changed=True,
-            pec_reset=False,
+            pec_exited=False,
         )
         with patch.object(
             EmbargoLifecycle,
@@ -829,7 +829,7 @@ class TestSetEmbargoActiveNode:
             em_after=EM.ACTIVE,
             case_changed=True,
             case_embargo_changed=False,
-            pec_reset=False,
+            pec_exited=False,
         )
         with patch.object(
             EmbargoLifecycle,
@@ -948,7 +948,7 @@ class TestSetEmbargoActiveNode:
             em_after=EM.ACTIVE,
             case_changed=True,
             case_embargo_changed=True,
-            pec_reset=False,
+            pec_exited=False,
         )
         with patch.object(
             EmbargoLifecycle,

@@ -4269,7 +4269,7 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      The lapse-versus-refusal provenance MUST NOT be duplicated onto `PecDimension` as
+      The expiry-versus-refusal provenance MUST NOT be duplicated onto `PecDimension` as
       a reason field.
     rationale: >-
       A `reason` discriminator on `PecDimension` — which currently holds only `state` —

@@ -116,9 +116,30 @@ Chosen option: "Add two states, `EXPIRED` and `UNBOUND_EXITED`", because it is t
 - A per-actor-store test delivers a relayed revision Invite to a participant whose case is P/X/A and asserts one ER to the CASE_MANAGER, no ET and no EM change.
 - Tests pin `REFUSED` with the addressing reason for an unaddressed copy of each received embargo activity.
 
+## Pros and Cons of the Options
+
+### Keep the five-state machine; carry the facts in the ledger only
+
+- Good, because no consumer that enumerates PEC states has to change.
+- Bad, because a reader of the scalar state cannot tell an expired invite from a refusal without walking the ledger, which CM-28-005 asks it to do.
+- Bad, because `UNBOUND` stays both the initial state and the post-termination sink, so the machine offers an `INVITE` that EM `EXITED` forbids.
+
+### Add a reason field to `PecDimension`
+
+- Good, because the state table keeps five states.
+- Bad, because CM-28-010 already rejected it: a reason field beside the state is a second source of truth that can drift from the ledger.
+- Bad, because it does nothing for the post-termination sink.
+
+### Add `EXPIRED` and `UNBOUND_EXITED`
+
+- Good, because both facts are visible in the scalar state, where every reader looks (CM-18-001).
+- Good, because the sink is explicit and the machine refuses every trigger from it.
+- Bad, because every consumer that enumerated PEC states had to be revisited.
+
 ## More Information
 
 - Amends ADR-0048 (the five-state machine and its transition table, CM-18-001, CM-18-003) and ADR-0065 part 5 ("No new PEC state"), which this ADR reverses.
+- ADR-0114's note that an expired embargo Invite records `DECLINED` is corrected in place to `EXPIRED`.
 - Amended specs: CM-18-001, CM-18-002, CM-18-003, CM-18-004, CM-28-004, CM-28-005, CM-28-007, CM-28-009, CM-28-014, CM-23-014, MSM-07-002, MSM-07-006, MSM-07-007, EMB-17-002, EMB-17-003, EMB-17-004, EMB-13-001, EMB-03-003, EMB-01-002, EP-09-001, EP-09-004.
 - Notes: `notes/participant-embargo-consent.md`, `notes/embargo-lifecycle.md`.
 - Source: Issue #4153 (owner decisions of 2026-10-02), Concern #4133, Bug #4132.

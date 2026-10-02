@@ -10,7 +10,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Tests for CaseActor lazy invite-expiry lapse (#2212) and late-Accept
+"""Tests for CaseActor lazy invite expiry (#2212, ADR-0117) and late-Accept
 compatibility (#2213)."""
 
 import logging
@@ -108,7 +108,7 @@ def _make_active_embargo_case(
     """
     case = VulnerabilityCase(
         id_=case_id,
-        name="Lapse Test Case",
+        name="Expiry Test Case",
         attributed_to=_COORD,
     )
     case.append_case_status(em_state=EM.ACTIVE)
@@ -368,7 +368,7 @@ class TestInviteeIsTheAddressee:
     as the BT execution identity.  Conflating them writes the PEC transition
     and the RSVP deadline (CM-28-001, CM-28-003) onto the wrong participant
     record, so the CaseActor records an invitation it never received and the
-    real invitee is left with no deadline for lapse detection to find.
+    real invitee is left with no deadline for expiry detection to find.
     """
 
     def _seed_case(
@@ -1820,7 +1820,7 @@ class TestLateAcceptHandling:
         assert participant.embargo_consent_state == PEC.SIGNATORY
 
     def test_accept_within_deadline_uses_normal_path(self, make_payload):
-        """Accept before deadline → normal BT path, PEC SIGNATORY without lapse."""
+        """Accept before deadline → normal BT path, PEC SIGNATORY without expiry."""
         dl = _make_dl(actor_id=_COORD)
         case_id = "https://example.org/cases/ea4"
         embargo_id = "https://example.org/cases/ea4/embargos/e4"
@@ -1923,7 +1923,7 @@ class TestLateAcceptHandling:
             sync_port=SyncActivityAdapter(dl),
         ).execute()
 
-        # Normal path: no lapse, acceptance proceeds
+        # Normal path: no expiry, acceptance proceeds
         fresh_case = dl.read(case_id)
         assert isinstance(fresh_case, CoreCase)
         assert fresh_case.current_status.em.state == EM.ACTIVE
@@ -1967,20 +1967,20 @@ class TestLateAcceptHandling:
             for obj in dl.list_objects("CaseLedgerEntry")
             if isinstance(obj, CaseLedgerEntry) and obj.case_id == case_id
         ]
-        lapse_entries = [
+        expiry_entries = [
             e
             for e in ledger_entries
             if e.event_type == INVITE_EXPIRED_EVENT_TYPE
         ]
-        assert lapse_entries, (
+        assert expiry_entries, (
             "Expected a CaseLedgerEntry with event_type"
             f" '{INVITE_EXPIRED_EVENT_TYPE}' but none found"
         )
-        lapse_entry = lapse_entries[0]
+        expiry_entry = expiry_entries[0]
         # Entry must be distinguishable from an explicit Reject
-        assert lapse_entry.event_type != "reject_invite_to_embargo_on_case"
+        assert expiry_entry.event_type != "reject_invite_to_embargo_on_case"
         # payloadSnapshot must be non-empty (CLP-02-003)
-        assert lapse_entry.payload_snapshot
+        assert expiry_entry.payload_snapshot
 
     def test_late_accept_ac2_signatory_participant_no_crash(
         self, make_payload
@@ -2106,20 +2106,20 @@ class TestLateAcceptHandling:
         assert participant.embargo_consent_state == PEC.SIGNATORY
 
 
-class TestLapseIsTheManagersAlone:
-    """CM-28-014: only the CASE_MANAGER evaluates lapse and commits its entry."""
+class TestExpiryIsTheManagersAlone:
+    """CM-28-014: only the CASE_MANAGER evaluates expiry and commits its entry."""
 
     @pytest.mark.xfail(
         strict=True,
         reason=(
-            "CM-28-014: the lapse ledger entry is committed unconditionally in "
+            "CM-28-014: the expiry ledger entry is committed unconditionally in "
             "whichever store processes the late Accept. Tracked by #3961 "
             "(Concern #3918, ADR-0113)."
         ),
     )
     @pytest.mark.spec("CM-28-014")
-    def test_non_manager_commits_no_lapse_entry(self, make_payload):
-        """A replica that sees a late Accept writes no lapse entry."""
+    def test_non_manager_commits_no_expiry_entry(self, make_payload):
+        """A replica that sees a late Accept writes no expiry entry."""
 
         dl = _make_dl(actor_id=_OTHER)
         case_id = "https://example.org/cases/lapse-replica"
@@ -2149,7 +2149,7 @@ class TestLapseIsTheManagersAlone:
         )
         dl.create(proposal)
         # The replica holds an addressed copy, so the door check (HP-01-005)
-        # admits it and the lapse path is what is under test.
+        # admits it and the expiry path is what is under test.
         accept = em_accept_embargo_activity(
             proposal=proposal,
             context=case.id_,
@@ -2165,10 +2165,10 @@ class TestLapseIsTheManagersAlone:
             sync_port=SyncActivityAdapter(dl),
         ).execute()
 
-        lapse_entries = [
+        expiry_entries = [
             e
             for e in dl.list_objects("CaseLedgerEntry")
             if isinstance(e, CaseLedgerEntry)
             and e.event_type == INVITE_EXPIRED_EVENT_TYPE
         ]
-        assert lapse_entries == []
+        assert expiry_entries == []

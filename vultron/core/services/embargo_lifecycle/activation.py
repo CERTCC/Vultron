@@ -70,7 +70,7 @@ class _ActivationOperationsMixin(_PecActivationMixin):
 
         Returns:
             :class:`EmbargoLifecycleResult` describing what changed.
-            ``pec_reset`` is always ``True`` when this method succeeds.
+            ``pec_exited`` is always ``True`` when this method succeeds.
 
         Raises:
             VultronNotFoundError: If *case_id* does not resolve to a case.
@@ -124,7 +124,7 @@ class _ActivationOperationsMixin(_PecActivationMixin):
             em_after=em_after,
             case_changed=True,
             case_embargo_changed=True,
-            pec_reset=True,
+            pec_exited=True,
             participant_changes=participant_changes,
         )
 

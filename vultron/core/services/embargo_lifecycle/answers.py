@@ -215,7 +215,7 @@ class _AnswerOperationsMixin(_PecActivationMixin):
             em_after=em_after,
             case_changed=case_mutated or bool(participant_changes),
             case_embargo_changed=case_embargo_changed,
-            pec_reset=False,
+            pec_exited=False,
             participant_changes=participant_changes,
         )
 
@@ -360,6 +360,6 @@ class _AnswerOperationsMixin(_PecActivationMixin):
             em_after=em_after,
             case_changed=case_mutated or bool(participant_changes),
             case_embargo_changed=False,
-            pec_reset=False,
+            pec_exited=False,
             participant_changes=participant_changes,
         )

@@ -121,6 +121,6 @@ class _ActivationArmMixin(_LifecycleBase):
             em_after=em_after,
             case_changed=True,
             case_embargo_changed=True,
-            pec_reset=False,
+            pec_exited=False,
             participant_changes=participant_changes,
         )
