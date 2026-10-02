@@ -116,7 +116,7 @@ It is mandatory, and it applies at every point in the lifecycle:
 
 - A proposal MUST be refused with ER, regardless of any other assessment (EMB-01-002).
 - An EA MUST NOT move the case to `ACTIVE`; the actor emits ER instead (EMB-02-002).
-- An EV arriving while the case is public MUST produce ET — terminate now, do not negotiate (EMB-03-003).
+- An EV arriving while the case is public MUST be refused, not adopted, and the embargo ends because the case is public, not because the proposal arrived: the proposal is at most how the actor notices (EMB-03-003).
 - An actor sitting at `EM.PROPOSED` that *observes* the case go public MUST abandon the proposal, return to `EM.NONE`, and emit ER (EMB-16-001).
 - An actor at `EM.EXITED` MUST NOT seek or accept a new embargo for a public case (EMB-13-002).
 
