@@ -512,8 +512,9 @@ When a field or method leaves a class that structurally conforms to a
 `Protocol` (`vultron/core/models/protocols.py`, `vultron/core/ports/`), remove the
 matching Protocol member too, and vice versa (CS-20-001) — type checkers never flag a
 Protocol member that no implementation still has. No `TypeGuard` discriminators
-remain since #1504 replaced them with concrete `isinstance` checks; a new one
-MAY `hasattr`-check only Protocol-declared members (CS-20-002).
+remain: #1504 replaced most with concrete `isinstance` checks, and the last,
+`has_outbox`, went in #4143. A new one MAY `hasattr`-check only Protocol-declared
+members (CS-20-002).
 
 ---
 

@@ -327,6 +327,10 @@ The fix was itself blocked until `VultronAlreadyExistsError` existed, because
 sites swallow, so sharing the base made a projection failure indistinguishable
 from "already stored".
 
+The rule that falls out: a validator reachable inside a union MUST raise a
+`ValueError` subclass. Any other exception escapes the union instead of failing
+the branch, so Pydantic never tries the next one.
+
 For context on the original removal:
 
 ```python

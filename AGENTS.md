@@ -269,11 +269,11 @@ linked file before touching that area. New pitfalls MUST be routed per
 | Domain object validation | [domain-validation](notes/domain-validation.md) | assignment/`append` bypass validation (CM-27-001); no `self` assignment in `mode="after"` (ARCH-21-004); silent `None` = fake `SUCCESS` (ARCH-15); `getattr` misses `ValueError`; `__init_subclass__` pitfalls; report every violation (EH-07-001); `participant_transition_violations()` only (BTND-10-002); `force_rm_state` is bootstrap-only (RMB-14-005); trigger fail-closed vs. receive partial-accept is deliberate (Postel) |
 | Behavior tree nodes | [bt-pitfalls](notes/bt-pitfalls.md) | write nodes validate own transitions (CSB-16); guarded commits as CASE_MANAGER (BT-17-005); store follows executing actor, but a received RM write is about the sender (RSH-08-001); don't clear keys you don't own; guards name the transition; **refusal arms fail toward admit** — record first, guards raise, key on the request; log via `node_logger(node)` (SL-01-005, [structured-logging](notes/structured-logging.md)) |
 | BT integration / concurrency | [bt-integration](notes/bt-integration.md), [bt-pitfalls](notes/bt-pitfalls.md) | module-level `RLock` under `BackgroundTasks`; trigger `execute()` delegates SM transitions (BT-15-001); `internal_error is False` ≠ "no bug" — node `except Exception` and nested `BTBridge` hops hide it |
-| Case ledger | [case-ledger-authority](notes/case-ledger-authority.md), [ownership-transfer](notes/ownership-transfer.md) | not a process log (CLP-07); one role-gated commit, already injected by the factory (CLP-09-001); two timestamps — commit stamp vs. claimed `published`, monotonic per snapshot actor (CLP-15-003/006); nested times carried as received (ADR-0103); replicas see only ledger entries (CM-23-005, #2505) |
+| Case ledger | [case-ledger-authority](notes/case-ledger-authority.md), [ownership-transfer](notes/ownership-transfer.md) | not a process log (CLP-07); one role-gated commit, already injected by the factory (CLP-09-001); two timestamps — commit stamp vs. claimed `published`, monotonic per snapshot actor but reported, never refused (CLP-15-003/005); blank/missing `published` refused at parse (CLP-15-006); nested times carried as received (ADR-0103); replicas see only ledger entries (CM-23-005, #2505) |
 | Who sends what to whom | [case-communication-model](notes/case-communication-model.md), [case-joining](notes/case-joining.md) | roster ≠ entitlement — recipients only via `core/participants/recipients.py` (CM-10-004/005/007, ADR-0114, #4100); joiners answer the full-case Invite (CM-11-005); participants message only the CASE_MANAGER (PCR-08, ADR-0109); gated effects → `REFUSED` (BT-17-001, HP-01-005); embargo proposals relayed (EP-09, ADR-0113); manager never unfilled (CM-24-006) |
 | Pattern matching / semantics | [activitystreams-semantics](notes/activitystreams-semantics.md), [activitystreams-state-update](notes/activitystreams-state-update.md), [`vultron/wire/as2/AGENTS.md`](vultron/wire/as2/AGENTS.md) | patterns match the inbound wire format; `target_` permissive unless `strict=True` (SE-08); `Reject(Invite)` case in `inner_target` (CM-11-003); phrase placeholders (SE-07-005); no `origin_` field — examples must match exactly one pattern (#3438) |
 | Persistence / stores | [datalayer-design](notes/datalayer-design.md) | `dl.read()` returns core objects (ADR-0034), no wire re-read for semantics (ADR-0035); actor id is a store name (DL-07-004); `_dehydrate_data` keeps inline snapshots; a clock-minted wire default can't round-trip a URI-only core field (#3732) |
-| Embargo / consent | [embargo-lifecycle](notes/embargo-lifecycle.md), [participant-embargo-consent](notes/participant-embargo-consent.md) | go through `EmbargoLifecycle`, never inline `EMAdapter`; consent only via `apply_pec_transition()` (CM-18-005/006), no downgrade on retry; proposals change no consent, lapse only on activating longer terms (ADR-0093, EP-09-004); termination clears every proposal (EP-08-004); default embargo once per case, keyed on EM ≠ `NONE` (EP-04-012; [embargo-default-semantics](notes/embargo-default-semantics.md), #3393, #4019) |
+| Embargo / consent | [embargo-lifecycle](notes/embargo-lifecycle.md), [participant-embargo-consent](notes/participant-embargo-consent.md) | go through `EmbargoLifecycle`, never inline `EMAdapter`; consent only via `apply_pec_transition()` (CM-18-005/006), no downgrade on retry; proposals change no consent, lapse only on activating longer terms (ADR-0093); a revision Invite never re-INVITEs a SIGNATORY (EP-09-004); termination clears every proposal (EP-08-004); default embargo once per case, keyed on EM ≠ `NONE` (EP-04-012; [embargo-default-semantics](notes/embargo-default-semantics.md), #3393, #4019) |
 | Participant records | [participant-role-management](notes/participant-role-management.md) | RM mutation uses `actor_participant_index` (CM-19-003); RM terminal guard before same-state shortcut |
 | Devcontainer / tooling | [devcontainer-tooling](notes/devcontainer-tooling.md) | always `uv run`, `PYTHONPATH=` cleared, `UV_NO_SYNC=1` on sync failure; ruff runs bare (IMPLTS-07-021); `SKIP=actionlint` (hangs); `git push -u origin HEAD`, HTTP/1.1 retry (#3893, #3905); edit `.agents/skills`, not the `.claude` symlink |
 | Spec/notes/ADR/history tooling | [`vultron/metadata/AGENTS.md`](vultron/metadata/AGENTS.md), [agentic-workflow](notes/agentic-workflow.md) | learning filename slug ≠ `source` (BW-01-003, #1857); loaders name failing files `path:line:col` via `file_loading.py` (MS-17) — YAML errors aren't `ValueError`; pre-code spec needs `lint_suppress: [phantom_path_ref]` |
@@ -288,38 +288,30 @@ linked file before touching that area. New pitfalls MUST be routed per
 
 ### Cross-cutting rules with no other home
 
-- **Module splits** — no new god modules, check the cap before adding docstrings,
-  re-export moved names, importer proof before deleting:
-  [notes/codebase-structure.md](notes/codebase-structure.md) § "Module Splits"; small
-  habits (mypy first-branch typing, pre-built dedup sets, walrus guards) in § "Small
-  Coding Habits".
-- **No DataLayer writes in `execute()`, not even through a helper** (CLP-10-020,
-  ratchet `test_no_dl_mutations_in_execute.py`):
-  [notes/bt-integration.md](notes/bt-integration.md).
-- **Received trees run intake → guards → commit → effects; ledger commits only via
-  `CommitCaseLedgerEntryNode`** (CLP-10-006/019, BT-06-006, ADR-0111); **emit nodes
-  fail fast without a CASE_MANAGER recipient (PCR-08-011); broadcast nodes never mask
-  delivery failure (BT-14-001)**:
-  [notes/bt-integration.md](notes/bt-integration.md) § "The Four Received-Side Stages",
-  [notes/bt-pitfalls.md](notes/bt-pitfalls.md) § "Emit and Broadcast Nodes Fail Loudly".
-- **Stub adapters raise `NotImplementedError` (OX-10-004, OX-11-004); transport-role
-  adapter names stay explicit**:
-  [notes/architecture-adapters.md](notes/architecture-adapters.md).
-- **Protocol members stay in sync with concrete classes (CS-20); `HashChainLedgerRecord`
-  ≠ `CaseLedgerEntry`**: [notes/codebase-structure.md](notes/codebase-structure.md);
-  idempotency chain: [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md).
-  `BaseModel` in ports: [`vultron/core/ports/AGENTS.md`](vultron/core/ports/AGENTS.md).
-  Ledger commit before outbox write, `disposition="rejected"` markers:
-  [`vultron/core/behaviors/case/AGENTS.md`](vultron/core/behaviors/case/AGENTS.md).
+- **Module splits** (no god modules, re-export moved names, importer proof before
+  deleting), small coding habits, Protocol sync (CS-20), `HashChainLedgerRecord`
+  ≠ `CaseLedgerEntry`: [notes/codebase-structure.md](notes/codebase-structure.md).
+- **BT/use-case**: no DataLayer writes in `execute()`, even via a helper (CLP-10-020,
+  `test_no_dl_mutations_in_execute.py`); received trees run intake → guards →
+  commit → effects, ledger commits only via `CommitCaseLedgerEntryNode`
+  (CLP-10-006/019, BT-06-006, ADR-0111) — [notes/bt-integration.md](notes/bt-integration.md);
+  emit nodes fail fast without a CASE_MANAGER recipient (PCR-08-011), broadcasts
+  never mask delivery failure (BT-14-001) — [notes/bt-pitfalls.md](notes/bt-pitfalls.md).
+- **Adapters/ports**: stubs raise `NotImplementedError` (OX-10-004, OX-11-004),
+  transport-role names stay explicit —
+  [notes/architecture-adapters.md](notes/architecture-adapters.md); idempotency chain
+  [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md); no `BaseModel` in ports
+  [`vultron/core/ports/AGENTS.md`](vultron/core/ports/AGENTS.md); ledger commit before
+  outbox write [`vultron/core/behaviors/case/AGENTS.md`](vultron/core/behaviors/case/AGENTS.md).
 - **Logging**: bulk level refactors need a consistency grep; self-healing paths never
   log at ERROR — [notes/structured-logging.md](notes/structured-logging.md).
 - **Agent workflow**: archive superseded notes sections with `append-history note`
   (PD-03-002/004, [notes/history-management.md](notes/history-management.md));
-  partition large migrations by node shape, then domain, within the 200-turn fork cap
-  ([notes/agentic-workflow.md](notes/agentic-workflow.md)).
+  partition large migrations by node shape, then domain, within the 200-turn fork
+  cap ([notes/agentic-workflow.md](notes/agentic-workflow.md)).
 - **MkDocs scope**: `not_in_nav` ≠ `exclude_docs` ≠ lint scope; a zero-target gate
-  fails; withholding a page does not unlink it — `docs-links` checks resolution over
-  every built `site/` file (DF-09-007/009, ADR-0092, DOCBW-03-007):
+  fails; withholding a page does not unlink it — `docs-links` checks every built
+  `site/` file (DF-09-007/009, ADR-0092, DOCBW-03-007):
   [notes/documentation-strategy.md](notes/documentation-strategy.md).
 
 ---

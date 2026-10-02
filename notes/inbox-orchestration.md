@@ -50,7 +50,7 @@ different adapter implementations.
 So a change to inbox processing behavior (parse, rehydrate, defer-check, dispatch)
 belongs in `vultron/core/behaviors/inbox/` (IO-02-001), never in the FastAPI router or
 a new adapter-layer pipeline helper. `process_payload` is the sole caller-facing entry
-point and all policy is internal to the BT (IO-02-003); logic added to the router
+point (IO-02-003), and all policy is internal to the BT; logic added to the router
 repeats the ADR-0009 violation and is untestable from non-HTTP entry points.
 
 ---
