@@ -216,7 +216,19 @@ and `OBSERVED` on replay: `reject_embargo_invite` returns EM `REVISE → ACTIVE`
 EMB-02-002 are enforced as explicit pre-flight guards in
 `InviteToEmbargoOnCaseReceivedUseCase.execute()` and
 `AcceptInviteToEmbargoOnCaseReceivedUseCase.execute()` respectively (implemented
-in [#1484](https://github.com/CERTCC/Vultron/issues/1484)).
+in [#1484](https://github.com/CERTCC/Vultron/issues/1484)); the refusal lives in
+`vultron/core/use_cases/received/_embargo_pxa.py`. The Invite refusal stores the
+Invite and the `EmbargoEvent` it carries, because the store keeps an Invite's
+object by reference and the ER factory needs the proposal whole (#4104). It
+answers where any Invite answer goes: the CASE_MANAGER answers the proposer, and a
+participant answers the CASE_MANAGER, never a peer (EP-09-003, PCR-08-001). It sends
+no ER for an Invite addressed to someone else (EP-09-010) or one naming terms the
+receiver does not hold (Regime 2, ADR-0087). An Invite the receiver already
+answered (`pending_embargo_proposal_index` maps its embargo to it) is skipped, so a
+later P/X/A never contradicts an earlier answer. "Already stored" is not that
+signal: FastAPI ingress stores the Invite before dispatch. The refusal itself
+records no decision, so a repeated refusal answers twice (#4140). Moving this
+refusal into the receive tree is #3872.
 
 **Auto-terminate on publication** (CS.P/X/A event): handled by
 `PublicDisclosureBranchNode` in `vultron/core/behaviors/status/nodes/lifecycle.py`.

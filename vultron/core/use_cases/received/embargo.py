@@ -67,7 +67,7 @@ from vultron.core.use_cases.received._bt_verdict import (
     verdict_from_bt,
 )
 from vultron.core.use_cases.received._embargo_pxa import (
-    _pxa_embargo_ineligible,
+    pxa_embargo_ineligible,
     queue_pxa_reject,
     refuse_pxa_invite,
 )
@@ -428,7 +428,7 @@ class InviteToEmbargoOnCaseReceivedUseCase:
         receiving_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
         )
-        if case_id and _pxa_embargo_ineligible(self._dl, case_id):
+        if case_id and pxa_embargo_ineligible(self._dl, case_id):
             return refuse_pxa_invite(
                 self._dl,
                 self._trigger_activity,
@@ -436,6 +436,7 @@ class InviteToEmbargoOnCaseReceivedUseCase:
                 case_id=case_id,
                 invite_id=invite_id,
                 embargo_id=embargo_id,
+                invitee_id=invitee_id,
                 receiving_actor_id=receiving_actor_id,
             )
 
@@ -738,7 +739,7 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
 
         # EMB-02-002: MUST NOT process EA to transition EM to Active when P/X/A
         # is set; MUST emit ER instead.
-        if _pxa_embargo_ineligible(self._dl, case_id):
+        if pxa_embargo_ineligible(self._dl, case_id):
             logger.info(
                 "accept_invite_to_embargo_on_case: P/X/A set on case '%s'"
                 " — rejecting EA (EMB-02-002)",

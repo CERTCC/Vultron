@@ -382,10 +382,11 @@ def test_a_bare_uri_invite_with_pxa_set_is_refused_without_raising(caplog):
 
     assert verdict.disposition is HandlerDisposition.REFUSED
     assert verdict.reason is not None and "EMB-01-002" in verdict.reason
+    assert verdict.reason is not None and "no ER sent" in verdict.reason
     assert net.queued(OWNER, to=MANAGER) == []
+    assert net.stores[OWNER].read(invite.id_) is not None
     assert any(
-        "ER not emitted" in record.getMessage()
-        and record.levelname == "WARNING"
+        "by id only" in record.getMessage() and record.levelname == "WARNING"
         for record in caplog.records
     )
 
@@ -409,3 +410,125 @@ def test_a_case_manager_with_pxa_set_rejects_an_owners_acceptance():
     sealed = read_sealed_body_dict(net.stores[MANAGER], reject.id_)
     assert sealed is not None
     assert sealed["object"]["id"] == invite.id_
+
+
+def _pxa_invite_body(net: _Network, sender: str, to: str, suffix: str):
+    """An inline ``Invite(EmbargoEvent)`` from *sender* to *to* alone."""
+    terms = as_EmbargoEvent(
+        id_=f"{net.case_id}/embargo_events/{suffix}",
+        content=f"Terms {suffix}",
+        context=net.case_id,
+        end_time=days_from_now_utc(90),
+    )
+    proposal = em_propose_embargo_activity(
+        terms,
+        context=net.case_id,
+        actor=sender,
+        to=[to],
+        id_=f"{net.case_id}/embargo_proposals/{suffix}",
+    )
+    return proposal.id_, json.loads(dump_outbound_body(proposal))
+
+
+@pytest.mark.spec("EMB-01-002")
+@pytest.mark.spec("HP-01-003")
+@pytest.mark.spec("TB-06-007")
+@pytest.mark.xfail(
+    strict=True,
+    reason="#4140: the P/X/A refusal records no decision, so a re-delivered"
+    " Invite is refused again and a second ER is queued",
+)
+def test_a_redelivered_invite_with_pxa_set_is_refused_once():
+    """A re-delivery was answered on first arrival: no second ER."""
+    net = _Network("https://example.org/cases/relay-replay-pxa-again")
+    _propose(net, "public-again", 90)
+    _set_pxa(net, OWNER)
+    (invite,) = net.queued(MANAGER, to=OWNER, type_="Invite")
+    body = read_sealed_body_dict(net.stores[MANAGER], invite.id_)
+    assert body is not None
+
+    first = net.receive(OWNER, body)
+    again = net.receive(OWNER, body)
+
+    assert first.disposition is HandlerDisposition.REFUSED
+    assert again.disposition is HandlerDisposition.SKIPPED
+    assert len(net.queued(OWNER, to=MANAGER, type_="Reject")) == 1
+
+
+@pytest.mark.spec("EMB-01-002")
+@pytest.mark.spec("HP-01-003")
+def test_an_invite_answered_before_pxa_is_not_contradicted_on_redelivery():
+    """An Invite accepted before the case went public gets no later ER."""
+    net = _Network("https://example.org/cases/relay-replay-pxa-late")
+    _propose(net, "late", 90)
+    (invite,) = net.queued(MANAGER, to=OWNER, type_="Invite")
+    body = read_sealed_body_dict(net.stores[MANAGER], invite.id_)
+    assert body is not None
+    net.deliver(MANAGER, to=OWNER, type_="Invite")
+    assert net.queued(OWNER, to=MANAGER, type_="Accept")
+    _set_pxa(net, OWNER)
+
+    verdict = net.receive(OWNER, body)
+
+    assert verdict.disposition is HandlerDisposition.SKIPPED
+    assert net.queued(OWNER, to=MANAGER, type_="Reject") == []
+
+
+@pytest.mark.spec("EMB-01-002")
+@pytest.mark.spec("EP-09-003")
+@pytest.mark.spec("PCR-08-001")
+def test_a_participant_answers_a_peers_invite_with_pxa_set_to_the_case_manager():
+    """The ER goes to the CASE_MANAGER, never to the peer that sent it."""
+    net = _Network("https://example.org/cases/relay-replay-pxa-peer")
+    _set_pxa(net, OWNER)
+    invite_id, body = _pxa_invite_body(net, BYSTANDER, OWNER, "peer")
+
+    verdict = net.receive(OWNER, body)
+
+    assert verdict.disposition is HandlerDisposition.REFUSED
+    assert net.queued(OWNER, to=BYSTANDER) == []
+    (reject,) = net.queued(OWNER, to=MANAGER, type_="Reject")
+    assert reject.to == [MANAGER]
+    sealed = read_sealed_body_dict(net.stores[OWNER], reject.id_)
+    assert sealed is not None
+    assert sealed["object"]["id"] == invite_id
+
+
+@pytest.mark.spec("EMB-01-002")
+@pytest.mark.spec("EP-09-010")
+def test_an_invite_with_pxa_set_addressed_to_another_actor_gets_no_er(caplog):
+    """A misrouted Invite is refused at a public case, and not answered."""
+    net = _Network("https://example.org/cases/relay-replay-pxa-misrouted")
+    _set_pxa(net, BYSTANDER)
+    _, body = _pxa_invite_body(net, MANAGER, OWNER, "misrouted")
+
+    with caplog.at_level("WARNING"):
+        verdict = net.receive(BYSTANDER, body)
+
+    assert verdict.disposition is HandlerDisposition.REFUSED
+    assert verdict.reason is not None and "EP-09-010" in verdict.reason
+    assert net.queued(BYSTANDER, to=MANAGER) == []
+    assert net.queued(BYSTANDER, to=OWNER) == []
+    assert any(
+        "EP-09-010" in record.getMessage() and record.levelname == "WARNING"
+        for record in caplog.records
+    )
+
+
+@pytest.mark.spec("EMB-01-002")
+@pytest.mark.spec("TB-06-007")
+def test_a_case_manager_with_pxa_set_rejects_a_proposal_to_its_proposer():
+    """The CASE_MANAGER answers the proposer that sent the Invite."""
+    net = _Network("https://example.org/cases/relay-replay-pxa-manager")
+    _set_pxa(net, MANAGER)
+    invite_id, body = _pxa_invite_body(net, PROPOSER, MANAGER, "to-manager")
+
+    verdict = net.receive(MANAGER, body)
+
+    assert verdict.disposition is HandlerDisposition.REFUSED
+    (reject,) = net.queued(MANAGER, to=PROPOSER, type_="Reject")
+    assert reject.to == [PROPOSER]
+    assert net.queued(MANAGER, to=OWNER, type_="Invite") == []
+    sealed = read_sealed_body_dict(net.stores[MANAGER], reject.id_)
+    assert sealed is not None
+    assert sealed["object"]["id"] == invite_id
