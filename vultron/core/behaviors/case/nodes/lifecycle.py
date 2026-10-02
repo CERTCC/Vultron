@@ -39,7 +39,7 @@ from vultron.core.behaviors.ledger_patch import (
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.errors import VultronCanonicalEntryError, VultronValidationError
 
 logger = logging.getLogger(__name__)

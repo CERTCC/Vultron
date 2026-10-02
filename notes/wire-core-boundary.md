@@ -80,7 +80,7 @@ addressed will misjudge the remaining work.
 The *parsing* half of the first rule was also still open when ADR-0082 was
 written: core reached for a wire capability by duck-typing,
 `getattr(obj, "to_core", None)`, at three sites — including ADR-0062's primary
-ingress projection in `vultron/core/use_cases/received/case/_helpers.py`.
+ingress projection in `vultron/core/services/case_replica_seeding.py`.
 Duck-typing does not satisfy ARCH-01-001; it only hides the violation from the
 import-based ratchet.
 

@@ -20,9 +20,8 @@
 diagnostics, and low-level storage primitives (``update``, ``delete``,
 ``clear_*``, ``count_all``) that belong to the adapter layer.
 
-:class:`CaseOutboxPersistence` is defined in
-``vultron/core/ports/case_outbox`` and re-exported here for backward
-compatibility.
+:class:`CaseOutboxPersistence`, which extends this port, lives in
+``vultron/core/ports/case_outbox``; import it from there.
 
 ``SqliteDataLayer`` satisfies both Protocols structurally with no declaration
 needed (Python structural subtyping).
@@ -115,31 +114,3 @@ class CasePersistence(Protocol):
     ) -> ProtocolPair: ...
 
     def delete(self, table: str, id_: str) -> bool: ...
-
-
-# Re-export CaseOutboxPersistence for backward compatibility.
-# CaseOutboxPersistence is now the canonical definition; existing callers of
-# `from vultron.core.ports.case_persistence import CaseOutboxPersistence`
-# continue to work without changes.
-#
-# The __getattr__ pattern (PEP 562) is used rather than a direct module-level
-# import to avoid a circular dependency: case_outbox imports CasePersistence
-# from this module, so a top-level `from case_outbox import ...` here would
-# form a cycle that breaks when case_outbox.py is loaded first.
-if TYPE_CHECKING:
-    from vultron.core.ports.case_outbox import (
-        CaseOutboxPersistence,
-    )
-
-__all__ = ["CasePersistence", "CaseOutboxPersistence"]
-
-
-def __getattr__(name: str) -> type:
-    if name == "CaseOutboxPersistence":
-        from vultron.core.ports.case_outbox import (  # noqa: PLC0415  # ruff-baseline #3950
-            CaseOutboxPersistence,
-        )
-
-        globals()[name] = CaseOutboxPersistence
-        return CaseOutboxPersistence
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

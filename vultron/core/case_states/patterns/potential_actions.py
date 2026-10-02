@@ -15,6 +15,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 from vultron.core.case_states.patterns.base import compile_patterns
+from vultron.core.case_states.validations import valid_states
 from vultron.core.scoring.potential_actions import Actions
 from vultron.core.scoring.utils import enum2title, unique_enum_list
 
@@ -105,12 +106,7 @@ def action(state):
 
 
 def main():
-    from vultron.core.case_states.hypercube import (  # noqa: PLC0415  # ruff-baseline #3950
-        CVDmodel,
-    )
-
-    model = CVDmodel()
-    for state in model.states:
+    for state in valid_states():
         print(f"# State: {state}")
         print("## Potential Actions")
         for a in action(state):

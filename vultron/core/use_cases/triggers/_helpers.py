@@ -30,10 +30,8 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sender.send_tree import sender_side_bt
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.ports.case_persistence import (
-    CaseOutboxPersistence,
-    CasePersistence,
-)
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.services.embargo_ordering import (
     earliest_expiring_embargo_id,

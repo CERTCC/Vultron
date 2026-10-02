@@ -5,10 +5,12 @@ from collections.abc import Callable
 
 import py_trees
 
+from vultron.core.behaviors.case.nodes.close_case_effect import (
+    ApplyCloseCaseFromLedgerNode,
+)
 from vultron.core.behaviors.case.nodes.conditions import CheckIsCaseManagerNode
 from vultron.core.behaviors.embargo.nodes import ApplyEmbargoTeardownNode
 from vultron.core.behaviors.sync.nodes import (
-    ApplyCloseCaseFromLedgerNode,
     ApplyEmbargoAcceptanceFromLedgerNode,
     ApplyEmbargoInviteFromLedgerNode,
     ApplyEmbargoProposalFromLedgerNode,

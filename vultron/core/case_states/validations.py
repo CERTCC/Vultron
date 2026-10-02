@@ -18,6 +18,7 @@ This module contains functions to validate the various strings and patterns used
 import re
 from collections.abc import Callable
 from functools import wraps
+from itertools import product
 from typing import Any, TypeVar
 
 from vultron.errors import (
@@ -140,6 +141,29 @@ def is_valid_state(state: str) -> None:
         raise StateValidationError(f"Invalid state [{state}]")
     if not re.match("[vV.][fF.][dD.][pP.][xX.][aA.]", state):
         raise StateValidationError(f"Invalid state [{state}]")
+
+
+CS_EVENT_LETTERS = tuple("VFDPXA")
+"""The six case-state events, in the order a state string spells them."""
+
+
+def valid_states() -> list[str]:
+    """Return every valid case-state string, in lattice product order.
+
+    Enumerates each upper/lower-case combination of :data:`CS_EVENT_LETTERS`
+    and keeps those :func:`is_valid_state` accepts. The hypercube model builds
+    its state graph from this list, and the pattern modules' report scripts
+    iterate it directly, so neither needs the other to enumerate states.
+    """
+    states = []
+    for seq in product(*(f"{e.lower()}{e.upper()}" for e in CS_EVENT_LETTERS)):
+        state = "".join(seq)
+        try:
+            is_valid_state(state)
+        except StateValidationError:
+            continue
+        states.append(state)
+    return states
 
 
 def ensure_valid_state(func: F) -> F:

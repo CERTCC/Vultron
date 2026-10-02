@@ -163,7 +163,7 @@ MUST be at DEBUG or lower. Verify with a grep after any bulk refactor.
 | `EM FSM: Finished processing state X exit/enter callbacks` | `transitions` library logger (see below) | FSM internals; the `Actor X proposed embargo Y (EM A → B)` already captures this |
 | `Final BT state:\n<tree>` (after every execution) | `vultron/core/behaviors/bridge.py` | Same scaffolding as `BT structure` |
 | `sync adapter: queued Announce(CaseLedgerEntry) 'UUID' → ['actor']` | `vultron/adapters/driven/sync_activity_adapter.py:116` | Fires per recipient per entry |
-| `store_embedded_participants: stored participant 'UUID'` | `vultron/core/use_cases/received/case/_helpers.py:92` | Fires per participant on every case announcement |
+| `store_embedded_participants: stored participant 'UUID'` | `vultron/core/services/case_replica_seeding.py` | Fires per participant on every case announcement |
 | `SeedAnnouncedCaseNode: case already exists locally — skipping save` | `vultron/core/behaviors/case/nodes/announce.py:78` | Routine idempotency skip |
 | `discover_actors()` full logfmt() actor object at INFO | `vultron/demo/utils.py:280,283,286` | logfmt() actor object output at INFO; only the ID is meaningful — full formatted object → DEBUG |
 
@@ -212,7 +212,7 @@ from the #1988 implementation:
   `TransitionRMtoValid`, …), reading the before-state from the latest
   `ParticipantStatus` and falling back to `RM.START`.
   `CreateParticipantStatusNode` is the second path — `leave.py`,
-  `sync/nodes/close_case_effect.py` (`ApplyCloseCaseFromLedgerNode`), and
+  `case/nodes/close_case_effect.py` (`ApplyCloseCaseFromLedgerNode`), and
   `add_participant_status_trigger_tree.py` set `rm_state=` on it directly
   without going through the helper — so it logs the RM line itself. A new
   RM-writing node MUST route through one of these two, or its transition will

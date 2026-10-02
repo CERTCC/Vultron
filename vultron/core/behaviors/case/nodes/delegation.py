@@ -36,7 +36,7 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)

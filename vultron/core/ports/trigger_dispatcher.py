@@ -39,7 +39,7 @@ See also: ``core/ports/dispatcher.py`` (the received-side twin),
 
 from typing import Protocol
 
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.use_cases.triggers.requests import ResultT_co, TriggerRequest
 
 

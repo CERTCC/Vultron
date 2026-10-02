@@ -28,11 +28,13 @@ from py_trees.common import Status
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case_status_snapshot import (
+    EmitCaseStatusUpdateNode,
+)
 from vultron.core.behaviors.status.nodes.case_status import (
     CASE_STATUS_ALREADY_PRESENT,
     AppendCaseStatusToCaseNode,
     CheckCaseStatusIdempotencyNode,
-    EmitCaseStatusUpdateNode,
 )
 from vultron.core.models.case import VulnerabilityCase as CoreCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -230,7 +232,9 @@ class TestAppendCaseStatusToCaseNode:
 
 
 # ---------------------------------------------------------------------------
-# EmitCaseStatusUpdateNode
+# EmitCaseStatusUpdateNode — lives in vultron.core.behaviors.case_status_snapshot
+# (shared with the embargo trees, BTND-04-001); tested here beside the
+# AddCaseStatusToCase nodes it shares fixtures with.
 # ---------------------------------------------------------------------------
 
 

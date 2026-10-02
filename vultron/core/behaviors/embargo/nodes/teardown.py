@@ -26,6 +26,7 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.behaviors.narrative_log import log_em_transition
+from vultron.core.behaviors.sync.nodes import _require_log_entry
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.participants.recipients import case_content_recipients
 from vultron.core.services.embargo_lifecycle import (
@@ -227,10 +228,6 @@ class ApplyEmbargoTeardownNode(DataLayerActionWithPorts):
         if self.case_id is not None:
             case_id = self.case_id
         else:
-            from vultron.core.behaviors.sync.nodes import (  # noqa: PLC0415  # ruff-baseline #3950
-                _require_log_entry,
-            )
-
             entry = _require_log_entry(self._activity, self.name)
             case_id = entry.case_id
 

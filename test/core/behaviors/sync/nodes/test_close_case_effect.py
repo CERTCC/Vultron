@@ -3,6 +3,10 @@
 
 Covers close_case ledger event advancing the departing actor to RM.CLOSED.
 Per CM-23-003, CM-23-004, SYNC-02-002.
+
+The node lives in ``case.nodes`` (it composes the participant-status writer)
+but is tested here, beside the other ledger-effect nodes whose fixtures it
+shares.
 """
 
 import pytest
@@ -15,7 +19,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_event,
     _to_persistable_entry,
 )
-from vultron.core.behaviors.sync.nodes.close_case_effect import (
+from vultron.core.behaviors.case.nodes.close_case_effect import (
     ApplyCloseCaseFromLedgerNode,
 )
 from vultron.core.models.case import VulnerabilityCase

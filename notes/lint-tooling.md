@@ -12,6 +12,7 @@ related_specs:
   - specs/tech-stack.yaml
   - specs/code-style.yaml
   - specs/structured-logging.yaml
+  - specs/behavior-tree-node-design.yaml
 related_notes:
   - notes/devcontainer-tooling.md
   - notes/ci-workflow-authoring.md
@@ -174,7 +175,7 @@ future violations too; baselining does not.
 
 **`PLC0415` (`import-outside-top-level`) was excluded in the configuration that
 issue #3352 landed, and #3949 deleted that entry and placed the markers; #3950
-drains them.** Its ADR-0094 row was provisional and
+drained them, so `vultron/` carries none.** Its ADR-0094 row was provisional and
 pointed at #3350, which asked whether CS-05-002's "last resort" described the
 design or an aspiration. The planning measurement answered it: hoisting every
 function-local import in `vultron/` to module level and importing every module
@@ -189,10 +190,11 @@ CS-05-005, CS-05-006):
 
 - `per-file-ignores` carries `"test/**" = ["PLC0415"]`. Test-local imports stay.
 - Every habit site in `vultron/` is hoisted.
-- Every genuine cycle break in `vultron/` carries a `# noqa: PLC0415` marker
-  citing the issue that removes it structurally (the baseline form below; #3950
-  is that issue for every cycle in the table). The marker count is the cycle
-  backlog, and `RUF100` drains it.
+- Every genuine cycle break in `vultron/` was baselined with a `# noqa: PLC0415`
+  marker citing the issue that removes it structurally (the baseline form
+  below), and #3950 removed every one by reorganization. A new deferred import
+  in `vultron/` fails the gate; a new cycle is a new reorganization, not a
+  marker.
 
 A hoist that closes a cycle fails only when the cycle is entered at one
 particular module, so neither pytest's collection order nor one process's import
@@ -202,21 +204,26 @@ import cycle to load, so a hoist that closes a cycle fails there, whichever
 module a deployment happens to import first. It is also how to check whether a
 marker is still needed: hoist the import and run that test.
 
-The cycles the measurement found, grouped so the structural work has a map:
+The cycles the measurement found, and how #3950 broke each. Every one but the
+first closed through an eager package `__init__` re-export, never module to
+module, so each fix removes the one package-level edge pointing back:
 
-| Cycle | Files carrying the deferred import |
+| Cycle | How it was broken |
 |---|---|
-| persistence ports | `vultron/core/ports/case_persistence.py` (PEP 562 `__getattr__` re-export of `case_outbox`) |
-| publication trees ↔ call-out bundles | `vultron/core/behaviors/report/publication_tree.py` (`publish_artifact_tree.py`'s imports hoist cleanly once this one stays deferred) |
-| hypercube ↔ its pattern modules | `vultron/core/case_states/patterns/info.py`, `potential_actions.py` |
-| BT node → use-case helper (BTND-04-003 `KNOWN_VIOLATIONS`) | `vultron/core/behaviors/case/nodes/announce.py` |
-| embargo tree and nodes ↔ status/sync node packages | `vultron/core/behaviors/embargo/trigger_tree.py` (↔ `status/nodes`), `embargo/nodes/teardown.py` (↔ `sync/nodes`), `embargo/nodes/relay.py` (↔ `sync/commit_tree`, and ↔ `case/nodes/role_gates` because `case/nodes/__init__` reaches `sync`) |
-| inbox pipeline ↔ use cases | `vultron/core/use_cases/received/unknown.py` (dead-letter tree → inbox pipeline nodes → semantic registry → `unknown`) |
+| persistence ports | `CaseOutboxPersistence` importers name `core/ports/case_outbox.py` directly; `case_persistence.py` lost its PEP 562 `__getattr__` |
+| publication trees ↔ call-out bundles | the publication-intent contract moved to `report/publication_intent.py` (`publish_artifact_tree.py` was never in the cycle) |
+| hypercube ↔ its pattern modules | `valid_states()` and `CS_EVENT_LETTERS` moved from the hypercube to `case_states/validations.py`, which imports neither the hypercube nor the patterns |
+| BT node → use-case helper (BTND-04-003) | the replica-seeding helpers moved to `core/services/case_replica_seeding.py` (BT-22-005) |
+| embargo tree and nodes ↔ status/sync node packages | `EmitCaseStatusUpdateNode` moved to the shared `behaviors/case_status_snapshot.py` (BTND-04-001); `sync/__init__` stopped re-exporting the announce tree; the `close_case` effect moved from `sync/nodes` to `case/nodes` |
+| `sync` package ↔ `case/nodes` | `sync/__init__` stopped re-exporting the reject and commit trees: `reject_tree` imports `case.nodes`, whose `actor` node commits through `sync.commit_tree`. This cycle carried no marker; the code review on #4114 found it |
+| inbox pipeline ↔ use cases | the dead-letter tree left the inbox package for its own area, `behaviors/dead_letter/` (IO-02-003) |
 
-Each is a CS-05-003 finding: a shared symbol that belongs in a neutral module or
-on the side of the cycle that owns it. Do not add a file to this table to make a
-new finding go away — a new cycle is a new reorganization, and the marker it
-would carry needs its own tracking issue.
+Each was a CS-05-003 finding: a shared symbol that belongs in a neutral module
+or on the side of the cycle that owns it. That is the pattern for a new one: find
+the package `__init__` that makes the edge, then move the symbol, not the
+import. A PEP 562 module `__getattr__` that calls `importlib` is the same
+deferral in a form `PLC0415` cannot see; #4106 removed the last of those, from
+`case/nodes`, and none should come back.
 
 **`G004` (`logging-f-string`) was the other provisional exclusion in the
 configuration that #3352 landed with, and that entry too was deleted, not
@@ -237,7 +244,7 @@ Plus Lazy Arguments (SL-01-005)".
 
 With #3991 landed, the `G004` entry is gone, the whole `G` family runs with no
 `ignore` entry and no `# noqa: G00x` marker, and a new f-string log call fails
-the gate. Once the `PLC0415` entry goes too (#3949), **no entry in `ignore`
+the gate. With the `PLC0415` entry gone too (#3949), **no entry in `ignore`
 cites a tracking issue**: every remaining exclusion rests on one of the first
 three standing reasons above. A new provisional exclusion needs a new issue, and
 this section should name it.
