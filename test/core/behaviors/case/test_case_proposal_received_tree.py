@@ -3322,6 +3322,12 @@ class TestEP04SenderProposalAtCaseCreation:
         assert labels.index("Create(VulnerabilityCase)") < labels.index(
             "Invite(EmbargoEvent)"
         )
+        # The Create carries the case whole, rendered before the relay: it
+        # must not carry the Invite's index entry, or the invitee's
+        # idempotency guard reads the Invite as already answered and skips it.
+        created = _created_case_activity(dl).object_
+        assert isinstance(created, VulnerabilityCase)
+        assert revision_id not in created.pending_embargo_proposal_index
 
     @pytest.mark.spec("EP-04-011")
     @pytest.mark.spec("CM-24-001")
@@ -3331,7 +3337,8 @@ class TestEP04SenderProposalAtCaseCreation:
     ):
         """The Reporter's shorter terms won: the CASE_MANAGER relays the
         owner's longer default to the Reporter on the owner's behalf, under
-        the id the index already holds, and commits it (EP-04-011)."""
+        the id the registration minted, commits it, and only then indexes it
+        (EP-04-011, EP-08-002)."""
         dl = self._store()
         self._publish_owner_policy()
         case, _ = self._run(
@@ -3382,6 +3389,38 @@ class TestEP04SenderProposalAtCaseCreation:
         assert case.proposed_embargoes == []
         assert case.pending_embargo_proposal_index == {}
         assert self._invites(dl) == []
+
+    @pytest.mark.spec("EP-04-011")
+    def test_a_failed_relay_is_an_internal_error_not_a_refusal(
+        self, make_payload, monkeypatch
+    ):
+        """By the relay the proposal is accepted and the case created and
+        announced, so a revision the manager cannot relay is its own fault:
+        the handler raises rather than refusing the sender (ADR-0095), and
+        nothing is indexed for an Invite that was never sent."""
+        from vultron.core.behaviors.case.nodes import (
+            embargo_revision_relay as relay_module,
+        )
+        from vultron.errors import VultronBTInternalError
+
+        monkeypatch.setattr(
+            relay_module, "invitation_recipients", lambda *a, **k: []
+        )
+        dl = self._store()
+        self._publish_owner_policy()
+
+        with pytest.raises(
+            VultronBTInternalError, match="is not an invitation recipient"
+        ):
+            self._run(make_payload, dl, sender_days=self._SENDER_END_DAYS)
+
+        assert self._invites(dl) == []
+        (case,) = [
+            c
+            for c in dl.list_objects("VulnerabilityCase")
+            if isinstance(c, VulnerabilityCase)
+        ]
+        assert case.pending_embargo_proposal_index == {}
 
     @pytest.mark.spec("EP-04-011")
     @pytest.mark.spec("EP-04-012")

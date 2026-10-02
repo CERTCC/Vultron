@@ -51,7 +51,6 @@ from vultron.core.services.embargo_duration import EmbargoDurationSource
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
-from vultron.core.use_cases.triggers._helpers import find_embargo_proposal_id
 from vultron.errors import BtNodePreconditionError, VultronValidationError
 
 ACTOR_ID = "https://example.org/actors/vendor"
@@ -543,11 +542,17 @@ def test_the_revision_key_does_not_outlive_its_execution(
 
 
 @pytest.mark.spec("EP-04-011")
-def test_a_contest_publishes_the_indexed_revision(
+def test_a_contest_publishes_the_revision_without_indexing_it(
     bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
 ) -> None:
-    """The published revision names the id the index holds and whose terms
-    lost: here the owner's longer default (EP-04-011)."""
+    """The published revision names the Invite id the relay will use and
+    whose terms lost: here the owner's longer default (EP-04-011).
+
+    Registration writes no ``pending_embargo_proposal_index`` entry: the
+    relay indexes the Invite only after sending it, because the bootstrap
+    ``Create`` snapshot would otherwise tell the invitee the Invite was
+    already answered.
+    """
     status, revision = _run_probing_revision(
         bt_scenario, sender_proposal=SENDER_PROPOSAL
     )
@@ -558,10 +563,8 @@ def test_a_contest_publishes_the_indexed_revision(
     assert isinstance(case, VulnerabilityCase)
     assert revision.case_id == CASE_ID
     assert case.proposed_embargoes == [revision.embargo_id]
-    assert (
-        case.pending_embargo_proposal_index[revision.embargo_id]
-        == revision.proposal_id
-    )
+    assert revision.proposal_id
+    assert revision.embargo_id not in case.pending_embargo_proposal_index
     assert revision.losing_source is EmbargoDurationSource.ACTOR_DEFAULT
 
 
@@ -648,16 +651,16 @@ def test_a_longer_sender_duration_without_its_event_fails_loudly(
 
 
 @pytest.mark.spec("EP-04-011")
-def test_creation_time_revision_is_indexed_for_the_owners_default_selection(
+def test_creation_time_revision_is_registered_but_not_yet_indexed(
     bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
 ) -> None:
-    """The shortest-wins loser is a revision like any other (EP-04-011).
+    """The shortest-wins loser is registered as an open revision (EP-04-011).
 
     The sender's shorter terms win and the owner's longer default is the
-    pending revision.  It must be reachable by ``find_embargo_proposal_id``,
-    which reads only ``pending_embargo_proposal_index`` (EP-08-002); the
-    relayed Invite to the winning party is asserted by the implementation's
-    own tests.
+    pending revision.  Registration leaves it unindexed: the relay writes
+    the ``pending_embargo_proposal_index`` entry that ``find_embargo_proposal_id``
+    reads (EP-08-002) once the Invite is sent, asserted by the relay's own
+    tests.
     """
     status, _, _ = _run(
         bt_scenario,
@@ -670,11 +673,7 @@ def test_creation_time_revision_is_indexed_for_the_owners_default_selection(
     case = bt_scenario.dl.read(CASE_ID)
     assert isinstance(case, VulnerabilityCase)
     (loser_id,) = case.proposed_embargoes
-    assert loser_id in case.pending_embargo_proposal_index
-    assert (
-        find_embargo_proposal_id(case, bt_scenario.dl)
-        == case.pending_embargo_proposal_index[loser_id]
-    )
+    assert loser_id not in case.pending_embargo_proposal_index
 
 
 @pytest.mark.spec("EP-04-012")

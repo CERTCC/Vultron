@@ -100,7 +100,7 @@ from vultron.core.behaviors.call_out.bundles.case_proposal import (
 from vultron.core.behaviors.case.embargo_tree import (
     InitializeDefaultEmbargoNode,
 )
-from vultron.core.behaviors.case.nodes.embargo_revision import (
+from vultron.core.behaviors.case.nodes.embargo_revision_relay import (
     RelayCreationTimeRevisionNode,
 )
 from vultron.core.behaviors.case.nodes.proposal_admission_actions import (
@@ -256,7 +256,8 @@ def create_case_proposal_received_tree(
          reject/replay path on the normal case-creation route (#3033, #2898).
       13. ``RelayCreationTimeRevisionNode`` — relays the revision step 6
          registered, if any, as ``Invite(EmbargoEvent)`` to the party whose
-         terms won (EP-04-011); no modification precedes step 12 (CM-14-007).
+         terms won (EP-04-011), then indexes the sent Invite (EP-08-002); no
+         modification precedes step 12 (CM-14-007).
 
     If node 10 fails, the marker written in node 9 remains in the DataLayer so
     that a retry runner (#1139) can complete the ``Create(VulnerabilityCase)``

@@ -11,8 +11,8 @@ description: >
   how EP-04-003's two-party shortest-wins relates to EP-08's general
   earliest-expiration ordering for N open proposals; why the creation-time
   revision's registration order no longer touches consent (ADR-0093); how
-  the creation-time revision is indexed at registration and relayed to the other
-  party after initialization (EP-04-011, CM-14-007, ADR-0113);
+  the creation-time revision is relayed to the other party after
+  initialization and indexed only once sent (EP-04-011, CM-14-007, ADR-0113);
   why creation-time initialization runs once per case with the EM state, not
   the active-embargo reference, as the evidence (EP-04-012); and why the actor
   default is the CASE_OWNER's profile policy, carried inline on the case proposal
@@ -315,12 +315,13 @@ knew it existed. The creation-time revision is now a revision like any other and
 follows the relay in `embargo-lifecycle.md` § "Embargo Negotiation Relays Through
 the CASE_MANAGER", in two steps that sit at two different places in the tree:
 
-- **Indexed at registration.** `RegisterLongerProposalAsRevisionNode` mints the id
-  the relayed `Invite` will carry and records it in
-  `pending_embargo_proposal_index` (`record_embargo_proposal_index`, shared with
-  the received-proposal handler), so the owner's default selection reaches the
-  revision as soon as `InitializeDefaultEmbargoNode` returns. It publishes a
-  `CreationTimeRevision` — case, embargo, that id, and whose terms lost
+- **Registered, not indexed.** `RegisterLongerProposalAsRevisionNode` mints the
+  id the relayed `Invite` will carry but writes no
+  `pending_embargo_proposal_index` entry: the bootstrap `Create(VulnerabilityCase)`
+  is rendered later in the tree with the case whole, and an entry already naming
+  the Invite would make the winner's idempotency guard
+  (`EmbargoProposalNotYetRecordedNode`) read the Invite as already answered and
+  skip it. It publishes a `CreationTimeRevision` — case, embargo, that id, and whose terms lost
   (`initial_embargo_duration.source`) — on `creation_time_revision`. It writes
   `None` first whenever it ticks, and `BTBridge` scopes the key to one execution
   (as it does `ledger_payload_object_override`, #3101), because the registration
@@ -334,26 +335,36 @@ the CASE_MANAGER", in two steps that sit at two different places in the tree:
   relay emit (`RelayEmbargoInviteToEachNode`): the CASE_MANAGER emits
   `Invite(EmbargoEvent)` as `actor` with the losing party in `attributedTo`
   (CM-24-001/002), under the pre-minted id, and commits it in this tree before
-  the outbox write. The committed Invite is the revision's proposal record.
+  the outbox write, and only then indexes it (`record_embargo_proposal_index`,
+  shared with the received-proposal handler) for the owner's default selection
+  (EP-08-002). No proposal activity exists at creation, so the committed relayed
+  Invite *is* the revision's proposal entry (EP-04-011).
 
 The loser is the proposer and is not invited: when the reporter's longer terms
 lost (the reporter is the report's `attributedTo`), the owner is invited; when the
 owner's longer default lost, the reporter is. Both were just seeded SIGNATORY, so
 the relay's PEC `INVITE` is not legal for the invitee and changes no consent
 (EP-09-004). A tie registers nothing and relays nothing. The relay also sends
-nothing when the published revision names another case, when the index no longer
-maps the embargo to that id, or when an entry for that id is already in the ledger
-— the last two read from the store, so a retry after a completed relay sends no
+nothing when the published revision names another case, when the embargo is no
+longer an open proposal, or when an entry for that id is already in the ledger —
+the last two read from the store, so a retry after a completed relay sends no
 second Invite. A report naming no reporter, a case naming no CASE_OWNER, or a
-winner who is not an invitation recipient (CM-10-007) fails the tree: the relay is
-a MUST, so an indexed revision whose Invite cannot be sent is never a silent
-SUCCESS. A reporter that is itself the CASE_OWNER has nobody to invite. A failed
-relay is not retried: the redelivery takes the already-initialized arm, publishes
-no revision, and leaves the index naming an Invite that was never emitted (#4121).
-The owner may then
-accept or reject as with any revision (EP-09-005). An owner whose default lost is
-not invited, so its own replica learns the index entry only from the replayed
-ledger entry (#4099).
+winner who is not an invitation recipient (CM-10-007) raises: the relay is a MUST,
+so a registered revision whose Invite cannot be sent is never a silent SUCCESS,
+and the proposal was already accepted and the case announced, so it is the
+manager's internal error, never a REFUSED verdict on the sender (ADR-0095). A
+reporter that is itself the CASE_OWNER has nobody to invite, so nothing is relayed
+or indexed. A failed relay is not retried: the redelivery takes the
+already-initialized arm and publishes no revision (#4121); because the index is
+written only after sending, it never names an Invite that was not emitted.
+
+The owner may then accept or reject as with any revision (EP-09-005). Each replica
+learns the revision from two sources. The `Create(VulnerabilityCase)` snapshot
+carries it in `proposed_embargoes`. The index entry comes from elsewhere: the
+winner indexes the Invite when it receives and answers it, and the loser — the
+proposer, not invited — indexes it when `ApplyEmbargoInviteFromLedgerNode`
+replays the committed Invite attributed to it (#4099). That replay writes no index
+for any other actor, for the same idempotency reason the registration does not.
 
 The sender's event arrives under the sender's id, and an id is a sender-supplied
 value. `persist_creation_time_embargo` (`nodes/embargo.py`) therefore refuses a

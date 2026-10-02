@@ -18,8 +18,9 @@
 The shortest-wins loser registered at case creation is relayed like any other
 revision (EP-04-011): one ``Invite(EmbargoEvent)`` to the party whose terms
 won, from the CASE_MANAGER on the loser's behalf, under the id the
-registration indexed.  These tests pin the node's guards — what it relays and
-when it relays nothing — apart from the case-creation tree that places it.
+registration minted, and indexed only once it is sent.  These tests pin the
+node's guards — what it relays and indexes, and when it does neither — apart
+from the case-creation tree that places it.
 """
 
 from typing import cast
@@ -30,6 +31,8 @@ from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.bridge import BTExecutionResult
 from vultron.core.behaviors.case.nodes.embargo_revision import (
     CreationTimeRevision,
+)
+from vultron.core.behaviors.case.nodes.embargo_revision_relay import (
     RelayCreationTimeRevisionNode,
 )
 from vultron.core.models._helpers import days_from_now_utc
@@ -69,7 +72,7 @@ def _participant(actor_id: str, role: CVDRole) -> CaseParticipant:
 def _seed(
     scenario: BTTestScenario,
     *,
-    indexed: str | None = PROPOSAL_ID,
+    open_proposal: bool = True,
     report_author: str | None = REPORTER,
     owner: str | None = OWNER,
 ) -> None:
@@ -87,9 +90,7 @@ def _seed(
         actor_participant_index={
             cast(str, p.attributed_to): p.id_ for p in records
         },
-        pending_embargo_proposal_index=(
-            {EMBARGO_ID: indexed} if indexed else {}
-        ),
+        proposed_embargoes=[EMBARGO_ID] if open_proposal else [],
     )
     case.append_case_status(em_state=EM.REVISE)
     # A case only materializes status with an owner, so an ownerless case is
@@ -135,6 +136,12 @@ def _invites(scenario: BTTestScenario) -> list[VultronActivity]:
     ]
 
 
+def _index(scenario: BTTestScenario) -> dict[str, str]:
+    case = scenario.dl.read(CASE_ID)
+    assert isinstance(case, VulnerabilityCase)
+    return dict(case.pending_embargo_proposal_index)
+
+
 @pytest.mark.executes_as(MANAGER)
 @pytest.mark.spec("EP-04-011")
 @pytest.mark.spec("CM-24-001")
@@ -163,6 +170,8 @@ def test_the_winner_alone_is_invited_on_the_losers_behalf(
     assert invite.to == [winner]
     assert invite.actor == MANAGER
     assert invite.attributed_to == loser
+    # Indexed only now that it is sent, for the default selection (EP-08-002).
+    assert _index(bt_scenario) == {EMBARGO_ID: PROPOSAL_ID}
 
 
 @pytest.mark.executes_as(MANAGER)
@@ -197,18 +206,16 @@ def test_a_revision_published_for_another_case_relays_nothing(
 
 @pytest.mark.executes_as(MANAGER)
 @pytest.mark.spec("EP-04-011")
-@pytest.mark.parametrize(
-    "indexed", [None, "urn:uuid:a-later-proposal"], ids=["closed", "replaced"]
-)
-def test_a_revision_no_longer_open_under_its_id_relays_nothing(
-    bt_scenario: BTTestScenario, indexed: str | None
+def test_a_revision_no_longer_open_relays_nothing(
+    bt_scenario: BTTestScenario,
 ) -> None:
-    _seed(bt_scenario, indexed=indexed)
+    _seed(bt_scenario, open_proposal=False)
 
     result = _relay(bt_scenario, _revision())
 
     bt_scenario.assert_success(result)
     assert _invites(bt_scenario) == []
+    assert _index(bt_scenario) == {}
 
 
 @pytest.mark.executes_as(MANAGER)
@@ -231,43 +238,51 @@ def test_a_revision_already_in_the_ledger_is_not_relayed_again(
 
 @pytest.mark.executes_as(MANAGER)
 @pytest.mark.spec("EP-04-011")
-def test_a_report_naming_no_reporter_fails_and_relays_nothing(
+def test_a_report_naming_no_reporter_raises_and_relays_nothing(
     bt_scenario: BTTestScenario,
 ) -> None:
     _seed(bt_scenario, report_author=None)
 
     result = _relay(bt_scenario, _revision())
 
-    bt_scenario.assert_failure(result, reason="has no attributed_to")
+    bt_scenario.assert_failure(
+        result, reason="has no attributed_to", allow_internal=True
+    )
     assert _invites(bt_scenario) == []
 
 
 @pytest.mark.executes_as(MANAGER)
 @pytest.mark.spec("EP-04-011")
-def test_a_case_naming_no_owner_fails_and_relays_nothing(
+def test_a_case_naming_no_owner_raises_and_relays_nothing(
     bt_scenario: BTTestScenario,
 ) -> None:
     _seed(bt_scenario, owner=None)
 
     result = _relay(bt_scenario, _revision())
 
-    bt_scenario.assert_failure(result, reason="names no CASE_OWNER")
+    bt_scenario.assert_failure(
+        result, reason="names no CASE_OWNER", allow_internal=True
+    )
     assert _invites(bt_scenario) == []
 
 
 @pytest.mark.executes_as(MANAGER)
 @pytest.mark.spec("EP-04-011")
-def test_a_winner_who_is_not_a_recipient_fails_and_relays_nothing(
+def test_a_winner_who_is_not_a_recipient_raises_and_relays_nothing(
     bt_scenario: BTTestScenario,
 ) -> None:
-    """The relay is a MUST: an indexed revision whose winner cannot be
-    invited is a FAILURE, never a silent SUCCESS that relays nothing."""
+    """The relay is a MUST: a registered revision whose winner cannot be
+    invited is an internal error, never a silent SUCCESS that relays nothing
+    and never a refusal of the sender's already-accepted proposal."""
     _seed(bt_scenario, report_author="https://example.org/actors/outsider")
 
     result = _relay(bt_scenario, _revision())
 
-    bt_scenario.assert_failure(result, reason="is not an invitation recipient")
+    bt_scenario.assert_failure(
+        result, reason="is not an invitation recipient", allow_internal=True
+    )
     assert _invites(bt_scenario) == []
+    assert _index(bt_scenario) == {}
 
 
 @pytest.mark.executes_as(MANAGER)
@@ -275,9 +290,12 @@ def test_a_winner_who_is_not_a_recipient_fails_and_relays_nothing(
 def test_an_owner_who_reported_to_itself_has_nobody_to_invite(
     bt_scenario: BTTestScenario,
 ) -> None:
+    """Nothing is sent, so nothing is indexed: an index entry naming an
+    Invite that never existed would be selected as the owner's default."""
     _seed(bt_scenario, report_author=OWNER)
 
     result = _relay(bt_scenario, _revision())
 
     bt_scenario.assert_success(result)
     assert _invites(bt_scenario) == []
+    assert _index(bt_scenario) == {}

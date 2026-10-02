@@ -64,6 +64,7 @@ from vultron.core.behaviors.sync.nodes._helpers import (
 from vultron.core.models._helpers import project_wire_snapshot_to_core
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.wire_keys import wire_key
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
@@ -214,6 +215,16 @@ class ApplyEmbargoInviteFromLedgerNode(_EmbargoRelayEffectNode):
     a revision keeps its state, and the Invite's RSVP deadline (``endTime``)
     when it carries one (CM-28-013).  An invitee with no participant record
     here is skipped.
+
+    On the proposer's own replica — the Invite's ``attributedTo`` — the Invite
+    is also recorded in ``pending_embargo_proposal_index`` when the replica has
+    no entry for the embargo yet, so the proposer's default selection reaches
+    the revision (EP-08-002).  For a received proposal the propose trigger has
+    already indexed it and this is a no-op; the creation-time revision has no
+    proposal activity, so its relayed Invite is the only entry the proposer's
+    replica learns it from (EP-04-011).  An invitee indexes the Invite when it
+    answers, so this node writes no index for anyone else: an entry here would
+    make the invitee's idempotency guard read the Invite as already answered.
     """
 
     def update(self) -> Status:
@@ -255,6 +266,7 @@ class ApplyEmbargoInviteFromLedgerNode(_EmbargoRelayEffectNode):
             self.logger.debug("%s: %s", self.name, self.feedback_message)
             return Status.SUCCESS
 
+        self._index_for_proposer(case, embargo_id, snapshot)
         self.feedback_message = (
             f"Replayed relayed Invite of embargo '{embargo_id}' to"
             f" '{invitee_id}' on case '{case.id_}'"
@@ -262,6 +274,24 @@ class ApplyEmbargoInviteFromLedgerNode(_EmbargoRelayEffectNode):
         )
         self.logger.info("%s: %s", self.name, self.feedback_message)
         return Status.SUCCESS
+
+    def _index_for_proposer(
+        self,
+        case: VulnerabilityCase,
+        embargo_id: str,
+        snapshot: dict[str, Any],
+    ) -> None:
+        """Index the Invite on the proposer's replica only (EP-08-002)."""
+        assert self.datalayer is not None
+        proposer_id = _extract_id_from_field(
+            snapshot.get(wire_key("attributed_to"))
+        )
+        invite_id = _extract_id_from_field(snapshot.get("id"))
+        if not proposer_id or proposer_id != self.actor_id or not invite_id:
+            return
+        record_embargo_proposal_index(
+            self.datalayer, case.id_, embargo_id, invite_id, overwrite=False
+        )
 
 
 class ApplyEmbargoAcceptanceFromLedgerNode(_EmbargoRelayEffectNode):

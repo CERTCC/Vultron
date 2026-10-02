@@ -337,6 +337,13 @@ class TestApplyEmbargoProposal:
 # ---------------------------------------------------------------------------
 
 
+def _proposers_invite() -> dict[str, Any]:
+    """A relayed Invite whose proposer is this store's actor."""
+    return _invite_snapshot(
+        attributed_to=PARTICIPANT_ACTOR_ID, to=[OWNER_ACTOR_ID]
+    )
+
+
 class TestApplyEmbargoInvite:
     @pytest.mark.spec("CM-28-013")
     @pytest.mark.spec("EP-09-004")
@@ -404,6 +411,60 @@ class TestApplyEmbargoInvite:
             ),
         )
         assert result.status == Status.SUCCESS
+
+    @pytest.mark.spec("EP-08-002")
+    @pytest.mark.spec("EP-04-011")
+    def test_the_proposers_replica_indexes_the_invite(
+        self, bridge, datalayer, revising_case
+    ):
+        """A creation-time revision has no proposal activity, so the relayed
+        Invite is how the proposer's replica learns what to select."""
+        result = _run(
+            bridge,
+            ApplyEmbargoInviteFromLedgerNode(name="Invite"),
+            _entry("invite_to_embargo_on_case", _proposers_invite()),
+        )
+
+        assert result.status == Status.SUCCESS
+        assert _case(datalayer).pending_embargo_proposal_index == {
+            REVISION_ID: INVITE_ID
+        }
+
+    @pytest.mark.spec("EP-08-002")
+    def test_the_proposers_replica_keeps_its_own_proposal_id(
+        self, bridge, datalayer, revising_case
+    ):
+        """The propose trigger indexed the proposer's own activity first."""
+        revising_case.pending_embargo_proposal_index = {
+            REVISION_ID: PROPOSAL_ID
+        }
+        datalayer.save(revising_case)
+
+        result = _run(
+            bridge,
+            ApplyEmbargoInviteFromLedgerNode(name="Invite"),
+            _entry("invite_to_embargo_on_case", _proposers_invite()),
+        )
+
+        assert result.status == Status.SUCCESS
+        assert _case(datalayer).pending_embargo_proposal_index == {
+            REVISION_ID: PROPOSAL_ID
+        }
+
+    @pytest.mark.spec("EP-04-011")
+    def test_the_invitees_replica_writes_no_index(
+        self, bridge, datalayer, revising_case
+    ):
+        """An index entry here would make the invitee's idempotency guard
+        read its Invite as already answered; it indexes when it answers."""
+        result = _run(
+            bridge,
+            ApplyEmbargoInviteFromLedgerNode(name="Invite"),
+            _entry("invite_to_embargo_on_case", _invite_snapshot()),
+        )
+
+        assert result.status == Status.SUCCESS
+        assert _case(datalayer).pending_embargo_proposal_index == {}
 
 
 # ---------------------------------------------------------------------------

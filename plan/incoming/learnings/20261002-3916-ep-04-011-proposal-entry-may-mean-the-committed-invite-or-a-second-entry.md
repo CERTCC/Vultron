@@ -13,8 +13,11 @@ proposal there are two entries: the guarded commit of the inbound `Invite`
 inbound Invite, so there is no first entry to commit.
 
 PR #4122 reads the clause as satisfied by the relayed Invite alone: it carries
-the pre-indexed proposal id, it is committed in the emitting tree, and #4099's
-replay recognises it as a CM-authored entry whose `attributedTo` differs from its
-`actor`. A reader who takes "proposal entry" as a separate entry type would find a
-gap. The spec should say which it means; if a distinct entry is intended, the
-replica replay (#4099) is where it would be consumed.
+the proposal id the registration minted, it is committed in the emitting tree,
+and #4099's replay matches it as a relayed Invite (a CM-authored entry whose
+`attributedTo` differs from its `actor`), not as a proposal. That replay arm
+originally wrote no index, so the proposer's replica could not reach the
+revision through its default selection; #4122 makes it index the Invite on the
+proposer's own replica only. The PR adds a clarifying sentence to EP-04-011
+saying the committed relayed Invite is the proposal entry; if a distinct entry
+were intended instead, the replica replay (#4099) is where it would be consumed.
