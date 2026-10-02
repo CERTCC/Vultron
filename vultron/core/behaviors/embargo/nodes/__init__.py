@@ -39,6 +39,11 @@ from vultron.core.behaviors.embargo.nodes.invite_answer import (
     CanAnswerEmbargoInviteNode,
     SendEmbargoInviteAnswerNode,
 )
+from vultron.core.behaviors.embargo.nodes.lapse import (
+    ApplyInviteLapseFromLedgerNode,
+    EvaluateInviteLapseNode,
+    InviteLapseChangedConsentNode,
+)
 from vultron.core.behaviors.embargo.nodes.lifecycle import (
     AcceptEmbargoLifecycleNode,
     ProposeEmbargoLifecycleNode,
@@ -120,6 +125,10 @@ __all__ = [
     "ApplyEmbargoAcceptanceFromLedgerNode",
     "ApplyEmbargoRejectionFromLedgerNode",
     "case_manager_admits_proposal_guard",
+    # Invite lapse (CM-28-014)
+    "EvaluateInviteLapseNode",
+    "InviteLapseChangedConsentNode",
+    "ApplyInviteLapseFromLedgerNode",
     # Proposal
     "CreateAndStoreInviteNode",
     "RecordParticipantAcceptanceNode",

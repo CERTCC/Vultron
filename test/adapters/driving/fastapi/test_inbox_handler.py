@@ -1042,6 +1042,72 @@ def test_make_dispatcher_case_proposal_uses_actor_config_factory(monkeypatch):
     assert actor_config.default_case_roles == [CVDRole.COORDINATOR]
 
 
+@pytest.mark.parametrize(
+    "sem",
+    [
+        MessageSemantics.INVITE_TO_EMBARGO_ON_CASE,
+        MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
+    ],
+)
+def test_make_dispatcher_embargo_invite_gets_actor_config(monkeypatch, sem):
+    """The two embargo-invite semantics get the trigger port and ActorConfig.
+
+    The CASE_MANAGER stamps each relayed Invite, and the EMB-17-003 re-invite,
+    with an RSVP deadline drawn from its configured windows (CM-28-012,
+    EP-07-002), so a lost registration would silently fall back to defaults.
+    """
+    from datetime import timedelta
+
+    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
+    from vultron.adapters.driven.trigger_activity_adapter import (
+        TriggerActivityAdapter,
+    )
+    from vultron.config.actor import ActorConfig
+
+    captured: dict = {}
+
+    def fake_get_dispatcher(use_case_map, port_factories=None):
+        captured["port_factories"] = port_factories
+        return Mock()
+
+    monkeypatch.setattr(ih, "get_dispatcher", fake_get_dispatcher)
+    fake = ActorConfig(default_rsvp_window=timedelta(days=10))
+    monkeypatch.setattr(pf, "_resolve_actor_config", lambda: fake)
+
+    ih.make_dispatcher()
+
+    kwargs = captured["port_factories"][sem](
+        SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+    )
+    assert kwargs["actor_config"] is fake
+    assert isinstance(kwargs["trigger_activity"], TriggerActivityAdapter)
+
+
+def test_embargo_invite_port_factory_omits_actor_config_when_unavailable(
+    monkeypatch,
+):
+    """Config load failure drops actor_config but keeps the trigger port."""
+    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
+    from vultron.adapters.driven.trigger_activity_adapter import (
+        TriggerActivityAdapter,
+    )
+
+    monkeypatch.setattr(pf, "_resolve_actor_config", lambda: None)
+
+    kwargs = pf._embargo_invite_port_factory(
+        SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+    )
+
+    assert isinstance(kwargs["trigger_activity"], TriggerActivityAdapter)
+    assert set(kwargs) == {"trigger_activity"}
+
+
 def test_make_dispatcher_ac2_auto_create_false_no_case_via_dispatcher(
     monkeypatch,
 ):

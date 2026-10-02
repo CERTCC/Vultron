@@ -48,6 +48,7 @@ from vultron.core.behaviors.sync.announce_tree import (
     create_announce_log_entry_tree,
 )
 from vultron.core.behaviors.sync.nodes.event_conditions import (
+    INVITE_LAPSED_EVENT_TYPE,
     _ActivityEventNode,
 )
 from vultron.core.models.case import VulnerabilityCase
@@ -98,6 +99,14 @@ REPLAYED: dict[str, tuple[str, dict[str, Any]]] = {
         MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE.value,
         {"type": "Remove", "actor": MANAGER, "object": EMBARGO},
     ),
+    "invite lapse": (
+        INVITE_LAPSED_EVENT_TYPE,
+        {
+            "type": "Lapse",
+            "actor": REPLICA,
+            "object": {"type": "Invite", "object": EMBARGO},
+        },
+    ),
 }
 
 #: Embargo event types outside the revision relay, and who owns them.
@@ -105,10 +114,6 @@ OUTSIDE_THE_RELAY: dict[str, str] = {
     MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE.value: (
         "committed, not yet replayed — #3814 (ledger replay for every"
         " committed event type)"
-    ),
-    "invite_to_embargo_on_case_lapsed": (
-        "committed on a late Accept, replay owned by #3961 (RSVP deadline"
-        " and lapse)"
     ),
     MessageSemantics.CREATE_EMBARGO_EVENT.value: "stores an object; commits nothing",
     MessageSemantics.ANNOUNCE_EMBARGO_EVENT_TO_CASE.value: (

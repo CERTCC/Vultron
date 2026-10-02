@@ -336,27 +336,9 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
         if not is_lapsed:
             return _unchanged(em_state)
 
-        # Deadline has passed — apply DECLINE if still in INVITED state.
-        # Idempotent: DECLINED and other terminal states are left unchanged.
-        participant_changes: list[ParticipantPECChange] = []
-        if participant.embargo_consent_state == PEC.INVITED.value:
-            pec_before = participant.embargo_consent_state
-            participant.apply_pec_transition(PEC_Trigger.DECLINE)
-            self._persistence.save(participant)
-            participant_changes.append(
-                ParticipantPECChange(
-                    participant_id=participant_id,
-                    pec_before=pec_before,
-                    pec_after=participant.embargo_consent_state,
-                )
-            )
-            logger.info(
-                "Invite lapsed for actor '%s' on case '%s'"
-                " (deadline=%s, PEC INVITED → DECLINED)",
-                actor_id,
-                case_id,
-                deadline,
-            )
+        participant_changes = self._decline_lapsed_invite(
+            case_id, actor_id, participant
+        )
 
         # A SIGNATORY participant has already accepted; a stale deadline is not
         # a real lapse.  Only DECLINED (just-lapsed or already-declined) triggers
@@ -368,6 +350,69 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
             participant_changes=participant_changes,
             is_lapsed=is_lapsed,
         )
+
+    def record_invite_lapse(
+        self,
+        *,
+        case_id: str,
+        actor_id: str,
+    ) -> EmbargoLifecycleResult:
+        """Record the CASE_MANAGER's lapse of *actor_id*'s invite (CM-28-014).
+
+        The replica half of :meth:`detect_and_apply_lapse`: the manager alone
+        evaluated the deadline and committed the lapse, so a replica replaying
+        that entry applies the same ``DECLINE`` without re-reading any clock or
+        deadline of its own.  Idempotent — a participant no longer ``INVITED``
+        (already ``DECLINED``, or ``SIGNATORY`` by a later answer) is left as
+        it is.
+
+        Raises:
+            VultronNotFoundError: If *case_id* does not resolve to a case, or
+                *actor_id* has no participant record on it.
+        """
+        case = self._read_case(case_id)
+        participant_id = case.actor_participant_index.get(actor_id)
+        participant = (
+            self._persistence.read(participant_id) if participant_id else None
+        )
+        if not isinstance(participant, CaseParticipant):
+            raise VultronNotFoundError(
+                "CaseParticipant", f"{actor_id} on case {case_id}"
+            )
+        return _unchanged(
+            case.current_status.em.state,
+            participant_changes=self._decline_lapsed_invite(
+                case_id, actor_id, participant
+            ),
+        )
+
+    def _decline_lapsed_invite(
+        self, case_id: str, actor_id: str, participant: CaseParticipant
+    ) -> list[ParticipantPECChange]:
+        """Apply ``DECLINE`` to a lapsed invitee still ``INVITED``; else nothing.
+
+        Shared by the manager's evaluation and the replica's replay, so both
+        stores apply one rule (CM-28-014).
+        """
+        if participant.embargo_consent_state != PEC.INVITED.value:
+            return []
+        pec_before = participant.embargo_consent_state
+        participant.apply_pec_transition(PEC_Trigger.DECLINE)
+        self._persistence.save(participant)
+        logger.info(
+            "Invite lapsed for actor '%s' on case '%s'"
+            " (deadline=%s, PEC INVITED → DECLINED)",
+            actor_id,
+            case_id,
+            participant.invite_rsvp_deadline,
+        )
+        return [
+            ParticipantPECChange(
+                participant_id=participant.id_,
+                pec_before=pec_before,
+                pec_after=participant.embargo_consent_state,
+            )
+        ]
 
     def assert_embargo_eligible(self, *, case_id: str, operation: str) -> None:
         """Raise unless the case is still embargo-eligible (P/X/A all clear).

@@ -370,14 +370,21 @@ Do not introduce a second timeout notion — they will drift.
   evaluated. Those two must name the same participant or enforcement silently
   never fires — see "Whose record holds the deadline" below
 - Enforcement is **lazy**, not scheduled, and it is the **CASE_MANAGER's alone**
-  (CM-28-014): lapse is derived from `(end_time, now)` whenever PEC state is
-  read or an inbound `Accept`/`Reject` is processed at the manager. No scheduler
-  is required for correctness. The `EmbargoTimerExpired` Sentinel (#1893) is an
-  optional proactive accelerator
-- When a lapse is detected, the CASE_MANAGER records the `DECLINE` transition and
-  authors a ledger entry distinguishing it from an explicit refusal (CM-28-005);
-  the entry is role-gated and replayed, so a replica learns a lapse and never
-  computes one
+  (CM-28-014): lapse is derived from `(end_time, now)` when an inbound `Accept`
+  is processed at the manager. No scheduler is required for correctness. The
+  `EmbargoTimerExpired` Sentinel (#1893) is an optional proactive accelerator
+- The built path is `create_invite_lapse_tree()`
+  (`vultron/core/behaviors/embargo/lapse_tree.py`): `EvaluateInviteLapseNode`
+  runs `detect_and_apply_lapse()` and the guarded commit of the
+  `invite_to_embargo_on_case_lapsed` entry, both behind
+  `create_case_manager_gated_tree`. A non-manager runs nothing; a late `Accept`
+  that reaches one is refused as not-the-manager, never lapsed locally
+- The lapse entry is distinct from an explicit refusal (CM-28-005, CM-28-009):
+  it is attributed to the lapsed invitee and committed once, only when this
+  evaluation changed consent. Replicas replay it through
+  `ApplyInviteLapseFromLedgerNode` in `create_announce_log_entry_tree`, which
+  applies the same `DECLINE` via `EmbargoLifecycle.record_invite_lapse()` and
+  reads no clock or deadline — a replica learns a lapse and never computes one
 
 > **Provenance note**: the header of this file cites
 > `archived_notes/demo-review-26042001.md` as a source. The term "pocket veto"
@@ -433,6 +440,29 @@ relayed Invite as its `published` plus the configured window (CM-28-012), and
 writes `invite_rsvp_deadline` on the invitee's record at its commit of that
 emission; the replica apply node writes the same value (CM-28-013). A
 participant that receives an Invite stores it and derives nothing (EP-09-003).
+
+The stamp is `stamp_invite_rsvp_deadline()`
+(`vultron/core/behaviors/embargo/rsvp_stamp.py`), driven by the sender's
+`ActorConfig` (`default_rsvp_window`, floor `min_rsvp_window`). Every embargo
+Invite the CASE_MANAGER sends goes through it: each relayed revision
+(`RelayEmbargoInviteToEachNode`) and the EMB-17-003 re-invite of a stale late
+accepter, which carries a fresh deadline (ASK-03-004) — though that re-invite is
+not yet committed, so only the manager records its deadline (#4137). The relay
+passes the stamp to `propose_embargo()` as `rsvp_deadline`, `published` and
+`min_rsvp_window`, so the factory checks the same floor the stamp used. It then
+records the deadline read back from the sealed body — the value the committed
+entry carries as `endTime` and the replica's `record_embargo_invite()` reads.
+
+**The EP-07-001 receiver-side fallback is not the normal case.** The wire
+extractor (`_effective_rsvp_deadline` in `vultron/wire/as2/extractor/_extract.py`)
+still computes an effective deadline for every inbound embargo Invite —
+applying the default window when `end_time` is absent and clamping per EP-07-003,
+logging each clamp (EP-07-005) — and surfaces it on the event. Under the relay it
+is reached only by an Invite that arrives with no `end_time`: a misrouting, or a
+foreign implementation that does not stamp. No received use case stores it
+(CM-28-013); a deadline enters a record only from the manager's commit or the
+replay of that commit.
+
 Before the relay, no trigger set `end_time`, so every receiving store fell to
 the EP-07-001 fallback and derived its own deadline from its own `ActorConfig` —
 two replicas could disagree about when one invitation closed.

@@ -21,17 +21,16 @@ SYNC-14-001).
 """
 
 import json
+from datetime import UTC, datetime, timedelta
 from typing import cast
 
 import pytest
 
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
-    embargo as adapter_embargo,
 )
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.behaviors.embargo.nodes.relay import invite_rsvp_deadline
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.use_case_result import (
@@ -40,6 +39,7 @@ from vultron.core.models.use_case_result import (
 )
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
+from vultron.core.states.participant_embargo_consent import PEC
 
 from .test_embargo_relay_replay import (
     BYSTANDER,
@@ -174,21 +174,14 @@ def test_a_participant_handed_an_answer_refuses_it_and_writes_nothing(answer):
 
 @pytest.mark.spec("CM-28-013")
 @pytest.mark.spec("EP-09-007")
-def test_the_relay_and_its_replay_record_the_same_rsvp_deadline(monkeypatch):
+@pytest.mark.spec("CM-28-012")
+def test_the_relay_and_its_replay_record_the_same_rsvp_deadline():
     """The invitee's deadline is the relayed Invite's ``endTime`` everywhere.
 
-    The relay does not stamp a deadline yet (#3961), so the factory the relay
-    calls is wrapped to stamp one, the way CM-28-012 will.
+    The CASE_MANAGER stamps it as the Invite's ``published`` plus its default
+    window (CM-28-012), records it at commit, and the replica records the same
+    value from the committed entry (CM-28-013).
     """
-    stamped = days_from_now_utc(30)
-    factory = adapter_embargo.em_propose_embargo_activity
-
-    def stamping_factory(*args, **kwargs):
-        return factory(*args, rsvp_deadline=stamped, **kwargs)
-
-    monkeypatch.setattr(
-        adapter_embargo, "em_propose_embargo_activity", stamping_factory
-    )
     net = _Network("https://example.org/cases/answer-rsvp-deadline")
     _propose(net, "deadline", 90)
     (invite,) = net.queued(MANAGER, to=BYSTANDER, type_="Invite")
@@ -196,6 +189,9 @@ def test_the_relay_and_its_replay_record_the_same_rsvp_deadline(monkeypatch):
     assert body is not None
     deadline = invite_rsvp_deadline(body)
     assert deadline is not None
+    assert deadline - datetime.fromisoformat(body["published"]) == timedelta(
+        days=7
+    )
     _replay_to_bystander(net)
 
     for actor_id in (MANAGER, BYSTANDER):
@@ -204,3 +200,43 @@ def test_the_relay_and_its_replay_record_the_same_rsvp_deadline(monkeypatch):
         participant = dl.read(index[BYSTANDER])
         assert isinstance(participant, CaseParticipant)
         assert participant.invite_rsvp_deadline == deadline, actor_id
+
+
+@pytest.mark.spec("CM-28-014")
+@pytest.mark.spec("CM-28-009")
+@pytest.mark.spec("TB-06-007")
+def test_the_managers_lapse_is_committed_and_replayed_by_a_replica():
+    """A late Accept lapses in the manager's store; a replica replays it.
+
+    The replica never evaluates the deadline — its own record still holds the
+    relayed 7-day one — it applies the CASE_MANAGER's committed lapse entry
+    (CM-28-014), an entry distinct from the Accept (CM-28-009).
+    """
+    net = _Network("https://example.org/cases/answer-lapse-replay")
+    _propose(net, "lapse", 90)
+    bystander_pid = net.case(MANAGER).actor_participant_index[BYSTANDER]
+    # A signatory's consent survives a revision Invite (EP-09-004), so seed an
+    # invitee that has not yet signed, everywhere; only the manager's record
+    # holds a passed deadline.
+    for actor_id in (MANAGER, OWNER):
+        dl = net.stores[actor_id]
+        participant = cast(CaseParticipant, dl.read(bystander_pid))
+        update: dict[str, object] = {"embargo_consent_state": PEC.INVITED}
+        if actor_id == MANAGER:
+            update["invite_rsvp_deadline"] = datetime.now(tz=UTC) - timedelta(
+                hours=1
+            )
+        dl.save(participant.model_copy(update=update))
+    _replay_to_bystander(net)
+    net.deliver(MANAGER, to=BYSTANDER, type_="Invite")
+    (accept,) = net.queued(BYSTANDER, to=MANAGER, type_="Accept")
+    body = read_sealed_body_dict(net.stores[BYSTANDER], accept.id_)
+    assert body is not None
+
+    net.receive(MANAGER, body)
+    _deliver_all(net, OWNER)
+
+    replayed = cast(CaseParticipant, net.stores[OWNER].read(bystander_pid))
+    assert replayed.embargo_consent_state == PEC.DECLINED
+    assert replayed.invite_rsvp_deadline is not None
+    assert replayed.invite_rsvp_deadline > datetime.now(tz=UTC)

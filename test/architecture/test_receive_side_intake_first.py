@@ -215,7 +215,6 @@ KNOWN_FACTORIES_BYPASSING_INTAKE: frozenset[str] = frozenset(
         "create_note_tree",
         # sync — #3935
         "create_announce_log_entry_tree",
-        "create_commit_log_entry_tree",
         "create_reject_log_entry_tree",
         # dead_letter
         "create_store_dead_letter_tree",
@@ -224,6 +223,11 @@ KNOWN_FACTORIES_BYPASSING_INTAKE: frozenset[str] = frozenset(
         # tree-less path in AcceptInviteToEmbargoOnCaseReceivedUseCase whose
         # writes predate it. Leaves with that path's move onto a tree (#3871).
         "embargo_admission_backfill_tree",
+        # embargo — the CM-28-014 lapse evaluation: given no activity, it runs
+        # ahead of the Accept tree on the same tree-less EMB-17 path and
+        # commits its own entry (the lapse, not the Accept). Leaves with that
+        # path's move onto a tree (#3871).
+        "create_invite_lapse_tree",
     }
 )
 

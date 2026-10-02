@@ -16,6 +16,7 @@
 """Embargo-domain trigger activity construction for TriggerActivityAdapter."""
 
 import logging
+from datetime import datetime, timedelta
 from typing import Any, cast
 
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
@@ -47,6 +48,9 @@ class _EmbargoMixin:
         to: list[str] | None = None,
         attributed_to: str | None = None,
         activity_id: str | None = None,
+        rsvp_deadline: datetime | None = None,
+        published: datetime | None = None,
+        min_rsvp_window: timedelta | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Invite(as_EmbargoEvent, Case)`` proposal.
 
@@ -54,13 +58,22 @@ class _EmbargoMixin:
         it is forwarded only when given so a participant's own proposal keeps
         the factory's default of no attribution.  ``activity_id`` likewise:
         given, it is the Invite's id (EP-04-011); absent, the factory mints one.
+        So are ``rsvp_deadline`` (the Invite's ``endTime``, CM-28-012) and the
+        ``published`` instant and ``min_rsvp_window`` floor the factory
+        validates it against (EP-07-002, EP-07-006).
         """
         embargo = _to_wire(self._dl.read(embargo_id), as_EmbargoEvent)
-        optional: dict[str, Any] = {}
-        if attributed_to is not None:
-            optional["attributed_to"] = attributed_to
-        if activity_id is not None:
-            optional["id_"] = activity_id
+        optional: dict[str, Any] = {
+            key: value
+            for key, value in (
+                ("attributed_to", attributed_to),
+                ("id_", activity_id),
+                ("rsvp_deadline", rsvp_deadline),
+                ("published", published),
+                ("min_rsvp_window", min_rsvp_window),
+            )
+            if value is not None
+        }
         activity = em_propose_embargo_activity(
             embargo=embargo, context=case_id, actor=actor, to=to, **optional
         )

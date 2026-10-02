@@ -403,9 +403,10 @@ The participant side has two halves, and only the first runs on receipt:
 | Entry (`event_type`) | Slot | Replica effect |
 |---|---|---|
 | proposal (`invite_to_embargo_on_case`, not a relay) | `EmbargoProposal` | stores B, `propose_embargo` (→ `PROPOSED`/`REVISE`), index recorded, proposer's consent |
-| relayed Invite (same type, `actor` the CASE_MANAGER, `attributedTo` someone else) | `EmbargoInviteRelay` | invitee PEC `INVITE` where legal, RSVP deadline stored |
+| relayed Invite (same type, `actor` the CASE_MANAGER, `attributedTo` someone else) | `EmbargoInviteRelay` | invitee PEC `INVITE` where legal; the RSVP deadline the entry carries as `endTime` stored (CM-28-013) |
 | `accept_invite_to_embargo_on_case` | `EmbargoAcceptance` | the answerer's consent; the owner's Accept activates B |
 | `reject_invite_to_embargo_on_case` | `EmbargoRejection` | the answerer declines; the owner's Reject returns EM to A and forgets B |
+| `invite_to_embargo_on_case_lapsed` (the CASE_MANAGER's lapse, attributed to the invitee) | `InviteLapse` | invitee PEC `DECLINE` if still `INVITED`; no deadline read (CM-28-014) |
 | `remove_embargo_event_from_case` | teardown | unchanged |
 
 The proposal and a relayed Invite share one event type and are told apart by

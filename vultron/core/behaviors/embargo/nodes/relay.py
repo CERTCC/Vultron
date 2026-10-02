@@ -54,6 +54,9 @@ from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
 )
 from vultron.core.behaviors.embargo.nodes.em_state import read_case_em_state
+from vultron.core.behaviors.embargo.rsvp_stamp import (
+    stamp_invite_rsvp_deadline,
+)
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
@@ -76,6 +79,7 @@ from vultron.errors import (
 )
 
 if TYPE_CHECKING:
+    from vultron.config.actor import ActorConfig
     from vultron.core.ports.sync_activity import SyncActivityPort
 
 #: Ledger ``event_type`` of a relayed ``Invite(EmbargoEvent)`` emission — the
@@ -264,10 +268,12 @@ class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
 
     For each recipient the collect node named: build the Invite through the
     trigger-activity factory as the executing CASE_MANAGER with the proposer
-    in ``attributedTo`` (CM-24-001, CM-24-002), commit the sealed blob as the
-    canonical entry (VM-08-003) before the outbox write (ledger commit
-    precedes outbox write), queue it, then apply PEC ``INVITE`` to the
-    invitee where legal (CM-18-003, EP-09-004).
+    in ``attributedTo`` (CM-24-001, CM-24-002) and the manager's RSVP
+    deadline as its ``endTime`` (CM-28-012, from ``actor_config``'s windows),
+    commit the sealed blob as the canonical entry (VM-08-003) before the
+    outbox write (ledger commit precedes outbox write), queue it, then apply
+    PEC ``INVITE`` to the invitee where legal, recording the deadline the
+    sealed Invite carries (CM-18-003, EP-09-004, CM-28-013).
 
     A step failing mid-relay is not a protocol refusal — the proposal is
     already committed and the EM state moved — so this node catches nothing:
@@ -295,11 +301,13 @@ class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
         embargo_id: str,
         proposer_id: str,
         name: str | None = None,
+        actor_config: "ActorConfig | None" = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
         self._embargo_id = embargo_id
         self._proposer_id = proposer_id
+        self._actor_config = actor_config
         self._sync_port: SyncActivityPort | None = None
         self._recipients: list[str] = []
 
@@ -358,6 +366,10 @@ class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
         assert self.trigger_activity_factory is not None
         assert self.actor_id is not None
         dl = cast(CaseOutboxPersistence, self.datalayer)
+        # The manager stamps the deadline it alone will evaluate (CM-28-012).
+        stamp = stamp_invite_rsvp_deadline(
+            dl, self._embargo_id, self._actor_config
+        )
         activity_id, blob = self.trigger_activity_factory.propose_embargo(
             embargo_id=self._embargo_id,
             case_id=self._case_id,
@@ -365,6 +377,9 @@ class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
             to=[recipient_id],
             attributed_to=self._proposer_id,
             activity_id=self._activity_id_for(recipient_id),
+            rsvp_deadline=stamp.rsvp_deadline,
+            published=stamp.published,
+            min_rsvp_window=stamp.min_rsvp_window,
         )
         self._commit_emission(activity_id, blob)
         dl.outbox_append(activity_id)

@@ -54,6 +54,9 @@ _ACCEPT_EMBARGO_INVITE_EVENT = (
 _REJECT_EMBARGO_INVITE_EVENT = (
     MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE.value
 )
+# The CASE_MANAGER's lapse of an invitee's embargo Invite (CM-28-009,
+# CM-28-014): a synthesised entry with no wire semantic of its own.
+INVITE_LAPSED_EVENT_TYPE = "invite_to_embargo_on_case_lapsed"
 
 
 class _ActivityEventNode(DataLayerConditionWithPorts):
@@ -378,5 +381,20 @@ class IsRejectEmbargoInviteEventNode(_ActivityEventNode):
     def update(self) -> Status:
         entry = _require_log_entry(self.activity, self.name)
         if entry.event_type == _REJECT_EMBARGO_INVITE_EVENT:
+            return Status.SUCCESS
+        return Status.FAILURE
+
+
+class IsInviteLapsedEventNode(_ActivityEventNode):
+    """Precondition: this entry is the CASE_MANAGER's lapse of an embargo Invite.
+
+    Used in the ``InviteLapseEffects`` slot of ``AnnounceLogEntryReceivedBT``.
+
+    Per CM-28-009, CM-28-014, BTND-08-001, SYNC-12-001.
+    """
+
+    def update(self) -> Status:
+        entry = _require_log_entry(self.activity, self.name)
+        if entry.event_type == INVITE_LAPSED_EVENT_TYPE:
             return Status.SUCCESS
         return Status.FAILURE

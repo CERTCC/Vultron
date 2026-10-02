@@ -27,6 +27,7 @@ cycle.  Import it from here.
 """
 
 import logging
+from typing import TYPE_CHECKING
 
 from py_trees.common import Status
 
@@ -51,6 +52,9 @@ from vultron.core.participants.recipients import invitation_recipients
 from vultron.core.services.embargo_duration import EmbargoDurationSource
 from vultron.core.sync_helpers import recorded_entries_for_case
 from vultron.errors import BtNodePreconditionError, VultronError
+
+if TYPE_CHECKING:
+    from vultron.config.actor import ActorConfig
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +95,12 @@ class RelayCreationTimeRevisionNode(RelayEmbargoInviteToEachNode):
     which never reaches the registration (#4121).
     """
 
-    def __init__(self, report_id: str | None, name: str | None = None) -> None:
+    def __init__(
+        self,
+        report_id: str | None,
+        name: str | None = None,
+        actor_config: "ActorConfig | None" = None,
+    ) -> None:
         # The case, embargo and proposer are known only at tick time, from the
         # published revision; ``_load_relay_inputs`` and ``_resolve_parties``
         # set them, so the base constructor gets placeholders.
@@ -100,6 +109,7 @@ class RelayCreationTimeRevisionNode(RelayEmbargoInviteToEachNode):
             embargo_id="",
             proposer_id="",
             name=name or self.__class__.__name__,
+            actor_config=actor_config,
         )
         self._report_id = report_id
         self._revision: CreationTimeRevision | None = None
