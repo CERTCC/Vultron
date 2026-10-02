@@ -21,7 +21,8 @@ when it committed the Invite (CM-28-013).  Lapse is evaluated lazily, when the
 manager next hears from the invitee — its late ``Accept`` — and only by the
 manager (CM-28-003): :class:`EvaluateInviteLapseNode` runs behind the role
 gate in :func:`~vultron.core.behaviors.embargo.lapse_tree.create_invite_lapse_tree`,
-which also commits the lapse entry (CM-28-009).  A participant replica never
+which commits the lapse entry (CM-28-009) and then applies it through
+:class:`RecordInviteLapseNode`.  A participant replica never
 reads a clock against a deadline; it applies the manager's decision from the
 committed entry through :class:`ApplyInviteLapseFromLedgerNode`, reached from
 ``create_announce_log_entry_tree`` (RSH-08-004).
@@ -44,17 +45,20 @@ from vultron.errors import VultronNotFoundError
 IS_LAPSED_KEY = "is_lapsed"
 """``result_out`` key: the invite's deadline has passed and it is unanswered."""
 
-CONSENT_CHANGED_KEY = "consent_changed"
-"""``result_out`` key: this evaluation moved the invitee ``INVITED → DECLINED``."""
+DECLINES_KEY = "declines"
+"""``result_out`` key: the invitee is still ``INVITED``, so the lapse declines it."""
 
 
 class EvaluateInviteLapseNode(DataLayerActionWithPorts):
-    """Apply PEC ``DECLINE`` to an invitee whose RSVP deadline has passed.
+    """Read whether an invitee's RSVP deadline has passed; write nothing.
 
-    Delegates to :meth:`EmbargoLifecycle.detect_and_apply_lapse` and writes
-    its outcome to *result_out*: :data:`IS_LAPSED_KEY` routes the late answer
-    (EMB-17), :data:`CONSENT_CHANGED_KEY` decides whether a lapse entry is
-    committed — a lapse already applied is not logged twice (CM-28-009).
+    Delegates to :meth:`EmbargoLifecycle.assess_invite_lapse` and writes its
+    outcome to *result_out*: :data:`IS_LAPSED_KEY` routes the late answer
+    (EMB-17), :data:`DECLINES_KEY` decides whether the lapse entry is
+    committed and then applied (CM-28-009).  The node is a guard: the
+    ``DECLINE`` is :class:`RecordInviteLapseNode`'s, after the commit
+    (CLP-10-006), so a failed commit leaves the invitee ``INVITED`` and a
+    redelivery commits the lapse rather than reading it as recorded.
     Placed only behind the CASE_MANAGER gate (CM-28-014).
     """
 
@@ -74,14 +78,14 @@ class EvaluateInviteLapseNode(DataLayerActionWithPorts):
 
     def update(self) -> Status:
         self._result_out[IS_LAPSED_KEY] = False
-        self._result_out[CONSENT_CHANGED_KEY] = False
+        self._result_out[DECLINES_KEY] = False
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
         try:
-            result = EmbargoLifecycle(
+            assessment = EmbargoLifecycle(
                 persistence=self.datalayer
-            ).detect_and_apply_lapse(
+            ).assess_invite_lapse(
                 case_id=self._case_id,
                 actor_id=self._invitee_id,
                 now=self._now,
@@ -90,23 +94,22 @@ class EvaluateInviteLapseNode(DataLayerActionWithPorts):
             self.feedback_message = str(exc)
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
-        self._result_out[IS_LAPSED_KEY] = result.is_lapsed
-        self._result_out[CONSENT_CHANGED_KEY] = bool(
-            result.participant_changes
-        )
+        self._result_out[IS_LAPSED_KEY] = assessment.is_lapsed
+        self._result_out[DECLINES_KEY] = assessment.declines
         self.feedback_message = (
             f"invite of '{self._invitee_id}' on case '{self._case_id}'"
-            f" {'lapsed' if result.is_lapsed else 'still open'}"
+            f" {'lapsed' if assessment.is_lapsed else 'still open'}"
         )
         self.logger.debug("%s: %s", self.name, self.feedback_message)
         return Status.SUCCESS
 
 
-class InviteLapseChangedConsentNode(py_trees.behaviour.Behaviour):
-    """Condition: the preceding evaluation just applied a lapse.
+class InviteLapseDeclinesNode(py_trees.behaviour.Behaviour):
+    """Condition: the preceding evaluation found a lapse still to apply.
 
-    SUCCESS when :class:`EvaluateInviteLapseNode` moved the invitee to
-    ``DECLINED``, which is the one outcome a lapse entry records (CM-28-009).
+    SUCCESS when :class:`EvaluateInviteLapseNode` found the invitee
+    ``INVITED`` past its deadline, the one outcome a lapse entry records
+    (CM-28-009).
     """
 
     def __init__(
@@ -116,9 +119,52 @@ class InviteLapseChangedConsentNode(py_trees.behaviour.Behaviour):
         self._result_out = result_out
 
     def update(self) -> Status:
-        if self._result_out.get(CONSENT_CHANGED_KEY):
+        if self._result_out.get(DECLINES_KEY):
             return Status.SUCCESS
         return Status.FAILURE
+
+
+class RecordInviteLapseNode(DataLayerActionWithPorts):
+    """Apply the committed lapse in the CASE_MANAGER's own store.
+
+    Runs after the lapse entry's commit and applies the same ``DECLINE`` a
+    replica applies from that entry, through
+    :meth:`EmbargoLifecycle.record_invite_lapse` (CM-28-014).  Regime 1
+    (ADR-0087): :class:`EvaluateInviteLapseNode` has just read this record,
+    so its absence is the manager's own fault and raises as an internal
+    error rather than reading as the sender's (ADR-0095).
+    """
+
+    def __init__(
+        self, case_id: str, invitee_id: str, name: str | None = None
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._case_id = case_id
+        self._invitee_id = invitee_id
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+        try:
+            result = EmbargoLifecycle(
+                persistence=self.datalayer
+            ).record_invite_lapse(
+                case_id=self._case_id, actor_id=self._invitee_id
+            )
+        except VultronNotFoundError as exc:
+            raise RuntimeError(
+                f"{self.name}: the lapse of '{self._invitee_id}' on case"
+                f" '{self._case_id}' is in the ledger but its participant"
+                f" record cannot be read: {exc}"
+            ) from exc
+        self.feedback_message = (
+            f"Applied invite lapse of '{self._invitee_id}' on case"
+            f" '{self._case_id}' ({len(result.participant_changes)} PEC state"
+            " change(s))"
+        )
+        self.logger.debug("%s: %s", self.name, self.feedback_message)
+        return Status.SUCCESS
 
 
 class ApplyInviteLapseFromLedgerNode(_LedgerEffectNode):
@@ -172,9 +218,10 @@ class ApplyInviteLapseFromLedgerNode(_LedgerEffectNode):
 
 
 __all__ = [
-    "CONSENT_CHANGED_KEY",
+    "DECLINES_KEY",
     "IS_LAPSED_KEY",
     "ApplyInviteLapseFromLedgerNode",
     "EvaluateInviteLapseNode",
-    "InviteLapseChangedConsentNode",
+    "InviteLapseDeclinesNode",
+    "RecordInviteLapseNode",
 ]

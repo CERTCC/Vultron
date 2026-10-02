@@ -715,8 +715,10 @@ def test_resolve_actor_config_delegates_to_load_actor_config(monkeypatch):
     assert result.auto_create_case is False
 
 
-def test_submit_report_port_factory_injects_actor_config(monkeypatch):
-    """_submit_report_port_factory returns actor_config from load_actor_config.
+def test_trigger_activity_with_actor_config_port_factory_injects_actor_config(
+    monkeypatch,
+):
+    """_trigger_activity_with_actor_config_port_factory returns actor_config from load_actor_config.
 
     When load_actor_config() is available, the factory must include an
     ``actor_config`` key so that ``SubmitReportReceivedUseCase`` can
@@ -733,7 +735,7 @@ def test_submit_report_port_factory_injects_actor_config(monkeypatch):
         "sqlite:///:memory:",
         actor_id="https://test.example/api/v2/actors/test-actor",
     )
-    kwargs = pf._submit_report_port_factory(real_dl)
+    kwargs = pf._trigger_activity_with_actor_config_port_factory(real_dl)
 
     assert "actor_config" in kwargs, "factory must include actor_config"
     assert isinstance(kwargs["actor_config"], ActorConfig)
@@ -743,10 +745,10 @@ def test_submit_report_port_factory_injects_actor_config(monkeypatch):
     assert set(kwargs) == {"actor_config", "trigger_activity"}
 
 
-def test_submit_report_port_factory_omits_actor_config_when_unavailable(
+def test_trigger_activity_with_actor_config_port_factory_omits_actor_config_when_unavailable(
     monkeypatch,
 ):
-    """_submit_report_port_factory omits actor_config when SeedConfig fails.
+    """_trigger_activity_with_actor_config_port_factory omits actor_config when SeedConfig fails.
 
     When SeedConfig cannot be loaded (e.g. env vars absent), the factory
     must still return trigger_activity and must NOT include an
@@ -760,13 +762,13 @@ def test_submit_report_port_factory_omits_actor_config_when_unavailable(
         "sqlite:///:memory:",
         actor_id="https://test.example/api/v2/actors/test-actor",
     )
-    kwargs = pf._submit_report_port_factory(real_dl)
+    kwargs = pf._trigger_activity_with_actor_config_port_factory(real_dl)
 
     assert set(kwargs) == {"trigger_activity"}
 
 
 def test_make_dispatcher_submit_report_uses_actor_config_factory(monkeypatch):
-    """make_dispatcher() must register _submit_report_port_factory for SUBMIT_REPORT.
+    """make_dispatcher() must register _trigger_activity_with_actor_config_port_factory for SUBMIT_REPORT.
 
     SUBMIT_REPORT has its own set, _SUBMIT_REPORT_SEMANTICS (issue #1319), so
     it is wired to the factory that also injects actor_config.  The sync port
@@ -1084,28 +1086,6 @@ def test_make_dispatcher_embargo_invite_gets_actor_config(monkeypatch, sem):
     )
     assert kwargs["actor_config"] is fake
     assert isinstance(kwargs["trigger_activity"], TriggerActivityAdapter)
-
-
-def test_embargo_invite_port_factory_omits_actor_config_when_unavailable(
-    monkeypatch,
-):
-    """Config load failure drops actor_config but keeps the trigger port."""
-    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
-    from vultron.adapters.driven.trigger_activity_adapter import (
-        TriggerActivityAdapter,
-    )
-
-    monkeypatch.setattr(pf, "_resolve_actor_config", lambda: None)
-
-    kwargs = pf._embargo_invite_port_factory(
-        SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
-    )
-
-    assert isinstance(kwargs["trigger_activity"], TriggerActivityAdapter)
-    assert set(kwargs) == {"trigger_activity"}
 
 
 def test_make_dispatcher_ac2_auto_create_false_no_case_via_dispatcher(

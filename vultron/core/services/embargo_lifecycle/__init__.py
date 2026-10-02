@@ -56,6 +56,7 @@ Scaffold (#746); full operations (#747)
 
 from vultron.core.services.embargo_lifecycle.results import (
     EmbargoLifecycleResult,
+    InviteLapseAssessment,
     ParticipantPECChange,
     TransitionMode,
 )
@@ -64,6 +65,7 @@ from vultron.core.services.embargo_lifecycle.service import EmbargoLifecycle
 __all__ = [
     "EmbargoLifecycle",
     "EmbargoLifecycleResult",
+    "InviteLapseAssessment",
     "ParticipantPECChange",
     "TransitionMode",
 ]

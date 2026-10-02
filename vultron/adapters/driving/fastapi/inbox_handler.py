@@ -49,10 +49,9 @@ from vultron.adapters.driving.fastapi.inbox_port_factories import (
     _SUBMIT_REPORT_SEMANTICS,
     _TRIGGER_ACTIVITY_PORT_SEMANTICS,
     _case_proposal_port_factory,
-    _embargo_invite_port_factory,
     _status_auth_trigger_port_factory,
-    _submit_report_port_factory,
     _trigger_activity_port_factory,
+    _trigger_activity_with_actor_config_port_factory,
 )
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.adapters.driving.fastapi.startup_slot import StartupSlot
@@ -143,16 +142,13 @@ def make_dispatcher() -> ActivityDispatcher:
         for sem in _TRIGGER_ACTIVITY_PORT_SEMANTICS
     }
     port_factories.update(
-        {sem: _submit_report_port_factory for sem in _SUBMIT_REPORT_SEMANTICS}
+        {
+            sem: _trigger_activity_with_actor_config_port_factory
+            for sem in _SUBMIT_REPORT_SEMANTICS | _EMBARGO_INVITE_SEMANTICS
+        }
     )
     port_factories.update(
         {sem: _case_proposal_port_factory for sem in _CASE_PROPOSAL_SEMANTICS}
-    )
-    port_factories.update(
-        {
-            sem: _embargo_invite_port_factory
-            for sem in _EMBARGO_INVITE_SEMANTICS
-        }
     )
     port_factories.update(
         {

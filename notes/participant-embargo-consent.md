@@ -5,6 +5,7 @@ description: >
   Design decisions for tracking per-participant embargo acceptance; consent
   state machine and implementation patterns.
 related_specs:
+  - specs/case-ledger-processing.yaml
   - specs/case-management.yaml
   - specs/embargo-policy.yaml
   - specs/em-behavior.yaml
@@ -374,14 +375,19 @@ Do not introduce a second timeout notion — they will drift.
   is processed at the manager. No scheduler is required for correctness. The
   `EmbargoTimerExpired` Sentinel (#1893) is an optional proactive accelerator
 - The built path is `create_invite_lapse_tree()`
-  (`vultron/core/behaviors/embargo/lapse_tree.py`): `EvaluateInviteLapseNode`
-  runs `detect_and_apply_lapse()` and the guarded commit of the
-  `invite_to_embargo_on_case_lapsed` entry, both behind
-  `create_case_manager_gated_tree`. A non-manager runs nothing; a late `Accept`
-  that reaches one is refused as not-the-manager, never lapsed locally
+  (`vultron/core/behaviors/embargo/lapse_tree.py`), behind
+  `create_case_manager_gated_tree`, in guard → commit → effect order
+  (CLP-10-006): `EvaluateInviteLapseNode` only reads
+  (`assess_invite_lapse()`), the guarded commit of the
+  `invite_to_embargo_on_case_lapsed` entry follows, and `RecordInviteLapseNode`
+  applies the `DECLINE` last. A commit that fails therefore applies nothing, and
+  the redelivered `Accept` finds the invitee still `INVITED` and commits the
+  lapse; declining first would have left it `DECLINED` with no entry, for good.
+  A non-manager runs nothing; a late `Accept` that reaches one is refused as
+  not-the-manager, never lapsed locally
 - The lapse entry is distinct from an explicit refusal (CM-28-005, CM-28-009):
-  it is attributed to the lapsed invitee and committed once, only when this
-  evaluation changed consent. Replicas replay it through
+  it is attributed to the lapsed invitee and committed once, only while the
+  invitee is still `INVITED` past its deadline. Replicas replay it through
   `ApplyInviteLapseFromLedgerNode` in `create_announce_log_entry_tree`, which
   applies the same `DECLINE` via `EmbargoLifecycle.record_invite_lapse()` and
   reads no clock or deadline — a replica learns a lapse and never computes one
@@ -457,11 +463,12 @@ entry carries as `endTime` and the replica's `record_embargo_invite()` reads.
 extractor (`_effective_rsvp_deadline` in `vultron/wire/as2/extractor/_extract.py`)
 still computes an effective deadline for every inbound embargo Invite —
 applying the default window when `end_time` is absent and clamping per EP-07-003,
-logging each clamp (EP-07-005) — and surfaces it on the event. Under the relay it
-is reached only by an Invite that arrives with no `end_time`: a misrouting, or a
-foreign implementation that does not stamp. No received use case stores it
-(CM-28-013); a deadline enters a record only from the manager's commit or the
-replay of that commit.
+logging each clamp (EP-07-005) — and surfaces it on the event, where it is
+logged and never stored: no received use case writes it (CM-28-013), and a
+deadline enters a record only from the manager's commit or the replay of that
+commit. Under the relay its default-window arm is reached only by an Invite that
+arrives with no `end_time`: a misrouting, or a foreign implementation that does
+not stamp.
 
 Before the relay, no trigger set `end_time`, so every receiving store fell to
 the EP-07-001 fallback and derived its own deadline from its own `ActorConfig` —

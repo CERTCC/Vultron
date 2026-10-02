@@ -20,15 +20,24 @@ its role gate (CM-28-003, CM-28-014, BT-17-001)::
 
     EvaluateInviteLapseBT (CASE_MANAGER-gated Selector)
     └─ EvaluateInviteLapse (Sequence)
-       ├─ EvaluateInviteLapseNode             # PEC DECLINE if the deadline passed
-       └─ CommitLapseIfConsentChanged (Selector)
-          ├─ Inverter(InviteLapseChangedConsentNode)  # nothing lapsed now
-          └─ CommitLogEntryBT                 # the CM-28-009 lapse entry
+       ├─ EvaluateInviteLapseNode             # read only: lapsed? declines?
+       └─ CommitAndApplyLapseIfDue (Selector)
+          ├─ Inverter(InviteLapseDeclinesNode)  # nothing to lapse
+          └─ CommitAndApplyLapse (Sequence)
+             ├─ CommitLogEntryBT              # the CM-28-009 lapse entry
+             └─ RecordInviteLapseNode         # PEC INVITED → DECLINED
+
+The guard reads, the commit follows and the effect comes last (CLP-10-006).
+That order is what makes a retry safe: a commit that fails has applied
+nothing, so the redelivered answer finds the invitee still ``INVITED`` and
+commits the lapse, where "decline first, commit if consent changed" would
+find it ``DECLINED`` and skip the entry for good.
 
 The inner Selector is the "skip unless" shape ``vultron/core/behaviors/AGENTS.md``
-otherwise discourages, on purpose: "nothing lapsed" is a successful
+otherwise discourages, on purpose: "nothing to lapse" is a successful
 evaluation, and a Sequence that FAILed there would make the caller's
-``applied_or_raise`` raise.
+``applied_or_raise`` raise.  It is not a refusal arm: a non-manager never
+reaches it, and the Accept tree's own gate refuses that store's answer.
 
 A store that is not the CASE_MANAGER runs nothing and leaves ``result_out``
 unset; the caller reads that as "no lapse here" and lets its own gate refuse
@@ -46,7 +55,8 @@ from vultron.core.behaviors.case.nodes.role_gates import (
 )
 from vultron.core.behaviors.embargo.nodes.lapse import (
     EvaluateInviteLapseNode,
-    InviteLapseChangedConsentNode,
+    InviteLapseDeclinesNode,
+    RecordInviteLapseNode,
 )
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
@@ -103,28 +113,37 @@ def create_invite_lapse_tree(
         published: The answer's claimed time (see
             :func:`lapse_payload_snapshot`).
         now: The instant the deadline is compared against.
-        result_out: Receives ``is_lapsed`` and ``consent_changed`` from
+        result_out: Receives ``is_lapsed`` and ``declines`` from
             :class:`EvaluateInviteLapseNode` when the gate passes.
     """
     commit_if_lapsed = py_trees.composites.Selector(
-        name="CommitLapseIfConsentChanged",
+        name="CommitAndApplyLapseIfDue",
         memory=False,
         children=[
             py_trees.decorators.Inverter(
-                name="NoLapseApplied",
-                child=InviteLapseChangedConsentNode(result_out=result_out),
+                name="NoLapseDue",
+                child=InviteLapseDeclinesNode(result_out=result_out),
             ),
-            create_commit_log_entry_tree(
-                case_id=case_id,
-                object_id=invite_id,
-                event_type=INVITE_LAPSED_EVENT_TYPE,
-                payload_snapshot=lapse_payload_snapshot(
-                    case_id=case_id,
-                    invitee_id=invitee_id,
-                    invite_id=invite_id,
-                    embargo_id=embargo_id,
-                    published=published,
-                ),
+            py_trees.composites.Sequence(
+                name="CommitAndApplyLapse",
+                memory=False,
+                children=[
+                    create_commit_log_entry_tree(
+                        case_id=case_id,
+                        object_id=invite_id,
+                        event_type=INVITE_LAPSED_EVENT_TYPE,
+                        payload_snapshot=lapse_payload_snapshot(
+                            case_id=case_id,
+                            invitee_id=invitee_id,
+                            invite_id=invite_id,
+                            embargo_id=embargo_id,
+                            published=published,
+                        ),
+                    ),
+                    RecordInviteLapseNode(
+                        case_id=case_id, invitee_id=invitee_id
+                    ),
+                ],
             ),
         ],
     )

@@ -15,8 +15,8 @@
 
 """Invite-lapse leaves (``nodes/lapse.py``, CM-28-014).
 
-The evaluation and condition leaves are exercised as the CASE_MANAGER would
-run them; the replay leaf as a replica applying a committed lapse entry.
+The evaluation, condition and apply leaves are exercised as the CASE_MANAGER
+would run them; the replay leaf as a replica applying a committed lapse entry.
 """
 
 from datetime import UTC, datetime, timedelta
@@ -31,11 +31,12 @@ from test.core.behaviors.sync.nodes.conftest import (
     _to_persistable_entry,
 )
 from vultron.core.behaviors.embargo.nodes.lapse import (
-    CONSENT_CHANGED_KEY,
+    DECLINES_KEY,
     IS_LAPSED_KEY,
     ApplyInviteLapseFromLedgerNode,
     EvaluateInviteLapseNode,
-    InviteLapseChangedConsentNode,
+    InviteLapseDeclinesNode,
+    RecordInviteLapseNode,
 )
 from vultron.core.behaviors.sync.nodes.event_conditions import (
     INVITE_LAPSED_EVENT_TYPE,
@@ -106,13 +107,26 @@ class TestEvaluateInviteLapseNode:
 
     @pytest.mark.executes_as(MANAGER)
     @pytest.mark.spec("CM-28-014")
-    def test_a_passed_deadline_declines_and_reports_the_change(
+    def test_a_passed_deadline_reports_a_due_lapse_and_writes_nothing(
         self, bt_scenario: BTTestScenario
     ) -> None:
+        """The guard only reads: the DECLINE waits for the commit (CLP-10-006)."""
         participant_id = _seed(bt_scenario, deadline=NOW - timedelta(hours=1))
         result, out = self._evaluate(bt_scenario)
         bt_scenario.assert_success(result)
-        assert out == {IS_LAPSED_KEY: True, CONSENT_CHANGED_KEY: True}
+        assert out == {IS_LAPSED_KEY: True, DECLINES_KEY: True}
+        assert _pec(bt_scenario, participant_id) is PEC.INVITED
+
+    @pytest.mark.executes_as(MANAGER)
+    def test_a_lapsed_invitee_already_declined_is_lapsed_but_not_declined_again(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        participant_id = _seed(
+            bt_scenario, pec=PEC.DECLINED, deadline=NOW - timedelta(hours=1)
+        )
+        result, out = self._evaluate(bt_scenario)
+        bt_scenario.assert_success(result)
+        assert out == {IS_LAPSED_KEY: True, DECLINES_KEY: False}
         assert _pec(bt_scenario, participant_id) is PEC.DECLINED
 
     @pytest.mark.executes_as(MANAGER)
@@ -122,7 +136,7 @@ class TestEvaluateInviteLapseNode:
         participant_id = _seed(bt_scenario, deadline=None)
         result, out = self._evaluate(bt_scenario)
         bt_scenario.assert_success(result)
-        assert out == {IS_LAPSED_KEY: False, CONSENT_CHANGED_KEY: False}
+        assert out == {IS_LAPSED_KEY: False, DECLINES_KEY: False}
         assert _pec(bt_scenario, participant_id) is PEC.INVITED
 
     @pytest.mark.executes_as(MANAGER)
@@ -133,23 +147,51 @@ class TestEvaluateInviteLapseNode:
             bt_scenario, case_id="https://example.org/cases/none"
         )
         assert result.status == Status.FAILURE
-        assert out == {IS_LAPSED_KEY: False, CONSENT_CHANGED_KEY: False}
+        assert out == {IS_LAPSED_KEY: False, DECLINES_KEY: False}
 
 
-class TestInviteLapseChangedConsentNode:
+class TestInviteLapseDeclinesNode:
     @pytest.mark.parametrize(
         ("out", "expected"),
         [
-            ({CONSENT_CHANGED_KEY: True}, Status.SUCCESS),
-            ({CONSENT_CHANGED_KEY: False}, Status.FAILURE),
+            ({DECLINES_KEY: True}, Status.SUCCESS),
+            ({DECLINES_KEY: False}, Status.FAILURE),
             ({}, Status.FAILURE),
         ],
     )
-    def test_succeeds_only_when_this_evaluation_declined(
+    def test_succeeds_only_when_the_evaluation_found_a_lapse_to_apply(
         self, bt_scenario: BTTestScenario, out: dict, expected: Status
     ) -> None:
-        result = bt_scenario.run(InviteLapseChangedConsentNode(result_out=out))
+        result = bt_scenario.run(InviteLapseDeclinesNode(result_out=out))
         assert result.status == expected
+
+
+class TestRecordInviteLapseNode:
+    @pytest.mark.executes_as(MANAGER)
+    @pytest.mark.spec("CM-28-014")
+    def test_declines_the_invitee_in_the_managers_store(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        participant_id = _seed(bt_scenario, deadline=NOW - timedelta(hours=1))
+        result = bt_scenario.run(
+            RecordInviteLapseNode(case_id=CASE_ID, invitee_id=INVITEE)
+        )
+        bt_scenario.assert_success(result)
+        assert _pec(bt_scenario, participant_id) is PEC.DECLINED
+
+    @pytest.mark.executes_as(MANAGER)
+    def test_a_missing_participant_record_is_an_internal_error(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """Regime 1: the guard just read the record, so its absence is ours."""
+        result = bt_scenario.run(
+            RecordInviteLapseNode(
+                case_id="https://example.org/cases/none", invitee_id=INVITEE
+            )
+        )
+        bt_scenario.assert_failure(
+            result, reason="cannot be read", allow_internal=True
+        )
 
 
 def _lapse_event(actor: str | None) -> Any:

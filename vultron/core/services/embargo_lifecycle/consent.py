@@ -15,7 +15,7 @@
 
 Per-participant consent bookkeeping (``record_participant_consent``,
 ``record_embargo_rejection``, ``record_embargo_invite``), lazy RSVP-deadline enforcement
-(``detect_and_apply_lapse``, EMB-17) and the public eligibility check
+(``assess_invite_lapse``, ``detect_and_apply_lapse``, EMB-17) and the public eligibility check
 callers use before creating anything (``assert_embargo_eligible``,
 EP-04-008).
 """
@@ -27,6 +27,7 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.services.embargo_lifecycle.pec import _PecEffectsMixin
 from vultron.core.services.embargo_lifecycle.results import (
     EmbargoLifecycleResult,
+    InviteLapseAssessment,
     ParticipantPECChange,
 )
 from vultron.core.states.em import EM
@@ -283,6 +284,49 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
 
         return _unchanged(em_state, participant_changes=participant_changes)
 
+    def assess_invite_lapse(
+        self,
+        *,
+        case_id: str,
+        actor_id: str,
+        now: datetime,
+    ) -> InviteLapseAssessment:
+        """Read whether *actor_id*'s invite has lapsed, writing nothing.
+
+        The deadline is the ``invite_rsvp_deadline`` the CASE_MANAGER
+        recorded at its commit of the Invite (CM-28-013).  The invite has
+        lapsed when that deadline is set and ``now >= deadline``; a
+        ``SIGNATORY`` has already accepted, so a stale deadline is not a
+        lapse for it.  Only an invitee still ``INVITED`` is declined by the
+        lapse (CM-18-003); one already ``DECLINED`` still reads as lapsed, so
+        the caller routes its late answer through EMB-17 without re-deriving
+        anything.
+
+        Raises:
+            VultronNotFoundError: If *case_id* does not resolve to a case.
+        """
+        case = self._read_case(case_id)
+        participant_id = case.actor_participant_index.get(actor_id)
+        participant = (
+            self._persistence.read(participant_id) if participant_id else None
+        )
+        if not isinstance(participant, CaseParticipant):
+            logger.debug(
+                "assess_invite_lapse: actor '%s' has no participant record"
+                " in case '%s' — nothing to lapse",
+                actor_id,
+                case_id,
+            )
+            return InviteLapseAssessment(is_lapsed=False, declines=False)
+        deadline = participant.invite_rsvp_deadline
+        if deadline is None or now < deadline:
+            return InviteLapseAssessment(is_lapsed=False, declines=False)
+        state = participant.embargo_consent_state
+        return InviteLapseAssessment(
+            is_lapsed=state != PEC.SIGNATORY.value,
+            declines=state == PEC.INVITED.value,
+        )
+
     def detect_and_apply_lapse(
         self,
         *,
@@ -290,12 +334,12 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
         actor_id: str,
         now: datetime,
     ) -> EmbargoLifecycleResult:
-        """Lazily enforce RSVP deadline: apply DECLINE if invite has lapsed.
+        """Lazily enforce the RSVP deadline: apply DECLINE if the invite lapsed.
 
-        Reads the participant record for *actor_id* in *case_id*.  If the
-        participant is in ``INVITED`` state and ``invite_rsvp_deadline`` is
-        set and ``now >= invite_rsvp_deadline``, applies ``PEC_Trigger.DECLINE``
-        and returns a result with ``is_lapsed=True``.
+        :meth:`assess_invite_lapse` followed by :meth:`record_invite_lapse`
+        when the assessment declines.  The CASE_MANAGER's received path
+        does not use it: there the lapse entry is committed between the two
+        (CLP-10-006, ``create_invite_lapse_tree``).
 
         Idempotent: if the participant is already ``DECLINED`` (or any state
         other than ``INVITED``), no PEC transition is applied.  The result
@@ -303,53 +347,20 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
         caller can branch on whether the invite window closed without
         re-deriving it.
 
-        Args:
-            case_id: ID of the VulnerabilityCase.
-            actor_id: ID of the actor whose participant record to check.
-            now: Current UTC datetime used for deadline comparison.
-
         Returns:
             :class:`EmbargoLifecycleResult` with ``is_lapsed`` reflecting
             whether the deadline has passed.
         """
-        case = self._read_case(case_id)
-
-        em_state = case.current_status.em.state
-
-        participant_id = case.actor_participant_index.get(actor_id)
-        if not participant_id:
-            logger.debug(
-                "detect_and_apply_lapse: actor '%s' has no participant"
-                " record in case '%s' — skipping",
-                actor_id,
-                case_id,
+        assessment = self.assess_invite_lapse(
+            case_id=case_id, actor_id=actor_id, now=now
+        )
+        if not assessment.declines:
+            return _unchanged(
+                self._read_case(case_id).current_status.em.state,
+                is_lapsed=assessment.is_lapsed,
             )
-            return _unchanged(em_state)
-
-        participant = self._persistence.read(participant_id)
-        if not isinstance(participant, CaseParticipant):
-            return _unchanged(em_state)
-
-        deadline = participant.invite_rsvp_deadline
-        is_lapsed = deadline is not None and now >= deadline
-
-        if not is_lapsed:
-            return _unchanged(em_state)
-
-        participant_changes = self._decline_lapsed_invite(
-            case_id, actor_id, participant
-        )
-
-        # A SIGNATORY participant has already accepted; a stale deadline is not
-        # a real lapse.  Only DECLINED (just-lapsed or already-declined) triggers
-        # the EMB-17 late-Accept routing in the caller.
-        is_lapsed = participant.embargo_consent_state != PEC.SIGNATORY.value
-
-        return _unchanged(
-            em_state,
-            participant_changes=participant_changes,
-            is_lapsed=is_lapsed,
-        )
+        result = self.record_invite_lapse(case_id=case_id, actor_id=actor_id)
+        return result.model_copy(update={"is_lapsed": True})
 
     def record_invite_lapse(
         self,

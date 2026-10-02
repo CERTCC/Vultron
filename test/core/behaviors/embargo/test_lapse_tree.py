@@ -16,14 +16,18 @@
 """The CASE_MANAGER-gated invite-lapse tree (``lapse_tree.py``, CM-28-014).
 
 Only the CASE_MANAGER evaluates lapse, and its CM-28-009 entry is committed
-behind the role gate.  A lapse already applied is not committed twice, and a
-store that is not the CASE_MANAGER runs nothing at all.
+behind the role gate, before the DECLINE it records is applied.  A lapse
+already applied is not committed twice, a commit that fails applies nothing so
+a retry commits it, and a store that is not the CASE_MANAGER runs nothing at
+all.
 """
 
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
+import py_trees
 import pytest
+from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.embargo.lapse_tree import (
@@ -31,7 +35,7 @@ from vultron.core.behaviors.embargo.lapse_tree import (
     lapse_payload_snapshot,
 )
 from vultron.core.behaviors.embargo.nodes.lapse import (
-    CONSENT_CHANGED_KEY,
+    DECLINES_KEY,
     IS_LAPSED_KEY,
 )
 from vultron.core.behaviors.sync.nodes.event_conditions import (
@@ -135,13 +139,49 @@ def test_the_manager_lapses_a_passed_deadline_and_commits_the_entry(
     result, out = _run(bt_scenario)
 
     bt_scenario.assert_success(result)
-    assert out == {IS_LAPSED_KEY: True, CONSENT_CHANGED_KEY: True}
+    assert out == {IS_LAPSED_KEY: True, DECLINES_KEY: True}
     assert _pec(bt_scenario, participant_id) is PEC.DECLINED
     (entry,) = _lapse_entries(bt_scenario)
     assert entry.log_object_id == INVITE_ID
     # Attributed to the invitee, at its own claimed time (CLP-15-003).
     assert entry.payload_snapshot["actor"] == INVITEE
     assert entry.payload_snapshot["published"] == PUBLISHED
+
+
+class _FailingCommit(py_trees.behaviour.Behaviour):
+    """Stands in for the lapse entry's commit, which fails."""
+
+    def update(self) -> Status:
+        self.feedback_message = "commit unavailable"
+        return Status.FAILURE
+
+
+@pytest.mark.executes_as(MANAGER)
+@pytest.mark.spec("CM-28-009")
+@pytest.mark.spec("CLP-10-006")
+def test_a_failed_commit_applies_nothing_so_a_retry_commits_the_lapse(
+    bt_scenario: BTTestScenario, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Guard, then commit, then effect: a lost commit is not a lost lapse."""
+    participant_id = _seed(bt_scenario, PEC.INVITED, NOW - timedelta(days=1))
+    monkeypatch.setattr(
+        "vultron.core.behaviors.embargo.lapse_tree.create_commit_log_entry_tree",
+        lambda **_: _FailingCommit(name="FailingCommit"),
+    )
+
+    failed, _ = _run(bt_scenario)
+
+    bt_scenario.assert_failure(failed)
+    assert _pec(bt_scenario, participant_id) is PEC.INVITED
+    assert _lapse_entries(bt_scenario) == []
+
+    monkeypatch.undo()
+    retried, out = _run(bt_scenario)
+
+    bt_scenario.assert_success(retried)
+    assert out == {IS_LAPSED_KEY: True, DECLINES_KEY: True}
+    assert _pec(bt_scenario, participant_id) is PEC.DECLINED
+    assert len(_lapse_entries(bt_scenario)) == 1
 
 
 @pytest.mark.executes_as(MANAGER)
@@ -152,7 +192,7 @@ def test_an_open_invite_commits_nothing(bt_scenario: BTTestScenario) -> None:
     result, out = _run(bt_scenario)
 
     bt_scenario.assert_success(result)
-    assert out == {IS_LAPSED_KEY: False, CONSENT_CHANGED_KEY: False}
+    assert out == {IS_LAPSED_KEY: False, DECLINES_KEY: False}
     assert _pec(bt_scenario, participant_id) is PEC.INVITED
     assert _lapse_entries(bt_scenario) == []
 
@@ -169,7 +209,7 @@ def test_a_lapse_already_applied_is_not_committed_twice(
 
     bt_scenario.assert_success(result)
     assert out[IS_LAPSED_KEY] is True
-    assert out[CONSENT_CHANGED_KEY] is False
+    assert out[DECLINES_KEY] is False
     assert _lapse_entries(bt_scenario) == []
 
 
@@ -209,7 +249,7 @@ def test_an_actor_with_no_record_has_no_invite_to_lapse(
     result = bt_scenario.run(tree)
 
     bt_scenario.assert_success(result)
-    assert result_out == {IS_LAPSED_KEY: False, CONSENT_CHANGED_KEY: False}
+    assert result_out == {IS_LAPSED_KEY: False, DECLINES_KEY: False}
     assert _lapse_entries(bt_scenario) == []
 
 

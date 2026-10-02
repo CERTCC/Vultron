@@ -367,9 +367,18 @@ class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
         assert self.actor_id is not None
         dl = cast(CaseOutboxPersistence, self.datalayer)
         # The manager stamps the deadline it alone will evaluate (CM-28-012).
-        stamp = stamp_invite_rsvp_deadline(
-            dl, self._embargo_id, self._actor_config
-        )
+        # Regime 1 (ADR-0087): the embargo is one the manager itself holds,
+        # so a missing record is its own store's fault, never the sender's —
+        # re-raised as internal, as ``_invite_where_legal`` does (ADR-0095).
+        try:
+            stamp = stamp_invite_rsvp_deadline(
+                dl, self._embargo_id, self._actor_config
+            )
+        except VultronNotFoundError as exc:
+            raise RuntimeError(
+                f"{self.name}: cannot stamp the RSVP deadline of embargo"
+                f" '{self._embargo_id}' on case '{self._case_id}': {exc}"
+            ) from exc
         activity_id, blob = self.trigger_activity_factory.propose_embargo(
             embargo_id=self._embargo_id,
             case_id=self._case_id,

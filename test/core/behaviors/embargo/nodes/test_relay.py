@@ -492,6 +492,26 @@ class TestRelayEmbargoInviteToEachNode:
         assert result.internal_error is True
         assert stranger in result.feedback_message
 
+    @pytest.mark.executes_as(MANAGER)
+    @pytest.mark.spec("CM-28-012")
+    def test_an_embargo_missing_from_the_managers_store_is_an_internal_error(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """The stamp's missing embargo is the manager's fault, never REFUSED."""
+        _seed_case(bt_scenario, participants={OTHER_A: PEC.UNBOUND})
+        missing = f"{CASE_ID}/embargoes/relay-missing"
+        result = bt_scenario.run(
+            RelayEmbargoInviteToEachNode(
+                case_id=CASE_ID, embargo_id=missing, proposer_id=PROPOSER
+            ),
+            embargo_invite_recipients=[OTHER_A],
+        )
+        assert result.status == Status.FAILURE
+        assert result.internal_error is True
+        assert missing in result.feedback_message
+        assert bt_scenario.dl.outbox_list() == []
+        assert _pec(bt_scenario, OTHER_A) is PEC.UNBOUND
+
 
 class TestEmbargoProposalNotYetRecordedNode:
     INVITE_ID = f"{CASE_ID}/embargo_proposals/p1"

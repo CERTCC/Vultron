@@ -147,26 +147,27 @@ def _trigger_activity_port_factory(dl: DataLayer) -> dict[str, Any]:
     }
 
 
-def _submit_report_port_factory(dl: DataLayer) -> dict[str, Any]:
+def _trigger_activity_with_actor_config_port_factory(
+    dl: DataLayer,
+) -> dict[str, Any]:
     """Create the trigger port and resolve the local ``ActorConfig``.
 
-    Used for ``SUBMIT_REPORT`` so that ``SubmitReportReceivedUseCase``
-    receives a populated ``actor_config`` and can honour
-    ``auto_create_case=False`` at runtime (CM-15-001, issue #1319).
-    Falls back to ``actor_config=None`` when ``SeedConfig`` is unavailable,
-    preserving the always-create default.  The sync and wire-render ports
-    come from :func:`with_received_baseline_ports`.
+    Registered for two semantic sets that need the receiver's own
+    configuration:
+
+    - ``SUBMIT_REPORT``, so that ``SubmitReportReceivedUseCase`` can honour
+      ``auto_create_case=False`` at runtime (CM-15-001, issue #1319).
+    - ``INVITE_TO_EMBARGO_ON_CASE`` and ``ACCEPT_INVITE_TO_EMBARGO_ON_CASE``,
+      whose CASE_MANAGER stamps every Invite it relays, and the EMB-17-003
+      re-invite, with an RSVP deadline measured against its configured
+      ``min_rsvp_window`` and ``default_rsvp_window`` (CM-28-012, EP-07-002).
+
+    Falls back to ``actor_config=None`` when ``SeedConfig`` is unavailable:
+    report submission keeps the always-create default and the embargo use
+    cases stay on ``ActorConfig()``'s defaults.  The sync and wire-render
+    ports come from :func:`with_received_baseline_ports`.
     """
     return _with_actor_config(_trigger_activity_port_factory(dl))
-
-
-# The same ports as SUBMIT_REPORT, registered for a different reason: for
-# ``INVITE_TO_EMBARGO_ON_CASE`` and ``ACCEPT_INVITE_TO_EMBARGO_ON_CASE`` the
-# CASE_MANAGER stamps every Invite it relays — and the EMB-17-003 re-invite —
-# with an RSVP deadline measured against its configured ``min_rsvp_window``
-# and ``default_rsvp_window`` (CM-28-012, EP-07-002).  Without a SeedConfig
-# the use case stays on ``ActorConfig()``'s defaults.
-_embargo_invite_port_factory = _submit_report_port_factory
 
 
 def _with_actor_config(kwargs: dict[str, Any]) -> dict[str, Any]:
@@ -261,7 +262,8 @@ _CASE_PROPOSAL_SEMANTICS = frozenset({MessageSemantics.CREATE_CASE_PROPOSAL})
 # INVITE_TO_EMBARGO_ON_CASE and ACCEPT_INVITE_TO_EMBARGO_ON_CASE emit ER when
 # P/X/A is set (EMB-01-002, EMB-02-002), so they need the trigger port; the
 # CASE_MANAGER's relay and EMB-17-003 re-invite also stamp the RSVP deadline
-# from the local ActorConfig (CM-28-012).  See _embargo_invite_port_factory.
+# from the local ActorConfig (CM-28-012).  See
+# _trigger_activity_with_actor_config_port_factory.
 _EMBARGO_INVITE_SEMANTICS = frozenset(
     {
         MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,

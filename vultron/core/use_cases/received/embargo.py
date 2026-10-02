@@ -665,9 +665,17 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
                 # The re-invite is a fresh ask, so it carries a fresh deadline
                 # the manager records (ASK-03-004, CM-28-012, CM-28-013);
                 # the lapsed one would lapse it again on the next answer.
-                stamp = stamp_invite_rsvp_deadline(
-                    self._dl, active_embargo_id, self._actor_config
-                )
+                try:
+                    stamp = stamp_invite_rsvp_deadline(
+                        self._dl, active_embargo_id, self._actor_config
+                    )
+                except VultronNotFoundError as exc:
+                    # The case names this embargo as active, so a missing
+                    # record is the manager's own store's fault (ADR-0087).
+                    raise RuntimeError(
+                        f"cannot stamp the re-invite to embargo"
+                        f" '{active_embargo_id}' on case '{case_id}': {exc}"
+                    ) from exc
                 new_invite_id, _ = self._trigger_activity.propose_embargo(
                     embargo_id=active_embargo_id,
                     case_id=case_id,

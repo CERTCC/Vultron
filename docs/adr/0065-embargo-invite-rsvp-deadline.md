@@ -188,7 +188,8 @@ read when `invite_rsvp_deadline` is set and passed; the three EMB-17 branches
 The CASE_MANAGER now stamps `Invite.end_time` on every Invite it relays, using the window, floor and ceiling defined here, and records it when it commits the Invite (CM-28-012, CM-28-013).
 Replicas take the deadline from the ledger entry, and no receiver stores a deadline it derived on receipt.
 Only the CASE_MANAGER evaluates lapse, behind its role gate, and it commits the lapse as a distinct ledger entry that replicas replay (CM-28-014).
-The receive-side clamp described above is now reached only by a misrouted or foreign Invite.
+The receive-side computation described above still runs on every inbound embargo Invite, but its result is only logged, each clamp per EP-07-005, and never stored.
+Its default-window fallback applies only to an Invite with no `end_time`, which is a misrouted Invite or one from a foreign implementation.
 
 ## Pros and Cons of the Options
 
