@@ -51,12 +51,19 @@ class RequireSyncPortNode(DataLayerActionWithPorts):
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {"sync_port": "/sync_port"}
 
-    def update(self) -> Status:
+    def __init__(self, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._sync_port: object | None = None
+
+    def initialise(self) -> None:
+        super().initialise()
         try:
-            port = self.get_input("sync_port")
+            self._sync_port = self.get_input("sync_port")
         except (NoDataAvailable, NotImplementedError):
-            port = None
-        if port is None:
+            self._sync_port = None
+
+    def update(self) -> Status:
+        if self._sync_port is None:
             raise VultronWiringError(
                 f"{self.name}: sync_port must be injected before a ledger"
                 " entry is committed, so the entry can be fanned out"
