@@ -48,25 +48,29 @@ Spec: ``specs/case-proposal.yaml`` CP-05-002, CP-05-004.
 """
 
 import urllib.parse
-from typing import Any, Literal
+from collections.abc import Mapping
+from typing import Any, ClassVar, Literal
 
 from pydantic import Field, model_validator
 
 from vultron.core.models.base import (
-    CoreRecord,
     NonEmptyString,
     UriString,
 )
+from vultron.core.models.retired_stored_fields import (
+    RetiredFieldsRecord,
+    RetiredStoredField,
+)
 
 
-class CaseProposalDeclineRecord(CoreRecord):
+class CaseProposalDeclineRecord(RetiredFieldsRecord):
     """Durable record that this service declined a ``CaseProposal``.
 
     Attributes:
         proposal_id: URI of the ``as_CaseProposal`` that was declined. Used as
             the stable key component for ``build_id()``.
         case_actor_id: URI of the case actor service that made the decision.
-        vendor_uri: URI of the proposing actor owed the ``Reject``.
+        proposer_uri: URI of the proposing actor owed the ``Reject``.
         reason: Optional human-readable reason, surfaced to the proposer as the
             ``Reject``'s ``summary`` when present (CP-06-004). Absent when the
             admission backend supplied none; a decline is never blocked on
@@ -82,6 +86,9 @@ class CaseProposalDeclineRecord(CoreRecord):
             a redelivery recovers. See the module docstring for why the outbox
             cannot answer this.
 
+    A stored record that still carries the retired ``vendor_uri`` key is
+    refused on load (#4128); the store must be reset.
+
     Spec: CP-05-002, CP-05-004.
     """
 
@@ -96,7 +103,7 @@ class CaseProposalDeclineRecord(CoreRecord):
     case_actor_id: UriString = Field(
         ..., description="URI of the case actor service that declined it"
     )
-    vendor_uri: UriString = Field(
+    proposer_uri: UriString = Field(
         ..., description="URI of the proposing actor owed the Reject"
     )
     reason: NonEmptyString | None = Field(
@@ -112,6 +119,10 @@ class CaseProposalDeclineRecord(CoreRecord):
             " was recorded but the proposer has not been told"
         ),
     )
+
+    retired_stored_fields: ClassVar[Mapping[str, RetiredStoredField]] = {
+        "vendor_uri": RetiredStoredField("proposer_uri", "#4128"),
+    }
 
     @classmethod
     def build_id(cls, proposal_id: str) -> str:

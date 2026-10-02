@@ -71,7 +71,7 @@ a valid ledger entry that arrives before its case?
 Chosen option: **B, buffer pre-genesis entries and drain on case seed.**
 
 The genesis hash is **deterministic from the case object alone** —
-`compute_genesis_hash(case_id, created_at, case_actor_id)` runs at
+`compute_genesis_hash(case_id, created_at, owner_actor_id)` runs at
 `VulnerabilityCase` construction whenever `attributed_to` is present (CLP-08) — so
 seeding the case is sufficient to anchor the chain; the replica need not wait for
 the genesis ledger entry to be re-delivered. That makes option C strictly weaker

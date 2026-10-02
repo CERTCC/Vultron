@@ -107,8 +107,7 @@ class RecordProposalAdmissionNode(DataLayerAction):
             record = CaseProposalAdmissionRecord(
                 proposal_id=self._proposal_id,
                 case_actor_id=self.actor_id,
-                # Stored field keeps its pre-rename name (#4128).
-                vendor_uri=self._proposer_uri,
+                proposer_uri=self._proposer_uri,
             )
             self.datalayer.create(record)
         except ValueError as exc:
@@ -190,8 +189,7 @@ class RecordProposalDeclineNode(DataLayerAction):
             record = CaseProposalDeclineRecord(
                 proposal_id=self._proposal_id,
                 case_actor_id=self.actor_id,
-                # Stored field keeps its pre-rename name (#4128).
-                vendor_uri=self._proposer_uri,
+                proposer_uri=self._proposer_uri,
             )
             self.datalayer.create(record)
         except ValueError as exc:
