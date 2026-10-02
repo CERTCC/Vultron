@@ -34,6 +34,7 @@ from typing import Any
 
 from vultron.core.models._helpers import as_utc, parse_published
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.rsvp_deadline import INVITE_EXPIRED_SNAPSHOT_TYPE
 from vultron.core.models.wire_keys import wire_key
 from vultron.errors import VultronCanonicalEntryError
 
@@ -82,9 +83,9 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("Announce", "VulnerabilityCase"),
     ("Offer", "CaseParticipant"),
     ("Add", "CaseParticipant"),
-    # CaseActor-authored synthetic lapse event (CM-28-009, ADR-0065 §5).
-    # Distinct from ("Reject", "Invite") which records an explicit refusal.
-    ("Lapse", "Invite"),
+    # CASE_MANAGER-authored synthetic invite-expiry event (CM-28-009,
+    # ADR-0117).  Distinct from ("Reject", "Invite"), an explicit refusal.
+    (INVITE_EXPIRED_SNAPSHOT_TYPE, "Invite"),
 )
 # Signatures the CaseActor itself is authorized to author (CLP-07-003).  Per
 # CLP-12-002 this MUST be a superset of every pair the CaseActor emits during
@@ -105,8 +106,9 @@ _CASE_AUTHORED_SIGNATURES: frozenset[tuple[str, str]] = frozenset(
         ("Accept", "Offer"),
         ("Reject", "Offer"),
         ("Add", "CaseParticipant"),
-        # CaseActor-authored synthetic lapse event (CM-28-009, ADR-0065 §5)
-        ("Lapse", "Invite"),
+        # CASE_MANAGER-authored synthetic invite-expiry event (CM-28-009,
+        # ADR-0117)
+        (INVITE_EXPIRED_SNAPSHOT_TYPE, "Invite"),
         # native case-initialization entries (ADR-0041, CM-22-003)
         ("Create", "VulnerabilityCase"),
         ("Add", "VulnerabilityReport"),

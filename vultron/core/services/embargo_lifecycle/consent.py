@@ -15,7 +15,7 @@
 
 Per-participant consent bookkeeping (``record_participant_consent``,
 ``record_embargo_rejection``, ``record_embargo_invite``), lazy RSVP-deadline enforcement
-(``detect_and_apply_lapse``, EMB-17) and the public eligibility check
+(``detect_and_apply_expiry``, EMB-17) and the public eligibility check
 callers use before creating anything (``assert_embargo_eligible``,
 EP-04-008).
 """
@@ -43,7 +43,7 @@ def _unchanged(
     em_state: EM,
     *,
     participant_changes: list[ParticipantPECChange] | None = None,
-    is_lapsed: bool = False,
+    is_expired: bool = False,
 ) -> EmbargoLifecycleResult:
     """A result for an operation that moved neither EM state nor the case."""
     return EmbargoLifecycleResult(
@@ -53,12 +53,12 @@ def _unchanged(
         case_embargo_changed=False,
         pec_reset=False,
         participant_changes=participant_changes or [],
-        is_lapsed=is_lapsed,
+        is_expired=is_expired,
     )
 
 
 class _ConsentOperationsMixin(_PecEffectsMixin):
-    """Consent, lapse and eligibility operations with no EM transition."""
+    """Consent, invite-expiry and eligibility operations with no EM transition."""
 
     def record_embargo_invite(
         self,
@@ -70,7 +70,8 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
         """Record that *invitee_id* was invited to an embargo, without moving EM.
 
         Applies PEC ``INVITE`` where CM-18-003 allows it — only from
-        ``UNBOUND``, ``LAPSED`` or ``DECLINED``, so a ``SIGNATORY`` asked
+        ``UNBOUND``, ``LAPSED``, ``DECLINED`` or ``EXPIRED``, so a
+        ``SIGNATORY`` asked
         about a revision keeps its state (EP-09-004).  When *rsvp_deadline*
         is given the invitee's record takes it (CM-28-013).  The CASE_MANAGER
         calls this as it relays the Invite; a replica calls it as it replays
@@ -283,25 +284,27 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
 
         return _unchanged(em_state, participant_changes=participant_changes)
 
-    def detect_and_apply_lapse(
+    def detect_and_apply_expiry(
         self,
         *,
         case_id: str,
         actor_id: str,
         now: datetime,
     ) -> EmbargoLifecycleResult:
-        """Lazily enforce RSVP deadline: apply DECLINE if invite has lapsed.
+        """Lazily enforce the RSVP deadline: apply EXPIRE if the invite expired.
 
         Reads the participant record for *actor_id* in *case_id*.  If the
         participant is in ``INVITED`` state and ``invite_rsvp_deadline`` is
-        set and ``now >= invite_rsvp_deadline``, applies ``PEC_Trigger.DECLINE``
-        and returns a result with ``is_lapsed=True``.
+        set and ``now >= invite_rsvp_deadline``, applies ``PEC_Trigger.EXPIRE``
+        (``INVITED → EXPIRED``) and returns a result with ``is_expired=True``.
+        An expired invite is not a refusal, so ``DECLINE`` is never the timer
+        path (ADR-0117, CM-18-002).
 
-        Idempotent: if the participant is already ``DECLINED`` (or any state
+        Idempotent: if the participant is already ``EXPIRED`` (or any state
         other than ``INVITED``), no PEC transition is applied.  The result
-        still carries ``is_lapsed=True`` when the deadline has passed, so the
-        caller can branch on whether the invite window closed without
-        re-deriving it.
+        still carries ``is_expired=True`` when the deadline has passed and the
+        participant is not ``SIGNATORY``, so the caller can branch on whether
+        the invite window closed without re-deriving it.
 
         Args:
             case_id: ID of the VulnerabilityCase.
@@ -309,7 +312,7 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
             now: Current UTC datetime used for deadline comparison.
 
         Returns:
-            :class:`EmbargoLifecycleResult` with ``is_lapsed`` reflecting
+            :class:`EmbargoLifecycleResult` with ``is_expired`` reflecting
             whether the deadline has passed.
         """
         case = self._read_case(case_id)
@@ -319,7 +322,7 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
         participant_id = case.actor_participant_index.get(actor_id)
         if not participant_id:
             logger.debug(
-                "detect_and_apply_lapse: actor '%s' has no participant"
+                "detect_and_apply_expiry: actor '%s' has no participant"
                 " record in case '%s' — skipping",
                 actor_id,
                 case_id,
@@ -331,17 +334,17 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
             return _unchanged(em_state)
 
         deadline = participant.invite_rsvp_deadline
-        is_lapsed = deadline is not None and now >= deadline
+        is_expired = deadline is not None and now >= deadline
 
-        if not is_lapsed:
+        if not is_expired:
             return _unchanged(em_state)
 
-        # Deadline has passed — apply DECLINE if still in INVITED state.
-        # Idempotent: DECLINED and other terminal states are left unchanged.
+        # Deadline has passed — apply EXPIRE if still in INVITED state.
+        # Idempotent: EXPIRED and every other state are left unchanged.
         participant_changes: list[ParticipantPECChange] = []
         if participant.embargo_consent_state == PEC.INVITED.value:
             pec_before = participant.embargo_consent_state
-            participant.apply_pec_transition(PEC_Trigger.DECLINE)
+            participant.apply_pec_transition(PEC_Trigger.EXPIRE)
             self._persistence.save(participant)
             participant_changes.append(
                 ParticipantPECChange(
@@ -351,22 +354,23 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
                 )
             )
             logger.info(
-                "Invite lapsed for actor '%s' on case '%s'"
-                " (deadline=%s, PEC INVITED → DECLINED)",
+                "Invite expired for actor '%s' on case '%s'"
+                " (deadline=%s, PEC INVITED → EXPIRED)",
                 actor_id,
                 case_id,
                 deadline,
             )
 
         # A SIGNATORY participant has already accepted; a stale deadline is not
-        # a real lapse.  Only DECLINED (just-lapsed or already-declined) triggers
-        # the EMB-17 late-Accept routing in the caller.
-        is_lapsed = participant.embargo_consent_state != PEC.SIGNATORY.value
+        # a real expiry.  Any other state past the deadline (just-expired,
+        # already-expired, or declined) triggers the EMB-17 late-Accept routing
+        # in the caller.
+        is_expired = participant.embargo_consent_state != PEC.SIGNATORY.value
 
         return _unchanged(
             em_state,
             participant_changes=participant_changes,
-            is_lapsed=is_lapsed,
+            is_expired=is_expired,
         )
 
     def assert_embargo_eligible(self, *, case_id: str, operation: str) -> None:

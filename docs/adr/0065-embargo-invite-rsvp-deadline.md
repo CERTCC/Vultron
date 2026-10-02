@@ -115,6 +115,12 @@ The decision has five parts:
    lapse entry. Encoding it as state would put path history in the machine and
    re-expand the table ADR-0048 simplified.
 
+> **Reversed by ADR-0117 (2026-10-02).** An expired invite now moves the
+> participant to a distinct `EXPIRED` PEC state via the `EXPIRE` trigger;
+> `DECLINED` requires an explicit refusal. The scalar state, not only ledger
+> provenance, now satisfies CM-28-005, and the expiry ledger event type is
+> `invite_to_embargo_on_case_expired`.
+
 Abuse mitigation: a minimum RSVP window is specified, and a receiver that gets
 a sub-floor deadline **clamps it up to the floor** rather than rejecting the
 invite. Clamping keeps both parties deterministic and makes a coercively short

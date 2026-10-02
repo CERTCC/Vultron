@@ -48,7 +48,7 @@ into :class:`EmbargoLifecycle` in ``service.py``:
 - ``activation.py`` — ``terminate_active_embargo``, ``activate_embargo``
 - ``creation.py``   — ``initialize_creation_embargo`` (EP-04-002)
 - ``consent.py``    — ``record_participant_consent``,
-  ``record_embargo_rejection``, ``detect_and_apply_lapse``,
+  ``record_embargo_rejection``, ``detect_and_apply_expiry``,
   ``assert_embargo_eligible``
 
 Tracked in: https://github.com/CERTCC/Vultron/issues/538

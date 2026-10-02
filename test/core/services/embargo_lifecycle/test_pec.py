@@ -84,26 +84,40 @@ def test_cascade_pec_revise_lapses_only_signatories_lacking_the_revision(
     assert _pec_of(dl, owner_p.id_) == PEC.UNBOUND.value
 
 
-def test_cascade_pec_reset_skips_unbound_and_resets_the_rest(
+@pytest.mark.spec("CM-18-003", "MSM-07-006")
+def test_cascade_pec_exit_skips_unbound_exited_and_exits_the_rest(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """RESET cascade returns every non-UNBOUND participant to UNBOUND."""
+    """EXIT cascade moves every non-terminal record to UNBOUND_EXITED.
+
+    An UNBOUND record exits too (ADR-0117): termination ends the embargo
+    for everyone, so no record is left able to sign it. A record already
+    at the terminal UNBOUND_EXITED is skipped and reported as no change.
+    """
     owner, dl = owner_and_dl
     signer = _make_actor(dl, "Signer")
     invitee = _make_actor(dl, "Invitee")
+    gone = _make_actor(dl, "Gone")
     case, participants = _make_case(
-        dl, owner.id_, extra_participant_ids=[signer.id_, invitee.id_]
+        dl,
+        owner.id_,
+        extra_participant_ids=[signer.id_, invitee.id_, gone.id_],
     )
-    _owner_p, signer_p, invitee_p = participants
+    owner_p, signer_p, invitee_p, gone_p = participants
     _force_pec(dl, signer_p.id_, PEC.SIGNATORY)
     _force_pec(dl, invitee_p.id_, PEC.INVITED)
+    _force_pec(dl, gone_p.id_, PEC.UNBOUND_EXITED)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
-    changes = lifecycle._cascade_pec_reset(case)
+    changes = lifecycle._cascade_pec_exit(case)
 
-    assert {c.participant_id for c in changes} == {signer_p.id_, invitee_p.id_}
+    assert {c.participant_id for c in changes} == {
+        owner_p.id_,
+        signer_p.id_,
+        invitee_p.id_,
+    }
     for p in participants:
-        assert _pec_of(dl, p.id_) == PEC.UNBOUND.value
+        assert _pec_of(dl, p.id_) == PEC.UNBOUND_EXITED.value
 
 
 def test_participant_for_actor_unknown_actor_warns_and_returns_none(
@@ -230,6 +244,50 @@ def test_record_actor_pec_rejection_of_proposed_terms_declines_a_non_signatory(
     )
 
     assert [c.pec_after for c in changes] == [PEC.DECLINED.value]
+
+
+@pytest.mark.spec("MSM-07-004", "CM-18-003")
+@pytest.mark.parametrize("withdrawal", [True, False])
+def test_record_actor_pec_rejection_keeps_unbound_exited(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer], withdrawal: bool
+) -> None:
+    """A Reject after termination changes no state: UNBOUND_EXITED is terminal.
+
+    The stale id is still dropped from the list, so the record carries no
+    acceptance of terms it can no longer be bound by (ADR-0117).
+    """
+    owner, dl = owner_and_dl
+    case, (owner_p,) = _make_case(dl, owner.id_)
+    embargo_id = "https://example.org/embargoes/gone"
+    _seed_consent(dl, owner_p.id_, PEC.UNBOUND_EXITED, [embargo_id])
+    lifecycle = EmbargoLifecycle(persistence=dl)
+
+    changes = lifecycle._record_actor_pec_rejection(
+        case, owner.id_, embargo_id, withdrawal=withdrawal
+    )
+
+    assert changes == []
+    assert _pec_of(dl, owner_p.id_) == PEC.UNBOUND_EXITED.value
+    assert _accepted_ids_of(dl, owner_p.id_) == []
+
+
+@pytest.mark.spec("MSM-07-004", "CM-18-003")
+def test_record_actor_pec_rejection_declines_an_expired_participant(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """A late explicit Reject from EXPIRED is an answer: EXPIRED → DECLINED."""
+    owner, dl = owner_and_dl
+    case, (owner_p,) = _make_case(dl, owner.id_)
+    _force_pec(dl, owner_p.id_, PEC.EXPIRED)
+    lifecycle = EmbargoLifecycle(persistence=dl)
+
+    changes = lifecycle._record_actor_pec_rejection(
+        case, owner.id_, "https://example.org/embargoes/p", withdrawal=False
+    )
+
+    assert [(c.pec_before, c.pec_after) for c in changes] == [
+        (PEC.EXPIRED.value, PEC.DECLINED.value)
+    ]
 
 
 def test_assert_rejectable_classifies_active_proposed_and_unknown(
@@ -448,10 +506,10 @@ def test_longer_revision_lapses_an_inert_signatory_too(
 
 
 @pytest.mark.spec("CM-10-007")
-def test_cascade_pec_reset_reaches_an_inert_participant(
+def test_cascade_pec_exit_reaches_an_inert_participant(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """Termination resets every record, an inert one included (#4046 AC-5)."""
+    """Termination exits every record, an inert one included (#4046 AC-5)."""
     owner, dl = owner_and_dl
     inert = _make_actor(dl, "Inert")
     case, participants = _make_case(
@@ -461,7 +519,7 @@ def test_cascade_pec_reset_reaches_an_inert_participant(
     _force_pec(dl, inert_p.id_, PEC.INVITED)
     _make_inert(dl, inert_p.id_, "unjoined")
 
-    changes = EmbargoLifecycle(persistence=dl)._cascade_pec_reset(case)
+    changes = EmbargoLifecycle(persistence=dl)._cascade_pec_exit(case)
 
-    assert [c.participant_id for c in changes] == [inert_p.id_]
-    assert _pec_of(dl, inert_p.id_) == PEC.UNBOUND.value
+    assert inert_p.id_ in {c.participant_id for c in changes}
+    assert _pec_of(dl, inert_p.id_) == PEC.UNBOUND_EXITED.value

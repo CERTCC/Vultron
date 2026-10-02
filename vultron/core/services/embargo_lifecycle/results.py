@@ -69,8 +69,9 @@ class EmbargoLifecycleResult(BaseModel):
         case_changed: True if the case object was mutated and persisted.
         case_embargo_changed: True if ``case.active_embargo`` was modified
             (e.g. an embargo was activated or cleared).
-        pec_reset: True if a full PEC reset was performed across all
-            participants (e.g. on embargo termination).
+        pec_reset: True if every participant's PEC was exited to the
+            terminal ``UNBOUND_EXITED`` (embargo termination, ADR-0117).  The
+            field keeps its historical name; the trigger is ``EXIT``.
         participant_changes: Per-participant PEC *state* changes that occurred
             during the operation (e.g. signatories lapsed when the owner
             activated longer terms they had not accepted, EP-05-001).  A write
@@ -85,4 +86,4 @@ class EmbargoLifecycleResult(BaseModel):
     participant_changes: list[ParticipantPECChange] = Field(
         default_factory=list
     )
-    is_lapsed: bool = False
+    is_expired: bool = False

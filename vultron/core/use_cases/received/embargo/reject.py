@@ -23,6 +23,7 @@ from vultron.core.models.use_case_result import (
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
+    unaddressed_copy_refusal,
 )
 from vultron.core.use_cases.received._bt_verdict import (
     not_case_manager_refusal,
@@ -58,6 +59,19 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
+        # Door check before any tree or write: an unaddressed copy is
+        # refused (HP-01-005, ADR-0117).
+        receiving_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
+        if (
+            refusal := unaddressed_copy_refusal(
+                receiving_actor_id,
+                request,
+                label="Reject(Invite(EmbargoEvent))",
+            )
+        ) is not None:
+            return refusal
         rejecting_actor_id = request.actor_id
         invite_id = request.invite_id
 
@@ -103,9 +117,7 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
             # The *receiving* actor, not the sender (BT-17-005): an
             # inbound activity is applied to the receiver's own replica,
             # so the tree must execute in the receiver's store.
-            actor_id=resolve_receiving_actor_id(
-                self._dl, request.receiving_actor_id
-            ),
+            actor_id=receiving_actor_id,
             activity=request,
         )
 

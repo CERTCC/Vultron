@@ -17,6 +17,11 @@ from vultron.core.ports.case_persistence import CasePersistence
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
 
+from vultron.core.use_cases._helpers import (
+    resolve_receiving_actor_id,
+    unaddressed_copy_refusal,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -34,9 +39,21 @@ class AnnounceEmbargoEventToCaseReceivedUseCase:
         self._request: AnnounceEmbargoEventToCaseReceivedEvent = request
 
     def execute(self) -> HandlerResult:
+        request = self._request
+        # Door check before any tree or write: an unaddressed copy is
+        # refused (HP-01-005, ADR-0117).
+        receiving_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
+        if (
+            refusal := unaddressed_copy_refusal(
+                receiving_actor_id, request, label="Announce(EmbargoEvent)"
+            )
+        ) is not None:
+            return refusal
         logger.info(
             "Received embargo announcement '%s' — no receiver-side state"
             " change required",
-            self._request.activity_id,
+            request.activity_id,
         )
         return HandlerResult.skipped("no receiver-side state change")

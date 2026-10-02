@@ -35,7 +35,7 @@ from vultron.core.services.embargo_lifecycle import (
 )
 from vultron.core.states.em import EM
 from vultron.core.use_cases._helpers import (
-    reset_case_participant_embargo_consent,
+    exit_case_participant_embargo_consent,
 )
 from vultron.errors import BtNodePreconditionError, VultronNotFoundError
 
@@ -148,12 +148,13 @@ class ClearActiveEmbargoNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class ResetParticipantConsentNode(DataLayerActionWithPorts):
-    """Reset all participant embargo consent states to UNBOUND.
+class ExitParticipantConsentNode(DataLayerActionWithPorts):
+    """Exit all participant embargo consent to the terminal UNBOUND_EXITED.
 
-    Calls ``reset_case_participant_embargo_consent`` for the given case.
+    Calls ``exit_case_participant_embargo_consent`` for the given case.
     Returns FAILURE when the case is not found.  Returns SUCCESS when
-    consent reset completes (including when the case has no participants).
+    the consent exit completes (including when the case has no
+    participants).  ``EXIT`` is tied to ``EM.EXITED`` (ADR-0117).
     """
 
     def __init__(self, case_id: str, name: str | None = None) -> None:
@@ -169,9 +170,9 @@ class ResetParticipantConsentNode(DataLayerActionWithPorts):
         if failure is not None:
             return failure  # Regime 1 (ADR-0087)
 
-        reset_case_participant_embargo_consent(self.datalayer, case)
+        exit_case_participant_embargo_consent(self.datalayer, case)
         self.feedback_message = (
-            f"Reset participant embargo consent for case '{self.case_id}'"
+            f"Exited participant embargo consent for case '{self.case_id}'"
         )
         self.logger.info("%s: %s", self.name, self.feedback_message)
         return Status.SUCCESS
@@ -181,7 +182,7 @@ class ApplyEmbargoTeardownNode(DataLayerActionWithPorts):
     """Apply receiver-side embargo teardown.
 
     Performs the ACTIVE/REVISE → EXITED EM state transition, clears
-    ``active_embargo``, and resets all participant embargo consent states.
+    ``active_embargo``, and exits all participant embargo consent states.
     Handles idempotency: if EM state is already EXITED, logs and returns
     SUCCESS without modifying the DataLayer.
 
@@ -242,9 +243,9 @@ class ApplyEmbargoTeardownNode(DataLayerActionWithPorts):
             self.logger.info("%s: %s", self.name, self.feedback_message)
             return Status.SUCCESS
 
-        reset_node = ResetParticipantConsentNode(case_id=case_id)
-        reset_node.datalayer = self.datalayer
-        reset_node.update()
+        exit_node = ExitParticipantConsentNode(case_id=case_id)
+        exit_node.datalayer = self.datalayer
+        exit_node.update()
 
         self.feedback_message = f"Embargo teardown applied on case '{case_id}'"
         self.logger.debug("%s: %s", self.name, self.feedback_message)

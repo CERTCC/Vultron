@@ -25,6 +25,7 @@ from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.use_cases._helpers import (
     _idempotent_create,
     resolve_receiving_actor_id,
+    unaddressed_copy_refusal,
 )
 from vultron.core.use_cases.received._bt_verdict import (
     verdict_from_bt,
@@ -51,6 +52,17 @@ class CreateEmbargoEventReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
+        # Door check before any tree or write: an unaddressed copy is
+        # refused (HP-01-005, ADR-0117).
+        receiving_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
+        if (
+            refusal := unaddressed_copy_refusal(
+                receiving_actor_id, request, label="Create(EmbargoEvent)"
+            )
+        ) is not None:
+            return refusal
         return _idempotent_create(
             self._dl,
             request.object_type,
@@ -76,6 +88,9 @@ class AddEmbargoEventToCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
+        receiving_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
         embargo_id = request.embargo_id
         case_id = request.case_id
         if embargo_id is None or case_id is None:
@@ -85,6 +100,16 @@ class AddEmbargoEventToCaseReceivedUseCase:
             return HandlerResult.refused(
                 "Add(EmbargoEvent) is missing its embargo id or case id"
             )
+
+        # Door check before any tree or write, after the shape checks
+        # that write nothing: an unaddressed copy is refused (HP-01-005,
+        # ADR-0117).
+        if (
+            refusal := unaddressed_copy_refusal(
+                receiving_actor_id, request, label="Add(EmbargoEvent)"
+            )
+        ) is not None:
+            return refusal
 
         tree = add_embargo_to_case_tree(
             case_id=case_id,
@@ -102,9 +127,7 @@ class AddEmbargoEventToCaseReceivedUseCase:
             # The *receiving* actor, not the sender (BT-17-005): an
             # inbound activity is applied to the receiver's own replica,
             # so the tree must execute in the receiver's store.
-            actor_id=resolve_receiving_actor_id(
-                self._dl, request.receiving_actor_id
-            ),
+            actor_id=receiving_actor_id,
             activity=request,
         )
 
@@ -134,6 +157,9 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
+        receiving_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
         embargo_id = request.embargo_id
         case_id = request.case_id
         if embargo_id is None or case_id is None:
@@ -144,9 +170,15 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
                 "Remove(EmbargoEvent) is missing its embargo id or case id"
             )
 
-        receiving_actor_id = resolve_receiving_actor_id(
-            self._dl, request.receiving_actor_id
-        )
+        # Door check before any tree or write, after the shape checks
+        # that write nothing: an unaddressed copy is refused (HP-01-005,
+        # ADR-0117).
+        if (
+            refusal := unaddressed_copy_refusal(
+                receiving_actor_id, request, label="Remove(EmbargoEvent)"
+            )
+        ) is not None:
+            return refusal
 
         # The tree embeds the guarded commit as its final step (ADR-0021,
         # CLP-10-002, CLP-10-003).  Running it with actor_id=receiving_actor_id

@@ -40,7 +40,7 @@ activity (protocol ET message).  Sequence:
        │  └─ HasEmbargoActiveNode
        └─ ActiveTeardown (Sequence)       # its FAILURE is the tree's FAILURE
           ├─ ClearActiveEmbargoNode       # ACTIVE/REVISE→EXITED + clear active_embargo
-          ├─ ResetParticipantConsentNode  # reset all participant PEC to UNBOUND
+          ├─ ExitParticipantConsentNode  # exit all participant PEC to UNBOUND_EXITED
           ├─ SendAnnounceEmbargoEventNode # emit Announce(EmbargoEvent) to CaseActor
           └─ EmbargoAdmissionBackfill     # CASE_MANAGER: backfill paused peers (CM-10-006)
 
@@ -71,13 +71,13 @@ from vultron.core.behaviors.embargo.nodes import (
     CollectEmbargoInviteRecipientsNode,
     CreateAndStoreInviteNode,
     EmbargoProposalNotYetRecordedNode,
+    ExitParticipantConsentNode,
     HasEmbargoActiveNode,
     IsActiveEmbargoNode,
     PersistEmbargoEventNode,
     ProposeEmbargoLifecycleNode,
     RelayEmbargoInviteToEachNode,
     RemoveFromProposedEmbargoesNode,
-    ResetParticipantConsentNode,
     SendAnnounceEmbargoEventNode,
     SendEmbargoInviteAnswerNode,
     SetEmbargoActiveNode,
@@ -122,7 +122,8 @@ def remove_embargo_from_case_tree(
     Handles receipt of a ``Remove(EmbargoEvent)`` activity.  Removes the
     embargo from ``proposed_embargoes`` (idempotent) and, if the embargo is
     the active one, applies the ACTIVE/REVISE → EXITED EM state transition,
-    clears ``active_embargo``, and resets participant embargo consent states.
+    clears ``active_embargo``, and exits participant embargo consent to the
+    terminal ``UNBOUND_EXITED`` (ADR-0117).
     Always commits a canonical ledger entry when the executing actor holds
     the ``CASE_MANAGER`` role (via the guarded commit subtree).
 
@@ -163,7 +164,7 @@ def remove_embargo_from_case_tree(
                 memory=False,
                 children=[
                     ClearActiveEmbargoNode(case_id=case_id),
-                    ResetParticipantConsentNode(case_id=case_id),
+                    ExitParticipantConsentNode(case_id=case_id),
                     SendAnnounceEmbargoEventNode(
                         case_id=case_id, embargo_id=embargo_id
                     ),

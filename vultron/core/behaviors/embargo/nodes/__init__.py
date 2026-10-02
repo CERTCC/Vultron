@@ -87,9 +87,9 @@ from vultron.core.behaviors.embargo.nodes.relay_effect import (
 from vultron.core.behaviors.embargo.nodes.teardown import (
     ApplyEmbargoTeardownNode,
     ClearActiveEmbargoNode,
+    ExitParticipantConsentNode,
     HasEmbargoActiveNode,
     RemoveFromProposedEmbargoesNode,
-    ResetParticipantConsentNode,
     SendAnnounceEmbargoEventNode,
 )
 
@@ -113,7 +113,7 @@ __all__ = [
     # Teardown
     "HasEmbargoActiveNode",
     "ClearActiveEmbargoNode",
-    "ResetParticipantConsentNode",
+    "ExitParticipantConsentNode",
     "ApplyEmbargoTeardownNode",
     "RemoveFromProposedEmbargoesNode",
     "SendAnnounceEmbargoEventNode",

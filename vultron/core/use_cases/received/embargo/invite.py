@@ -32,6 +32,7 @@ from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.addressing import same_actor_id
 from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
+    unaddressed_copy_refusal,
 )
 from vultron.core.use_cases.received._bt_verdict import (
     node_failed,
@@ -132,7 +133,7 @@ def _store_invite_deadline(
     actor_id: str,
     rsvp_deadline: datetime,
 ) -> None:
-    """Store RSVP deadline on the invitee's record for lazy lapse detection.
+    """Store RSVP deadline on the invitee's record for lazy invite-expiry detection.
 
     A proposal addressed to the CASE_MANAGER names it as the sole recipient,
     but the manager adjudicates that Invite and is never its invitee
@@ -177,14 +178,13 @@ class InviteToEmbargoOnCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        case_id = request.context_id or ""
-        invite_id = request.activity_id
+        receiving_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
 
-        if not invite_id:
-            logger.warning("invite_to_embargo_on_case: missing activity_id")
-            return HandlerResult.refused(
-                "Invite(EmbargoEvent) is missing its activity id"
-            )
+        case_id = request.context_id or ""
+        # ``activity_id`` is a required ``NonEmptyString`` on every event.
+        invite_id = request.activity_id
 
         embargo_id = request.object_id
         if not embargo_id:
@@ -213,9 +213,16 @@ class InviteToEmbargoOnCaseReceivedUseCase:
             )
             return HandlerResult.refused(str(exc))
 
-        receiving_actor_id = resolve_receiving_actor_id(
-            self._dl, request.receiving_actor_id
-        )
+        # Door check before any tree or write, after the shape checks
+        # that write nothing: an unaddressed copy is refused (HP-01-005,
+        # ADR-0117).
+        if (
+            refusal := unaddressed_copy_refusal(
+                receiving_actor_id, request, label="Invite(EmbargoEvent)"
+            )
+        ) is not None:
+            return refusal
+
         if case_id and pxa_embargo_ineligible(self._dl, case_id):
             return refuse_pxa_invite(
                 self._dl,
@@ -293,7 +300,7 @@ class InviteToEmbargoOnCaseReceivedUseCase:
                 )
 
         # Store RSVP deadline on the invitee's participant record so
-        # detect_and_apply_lapse() can check it without reading the stored
+        # detect_and_apply_expiry() can check it without reading the stored
         # invite activity (CM-28, EP-07-001).
         if case_id and request.rsvp_deadline:
             _store_invite_deadline(

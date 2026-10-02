@@ -151,11 +151,12 @@ def _apply_transition(
     """Return the destination state for (current_state, trigger).
 
     Raises VultronInvalidStateTransitionError when no matching transition exists.
-    Supports wildcard source "*" (PEC RESET).
+    Every source is an explicit state: the PEC machine's ``EXIT`` enumerates
+    its sources so the terminal ``UNBOUND_EXITED`` refuses it (ADR-0117).
     """
     for t in transitions:
         src = t.get("source")
-        if src not in (current_state, "*"):
+        if src != current_state:
             continue
         if t.get("trigger") != trigger:
             continue
@@ -420,8 +421,9 @@ class PecDimension(_ScalarDimension):
     def transition(self, trigger: PEC_Trigger) -> "PecDimension":
         """Return a new PecDimension with the state after applying *trigger*.
 
-        Raises VultronInvalidStateTransitionError on invalid trigger.
-        Supports the RESET wildcard ("*" → UNBOUND from any state).
+        Raises VultronInvalidStateTransitionError on invalid trigger,
+        including every trigger from the terminal ``UNBOUND_EXITED``
+        (ADR-0117).
         """
         new_state = _apply_transition(
             self.state, trigger, _pec_transitions, "PecDimension"

@@ -373,6 +373,20 @@ class TestApplyPecTransition:
         assert status.consent.state == PEC.SIGNATORY
         assert status.embargo_adherence is True
 
+    @pytest.mark.spec("CM-18-008", "CM-18-003")
+    @pytest.mark.parametrize("state", list(PEC))
+    def test_embargo_adherence_is_true_only_at_signatory(self, state):
+        """embargo_adherence reads SIGNATORY alone; UNBOUND_EXITED is False.
+
+        A participant whose embargo was terminated sits at the terminal
+        UNBOUND_EXITED (ADR-0117) and is bound by nothing, exactly like
+        EXPIRED, LAPSED and DECLINED.
+        """
+        p = _make(embargo_consent_state=state)
+        status = p.participant_status
+        assert status is not None
+        assert status.embargo_adherence is (state is PEC.SIGNATORY)
+
     def test_ac4_non_signatory_consent_state_preserved(self):
         """AC-4: DECLINED state is faithfully preserved in the snapshot.
 
@@ -465,11 +479,13 @@ class TestAcceptsPecTrigger:
             (PEC.UNBOUND, True),
             (PEC.LAPSED, True),
             (PEC.DECLINED, True),
+            (PEC.EXPIRED, True),
             (PEC.INVITED, False),
             (PEC.SIGNATORY, False),
+            (PEC.UNBOUND_EXITED, False),
         ],
     )
-    def test_invite_is_legal_only_from_unbound_lapsed_or_declined(
+    def test_invite_is_legal_only_from_unbound_lapsed_declined_or_expired(
         self, state, accepts
     ):
         from vultron.core.states.participant_embargo_consent import PEC_Trigger

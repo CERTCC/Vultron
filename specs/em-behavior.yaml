@@ -75,10 +75,12 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      A Participant MUST NOT accept a new embargo proposal (process EP) when
-      information about the vulnerability is public (q^cs ∈ ···P··), exploit
-      is public (q^cs ∈ ····X·), or attacks have been observed (q^cs ∈ ·····A).
-      The Participant MUST respond with ER to reject the proposal.
+      A Participant MUST NOT accept a new embargo proposal (process EP) when information about the
+      vulnerability is public (q^cs ∈ ···P··), exploit is public (q^cs ∈ ····X·), or attacks have
+      been observed (q^cs ∈ ·····A). The Participant MUST respond with ER to reject the proposal.
+      The ER duty binds only the proposal's addressee: a receiver that is neither the sender nor
+      named in its `to` or `cc` holds an unaddressed copy, refuses it (HP-01-005) and answers
+      nothing (ADR-0117).
     rationale: >-
       Embargo negotiation is not viable once public disclosure has occurred.
       VP-06-001 and VP-11-001 prohibit new embargo negotiations in these states.
@@ -430,18 +432,22 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A Participant in EM Active or Revise (q^em ∈ {A, R}) with CS in a
-      public/exploit/attack state (q^cs ∉ ···pxa) receiving EV MUST emit ET
-      to terminate the embargo immediately.
+      A Participant that is neither the case owner nor the CASE_MANAGER, in EM Active or Revise
+      (q^em ∈ {A, R}) with CS in a public/exploit/attack state (q^cs ∉ ···pxa), receiving EV MUST
+      answer it with ER to the CASE_MANAGER, as EMB-01-002 requires for a proposal, and MUST NOT
+      emit ET or change its own EM state. Termination is initiated only by the case owner, or by the
+      CASE_MANAGER when delegated (EP-09-003, EP-09-008, CM-24, ADR-0113, ADR-0117).
     rationale: >-
-      Revision negotiation is not viable once public disclosure has occurred.
-      VP-11-001 and VP-11-002 require termination in these states; receiving a
-      revision proposal while in a terminal CS state triggers immediate embargo
-      exit.
+      Revision negotiation is not viable once public disclosure has occurred, so the participant
+      refuses the revision. Ending the embargo is the case owner's decision (or the delegated
+      CASE_MANAGER's), and only the CASE_MANAGER writes shared EM state (EP-09-008, ADR-0113); a
+      participant answers only the Invite addressed to it (EP-09-003). VP-11-001 and VP-11-002 are
+      met by the owner's or CASE_MANAGER's termination, not by each participant emitting ET
+      (ADR-0117).
     verification: >-
-      Integration tests in `test/demo/` confirm that receiving EV in EM ACTIVE or
-      REVISE with a public/exploit/attack CS causes ET to be emitted and EM to
-      transition to EXITED.
+      A per-actor-store test in `test/core/use_cases/received/test_embargo_relay_replay.py` delivers
+      a relayed revision Invite to a participant whose case is P/X/A and asserts one ER to the
+      CASE_MANAGER, no ET, and no EM state change on the participant.
     testable: true
     preconditions:
     - em_state:
@@ -462,8 +468,8 @@ groups:
     steps:
     - order: 1
       actor: receiver
-      action: Emit ET to terminate the embargo immediately
-      expected: ET queued for participants; EM transitions to EXITED
+      action: Emit ER to the CASE_MANAGER to reject the revision
+      expected: ER queued for the CASE_MANAGER; no ET is emitted; the receiver's EM state is unchanged
     postconditions:
     - description: ET emitted; EM state is EXITED
     relationships:
@@ -1190,12 +1196,13 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      A Participant entering EM Exited SHOULD reset all Participant embargo
-      consent states to reflect that the embargo has ended.
+      A Participant entering EM Exited SHOULD move all Participant embargo
+      consent states to the terminal UNBOUND_EXITED to reflect that the embargo
+      has ended (MSM-07-006, ADR-0117).
     rationale: >-
-      Once the embargo exits, each Participant's consent status should be
-      cleared to a neutral terminal state so that future embargo negotiations
-      for this case (if any) start from a clean baseline.
+      Once the embargo exits, each Participant's consent status should hold a
+      terminal state: EM Exited has no outgoing transition, so no later
+      invitation to the terminated embargo can rebind anyone.
     testable: true
     preconditions:
     - em_state:
@@ -1205,11 +1212,11 @@ groups:
     - order: 1
       actor: participant
       action: >-
-        Reset all Participant embargo consent states to the post-exit terminal
-        state
+        Move all Participant embargo consent states to the terminal
+        UNBOUND_EXITED
       expected: All Participant embargo consent states reflect embargo termination
     postconditions:
-    - description: Embargo consent states reset; EM state is terminal EXITED
+    - description: Embargo consent states are UNBOUND_EXITED; EM state is terminal EXITED
     relationships:
     - rel_type: satisfies
       spec_id: VP-04-001
@@ -1792,9 +1799,11 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When the accepted embargo is the case's current embargo, the CASE_MANAGER MUST
-      honour the late Accept and record the participant's PEC transition to
-      SIGNATORY, exactly as it would for an on-time Accept.
+      When the accepted embargo is the case's current embargo, the CASE_MANAGER MUST honour the late
+      Accept and record the participant's PEC transition to SIGNATORY, exactly as it would for an
+      on-time Accept. A participant at EXPIRED moves directly to SIGNATORY (`EXPIRED → SIGNATORY`,
+      ADR-0117); one at DECLINED is re-invited first (`DECLINED → INVITED → SIGNATORY`), because
+      ACCEPT is not legal from DECLINED (CM-18-003).
     rationale: >-
       If the terms the participant agreed to are the terms in force, the
       participant is a valid signatory. The deadline governs whether the
@@ -1829,10 +1838,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When the accepted embargo is NOT the case's current embargo (for example
-      the embargo was revised or replaced after the invitation was sent), the
-      CASE_MANAGER MUST issue a fresh `Invite(EmbargoEvent)` to the accepting actor
-      carrying the case's current embargo.
+      When the accepted embargo is NOT the case's current embargo (for example the embargo was
+      revised or replaced after the invitation was sent), the CASE_MANAGER MUST issue a fresh
+      `Invite(EmbargoEvent)` to the accepting actor carrying the case's current embargo. An
+      accepting participant at EXPIRED moves `EXPIRED → INVITED` for the current embargo (ADR-0117).
     rationale: >-
       Recording the stale Accept as consent would make the participant a
       signatory to terms they never saw. Rejecting them would discard a
@@ -1901,9 +1910,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When the case has no current embargo (EM state is EXITED or NONE),
-      the CASE_MANAGER MUST acknowledge the late Accept as a no-op on embargo state,
-      leaving the participant's PEC state at NONE.
+      When the case has no current embargo (EM state is EXITED or NONE), the CASE_MANAGER MUST
+      acknowledge the late Accept as a no-op on embargo state, leaving the participant's PEC state
+      unchanged: UNBOUND_EXITED after a termination (EM EXITED), or EXPIRED when no embargo has
+      started (EM NONE) (ADR-0117).
     note: >-
       EMB-13-002 independently forbids seeking or accepting new embargoes for a
       case whose CS state is public, exploit-public, or attacks-observed. This
@@ -1916,9 +1926,8 @@ groups:
       actor's case participation is independent of embargo consent and MUST
       survive. See ADR-0065.
     verification: >-
-      Integration tests in `test/demo/` confirm that a late Accept arriving when EM
-      is EXITED or NONE is acknowledged without applying any PEC transition, leaving
-      the participant's PEC state at UNBOUND.
+      Tests confirm that a late Accept arriving when EM is EXITED or NONE is acknowledged without
+      applying any PEC transition, leaving a participant at UNBOUND_EXITED (EM EXITED) unchanged.
     testable: true
     preconditions:
     - em_state:
@@ -1930,7 +1939,7 @@ groups:
       actor: system
       action: Acknowledge the Accept without applying a PEC transition
       expected: >-
-        Participant PEC state remains UNBOUND; participant remains in the
+        Participant PEC state is unchanged; participant remains in the
         case; no fresh invitation is emitted
     postconditions:
     - description: >-

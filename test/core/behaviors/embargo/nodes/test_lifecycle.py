@@ -333,7 +333,7 @@ class TestTerminateEmbargoBT:
 
         for participant_id in case.actor_participant_index.values():
             updated_p = cast(as_CaseParticipant, dl.read(participant_id))
-            assert updated_p.embargo_consent_state == PEC.UNBOUND.value
+            assert updated_p.embargo_consent_state == PEC.UNBOUND_EXITED.value
 
     def test_cascade_path_no_builder_returns_failure_when_no_factory(self):
         """Without activity_builder, FAILURE when no trigger_activity_factory set.

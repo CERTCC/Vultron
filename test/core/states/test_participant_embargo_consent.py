@@ -5,6 +5,7 @@ import pytest
 from vultron.core.models.dimensions import PecDimension
 from vultron.core.states.participant_embargo_consent import (
     PEC,
+    PEC_TERMINAL_STATES,
     PEC_Trigger,
     create_pec_machine,
 )
@@ -25,13 +26,22 @@ class TestPECEnum:
             "SIGNATORY",
             "DECLINED",
             "LAPSED",
+            "EXPIRED",
+            "UNBOUND_EXITED",
         }
 
 
 class TestPECTriggerEnum:
     def test_all_triggers_exist(self) -> None:
         names = {m.name for m in PEC_Trigger}
-        assert names == {"INVITE", "ACCEPT", "DECLINE", "REVISE", "RESET"}
+        assert names == {
+            "INVITE",
+            "ACCEPT",
+            "DECLINE",
+            "REVISE",
+            "EXPIRE",
+            "EXIT",
+        }
 
 
 class TestPECMachineCreation:
@@ -93,15 +103,74 @@ class TestPecDimensionTransition:
         )
         assert result.state == PEC.LAPSED
 
-    # --- RESET transitions (wildcard) ---
-    @pytest.mark.spec("SDO-02-001")
+    # --- EXIT transitions (ADR-0117): every non-terminal state ---
+    @pytest.mark.spec("SDO-02-001", "CM-18-003")
     @pytest.mark.parametrize(
-        "state",
-        [PEC.UNBOUND, PEC.INVITED, PEC.SIGNATORY, PEC.DECLINED, PEC.LAPSED],
+        "state", [s for s in PEC if s not in PEC_TERMINAL_STATES]
     )
-    def test_reset_from_any_state(self, state: PEC) -> None:
-        result = PecDimension(state=state).transition(PEC_Trigger.RESET)
-        assert result.state == PEC.UNBOUND
+    def test_exit_from_every_non_terminal_state(self, state: PEC) -> None:
+        result = PecDimension(state=state).transition(PEC_Trigger.EXIT)
+        assert result.state == PEC.UNBOUND_EXITED
+
+    # --- UNBOUND_EXITED is terminal (ADR-0117) ---
+    @pytest.mark.spec("SDO-02-002", "CM-18-003")
+    @pytest.mark.parametrize("trigger", list(PEC_Trigger))
+    def test_unbound_exited_refuses_every_trigger(
+        self, trigger: PEC_Trigger
+    ) -> None:
+        with pytest.raises(VultronInvalidStateTransitionError):
+            PecDimension(state=PEC.UNBOUND_EXITED).transition(trigger)
+
+    def test_terminal_states_are_exactly_unbound_exited(self) -> None:
+        assert frozenset({PEC.UNBOUND_EXITED}) == PEC_TERMINAL_STATES
+
+    # --- EXPIRE and the EXPIRED state (ADR-0117) ---
+    @pytest.mark.spec("SDO-02-001", "CM-18-002")
+    def test_expire_from_invited(self) -> None:
+        result = PecDimension(state=PEC.INVITED).transition(PEC_Trigger.EXPIRE)
+        assert result.state == PEC.EXPIRED
+
+    @pytest.mark.spec("SDO-02-002", "CM-18-002")
+    @pytest.mark.parametrize("state", [s for s in PEC if s is not PEC.INVITED])
+    def test_expire_only_from_invited(self, state: PEC) -> None:
+        with pytest.raises(VultronInvalidStateTransitionError):
+            PecDimension(state=state).transition(PEC_Trigger.EXPIRE)
+
+    @pytest.mark.spec("SDO-02-001", "EMB-17-003")
+    def test_invite_from_expired(self) -> None:
+        result = PecDimension(state=PEC.EXPIRED).transition(PEC_Trigger.INVITE)
+        assert result.state == PEC.INVITED
+
+    @pytest.mark.spec("SDO-02-001", "EMB-17-002")
+    def test_accept_from_expired(self) -> None:
+        result = PecDimension(state=PEC.EXPIRED).transition(PEC_Trigger.ACCEPT)
+        assert result.state == PEC.SIGNATORY
+
+    @pytest.mark.spec("SDO-02-001")
+    def test_decline_from_expired(self) -> None:
+        """A late explicit Reject is an answer and records DECLINED."""
+        result = PecDimension(state=PEC.EXPIRED).transition(
+            PEC_Trigger.DECLINE
+        )
+        assert result.state == PEC.DECLINED
+
+    @pytest.mark.spec("SDO-02-002")
+    def test_revise_from_expired_raises(self) -> None:
+        with pytest.raises(VultronInvalidStateTransitionError):
+            PecDimension(state=PEC.EXPIRED).transition(PEC_Trigger.REVISE)
+
+    @pytest.mark.spec("CM-18-002")
+    def test_timer_expiry_is_not_a_decline(self) -> None:
+        """The timer path lands on EXPIRED, never on DECLINED (ADR-0117)."""
+        expired = PecDimension(state=PEC.INVITED).transition(
+            PEC_Trigger.EXPIRE
+        )
+        declined = PecDimension(state=PEC.INVITED).transition(
+            PEC_Trigger.DECLINE
+        )
+        assert expired.state is PEC.EXPIRED
+        assert expired.state != declined.state
+        assert not expired.is_declined()
 
     # --- ADR-0048: ACCEPT and DECLINE directly from UNBOUND ---
     @pytest.mark.spec("SDO-02-001")

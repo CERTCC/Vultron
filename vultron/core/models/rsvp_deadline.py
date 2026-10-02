@@ -41,6 +41,16 @@ DEFAULT_MIN_RSVP_WINDOW = timedelta(hours=72)
 DEFAULT_RSVP_WINDOW = timedelta(days=7)
 """Default policy RSVP window when an invite names no deadline (EP-07-001)."""
 
+INVITE_EXPIRED_EVENT_TYPE = "invite_to_embargo_on_case_expired"
+"""Ledger ``event_type`` of the CASE_MANAGER's invite-expiry entry (CM-28-009).
+
+The entry records ``PEC_Trigger.EXPIRE`` (``INVITED → EXPIRED``), distinct from
+the ``Reject(Invite)`` entry of an explicit refusal (CM-28-005, ADR-0117).
+"""
+
+INVITE_EXPIRED_SNAPSHOT_TYPE = "Expire"
+"""``payloadSnapshot.type`` of the invite-expiry entry; its object is the Invite."""
+
 
 class RsvpDeadlineClamp(StrEnum):
     """Which rule, if any, moved the requested deadline."""

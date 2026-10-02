@@ -17,8 +17,13 @@ from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
 from vultron.core.models._helpers import _as_id, claimed_published_iso
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedEvent,
+)
+from vultron.core.models.rsvp_deadline import (
+    INVITE_EXPIRED_EVENT_TYPE,
+    INVITE_EXPIRED_SNAPSHOT_TYPE,
 )
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
@@ -35,6 +40,7 @@ from vultron.core.states.participant_embargo_consent import PEC_Trigger
 from vultron.core.use_cases._helpers import (
     add_activity_to_outbox,
     resolve_receiving_actor_id,
+    unaddressed_copy_refusal,
 )
 from vultron.core.use_cases.received._bt_verdict import (
     applied_or_raise,
@@ -70,6 +76,26 @@ def _resolve_case_for_embargo_acceptance(
     return None
 
 
+def _needs_reinvite_to_accept(
+    dl: CasePersistence, case: "VulnerabilityCase", actor_id: str
+) -> bool:
+    """True when *actor_id*'s consent must be re-invited before ACCEPT.
+
+    ``ACCEPT`` is legal from ``EXPIRED`` (ADR-0117) but not from ``DECLINED``
+    (CM-18-003); a declined participant whose late Accept is honoured goes
+    ``DECLINED → INVITED → SIGNATORY``.  An actor with no readable
+    participant record needs nothing here: the consent write that follows
+    warns and skips it.
+    """
+    participant_id = case.actor_participant_index.get(actor_id)
+    participant = dl.read(participant_id) if participant_id else None
+    if not isinstance(participant, CaseParticipant):
+        return False
+    return not participant.accepts_pec_trigger(
+        PEC_Trigger.ACCEPT
+    ) and participant.accepts_pec_trigger(PEC_Trigger.INVITE)
+
+
 class AcceptInviteToEmbargoOnCaseReceivedUseCase:
     def __init__(
         self,
@@ -85,7 +111,7 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         self._sync_port = sync_port
         self._trigger_activity = trigger_activity
 
-    def _commit_lapse_ledger_entry(
+    def _commit_expiry_ledger_entry(
         self,
         *,
         case_id: str,
@@ -103,12 +129,12 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         tree = create_commit_log_entry_tree(
             case_id=case_id,
             object_id=invite_id or case_id,
-            event_type="invite_to_embargo_on_case_lapsed",
+            event_type=INVITE_EXPIRED_EVENT_TYPE,
             payload_snapshot={
-                "type": "Lapse",
+                "type": INVITE_EXPIRED_SNAPSHOT_TYPE,
                 "actor": accepting_actor_id,
                 "context": case_id,
-                # The lapse is CaseActor-synthesised (CM-28-009) but the
+                # The expiry is CASE_MANAGER-synthesised (CM-28-009) but the
                 # snapshot is attributed to the accepting participant, so its
                 # claimed time must come from that participant's own clock —
                 # the triggering Accept — not the CaseActor's.  Mixing the two
@@ -132,9 +158,9 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             tree=tree,
             actor_id=receiving_actor_id,
         )
-        # The lapse is already applied to the replica; an unrecorded lapse
+        # The expiry is already applied to this store; an unrecorded expiry
         # would diverge the replicas silently (CM-28-009).
-        applied_or_raise(tree, result, label="CommitLapseLedgerEntryBT")
+        applied_or_raise(tree, result, label="CommitExpiryLedgerEntryBT")
 
     def _backfill_admitted(
         self, *, case_id: str, receiving_actor_id: str
@@ -159,7 +185,7 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         receiving_actor_id: str,
         service: "EmbargoLifecycle",
     ) -> None:
-        """EMB-17: late-Accept compatibility routing after a lapse is detected."""
+        """EMB-17: late-Accept compatibility routing after an invite expired."""
         _fresh_case = self._dl.read_case(case_id)
         em_state = (
             _fresh_case.current_status.em.state
@@ -176,13 +202,19 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             em_state in (EM.ACTIVE, EM.REVISE)
             and active_embargo_id == embargo_id
         ):
-            # AC-2 of #2213: current embargo still matches — honor.
-            service.record_participant_consent(
-                case_id=case_id,
-                actor_id=accepting_actor_id,
-                pec_trigger=PEC_Trigger.INVITE,
-                embargo_id=embargo_id,
-            )
+            # AC-2 of #2213: current embargo still matches — honor.  An
+            # EXPIRED participant accepts directly (EXPIRED → SIGNATORY,
+            # ADR-0117); one that declined is re-invited first, since ACCEPT
+            # is not legal from DECLINED (CM-18-003).
+            if _fresh_case is not None and _needs_reinvite_to_accept(
+                self._dl, _fresh_case, accepting_actor_id
+            ):
+                service.record_participant_consent(
+                    case_id=case_id,
+                    actor_id=accepting_actor_id,
+                    pec_trigger=PEC_Trigger.INVITE,
+                    embargo_id=embargo_id,
+                )
             service.accept_embargo_invite(
                 case_id=case_id,
                 embargo_id=embargo_id,
@@ -251,16 +283,15 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
                 )
 
         else:
-            # AC-4 of #2213: EM EXITED or NONE — ack no-op.
-            service.record_participant_consent(
-                case_id=case_id,
-                actor_id=accepting_actor_id,
-                pec_trigger=PEC_Trigger.RESET,
-            )
+            # AC-4 of #2213: EM EXITED or NONE — ack no-op, no consent
+            # change (EMB-17-004, ADR-0117).  In EXITED the termination cascade
+            # already moved the participant to the terminal UNBOUND_EXITED; in
+            # NONE an expired participant stays EXPIRED, which a later embargo
+            # may re-invite.
             logger.info(
                 "accept_invite_to_embargo_on_case: late Accept for case"
                 " '%s' with EM '%s' — ack no-op; actor '%s' stays in"
-                " case (EMB-17-003)",
+                " case (EMB-17-004)",
                 case_id,
                 em_state,
                 accepting_actor_id,
@@ -268,6 +299,9 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
+        receiving_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
         embargo_id = request.embargo_id
         if embargo_id is None:
             logger.error(
@@ -276,10 +310,6 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             return HandlerResult.refused(
                 "Accept(Invite(EmbargoEvent)) is missing its embargo id"
             )
-
-        receiving_actor_id = resolve_receiving_actor_id(
-            self._dl, request.receiving_actor_id
-        )
 
         _case = _resolve_case_for_embargo_acceptance(self._dl, request)
         if _case is None:
@@ -292,6 +322,18 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         case_id = _case.id_
         accepting_actor_id = request.actor_id
         invite_id = request.invite_id or ""
+
+        # Door check before any tree or write, after the shape checks
+        # that write nothing: an unaddressed copy is refused (HP-01-005,
+        # ADR-0117).
+        if (
+            refusal := unaddressed_copy_refusal(
+                receiving_actor_id,
+                request,
+                label="Accept(Invite(EmbargoEvent))",
+            )
+        ) is not None:
+            return refusal
 
         # EMB-02-002: MUST NOT process EA to transition EM to Active when P/X/A
         # is set; MUST emit ER instead.
@@ -322,25 +364,25 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
                 " acceptance rejected"
             )
 
-        # Lazy lapse detection (AC-2 of #2212, CM-28, EP-07-001).
+        # Lazy invite-expiry detection (AC-2 of #2212, CM-28, EP-07-001).
         now = datetime.now(tz=UTC)
         service = EmbargoLifecycle(persistence=self._dl)
-        lapse_result = service.detect_and_apply_lapse(
+        expiry_result = service.detect_and_apply_expiry(
             case_id=case_id,
             actor_id=accepting_actor_id,
             now=now,
         )
 
-        if lapse_result.is_lapsed:
-            # CM-28-009: author a distinct ledger entry for the lapse event
+        if expiry_result.is_expired:
+            # CM-28-009: author a distinct ledger entry for the expiry event
             # (CM-28-005) then route via EMB-17 compatibility branches.
-            self._commit_lapse_ledger_entry(
+            self._commit_expiry_ledger_entry(
                 case_id=case_id,
                 invite_id=invite_id,
                 embargo_id=embargo_id,
                 accepting_actor_id=accepting_actor_id,
                 receiving_actor_id=receiving_actor_id,
-                has_pec_change=bool(lapse_result.participant_changes),
+                has_pec_change=bool(expiry_result.participant_changes),
             )
             self._handle_emb17_routing(
                 case_id=case_id,

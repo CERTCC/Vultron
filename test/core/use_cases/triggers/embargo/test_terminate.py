@@ -70,7 +70,9 @@ def test_terminate_embargo_transitions_case_to_exited_via_bt_path(
     )
     assert updated_case.current_status.em.state == EM.EXITED
     assert updated_case.active_embargo is None
-    assert updated_participant.embargo_consent_state == PEC.UNBOUND.value
+    assert (
+        updated_participant.embargo_consent_state == PEC.UNBOUND_EXITED.value
+    )
     assert EMBARGO_TEARDOWN_EVENT_TYPE in committed_event_types(
         owner_dl, case.id_
     )

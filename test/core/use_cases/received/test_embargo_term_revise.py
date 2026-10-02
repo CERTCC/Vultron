@@ -67,6 +67,7 @@ class TestEmbargoTermRevise:
             embargo,
             target=as_VulnerabilityCase(id_=case.id_),
             actor="https://example.org/users/vendor",
+            to=["https://example.org/users/coord"],
         )
         event = make_payload(activity)
 
@@ -113,6 +114,7 @@ class TestEmbargoTermRevise:
             embargo,
             target=as_VulnerabilityCase(id_=case.id_),
             actor="https://example.org/users/vendor",
+            to=["https://example.org/users/coord"],
         )
         event = make_payload(activity)
 

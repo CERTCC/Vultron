@@ -392,6 +392,40 @@ def test_a_participant_with_pxa_set_rejects_a_relayed_invite_to_the_case_manager
     )
 
 
+@pytest.mark.spec("EMB-03-003")
+@pytest.mark.spec("EMB-01-002")
+@pytest.mark.spec("TB-06-007")
+def test_a_participant_with_pxa_set_answers_a_revision_with_er_never_et():
+    """A non-owner, non-manager answers a P/X/A revision with ER only.
+
+    Termination is the case owner's or the delegated CASE_MANAGER's to
+    initiate (EMB-03-003, EP-09-003, ADR-0113): the participant's store
+    queues exactly one activity — the ER, to the CASE_MANAGER — and its
+    EM state and active embargo stay as they were.
+    """
+    net = _Network("https://example.org/cases/relay-replay-pxa-revision")
+    _propose(net, "public-revision", 90)
+    _set_pxa(net, BYSTANDER)
+    before = net.case(BYSTANDER)
+    em_before = before.current_status.em.state
+    active_before = before.active_embargo_id
+    assert active_before is not None, "the Invite must be a revision"
+    outbox_before = set(net.stores[BYSTANDER].outbox_list())
+
+    ((_, verdict),) = net.deliver(MANAGER, to=BYSTANDER, type_="Invite")
+
+    assert verdict.disposition is HandlerDisposition.REFUSED
+    queued = [
+        cast(VultronActivity, net.stores[BYSTANDER].read(activity_id))
+        for activity_id in net.stores[BYSTANDER].outbox_list()
+        if activity_id not in outbox_before
+    ]
+    assert [(a.type_, a.to) for a in queued] == [("Reject", [MANAGER])]
+    after = net.case(BYSTANDER)
+    assert after.current_status.em.state == em_before
+    assert after.active_embargo_id == active_before
+
+
 @pytest.mark.spec("EMB-01-002")
 def test_a_bare_uri_invite_with_pxa_set_is_refused_without_raising(caplog):
     """No copy of the terms means no ER can be built: refuse, never raise."""
@@ -438,8 +472,17 @@ def test_a_case_manager_with_pxa_set_rejects_an_owners_acceptance():
     assert sealed["object"]["id"] == invite.id_
 
 
-def _pxa_invite_body(net: _Network, sender: str, to: str, suffix: str):
-    """An inline ``Invite(EmbargoEvent)`` from *sender* to *to* alone."""
+def _pxa_invite_body(
+    net: _Network,
+    sender: str,
+    to: str,
+    suffix: str,
+    cc: list[str] | None = None,
+):
+    """An inline ``Invite(EmbargoEvent)`` from *sender* to *to* alone.
+
+    *cc* names copy recipients that are not the invitee.
+    """
     terms = as_EmbargoEvent(
         id_=f"{net.case_id}/embargo_events/{suffix}",
         content=f"Terms {suffix}",
@@ -451,6 +494,7 @@ def _pxa_invite_body(net: _Network, sender: str, to: str, suffix: str):
         context=net.case_id,
         actor=sender,
         to=[to],
+        cc=cc,
         id_=f"{net.case_id}/embargo_proposals/{suffix}",
     )
     return proposal.id_, json.loads(dump_outbound_body(proposal))
@@ -521,12 +565,43 @@ def test_a_participant_answers_a_peers_invite_with_pxa_set_to_the_case_manager()
 
 
 @pytest.mark.spec("EMB-01-002")
-@pytest.mark.spec("EP-09-010")
+@pytest.mark.spec("HP-01-005")
 def test_an_invite_with_pxa_set_addressed_to_another_actor_gets_no_er(caplog):
-    """A misrouted Invite is refused at a public case, and not answered."""
+    """An unaddressed copy is refused at the door, and not answered.
+
+    EMB-01-002's ER duty binds only the addressee (ADR-0117, #4132): a
+    store named in neither ``to`` nor ``cc`` runs no tree, so P/X/A is
+    never consulted and no ER is built.
+    """
     net = _Network("https://example.org/cases/relay-replay-pxa-misrouted")
     _set_pxa(net, BYSTANDER)
     _, body = _pxa_invite_body(net, MANAGER, OWNER, "misrouted")
+
+    with caplog.at_level("WARNING"):
+        verdict = net.receive(BYSTANDER, body)
+
+    assert verdict.disposition is HandlerDisposition.REFUSED
+    assert verdict.reason is not None
+    assert "neither the sender nor a recipient" in verdict.reason
+    assert BYSTANDER in verdict.reason and OWNER in verdict.reason
+    assert net.queued(BYSTANDER, to=MANAGER) == []
+    assert net.queued(BYSTANDER, to=OWNER) == []
+    assert not any(
+        "EMB-01-002" in record.getMessage() for record in caplog.records
+    )
+
+
+@pytest.mark.spec("EMB-01-002")
+@pytest.mark.spec("EP-09-010")
+def test_a_cc_copy_of_an_invite_with_pxa_set_gets_no_er(caplog):
+    """A ``cc`` recipient is addressed but is not the invitee: no ER.
+
+    The copy passes the door check (HP-01-005) and is refused by the
+    invitee check instead (EP-09-010); only the invitee answers.
+    """
+    net = _Network("https://example.org/cases/relay-replay-pxa-cc")
+    _set_pxa(net, BYSTANDER)
+    _, body = _pxa_invite_body(net, MANAGER, OWNER, "cc-copy", cc=[BYSTANDER])
 
     with caplog.at_level("WARNING"):
         verdict = net.receive(BYSTANDER, body)
@@ -739,3 +814,57 @@ def test_a_replica_follows_the_managing_owners_termination_by_trigger():
         case = net.case(actor_id)
         assert case.current_status.em.state == EM.EXITED, actor_id
         assert case.active_embargo_id is None, actor_id
+
+
+@pytest.mark.spec("CM-18-003")
+@pytest.mark.spec("MSM-07-006")
+@pytest.mark.spec("EMB-17-004")
+@pytest.mark.spec("TB-06-007")
+def test_termination_exits_every_participant_in_every_store():
+    """Every record reads UNBOUND_EXITED on the manager and on a replica.
+
+    Termination ends the embargo for everyone, the owner included, so no
+    record is left able to sign it (ADR-0117).  UNBOUND_EXITED is terminal:
+    a later Invite is refused in both stores, and refusing it writes
+    nothing.
+    """
+    from vultron.core.states.participant_embargo_consent import PEC_Trigger
+    from vultron.errors import VultronInvalidStateTransitionError
+
+    net = _managing_owner_network(
+        "https://example.org/cases/manager-owner-terminate-pec"
+    )
+    # The shared fixture fills only ``actor_participant_index``; list every
+    # record in ``case_participants`` too, as ``add_participant`` does, since
+    # the PEC cascade walks that list.
+    for actor_id, dl in net.stores.items():
+        case = net.case(actor_id)
+        for participant_id in case.actor_participant_index.values():
+            if participant_id not in case.case_participants:
+                case.case_participants.append(participant_id)
+        dl.save(case)
+    SvcTerminateEmbargoUseCase(
+        net.stores[MANAGER],
+        TerminateEmbargoTriggerRequest(actor_id=MANAGER, case_id=net.case_id),
+        **_manager_ports(net),
+    ).execute()
+    _replay_to_bystander(net)
+
+    for actor_id in (MANAGER, BYSTANDER):
+        states = _consent_states(net, actor_id)
+        assert set(states) == {MANAGER, PROPOSER, BYSTANDER}, actor_id
+        assert set(states.values()) == {PEC.UNBOUND_EXITED}, (
+            actor_id,
+            states,
+        )
+        for participant_id in net.case(
+            actor_id
+        ).actor_participant_index.values():
+            participant = net.stores[actor_id].read(participant_id)
+            assert isinstance(participant, CaseParticipant)
+            assert participant.accepts_pec_trigger(PEC_Trigger.INVITE) is False
+            with pytest.raises(VultronInvalidStateTransitionError):
+                participant.apply_pec_transition(PEC_Trigger.INVITE)
+            stored = net.stores[actor_id].read(participant_id)
+            assert isinstance(stored, CaseParticipant)
+            assert stored.embargo_consent_state is PEC.UNBOUND_EXITED
