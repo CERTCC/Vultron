@@ -612,6 +612,21 @@ def _make_pxa_case(
         id_=f"{case_id}/proposals/p1",
         to=to if to is not None else [coordinator_id],
     )
+    # The case's CASE_MANAGER is the coordinator: the role is never unfilled
+    # (CM-24-006), and a participant's ER goes to it (PCR-08-001).
+    from vultron.wire.as2.vocab.objects.case_participant import (
+        as_CaseParticipant,
+    )
+
+    manager = as_CaseParticipant(
+        id_=f"{case_id}/participants/coordinator",
+        attributed_to=coordinator_id,
+        context=case_id,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    dl.create(manager)
+    case.case_participants.append(manager.id_)
+    case.actor_participant_index[coordinator_id] = manager.id_
     dl.create(case)
     dl.create(embargo)
     dl.create(proposal)
@@ -943,16 +958,15 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
 
 
 class TestPxaRejectionAttribution:
-    """The P/X/A-guard ER is sent as the receiving actor, to the sender.
+    """The P/X/A-guard ER is sent as the receiving actor.
 
-    EMB-01-002 / EMB-02-002 name the *receiver* as the actor that emits ER.
-    When the message's subject (the invitee or accepting actor) is not the
-    receiving actor, the ER still goes out under the receiving actor's own
-    identity: this store can only speak for its own actor, and emitting as
-    the subject would impersonate it.  In the EP test sender, receiver and
-    invitee are three distinct actors.  In the EA test the accepting actor is
-    both sender and subject, so it tells the receiver apart from the accepter
-    but cannot tell "to the sender" apart from "to the subject".
+    EMB-01-002 / EMB-02-002 name the *receiver* as the actor that emits ER:
+    this store can only speak for its own actor, and emitting as the subject
+    would impersonate it.  An EP is answered only by its invitee (EP-09-010),
+    so an EP naming another invitee gets no ER at all.  In the EA test the
+    accepting actor is both sender and subject, so it tells the receiver apart
+    from the accepter but cannot tell "to the sender" apart from "to the
+    subject".
     """
 
     SENDER_ID = "https://example.org/actors/sender-pxa-attr"
@@ -966,10 +980,38 @@ class TestPxaRejectionAttribution:
         return SqliteDataLayer("sqlite:///:memory:", actor_id=self.RECEIVER_ID)
 
     @pytest.mark.spec("EMB-01-002")
-    def test_ep_rejection_is_sent_as_receiver_not_invitee(self, make_payload):
-        """An EP naming another invitee is rejected as the receiving actor."""
+    @pytest.mark.spec("PCR-08-001")
+    def test_ep_rejection_is_sent_as_receiver_to_case_manager(
+        self, make_payload
+    ):
+        """An EP to this receiver is rejected as it, to the CASE_MANAGER."""
         dl = self._dl()
         case_id = f"{self.CASE_ID}/ep"
+        _, _, proposal = _make_pxa_case(
+            dl,
+            case_id=case_id,
+            coordinator_id=self.SENDER_ID,
+            embargo_id=f"{case_id}/embargo_events/e1",
+            pxa_state_name="Pxa",
+            em_state=EM.NONE,
+            to=[self.RECEIVER_ID],
+        )
+
+        event = make_payload(proposal, receiving_actor_id=self.RECEIVER_ID)
+        InviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        reject = _sole_queued_reject(dl)
+        assert ref_id(reject.actor) == self.RECEIVER_ID
+        assert [ref_id(r) for r in reject.to or []] == [self.SENDER_ID]
+
+    @pytest.mark.spec("EMB-01-002")
+    @pytest.mark.spec("EP-09-010")
+    def test_ep_naming_another_invitee_gets_no_er(self, make_payload):
+        """An EP addressed to another actor is refused, and not answered here."""
+        dl = self._dl()
+        case_id = f"{self.CASE_ID}/ep-other"
         _, _, proposal = _make_pxa_case(
             dl,
             case_id=case_id,
@@ -981,14 +1023,13 @@ class TestPxaRejectionAttribution:
         )
 
         event = make_payload(proposal, receiving_actor_id=self.RECEIVER_ID)
-        assert event.to_recipients == [self.INVITEE_ID]
-        InviteToEmbargoOnCaseReceivedUseCase(
+        result = InviteToEmbargoOnCaseReceivedUseCase(
             dl, event, trigger_activity=TriggerActivityAdapter(dl)
         ).execute()
 
-        reject = _sole_queued_reject(dl)
-        assert ref_id(reject.actor) == self.RECEIVER_ID
-        assert [ref_id(r) for r in reject.to or []] == [self.SENDER_ID]
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "EP-09-010" in (result.reason or "")
+        assert dl.outbox_list() == []
 
     @pytest.mark.spec("EMB-02-002")
     def test_ea_rejection_is_sent_as_receiver_not_accepter(self, make_payload):
