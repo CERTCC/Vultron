@@ -43,6 +43,9 @@ from typing import cast
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.embargo.proposal_index import (
+    record_embargo_proposal_index,
+)
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
@@ -63,6 +66,10 @@ EmbargoActivityBuilder = Callable[[list[str] | None], tuple[str, str]]
 EMBARGO_TEARDOWN_EVENT_TYPE = (
     MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE.value
 )
+
+#: ``result_out`` key :class:`CommitEmbargoDecisionNode` writes the id of the
+#: activity it committed to, for :class:`IndexOwnEmbargoProposalNode`.
+COMMITTED_ACTIVITY_KEY = "committed_activity_id"
 
 
 class _CommitEmbargoDecisionBase(_EmitSingleActivityBase):
@@ -138,7 +145,8 @@ class CommitEmbargoDecisionNode(_CommitEmbargoDecisionBase):
     """Commit the decision a trigger use case builds (EP-09-008, #4085).
 
     *builder* is the use case's factory closure, so the use case captures the
-    activity it reports in its result.
+    activity it reports in its result.  With *result_out* the built
+    activity's id is also written to ``result_out[COMMITTED_ACTIVITY_KEY]``.
     """
 
     def __init__(
@@ -147,6 +155,7 @@ class CommitEmbargoDecisionNode(_CommitEmbargoDecisionBase):
         event_type: str,
         builder: EmbargoActivityBuilder,
         notify_participants: bool = False,
+        result_out: dict[str, object] | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(
@@ -156,9 +165,58 @@ class CommitEmbargoDecisionNode(_CommitEmbargoDecisionBase):
             name=name,
         )
         self._builder = builder
+        self._result_out = result_out
 
     def _build(self, to: list[str] | None) -> tuple[str, str]:
-        return self._builder(to)
+        activity_id, blob = self._builder(to)
+        if self._result_out is not None:
+            self._result_out[COMMITTED_ACTIVITY_KEY] = activity_id
+        return activity_id, blob
+
+
+class IndexOwnEmbargoProposalNode(DataLayerActionWithPorts):
+    """Index the CASE_MANAGER's own proposal (EP-09-001, EP-08-002).
+
+    The manager answers its own terms through
+    ``pending_embargo_proposal_index``, as it answers a proposal it received.
+    It runs last in the manager's propose arm, so the correlation is written
+    only once every other half of the proposal — EM write, commit, relay —
+    has succeeded (ID-04-005).  Reads the proposal id
+    :class:`CommitEmbargoDecisionNode` wrote to ``result_out``; a missing id
+    is a fault in the tree, not a refusal, so it raises (BT-14-001).
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        embargo_id: str,
+        result_out: dict[str, object],
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._case_id = case_id
+        self._embargo_id = embargo_id
+        self._result_out = result_out
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+        proposal_id = self._result_out.get(COMMITTED_ACTIVITY_KEY)
+        if not isinstance(proposal_id, str) or not proposal_id:
+            raise RuntimeError(
+                f"{self.name}: no committed proposal id for embargo"
+                f" '{self._embargo_id}' on case '{self._case_id}'"
+            )
+        record_embargo_proposal_index(
+            self.datalayer, self._case_id, self._embargo_id, proposal_id
+        )
+        self.feedback_message = (
+            f"Indexed own proposal '{proposal_id}' for embargo"
+            f" '{self._embargo_id}' on case '{self._case_id}'"
+        )
+        self.logger.debug("%s: %s", self.name, self.feedback_message)
+        return Status.SUCCESS
 
 
 class CommitEmbargoTeardownNode(_CommitEmbargoDecisionBase):
@@ -202,8 +260,10 @@ class CommitEmbargoTeardownNode(_CommitEmbargoDecisionBase):
 
 
 __all__ = [
+    "COMMITTED_ACTIVITY_KEY",
     "EMBARGO_TEARDOWN_EVENT_TYPE",
     "EmbargoActivityBuilder",
     "CommitEmbargoDecisionNode",
     "CommitEmbargoTeardownNode",
+    "IndexOwnEmbargoProposalNode",
 ]

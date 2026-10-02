@@ -323,10 +323,11 @@ class ApplyEmbargoInviteFromLedgerNode(_EmbargoRelayEffectNode):
     On the proposer's own replica — the Invite's ``attributedTo`` — the Invite
     is also recorded in ``pending_embargo_proposal_index`` when the replica has
     no entry for the embargo yet, so the proposer's default selection reaches
-    the revision (EP-08-002).  For a received proposal the propose trigger has
-    already indexed it and this is a no-op; the creation-time revision has no
-    proposal activity, so its relayed Invite is the only entry the proposer's
-    replica learns it from (EP-04-011).  An invitee indexes the Invite when it
+    the revision (EP-08-002).  A proposer that is not the CASE_MANAGER indexes
+    nothing when it asks (EP-09-008), and the creation-time revision has no
+    proposal activity (EP-04-011), so for both the relayed Invite is the only
+    entry the proposer's replica learns the proposal from; when the replica
+    already holds an entry for the embargo this is a no-op.  An invitee indexes the Invite when it
     answers, so this node writes no index for anyone else: an entry here would
     make the invitee's idempotency guard read the Invite as already answered.
     """

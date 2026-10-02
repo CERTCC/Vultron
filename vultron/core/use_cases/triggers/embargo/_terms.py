@@ -29,11 +29,7 @@ from typing import ClassVar, cast
 import py_trees.behaviour
 
 from vultron.core.behaviors.embargo.nodes import EMBARGO_INVITE_EVENT_TYPE
-from vultron.core.behaviors.embargo.proposal_index import (
-    record_embargo_proposal_index,
-)
 from vultron.core.models.embargo_event import EmbargoEvent
-from vultron.core.models.pending_assertion import ASSERTED_ACTIVITY_KEY
 from vultron.core.use_cases.triggers._base import SvcEmbargoTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
     resolve_actor,
@@ -46,7 +42,7 @@ from vultron.core.use_cases.triggers.requests import (
 
 
 class SvcOfferEmbargoTermsBase(SvcEmbargoTriggerBase):
-    """Prepare, build and index an embargo proposal (propose or revise).
+    """Prepare and build an embargo proposal (propose or revise).
 
     Subclasses name the tree factory; its signature is the one
     ``propose_embargo_trigger_bt`` and ``propose_embargo_revision_trigger_bt``
@@ -83,7 +79,6 @@ class SvcOfferEmbargoTermsBase(SvcEmbargoTriggerBase):
                 to=to,
             )
             self._captured["activity"] = json.loads(proposal_blob)
-            self._captured["proposal_id"] = proposal_id
             return proposal_id, proposal_blob
 
         return type(self)._tree_factory(
@@ -93,15 +88,3 @@ class SvcOfferEmbargoTermsBase(SvcEmbargoTriggerBase):
             result_out=self._result_out,
             activity_builder=_build_activity,
         )
-
-    def _handle_result(self) -> None:
-        super()._handle_result()
-        if self._output_id(ASSERTED_ACTIVITY_KEY) is not None:
-            return  # asked the CASE_MANAGER: its relay indexes the proposal
-        # The CASE_MANAGER's own proposal is answered against this index, as
-        # a proposal it received is (EP-09-001).
-        proposal_id = self._captured.get("proposal_id")
-        if isinstance(proposal_id, str) and proposal_id:
-            record_embargo_proposal_index(
-                self._dl, self._case.id_, self._embargo.id_, proposal_id
-            )

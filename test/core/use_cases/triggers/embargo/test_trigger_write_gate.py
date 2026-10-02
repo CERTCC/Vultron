@@ -32,6 +32,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.pending_assertion import get_pending_assertion_store
 from vultron.core.states.em import EM
@@ -51,6 +52,7 @@ from vultron.core.use_cases.triggers.requests import (
     TerminateEmbargoTriggerRequest,
 )
 from vultron.enums.roles import CVDRole
+from vultron.errors import VultronError, VultronInvalidStateTransitionError
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import (
     FinderParticipant,
@@ -265,3 +267,75 @@ def test_non_manager_revision_asks_and_writes_no_em_state(
         activity_type="Invite",
         event_type=MessageSemantics.INVITE_TO_EMBARGO_ON_CASE.value,
     )
+
+
+@pytest.mark.spec("EP-09-001")
+@pytest.mark.spec("EP-09-008")
+def test_non_manager_propose_on_exited_case_is_refused_locally(
+    finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """An ``EXITED`` case admits no proposal, so nothing is asked or recorded.
+
+    The non-manager arm runs no ``STRICT`` check, and the CASE_MANAGER's
+    admission guard refuses without a ``Reject``; the read-only guard ahead
+    of the arms keeps the ask from leaving a pending assertion behind.
+    """
+    finder, finder_dl = finder_actor_and_dl
+    case = _case_managed_by_someone_else(finder_dl, finder.id_)
+    case.append_case_status(em_state=EM.EXITED)
+    finder_dl.save(case)
+    request = ProposeEmbargoTriggerRequest(
+        actor_id=finder.id_,
+        case_id=case.id_,
+        end_time=datetime.now(tz=UTC) + timedelta(days=7),
+    )
+
+    with pytest.raises(VultronInvalidStateTransitionError):
+        SvcProposeEmbargoUseCase(
+            finder_dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(finder_dl),
+        ).execute()
+
+    assert finder_dl.outbox_list() == []
+    assert finder_dl.list_objects("EmbargoEvent") == []
+    store = get_pending_assertion_store(finder.id_)
+    assert (
+        store.pending_for_subject(
+            case.id_,
+            MessageSemantics.INVITE_TO_EMBARGO_ON_CASE.value,
+            request.end_time.isoformat(),
+        )
+        is None
+    )
+
+
+@pytest.mark.spec("BT-19-001")
+@pytest.mark.spec("EP-09-008")
+def test_non_manager_propose_resolves_the_manager_before_storing_terms(
+    finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """A failed routing guard leaves no orphan ``EmbargoEvent`` behind."""
+    finder, finder_dl = finder_actor_and_dl
+    case = _case_managed_by_someone_else(finder_dl, finder.id_)
+    manager = finder_dl.read(case.actor_participant_index[MANAGER])
+    assert isinstance(manager, CaseParticipant)
+    manager.case_roles = [
+        r for r in manager.case_roles if r != CVDRole.CASE_MANAGER
+    ]
+    finder_dl.save(manager)
+    request = ProposeEmbargoTriggerRequest(
+        actor_id=finder.id_,
+        case_id=case.id_,
+        end_time=datetime.now(tz=UTC) + timedelta(days=7),
+    )
+
+    with pytest.raises(VultronError):
+        SvcProposeEmbargoUseCase(
+            finder_dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(finder_dl),
+        ).execute()
+
+    assert finder_dl.list_objects("EmbargoEvent") == []
+    assert finder_dl.outbox_list() == []

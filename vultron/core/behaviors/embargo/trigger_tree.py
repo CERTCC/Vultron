@@ -55,6 +55,7 @@ from vultron.core.behaviors.embargo.nodes import (
     CommitEmbargoTeardownNode,
     EmbargoActivityBuilder,
     HasActiveEmbargoNode,
+    IndexOwnEmbargoProposalNode,
     IsProposedEmbargoNode,
     PersistEmbargoEventNode,
     ProposeEmbargoLifecycleNode,
@@ -67,6 +68,7 @@ from vultron.core.behaviors.embargo.nodes import (
     SendRejectEmbargoActivityNode,
     SendTerminateEmbargoActivityNode,
     TerminateEmbargoLifecycleNode,
+    ValidateEmbargoProposalStateNode,
     ValidateEmbargoRevisionStateNode,
 )
 from vultron.core.behaviors.sender.nodes import (
@@ -175,10 +177,13 @@ def _propose_arms(
 
     The CASE_MANAGER's own proposal takes the shape of one it receives
     (EP-09-001, EP-09-002): collect the invitees before the EM write
-    (BT-19-001), write ``STRICT``, commit the proposal, then relay one
-    ``Invite`` per participant.  ``PersistEmbargoEventNode`` runs in both
+    (BT-19-001), write ``STRICT``, commit the proposal, relay one
+    ``Invite`` per participant, and only then index the proposal the manager
+    will answer (ID-04-005).  ``PersistEmbargoEventNode`` runs in both
     arms — the factory renders the stored record — and stores the object,
-    not case state (EP-09-003).
+    not case state (EP-09-003).  In the other arm it runs after the
+    CASE_MANAGER is resolved, so a failed routing guard leaves no orphan
+    record (BT-19-001).
     """
     return _by_role(
         name,
@@ -197,6 +202,7 @@ def _propose_arms(
                 case_id=case_id,
                 event_type=EMBARGO_INVITE_EVENT_TYPE,
                 builder=activity_builder,
+                result_out=result_out,
             ),
             _make_emit_node(case_id),
             RelayEmbargoInviteToEachNode(
@@ -204,13 +210,19 @@ def _propose_arms(
                 embargo_id=embargo.id_,
                 proposer_id=actor_id,
             ),
+            IndexOwnEmbargoProposalNode(
+                case_id=case_id,
+                embargo_id=embargo.id_,
+                result_out=result_out,
+            ),
         ],
         otherwise=[
+            ResolveCaseManagerNode(case_id=case_id),
             PersistEmbargoEventNode(embargo=embargo),
-            sender_side_bt(
-                case_id=case_id,
-                activity_builder=_asserting(activity_builder, result_out),
+            ConstructActivitiesNode(
+                activity_builder=_asserting(activity_builder, result_out)
             ),
+            QueueToOutboxNode(),
         ],
     )
 
@@ -223,18 +235,28 @@ def propose_embargo_trigger_bt(
     result_out: dict[str, object],
     activity_builder: EmbargoActivityBuilder,
 ) -> py_trees.behaviour.Behaviour:
-    """Build trigger-side BT for proposing an embargo (EP-09-008)."""
+    """Build trigger-side BT for proposing an embargo (EP-09-008).
+
+    ``ValidateEmbargoProposalStateNode`` refuses an ``EXITED`` case before
+    either arm runs, so a participant that is not the CASE_MANAGER fails
+    fast rather than asking for a proposal the manager will not take.
+    """
     return py_trees.composites.Sequence(
         name="ProposeEmbargoTriggerBT",
         memory=False,
-        children=_propose_arms(
-            "ProposeEmbargo",
-            case_id,
-            actor_id,
-            embargo,
-            result_out,
-            activity_builder,
-        ),
+        children=[
+            ValidateEmbargoProposalStateNode(
+                case_id=case_id, result_out=result_out
+            ),
+            *_propose_arms(
+                "ProposeEmbargo",
+                case_id,
+                actor_id,
+                embargo,
+                result_out,
+                activity_builder,
+            ),
+        ],
     )
 
 
