@@ -25,9 +25,11 @@ entries last (CP-09-009):
   7. Write durable retry marker (CP-05-005)
   8. Emit ``Create(VulnerabilityCase)`` with inline participants (AC-5)
   9. Clear retry marker on success
-  10. Commit canonical ledger entries (AC-4) — last, so every participant
-      holds the case before its first ``Announce(CaseLedgerEntry)``
+  10. Commit canonical ledger entries (AC-4) — after the emits, so every
+      participant holds the case before its first ``Announce(CaseLedgerEntry)``
       (CM-14-011, CP-09-009)
+  11. Relay a contested creation's pending revision to the party whose terms
+      won (EP-04-011) — after initialization is complete (CM-14-007)
 
 Admission (CP-05-002) and idempotency (CP-05-006):
 
@@ -98,6 +100,9 @@ from vultron.core.behaviors.call_out.bundles.case_proposal import (
 from vultron.core.behaviors.case.embargo_tree import (
     InitializeDefaultEmbargoNode,
 )
+from vultron.core.behaviors.case.nodes.embargo_revision import (
+    RelayCreationTimeRevisionNode,
+)
 from vultron.core.behaviors.case.nodes.proposal_admission_actions import (
     EmitRejectCaseProposalNode,
     RecordProposalAdmissionNode,
@@ -136,9 +141,10 @@ from vultron.core.behaviors.case.nodes.proposal_retry_marker import (
     ClearCreateCaseMarkerNode,
     WriteCreateCaseMarkerNode,
 )
-from vultron.core.models.offer_record import VultronOfferRecord
+from vultron.core.behaviors.case.offer_provenance import (
+    offer_provenance_from_proposal,
+)
 from vultron.core.models.report import VulnerabilityReport
-from vultron.core.models.wire_keys import wire_key
 
 if TYPE_CHECKING:
     from vultron.core.behaviors.call_out.bundles.case_proposal import (
@@ -146,27 +152,6 @@ if TYPE_CHECKING:
     )
 
 logger = logging.getLogger(__name__)
-
-
-def _offer_provenance_from_proposal(
-    proposal_dict: dict | None,
-) -> tuple[str | None, str | None]:
-    """Return ``(offer_id, offer_actor_id)`` carried on the proposal (CP-01-007).
-
-    Both spellings are accepted for the same reason
-    ``StoreProposalReportNode._report_from_proposal_dict`` accepts both: which
-    one a caller has depends on whether its dump used ``by_alias``.
-    """
-
-    def _pick(field: str) -> str | None:
-        # The AS2 spelling of the snapshot key is derived from the core field
-        # name, not typed here (ADR-0099 detail 2).
-        raw = (proposal_dict or {}).get(wire_key(field, VultronOfferRecord))
-        if not isinstance(raw, str):
-            raw = (proposal_dict or {}).get(field)
-        return raw if isinstance(raw, str) and raw else None
-
-    return _pick("offer_id"), _pick("offer_actor_id")
 
 
 def create_case_proposal_received_tree(
@@ -261,7 +246,7 @@ def create_case_proposal_received_tree(
       11. ``ClearCreateCaseMarkerNode`` — removes marker on success
          (CP-05-005)
 
-      Then, last:
+      Then, last of all:
 
       12. ``CommitNativeLedgerEntriesNode`` — canonical ledger entries
          committed (ADR-0041 AC-4).  Each commit fans out through the FIFO
@@ -269,6 +254,9 @@ def create_case_proposal_received_tree(
          case object before its first ``Announce(CaseLedgerEntry)`` arrives
          (CM-14-011, CP-09-009), or it enters the SYNC-15 pre-genesis
          reject/replay path on the normal case-creation route (#3033, #2898).
+      13. ``RelayCreationTimeRevisionNode`` — relays the revision step 6
+         registered, if any, as ``Invite(EmbargoEvent)`` to the party whose
+         terms won (EP-04-011); no modification precedes step 12 (CM-14-007).
 
     If node 10 fails, the marker written in node 9 remains in the DataLayer so
     that a retry runner (#1139) can complete the ``Create(VulnerabilityCase)``
@@ -312,7 +300,7 @@ def create_case_proposal_received_tree(
     """
     bundle = call_out if call_out is not None else CASE_PROPOSAL_DETERMINISTIC
 
-    offer_id, offer_actor_id = _offer_provenance_from_proposal(proposal_dict)
+    offer_id, offer_actor_id = offer_provenance_from_proposal(proposal_dict)
 
     # Sub-Selector: reuse existing case (duplicate) OR create new (normal path)
     case_resolution = py_trees.composites.Selector(
@@ -405,6 +393,9 @@ def create_case_proposal_received_tree(
                 offer_id=offer_id,
                 offer_actor_id=offer_actor_id,
             ),
+            # EP-04-011: relay the shortest-wins loser that step 6 registered,
+            # only now that initialization is complete (CM-14-007).
+            RelayCreationTimeRevisionNode(report_id=report_id),
         ],
     )
 

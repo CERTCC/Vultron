@@ -552,11 +552,12 @@ groups:
       invited; when the owner's longer default lost, the owner is the proposer and the
       reporter is invited. An exact tie registers no revision (EP-04-003) and relays nothing.
     verification: >-
-      A strict `xfail` marker test of `RegisterLongerProposalAsRevisionNode` asserts that
-      after a contested creation the loser's id is present in
-      `pending_embargo_proposal_index`, and names its tracking issue until the implementation
-      lands. The implementation's own tests assert the relayed `Invite(EmbargoEvent)`: `actor`
-      the CASE_MANAGER, `attributedTo` the losing party, queued to the winning party.
+      A marker test of `RegisterLongerProposalAsRevisionNode` asserts that after a contested
+      creation the loser's id is present in `pending_embargo_proposal_index` and reachable by
+      the owner's default selection. Tree tests of the case-proposal received tree assert the
+      relayed `Invite(EmbargoEvent)` for both directions — `actor` the CASE_MANAGER,
+      `attributedTo` the losing party, queued to the winning party under the indexed id and
+      committed — and that a tie or a redelivered proposal relays nothing.
     relationships:
     - rel_type: refines
       spec_id: EP-04-003

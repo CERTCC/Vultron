@@ -93,6 +93,7 @@ from vultron.core.behaviors.case.nodes.embargo_resolution import (
 )
 from vultron.core.behaviors.case.nodes.embargo_revision import (
     RegisterLongerProposalAsRevisionNode,
+    RelayCreationTimeRevisionNode,
 )
 from vultron.core.behaviors.case.nodes.intake import (
     IntakeReceivedActivityNode,
@@ -244,6 +245,7 @@ __all__ = [
     "CaseNotEmbargoEligibleNode",
     "CreateEmbargoEventNode",
     "RegisterLongerProposalAsRevisionNode",
+    "RelayCreationTimeRevisionNode",
     "ResolveEmbargoDurationNode",
     "SeedOwnerAsSignatoryNode",
     # delegation (leaf nodes)

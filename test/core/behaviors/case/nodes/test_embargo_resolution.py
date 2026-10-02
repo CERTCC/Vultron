@@ -23,6 +23,7 @@ import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
+import py_trees
 import pytest
 from py_trees.common import Status
 
@@ -36,6 +37,9 @@ from vultron.core.behaviors.case.nodes.embargo_resolution import (
     CaseEmbargoAlreadyInitializedNode,
     CaseNotEmbargoEligibleNode,
 )
+from vultron.core.behaviors.case.nodes.embargo_revision import (
+    CreationTimeRevision,
+)
 from vultron.core.behaviors.embargo.nodes import em_state as em_state_module
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.actor import VultronOrganization
@@ -43,9 +47,11 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_policy import EmbargoPolicy
+from vultron.core.services.embargo_duration import EmbargoDurationSource
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
+from vultron.core.use_cases.triggers._helpers import find_embargo_proposal_id
 from vultron.errors import BtNodePreconditionError, VultronValidationError
 
 ACTOR_ID = "https://example.org/actors/vendor"
@@ -457,6 +463,108 @@ def test_a_tie_between_sender_and_actor_default_registers_no_revision(
     assert case.proposed_embargoes == []
 
 
+_UNSET = object()
+
+
+class _RevisionProbe(py_trees.behaviour.Behaviour):
+    """Capture ``creation_time_revision`` while the execution is still live.
+
+    ``BTBridge`` scopes the key to one execution and restores it afterwards,
+    so the value is only observable from inside the tree.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(name="RevisionProbe")
+        self.seen: object = _UNSET
+
+    def update(self) -> Status:
+        self.seen = py_trees.blackboard.Blackboard.storage.get(
+            "/creation_time_revision", _UNSET
+        )
+        return Status.SUCCESS
+
+
+def _run_probing_revision(
+    bt_scenario: BTTestScenario, *, sender_proposal: timedelta
+) -> tuple[Status, object]:
+    probe = _RevisionProbe()
+    tree = py_trees.composites.Sequence(
+        name="InitializeThenProbe",
+        memory=False,
+        children=[
+            InitializeDefaultEmbargoNode(
+                actor_config=ActorConfig(
+                    protocol_default_embargo_duration=PROTOCOL_DEFAULT
+                )
+            ),
+            probe,
+        ],
+    )
+    result = bt_scenario.run(
+        tree,
+        actor_id=ACTOR_ID,
+        case_id=CASE_ID,
+        owner_profile=_profile(ACTOR_DEFAULT),
+        sender_proposed_embargo_duration=sender_proposal,
+    )
+    return result.status, probe.seen
+
+
+@pytest.mark.spec("EP-04-011")
+def test_no_contest_publishes_no_revision(
+    bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
+) -> None:
+    """A tie still writes ``creation_time_revision`` — as ``None`` — so the
+    relay never reads a revision from an earlier write (BT-17-003)."""
+    status, seen = _run_probing_revision(
+        bt_scenario, sender_proposal=ACTOR_DEFAULT
+    )
+
+    assert status == Status.SUCCESS
+    assert seen is None
+
+
+@pytest.mark.spec("EP-04-011")
+def test_the_revision_key_does_not_outlive_its_execution(
+    bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
+) -> None:
+    """``BTBridge`` scopes the key, so a later execution that never reaches
+    the registration (a redelivery) cannot read this one's revision."""
+    status, seen = _run_probing_revision(
+        bt_scenario, sender_proposal=SENDER_PROPOSAL
+    )
+
+    assert status == Status.SUCCESS
+    assert isinstance(seen, CreationTimeRevision)
+    assert (
+        py_trees.blackboard.Blackboard.storage.get("/creation_time_revision")
+        is None
+    )
+
+
+@pytest.mark.spec("EP-04-011")
+def test_a_contest_publishes_the_indexed_revision(
+    bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
+) -> None:
+    """The published revision names the id the index holds and whose terms
+    lost: here the owner's longer default (EP-04-011)."""
+    status, revision = _run_probing_revision(
+        bt_scenario, sender_proposal=SENDER_PROPOSAL
+    )
+
+    assert status == Status.SUCCESS
+    assert isinstance(revision, CreationTimeRevision)
+    case = bt_scenario.dl.read(CASE_ID)
+    assert isinstance(case, VulnerabilityCase)
+    assert revision.case_id == CASE_ID
+    assert case.proposed_embargoes == [revision.embargo_id]
+    assert (
+        case.pending_embargo_proposal_index[revision.embargo_id]
+        == revision.proposal_id
+    )
+    assert revision.losing_source is EmbargoDurationSource.ACTOR_DEFAULT
+
+
 def _sender_event(
     end_time: datetime, *, event_id: str, context: str = "urn:report:r-1"
 ) -> EmbargoEvent:
@@ -539,15 +647,6 @@ def test_a_longer_sender_duration_without_its_event_fails_loudly(
     assert case.proposed_embargoes == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "EP-04-011: the creation-time revision is appended to "
-        "proposed_embargoes but never indexed in "
-        "pending_embargo_proposal_index, so the owner's default selection "
-        "cannot reach it. Tracked by #3916 (Concern #3863, ADR-0113)."
-    ),
-)
 @pytest.mark.spec("EP-04-011")
 def test_creation_time_revision_is_indexed_for_the_owners_default_selection(
     bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
@@ -572,6 +671,10 @@ def test_creation_time_revision_is_indexed_for_the_owners_default_selection(
     assert isinstance(case, VulnerabilityCase)
     (loser_id,) = case.proposed_embargoes
     assert loser_id in case.pending_embargo_proposal_index
+    assert (
+        find_embargo_proposal_id(case, bt_scenario.dl)
+        == case.pending_embargo_proposal_index[loser_id]
+    )
 
 
 @pytest.mark.spec("EP-04-012")

@@ -22,6 +22,9 @@ from vultron.core.behaviors.embargo.nodes import (
 from vultron.core.behaviors.embargo.nodes.proposal import (
     ALREADY_DECLINED_PREFIX,
 )
+from vultron.core.behaviors.embargo.proposal_index import (
+    record_embargo_proposal_index,
+)
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
@@ -69,6 +72,7 @@ from vultron.core.use_cases.received._bt_verdict import (
 from vultron.core.use_cases.triggers._helpers import (
     _prepare_delegated_context,
 )
+from vultron.errors import VultronNotFoundError
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -219,18 +223,14 @@ def _record_embargo_proposal_index(
     embargo_id: str,
     proposal_id: str,
 ) -> None:
-    """Record embargo_id → proposal_id in case core state (ADR-0035 DL-06)."""
-    case = dl.read_case(case_id)
-    if case is None:
+    """Record embargo_id → proposal_id in case core state (ADR-0035 DL-06).
+
+    A case this store does not hold records nothing (a partial replica).
+    """
+    try:
+        record_embargo_proposal_index(dl, case_id, embargo_id, proposal_id)
+    except VultronNotFoundError:
         return
-    if case.pending_embargo_proposal_index.get(embargo_id) == proposal_id:
-        return
-    # Validated assignment, like the pruner ``discard_proposed_embargo``.
-    case.pending_embargo_proposal_index = {
-        **case.pending_embargo_proposal_index,
-        embargo_id: proposal_id,
-    }
-    dl.save(case)
 
 
 def _store_invite_deadline(
