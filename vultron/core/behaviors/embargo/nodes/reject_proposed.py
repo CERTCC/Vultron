@@ -25,7 +25,7 @@ Extracted from lifecycle.py to keep that module under the BTND-07-004
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.embargo.nodes.em_state import ReadEmStateNode
+from vultron.core.behaviors.embargo.nodes.em_state import read_case_em_state
 from vultron.core.behaviors.embargo.nodes.emit import _SendEmbargoActivityBase
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
@@ -38,8 +38,7 @@ from vultron.core.services.embargo_lifecycle import (
 from vultron.core.services.embargo_ordering import (
     earliest_expiring_embargo_id,
 )
-from vultron.core.states.em import EM
-from vultron.errors import VultronError
+from vultron.errors import BtNodePreconditionError, VultronError
 
 
 class RejectProposedEmbargoLifecycleNode(DataLayerActionWithPorts):
@@ -86,16 +85,13 @@ class RejectProposedEmbargoLifecycleNode(DataLayerActionWithPorts):
 
         embargo_id = self.embargo_id
 
-        read_node = ReadEmStateNode(
-            case_id=self._case_id_value, result_out=self._result_out
-        )
-        read_node.datalayer = self.datalayer
-        read_status = read_node.update()
-        if read_status != Status.SUCCESS:
-            self.feedback_message = read_node.feedback_message
+        try:
+            em_before = read_case_em_state(
+                self.datalayer, self._case_id_value, self._result_out
+            )
+        except BtNodePreconditionError as exc:
+            self.feedback_message = str(exc)
             return Status.FAILURE
-        em_before = self._result_out["em_before"]
-        assert isinstance(em_before, EM)
 
         lifecycle = EmbargoLifecycle(persistence=self.datalayer)
         try:

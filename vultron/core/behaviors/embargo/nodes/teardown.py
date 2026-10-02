@@ -18,7 +18,7 @@
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable
 
-from vultron.core.behaviors.embargo.nodes.em_state import ReadEmStateNode
+from vultron.core.behaviors.embargo.nodes.em_state import read_case_em_state
 from vultron.core.behaviors.embargo.nodes.emit import _SendEmbargoActivityBase
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
@@ -37,7 +37,7 @@ from vultron.core.states.em import EM
 from vultron.core.use_cases._helpers import (
     reset_case_participant_embargo_consent,
 )
-from vultron.errors import VultronNotFoundError
+from vultron.errors import BtNodePreconditionError, VultronNotFoundError
 
 
 class HasEmbargoActiveNode(DataLayerConditionWithPorts):
@@ -60,18 +60,12 @@ class HasEmbargoActiveNode(DataLayerConditionWithPorts):
             return f
         assert self.datalayer is not None
 
-        result_out: dict[str, object] = {}
-        read_node = ReadEmStateNode(
-            case_id=self.case_id, result_out=result_out
-        )
-        read_node.datalayer = self.datalayer
-        read_status = read_node.update()
-        if read_status != Status.SUCCESS:
-            self.feedback_message = read_node.feedback_message
+        try:
+            em_state = read_case_em_state(self.datalayer, self.case_id)
+        except BtNodePreconditionError as exc:
+            self.feedback_message = str(exc)
             return Status.FAILURE
 
-        em_state = result_out["em_before"]
-        assert isinstance(em_state, EM)
         if em_state == EM.EXITED:
             self.feedback_message = f"Case '{self.case_id}' EM already EXITED — teardown not needed"
             return Status.FAILURE
@@ -101,17 +95,11 @@ class ClearActiveEmbargoNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
 
-        result_out: dict[str, object] = {}
-        read_node = ReadEmStateNode(
-            case_id=self.case_id, result_out=result_out
-        )
-        read_node.datalayer = self.datalayer
-        read_status = read_node.update()
-        if read_status != Status.SUCCESS:
-            self.feedback_message = read_node.feedback_message
+        try:
+            current_em = read_case_em_state(self.datalayer, self.case_id)
+        except BtNodePreconditionError as exc:
+            self.feedback_message = str(exc)
             return Status.FAILURE
-        current_em = result_out["em_before"]
-        assert isinstance(current_em, EM)
 
         if current_em == EM.EXITED:
             self.feedback_message = (

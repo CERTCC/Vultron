@@ -271,18 +271,23 @@ When implementing any code that transitions embargo state:
 8. **Reading EM state inside an action node** goes through `ReadEmStateNode`
    (`vultron/core/behaviors/embargo/nodes/em_state.py`), never
    `case.current_status.em` inline (AC-1, #1474; `WriteEmStateNode` was retired
-   in #2712 — writes go through the service). The pattern:
+   in #2712 — writes go through the service). Call the shared
+   `read_case_em_state()` helper beside it rather than wiring a
+   `ReadEmStateNode` up by hand; it raises `BtNodePreconditionError` when the
+   case or its state cannot be read (BT-HELPER-01, CS-22-001):
 
    ```python
-   result_out: dict[str, object] = {}
-   read_node = ReadEmStateNode(case_id=case_id, result_out=result_out)
-   read_node.datalayer = self.datalayer
-   if read_node.update() != Status.SUCCESS:
-       self.feedback_message = read_node.feedback_message
+   try:
+       current_em = read_case_em_state(self.datalayer, case_id)
+   except BtNodePreconditionError as exc:
+       self.feedback_message = str(exc)
        return Status.FAILURE
-   current_em = result_out["em_before"]
-   assert isinstance(current_em, EM)
    ```
+
+   A refusal arm in a Selector lets the error propagate instead of catching
+   it (`notes/bt-pitfalls.md` § "A Refusal Arm in a Selector Fails Toward
+   'Admit'"). A node that exposes a `result_out` dict to its caller passes it
+   as the third argument, and the read fills `em_before` or `error` into it.
 
    Moved here from `vultron/core/behaviors/AGENTS.md` (CONCERN-2559) when that
    file reached its line ceiling.

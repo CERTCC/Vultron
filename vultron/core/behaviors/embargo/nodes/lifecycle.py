@@ -17,7 +17,7 @@
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.embargo.nodes.em_state import ReadEmStateNode
+from vultron.core.behaviors.embargo.nodes.em_state import read_case_em_state
 from vultron.core.behaviors.embargo.nodes.reject_proposed import (  # noqa: F401
     ReadProposedEmbargoIdNode,
     RejectProposedEmbargoLifecycleNode,
@@ -42,6 +42,7 @@ from vultron.core.states.em import (
     is_em_embargo_active,
 )
 from vultron.errors import (
+    BtNodePreconditionError,
     VultronError,
     VultronInvalidStateTransitionError,
     VultronNotFoundError,
@@ -74,18 +75,16 @@ class ValidateEmbargoRevisionStateNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
 
-        # AC-1: read em_state via named BT node, not inline.
-        read_node = ReadEmStateNode(
-            case_id=self._case_id, result_out=self._result_out
-        )
-        read_node.datalayer = self.datalayer
-        read_status = read_node.update()
-        if read_status != Status.SUCCESS:
-            self.feedback_message = read_node.feedback_message
+        # AC-1: read em_state via ReadEmStateNode, not inline.
+        try:
+            em_state = read_case_em_state(
+                self.datalayer, self._case_id, self._result_out
+            )
+        except BtNodePreconditionError as exc:
+            self.feedback_message = str(exc)
             return Status.FAILURE
 
-        em_state = self._result_out.get("em_before")
-        if not isinstance(em_state, EM) or not is_em_embargo_active(em_state):
+        if not is_em_embargo_active(em_state):
             bad_state = VultronInvalidStateTransitionError(
                 f"Cannot propose embargo revision: case '{self._case_id}'"
                 f" EM state '{em_state}' does not allow a revision proposal."
@@ -129,17 +128,14 @@ class _EmbargoLifecycleNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        # AC-1: read em_state via named BT node, not inline service code.
-        read_node = ReadEmStateNode(
-            case_id=self._case_id(), result_out=self._result_out
-        )
-        read_node.datalayer = self.datalayer
-        read_status = read_node.update()
-        if read_status != Status.SUCCESS:
-            self.feedback_message = read_node.feedback_message
+        # AC-1: read em_state via ReadEmStateNode, not inline service code.
+        try:
+            em_before = read_case_em_state(
+                self.datalayer, self._case_id(), self._result_out
+            )
+        except BtNodePreconditionError as exc:
+            self.feedback_message = str(exc)
             return Status.FAILURE
-        em_before = self._result_out["em_before"]
-        assert isinstance(em_before, EM)
 
         lifecycle = EmbargoLifecycle(persistence=self.datalayer)
         try:

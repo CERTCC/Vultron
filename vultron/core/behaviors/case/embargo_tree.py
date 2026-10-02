@@ -59,10 +59,13 @@ from vultron.core.behaviors.case.nodes.embargo_revision import (
 class InitializeDefaultEmbargoNode(py_trees.composites.Selector):
     """Composed subtree for initial embargo set-up on case creation.
 
-    The first arm succeeds, doing nothing, when the case already carries an
-    active embargo: initialization ran when the case was created, and a
-    repeated proposal for the same report must not run it again (CP-05-006;
-    it once registered a second pending revision per delivery).  The second
+    The first arm succeeds, doing nothing, when the case's EM state has left
+    ``EM.NONE``: initialization ran when the case was created, and a
+    redelivered proposal that reuses the case (CP-05-006) must not run it
+    again in any later state, ``EXITED`` included (EP-04-012).  The EM state,
+    not the active-embargo reference, is the evidence — termination clears the
+    reference but never returns the state to ``NONE``.  A case still at
+    ``NONE`` was never initialized, so the arm falls through.  The second
     arm succeeds, creating nothing, when the case is not embargo eligible
     (EP-04-008).  Otherwise the creation arm runs, and its failure is the
     subtree's failure — neither guard arm masks it.

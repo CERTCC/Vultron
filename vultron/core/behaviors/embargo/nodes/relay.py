@@ -48,7 +48,7 @@ from typing import TYPE_CHECKING, cast
 import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.embargo.nodes.em_state import ReadEmStateNode
+from vultron.core.behaviors.embargo.nodes.em_state import read_case_em_state
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
@@ -60,9 +60,12 @@ from vultron.core.models.dimensions import EmDimension
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.participants.recipients import invitation_recipients
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.core.states.em import EM, EM_Trigger
+from vultron.core.states.em import EM_Trigger
 from vultron.core.states.participant_embargo_consent import PEC_Trigger
-from vultron.errors import VultronInvalidStateTransitionError
+from vultron.errors import (
+    BtNodePreconditionError,
+    VultronInvalidStateTransitionError,
+)
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -144,16 +147,11 @@ class EmStateAdmitsProposalNode(DataLayerConditionWithPorts):
             return f
         assert self.datalayer is not None
 
-        result_out: dict[str, object] = {}
-        read_node = ReadEmStateNode(
-            case_id=self._case_id, result_out=result_out
-        )
-        read_node.datalayer = self.datalayer
-        if read_node.update() != Status.SUCCESS:
-            self.feedback_message = read_node.feedback_message
+        try:
+            em_before = read_case_em_state(self.datalayer, self._case_id)
+        except BtNodePreconditionError as exc:
+            self.feedback_message = str(exc)
             return Status.FAILURE
-        em_before = result_out["em_before"]
-        assert isinstance(em_before, EM)
 
         try:
             EmDimension(state=em_before).transition(EM_Trigger.PROPOSE)
