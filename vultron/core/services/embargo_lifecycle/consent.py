@@ -299,7 +299,7 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
         set and ``now >= invite_rsvp_deadline``, applies ``PEC_Trigger.EXPIRE``
         (``INVITED → EXPIRED``) and returns a result with ``is_expired=True``.
         An expired invite is not a refusal, so ``DECLINE`` is never the timer
-        path (ADR-0117, CM-18-002).
+        path (ADR-0118, CM-18-002).
 
         Idempotent: if the participant is already ``EXPIRED`` (or any state
         other than ``INVITED``), no PEC transition is applied.  The result
@@ -379,7 +379,7 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
     ) -> list[ParticipantPECChange]:
         """Move every participant of *case* to the terminal UNBOUND_EXITED.
 
-        The termination cascade (MSM-07-006, ADR-0117) as a public operation
+        The termination cascade (MSM-07-006, ADR-0118) as a public operation
         for the teardown nodes, which apply it to a case whose EM state they
         have already moved; :meth:`terminate_active_embargo` runs the same
         :meth:`_cascade_pec_exit`, so the two paths share one loop

@@ -103,7 +103,7 @@ class TestPecDimensionTransition:
         )
         assert result.state == PEC.LAPSED
 
-    # --- EXIT transitions (ADR-0117): every non-terminal state ---
+    # --- EXIT transitions (ADR-0118): every non-terminal state ---
     @pytest.mark.spec("SDO-02-001", "CM-18-003")
     @pytest.mark.parametrize(
         "state", [s for s in PEC if s not in PEC_TERMINAL_STATES]
@@ -112,7 +112,7 @@ class TestPecDimensionTransition:
         result = PecDimension(state=state).transition(PEC_Trigger.EXIT)
         assert result.state == PEC.UNBOUND_EXITED
 
-    # --- UNBOUND_EXITED is terminal (ADR-0117) ---
+    # --- UNBOUND_EXITED is terminal (ADR-0118) ---
     @pytest.mark.spec("SDO-02-002", "CM-18-003")
     @pytest.mark.parametrize("trigger", list(PEC_Trigger))
     def test_unbound_exited_refuses_every_trigger(
@@ -124,7 +124,7 @@ class TestPecDimensionTransition:
     def test_terminal_states_are_exactly_unbound_exited(self) -> None:
         assert frozenset({PEC.UNBOUND_EXITED}) == PEC_TERMINAL_STATES
 
-    # --- EXPIRE and the EXPIRED state (ADR-0117) ---
+    # --- EXPIRE and the EXPIRED state (ADR-0118) ---
     @pytest.mark.spec("SDO-02-001", "CM-18-002")
     def test_expire_from_invited(self) -> None:
         result = PecDimension(state=PEC.INVITED).transition(PEC_Trigger.EXPIRE)
@@ -161,7 +161,7 @@ class TestPecDimensionTransition:
 
     @pytest.mark.spec("CM-18-002")
     def test_timer_expiry_is_not_a_decline(self) -> None:
-        """The timer path lands on EXPIRED, never on DECLINED (ADR-0117)."""
+        """The timer path lands on EXPIRED, never on DECLINED (ADR-0118)."""
         expired = PecDimension(state=PEC.INVITED).transition(
             PEC_Trigger.EXPIRE
         )

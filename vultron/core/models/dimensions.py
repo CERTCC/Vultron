@@ -152,7 +152,7 @@ def _apply_transition(
 
     Raises VultronInvalidStateTransitionError when no matching transition exists.
     Every source is an explicit state: the PEC machine's ``EXIT`` enumerates
-    its sources so the terminal ``UNBOUND_EXITED`` refuses it (ADR-0117).
+    its sources so the terminal ``UNBOUND_EXITED`` refuses it (ADR-0118).
     """
     for t in transitions:
         src = t.get("source")
@@ -423,7 +423,7 @@ class PecDimension(_ScalarDimension):
 
         Raises VultronInvalidStateTransitionError on invalid trigger,
         including every trigger from the terminal ``UNBOUND_EXITED``
-        (ADR-0117).
+        (ADR-0118).
         """
         new_state = _apply_transition(
             self.state, trigger, _pec_transitions, "PecDimension"

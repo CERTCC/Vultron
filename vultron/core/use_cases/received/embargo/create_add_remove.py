@@ -53,7 +53,7 @@ class CreateEmbargoEventReceivedUseCase:
     def execute(self) -> HandlerResult:
         request = self._request
         # Door check before any tree or write: an unaddressed copy is
-        # refused (HP-01-005, ADR-0117).
+        # refused (HP-01-005, ADR-0118).
         receiving_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
         )
@@ -103,7 +103,7 @@ class AddEmbargoEventToCaseReceivedUseCase:
 
         # Door check before any tree or write, after the shape checks
         # that write nothing: an unaddressed copy is refused (HP-01-005,
-        # ADR-0117).
+        # ADR-0118).
         if (
             refusal := unaddressed_copy_refusal(
                 receiving_actor_id, request, label="Add(EmbargoEvent)"
@@ -172,7 +172,7 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
 
         # Door check before any tree or write, after the shape checks
         # that write nothing: an unaddressed copy is refused (HP-01-005,
-        # ADR-0117).
+        # ADR-0118).
         if (
             refusal := unaddressed_copy_refusal(
                 receiving_actor_id, request, label="Remove(EmbargoEvent)"

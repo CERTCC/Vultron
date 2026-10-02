@@ -164,7 +164,7 @@ groups:
       PROPOSED, ACTIVE, REVISE, EXITED).  Per-participant embargo consent
       (UNBOUND, INVITED, SIGNATORY, LAPSED, DECLINED, EXPIRED, UNBOUND_EXITED)
       is a distinct seven-state machine tracked on `ParticipantStatus`
-      (ADR-0117); without a dedicated
+      (ADR-0118); without a dedicated
       PEC column, embargo acceptance and lapse events are invisible in the
       report.
     relationships:

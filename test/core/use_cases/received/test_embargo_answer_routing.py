@@ -147,7 +147,7 @@ def test_a_participant_handed_an_answer_refuses_it_and_writes_nothing(answer):
     """Only the CASE_MANAGER records an answer; a replica replays it.
 
     The answer is addressed to the CASE_MANAGER, so the bystander's copy is
-    refused at the door before any tree runs (HP-01-005, ADR-0117).
+    refused at the door before any tree runs (HP-01-005, ADR-0118).
     """
     net = _Network(f"https://example.org/cases/answer-misrouted-{answer}")
     revision = _propose(net, "misrouted", 90)

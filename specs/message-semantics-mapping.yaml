@@ -712,7 +712,7 @@ groups:
     SIGNATORY (accepted current terms), LAPSED (terms changed since last acceptance),
     DECLINED (explicitly refused), EXPIRED (invited, timed out without responding), and
     the terminal UNBOUND_EXITED (the embargo was terminated). Normative authority:
-    specs/case-management.yaml CM-18. Decisions: ADR-0048, ADR-0091, ADR-0117.
+    specs/case-management.yaml CM-18. Decisions: ADR-0048, ADR-0091, ADR-0118.
   specs:
   - id: MSM-07-001
     priority: MUST
@@ -748,7 +748,7 @@ groups:
       An embargo proposal is an invitation to consent; the EP wire activity conveys the invitation
       and the PEC machine records each participant's position. Participants already in SIGNATORY are
       unaffected by EP; INVITE is a no-op from SIGNATORY (CM-18-004), and a participant at the
-      terminal UNBOUND_EXITED cannot be invited at all (CM-18-003, ADR-0117). The PEC trigger is
+      terminal UNBOUND_EXITED cannot be invited at all (CM-18-003, ADR-0118). The PEC trigger is
       applied via EmbargoLifecycle.record_participant_consent() inside the
       InviteToEmbargoOnCaseReceivedUseCase received-side handler.
     verification: >-
@@ -929,7 +929,7 @@ groups:
     rationale: >-
       EM EXITED has no outgoing transition, so a participant whose embargo was terminated can never
       be invited to it again; its consent record says so by holding the terminal UNBOUND_EXITED
-      rather than the re-invitable initial UNBOUND (ADR-0117, amending ADR-0048 and ADR-0091). The
+      rather than the re-invitable initial UNBOUND (ADR-0118, amending ADR-0048 and ADR-0091). The
       EXIT cascade is performed by EmbargoLifecycle._cascade_pec_exit() inside
       terminate_active_embargo(), on the CASE_MANAGER and, through the teardown replay, on every
       replica.

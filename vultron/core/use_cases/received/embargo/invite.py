@@ -215,7 +215,7 @@ class InviteToEmbargoOnCaseReceivedUseCase:
 
         # Door check before any tree or write, after the shape checks
         # that write nothing: an unaddressed copy is refused (HP-01-005,
-        # ADR-0117).
+        # ADR-0118).
         if (
             refusal := unaddressed_copy_refusal(
                 receiving_actor_id, request, label="Invite(EmbargoEvent)"

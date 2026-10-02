@@ -154,7 +154,7 @@ class ExitParticipantConsentNode(DataLayerActionWithPorts):
     Calls ``exit_case_participant_embargo_consent`` for the given case.
     Returns FAILURE when the case is not found.  Returns SUCCESS when
     the consent exit completes (including when the case has no
-    participants).  ``EXIT`` is tied to ``EM.EXITED`` (ADR-0117).
+    participants).  ``EXIT`` is tied to ``EM.EXITED`` (ADR-0118).
     """
 
     def __init__(self, case_id: str, name: str | None = None) -> None:

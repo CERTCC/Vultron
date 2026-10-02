@@ -123,7 +123,7 @@ def remove_embargo_from_case_tree(
     embargo from ``proposed_embargoes`` (idempotent) and, if the embargo is
     the active one, applies the ACTIVE/REVISE → EXITED EM state transition,
     clears ``active_embargo``, and exits participant embargo consent to the
-    terminal ``UNBOUND_EXITED`` (ADR-0117).
+    terminal ``UNBOUND_EXITED`` (ADR-0118).
     Always commits a canonical ledger entry when the executing actor holds
     the ``CASE_MANAGER`` role (via the guarded commit subtree).
 

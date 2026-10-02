@@ -80,7 +80,7 @@ groups:
       been observed (q^cs ∈ ·····A). The Participant MUST respond with ER to reject the proposal.
       The ER duty binds only the proposal's addressee: a receiver that is neither the sender nor
       named in its `to` or `cc` holds an unaddressed copy, refuses it (HP-01-005) and answers
-      nothing (ADR-0117).
+      nothing (ADR-0118).
     rationale: >-
       Embargo negotiation is not viable once public disclosure has occurred.
       VP-06-001 and VP-11-001 prohibit new embargo negotiations in these states.
@@ -436,14 +436,14 @@ groups:
       (q^em ∈ {A, R}) with CS in a public/exploit/attack state (q^cs ∉ ···pxa), receiving EV MUST
       answer it with ER to the CASE_MANAGER, as EMB-01-002 requires for a proposal, and MUST NOT
       emit ET or change its own EM state. Termination is initiated only by the case owner, or by the
-      CASE_MANAGER when delegated (EP-09-003, EP-09-008, CM-24, ADR-0113, ADR-0117).
+      CASE_MANAGER when delegated (EP-09-003, EP-09-008, CM-24, ADR-0113, ADR-0118).
     rationale: >-
       Revision negotiation is not viable once public disclosure has occurred, so the participant
       refuses the revision. Ending the embargo is the case owner's decision (or the delegated
       CASE_MANAGER's), and only the CASE_MANAGER writes shared EM state (EP-09-008, ADR-0113); a
       participant answers only the Invite addressed to it (EP-09-003). VP-11-001 and VP-11-002 are
       met by the owner's or CASE_MANAGER's termination, not by each participant emitting ET
-      (ADR-0117).
+      (ADR-0118).
     verification: >-
       A per-actor-store test in `test/core/use_cases/received/test_embargo_relay_replay.py` delivers
       a relayed revision Invite to a participant whose case is P/X/A and asserts one ER to the
@@ -1198,7 +1198,7 @@ groups:
     statement: >-
       A Participant entering EM Exited SHOULD move all Participant embargo
       consent states to the terminal UNBOUND_EXITED to reflect that the embargo
-      has ended (MSM-07-006, ADR-0117).
+      has ended (MSM-07-006, ADR-0118).
     rationale: >-
       Once the embargo exits, each Participant's consent status should hold a
       terminal state: EM Exited has no outgoing transition, so no later
@@ -1858,7 +1858,7 @@ groups:
       When the accepted embargo is the case's current embargo, the CASE_MANAGER MUST honour the late
       Accept and record the participant's PEC transition to SIGNATORY, exactly as it would for an
       on-time Accept. A participant at EXPIRED moves directly to SIGNATORY (`EXPIRED → SIGNATORY`,
-      ADR-0117); one at DECLINED is re-invited first (`DECLINED → INVITED → SIGNATORY`), because
+      ADR-0118); one at DECLINED is re-invited first (`DECLINED → INVITED → SIGNATORY`), because
       ACCEPT is not legal from DECLINED (CM-18-003).
     rationale: >-
       If the terms the participant agreed to are the terms in force, the
@@ -1897,7 +1897,7 @@ groups:
       When the accepted embargo is NOT the case's current embargo (for example the embargo was
       revised or replaced after the invitation was sent), the CASE_MANAGER MUST issue a fresh
       `Invite(EmbargoEvent)` to the accepting actor carrying the case's current embargo. An
-      accepting participant at EXPIRED moves `EXPIRED → INVITED` for the current embargo (ADR-0117).
+      accepting participant at EXPIRED moves `EXPIRED → INVITED` for the current embargo (ADR-0118).
     rationale: >-
       Recording the stale Accept as consent would make the participant a
       signatory to terms they never saw. Rejecting them would discard a
@@ -1969,7 +1969,7 @@ groups:
       When the case has no current embargo (EM state is EXITED or NONE), the CASE_MANAGER MUST
       acknowledge the late Accept as a no-op on embargo state, leaving the participant's PEC state
       unchanged: UNBOUND_EXITED after a termination (EM EXITED), or EXPIRED when no embargo has
-      started (EM NONE) (ADR-0117).
+      started (EM NONE) (ADR-0118).
     note: >-
       EMB-13-002 independently forbids seeking or accepting new embargoes for a
       case whose CS state is public, exploit-public, or attacks-observed. This

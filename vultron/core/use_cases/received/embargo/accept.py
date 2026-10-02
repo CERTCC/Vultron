@@ -81,7 +81,7 @@ def _needs_reinvite_to_accept(
 ) -> bool:
     """True when *actor_id*'s consent must be re-invited before ACCEPT.
 
-    ``ACCEPT`` is legal from ``EXPIRED`` (ADR-0117) but not from ``DECLINED``
+    ``ACCEPT`` is legal from ``EXPIRED`` (ADR-0118) but not from ``DECLINED``
     (CM-18-003); a declined participant whose late Accept is honoured goes
     ``DECLINED → INVITED → SIGNATORY``.  An actor with no readable
     participant record needs nothing here: the consent write that follows
@@ -204,7 +204,7 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         ):
             # AC-2 of #2213: current embargo still matches — honor.  An
             # EXPIRED participant accepts directly (EXPIRED → SIGNATORY,
-            # ADR-0117); one that declined is re-invited first, since ACCEPT
+            # ADR-0118); one that declined is re-invited first, since ACCEPT
             # is not legal from DECLINED (CM-18-003).
             if _fresh_case is not None and _needs_reinvite_to_accept(
                 self._dl, _fresh_case, accepting_actor_id
@@ -284,7 +284,7 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
 
         else:
             # AC-4 of #2213: EM EXITED or NONE — ack no-op, no consent
-            # change (EMB-17-004, ADR-0117).  In EXITED the termination cascade
+            # change (EMB-17-004, ADR-0118).  In EXITED the termination cascade
             # already moved the participant to the terminal UNBOUND_EXITED; in
             # NONE an expired participant stays EXPIRED, which a later embargo
             # may re-invite.
@@ -325,7 +325,7 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
 
         # Door check before any tree or write, after the shape checks
         # that write nothing: an unaddressed copy is refused (HP-01-005,
-        # ADR-0117).
+        # ADR-0118).
         if (
             refusal := unaddressed_copy_refusal(
                 receiving_actor_id,

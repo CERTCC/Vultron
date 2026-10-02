@@ -45,7 +45,7 @@ INVITE_EXPIRED_EVENT_TYPE = "invite_to_embargo_on_case_expired"
 """Ledger ``event_type`` of the CASE_MANAGER's invite-expiry entry (CM-28-009).
 
 The entry records ``PEC_Trigger.EXPIRE`` (``INVITED → EXPIRED``), distinct from
-the ``Reject(Invite)`` entry of an explicit refusal (CM-28-005, ADR-0117).
+the ``Reject(Invite)`` entry of an explicit refusal (CM-28-005, ADR-0118).
 """
 
 INVITE_EXPIRED_SNAPSHOT_TYPE = "Expire"

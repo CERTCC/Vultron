@@ -14,6 +14,7 @@ related_notes:
   - notes/participant-case-replica.md
   - notes/activitystreams-semantics.md
   - notes/actor-knowledge-model.md
+  - notes/datalayer-design.md
 relevant_packages:
   - vultron/core/use_cases/received
   - vultron/core/use_cases/triggers
@@ -117,11 +118,13 @@ The two actor-id fields on `VultronReportCaseLink` were named
 `py/clear-text-logging-sensitive-data` heuristic reads any name containing
 "trusted" as a secret, so every log line printing an actor id resolved
 through them was flagged — yet both values are public ActivityPub URIs.
-Name an actor-id field for the role it records, not for the trust relation;
-the old keys stay readable as validation aliases so a pre-rename row loads.
-The aliases are load-bearing: `VultronReportCaseLink` is a `CoreRecord`, which
-ignores unknown keys rather than refusing them, so a plain rename would have
-read every old row back with both trust anchors silently `None`.
+Name an actor-id field for the role it records, not for the trust relation.
+A row still carrying an old key is refused on load, with a reason naming the
+store reset (`RetiredFieldsRecord`, #4128); it is never aliased onto the
+new name. The refusal is load-bearing: `VultronReportCaseLink` is a
+`CoreRecord`, which ignores unknown keys rather than refusing them, so a plain
+rename would read every old row back with both trust anchors silently `None`.
+See [datalayer-design](datalayer-design.md) § "Renaming a Stored Field".
 
 ---
 

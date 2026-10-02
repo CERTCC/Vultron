@@ -22,8 +22,8 @@ AC-4: Verifies that
     successfully (AC-3).
   - The marker remains when Create(as_VulnerabilityCase) delivery fails (AC-2
     partial-failure path).
-  - The marker stores at minimum: proposal_id, case_actor_id, vendor_uri
-    (the stored name of the owner URI, #4128), and the pre-constructed
+  - The marker stores at minimum: proposal_id, case_actor_id, owner_uri
+    (the case owner owed the Create), and the pre-constructed
     Create(as_VulnerabilityCase) payload (AC-1).
 """
 
@@ -134,7 +134,7 @@ class TestPendingCreateCaseActivityModel:
         marker = PendingCreateCaseActivity(
             proposal_id=_PROPOSAL_URI,
             case_actor_id=_CASE_ACTOR_URI,
-            vendor_uri=_VENDOR_URI,
+            owner_uri=_VENDOR_URI,
         )
         assert marker.id_ == PendingCreateCaseActivity.build_id(_PROPOSAL_URI)
 
@@ -144,12 +144,12 @@ class TestPendingCreateCaseActivityModel:
         marker = PendingCreateCaseActivity(
             proposal_id=_PROPOSAL_URI,
             case_actor_id=_CASE_ACTOR_URI,
-            vendor_uri=_VENDOR_URI,
+            owner_uri=_VENDOR_URI,
             create_activity_payload=payload,
         )
         assert marker.proposal_id == _PROPOSAL_URI
         assert marker.case_actor_id == _CASE_ACTOR_URI
-        assert marker.vendor_uri == _VENDOR_URI
+        assert marker.owner_uri == _VENDOR_URI
         assert marker.create_activity_payload == payload
 
     def test_roundtrip_through_datalayer(self):
@@ -161,7 +161,7 @@ class TestPendingCreateCaseActivityModel:
         marker = PendingCreateCaseActivity(
             proposal_id=_PROPOSAL_URI,
             case_actor_id=_CASE_ACTOR_URI,
-            vendor_uri=_VENDOR_URI,
+            owner_uri=_VENDOR_URI,
             create_activity_payload={"type": "Create"},
         )
         dl.save(marker)
@@ -169,7 +169,7 @@ class TestPendingCreateCaseActivityModel:
         assert isinstance(retrieved, PendingCreateCaseActivity)
         assert retrieved.proposal_id == _PROPOSAL_URI
         assert retrieved.case_actor_id == _CASE_ACTOR_URI
-        assert retrieved.vendor_uri == _VENDOR_URI
+        assert retrieved.owner_uri == _VENDOR_URI
 
 
 _CASE_URI = "https://example.org/cases/c-001"
@@ -259,7 +259,7 @@ class TestWriteCreateCaseMarkerNode:
         )
         assert marker.proposal_id == _PROPOSAL_URI
         assert marker.case_actor_id == _CASE_ACTOR_URI
-        assert marker.vendor_uri == _VENDOR_URI
+        assert marker.owner_uri == _VENDOR_URI
 
     @pytest.mark.spec("CP-05-005")
     def test_the_create_is_named_for_the_proposal(self):
@@ -647,7 +647,7 @@ class TestClearCreateCaseMarkerNode:
         marker = PendingCreateCaseActivity(
             proposal_id=_PROPOSAL_URI,
             case_actor_id=_CASE_ACTOR_URI,
-            vendor_uri=_VENDOR_URI,
+            owner_uri=_VENDOR_URI,
         )
         dl.save(marker)
         # Confirm it's there before clearing.
@@ -770,7 +770,7 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
             "Marker must be present when Create delivery fails (AC-2)"
         )
         assert marker.proposal_id == _PROPOSAL_URI
-        assert marker.vendor_uri == _VENDOR_URI
+        assert marker.owner_uri == _VENDOR_URI
         assert marker.case_actor_id == _CASE_ACTOR_URI
 
     def test_marker_payload_stored_on_partial_failure(self, make_payload):
@@ -1117,9 +1117,18 @@ class TestCP09001CaseAttributedToOwner:
         )
         assert attributed == _VENDOR_URI
 
-    @pytest.mark.spec("CLP-08-002")
-    def test_genesis_hash_stays_bound_to_the_case_actor(self, make_payload):
-        """Moving the owner field does not move the ledger's origin binding."""
+
+@pytest.mark.spec("CLP-08-002")
+@pytest.mark.spec("CP-09-001")
+class TestCLP08002GenesisHashAnchoredToTheOwner:
+    """The genesis hash names the owner on every creation path (#4067).
+
+    The CaseActor is the owner's delegated proxy, so the case it creates from
+    a ``CaseProposal`` hashes exactly as the case the owner would create
+    itself, and the owner's replica keeps that hash rather than redoing it.
+    """
+
+    def test_proposal_path_hash_is_anchored_to_the_owner(self, make_payload):
         from vultron.core.models.case_ledger import compute_genesis_hash
 
         _, case = _run_proposal_to_case(make_payload)
@@ -1127,8 +1136,61 @@ class TestCP09001CaseAttributedToOwner:
         assert case.genesis_hash == compute_genesis_hash(
             case_id=case.id_,
             created_at=case.published,
-            case_actor_id=_CASE_ACTOR_URI,
+            owner_actor_id=_VENDOR_URI,
         )
+        assert case.genesis_hash != compute_genesis_hash(
+            case_id=case.id_,
+            created_at=case.published,
+            owner_actor_id=_CASE_ACTOR_URI,
+        )
+
+    def test_self_created_and_proposal_created_cases_agree(self, make_payload):
+        """Same ``(case_id, created_at, owner)``, same hash, either creator."""
+        _, case = _run_proposal_to_case(make_payload)
+        self_created = VulnerabilityCase(
+            id_=case.id_,
+            published=case.published,
+            attributed_to=_VENDOR_URI,
+        )
+        assert self_created.genesis_hash == case.genesis_hash
+
+    @pytest.mark.parametrize("tamper", [False, True])
+    def test_owner_replica_carries_the_sender_hash_unchanged(
+        self, make_payload, tamper
+    ):
+        """The replica built from ``Create(VulnerabilityCase)`` is not rehashed.
+
+        With ``tamper`` the sent hash is one the receiver would never derive
+        (anchored to the CaseActor), so only a replica that carries the value
+        as received can still hold it.
+        """
+        from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
+        from vultron.core.models.case_ledger import compute_genesis_hash
+        from vultron.wire.as2.parser import parse_activity
+
+        dl, case = _run_proposal_to_case(make_payload)
+        assert case.published is not None
+        # The body the owner is sent is the sealed one (OX-07-001).
+        body = read_sealed_body_dict(dl, str(_created_case_activity(dl).id_))
+        assert body is not None
+        inline_case = body["object"]
+        assert isinstance(inline_case, dict)
+        sent = case.genesis_hash
+        if tamper:
+            sent = compute_genesis_hash(
+                case_id=case.id_,
+                created_at=case.published,
+                owner_actor_id=_CASE_ACTOR_URI,
+            )
+            assert sent != case.genesis_hash
+        inline_case["genesisHash"] = sent
+
+        event = extract_event(parse_activity(body))
+        replica = getattr(event, "object_", None)
+
+        assert isinstance(replica, VulnerabilityCase)
+        assert replica.attributed_to == _VENDOR_URI
+        assert replica.genesis_hash == sent
 
 
 @pytest.mark.spec("CM-21-002")

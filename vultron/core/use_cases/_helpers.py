@@ -177,7 +177,7 @@ def unaddressed_copy_refusal(
 ) -> HandlerResult | None:
     """REFUSED for a copy the receiver was never addressed; else ``None``.
 
-    The door check of every received embargo use case (HP-01-005, ADR-0117,
+    The door check of every received embargo use case (HP-01-005, ADR-0118,
     #4132): a receiver acts on an activity only when it sent it or is named
     in its ``to`` or ``cc``.  Any other store holds a misaddressed copy — it
     runs no tree, writes nothing and answers nothing (EMB-01-002's ER duty
@@ -414,7 +414,7 @@ def exit_case_participant_embargo_consent(
 
     Called when an embargo is terminated (EM ``EXITED``, MSM-07-006).  Applies
     ``PEC_Trigger.EXIT`` to every participant of *case* not already
-    ``UNBOUND_EXITED`` (ADR-0117).  Tolerates both string IDs and inline
+    ``UNBOUND_EXITED`` (ADR-0118).  Tolerates both string IDs and inline
     ``CaseParticipant`` objects in ``case.case_participants`` (regression
     #609).
 

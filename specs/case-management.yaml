@@ -2345,10 +2345,10 @@ groups:
       `CaseParticipant.accepted_embargo_ids` (CM-10-001) records which embargo terms, active or
       proposed, the participant has accepted.
     rationale: >-
-      The seven-state PEC machine (ADR-0117) keeps the "pocket veto" mechanism — a participant who
+      The seven-state PEC machine (ADR-0118) keeps the "pocket veto" mechanism — a participant who
       is invited but never responds stops blocking progress when the timer fires — but records the
       outcome as `EXPIRED`, not `DECLINED`, so every reader of the scalar state can tell silence
-      from a refusal. Source: `notes/participant-embargo-consent.md`, ADR-0093, ADR-0117. `LAPSED`
+      from a refusal. Source: `notes/participant-embargo-consent.md`, ADR-0093, ADR-0118. `LAPSED`
       is NOT the timer path and NOT a proposal-time state. It is reached only from `SIGNATORY` via
       the `REVISE` trigger, and that trigger fires only when the case owner activates a revised
       embargo that ends later than the one the participant accepted (CM-18-002, MSM-07-005,
@@ -2358,7 +2358,7 @@ groups:
       participant is not bound by any embargo terms — not a "not yet consented" pre-consent state.
       It is correct for a participant in a case with `EM.NONE`. It is no longer the destination when
       an embargo is terminated: `EM.EXITED` has no outgoing transition, so termination moves every
-      record to the terminal `UNBOUND_EXITED`, which refuses every trigger (ADR-0117).
+      record to the terminal `UNBOUND_EXITED`, which refuses every trigger (ADR-0118).
       `UNBOUND` MUST NOT be read as implying that consent is pending or that an invitation is owed.
     verification: >-
       Inspection of `vultron/core/states/participant_embargo_consent.py` confirms that
@@ -2370,7 +2370,7 @@ groups:
     - ADR-0048
     - ADR-0091
     - ADR-0093
-    - ADR-0117
+    - ADR-0118
     stories:
     - story_2022_023
     - story_2022_014
@@ -2397,7 +2397,7 @@ groups:
       Per ADR-0093 and `notes/participant-embargo-consent.md`: `LAPSED` means "the active embargo
       was replaced by longer terms I have not accepted." While a revision is merely proposed the
       prior embargo is still in force and every signatory to it is still bound by it, so nothing
-      about their consent has changed. Per ADR-0117, a participant that did not answer has made no
+      about their consent has changed. Per ADR-0118, a participant that did not answer has made no
       decision, so a timeout records `EXPIRED`, distinct from an explicit `DECLINED`; both are
       re-invitable. A pocket veto exists so that an unanswered *invitation* cannot stall
       coordination; nothing stalls on a lapsed participant, who is already excluded from embargoed
@@ -2411,7 +2411,7 @@ groups:
       acceptance is the only path that moves a signatory to `LAPSED`.
     adr:
     - ADR-0093
-    - ADR-0117
+    - ADR-0118
     stories:
     - story_2022_027
     - story_2022_014
@@ -2441,7 +2441,7 @@ groups:
       an embargo MAY explicitly withdraw consent by rejecting the *active* embargo (VP-13-007,
       VP-13-008). A signatory's rejection of a *proposed* revision is neither: it refuses those
       terms and leaves the participant a signatory to the embargo in force (MSM-07-004). Per
-      ADR-0117, `EXPIRE` is the timer path only (CM-18-002); a late Accept the CASE_MANAGER honours
+      ADR-0118, `EXPIRE` is the timer path only (CM-18-002); a late Accept the CASE_MANAGER honours
       moves `EXPIRED → SIGNATORY` directly (EMB-17-002), and a late explicit Reject moves `EXPIRED →
       DECLINED`. `EXIT` fires only in the termination cascade (MSM-07-006): `EM.EXITED` has no
       outgoing transition, so its PEC counterpart `UNBOUND_EXITED` has none either, and a later
@@ -2459,7 +2459,7 @@ groups:
     adr:
     - ADR-0048
     - ADR-0093
-    - ADR-0117
+    - ADR-0118
   - id: CM-18-004
     priority: MUST_NOT
     kind: protocol
@@ -2479,7 +2479,7 @@ groups:
       spec_id: CM-18-003
     adr:
     - ADR-0093
-    - ADR-0117
+    - ADR-0118
   - id: CM-18-005
     priority: MUST
     kind: project
@@ -3633,7 +3633,7 @@ groups:
     - rel_type: depends_on
       spec_id: CM-28-014
     adr:
-    - ADR-0117
+    - ADR-0118
     - ADR-0085
     stories:
     - story_2022_066
@@ -4132,9 +4132,9 @@ groups:
       scalar PEC state distinguishes "never responded" from "explicitly declined".
     rationale: >-
       A participant that did not answer made no decision, and code, logs, demos and replicas read
-      the scalar state, not ledger provenance (ADR-0117). An expired participant is re-invitable
+      the scalar state, not ledger provenance (ADR-0118). An expired participant is re-invitable
       (CM-18-003), excluded from embargoed content like any non-signatory (CM-10-004), and made
-      `SIGNATORY` by a late Accept the CASE_MANAGER honours (EMB-17-002). ADR-0117 reverses ADR-0065
+      `SIGNATORY` by a late Accept the CASE_MANAGER honours (EMB-17-002). ADR-0118 reverses ADR-0065
       part 5, which chose `DECLINED`.
     note: >-
       "Invitation" here is an `Invite(EmbargoEvent)`. An expired stub Invite
@@ -4151,7 +4151,7 @@ groups:
       spec_id: CM-18-003
     adr:
     - ADR-0065
-    - ADR-0117
+    - ADR-0118
     stories:
     - story_2022_027
     - story_2022_014
@@ -4164,8 +4164,8 @@ groups:
       ledger (CM-28-009).
     rationale: >-
       The canonical ledger is the project's history mechanism (ADR-0019), so expiry-versus-refusal
-      is recoverable from it; since ADR-0117 the scalar state carries the distinction too, so a
-      reader that consults only the participant record also sees it. See ADR-0065, ADR-0117.
+      is recoverable from it; since ADR-0118 the scalar state carries the distinction too, so a
+      reader that consults only the participant record also sees it. See ADR-0065, ADR-0118.
     verification: >-
       Inspection of `vultron/core/` confirms that the expired-invitation ledger entry type
       (`invite_to_embargo_on_case_expired`) differs from the `Reject(Invite(EmbargoEvent))` entry
@@ -4226,7 +4226,7 @@ groups:
     - rel_type: refines
       spec_id: CM-28-003
     adr:
-    - ADR-0117
+    - ADR-0118
     - ADR-0065
   - id: CM-28-008
     priority: MUST_NOT
@@ -4252,7 +4252,7 @@ groups:
     rationale: >-
       The ledger entry makes expiry-versus-refusal distinguishable in the ledger (CM-28-005), and it
       is how a replica learns the `EXPIRED` state without computing it (CM-28-014); authoring a
-      single entry type for both events would conflate them. See ADR-0065, ADR-0117.
+      single entry type for both events would conflate them. See ADR-0065, ADR-0118.
     verification: >-
       Inspection of `vultron/core/` confirms that the expired-invitation ledger entry
       (`INVITE_EXPIRED_EVENT_TYPE`, snapshot type `Expire`) is authored as a distinct entry type
@@ -4392,7 +4392,7 @@ groups:
     - rel_type: depends_on
       spec_id: BT-17-001
     adr:
-    - ADR-0117
+    - ADR-0118
     - ADR-0113
     stories:
     - story_2022_014

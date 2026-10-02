@@ -1015,7 +1015,7 @@ class TestPxaRejectionAttribution:
 
         The receiver is neither the sender nor named in ``to``/``cc``, so
         no tree runs and EMB-01-002's ER duty — which binds only the
-        addressee — never arises (ADR-0117, #4132).
+        addressee — never arises (ADR-0118, #4132).
         """
         dl = self._dl()
         case_id = f"{self.CASE_ID}/ep-other"

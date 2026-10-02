@@ -42,7 +42,7 @@ class CanAnswerEmbargoInviteNode(DataLayerConditionWithPorts):
 
     A copy addressed to neither ``to`` nor ``cc`` of this actor never gets
     here: ``unaddressed_copy_refusal()`` refuses it at the door, before any
-    tree runs (HP-01-005, ADR-0117).  The not-the-invitee arm below is the
+    tree runs (HP-01-005, ADR-0118).  The not-the-invitee arm below is the
     backstop for a copy that *is* addressed to this actor (a ``cc``
     recipient) while it names someone else as the invitee.
     """

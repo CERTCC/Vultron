@@ -172,7 +172,7 @@ They are notification and integration hooks that fire after the transition and c
 ## Inaction is an answer
 
 An `Invite(EmbargoEvent)` carries a respond-by instant, and silence past it ends the invitation — the **pocket veto**.
-A Participant at `INVITED` that does not answer within the window moves to `EXPIRED`, not `DECLINED`: silence is not a decision, and `DECLINED` records only an explicit refusal (CM-28-004, [ADR-0117](../../../adr/0117-pec-expired-and-unbound-exited-states.md)).
+A Participant at `INVITED` that does not answer within the window moves to `EXPIRED`, not `DECLINED`: silence is not a decision, and `DECLINED` records only an explicit refusal (CM-28-004, [ADR-0118](../../../adr/0118-pec-expired-and-unbound-exited-states.md)).
 
 The window has two forms and they are one mechanism, not two ([ADR-0065](../../../adr/0065-embargo-invite-rsvp-deadline.md)).
 When the invitation carries an explicit `Invite.end_time`, that value governs (CM-28-002).

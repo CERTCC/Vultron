@@ -39,7 +39,6 @@ from vultron.core.models._helpers import (
     project_wire_snapshot_to_core,
 )
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_ledger import compute_genesis_hash
 from vultron.core.models.report import VulnerabilityReport
 from vultron.errors import VultronAlreadyExistsError
 
@@ -84,10 +83,11 @@ class CreateCaseFromProposalNode(DataLayerActionWithPorts):
     and the CASE_OWNER participant cannot name different actors.  The proposal's
     ``attributed_to`` names the same actor (CP-01-010).
 
-    The genesis hash is bound to the CaseActor that creates the case, not to
-    its owner (CLP-08-002).  ``VulnerabilityCase`` would otherwise derive it
-    from ``attributed_to``, so it is computed here from the executing actor and
-    passed in.
+    The genesis hash is anchored to that owner, not to the CaseActor creating
+    the case: the CaseActor is the owner's delegated proxy, so a case it
+    creates hashes exactly as one the owner created itself (CLP-08-002).  No
+    hash is passed here; ``VulnerabilityCase`` computes it from
+    ``attributed_to`` at construction, the single definition of the formula.
     """
 
     def __init__(
@@ -113,17 +113,10 @@ class CreateCaseFromProposalNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None and self.actor_id is not None
 
-        case_id = _new_urn()
-        published = now_utc()
         case = VulnerabilityCase(
-            id_=case_id,
-            published=published,
+            id_=_new_urn(),
+            published=now_utc(),
             attributed_to=self._owner_id,
-            genesis_hash=compute_genesis_hash(
-                case_id=case_id,
-                created_at=published,
-                case_actor_id=self.actor_id,
-            ),
         )
         if self._report_id is not None:
             case.vulnerability_reports.append(self._report_id)

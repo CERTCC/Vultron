@@ -48,7 +48,7 @@ logger = logging.getLogger(__name__)
 #: PEC states from which an ``ACCEPT`` advances a participant to ``SIGNATORY``
 #: (CM-18-003); ``DECLINED`` and the terminal ``UNBOUND_EXITED`` are
 #: deliberately absent.  ``EXPIRED`` is present: a late Accept of the embargo
-#: in force is honoured (EMB-17-002, ADR-0117).
+#: in force is honoured (EMB-17-002, ADR-0118).
 _ACCEPTABLE_STATES = frozenset(
     {
         PEC.UNBOUND.value,
@@ -142,7 +142,7 @@ class _PecEffectsMixin(_ActivationArmMixin):
         would let the list-based content gate (CM-10-004) admit an actor that
         has declined.  It is re-invited first (``DECLINED → INVITED``).  A
         participant at the terminal ``UNBOUND_EXITED`` records nothing for the
-        same reason, and can never be re-invited (ADR-0117).
+        same reason, and can never be re-invited (ADR-0118).
         """
         resolved = self._participant_for_actor(case, actor_id, "acceptance")
         if resolved is None:
@@ -188,7 +188,7 @@ class _PecEffectsMixin(_ActivationArmMixin):
 
         Drops the id from ``accepted_embargo_ids`` and applies ``DECLINE``
         to a participant not already ``DECLINED`` — an ``EXPIRED`` one
-        included, since a late explicit Reject is an answer (ADR-0117) — and
+        included, since a late explicit Reject is an answer (ADR-0118) — and
         not at the terminal ``UNBOUND_EXITED``.  With *withdrawal* set the
         Reject names the case's *active* embargo, so ``DECLINE`` applies from
         every state including ``SIGNATORY`` (consent withdrawal, ADR-0093).
@@ -215,7 +215,7 @@ class _PecEffectsMixin(_ActivationArmMixin):
         changed = False
 
         # DECLINED is idempotent and the terminal UNBOUND_EXITED refuses every
-        # trigger (ADR-0117); neither moves, and the list is still cleaned.
+        # trigger (ADR-0118); neither moves, and the list is still cleaned.
         keeps_state = pec_before in _ACCEPT_RECORDS_NOTHING or (
             not withdrawal and pec_before == PEC.SIGNATORY.value
         )
@@ -343,7 +343,7 @@ class _PecEffectsMixin(_ActivationArmMixin):
 
         Called when an embargo is terminated (EM ``EXITED``, MSM-07-006).
         ``EXIT`` applies from every state, the initial ``UNBOUND`` included,
-        and nothing leaves ``UNBOUND_EXITED`` (ADR-0117); a participant
+        and nothing leaves ``UNBOUND_EXITED`` (ADR-0118); a participant
         already there is skipped, so a replayed teardown changes nothing.
         Returns a list of :class:`ParticipantPECChange` for every participant
         that was updated.  Inert participants exit too: with no embargo there

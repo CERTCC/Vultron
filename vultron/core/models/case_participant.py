@@ -231,7 +231,7 @@ class CaseParticipant(CoreObject):
         the participant is ``SIGNATORY`` afterwards.  A ``DECLINED`` or
         terminal ``UNBOUND_EXITED`` participant is left unsigned and gains no
         id, so the content gate (CM-10-004) never admits an actor whose state
-        says it is not bound (ADR-0117).  The caller persists the record.
+        says it is not bound (ADR-0118).  The caller persists the record.
         """
         self.apply_pec_transition_if_legal(PEC_Trigger.ACCEPT)
         if self.embargo_consent_state != PEC.SIGNATORY.value:

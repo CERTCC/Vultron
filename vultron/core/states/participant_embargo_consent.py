@@ -16,9 +16,9 @@ LAPSED         – Was SIGNATORY; the owner activated longer terms this
 DECLINED       – Participant explicitly refused (a Reject of the Invite, or a
                  consent withdrawal).
 EXPIRED        – Participant was invited and the RSVP deadline passed with no
-                 answer (ADR-0117).  Not a refusal.
+                 answer (ADR-0118).  Not a refusal.
 UNBOUND_EXITED – Terminal.  The embargo terminated (EM EXITED); nothing leaves
-                 this state (ADR-0117).
+                 this state (ADR-0118).
 
 Transitions
 -----------
@@ -85,7 +85,7 @@ class PECTransition(TransitionBase):
     dest: PEC
 
 
-#: The one terminal state: no transition leaves it (ADR-0117).
+#: The one terminal state: no transition leaves it (ADR-0118).
 PEC_TERMINAL_STATES: frozenset[PEC] = frozenset({PEC.UNBOUND_EXITED})
 
 
@@ -102,7 +102,7 @@ _transitions: list[dict] = [
         for source in (PEC.UNBOUND, PEC.LAPSED, PEC.DECLINED, PEC.EXPIRED)
     ),
     # ACCEPT transitions (ADR-0048: UNBOUND is absence-of-embargo, not
-    # pre-consent; ADR-0117: a late Accept the CASE_MANAGER honours moves an
+    # pre-consent; ADR-0118: a late Accept the CASE_MANAGER honours moves an
     # EXPIRED participant straight to SIGNATORY, EMB-17-002)
     *(
         _pec(PEC_Trigger.ACCEPT, source, PEC.SIGNATORY)
@@ -110,7 +110,7 @@ _transitions: list[dict] = [
     ),
     # DECLINE transitions (ADR-0048: symmetric with ACCEPT from UNBOUND;
     # ADR-0093: SIGNATORY → DECLINED is consent withdrawal, not a lapse;
-    # ADR-0117: a late explicit Reject records DECLINED over EXPIRED)
+    # ADR-0118: a late explicit Reject records DECLINED over EXPIRED)
     *(
         _pec(PEC_Trigger.DECLINE, source, PEC.DECLINED)
         for source in (
@@ -124,10 +124,10 @@ _transitions: list[dict] = [
     # REVISE: an active signatory lapses when the owner activates longer terms
     _pec(PEC_Trigger.REVISE, PEC.SIGNATORY, PEC.LAPSED),
     # EXPIRE: the RSVP deadline passed with no answer — not a refusal
-    # (ADR-0117, CM-28-014).  DECLINE is never the timer path.
+    # (ADR-0118, CM-28-014).  DECLINE is never the timer path.
     _pec(PEC_Trigger.EXPIRE, PEC.INVITED, PEC.EXPIRED),
     # EXIT: the embargo terminated (EM EXITED) — every non-terminal state
-    # moves to the terminal UNBOUND_EXITED, and nothing leaves it (ADR-0117)
+    # moves to the terminal UNBOUND_EXITED, and nothing leaves it (ADR-0118)
     *(
         _pec(PEC_Trigger.EXIT, source, PEC.UNBOUND_EXITED)
         for source in PEC

@@ -55,7 +55,7 @@ def _seed_participant_as_signatory(
     authoritative consent-write path (CM-18-005, ADR-0048) where CM-18-003
     allows it — so a retry against a ``SIGNATORY`` changes nothing, and a
     ``DECLINED`` or terminal ``UNBOUND_EXITED`` participant is neither
-    signed nor given the id (ADR-0117).
+    signed nor given the id (ADR-0118).
     """
     # `active_embargo_id`, not the field: it may hold the whole EmbargoEvent
     # when a received case carried one (AKM-03-001), and this list holds ids.

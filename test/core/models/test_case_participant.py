@@ -379,7 +379,7 @@ class TestApplyPecTransition:
         """embargo_adherence reads SIGNATORY alone; UNBOUND_EXITED is False.
 
         A participant whose embargo was terminated sits at the terminal
-        UNBOUND_EXITED (ADR-0117) and is bound by nothing, exactly like
+        UNBOUND_EXITED (ADR-0118) and is bound by nothing, exactly like
         EXPIRED, LAPSED and DECLINED.
         """
         p = _make(embargo_consent_state=state)
@@ -517,7 +517,7 @@ class TestAcceptsPecTrigger:
 
 
 # ---------------------------------------------------------------------------
-# sign_embargo (CM-14-005, CM-10-001, ADR-0117)
+# sign_embargo (CM-14-005, CM-10-001, ADR-0118)
 # ---------------------------------------------------------------------------
 
 _EMBARGO = "https://example.org/embargoes/em-001"

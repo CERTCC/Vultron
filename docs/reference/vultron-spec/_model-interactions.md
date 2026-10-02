@@ -76,7 +76,7 @@ A change that is only proposed does not.
   In either case a participant in any other state that has already accepted the revised terms MUST move to `SIGNATORY`; only signatories to the replaced terms are carried over.
 - **EM returns to `Active` because the owner rejected the revision.** No consent changes; the prior terms stand.
 - **EM enters `Exited`.** The CASE_MANAGER MUST move every participant's PEC machine to the terminal `UNBOUND_EXITED`.
-  No embargo is in scope, so no consent is either, and a terminated embargo cannot be re-invited (ADR-0117).
+  No embargo is in scope, so no consent is either, and a terminated embargo cannot be re-invited (ADR-0118).
 - **After a teardown.** The CASE_MANAGER SHOULD commit and send a fresh
   `Announce(CaseLedgerEntry)` so every participant learns that the embargo
   ended.

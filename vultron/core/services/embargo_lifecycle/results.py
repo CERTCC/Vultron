@@ -71,7 +71,7 @@ class EmbargoLifecycleResult(BaseModel):
             (e.g. an embargo was activated or cleared).
         pec_exited: True if every participant's PEC was exited to the
             terminal ``UNBOUND_EXITED`` by the ``EXIT`` trigger (embargo
-            termination, ADR-0117).
+            termination, ADR-0118).
         participant_changes: Per-participant PEC *state* changes that occurred
             during the operation (e.g. signatories lapsed when the owner
             activated longer terms they had not accepted, EP-05-001).  A write

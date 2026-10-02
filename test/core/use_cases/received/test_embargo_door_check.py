@@ -12,7 +12,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Every received embargo use case refuses an unaddressed copy (HP-01-005).
 
-The door check (``unaddressed_copy_refusal``, ADR-0117, #4132) runs before
+The door check (``unaddressed_copy_refusal``, ADR-0118, #4132) runs before
 any tree: a receiver that neither sent the activity nor is named in its
 ``to``/``cc`` refuses it with a reason naming itself and the recipients the
 sender chose, and writes nothing to its store or its outbox.

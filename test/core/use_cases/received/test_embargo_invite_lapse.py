@@ -10,7 +10,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Tests for CaseActor lazy invite expiry (#2212, ADR-0117) and late-Accept
+"""Tests for CaseActor lazy invite expiry (#2212, ADR-0118) and late-Accept
 compatibility (#2213)."""
 
 import logging
@@ -828,7 +828,7 @@ class TestInviteeIsTheAddressee:
         """A misrouted copy in a third store is refused before any tree runs.
 
         The third participant is neither the sender nor named in ``to`` or
-        ``cc``, so the door check refuses it (ADR-0117, #4132): no tree
+        ``cc``, so the door check refuses it (ADR-0118, #4132): no tree
         runs, so ``CanAnswerEmbargoInviteNode`` never warns "is not the
         invitee", nothing is written and no ER is sent — EMB-01-002's ER
         duty binds only the addressee.  The reason names the receiver and
@@ -1544,7 +1544,7 @@ class TestLateAcceptHandling:
     ):
         """An EXPIRED participant accepts directly; a DECLINED one is re-invited.
 
-        ``ACCEPT`` is legal from ``EXPIRED`` (ADR-0117) and not from
+        ``ACCEPT`` is legal from ``EXPIRED`` (ADR-0118) and not from
         ``DECLINED`` (CM-18-003), so only the declined participant has an
         ``INVITE`` recorded before its honoured late Accept.
         """
@@ -1670,7 +1670,7 @@ class TestLateAcceptHandling:
         """Late Accept after EM EXITED → ack no-op, actor stays in case (AC-4 #2213).
 
         Termination moved every record to the terminal UNBOUND_EXITED
-        (ADR-0117); the late Accept changes no consent state.
+        (ADR-0118); the late Accept changes no consent state.
         """
         dl = _make_dl(actor_id=_COORD)
         case_id = "https://example.org/cases/ea3"
@@ -1709,7 +1709,7 @@ class TestLateAcceptHandling:
         assert isinstance(fresh_case, CoreCase)
         assert _INVITEE in fresh_case.actor_participant_index
 
-        # PEC is unchanged: UNBOUND_EXITED is terminal (ADR-0117)
+        # PEC is unchanged: UNBOUND_EXITED is terminal (ADR-0118)
         p_id = fresh_case.actor_participant_index[_INVITEE]
         participant = dl.read(p_id)
         assert isinstance(participant, CaseParticipant)
@@ -1724,7 +1724,7 @@ class TestLateAcceptHandling:
 
         Nothing is in force, so the late Accept has nothing to sign: the
         overdue invitee is recorded as EXPIRED, with one expiry ledger entry,
-        and stays EXPIRED so a later embargo may re-invite it (ADR-0117).
+        and stays EXPIRED so a later embargo may re-invite it (ADR-0118).
         """
         dl = _make_dl(actor_id=_COORD)
         case_id = "https://example.org/cases/ea-none"
@@ -1961,7 +1961,7 @@ class TestLateAcceptHandling:
         ).execute()
 
         # A CaseLedgerEntry with the expiry event type must exist
-        # (CM-28-005, CM-28-009, ADR-0117).
+        # (CM-28-005, CM-28-009, ADR-0118).
         ledger_entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")

@@ -383,7 +383,7 @@ CASE_MANAGER"). The manager's commit is also the acknowledgement the
 behavioural specs call EK (EP-09-009).
 Only the CASE_MANAGER evaluates invite expiry; it commits the expiry entry
 behind the role gate, and a replica learns an expiry from that entry and never
-computes one (CM-28-014, ADR-0117).
+computes one (CM-28-014, ADR-0118).
 
 The rule this pins down, because it kept getting mixed up: **an
 `Announce(CaseLedgerEntry)` is a channel for case state, not a protocol

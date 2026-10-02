@@ -2,7 +2,9 @@
 
 from typing import cast
 
+import py_trees
 import pytest
+from py_trees.common import Status
 
 from test.support.ledger import committed_event_types
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -11,7 +13,11 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_EVENT_TYPE
+from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
+from vultron.core.behaviors.embargo.nodes import (
+    EMBARGO_TEARDOWN_EVENT_TYPE,
+    ask_case_manager_to_terminate_once,
+)
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.em import EM
@@ -229,6 +235,73 @@ def test_non_manager_terminate_asks_the_case_manager(
         activity_type="Remove",
         event_type=EMBARGO_TEARDOWN_EVENT_TYPE,
     )
+
+
+def _run_cascade_ask(
+    dl: SqliteDataLayer,
+    actor_id: str,
+    case: VulnerabilityCase,
+    manager_id: str,
+) -> BTExecutionResult:
+    """Run the received P/X/A cascade's ask, as ThreatTerminationBranchNode
+    does for a non-manager receiver."""
+    py_trees.blackboard.Blackboard.storage["/embargo_id"] = case.active_embargo
+    py_trees.blackboard.Blackboard.storage["/case_manager_id"] = manager_id
+    return BTBridge(
+        datalayer=dl,
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute_with_setup(
+        tree=ask_case_manager_to_terminate_once(case.id_), actor_id=actor_id
+    )
+
+
+def _terminate(dl: SqliteDataLayer, actor_id: str, case_id: str):
+    return SvcTerminateEmbargoUseCase(
+        dl,
+        TerminateEmbargoTriggerRequest(actor_id=actor_id, case_id=case_id),
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute()
+
+
+@pytest.mark.spec("SYNC-11-002")
+def test_a_trigger_ask_suppresses_the_cascades_repeat(
+    finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """The trigger and the cascade key one store alike (#4147)."""
+    finder, finder_dl = finder_actor_and_dl
+    owner = _persist_actor(finder_dl, "Vendor Co")
+    case, _, _ = _build_active_embargo_case(finder_dl, owner.id_, finder.id_)
+    _terminate(finder_dl, finder.id_, case.id_)
+    queued = finder_dl.outbox_list()
+    assert len(queued) == 1
+
+    result = _run_cascade_ask(finder_dl, finder.id_, case, owner.id_)
+
+    # SUCCESS with nothing new queued is the suppression arm: the send arm
+    # either queues an ask or fails the tree (BT-14-001).
+    assert result.status == Status.SUCCESS
+    assert not result.internal_error
+    assert finder_dl.outbox_list() == queued
+
+
+@pytest.mark.spec("SYNC-11-002")
+def test_a_cascade_ask_suppresses_the_triggers_repeat(
+    finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    finder, finder_dl = finder_actor_and_dl
+    owner = _persist_actor(finder_dl, "Vendor Co")
+    case, _, _ = _build_active_embargo_case(finder_dl, owner.id_, finder.id_)
+    first = _run_cascade_ask(finder_dl, finder.id_, case, owner.id_)
+    assert first.status == Status.SUCCESS
+    queued = finder_dl.outbox_list()
+    assert len(queued) == 1
+
+    result = _terminate(finder_dl, finder.id_, case.id_)
+
+    assert result.activity is None
+    assert finder_dl.outbox_list() == queued
 
 
 def test_terminate_embargo_unknown_actor_raises_not_found(

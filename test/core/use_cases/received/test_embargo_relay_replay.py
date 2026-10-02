@@ -576,7 +576,7 @@ def test_a_participant_answers_a_peers_invite_with_pxa_set_to_the_case_manager()
 def test_an_invite_with_pxa_set_addressed_to_another_actor_gets_no_er(caplog):
     """An unaddressed copy is refused at the door, and not answered.
 
-    EMB-01-002's ER duty binds only the addressee (ADR-0117, #4132): a
+    EMB-01-002's ER duty binds only the addressee (ADR-0118, #4132): a
     store named in neither ``to`` nor ``cc`` runs no tree, so P/X/A is
     never consulted and no ER is built.
     """
@@ -872,7 +872,7 @@ def test_termination_exits_every_participant_in_every_store():
     """Every record reads UNBOUND_EXITED on the manager and on a replica.
 
     Termination ends the embargo for everyone, the owner included, so no
-    record is left able to sign it (ADR-0117).  UNBOUND_EXITED is terminal:
+    record is left able to sign it (ADR-0118).  UNBOUND_EXITED is terminal:
     every record, in both stores, refuses a later ``INVITE`` trigger.
     """
     from vultron.core.states.participant_embargo_consent import PEC_Trigger

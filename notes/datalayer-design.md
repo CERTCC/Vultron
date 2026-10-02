@@ -11,6 +11,7 @@ related_specs:
   - specs/datalayer.yaml
   - specs/architecture.yaml (ARCH-12-006, ARCH-23-003, ARCH-23-005)
   - specs/embargo-policy.yaml (EP-02-004)
+  - specs/case-proposal.yaml (CP-05-005)
 related_notes:
   - notes/domain-model-separation.md
   - notes/architecture-hexagonal.md
@@ -19,6 +20,8 @@ related_notes:
   - notes/testing-pitfalls.md
   - notes/flaky-tests.md
   - notes/vocabulary-registry.md
+  - notes/case-bootstrap-trust.md
+  - notes/case-proposal.md
 relevant_packages:
   - vultron/core/ports
   - vultron/adapters/driven
@@ -561,3 +564,27 @@ writer stored, so the protection holds in both directions only while
 (`POST /actors/` uses `create()`, which refuses an existing record); a new
 profile writer MUST use `save_if_unchanged` too, or it reopens the window
 that issue #4102 closed, this time in the other direction.
+
+---
+
+## Renaming a Stored Field
+
+Stored data carries no backwards compatibility. A renamed persisted field gets
+no read alias (`AliasChoices`) and no conversion: the model declares the old key
+in `retired_stored_fields` via `RetiredFieldsRecord`
+(`vultron/core/models/retired_stored_fields.py`), and a row that still carries
+it, in either the field-name or camelCase spelling, fails to load with a
+message naming the old shape and saying the store must be reset (#4128). Every
+retired key the row carries is reported, not only the first (EH-07-001), and a
+retirement table whose replacement the model does not declare, or whose old key
+it still declares, fails at class definition.
+
+The declaration is what makes the refusal legible. `CoreRecord` ignores unknown
+keys, so an undeclared rename reads an old row back either with the new field
+silently `None` (when it is optional) or as a bare "field required" for a name
+the operator never wrote. The SQLite read path logs the validation reason at
+WARNING when it reads such a row as absent, for core-registered and
+bookkeeping row types alike, so `dl.read()` returning `None` always has a
+logged cause. Because no row survives the rename, every PR that renames a
+stored field carries an operator note saying a file-backed store must be reset
+(`docker compose down -v`); an in-memory store is unaffected.

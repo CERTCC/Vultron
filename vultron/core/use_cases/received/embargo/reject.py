@@ -60,7 +60,7 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
     def execute(self) -> HandlerResult:
         request = self._request
         # Door check before any tree or write: an unaddressed copy is
-        # refused (HP-01-005, ADR-0117).
+        # refused (HP-01-005, ADR-0118).
         receiving_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
         )

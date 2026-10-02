@@ -90,7 +90,7 @@ def test_cascade_pec_exit_skips_unbound_exited_and_exits_the_rest(
 ) -> None:
     """EXIT cascade moves every non-terminal record to UNBOUND_EXITED.
 
-    An UNBOUND record exits too (ADR-0117): termination ends the embargo
+    An UNBOUND record exits too (ADR-0118): termination ends the embargo
     for everyone, so no record is left able to sign it. A record already
     at the terminal UNBOUND_EXITED is skipped and reported as no change.
     """
@@ -254,7 +254,7 @@ def test_record_actor_pec_rejection_keeps_unbound_exited(
     """A Reject after termination changes no state: UNBOUND_EXITED is terminal.
 
     The stale id is still dropped from the list, so the record carries no
-    acceptance of terms it can no longer be bound by (ADR-0117).
+    acceptance of terms it can no longer be bound by (ADR-0118).
     """
     owner, dl = owner_and_dl
     case, (owner_p,) = _make_case(dl, owner.id_)

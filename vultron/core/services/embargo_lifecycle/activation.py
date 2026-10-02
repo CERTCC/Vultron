@@ -57,7 +57,7 @@ class _ActivationOperationsMixin(_PecActivationMixin):
         proposal a revision of it, and a revision of an embargo that no
         longer exists cannot be accepted), and exits all participants' PEC
         state to the terminal ``UNBOUND_EXITED`` via :meth:`_cascade_pec_exit`
-        (ADR-0117).  The teardown
+        (ADR-0118).  The teardown
         replay node runs this in ``OBSERVED`` mode, so the rule holds on
         every replica.
 

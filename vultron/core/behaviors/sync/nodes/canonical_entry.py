@@ -84,7 +84,7 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("Offer", "CaseParticipant"),
     ("Add", "CaseParticipant"),
     # CASE_MANAGER-authored synthetic invite-expiry event (CM-28-009,
-    # ADR-0117).  Distinct from ("Reject", "Invite"), an explicit refusal.
+    # ADR-0118).  Distinct from ("Reject", "Invite"), an explicit refusal.
     (INVITE_EXPIRED_SNAPSHOT_TYPE, "Invite"),
 )
 # Signatures the CaseActor itself is authorized to author (CLP-07-003).  Per
@@ -107,7 +107,7 @@ _CASE_AUTHORED_SIGNATURES: frozenset[tuple[str, str]] = frozenset(
         ("Reject", "Offer"),
         ("Add", "CaseParticipant"),
         # CASE_MANAGER-authored synthetic invite-expiry event (CM-28-009,
-        # ADR-0117)
+        # ADR-0118)
         (INVITE_EXPIRED_SNAPSHOT_TYPE, "Invite"),
         # native case-initialization entries (ADR-0041, CM-22-003)
         ("Create", "VulnerabilityCase"),

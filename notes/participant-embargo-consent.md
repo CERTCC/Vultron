@@ -38,10 +38,10 @@ transitions), `ParticipantStatus.consent` (persistence)
 **Source**: `archived_notes/demo-review-26042001.md` + architectural review
 2026-04-20; transition table revised by ADR-0048 (Issue #1714); lapse timing
 revised by ADR-0093 (Concern #3884); `EXPIRED` and `UNBOUND_EXITED` added by
-ADR-0117 (Issue #4153)
+ADR-0118 (Issue #4153)
 **See also**: `specs/case-management.yaml` CM-18 (authoritative), CM-03-008,
 CM-04-003; `docs/adr/0048-pec-no-embargo-is-absence-not-pre-consent.md`;
-`docs/adr/0117-pec-expired-and-unbound-exited-states.md`; `notes/stub-objects.md`
+`docs/adr/0118-pec-expired-and-unbound-exited-states.md`; `notes/stub-objects.md`
 
 ---
 
@@ -74,7 +74,7 @@ pocket vetoes).
 
 `PEC_TERMINAL_STATES` is exactly `{UNBOUND_EXITED}`. The terminal state mirrors
 EM: `EXITED` has no outgoing transition, so a participant whose embargo was
-terminated can never be invited back into it (ADR-0117).
+terminated can never be invited back into it (ADR-0118).
 
 `embargo_adherence: bool` is a **derived property**: `True` iff the
 participant's consent state is `SIGNATORY`; `False` for all other states. It is
@@ -115,7 +115,7 @@ states when an embargo is active: sending it records the new participant at
 stub Invite changes no participant state (CM-11-014). See
 [case-joining.md](case-joining.md).
 
-Normative: `specs/case-management.yaml` CM-18-003. Decisions: ADR-0048, ADR-0117.
+Normative: `specs/case-management.yaml` CM-18-003. Decisions: ADR-0048, ADR-0118.
 MSM coupling: `specs/message-semantics-mapping.yaml` MSM-07.
 
 ---
@@ -242,7 +242,7 @@ the signal is already in the EM wire activities.
 
 ### A Participant Refuses a P/X/A Revision with ER, Never ET
 
-*Spec: EMB-03-003, EMB-01-002, HP-01-005. Decision: ADR-0117.*
+*Spec: EMB-03-003, EMB-01-002, HP-01-005. Decision: ADR-0118.*
 
 A participant that is neither the case owner nor the CASE_MANAGER and receives a
 revision Invite while P/X/A is set answers it with ER to the CASE_MANAGER. It
@@ -277,7 +277,7 @@ canonical ledger that never occurred (contra ADR-0019).
 `UNBOUND` is the initial state and is correct for a participant in a case with
 `EM.NONE`. It is no longer where a terminated embargo leaves anyone: `UNBOUND`
 is re-invitable and `EM.EXITED` is not, so termination moves every record to the
-terminal `UNBOUND_EXITED` instead (ADR-0117).
+terminal `UNBOUND_EXITED` instead (ADR-0118).
 
 **What this costs:** the machine no longer enforces "consent implies a prior
 invitation". That invariant was never true of self-determined embargoes, so the
@@ -372,7 +372,7 @@ found; the content gate `is_active_participant` reads the *scalar*):
 
 ## Pocket Veto (Timer-Based Transitions)
 
-*Spec: CM-18-002, CM-28. Decisions: ADR-0065, ADR-0117.*
+*Spec: CM-18-002, CM-28. Decisions: ADR-0065, ADR-0118.*
 
 The `INVITED → EXPIRED` transition (`EXPIRE` trigger) is timer-based.
 A configurable **embargo invitation timeout** policy window bounds how long an
@@ -518,7 +518,7 @@ embargoes when CS is P/X/A; EMB-17-004 closes the remaining gap where EM has
 ### Why `EXPIRED` Is a State, Not Provenance
 
 ADR-0065 first recorded an expired invite as `DECLINED` and kept the
-difference in the ledger only. ADR-0117 reversed that: code, logs, demos and
+difference in the ledger only. ADR-0118 reversed that: code, logs, demos and
 every replica read the scalar state, not ledger provenance, so a silent invitee
 was reported as having refused. `EXPIRED` behaves like `DECLINED` where the two
 should agree — both are re-invitable and both are excluded from embargoed

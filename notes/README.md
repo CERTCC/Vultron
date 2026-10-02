@@ -628,7 +628,7 @@ relationship to AppendOnlyLedger/LedgerFanout implementation phases.
 **`participant-embargo-consent.md`**
 Design decisions for per-participant embargo acceptance tracking: a 7-state
 consent machine (`UNBOUND`, `INVITED`, `SIGNATORY`, `LAPSED`, `DECLINED`,
-`EXPIRED`, terminal `UNBOUND_EXITED`; ADR-0117),
+`EXPIRED`, terminal `UNBOUND_EXITED`; ADR-0118),
 embargo meta-protocol delivery to `DECLINED`/`LAPSED` participants, and the
 `Accept(Invite(case))` → implicit consent rule. Records why `UNBOUND` means
 *not bound by any embargo terms* rather than pre-consent (ADR-0048, ADR-0091),
