@@ -38,13 +38,11 @@ def publish_embargo_policy(
     """Publish *actor*'s embargo policy — its actor default — on *client*.
 
     ``PUT /actors/{slug}/embargo-policy`` (EP-02) writes the policy into the
-    actor's own store.  The actor default is the CASE_OWNER's own profile
-    policy (EP-04-003, CP-01-010), but the case-creation tree still reads it
-    through ``owner_embargo_policies`` on ``case.attributed_to`` (EP-04-010),
-    which the case-actor path sets to the CaseActor until #4026; so the
-    ``report-with-embargo`` demo passes its CaseActor here as a workaround
-    until #4027 carries the CASE_OWNER's profile to creation.  The actor must
-    be hosted by the container *client* addresses.
+    actor's own profile record, in its own store (EP-01-001, EP-01-004).  The
+    actor sends that profile inline on every ``Create(CaseProposal)`` it
+    makes, which is where the CASE_MANAGER reads the CASE_OWNER's actor
+    default from (EP-04-003, CP-01-010).  The actor must be hosted by the
+    container *client* addresses.
 
     Args:
         client: Client connected to the container hosting *actor*.

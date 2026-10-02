@@ -260,8 +260,17 @@ class TriggerActivityPort(Protocol):
         (CP-01-007).  The CaseActor cannot recover them on its own; see
         ``as_CaseProposal.offer_id`` for why they have to travel on the wire.
 
+        The Create's ``actor`` is ``actor``'s own full profile, read from this
+        DataLayer with its ``embargo_policy``: the CASE_MANAGER reads the
+        CASE_OWNER's actor default from that inline profile and nowhere else
+        (CP-01-010).
+
         Per ``specs/case-proposal.yaml`` CP-04-001, CP-04-002.
         Returns ``(activity_id, activity_dict)``.
+
+        Raises:
+            ValueError: when the report, or ``actor``'s own profile, is not
+                in this DataLayer.
         """
         ...
 

@@ -155,7 +155,6 @@ from vultron.core.behaviors.case.nodes.proposal_case_resolution import (
 )
 from vultron.core.behaviors.case.nodes.proposal_consent import (
     SeedReporterSignatoryNode,
-    SeedVendorOwnerSignatoryNode,
 )
 from vultron.core.behaviors.case.nodes.proposal_emits import (
     EmitAcceptCaseProposalNode,
@@ -294,8 +293,7 @@ __all__ = [
     "AddVendorOwnerParticipantNode",
     # proposal_reporter (leaf node)
     "AddReporterParticipantNode",
-    # proposal_consent (leaf nodes)
-    "SeedVendorOwnerSignatoryNode",
+    # proposal_consent (leaf node)
     "SeedReporterSignatoryNode",
     # proposal_ledger (leaf node)
     "CommitNativeLedgerEntriesNode",

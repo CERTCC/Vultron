@@ -47,17 +47,10 @@ Three runs:
 
 Whose default is "the Receiver's".  The actor default is the policy on the
 CASE_OWNER's own actor profile — the Receiver, the actor that received the
-report (EP-04-003, CP-09-001, CP-01-010; planned in #3979).  The prototype
-does not read it from there yet: the case-actor path still attributes the
-case to the CaseActor that created it, and ``ResolveEmbargoDurationNode``
-reads ``owner_embargo_policies`` on ``case.attributed_to`` (EP-04-010), so a
-policy the Receiver publishes on itself never reaches the comparison.  Step 1
-therefore publishes the Receiver's default on the CaseActor its node hosts.
-**That step is a workaround**, not the design: #4026 attributes the case to
-the CASE_OWNER and #4027 carries the CASE_OWNER's profile, policy included,
-inline on ``Create(CaseProposal)``.  Once #4027 lands, publish on the
-Receiver (``vendor``) instead of ``case_actor`` and drop the aside from the
-Step 1 narration; nothing else in this demo depends on where the policy sits.
+report (EP-04-003, CP-09-001).  Step 1 publishes it on the Receiver, which
+writes it into the Receiver's profile (EP-01-001); the Receiver then sends
+that profile inline as the ``actor`` of its ``Create(CaseProposal)``, and the
+CASE_MANAGER reads the default from there and nowhere else (CP-01-010).
 
 Puppeteering.  The Reporter is driven through its ``submit-report`` trigger
 (``proposed_embargo_end_time``), the Receiver through the embargo-policy
@@ -120,11 +113,11 @@ def _provision_receivers_case_actor(client: DataLayerClient) -> as_Actor:
     """Host the CaseActor that will create cases for the Receiver's reports.
 
     A CaseActor is a role the container wears, one per node rather than one
-    per report (#1872), so its id is known before any report exists — which is
-    what lets the Receiver publish a policy on it *before* the Reporter
-    submits; the helper's ``report_id`` only names the actor.  ``POST
-    /actors/`` is idempotent, so the later provisioning inside
-    :func:`reporter_submits_report` returns this same actor.
+    per report (#1872), so its id is known before any report exists and the
+    run can read the case from its store once it is created; the helper's
+    ``report_id`` only names the actor.  ``POST /actors/`` is idempotent, so
+    the later provisioning inside :func:`reporter_submits_report` returns
+    this same actor.
     """
     return seed_case_actor_for_report(client, report_id="(pending)")
 
@@ -164,22 +157,10 @@ def _run_negotiated_submission(
     else:
         with demo_step(
             f"Step 1: Receiver publishes a {receiver_default_days}-day"
-            " embargo policy (actor default) — on its CaseActor, a workaround"
-            " until #4026/#4027 read it from the Receiver's own profile"
+            " embargo policy (actor default) on its own profile"
         ):
-            # WORKAROUND(#4026, #4027): the actor default belongs on the
-            # Receiver's own profile (EP-04-003, CP-01-010), but creation still
-            # reads it from ``case.attributed_to``, which names the CaseActor.
-            # When #4027 lands, pass ``vendor`` here and drop the aside above.
-            logger.info(
-                "Receiver %s publishes its default on CaseActor %s: a"
-                " workaround until #4026/#4027 read the CASE_OWNER's own"
-                " profile policy",
-                vendor.id_,
-                case_actor.id_,
-            )
             publish_embargo_policy(
-                client, case_actor, timedelta(days=receiver_default_days)
+                client, vendor, timedelta(days=receiver_default_days)
             )
 
     proposed_end = from_now_utc(timedelta(days=reporter_days))

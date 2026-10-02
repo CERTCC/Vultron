@@ -14,11 +14,15 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 
-"""Embargo-consent seeding leaf nodes for the CaseProposal received tree.
+"""Embargo-consent seeding leaf node for the CaseProposal received tree.
 
-Seed the vendor (CASE_OWNER, CM-13) and the reporter (CM-14-005) as embargo
-SIGNATORY on the case's default active embargo. Composed by
-``create_case_proposal_received_tree`` (BTND-07-003).
+Seeds the reporter (CM-14-005) as embargo SIGNATORY on the case's default
+active embargo. Composed by ``create_case_proposal_received_tree``
+(BTND-07-003).
+
+The CASE_OWNER has no node here: the case is attributed to it (CP-09-001), so
+``SeedOwnerAsSignatoryNode`` inside ``InitializeDefaultEmbargoNode`` seeds it,
+and that is the one owner-seeding path (CM-14-003).
 """
 
 import logging
@@ -45,8 +49,7 @@ def _seed_participant_as_signatory(
 ) -> None:
     """Seed *participant* as embargo SIGNATORY on *stored_case*'s active embargo.
 
-    Shared by ``SeedVendorOwnerSignatoryNode`` (CM-13) and
-    ``SeedReporterSignatoryNode`` (CM-14-005). Uses
+    Used by ``SeedReporterSignatoryNode`` (CM-14-005). Uses
     ``apply_pec_transition(PEC_Trigger.ACCEPT)`` — the authoritative
     consent-write path (CM-18-005, ADR-0048) — to update both the PEC state
     machine and ``ParticipantStatus.consent`` atomically. The idempotency
@@ -66,133 +69,6 @@ def _seed_participant_as_signatory(
         stored_case.id_,
         spec_ref,
     )
-
-
-class SeedVendorOwnerSignatoryNode(DataLayerActionWithPorts):
-    """Seed the vendor (CASE_OWNER) participant as embargo SIGNATORY (CM-13).
-
-    ``InitializeDefaultEmbargoNode`` ends in ``SeedOwnerAsSignatoryNode``,
-    which seeds the participant found at
-    ``actor_participant_index.get(self.actor_id)`` — i.e. the *acting* actor.
-    In the original vendor tree the acting actor was the case owner, so that
-    worked.  Here the acting actor is the **CaseActor**, which is NOT a
-    participant in this case, so ``SeedOwnerAsSignatoryNode`` silently
-    no-ops and no participant becomes a signatory.
-
-    Per CM-13 / ``notes/embargo-default-semantics.md`` (BUG-26042204), when a
-    case is created with an ACTIVE default embargo the case owner MUST be
-    seeded as ``SIGNATORY`` — it makes no sense for the owner to be locked out
-    of their own embargo.  This node seeds the vendor participant explicitly by
-    ``vendor_uri`` (not by ``actor_id``), closing the gap left by the reused
-    node.
-
-    Best-effort: if the case or vendor participant cannot be resolved, logs a
-    warning and returns SUCCESS so the enclosing Sequence is not blocked (the
-    embargo itself is already ACTIVE; a missing consent seed is a warning, not
-    a hard stop).
-
-    Reads ``case_id`` from the blackboard.
-    """
-
-    def __init__(
-        self,
-        vendor_uri: str,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self._vendor_uri = vendor_uri
-
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **DataLayerActionWithPorts.INPUT_PORTS,
-        "case_id": PortInformation(data_type=str, required=False),
-    }
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"case_id": "/case_id"}
-
-    def initialise(self) -> None:
-        super().initialise()
-        self._case_id_bb = None
-        try:
-            self._case_id_bb = self.get_input("case_id")
-        except (NoDataAvailable, NotImplementedError):
-            pass
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-
-        case_id = self._case_id_bb
-        if not isinstance(case_id, str):
-            self.feedback_message = "case_id not found in blackboard"
-            return Status.FAILURE
-
-        # Regime 2 / best-effort seed (ADR-0087): seeding the vendor SIGNATORY
-        # marker is optional enrichment on the receiving side; an absent or
-        # still-forming case is skipped as SUCCESS rather than failing the
-        # proposal-processing tree (conformance allowlist).
-        stored_case = self.datalayer.read_case(case_id, raise_on_missing=False)
-        if stored_case is None:
-            logger.warning(
-                "%s: case '%s' not found — cannot seed vendor SIGNATORY"
-                " (best-effort)",
-                self.name,
-                case_id,
-            )
-            return Status.SUCCESS
-
-        if stored_case.active_embargo is None:
-            logger.debug(
-                "%s: no active embargo on case '%s' — nothing to seed",
-                self.name,
-                case_id,
-            )
-            return Status.SUCCESS
-
-        participant_id = stored_case.actor_participant_index.get(
-            self._vendor_uri
-        )
-        if not participant_id:
-            logger.warning(
-                "%s: vendor '%s' has no participant in case '%s' —"
-                " cannot seed SIGNATORY (best-effort)",
-                self.name,
-                self._vendor_uri,
-                case_id,
-            )
-            return Status.SUCCESS
-
-        participant = self.datalayer.read(
-            participant_id, raise_on_missing=False
-        )
-        if not isinstance(participant, CaseParticipant):
-            logger.warning(
-                "%s: vendor participant '%s' not found in case '%s' —"
-                " cannot seed SIGNATORY (best-effort)",
-                self.name,
-                participant_id,
-                case_id,
-            )
-            return Status.SUCCESS
-
-        self._seed_signatory(stored_case, participant)
-        return Status.SUCCESS
-
-    def _seed_signatory(
-        self,
-        stored_case: VulnerabilityCase,
-        participant: CaseParticipant,
-    ) -> None:
-        assert self.datalayer is not None
-        _seed_participant_as_signatory(
-            self.datalayer,
-            stored_case,
-            participant,
-            log_label=f"vendor '{self._vendor_uri}'",
-            spec_ref="CM-13",
-        )
 
 
 class SeedReporterSignatoryNode(DataLayerActionWithPorts):

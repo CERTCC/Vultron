@@ -19,6 +19,8 @@ as_VultronActorMixin (EP-01-001).
 import unittest
 from datetime import timedelta
 
+from pydantic import ValidationError
+
 from vultron.core.models.actor import (
     CoreActor,
     VultronApplication as CoreVultronApplication,
@@ -43,10 +45,11 @@ ACTOR_ID = "https://example.org/actors/vendor"
 INBOX = "https://example.org/actors/vendor/inbox"
 
 
-def _make_policy() -> as_EmbargoPolicy:
+def _make_policy(actor_id: str = ACTOR_ID) -> as_EmbargoPolicy:
+    """A policy for *actor_id* — the profile that carries it (EP-01-001)."""
     return as_EmbargoPolicy(
-        actor_id=ACTOR_ID,
-        inbox=INBOX,
+        actor_id=actor_id,
+        inbox=f"{actor_id}/inbox",
         preferred_duration=timedelta(days=90),
         minimum_duration=timedelta(days=45),
         maximum_duration=timedelta(days=180),
@@ -68,7 +71,7 @@ class TestVultronPersonBasics(unittest.TestCase):
     def test_embargo_policy_inline_object(self):
         policy = _make_policy()
         p = as_VultronPerson(
-            id_="https://example.org/users/alice",
+            id_=ACTOR_ID,
             embargo_policy=policy,
         )
         assert isinstance(p.embargo_policy, as_EmbargoPolicy)
@@ -77,13 +80,27 @@ class TestVultronPersonBasics(unittest.TestCase):
             timedelta(days=90), p.embargo_policy.preferred_duration
         )
 
-    def test_embargo_policy_reference_string(self):
-        policy_id = "https://example.org/policies/alice-ep"
-        p = as_VultronPerson(
-            id_="https://example.org/users/alice",
-            embargo_policy=policy_id,
-        )
-        self.assertEqual(policy_id, p.embargo_policy)
+    def test_embargo_policy_reference_string_is_refused(self):
+        """The policy is carried inline as part of the profile, never as a
+        reference to fetch (EP-01-001, CP-01-010)."""
+        with self.assertRaises(ValidationError) as ctx:
+            as_VultronPerson.model_validate(
+                {
+                    "id": "https://example.org/users/alice",
+                    "embargoPolicy": "https://example.org/policies/alice-ep",
+                }
+            )
+        # The refusal names the legacy shape and the operator remedy.
+        self.assertIn("must be carried inline", str(ctx.exception))
+        self.assertIn("must be reset", str(ctx.exception))
+
+    def test_another_actors_policy_is_refused(self):
+        """A profile carries only its own policy (EP-01-001, CP-01-010)."""
+        with self.assertRaises(ValidationError):
+            as_VultronPerson(
+                id_="https://example.org/users/alice",
+                embargo_policy=_make_policy(),
+            )
 
     def test_is_instance_of_core_actor(self):
         p = as_VultronPerson()
@@ -101,7 +118,7 @@ class TestVultronPersonBasics(unittest.TestCase):
         policy = _make_policy()
         p = as_VultronPerson(
             name="Alice",
-            id_="https://example.org/users/alice",
+            id_=ACTOR_ID,
             embargo_policy=policy,
         )
         j = p.model_dump_json(by_alias=True, exclude_none=True)
@@ -125,7 +142,7 @@ class TestVultronOrganizationBasics(unittest.TestCase):
     def test_embargo_policy_inline_object(self):
         policy = _make_policy()
         org = as_VultronOrganization(
-            id_="https://example.org/orgs/vendor",
+            id_=ACTOR_ID,
             embargo_policy=policy,
         )
         assert isinstance(org.embargo_policy, as_EmbargoPolicy)
@@ -204,7 +221,7 @@ class TestWireActorVocabularyAndRoundTrip(unittest.TestCase):
             outbox="https://example.org/actors/alice/outbox",
             preferred_username="alice",
             endpoints={"sharedInbox": "https://example.org/inbox"},
-            embargo_policy={"policy": "default"},
+            embargo_policy=_make_policy("https://example.org/actors/alice"),
         )
 
         wire_actor = as_VultronPerson.model_validate(
@@ -263,7 +280,7 @@ class TestVultronActorAliasesAreCore(unittest.TestCase):
     def test_embargo_policy_preserved(self):
         policy = _make_policy()
         p = as_VultronPerson(
-            id_="https://example.org/actors/alice",
+            id_=ACTOR_ID,
             embargo_policy=policy,
         )
         self.assertIsNotNone(p.embargo_policy)

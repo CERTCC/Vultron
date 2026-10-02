@@ -215,10 +215,14 @@ proposal: this implementation requires the `actor` of `Create(as_CaseProposal)`
 to be the proposing actor's full profile inline, carrying its `embargoPolicy`
 when it has published one (CP-01-010). The protocol also permits a profile
 reference the CASE_MANAGER dereferences (CP-01-009); this prototype requires the
-inline form so case creation never fetches. A bare-URI `actor`, or a profile
-whose `id` is not the proposal's `attributed_to`, is to be refused at the parse
-edge. None of this is built yet: the sender still puts a bare actor URI on the
-`Create` (#4027).
+inline form so case creation never fetches. The sender adapter puts its own
+stored profile on the `Create`, and `refuse_malformed_case_proposal_envelope`
+(`vultron/wire/as2/case_proposal_envelope.py`) refuses at the parse edge a
+bare-URI `actor` and a profile whose `id` is not the proposal's
+`attributed_to`. `CoreActor`'s own validator refuses a profile carrying another
+actor's `embargoPolicy` (EP-01-001). The extractor hands the profile to core as
+`proposer_profile`; how the tree reads the default from it is in
+`notes/embargo-default-semantics.md`.
 
 All classes in `vultron/wire/as2/vocab/objects/` use the `as_` prefix
 (ARCH-14-001). The new type is `as_CaseProposal`; the bare name `CaseProposal`

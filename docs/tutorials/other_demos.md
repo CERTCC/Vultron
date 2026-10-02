@@ -263,8 +263,8 @@ vultron-demo report-with-embargo
 
 This demo exercises the negotiated embargo path, which no other demo reaches.
 The Reporter proposes embargo terms *with* the report: the Report Submission (RS), `Offer(VulnerabilityReport)`, carries a proposed `EmbargoEvent` as `proposedEmbargo`, sent through the `submit-report` trigger's `proposed_embargo_end_time`.
-The recipient's default is the `EmbargoPolicy` on its own actor profile, published through `PUT /actors/{actor_id}/embargo-policy` (EP-04-003, CP-01-010).
-Until the case is attributed to the recipient (#4026) and its profile travels inline on the case proposal (#4027), the demo publishes that default on the CaseActor that creates the recipient's cases as a workaround, which is the step the diagram shows.
+The recipient's default is the `EmbargoPolicy` on its own actor profile, published through `PUT /actors/{actor_id}/embargo-policy` (EP-04-003).
+The recipient sends that profile inline as the `actor` of its case proposal, and the CaseActor reads the default from there (CP-01-010).
 When the case is created, the shorter of the two becomes the active embargo and the longer is left pending as a revision, so the EM state is `REVISE`; when the recipient has published no default, the Reporter's terms apply at their stated length and the EM state is `ACTIVE`.
 No proposal exchange is visible on the wire: the comparison is settled at case creation.
 
@@ -277,9 +277,9 @@ sequenceDiagram
     participant V as Vendor
     participant CA as CaseActor
 
-    CA->>CA: Publish EmbargoPolicy (30 days)<br/>workaround until #4026/#4027
+    V->>V: Publish EmbargoPolicy (30 days)<br/>on its own profile
     R->>V: Report Submission (RS)<br/>Offer(VulnerabilityReport) + proposedEmbargo
-    V->>CA: Create(CaseProposal)<br/>carrying the Offer
+    V->>CA: Create(CaseProposal)<br/>carrying the Offer, actor = Vendor profile
     alt Reporter proposes 10 days
         Note over CA: Reporter's terms ACTIVE<br/>30-day default pending, EM = REVISE
     else Reporter proposes 60 days

@@ -26,6 +26,7 @@ from typing import Any, cast
 import pytest
 from py_trees.common import Status
 
+from test.conftest import seed_case_owner_participant
 from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.case.embargo_tree import (
@@ -35,6 +36,7 @@ from vultron.core.behaviors.case.nodes.embargo_resolution import (
     CaseNotEmbargoEligibleNode,
 )
 from vultron.core.models._helpers import _as_id
+from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.embargo_event import EmbargoEvent
@@ -57,19 +59,38 @@ PROTOCOL_DEFAULT = timedelta(hours=96)
 def case_obj(bt_scenario: BTTestScenario) -> VulnerabilityCase:
     bt_scenario.dl.create(CaseActor(id_=ACTOR_ID, name="Vendor Co"))
     case = VulnerabilityCase(id_=CASE_ID, name="Case", attributed_to=ACTOR_ID)
+    seed_case_owner_participant(bt_scenario.dl, case)
     bt_scenario.dl.create(case)
     return case
 
 
-def _publish_policy(
-    bt_scenario: BTTestScenario,
-    duration: timedelta,
-    policy_id: str,
-    actor_id: str = ACTOR_ID,
+def _profile(
+    duration: timedelta | None = None, actor_id: str = ACTOR_ID
+) -> VultronOrganization:
+    """An inline actor profile, with a published policy of *duration*.
+
+    The tree reads the CASE_OWNER's actor default only from the profile the
+    ``Create(CaseProposal)`` carried inline, handed to it as ``owner_profile``
+    (CP-01-010).
+    """
+    if duration is None:
+        return VultronOrganization(id_=actor_id)
+    return VultronOrganization(
+        id_=actor_id,
+        embargo_policy=EmbargoPolicy(
+            actor_id=actor_id,
+            inbox=f"{actor_id}/inbox",
+            preferred_duration=duration,
+        ),
+    )
+
+
+def _store_policy_record(
+    bt_scenario: BTTestScenario, duration: timedelta, actor_id: str
 ) -> None:
+    """A free-standing ``EmbargoPolicy`` record in the store — never read."""
     bt_scenario.dl.create(
         EmbargoPolicy(
-            id_=policy_id,
             actor_id=actor_id,
             inbox=f"{actor_id}/inbox",
             preferred_duration=duration,
@@ -87,10 +108,12 @@ def _run(
     bt_scenario: BTTestScenario,
     *,
     sender_proposal: timedelta | None = None,
+    owner_policy: timedelta | None = None,
     actor_config: ActorConfig | None = None,
     **context: Any,
 ) -> tuple[Status, datetime, datetime]:
     extra: dict[str, Any] = dict(context)
+    extra.setdefault("owner_profile", _profile(owner_policy))
     if sender_proposal is not None:
         extra["sender_proposed_embargo_duration"] = sender_proposal
     before = datetime.now(tz=UTC)
@@ -158,10 +181,10 @@ def test_only_the_case_owners_policy_is_the_actor_default(
 ) -> None:
     """A shorter policy published by another actor is not a candidate."""
     other = "https://example.org/actors/other"
-    _publish_policy(bt_scenario, ACTOR_DEFAULT, f"{ACTOR_ID}/policy")
-    _publish_policy(bt_scenario, timedelta(days=5), f"{other}/policy", other)
+    bt_scenario.dl.create(_profile(timedelta(days=5), other))
+    _store_policy_record(bt_scenario, timedelta(days=5), other)
 
-    _, before, after = _run(bt_scenario)
+    _, before, after = _run(bt_scenario, owner_policy=ACTOR_DEFAULT)
 
     _assert_duration(
         _active_embargo(bt_scenario), ACTOR_DEFAULT, before, after
@@ -169,11 +192,13 @@ def test_only_the_case_owners_policy_is_the_actor_default(
 
 
 @pytest.mark.spec("EP-04-010")
-def test_foreign_policy_alone_falls_back_to_protocol_default(
+@pytest.mark.spec("CP-01-010")
+def test_a_policy_record_in_the_store_is_not_the_actor_default(
     bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
 ) -> None:
-    other = "https://example.org/actors/other"
-    _publish_policy(bt_scenario, timedelta(days=5), f"{other}/policy", other)
+    """The store-wide scan is retired (#4027): a shorter ``EmbargoPolicy``
+    naming the owner, but not on the inline profile, is never a candidate."""
+    _store_policy_record(bt_scenario, timedelta(days=5), ACTOR_ID)
 
     _, before, after = _run(bt_scenario)
 
@@ -195,14 +220,13 @@ def test_initial_embargo_resolution_table(
     pxa_set: bool,
     expected: timedelta | None,
 ) -> None:
-    if has_actor_default:
-        _publish_policy(bt_scenario, ACTOR_DEFAULT, f"{ACTOR_ID}/policy")
     if pxa_set:
         _set_pxa(bt_scenario)
 
     status, before, after = _run(
         bt_scenario,
         sender_proposal=SENDER_PROPOSAL if has_sender else None,
+        owner_policy=ACTOR_DEFAULT if has_actor_default else None,
     )
 
     assert status == Status.SUCCESS
@@ -249,9 +273,7 @@ def test_protocol_default_does_not_compete_with_longer_actor_default(
     bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
 ) -> None:
     """A 30-day actor default yields 30 days, not the shorter 96 h fallback."""
-    _publish_policy(bt_scenario, timedelta(days=30), f"{ACTOR_ID}/policy")
-
-    _, before, after = _run(bt_scenario)
+    _, before, after = _run(bt_scenario, owner_policy=timedelta(days=30))
 
     _assert_duration(
         _active_embargo(bt_scenario), timedelta(days=30), before, after
@@ -264,27 +286,35 @@ def test_protocol_default_is_not_a_minimum(
 ) -> None:
     """A proposal shorter than the protocol default is honored as stated."""
     short = timedelta(hours=24)
-    _publish_policy(bt_scenario, short, f"{ACTOR_ID}/policy")
-
-    _, before, after = _run(bt_scenario)
+    _, before, after = _run(bt_scenario, owner_policy=short)
 
     _assert_duration(_active_embargo(bt_scenario), short, before, after)
 
 
-@pytest.mark.spec("EP-04-010")
-def test_actor_default_selection_is_deterministic(
-    bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
+@pytest.mark.spec("CP-01-010")
+@pytest.mark.parametrize(
+    "profile",
+    [None, "foreign", "not-an-actor"],
+    ids=["absent", "another-actors-profile", "not-an-actor"],
+)
+def test_no_inline_profile_for_the_owner_fails_and_creates_nothing(
+    bt_scenario: BTTestScenario, case_obj: VulnerabilityCase, profile: Any
 ) -> None:
-    """Several published policies resolve to the shortest, whatever the order."""
-    _publish_policy(bt_scenario, timedelta(days=45), f"{ACTOR_ID}/policy-a")
-    _publish_policy(bt_scenario, timedelta(days=14), f"{ACTOR_ID}/policy-z")
-    _publish_policy(bt_scenario, timedelta(days=60), f"{ACTOR_ID}/policy-m")
+    """Without the CASE_OWNER's own inline profile there is no actor default
+    to read, and the node fetches none: it fails before creating anything."""
+    value = {
+        None: None,
+        "foreign": _profile(
+            timedelta(days=5), "https://example.org/actors/other"
+        ),
+        "not-an-actor": "https://example.org/actors/vendor",
+    }[profile]
 
-    _, before, after = _run(bt_scenario)
+    status, _, _ = _run(bt_scenario, owner_profile=value)
 
-    _assert_duration(
-        _active_embargo(bt_scenario), timedelta(days=14), before, after
-    )
+    assert status == Status.FAILURE
+    assert _active_embargo(bt_scenario) is None
+    assert list(bt_scenario.dl.list_objects("EmbargoEvent")) == []
 
 
 @pytest.mark.spec("EP-04-008")
@@ -411,9 +441,9 @@ def test_a_tie_between_sender_and_actor_default_registers_no_revision(
     bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
 ) -> None:
     """Equal terms leave nothing contested: ACTIVE, and no pending revision."""
-    _publish_policy(bt_scenario, ACTOR_DEFAULT, f"{ACTOR_ID}/policy")
-
-    status, before, after = _run(bt_scenario, sender_proposal=ACTOR_DEFAULT)
+    status, before, after = _run(
+        bt_scenario, owner_policy=ACTOR_DEFAULT, sender_proposal=ACTOR_DEFAULT
+    )
 
     assert status == Status.SUCCESS
     _assert_duration(
@@ -495,10 +525,10 @@ def test_a_longer_sender_duration_without_its_event_fails_loudly(
     revision needs the sender's event; a blackboard carrying the duration but
     not the event is inconsistent and must not report SUCCESS with the
     revision silently skipped (BT-HELPER-01)."""
-    _publish_policy(bt_scenario, ACTOR_DEFAULT, f"{ACTOR_ID}/policy")
-
     status, _, _ = _run(
-        bt_scenario, sender_proposal=ACTOR_DEFAULT + timedelta(days=30)
+        bt_scenario,
+        owner_policy=ACTOR_DEFAULT,
+        sender_proposal=ACTOR_DEFAULT + timedelta(days=30),
     )
 
     assert status == Status.FAILURE
@@ -528,9 +558,11 @@ def test_creation_time_revision_is_indexed_for_the_owners_default_selection(
     relayed Invite to the winning party is asserted by the implementation's
     own tests.
     """
-    _publish_policy(bt_scenario, ACTOR_DEFAULT, f"{ACTOR_ID}/policy")
-
-    status, _, _ = _run(bt_scenario, sender_proposal=SENDER_PROPOSAL)
+    status, _, _ = _run(
+        bt_scenario,
+        owner_policy=ACTOR_DEFAULT,
+        sender_proposal=SENDER_PROPOSAL,
+    )
 
     assert status == Status.SUCCESS
     assert _em_state(bt_scenario) == EM.REVISE

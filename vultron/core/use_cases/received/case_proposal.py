@@ -265,6 +265,9 @@ class CreateCaseProposalReceivedUseCase:
             tree=tree,
             actor_id=receiving_actor_id,
             activity=request,
+            # The proposer's inline profile is the only source of the
+            # CASE_OWNER's actor default (CP-01-010).
+            owner_profile=request.proposer_profile,
             **sender_embargo_proposal_inputs(request),
         )
         verdict = verdict_from_bt(

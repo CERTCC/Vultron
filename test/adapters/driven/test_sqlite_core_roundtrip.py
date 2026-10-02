@@ -33,7 +33,7 @@ from vultron.adapters.driven.datalayer_sqlite.hydration import (
     core_class_for_row_type,
 )
 from vultron.adapters.driven.datalayer_sqlite.schema import VultronObjectRecord
-from vultron.core.models.actor import VultronService
+from vultron.core.models.actor import VultronOrganization, VultronService
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
@@ -431,3 +431,36 @@ def test_read_projection_preserves_participant_rm_state(dl):
         participant_status_rm_state(participant.participant_statuses[0])
         is RM.ACCEPTED
     )
+
+
+# ---------------------------------------------------------------------------
+# EP-01-001: an actor row from the pre-#4027 PUT names the reset (#4027)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("EP-01-001")
+def test_a_legacy_url_string_policy_row_reads_absent_naming_the_reset(
+    dl, caplog
+):
+    """An actor stored with ``embargo_policy`` as a URL is not converted.
+
+    The old embargo-policy PUT kept the policy as a free-standing record and
+    stored its URL on the actor.  The policy is now a profile field, so the
+    row is refused rather than silently rewritten; what this pins is that the
+    logged reason tells an operator the store must be reset, rather than
+    leaving only an opaque type error behind a "not found".
+    """
+    actor_id = "https://test.example/api/v2/actors/legacy-vendor"
+    dl.save(VultronOrganization(id_=actor_id))
+    with Session(dl._engine) as session:
+        row = session.get(VultronObjectRecord, actor_id)
+        assert row is not None
+        row.data = {**row.data, "embargo_policy": f"{actor_id}/ep"}
+        session.add(row)
+        session.commit()
+
+    with caplog.at_level("WARNING"):
+        assert dl.read(actor_id) is None
+
+    assert "must be reset" in caplog.text
+    assert actor_id in caplog.text

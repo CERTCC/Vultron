@@ -57,12 +57,12 @@ def _resolve_owner_recipient(
 ) -> str | None:
     """Return the Case Owner's actor URI to address a CaseActor DM to.
 
-    The CaseActor's own copy of the case is ``attributed_to`` **itself** — it
-    authored it (CM-22-001, CP-05-003).  Addressing the Case Owner from that
-    field therefore made the CaseActor DM itself, and the owner never saw the
-    ``Offer(CaseParticipant)`` it was required to decide on (CM-16-004): the
-    fcvcv ADR-0026 chain stalled there, and ``accept-actor-recommendation``
-    returned 422 because no offer had ever arrived.
+    A DM the CaseActor addresses to itself never reaches the owner, who then
+    never sees the ``Offer(CaseParticipant)`` it is required to decide on
+    (CM-16-004): the fcvcv ADR-0026 chain stalls, and
+    ``accept-actor-recommendation`` returns 422 because no offer arrived.
+    ``attributed_to`` names the owner (CP-09-001), but a store may hold a case
+    attributed to the CaseActor itself, so that field alone is not enough.
 
     The CASE_OWNER participant role is the authoritative record of ownership
     (CM-21-002), so resolve that first.  ``attributed_to`` stays as a fallback
