@@ -24,7 +24,6 @@ stranded, because the once-per-case guard reads any state but ``NONE`` as
 
 import logging
 
-from vultron.core.models.dimensions import EmDimension
 from vultron.core.services.embargo_lifecycle.pec import (
     _PecEffectsMixin,
 )
@@ -64,8 +63,13 @@ class _CreationOperationsMixin(_PecEffectsMixin):
         records the id in its ``accepted_embargo_ids`` (ADR-0093), then every
         non-signatory already holding the id becomes ``SIGNATORY``
         (``_consent_at_activation``).  The id never enters
-        ``proposed_embargoes``: activation would discard it at once
-        (EP-08-003).
+        ``proposed_embargoes``: activation decides the proposal that carried
+        it, so a stale listing is discarded in the same write (EP-08-003).
+
+        Only the case is written once.  The consent records are participant
+        writes made after it, so a failure there leaves the case ``ACTIVE``
+        with consent part-recorded — a post-activation failure, tracked in
+        #4142 rather than repaired here.
 
         Args:
             case_id: ID of the ``VulnerabilityCase`` to initialize.
@@ -81,20 +85,24 @@ class _CreationOperationsMixin(_PecEffectsMixin):
             VultronValidationError: If the embargo record is not an
                 ``EmbargoEvent``.
             VultronInvalidStateTransitionError: If the case is not at
-                ``EM.NONE`` or any of P/X/A is set.
+                ``EM.NONE``, already has an active embargo, or any of P/X/A
+                is set.
         """
         case = self._read_case(case_id)
         em_before = case.current_status.em.state
         self._assert_pxa_embargo_eligible(
             case.current_status.pxa.state, case_id, "initialize embargo"
         )
-        if em_before is not EM.NONE:
+        if em_before is not EM.NONE or case.active_embargo_id is not None:
             # PROPOSE then ACCEPT is legal from more than NONE (ACTIVE →
             # REVISE → ACTIVE, for one), so the machine alone would not refuse
-            # a case that has already left NONE; creation is only from NONE.
+            # a case that has already left NONE; creation is only from NONE,
+            # and never replaces an attached embargo (CSB-16: the service
+            # checks its own preconditions, not the node ahead of it).
             raise VultronInvalidStateTransitionError(
                 f"Cannot initialize the creation-time embargo on case"
-                f" '{case_id}': EM state '{em_before}' is not NONE"
+                f" '{case_id}': EM state '{em_before}' is not NONE or an"
+                f" embargo ('{case.active_embargo_id}') is already attached"
                 " (EP-04-012)."
             )
         self._activation_arm(
@@ -117,9 +125,7 @@ class _CreationOperationsMixin(_PecEffectsMixin):
             actor_id=actor_id,
         )
 
-        case.current_status.em = EmDimension(state=em_after)
-        case.set_embargo(embargo_id)
-        self._persistence.save(case)
+        self._save_activation(case, em_after=em_after, embargo_id=embargo_id)
 
         participant_changes: list[ParticipantPECChange] = []
         if actor_id is not None and actor_id in case.actor_participant_index:
@@ -143,11 +149,8 @@ class _CreationOperationsMixin(_PecEffectsMixin):
             em_before,
             em_after,
         )
-        return EmbargoLifecycleResult(
+        return self._activation_result(
             em_before=em_before,
             em_after=em_after,
-            case_changed=True,
-            case_embargo_changed=True,
-            pec_reset=False,
             participant_changes=participant_changes,
         )

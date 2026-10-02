@@ -21,11 +21,18 @@ must re-consent (EP-05-001).  Both reads go through
 unreadable record fails closed before the case is mutated.
 """
 
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.dimensions import EmDimension
 from vultron.core.services.embargo_lifecycle.base import _LifecycleBase
+from vultron.core.services.embargo_lifecycle.results import (
+    EmbargoLifecycleResult,
+    ParticipantPECChange,
+)
 from vultron.core.services.embargo_ordering import (
     earliest_expiring_embargo_id,
     read_embargo_event,
 )
+from vultron.core.states.em import EM
 
 
 class _ActivationArmMixin(_LifecycleBase):
@@ -84,4 +91,36 @@ class _ActivationArmMixin(_LifecycleBase):
         return self._revision_ends_no_later(
             previous_embargo_id=previous_embargo_id,
             revised_embargo_id=activated_embargo_id,
+        )
+
+    def _save_activation(
+        self, case: VulnerabilityCase, *, em_after: EM, embargo_id: str
+    ) -> None:
+        """Write an activation to the case: EM state, active embargo, one save.
+
+        Activation decides the proposal that carried *embargo_id*, so the id
+        leaves ``proposed_embargoes`` in the same write (EP-08-003).  Call it
+        only after :meth:`_activation_arm` and every transition check have
+        passed, so nothing reaches the store until the activation is decided.
+        """
+        case.current_status.em = EmDimension(state=em_after)
+        case.set_embargo(embargo_id)
+        case.discard_proposed_embargo(embargo_id)
+        self._persistence.save(case)
+
+    @staticmethod
+    def _activation_result(
+        *,
+        em_before: EM,
+        em_after: EM,
+        participant_changes: list[ParticipantPECChange],
+    ) -> EmbargoLifecycleResult:
+        """The result of an activation: case and active embargo changed."""
+        return EmbargoLifecycleResult(
+            em_before=em_before,
+            em_after=em_after,
+            case_changed=True,
+            case_embargo_changed=True,
+            pec_reset=False,
+            participant_changes=participant_changes,
         )

@@ -32,7 +32,7 @@ from vultron.core.behaviors.case.nodes.conditions import (
     CheckCaseAlreadyExists,
 )
 from vultron.core.behaviors.case.nodes.embargo import (
-    AdvanceEMStateToActiveNode,
+    InitializeCreationEmbargoNode,
 )
 from vultron.core.behaviors.case.nodes.suggest_actor.conditions import (
     ActorAlreadyParticipantNode,
@@ -232,19 +232,19 @@ class TestCheckCaseUpdateOwnerNodePorts:
 
 
 # ---------------------------------------------------------------------------
-# embargo.py — AdvanceEMStateToActiveNode
+# embargo.py — InitializeCreationEmbargoNode
 # ---------------------------------------------------------------------------
 
 
-class TestAdvanceEMStateToActiveNodePorts:
+class TestInitializeCreationEmbargoNodePorts:
     def test_missing_datalayer_raises_no_data_available(self) -> None:
-        node = AdvanceEMStateToActiveNode()
+        node = InitializeCreationEmbargoNode()
         node.setup_ports()
         with pytest.raises(NoDataAvailable):
             node.get_input("datalayer")
 
     def test_missing_case_id_raises_no_data_available(self) -> None:
-        node = AdvanceEMStateToActiveNode()
+        node = InitializeCreationEmbargoNode()
         node.setup_ports()
         with pytest.raises(NoDataAvailable):
             node.get_input("case_id")
@@ -252,7 +252,7 @@ class TestAdvanceEMStateToActiveNodePorts:
     def test_missing_default_embargo_id_raises_no_data_available(
         self,
     ) -> None:
-        node = AdvanceEMStateToActiveNode()
+        node = InitializeCreationEmbargoNode()
         node.setup_ports()
         with pytest.raises(NoDataAvailable):
             node.get_input("default_embargo_id")

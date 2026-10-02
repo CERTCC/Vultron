@@ -278,7 +278,7 @@ class CreateEmbargoEventNode(DataLayerActionWithPorts):
         )
 
 
-class AdvanceEMStateToActiveNode(DataLayerActionWithPorts):
+class InitializeCreationEmbargoNode(DataLayerActionWithPorts):
     """Take the case's creation-time embargo from ``EM.NONE`` to ``EM.ACTIVE``.
 
     One write: ``EmbargoLifecycle.initialize_creation_embargo`` applies the

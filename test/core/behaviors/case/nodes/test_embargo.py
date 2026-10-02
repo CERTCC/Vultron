@@ -33,8 +33,8 @@ from vultron.core.behaviors.case.embargo_tree import (
     InitializeDefaultEmbargoNode,
 )
 from vultron.core.behaviors.case.nodes.embargo import (
-    AdvanceEMStateToActiveNode,
     CreateEmbargoEventNode,
+    InitializeCreationEmbargoNode,
     SeedOwnerAsSignatoryNode,
 )
 from vultron.core.behaviors.case.nodes.embargo_resolution import (
@@ -334,7 +334,7 @@ class TestInitializeDefaultEmbargoNode:
         assert [type(child) for child in creation_arm.children] == [
             ResolveEmbargoDurationNode,
             CreateEmbargoEventNode,
-            AdvanceEMStateToActiveNode,
+            InitializeCreationEmbargoNode,
             SeedOwnerAsSignatoryNode,
             RegisterLongerProposalAsRevisionNode,
         ]
@@ -381,7 +381,7 @@ class TestInitializeDefaultEmbargoNode:
         )
 
         result = bt_scenario.run(
-            AdvanceEMStateToActiveNode(),
+            InitializeCreationEmbargoNode(),
             actor_id=actor_id,
             case_id=case_obj.id_,
             default_embargo_id=embargo.id_,
@@ -394,7 +394,7 @@ class TestInitializeDefaultEmbargoNode:
         ]
 
 
-class TestAdvanceEMStateToActiveNodeAC1:
+class TestInitializeCreationEmbargoNodeAC1:
     """AC-1 regression for the creation-time EM write (issues #2583, #4123)."""
 
     @pytest.mark.spec("EMB-18-001")
@@ -433,7 +433,7 @@ class TestAdvanceEMStateToActiveNodeAC1:
             side_effect=VultronInvalidStateTransitionError("forced failure"),
         ):
             result = bt_scenario.run(
-                AdvanceEMStateToActiveNode(),
+                InitializeCreationEmbargoNode(),
                 actor_id=actor_id,
                 case_id=case_obj.id_,
                 default_embargo_id=embargo.id_,
@@ -561,7 +561,7 @@ class TestCaseManagerInitializesTheOwnersEmbargo:
         scenario.seed(embargo)
 
         result = scenario.run(
-            AdvanceEMStateToActiveNode(),
+            InitializeCreationEmbargoNode(),
             case_id=case.id_,
             default_embargo_id=embargo.id_,
         )

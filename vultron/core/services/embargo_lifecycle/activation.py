@@ -194,12 +194,7 @@ class _ActivationOperationsMixin(_PecEffectsMixin):
             actor_id=actor_id,
         )
 
-        case.current_status.em = EmDimension(state=em_after)
-
-        case.set_embargo(embargo_id)
-        # Activation decides the proposal that carried it (EP-08-003).
-        case.discard_proposed_embargo(embargo_id)
-        self._persistence.save(case)
+        self._save_activation(case, em_after=em_after, embargo_id=embargo_id)
 
         # The embargo in force changed: the same consent effect as the owner
         # path of accept_embargo_invite (EP-05-001; on a replacement the
@@ -218,11 +213,8 @@ class _ActivationOperationsMixin(_PecEffectsMixin):
             em_after,
         )
 
-        return EmbargoLifecycleResult(
+        return self._activation_result(
             em_before=em_before,
             em_after=em_after,
-            case_changed=True,
-            case_embargo_changed=True,
-            pec_reset=False,
             participant_changes=participant_changes,
         )

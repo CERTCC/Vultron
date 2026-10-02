@@ -831,13 +831,13 @@ class TestCaseEmbargoAlreadyInitializedNode:
     ) -> list[EmbargoEvent]:
         """Run the creation arm until its event is stored, then stop it.
 
-        ``AdvanceEMStateToActiveNode`` fails, as a crash or a failure after the
+        ``InitializeCreationEmbargoNode`` fails, as a crash or a failure after the
         event was written would: the case is left at ``EM.NONE`` with the
         creation-time event already stored and nothing referencing it.
         """
         with monkeypatch.context() as patch:
             patch.setattr(
-                embargo_nodes_module.AdvanceEMStateToActiveNode,
+                embargo_nodes_module.InitializeCreationEmbargoNode,
                 "update",
                 lambda self: Status.FAILURE,
             )

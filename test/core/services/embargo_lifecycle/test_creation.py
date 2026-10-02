@@ -155,6 +155,48 @@ def test_a_case_that_has_left_none_is_refused_unchanged(
     assert stored.active_embargo_id is None
 
 
+def test_a_none_case_with_an_attached_embargo_is_refused_unchanged(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """Creation never replaces an attached embargo, even at NONE (CSB-16)."""
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_)
+    attached = _make_embargo(dl, case.id_)
+    case.set_embargo(attached.id_)
+    dl.save(case)
+    embargo = _make_embargo(dl, case.id_)
+
+    with pytest.raises(
+        VultronInvalidStateTransitionError, match="already attached"
+    ):
+        EmbargoLifecycle(persistence=dl).initialize_creation_embargo(
+            case_id=case.id_, embargo_id=embargo.id_, actor_id=owner.id_
+        )
+
+    stored = _stored_case(dl, case.id_)
+    assert stored.current_status.em.state == EM.NONE
+    assert stored.active_embargo_id == attached.id_
+
+
+def test_a_stale_proposed_listing_is_discarded_in_the_same_write(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """Activation decides the proposal that carried the id (EP-08-003)."""
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_)
+    embargo = _make_embargo(dl, case.id_)
+    case.proposed_embargoes.append(embargo.id_)
+    dl.save(case)
+
+    EmbargoLifecycle(persistence=dl).initialize_creation_embargo(
+        case_id=case.id_, embargo_id=embargo.id_, actor_id=owner.id_
+    )
+
+    stored = _stored_case(dl, case.id_)
+    assert stored.active_embargo_id == embargo.id_
+    assert stored.proposed_embargoes == []
+
+
 @pytest.mark.spec("EMB-01-002")
 def test_pxa_set_is_refused_before_any_write(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],

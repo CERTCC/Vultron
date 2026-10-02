@@ -2032,8 +2032,9 @@ groups:
       A path that writes an embargo id into a case's `active_embargo` MUST
       already hold that `EmbargoEvent`'s record in the same store. The
       `EmbargoLifecycle` activation writers (`accept_embargo_invite()`,
-      `activate_embargo()`) MUST read the record of the embargo being
-      activated, as well as the one it replaces (EP-05-001), and MUST fail
+      `activate_embargo()`, `initialize_creation_embargo()`) MUST read the
+      record of the embargo being activated, as well as the one it replaces
+      (EP-05-001), and MUST fail
       closed on an unreadable one before writing EM state or
       `active_embargo`. An unreadable replaced embargo is a broken invariant,
       reported as a refusal, not deferred.

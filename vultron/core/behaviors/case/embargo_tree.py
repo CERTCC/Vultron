@@ -42,8 +42,8 @@ import py_trees
 
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.case.nodes.embargo import (
-    AdvanceEMStateToActiveNode,
     CreateEmbargoEventNode,
+    InitializeCreationEmbargoNode,
     SeedOwnerAsSignatoryNode,
 )
 from vultron.core.behaviors.case.nodes.embargo_resolution import (
@@ -95,7 +95,7 @@ class InitializeDefaultEmbargoNode(py_trees.composites.Selector):
                         CreateEmbargoEventNode(),
                         # EP-04-002: propose and activate are one write, so
                         # EM.PROPOSED is never persisted.
-                        AdvanceEMStateToActiveNode(),
+                        InitializeCreationEmbargoNode(),
                         SeedOwnerAsSignatoryNode(),
                         # EP-04-003: the longer creation-time candidate becomes
                         # a pending revision (ACTIVE → REVISE) when both
