@@ -215,6 +215,22 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         assert self.actor_id is not None
 
+        # The marker is deleted once the Create is queued, so a redelivered
+        # proposal finds none; the stored activity under the proposal-derived
+        # id is what says the case was already announced (#4146).
+        create_id = PendingCreateCaseActivity.create_activity_id(
+            self._proposal_id
+        )
+        if self.datalayer.read(create_id) is not None:
+            logger.info(
+                "%s: Create(VulnerabilityCase) '%s' for proposal '%s' was"
+                " already queued — writing no marker (CP-05-005)",
+                self.name,
+                create_id,
+                self._proposal_id,
+            )
+            return Status.SUCCESS
+
         case_id = self._case_id_bb
         if not isinstance(case_id, str):
             self.feedback_message = "case_id not found in blackboard"
@@ -258,6 +274,7 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
         # in_reply_to = Accept URI (causal antecedent, AS2-correct field).
         reporter_uris = self._collect_reporter_uris(case)
         create_activity = VultronCreateCaseActivity(
+            id_=create_id,
             actor=self.actor_id,
             object_=case_object,
             context=case_id,
@@ -327,6 +344,20 @@ class ClearCreateCaseMarkerNode(DataLayerAction):
         if deleted:
             logger.info(
                 "%s: Cleared PendingCreateCaseActivity marker for proposal '%s'",
+                self.name,
+                self._proposal_id,
+            )
+        elif (
+            self.datalayer.read(
+                PendingCreateCaseActivity.create_activity_id(self._proposal_id)
+            )
+            is not None
+        ):
+            # A redelivery whose Create was already queued wrote no marker
+            # (#4146): nothing to clear is the expected state.
+            logger.info(
+                "%s: No marker to clear for proposal '%s' — its Create was"
+                " queued by an earlier delivery",
                 self.name,
                 self._proposal_id,
             )

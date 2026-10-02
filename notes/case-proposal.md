@@ -437,6 +437,14 @@ case-actor ID, receiver URI, and the pre-constructed
 `Create(VulnerabilityCase)` payload. It is deleted on successful
 `Create` delivery, so only failed deliveries leave a marker.
 
+Because the marker is gone once the `Create` is queued, it cannot tell a
+redelivered proposal that the case was already announced. The `Create`'s
+id is therefore derived from the proposal
+(`PendingCreateCaseActivity.create_activity_id()`), not minted. A redelivery
+that finds that activity already stored writes no marker and queues nothing,
+whether the first delivery succeeded or a later leaf failed after the marker
+was cleared (#4146).
+
 ### Retry Runner (AC-2: startup-scan option)
 
 `vultron/adapters/driving/fastapi/pending_retry.py` provides

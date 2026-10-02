@@ -172,6 +172,29 @@ class EmitCreateVulnerabilityCaseNode(DataLayerAction):
         super().__init__(name=name or self.__class__.__name__)
         self._proposal_id = proposal_id
 
+    def _already_queued(self) -> bool:
+        """Whether this proposal's Create was queued by an earlier delivery.
+
+        ``WriteCreateCaseMarkerNode`` writes no marker for a redelivered
+        proposal whose Create is already stored, so a missing marker with
+        that activity present is the announced case, not a lost marker
+        (CP-05-005, #4146).
+        """
+        assert self.datalayer is not None
+        create_id = PendingCreateCaseActivity.create_activity_id(
+            self._proposal_id
+        )
+        if self.datalayer.read(create_id) is None:
+            return False
+        logger.info(
+            "%s: Create(VulnerabilityCase) '%s' for proposal '%s' was already"
+            " queued — not announcing the case again (CP-05-005)",
+            self.name,
+            create_id,
+            self._proposal_id,
+        )
+        return True
+
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
@@ -182,6 +205,8 @@ class EmitCreateVulnerabilityCaseNode(DataLayerAction):
         # with CP-05-005 retry logic.
         marker_id = PendingCreateCaseActivity.build_id(self._proposal_id)
         raw_marker = self.datalayer.read(marker_id)
+        if raw_marker is None and self._already_queued():
+            return Status.SUCCESS
         if not isinstance(raw_marker, PendingCreateCaseActivity):
             self.feedback_message = (
                 f"PendingCreateCaseActivity marker '{marker_id}' not found"

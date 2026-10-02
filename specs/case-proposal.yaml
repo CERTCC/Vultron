@@ -355,6 +355,9 @@ groups:
       runner can replay the exact activity without re-running the BT.
     verification: Unit tests in `test/core/behaviors/case/test_case_proposal_received_tree.py::test_marker_present_when_create_fails`
       confirm the retry marker is stored when `Create(VulnerabilityCase)` fails, without resending `Accept(as_CaseProposal)`.
+      The Create's id is derived from the proposal, so a redelivery after the marker is cleared queues no second
+      `Create(VulnerabilityCase)`; `TestARedeliveryAnnouncesTheCaseOnce` pins this after a late-tree failure and after
+      a full success (#4146).
   - id: CP-05-006
     priority: MUST
     kind: protocol
