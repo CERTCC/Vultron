@@ -79,14 +79,25 @@ logger = logging.getLogger(__name__)
 
 
 def compute_genesis_hash(
-    case_id: str, created_at: datetime, case_actor_id: str
+    case_id: str, created_at: datetime, owner_actor_id: str
 ) -> str:
     """Return the per-case genesis hash for a case ledger.
 
     Derived as ``SHA-256(case_id + "|" + created_at.isoformat() + "|" +
-    case_actor_id)``, where ``case_id`` is the canonical case URI,
+    owner_actor_id)``, where ``case_id`` is the canonical case URI,
     ``created_at`` is the case creation UTC timestamp, and
-    ``case_actor_id`` is the canonical URI of the CaseActor.
+    ``owner_actor_id`` is the case owner's actor id
+    (``VulnerabilityCase.attributed_to``).
+
+    The anchor is the **owner**, not the CaseActor that may create the case
+    on the owner's behalf: the CaseActor is the owner's delegated proxy, so a
+    case created by its owner and one created by a CaseActor from the owner's
+    ``CaseProposal`` are anchored to the same identity (CLP-08-002).
+
+    This is the one formula.  ``VulnerabilityCase`` calls it from its
+    construction validator whenever no ``genesis_hash`` is supplied, so every
+    creation path that sets ``attributed_to`` gets the same value; a replica
+    carries the sender's hash and never recomputes it.
 
     This anchors each case ledger to its origin identity and timestamp,
     replacing the former global zero-hash sentinel (CLP-08-001,
@@ -95,14 +106,14 @@ def compute_genesis_hash(
     Args:
         case_id: Canonical URI of the :class:`VulnerabilityCase`.
         created_at: TZ-aware UTC datetime at case creation.
-        case_actor_id: Canonical URI of the CaseActor for this case.
+        owner_actor_id: Actor id of the case owner (``attributed_to``).
 
     Returns:
         64-character lowercase hex SHA-256 digest string.
 
     Spec: CLP-08-001, CLP-08-002.
     """
-    raw = f"{case_id}|{created_at.isoformat()}|{case_actor_id}"
+    raw = f"{case_id}|{created_at.isoformat()}|{owner_actor_id}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
@@ -317,9 +328,9 @@ class CaseLedger:
 
         from datetime import datetime, timezone
         case_id = "https://example.org/cases/abc123"
-        case_actor_id = "https://example.org/actors/case-actor"
+        owner_id = "https://example.org/actors/vendor"
         created_at = datetime.now(timezone.utc)
-        g_hash = compute_genesis_hash(case_id, created_at, case_actor_id)
+        g_hash = compute_genesis_hash(case_id, created_at, owner_id)
         log = CaseLedger(case_id=case_id, genesis_hash=g_hash)
         entry = log.append(
             object_id="urn:uuid:report1",

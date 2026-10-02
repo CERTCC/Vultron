@@ -137,6 +137,21 @@ class TestCanonicalHelpers:
 
 
 class TestComputeGenesisHash:
+    @pytest.mark.spec("CLP-08-002")
+    def test_digest_is_sha256_of_the_pipe_joined_owner_anchored_inputs(self):
+        owner = "https://example.org/actors/vendor"
+        expected = hashlib.sha256(
+            f"{CASE_ID}|{_FIXED_CREATED_AT.isoformat()}|{owner}".encode()
+        ).hexdigest()
+        assert (
+            compute_genesis_hash(
+                case_id=CASE_ID,
+                created_at=_FIXED_CREATED_AT,
+                owner_actor_id=owner,
+            )
+            == expected
+        )
+
     def test_returns_64_char_hex(self):
         result = compute_genesis_hash(
             CASE_ID, _FIXED_CREATED_AT, CASE_ACTOR_ID

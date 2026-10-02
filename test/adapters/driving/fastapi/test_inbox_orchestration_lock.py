@@ -100,7 +100,7 @@ def seeded_dl(dl):
     genesis_hash = compute_genesis_hash(
         case_id=_CASE_ID,
         created_at=created_at,
-        case_actor_id=_CASE_ACTOR_ID,
+        owner_actor_id=_CASE_ACTOR_ID,
     )
     case = as_VulnerabilityCase(id_=_CASE_ID, name="lock-test-case")
     object.__setattr__(case, "genesis_hash", genesis_hash)

@@ -164,7 +164,7 @@ def test_sync_single_peer_happy_path_replication(two_app_setup) -> None:
         compute_genesis_hash(
             case_id=case.id_,
             created_at=datetime.now(UTC),
-            case_actor_id=case_actor_id,
+            owner_actor_id=case_actor_id,
         ),
     )
     case_actor_participant = as_CaseParticipant(
@@ -427,7 +427,7 @@ def test_sync_duplicate_delivery_idempotency(
         compute_genesis_hash(
             case_id=case.id_,
             created_at=datetime.now(UTC),
-            case_actor_id=case_actor_id,
+            owner_actor_id=case_actor_id,
         ),
     )
     case_actor_participant = as_CaseParticipant(

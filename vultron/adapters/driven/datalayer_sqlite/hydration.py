@@ -217,11 +217,22 @@ def from_row(
     try:
         core_cls = core_class_for_row_type(row.type_)
     except KeyError:
-        # No core counterpart (AS2 Activity types) → wire vocabulary path.
-        wire_obj = wire_object_from_row(row)
-        if wire_obj is None:
+        # No core counterpart (AS2 Activity types, CoreRecord bookkeeping
+        # rows) → wire vocabulary path.
+        rec = Record(id_=row.id_, type_=row.type_, data_=row.data)
+        try:
+            obj = cast(PersistableModel, record_to_object(rec))
+        except (ValueError, ValidationError, VultronValidationError) as exc:
+            # dl.read() reports the row absent; say why, or an operator sees
+            # only "not found" — e.g. a record stored under a field name a
+            # later rename retired, whose refusal names the store reset (#4128).
+            logger.warning(
+                "Row %r (type %r) failed validation (%s); reading it as absent.",
+                row.id_,
+                row.type_,
+                exc,
+            )
             return None
-        obj = wire_obj
     else:
         try:
             obj = cast(PersistableModel, core_cls.model_validate(row.data))

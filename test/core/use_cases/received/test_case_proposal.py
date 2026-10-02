@@ -418,7 +418,7 @@ class TestCreateCaseProposalIdempotency:
         marker = PendingCreateCaseActivity(
             proposal_id=proposal.id_,
             case_actor_id=_CASE_ACTOR_URI,
-            vendor_uri=_VENDOR_URI,
+            owner_uri=_VENDOR_URI,
             create_activity_payload={},
         )
         dl.save(marker)
@@ -852,7 +852,7 @@ class TestCaseProposalDisposition:
             PendingCreateCaseActivity(
                 proposal_id=proposal.id_,
                 case_actor_id=_CASE_ACTOR_URI,
-                vendor_uri=_VENDOR_URI,
+                owner_uri=_VENDOR_URI,
                 create_activity_payload={},
             )
         )

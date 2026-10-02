@@ -170,16 +170,23 @@ class VulnerabilityCase(CoreObject):
         """Compute ``genesis_hash`` at case creation when not explicitly set.
 
         Uses ``id_``, ``published``, and ``attributed_to`` (the case owner's
-        URI, CP-09-001) as inputs to :func:`~vultron.core.models.case_ledger.compute_genesis_hash`.
+        actor id, CP-09-001, CM-02-008) as inputs to
+        :func:`~vultron.core.models.case_ledger.compute_genesis_hash`.  This is
+        the single definition of a case's genesis hash (CLP-08-002): the owner
+        is the anchor on every creation path, including a case a CaseActor
+        creates from the owner's ``CaseProposal``, because the CaseActor acts
+        as the owner's delegated proxy.  A creator therefore sets
+        ``attributed_to`` and lets this validator compute the hash; it does
+        not pass a hash of its own.
+
         When ``attributed_to`` is present, ``genesis_hash`` MUST be non-empty
         after this validator runs — if the hash cannot be computed (e.g.,
         ``published`` is absent), a
         :exc:`~vultron.errors.VultronValidationError` is raised (fail-closed
         per CLP-08-003/CLP-08-004).  No-ops when ``genesis_hash`` is already
-        set or when ``attributed_to`` is absent (genesis hash requires an
-        owner URI as input).  A creator whose CaseActor is not the owner
-        passes ``genesis_hash`` explicitly, bound to that CaseActor
-        (CLP-08-002), as ``CreateCaseFromProposalNode`` does.
+        set — a received case carries its sender's hash, which is never
+        recomputed — or when ``attributed_to`` is absent (genesis hash
+        requires an owner as input).
 
         Both spellings of each input are read: the class is its own wire class
         (ADR-0099 detail 3), so an inbound case arrives as ``attributedTo`` and
@@ -209,7 +216,7 @@ class VulnerabilityCase(CoreObject):
                 data[hash_key] = compute_genesis_hash(
                     case_id=case_id,
                     created_at=published_val,
-                    case_actor_id=attributed_to,
+                    owner_actor_id=attributed_to,
                 )
         if attributed_to and not data.get(hash_key):
             case_id = data.get("id") or data.get("id_") or "<unknown>"
