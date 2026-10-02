@@ -97,6 +97,10 @@ from vultron.core.behaviors.embargo.nodes.teardown import (
     ResetParticipantConsentNode,
     SendAnnounceEmbargoEventNode,
 )
+from vultron.core.behaviors.embargo.nodes.terminate import (
+    TeardownAskPendingNode,
+    ask_case_manager_to_terminate_once,
+)
 
 __all__ = [
     # Invite answer (EP-09-003)
@@ -164,4 +168,6 @@ __all__ = [
     "DecideRejectedEmbargoProposalNode",
     "SendTerminateEmbargoActivityNode",
     "SetEmbargoActiveNode",
+    "TeardownAskPendingNode",
+    "ask_case_manager_to_terminate_once",
 ]

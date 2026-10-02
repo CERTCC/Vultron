@@ -45,6 +45,9 @@ from vultron.core.behaviors.call_out.bundles.status_authorization import (
     StatusAuthorizationCallOutBundle,
 )
 from vultron.core.behaviors.call_out.nodes import AlwaysFail
+from vultron.core.behaviors.embargo.nodes.manager_commit import (
+    EMBARGO_TEARDOWN_EVENT_TYPE,
+)
 from vultron.core.behaviors.status.add_case_status_tree import (
     add_case_status_tree,
 )
@@ -63,6 +66,8 @@ from vultron.core.behaviors.status.nodes.lifecycle import (
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger import HashChainLedgerRecord
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import (
@@ -70,12 +75,27 @@ from vultron.core.models.dimensions import (
     PxaDimension,
 )
 from vultron.core.models.events.status import AddCaseStatusToCaseReceivedEvent
+from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
+from vultron.core.models.pending_assertion import (
+    PendingAssertion,
+    get_pending_assertion_store,
+)
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.core.use_cases.received.status import (
     AddCaseStatusToCaseReceivedUseCase,
 )
-from vultron.wire.as2.factories import add_status_to_case_activity
+from vultron.core.use_cases.received.sync import (
+    AnnounceLedgerEntryReceivedUseCase,
+)
+from vultron.semantic_registry import extract_event
+from vultron.wire.as2.factories import (
+    add_status_to_case_activity,
+    announce_log_entry_activity,
+)
+from vultron.wire.as2.vocab.objects.case_ledger_entry import (
+    as_CaseLedgerEntry as WireCaseLedgerEntry,
+)
 from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -1121,6 +1141,7 @@ class TestAddCaseStatusToCaseReceivedUseCase:
 
 CASE_MANAGER_ID = "https://example.org/actors/case-manager"
 CM_PARTICIPANT_ID = f"{CASE_ID}/participants/case-manager"
+PEER_SENDER_ID = "https://example.org/users/peer"
 
 
 class TestThreatTerminationBranchNode:
@@ -1239,7 +1260,7 @@ class TestThreatTerminationBranchNode:
         """All CS_pxa states except pxa trigger embargo teardown attempt.
 
         Without a broadcast factory, TerminateEmbargoLifecycleNode still
-        succeeds but SendTerminateEmbargoActivityNode fails (BT-14-001).
+        succeeds but the teardown emit fails (BT-14-001).
         The EM state is updated and active_embargo cleared before that.
         """
         from vultron.core.models.case import VulnerabilityCase
@@ -1367,6 +1388,98 @@ class TestThreatTerminationBranchNode:
         updated = cast(VulnerabilityCase, dl.read(CASE_ID))
         assert updated.current_status.em.state == EM.ACTIVE
         assert updated.active_embargo is not None
+
+    # --- #4147: the cascade's ask is a pending assertion -----------------
+
+    def _ask_pending(self) -> PendingAssertion | None:
+        return get_pending_assertion_store(ACTOR_ID).pending_for_subject(
+            CASE_ID,
+            EMBARGO_TEARDOWN_EVENT_TYPE,
+            f"{CASE_ID}/embargo_events/e1",
+        )
+
+    def _announce_managers_teardown_entry(self, dl, ask_id: str) -> None:
+        """Deliver the manager's committed entry for *ask_id* to the replica.
+
+        The manager's received commit records the inbound ask, so the entry's
+        ``log_object_id`` is the ask's id (SYNC-11-003).
+        """
+        record = HashChainLedgerRecord(
+            case_id=CASE_ID,
+            log_index=0,
+            object_id=ask_id,
+            event_type=EMBARGO_TEARDOWN_EVENT_TYPE,
+            payload_snapshot={"id": ask_id},
+            prev_log_hash="0" * 64,
+        )
+        entry = CaseLedgerEntry(
+            case_id=record.case_id,
+            log_index=record.log_index,
+            term=record.term,
+            log_object_id=record.object_id,
+            event_type=record.event_type,
+            payload_snapshot=dict(record.payload_snapshot),
+            prev_log_hash=record.prev_log_hash,
+            entry_hash=record.entry_hash,
+        )
+        activity = announce_log_entry_activity(
+            WireCaseLedgerEntry.model_validate(entry.model_dump(mode="json")),
+            actor=CASE_MANAGER_ID,
+        )
+        event = cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
+        AnnounceLedgerEntryReceivedUseCase(
+            dl,
+            event.model_copy(update={"receiving_actor_id": ACTOR_ID}),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+    @pytest.mark.spec("EP-09-008")
+    @pytest.mark.spec("SYNC-11-002")
+    def test_the_cascade_ask_is_recorded_keyed_by_the_ended_embargo(self, dl):
+        """AC-1: one pending assertion per ask, keyed by the ended embargo."""
+        status_obj = self._setup_dl_with_embargo(
+            dl, CS_pxa.Pxa, manager_id=CASE_MANAGER_ID
+        )
+
+        self._run_replica(dl, status_obj, sender=PEER_SENDER_ID)
+
+        [ask_id] = dl.outbox_list()
+        pending = self._ask_pending()
+        assert pending is not None
+        assert pending.object_id == ask_id
+
+    @pytest.mark.spec("SYNC-11-002")
+    def test_a_repeat_signal_inside_the_window_queues_no_second_ask(self, dl):
+        """AC-2: the embargo is still in force here, so only the pending
+        assertion stands between a repeat P/X/A signal and a second ask."""
+        status_obj = self._setup_dl_with_embargo(
+            dl, CS_pxa.Pxa, manager_id=CASE_MANAGER_ID
+        )
+        self._run_replica(dl, status_obj, sender=PEER_SENDER_ID)
+
+        status = self._run_replica(dl, status_obj, sender=PEER_SENDER_ID)
+
+        assert status == Status.SUCCESS
+        assert len(dl.outbox_list()) == 1
+
+    @pytest.mark.spec("SYNC-11-003")
+    def test_the_managers_committed_entry_clears_the_ask(self, dl):
+        """AC-3: once the manager's entry arrives, a later signal asks anew."""
+        status_obj = self._setup_dl_with_embargo(
+            dl, CS_pxa.Pxa, manager_id=CASE_MANAGER_ID
+        )
+        self._run_replica(dl, status_obj, sender=PEER_SENDER_ID)
+        [first_ask_id] = dl.outbox_list()
+
+        self._announce_managers_teardown_entry(dl, first_ask_id)
+
+        assert self._ask_pending() is None
+        self._run_replica(dl, status_obj, sender=PEER_SENDER_ID)
+        pending = self._ask_pending()
+        assert pending is not None
+        assert pending.object_id != first_ask_id
+        assert pending.object_id in dl.outbox_list()
 
 
 PROPOSED_EMBARGO_ID = f"{CASE_ID}/embargo_events/p1"

@@ -16,7 +16,9 @@ description: >
   the P/X/A abandonment of every open proposal (EMB-16-001), which a
   non-manager neither writes nor asks for (EMB-16-002) while still answering
   with ER any proposal it receives at P/X/A (EMB-01-002), and the replica that
-  leaves a CASE_MANAGER-declared teardown to its entry (RSH-03-004).
+  leaves a CASE_MANAGER-declared teardown to its entry (RSH-03-004); a
+  non-manager replica's cascade teardown ask is a pending assertion, so a
+  repeat P/X/A signal queues no second ask (SYNC-11-002).
 related_specs:
   - specs/case-management.yaml
   - specs/embargo-policy.yaml
@@ -512,8 +514,13 @@ in two mutually exclusive arms built by `_by_role()`
 
 The receive-side cascade that ends an embargo (`ThreatTerminationBranchNode`)
 reaches the same `terminate_embargo_bt`, so it too tears down only at the
-CASE_MANAGER and a non-manager receiver asks. It builds its teardown with
-`pxa_embargo_teardown_bt`: terminate an active
+CASE_MANAGER and a non-manager receiver asks. That ask is a pending assertion
+too: no use case wraps the cascade, so `ask_case_manager_to_terminate_once`
+puts `TeardownAskPendingNode` ahead of `SendTerminateEmbargoActivityNode`,
+whose `_on_queued` hook records the queued ask with the same event type and
+the ended embargo as subject. A repeat P/X/A signal inside the window queues
+no second ask, and the trigger and the cascade suppress each other (#4147).
+It builds its teardown with `pxa_embargo_teardown_bt`: terminate an active
 embargo, else abandon the open proposals with `reject_proposed_embargo_bt`
 (EMB-16-001, #4145). Ratchet:
 `test/architecture/test_embargo_trigger_writes_are_case_manager_gated.py`.
