@@ -294,6 +294,60 @@ class TestApplyEmbargoProposal:
         index = _case(datalayer).pending_embargo_proposal_index
         assert index[REVISION_ID] == INVITE_ID
 
+    @pytest.mark.spec("EP-09-002")
+    @pytest.mark.spec("EP-09-007")
+    def test_managers_self_relayed_invite_also_invites_its_recipient(
+        self, bridge, datalayer, revising_case
+    ):
+        """The manager's own terms relayed to one participant (#4085).
+
+        Self-attributed, so it lands in this proposal slot; it is also the
+        relayed Invite of its sole recipient, which is recorded as invited.
+        """
+        newcomer = "https://example.org/actors/newcomer"
+        _participant(datalayer, revising_case, newcomer, PEC.UNBOUND)
+        datalayer.save(revising_case)
+
+        result = _run(
+            bridge,
+            ApplyEmbargoProposalFromLedgerNode(name="Proposal"),
+            _entry(
+                "invite_to_embargo_on_case",
+                _invite_snapshot(
+                    attributed_to=MANAGER_ACTOR_ID, to=[newcomer]
+                ),
+            ),
+        )
+
+        assert result.status == Status.SUCCESS
+        assert _case(datalayer).proposed_embargo_ids == [REVISION_ID]
+        record = _record(datalayer, newcomer)
+        assert record.embargo_consent_state == PEC.INVITED
+        assert record.invite_rsvp_deadline is not None
+
+    @pytest.mark.spec("EP-09-007")
+    def test_managers_own_proposal_entry_invites_nobody(
+        self, bridge, datalayer, revising_case
+    ):
+        """Addressed to nobody, the manager's proposal entry is not a relay."""
+        newcomer = "https://example.org/actors/newcomer"
+        _participant(datalayer, revising_case, newcomer, PEC.UNBOUND)
+        datalayer.save(revising_case)
+        snapshot = _invite_snapshot(attributed_to=None, to=[])
+        snapshot.pop("to")
+
+        result = _run(
+            bridge,
+            ApplyEmbargoProposalFromLedgerNode(name="Proposal"),
+            _entry("invite_to_embargo_on_case", snapshot),
+        )
+
+        assert result.status == Status.SUCCESS
+        assert _case(datalayer).proposed_embargo_ids == [REVISION_ID]
+        assert (
+            _record(datalayer, newcomer).embargo_consent_state == PEC.UNBOUND
+        )
+
     @pytest.mark.spec("SYNC-12-001")
     def test_partial_replica_without_the_case_skips(self, bridge, datalayer):
         _replay_proposal(bridge)

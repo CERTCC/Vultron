@@ -71,6 +71,9 @@ from vultron.core.use_cases.received._bt_verdict import (
     not_case_manager_refusal,
     verdict_from_bt,
 )
+from vultron.core.use_cases.received._pending_refusal import (
+    close_refused_embargo_proposal,
+)
 from vultron.core.use_cases.triggers._helpers import (
     _prepare_delegated_context,
 )
@@ -913,13 +916,10 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
         invite_id = request.invite_id
 
         logger.info(
-            "Actor '%s' rejected embargo proposal '%s'",
-            rejecting_actor_id,
-            invite_id,
+            "'%s' rejected embargo '%s'", rejecting_actor_id, invite_id
         )
-
-        case_id = request.case_id
-        embargo_id = request.embargo_id
+        close_refused_embargo_proposal(self._dl, request)  # EP-09-008
+        case_id, embargo_id = request.case_id, request.embargo_id
 
         if not case_id:
             logger.warning(

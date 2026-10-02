@@ -146,7 +146,7 @@ then return here), then apply these BT-specific checks
    | Domain | Base class | File |
    |--------|-----------|------|
    | Report | `_EmitCaseActorReportActivityBase` | `report/nodes/emit.py` |
-   | Embargo | `_SendEmbargoActivityBase` | `embargo/nodes/emit.py` |
+   | Embargo (send; CASE_MANAGER decision: build → commit → queue) | `_SendEmbargoActivityBase`; `_CommitEmbargoDecisionBase` | `embargo/nodes/emit.py`; `embargo/nodes/manager_commit.py` |
    | Participant-status | `_EmitParticipantStatusActivityBase` | `report/nodes/develop_fix.py` |
    | Single-activity (invite, ownership, other case domains) | `_EmitSingleActivityBase` | `helpers.py` |
 

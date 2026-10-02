@@ -44,9 +44,18 @@ from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.use_cases.triggers.embargo import (
+    SvcAcceptEmbargoUseCase,
+    SvcProposeEmbargoRevisionUseCase,
+)
+from vultron.core.use_cases.triggers.requests import (
+    AcceptEmbargoTriggerRequest,
+    ProposeEmbargoRevisionTriggerRequest,
+)
 from vultron.semantic_registry import extract_event, use_case_map
 from vultron.wire.as2.factories import em_propose_embargo_activity
 from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 from .conftest import make_embargo_case_with_actor
@@ -62,11 +71,11 @@ BYSTANDER = "https://example.org/users/vendor-b"
 class _Network:
     """One store per actor, and the outbox items each has delivered."""
 
-    def __init__(self, case_id: str) -> None:
+    def __init__(self, case_id: str, *, owner: str = OWNER) -> None:
         self.case_id = case_id
         manager_dl, _, _case, embargo = make_embargo_case_with_actor(
             case_id,
-            OWNER,
+            owner,
             extra_participants=[PROPOSER, BYSTANDER],
             case_manager_actor_id=MANAGER,
         )
@@ -92,7 +101,7 @@ class _Network:
             embargo.id_,
             *(str(p) for p in case_read.actor_participant_index.values()),
         ]
-        for actor_id in (OWNER, BYSTANDER):
+        for actor_id in {owner, BYSTANDER} - {MANAGER}:
             replica = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
             for obj_id in replicated:
                 obj = manager_dl.read(obj_id)
@@ -312,4 +321,66 @@ def test_the_owners_rejection_returns_every_store_to_the_prior_terms():
         case = net.case(actor_id)
         assert case.current_status.em.state == EM.ACTIVE, actor_id
         assert case.active_embargo_id == net.initial_embargo_id, actor_id
+        assert case.proposed_embargo_ids == [], actor_id
+
+
+def _manager_ports(net: _Network) -> dict[str, Any]:
+    """The ports ``TriggerDispatcher`` hands a trigger run by the manager."""
+    dl = net.stores[MANAGER]
+    return {
+        "trigger_activity": TriggerActivityAdapter(dl),
+        "sync_port": SyncActivityAdapter(dl),
+        "wire_render_port": As2WireRenderAdapter(),
+    }
+
+
+@pytest.mark.spec("EP-09-007")
+@pytest.mark.spec("EP-09-008")
+@pytest.mark.spec("RSH-08-004")
+@pytest.mark.spec("TB-06-007")
+def test_a_replica_follows_the_managing_owners_revision_by_trigger():
+    """The owner is the CASE_MANAGER and decides by trigger (#4085).
+
+    Its revision and its own acceptance are committed as ledger entries, so a
+    replica that receives nothing but the ``Announce(CaseLedgerEntry)``
+    fan-out converges ``ACTIVE → REVISE → ACTIVE`` with it.
+    """
+    net = _Network("https://example.org/cases/manager-owner", owner=MANAGER)
+    dl = net.stores[MANAGER]
+    dl.create(as_Service(id_=MANAGER, name="Coordinator"))
+
+    SvcProposeEmbargoRevisionUseCase(
+        dl,
+        ProposeEmbargoRevisionTriggerRequest(
+            actor_id=MANAGER,
+            case_id=net.case_id,
+            end_time=days_from_now_utc(90),
+        ),
+        **_manager_ports(net),
+    ).execute()
+    (revision_id,) = net.case(MANAGER).proposed_embargo_ids
+    # The manager mails itself nothing (CLP-10-001); each participant gets
+    # its relayed Invite (EP-09-002).
+    assert net.queued(MANAGER, to=MANAGER) == []
+    assert len(net.queued(MANAGER, to=BYSTANDER, type_="Invite")) == 1
+    _replay_to_bystander(net)
+
+    for actor_id in (MANAGER, BYSTANDER):
+        case = net.case(actor_id)
+        assert case.current_status.em.state == EM.REVISE, actor_id
+        assert case.active_embargo_id == net.initial_embargo_id, actor_id
+        assert case.proposed_embargo_ids == [revision_id], actor_id
+
+    SvcAcceptEmbargoUseCase(
+        dl,
+        AcceptEmbargoTriggerRequest(actor_id=MANAGER, case_id=net.case_id),
+        **_manager_ports(net),
+    ).execute()
+    assert net.queued(MANAGER, to=MANAGER) == []
+    _replay_to_bystander(net)
+
+    for actor_id in (MANAGER, BYSTANDER):
+        case = net.case(actor_id)
+        assert case.current_status.em.state == EM.ACTIVE, actor_id
+        assert case.active_embargo_id == revision_id, actor_id
         assert case.proposed_embargo_ids == [], actor_id

@@ -65,6 +65,8 @@ from vultron.core.models._helpers import project_wire_snapshot_to_core
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.wire_keys import wire_key
+from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
@@ -82,6 +84,28 @@ def _embargo_of_invite(invite: Any) -> Any:
     if isinstance(invite, dict):
         return invite.get("object")
     return None
+
+
+def _is_manager_self_relay(
+    snapshot: dict[str, Any],
+    proposer_id: str | None,
+    case: VulnerabilityCase,
+    dl: CasePersistence | None,
+) -> bool:
+    """True when a proposal-slot entry is a relay of the manager's own terms.
+
+    The CASE_MANAGER emitted it (``actor``) to exactly one participant other
+    than itself.  A participant's proposal is addressed to the manager, and
+    the manager's own proposal entry to nobody, so neither matches.
+    """
+    if not proposer_id or dl is None:
+        return False
+    recipients = snapshot.get("to") or []
+    if not isinstance(recipients, list) or len(recipients) != 1:
+        return False
+    if _extract_id_from_field(recipients[0]) in (None, "", proposer_id):
+        return False
+    return resolve_case_manager_id(case, dl) == proposer_id
 
 
 class _EmbargoRelayEffectNode(_LedgerEffectNode):
@@ -150,92 +174,19 @@ class _EmbargoRelayEffectNode(_LedgerEffectNode):
         )
         return True
 
-    def _delegate(self, node: DataLayerActionWithPorts) -> Status:
-        """Run a received-side record node in this node's store and actor."""
-        node.datalayer = self.datalayer
-        node.actor_id = self.actor_id
-        status = node.update()
-        self.feedback_message = node.feedback_message
-        return status
+    def _replay_invite(
+        self,
+        case: VulnerabilityCase,
+        embargo_id: str,
+        snapshot: dict[str, Any],
+    ) -> Status:
+        """Apply the operation the CASE_MANAGER ran for one relayed Invite.
 
-
-class ApplyEmbargoProposalFromLedgerNode(_EmbargoRelayEffectNode):
-    """Replay the embargo proposal the CASE_MANAGER received (EP-09-001).
-
-    Stores the proposed ``EmbargoEvent`` and moves this replica's case through
-    ``EmbargoLifecycle.propose_embargo`` in ``OBSERVED`` mode — ``PROPOSED``
-    for a first proposal, ``REVISE`` for a revision of an active embargo —
-    recording the proposer's consent to its own terms (ADR-0093).  Records the
-    proposal in ``pending_embargo_proposal_index`` only when this replica has
-    no entry for the embargo yet, so the Invite actually addressed to this
-    replica keeps its place there.
-    """
-
-    def update(self) -> Status:
-        entry = self._get_entry()
-        snapshot = entry.payload_snapshot
-        resolved = self._resolve(snapshot.get("object"))
-        if isinstance(resolved, Status):
-            return resolved
-        case, embargo_id = resolved
+        ``EmbargoLifecycle.record_embargo_invite`` for the invitee — the
+        Invite's sole ``to`` — with the Invite's RSVP deadline (CM-28-013).
+        An invitee with no participant record here is skipped.
+        """
         assert self.datalayer is not None
-
-        proposer_id = _extract_id_from_field(snapshot.get("actor"))
-        EmbargoLifecycle(persistence=self.datalayer).propose_embargo(
-            case_id=case.id_,
-            embargo_id=embargo_id,
-            actor_id=proposer_id,
-            transition_mode=TransitionMode.OBSERVED,
-        )
-
-        proposal_id = _extract_id_from_field(snapshot.get("id"))
-        if proposal_id:
-            record_embargo_proposal_index(
-                self.datalayer,
-                case.id_,
-                embargo_id,
-                proposal_id,
-                overwrite=False,
-            )
-
-        self.feedback_message = (
-            f"Replayed proposal of embargo '{embargo_id}' by '{proposer_id}'"
-            f" on case '{case.id_}' (EP-09-007)"
-        )
-        self.logger.info("%s: %s", self.name, self.feedback_message)
-        return Status.SUCCESS
-
-
-class ApplyEmbargoInviteFromLedgerNode(_EmbargoRelayEffectNode):
-    """Replay an Invite the CASE_MANAGER relayed (EP-09-002, EP-09-004).
-
-    Calls ``EmbargoLifecycle.record_embargo_invite`` for the invitee — the
-    Invite's sole ``to`` — the operation the CASE_MANAGER ran at its commit:
-    PEC ``INVITE`` where CM-18-003 allows it, so a ``SIGNATORY`` asked about
-    a revision keeps its state, and the Invite's RSVP deadline (``endTime``)
-    when it carries one (CM-28-013).  An invitee with no participant record
-    here is skipped.
-
-    On the proposer's own replica — the Invite's ``attributedTo`` — the Invite
-    is also recorded in ``pending_embargo_proposal_index`` when the replica has
-    no entry for the embargo yet, so the proposer's default selection reaches
-    the revision (EP-08-002).  For a received proposal the propose trigger has
-    already indexed it and this is a no-op; the creation-time revision has no
-    proposal activity, so its relayed Invite is the only entry the proposer's
-    replica learns it from (EP-04-011).  An invitee indexes the Invite when it
-    answers, so this node writes no index for anyone else: an entry here would
-    make the invitee's idempotency guard read the Invite as already answered.
-    """
-
-    def update(self) -> Status:
-        entry = self._get_entry()
-        snapshot = entry.payload_snapshot
-        resolved = self._resolve(snapshot.get("object"))
-        if isinstance(resolved, Status):
-            return resolved
-        case, embargo_id = resolved
-        assert self.datalayer is not None
-
         recipients = snapshot.get("to") or []
         invitee_id = (
             _extract_id_from_field(recipients[0])
@@ -292,6 +243,104 @@ class ApplyEmbargoInviteFromLedgerNode(_EmbargoRelayEffectNode):
         record_embargo_proposal_index(
             self.datalayer, case.id_, embargo_id, invite_id, overwrite=False
         )
+
+    def _delegate(self, node: DataLayerActionWithPorts) -> Status:
+        """Run a received-side record node in this node's store and actor."""
+        node.datalayer = self.datalayer
+        node.actor_id = self.actor_id
+        status = node.update()
+        self.feedback_message = node.feedback_message
+        return status
+
+
+class ApplyEmbargoProposalFromLedgerNode(_EmbargoRelayEffectNode):
+    """Replay the embargo proposal the CASE_MANAGER received (EP-09-001).
+
+    Stores the proposed ``EmbargoEvent`` and moves this replica's case through
+    ``EmbargoLifecycle.propose_embargo`` in ``OBSERVED`` mode — ``PROPOSED``
+    for a first proposal, ``REVISE`` for a revision of an active embargo —
+    recording the proposer's consent to its own terms (ADR-0093).  Records the
+    proposal in ``pending_embargo_proposal_index`` only when this replica has
+    no entry for the embargo yet, so the Invite actually addressed to this
+    replica keeps its place there.
+
+    When the CASE_MANAGER proposed the terms itself, each Invite it relays is
+    self-attributed (``attributedTo`` is the manager, the proposer), so the
+    classifier reads it as this proposal slot rather than the relay slot
+    (``is_relayed_embargo_invite``).  Such an entry — the manager's own
+    ``Invite`` with exactly one recipient other than the manager — is also
+    replayed as the relayed Invite it is (EP-09-002, #4085); the manager's
+    proposal entry itself is addressed to nobody and is not.
+    """
+
+    def update(self) -> Status:
+        entry = self._get_entry()
+        snapshot = entry.payload_snapshot
+        resolved = self._resolve(snapshot.get("object"))
+        if isinstance(resolved, Status):
+            return resolved
+        case, embargo_id = resolved
+        assert self.datalayer is not None
+
+        proposer_id = _extract_id_from_field(snapshot.get("actor"))
+        EmbargoLifecycle(persistence=self.datalayer).propose_embargo(
+            case_id=case.id_,
+            embargo_id=embargo_id,
+            actor_id=proposer_id,
+            transition_mode=TransitionMode.OBSERVED,
+        )
+
+        proposal_id = _extract_id_from_field(snapshot.get("id"))
+        if proposal_id:
+            record_embargo_proposal_index(
+                self.datalayer,
+                case.id_,
+                embargo_id,
+                proposal_id,
+                overwrite=False,
+            )
+
+        self.feedback_message = (
+            f"Replayed proposal of embargo '{embargo_id}' by '{proposer_id}'"
+            f" on case '{case.id_}' (EP-09-007)"
+        )
+        self.logger.info("%s: %s", self.name, self.feedback_message)
+        if _is_manager_self_relay(snapshot, proposer_id, case, self.datalayer):
+            return self._replay_invite(case, embargo_id, snapshot)
+        return Status.SUCCESS
+
+
+class ApplyEmbargoInviteFromLedgerNode(_EmbargoRelayEffectNode):
+    """Replay an Invite the CASE_MANAGER relayed (EP-09-002, EP-09-004).
+
+    Calls ``EmbargoLifecycle.record_embargo_invite`` for the invitee — the
+    Invite's sole ``to`` — the operation the CASE_MANAGER ran at its commit:
+    PEC ``INVITE`` where CM-18-003 allows it, so a ``SIGNATORY`` asked about
+    a revision keeps its state, and the Invite's RSVP deadline (``endTime``)
+    when it carries one (CM-28-013).  An invitee with no participant record
+    here is skipped.
+
+    On the proposer's own replica — the Invite's ``attributedTo`` — the Invite
+    is also recorded in ``pending_embargo_proposal_index`` when the replica has
+    no entry for the embargo yet, so the proposer's default selection reaches
+    the revision (EP-08-002).  For a received proposal the propose trigger has
+    already indexed it and this is a no-op; the creation-time revision has no
+    proposal activity, so its relayed Invite is the only entry the proposer's
+    replica learns it from (EP-04-011).  An invitee indexes the Invite when it
+    answers, so this node writes no index for anyone else: an entry here would
+    make the invitee's idempotency guard read the Invite as already answered.
+    """
+
+    def update(self) -> Status:
+        entry = self._get_entry()
+        snapshot = entry.payload_snapshot
+        resolved = self._resolve(snapshot.get("object"))
+        if isinstance(resolved, Status):
+            return resolved
+        case, embargo_id = resolved
+        assert self.datalayer is not None
+
+        return self._replay_invite(case, embargo_id, snapshot)
 
 
 class ApplyEmbargoAcceptanceFromLedgerNode(_EmbargoRelayEffectNode):

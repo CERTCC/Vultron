@@ -14,9 +14,8 @@
 
 A participant that does not hold ``CVDRole.CASE_MANAGER`` emits its proposal to
 the manager, records it in the pending-assertion store, and writes no EM state;
-its replica moves when the manager's commit is announced.  Strict ``xfail``
-until the trigger-side write gate lands (#3962; Concern #3918, ADR-0113 as
-rewritten 2026-09-30).
+its replica moves when the manager's commit is announced (#3962; Concern #3918,
+ADR-0113).
 """
 
 from datetime import UTC, datetime, timedelta
@@ -24,26 +23,44 @@ from typing import cast
 
 import pytest
 
+from test.support.ledger import committed_event_types
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.pending_assertion import get_pending_assertion_store
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
-from vultron.core.use_cases.triggers.embargo import SvcProposeEmbargoUseCase
+from vultron.core.use_cases.triggers.embargo import (
+    SvcAcceptEmbargoUseCase,
+    SvcProposeEmbargoRevisionUseCase,
+    SvcProposeEmbargoUseCase,
+    SvcRejectEmbargoUseCase,
+    SvcTerminateEmbargoUseCase,
+)
 from vultron.core.use_cases.triggers.requests import (
+    AcceptEmbargoTriggerRequest,
+    ProposeEmbargoRevisionTriggerRequest,
     ProposeEmbargoTriggerRequest,
+    RejectEmbargoTriggerRequest,
+    TerminateEmbargoTriggerRequest,
 )
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import (
     FinderParticipant,
     VendorParticipant,
+)
+
+from .conftest import (
+    _assert_asked_case_manager,
+    _build_active_embargo_case,
+    _persist_actor,
 )
 
 MANAGER = "https://example.org/actors/case-actor"
@@ -78,14 +95,6 @@ def _case_managed_by_someone_else(
     return case
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "EP-09-008: a non-manager's propose trigger writes EM.PROPOSED to its "
-        "own store before the CASE_MANAGER has answered. Tracked by #3962 "
-        "(Concern #3918, ADR-0113)."
-    ),
-)
 @pytest.mark.spec("EP-09-008")
 def test_non_manager_trigger_asks_and_writes_no_em_state(
     finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
@@ -113,13 +122,146 @@ def test_non_manager_trigger_asks_and_writes_no_em_state(
     invites = [a for a in queued if a.type_ == "Invite"]
     assert len(invites) == 1
     assert invites[0].to == [MANAGER]
-    assert not any(
-        a.type_ == "Add" and "CaseStatus" in str(a.object_) for a in queued
-    ), "a non-manager must not declare an EM state it has not been given"
+    # A declaration would be a ledger commit, not an outbox item (AC-3).
+    assert committed_event_types(finder_dl, case.id_) == [], (
+        "a non-manager must not declare an EM state it has not been given"
+    )
 
     assert result.activity is not None
     activity_id = activity_of(result)["id"]
     store = get_pending_assertion_store(finder.id_)
     assert store.is_suppressed(
         case.id_, MessageSemantics.INVITE_TO_EMBARGO_ON_CASE.value, activity_id
+    )
+
+
+def _propose(
+    dl: SqliteDataLayer, actor_id: str, case_id: str, end_time: datetime
+):
+    return SvcProposeEmbargoUseCase(
+        dl,
+        ProposeEmbargoTriggerRequest(
+            actor_id=actor_id, case_id=case_id, end_time=end_time
+        ),
+        trigger_activity=TriggerActivityAdapter(dl),
+    ).execute()
+
+
+@pytest.mark.spec("SYNC-11-002")
+def test_repeated_non_manager_proposal_is_suppressed(
+    finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """The same terms asked again inside the window are not re-emitted."""
+    finder, finder_dl = finder_actor_and_dl
+    case = _case_managed_by_someone_else(finder_dl, finder.id_)
+    end_time = datetime.now(tz=UTC) + timedelta(days=7)
+
+    first = _propose(finder_dl, finder.id_, case.id_, end_time)
+    outbox_after_first = list(finder_dl.outbox_list())
+    second = _propose(finder_dl, finder.id_, case.id_, end_time)
+
+    assert first.activity is not None
+    assert second.activity is None
+    assert list(finder_dl.outbox_list()) == outbox_after_first
+
+    # Different terms are a different assertion, so they are sent.
+    third = _propose(
+        finder_dl, finder.id_, case.id_, end_time + timedelta(days=1)
+    )
+    assert third.activity is not None
+
+
+def _answer_or_teardown(
+    kind: str,
+    dl: SqliteDataLayer,
+    actor_id: str,
+    case_id: str,
+    proposal_id: str,
+):
+    """Run the non-manager *kind* trigger once against the stored case."""
+    factory = TriggerActivityAdapter(dl)
+    render = As2WireRenderAdapter()
+    if kind == "accept":
+        return SvcAcceptEmbargoUseCase(
+            dl,
+            AcceptEmbargoTriggerRequest(
+                actor_id=actor_id, case_id=case_id, proposal_id=proposal_id
+            ),
+            trigger_activity=factory,
+            wire_render_port=render,
+        ).execute()
+    if kind == "reject":
+        return SvcRejectEmbargoUseCase(
+            dl,
+            RejectEmbargoTriggerRequest(
+                actor_id=actor_id, case_id=case_id, proposal_id=proposal_id
+            ),
+            trigger_activity=factory,
+            wire_render_port=render,
+        ).execute()
+    return SvcTerminateEmbargoUseCase(
+        dl,
+        TerminateEmbargoTriggerRequest(actor_id=actor_id, case_id=case_id),
+        trigger_activity=factory,
+        wire_render_port=render,
+    ).execute()
+
+
+@pytest.mark.spec("SYNC-11-002")
+@pytest.mark.parametrize("kind", ["accept", "reject", "terminate"])
+def test_repeated_non_manager_answer_or_teardown_is_suppressed(
+    finder_actor_and_dl: tuple[as_Service, SqliteDataLayer], kind: str
+) -> None:
+    """The same answer or teardown asked again inside the window is not
+    re-emitted: its subject (the proposal, the embargo) is still pending."""
+    finder, finder_dl = finder_actor_and_dl
+    owner = _persist_actor(finder_dl, "Vendor Co")
+    case, proposal, _ = _build_active_embargo_case(
+        finder_dl, owner.id_, finder.id_
+    )
+
+    first = _answer_or_teardown(
+        kind, finder_dl, finder.id_, case.id_, proposal.id_
+    )
+    outbox_after_first = list(finder_dl.outbox_list())
+    second = _answer_or_teardown(
+        kind, finder_dl, finder.id_, case.id_, proposal.id_
+    )
+
+    assert first.activity is not None
+    assert second.activity is None
+    assert list(finder_dl.outbox_list()) == outbox_after_first
+
+
+@pytest.mark.spec("EP-09-008")
+def test_non_manager_revision_asks_and_writes_no_em_state(
+    finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """A participant's revision goes to the CASE_MANAGER; EM stays ACTIVE."""
+    finder, finder_dl = finder_actor_and_dl
+    owner = _persist_actor(finder_dl, "Vendor Co")
+    case, _, _ = _build_active_embargo_case(finder_dl, owner.id_, finder.id_)
+
+    SvcProposeEmbargoRevisionUseCase(
+        finder_dl,
+        ProposeEmbargoRevisionTriggerRequest(
+            actor_id=finder.id_,
+            case_id=case.id_,
+            end_time=datetime.now(tz=UTC) + timedelta(days=30),
+        ),
+        trigger_activity=TriggerActivityAdapter(finder_dl),
+    ).execute()
+
+    updated = cast(VulnerabilityCase, finder_dl.read(case.id_))
+    assert updated.current_status.em.state == EM.ACTIVE
+    assert updated.active_embargo == case.active_embargo
+    assert updated.proposed_embargoes == case.proposed_embargoes
+    assert committed_event_types(finder_dl, case.id_) == []
+    _assert_asked_case_manager(
+        finder_dl,
+        actor_id=finder.id_,
+        case_id=case.id_,
+        manager_id=owner.id_,
+        activity_type="Invite",
+        event_type=MessageSemantics.INVITE_TO_EMBARGO_ON_CASE.value,
     )

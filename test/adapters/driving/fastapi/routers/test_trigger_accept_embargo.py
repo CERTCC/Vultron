@@ -27,6 +27,8 @@ from fastapi import status
 
 from vultron.core.states.em import EM
 
+from .conftest import make_case_manager
+
 # ---------------------------------------------------------------------------
 # Module-level fixture: suppress outbox delivery retries
 # ---------------------------------------------------------------------------
@@ -184,6 +186,7 @@ def test_trigger_accept_embargo_activates_embargo(
 ):
     """accept-embargo activates the embargo and sets EM state to ACTIVE."""
     case_obj, proposal, _embargo = case_with_proposal
+    make_case_manager(case_obj.id_, actor.id_, dl)  # EP-09-008
 
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/accept-embargo",
@@ -201,6 +204,7 @@ def test_trigger_accept_embargo_without_proposal_id_uses_first_proposal(
 ):
     """accept-embargo without proposal_id finds the first pending proposal."""
     case_obj, _, _ = case_with_proposal
+    make_case_manager(case_obj.id_, actor.id_, dl)  # EP-09-008
 
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/accept-embargo",
