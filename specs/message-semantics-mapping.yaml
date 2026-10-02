@@ -750,7 +750,7 @@ groups:
       (CM-18-004). The PEC trigger is applied via EmbargoLifecycle.record_participant_consent()
       inside the InviteToEmbargoOnCaseReceivedUseCase received-side handler.
     verification: >-
-      Inspection of vultron/core/use_cases/received/embargo.py and
+      Inspection of vultron/core/use_cases/received/embargo/invite.py and
       vultron/core/services/embargo_lifecycle/ confirms that processing
       INVITE_TO_EMBARGO_ON_CASE applies PEC_Trigger.INVITE to each named invitee
       via record_participant_consent().
@@ -847,7 +847,7 @@ groups:
       whether the proposal replaces it. The owner's own EJ is a decision to keep
       the standing embargo and therefore cannot be a decline of it.
     verification: >-
-      Inspection of vultron/core/use_cases/received/embargo.py and
+      Inspection of vultron/core/use_cases/received/embargo/reject.py and
       vultron/core/services/embargo_lifecycle/answers.py confirms
       RejectInviteToEmbargoOnCaseReceivedUseCase applies EmbargoLifecycle, which
       applies DECLINE to the rejecting actor only when the rejected embargo is the

@@ -43,7 +43,7 @@ relevant_packages:
   - vultron/core/behaviors/embargo/nodes/manager_commit.py
   - vultron/core/models/pending_assertion.py
   - vultron/core/use_cases/triggers/embargo.py
-  - vultron/core/use_cases/received/embargo.py
+  - vultron/core/use_cases/received/embargo/
   - vultron/bt/embargo_management
 ---
 
@@ -201,7 +201,7 @@ enforces EMB-01-002, EMB-02-002, and EMB-04-002 via
 - `reject_embargo_invite()` — raises when EM is REVISE and P/X/A is set (caller
   MUST use `terminate_active_embargo()` instead)
 
-The received-side path (`received/embargo.py`) reaches `EmbargoLifecycle`
+The received-side path (`received/embargo/`) reaches `EmbargoLifecycle`
 through nodes: the received Accept runs `accept_embargo_invite(OBSERVED)`
 (`RecordParticipantAcceptanceNode`), the received Reject records consent through
 `record_embargo_rejection` (`RecordParticipantRejectionNode`) and decides the
