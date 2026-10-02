@@ -17,9 +17,11 @@
 
 The accept/reject triggers correlate an embargo with the activity that
 proposed it through ``VulnerabilityCase.pending_embargo_proposal_index``
-rather than by re-reading the wire activity.  Three writers keep it: the
-received Invite, the propose trigger, and the replica replaying a proposal
-from the ledger (EP-09-007).  It records a correlation and moves no EM state,
+rather than by re-reading the wire activity.  Five writers keep it: the
+received Invite, the propose trigger, the replica replaying a proposal from
+the ledger (EP-09-007), the proposer's replica replaying the Invite relayed
+on its behalf, and the CASE_MANAGER's relay of the creation-time revision
+(EP-04-011), which indexes its Invite only after sending it.  It records a correlation and moves no EM state,
 so it is not an ``EmbargoLifecycle`` operation (BT-15-002).
 """
 

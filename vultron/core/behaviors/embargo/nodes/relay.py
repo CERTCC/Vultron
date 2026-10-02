@@ -318,13 +318,25 @@ class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
 
     def initialise(self) -> None:
         super().initialise()
-        self._recipients = cast(list[str], self.get_input(_RECIPIENTS_KEY))
+        self._load_relay_inputs()
         try:
             self._sync_port = cast(
                 "SyncActivityPort | None", self.get_input("sync_port")
             )
         except (py_trees.ports.NoDataAvailable, NotImplementedError):
             self._sync_port = None
+
+    def _load_relay_inputs(self) -> None:
+        """Read what to relay; the recipients the collect node resolved.
+
+        A subclass that learns its case, embargo and proposer only at tick
+        time overrides this rather than the emit path (EP-04-011).
+        """
+        self._recipients = cast(list[str], self.get_input(_RECIPIENTS_KEY))
+
+    def _activity_id_for(self, recipient_id: str) -> str | None:
+        """The id the Invite to *recipient_id* takes; ``None`` mints a fresh one."""
+        return None
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -352,6 +364,7 @@ class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
             actor=self.actor_id,
             to=[recipient_id],
             attributed_to=self._proposer_id,
+            activity_id=self._activity_id_for(recipient_id),
         )
         self._commit_emission(activity_id, blob)
         dl.outbox_append(activity_id)

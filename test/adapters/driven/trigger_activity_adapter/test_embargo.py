@@ -95,6 +95,22 @@ class TestProposeEmbargo:
 
         assert "attributedTo" not in json.loads(blob)
 
+    def test_a_given_activity_id_is_the_invites_id(self, adapter, dl):
+        """EP-04-011: the creation-time relay emits under the id it indexed."""
+        embargo = _make_embargo(dl)
+        given = "urn:uuid:pre-indexed-invite"
+
+        activity_id, blob = adapter.propose_embargo(
+            embargo_id=embargo.id_,
+            case_id=_CASE_ID,
+            actor=_ACTOR,
+            activity_id=given,
+        )
+
+        assert activity_id == given
+        assert json.loads(blob)["id"] == given
+        assert dl.read(given) is not None
+
 
 class TestAcceptEmbargo:
     def test_returns_id_and_dict(self, adapter, dl):

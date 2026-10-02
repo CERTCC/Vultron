@@ -34,11 +34,12 @@ from vultron.core.behaviors.case.nodes.participant.common import (
 from vultron.core.behaviors.case.nodes.participant.status import (
     CreateParticipantStatusNode,
 )
+from vultron.core.behaviors.case.report_author import report_author_id
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.report import VulnerabilityReport
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
+from vultron.errors import BtNodePreconditionError, VultronNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -105,8 +106,9 @@ class AddReporterParticipantNode(DataLayerActionWithPorts):
 
     def _resolve_reporter_uri(self, report_id: str) -> str | None:
         assert self.datalayer is not None
-        raw_report = self.datalayer.read(report_id)
-        if not isinstance(raw_report, VulnerabilityReport):
+        try:
+            return report_author_id(self.datalayer, report_id)
+        except VultronNotFoundError:
             logger.warning(
                 "%s: report '%s' not found, so the reporter cannot be"
                 " identified — skipping reporter participant (best-effort)."
@@ -116,17 +118,14 @@ class AddReporterParticipantNode(DataLayerActionWithPorts):
                 self.name,
                 report_id,
             )
-            return None
-        reporter_uri = getattr(raw_report, "attributed_to", None)
-        if not isinstance(reporter_uri, str) or not reporter_uri:
+        except BtNodePreconditionError:
             logger.warning(
                 "%s: report '%s' has no attributed_to — skipping reporter"
                 " participant (best-effort)",
                 self.name,
                 report_id,
             )
-            return None
-        return reporter_uri
+        return None
 
     def _already_has_participant(self, case_id: str, actor_uri: str) -> bool:
         assert self.datalayer is not None
