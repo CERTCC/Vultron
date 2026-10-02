@@ -25,9 +25,11 @@ relay failed, nothing would send the Invite and the winning party would never
 be asked.
 
 This record carries what the relay needs across executions, in the shape of
-the ``PendingCreateCaseActivity`` marker (CP-05-005): written when the
-revision is registered, deleted once the relay is discharged, and found by a
-later delivery's relay or by the startup retry runner while it remains.
+the ``PendingCreateCaseActivity`` marker (CP-05-005): written just before the
+revision is registered, so a crash between the two leaves a record the relay
+discharges rather than a revision nobody owes; deleted once the relay is
+discharged; and found by a later delivery's relay or by the startup retry
+runner while it remains.
 
 Spec: ``specs/embargo-policy.yaml`` EP-04-011.
 """
@@ -62,6 +64,11 @@ class PendingCreationTimeRevisionRelay(CoreRecord):
             is its author.  Required: a revision with no report could never
             be relayed, so its writer raises instead of recording it.
         case_actor_id: URI of the CASE_MANAGER that owes the relay.
+        invite_queued: The receipt that the committed Invite reached the
+            outbox.  Delivery empties the outbox, so neither it nor the ledger
+            can tell a delivered Invite from one whose queueing failed after
+            its commit; a retry that finds the Invite committed queues it
+            again unless this is set.
 
     Spec: EP-04-011.
     """
@@ -86,6 +93,10 @@ class PendingCreationTimeRevisionRelay(CoreRecord):
     )
     case_actor_id: UriString = Field(
         ..., description="URI of the CASE_MANAGER that owes the relay"
+    )
+    invite_queued: bool = Field(
+        default=False,
+        description="Set once the committed Invite reached the outbox",
     )
 
     @classmethod

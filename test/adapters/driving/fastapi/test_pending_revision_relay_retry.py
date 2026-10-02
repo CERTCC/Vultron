@@ -175,8 +175,8 @@ def test_a_case_not_yet_created_keeps_its_obligation(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """With no genesis entry the relay waits: nothing is sent, the obligation
-    is kept, and the runner says so at INFO (a designed deferral, not an
-    error)."""
+    is kept, and the runner warns, since nothing at startup commits those
+    entries and only a redelivered proposal ends the wait."""
     pending = BTTestScenario(MANAGER)
     seed(pending, created=False)
     owe(pending)
@@ -189,8 +189,9 @@ def test_a_case_not_yet_created_keeps_its_obligation(
     assert count == 0
     assert invites(pending) == []
     assert owed(pending) is not None
-    kept = [r for r in caplog.records if "still owed" in r.getMessage()]
-    assert [r.levelno for r in kept] == [logging.INFO]
+    runner = [r for r in caplog.records if r.name == pending_retry.__name__]
+    assert [r.levelno for r in runner] == [logging.WARNING]
+    assert "creation entries" in runner[0].getMessage()
 
 
 @pytest.mark.spec("EP-04-011")
@@ -217,5 +218,26 @@ def test_an_actor_no_longer_case_manager_relays_nothing(
     runner = [r for r in caplog.records if r.name == pending_retry.__name__]
     assert [r.levelno for r in runner] == [logging.INFO]
     assert "still owed" in runner[0].getMessage()
+    assert invites(scenario) == []
+    assert owed(scenario) is not None
+
+
+@pytest.mark.spec("EP-04-011")
+@pytest.mark.spec("BT-05-005")
+def test_a_marker_owed_by_another_actor_is_skipped(
+    scenario: BTTestScenario, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A tree runs against the store of the actor it executes as, so a marker
+    naming someone other than the store's owner is skipped with a warning,
+    not relayed as the wrong actor against the wrong store."""
+    with caplog.at_level(logging.WARNING, logger=pending_retry.__name__):
+        count = retry_pending_creation_time_revision_relays(
+            datalayers_factory=lambda: {OWNER: scenario.dl}
+        )
+
+    assert count == 0
+    runner = [r for r in caplog.records if r.name == pending_retry.__name__]
+    assert [r.levelno for r in runner] == [logging.WARNING]
+    assert "skipped" in runner[0].getMessage()
     assert invites(scenario) == []
     assert owed(scenario) is not None

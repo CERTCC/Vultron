@@ -474,9 +474,9 @@ The accept flow owes one more delivery on a contested creation: the
 `Invite(EmbargoEvent)` that relays the shortest-wins loser to the winner
 (EP-04-011). Creation-time initialization runs once per case (EP-04-012), so
 nothing on a redelivered proposal would register the revision again, and a relay
-that failed would be lost. `RecordCreationTimeRevisionRelayNode` therefore writes
-a `PendingCreationTimeRevisionRelay` marker right after
-`InitializeDefaultEmbargoNode`, and `RelayCreationTimeRevisionNode` reads it,
+that failed would be lost. `RegisterLongerProposalAsRevisionNode` therefore writes
+a `PendingCreationTimeRevisionRelay` marker just before it registers the
+revision, and `RelayCreationTimeRevisionNode` reads it,
 relays, indexes, and deletes it; a failure after the write keeps it. The same
 lifespan scan calls `retry_pending_creation_time_revision_relays()` after the
 Create retry, which re-runs the relay node for each marker's case behind the

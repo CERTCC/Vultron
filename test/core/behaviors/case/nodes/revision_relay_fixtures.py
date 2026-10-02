@@ -24,11 +24,7 @@ from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
-from vultron.core.behaviors.case.nodes.embargo_revision import (
-    CreationTimeRevision,
-)
 from vultron.core.behaviors.case.nodes.embargo_revision_relay import (
-    RecordCreationTimeRevisionRelayNode,
     RelayCreationTimeRevisionNode,
 )
 from vultron.core.behaviors.case.nodes.proposal_ledger import (
@@ -127,21 +123,11 @@ def seed(
         )
 
 
-def revision(
-    losing_source: EmbargoDurationSource = EmbargoDurationSource.ACTOR_DEFAULT,
-    case_id: str = CASE_ID,
-) -> CreationTimeRevision:
-    return CreationTimeRevision(
-        case_id=case_id,
-        embargo_id=EMBARGO_ID,
-        proposal_id=PROPOSAL_ID,
-        losing_source=losing_source,
-    )
-
-
 def marker(
     losing_source: EmbargoDurationSource = EmbargoDurationSource.ACTOR_DEFAULT,
     report_id: str = REPORT_ID,
+    *,
+    invite_queued: bool = False,
 ) -> PendingCreationTimeRevisionRelay:
     return PendingCreationTimeRevisionRelay(
         case_id=CASE_ID,
@@ -150,6 +136,7 @@ def marker(
         losing_source=cast(LosingSource, losing_source.value),
         report_id=report_id,
         case_actor_id=MANAGER,
+        invite_queued=invite_queued,
     )
 
 
@@ -157,9 +144,13 @@ def owe(
     scenario: BTTestScenario,
     losing_source: EmbargoDurationSource = EmbargoDurationSource.ACTOR_DEFAULT,
     report_id: str = REPORT_ID,
+    *,
+    invite_queued: bool = False,
 ) -> None:
-    """Record the relay obligation the case tree's marker node would write."""
-    scenario.dl.save(marker(losing_source, report_id))
+    """Record the relay obligation the registration would write."""
+    scenario.dl.save(
+        marker(losing_source, report_id, invite_queued=invite_queued)
+    )
 
 
 def relay(
@@ -170,18 +161,6 @@ def relay(
     if case_id is not None:
         return scenario.run(RelayCreationTimeRevisionNode(case_id=case_id))
     return scenario.run(RelayCreationTimeRevisionNode(), case_id=CASE_ID)
-
-
-def record(
-    scenario: BTTestScenario,
-    revision: CreationTimeRevision | None,
-    report_id: str | None = REPORT_ID,
-) -> BTExecutionResult:
-    return scenario.run(
-        RecordCreationTimeRevisionRelayNode(report_id=report_id),
-        case_id=CASE_ID,
-        creation_time_revision=revision,
-    )
 
 
 def owed(scenario: BTTestScenario) -> PendingCreationTimeRevisionRelay | None:

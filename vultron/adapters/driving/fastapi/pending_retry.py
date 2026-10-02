@@ -91,6 +91,9 @@ from vultron.core.behaviors.case.nodes.embargo_revision_relay import (
 from vultron.core.behaviors.case.nodes.proposal import (
     RequeuePendingCreateCaseActivityNode,
 )
+from vultron.core.behaviors.case.nodes.proposal_ledger import (
+    CREATE_CASE_EVENT_TYPE,
+)
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
 )
@@ -103,6 +106,7 @@ from vultron.core.models.pending_creation_time_revision_relay import (
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer
+from vultron.core.sync_helpers import recorded_entries_for_case
 from vultron.errors import VultronError
 
 logger = logging.getLogger(__name__)
@@ -392,17 +396,32 @@ def _relay_pending_revision(
         f" on case '{marker.case_id}'",
     ):
         return False
-    if dl.read(marker.id_) is not None:
+    if dl.read(marker.id_) is None:
+        return True
+    if not any(
+        e.event_type == CREATE_CASE_EVENT_TYPE
+        for e in recorded_entries_for_case(case_id=marker.case_id, dl=cop)
+    ):
+        # Nothing at startup commits a case's creation entries: only a
+        # redelivered proposal re-runs the case tree that does, so without one
+        # this relay waits at every boot (CM-14-007, CM-14-011).
+        logger.warning(
+            "retry_pending: relay of creation-time revision '%s' on case '%s'"
+            " waits for the case's creation entries, which only a redelivered"
+            " proposal commits; kept for a later run",
+            marker.embargo_id,
+            marker.case_id,
+        )
+    else:
         logger.info(
             "retry_pending: relay of creation-time revision '%s' on case '%s'"
-            " is still owed by '%s' (its creation entries are not committed,"
-            " or it no longer holds CASE_MANAGER); kept for a later run",
+            " is still owed by '%s', which no longer holds CASE_MANAGER;"
+            " kept for a later run",
             marker.embargo_id,
             marker.case_id,
             marker.case_actor_id,
         )
-        return False
-    return True
+    return False
 
 
 def retry_pending_creation_time_revision_relays(
@@ -445,9 +464,22 @@ def retry_pending_creation_time_revision_relays(
             )
             continue
         for marker in markers:
-            if isinstance(marker, PendingCreationTimeRevisionRelay) and (
-                _relay_pending_revision(dl, marker)
-            ):
+            if not isinstance(marker, PendingCreationTimeRevisionRelay):
+                continue
+            if marker.case_actor_id != actor_id:
+                # A tree runs against the store of the actor it executes as
+                # (BT-05-005, DL-07-004); a marker naming another actor was not
+                # written by this store's owner, so relaying it here would
+                # read one actor's case as another's.
+                logger.warning(
+                    "retry_pending: store '%s' holds a revision relay owed by"
+                    " '%s' for case '%s'; skipped",
+                    actor_id,
+                    marker.case_actor_id,
+                    marker.case_id,
+                )
+                continue
+            if _relay_pending_revision(dl, marker):
                 relayed += 1
     if relayed:
         logger.info(

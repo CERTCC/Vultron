@@ -20,8 +20,7 @@ revision (EP-04-011): one ``Invite(EmbargoEvent)`` to the party whose terms
 won, from the CASE_MANAGER on the loser's behalf, under the id the
 registration minted, and indexed only once it is sent.  The obligation is a
 ``PendingCreationTimeRevisionRelay`` marker, so a relay that fails is retried
-by the next run rather than lost (#4121).  These tests pin the marker writer
-and the relay's guards — what it relays, indexes and discharges, and when it
+by the next run rather than lost (#4121).  These tests pin the relay's guards — what it relays, indexes and discharges, and when it
 keeps the obligation — apart from the case-creation tree that places them.
 """
 
@@ -43,9 +42,7 @@ from test.core.behaviors.case.nodes.revision_relay_fixtures import (
     no_factory,
     owe,
     owed,
-    record,
     relay,
-    revision,
     seed,
 )
 from vultron.core.behaviors.case.nodes import embargo_revision_relay
@@ -54,61 +51,6 @@ from vultron.core.behaviors.case.nodes.embargo_revision_relay import (
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.services.embargo_duration import EmbargoDurationSource
-
-# --- RecordCreationTimeRevisionRelayNode -------------------------------------
-
-
-@pytest.mark.executes_as(MANAGER)
-@pytest.mark.spec("EP-04-011")
-@pytest.mark.parametrize(
-    "losing_source",
-    [
-        EmbargoDurationSource.ACTOR_DEFAULT,
-        EmbargoDurationSource.SENDER_PROPOSAL,
-    ],
-)
-def test_a_registered_revision_is_recorded_as_owed(
-    bt_scenario: BTTestScenario, losing_source: EmbargoDurationSource
-) -> None:
-    seed(bt_scenario)
-
-    result = record(bt_scenario, revision(losing_source))
-
-    bt_scenario.assert_success(result)
-    assert owed(bt_scenario) == marker(losing_source)
-
-
-@pytest.mark.executes_as(MANAGER)
-@pytest.mark.spec("EP-04-011")
-def test_no_registered_revision_records_nothing(
-    bt_scenario: BTTestScenario,
-) -> None:
-    seed(bt_scenario)
-
-    result = record(bt_scenario, None)
-
-    bt_scenario.assert_success(result)
-    assert owed(bt_scenario) is None
-
-
-@pytest.mark.executes_as(MANAGER)
-@pytest.mark.spec("EP-04-011")
-def test_a_revision_published_for_another_case_records_nothing(
-    bt_scenario: BTTestScenario,
-) -> None:
-    """A value a previous run left on the process-global blackboard is not
-    this case's revision (BT-17-003)."""
-    seed(bt_scenario)
-
-    result = record(
-        bt_scenario, revision(case_id="https://example.org/cases/other")
-    )
-
-    bt_scenario.assert_success(result)
-    assert (
-        bt_scenario.dl.list_objects("PendingCreationTimeRevisionRelay") == []
-    )
-
 
 # --- RelayCreationTimeRevisionNode -------------------------------------------
 
@@ -199,13 +141,13 @@ def test_a_revision_already_in_the_ledger_is_not_relayed_again(
     bt_scenario: BTTestScenario,
 ) -> None:
     """The guard reads the ledger, so an obligation that survived a completed
-    send sends no second Invite."""
+    send (its queued receipt written) sends no second Invite."""
     seed(bt_scenario)
     owe(bt_scenario)
     bt_scenario.assert_success(relay(bt_scenario))
     while bt_scenario.dl.outbox_pop() is not None:
         pass
-    owe(bt_scenario)
+    owe(bt_scenario, invite_queued=True)
 
     result = relay(bt_scenario)
 
@@ -311,42 +253,6 @@ def test_a_report_naming_no_reporter_raises_and_keeps_the_obligation(
     )
     assert invites(bt_scenario) == []
     assert owed(bt_scenario) is not None
-
-
-@pytest.mark.executes_as(MANAGER)
-@pytest.mark.spec("EP-04-011")
-def test_a_revision_with_no_report_is_refused_at_the_writer(
-    bt_scenario: BTTestScenario,
-) -> None:
-    """No relay could ever be sent for it, so recording it would only fail at
-    every retry (ARCH-10-001): the writer raises as an internal error."""
-    seed(bt_scenario)
-
-    result = record(bt_scenario, revision(), report_id=None)
-
-    bt_scenario.assert_failure(
-        result, reason="has no report", allow_internal=True
-    )
-    assert owed(bt_scenario) is None
-
-
-@pytest.mark.executes_as(MANAGER)
-@pytest.mark.spec("EP-04-011")
-def test_a_store_fault_writing_the_obligation_is_an_internal_error(
-    bt_scenario: BTTestScenario, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    seed(bt_scenario)
-
-    def _fail(*_args: object, **_kwargs: object) -> None:
-        raise RuntimeError("store unavailable")
-
-    monkeypatch.setattr(bt_scenario.dl, "save", _fail)
-
-    result = record(bt_scenario, revision())
-
-    bt_scenario.assert_failure(
-        result, reason="store unavailable", allow_internal=True
-    )
 
 
 @pytest.mark.executes_as(MANAGER)
@@ -475,3 +381,95 @@ def test_an_owner_who_reported_to_itself_has_nobody_to_invite(
     assert invites(bt_scenario) == []
     assert index(bt_scenario) == {}
     assert owed(bt_scenario) is None
+
+
+@pytest.mark.executes_as(MANAGER)
+@pytest.mark.spec("EP-04-011")
+@pytest.mark.spec("EP-09-004")
+def test_an_invite_committed_but_never_queued_is_queued_on_retry(
+    bt_scenario: BTTestScenario, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The outbox write failed after the commit, so no queued receipt was
+    written: the retry queues the committed Invite under its own id, applies
+    the winner's PEC INVITE and indexes it, without committing it again
+    (#4156)."""
+    seed(bt_scenario)
+    owe(bt_scenario)
+    outbox_append = bt_scenario.dl.outbox_append
+
+    def _fail(_activity_id: str) -> None:
+        raise RuntimeError("outbox unavailable")
+
+    monkeypatch.setattr(bt_scenario.dl, "outbox_append", _fail)
+    bt_scenario.assert_failure(
+        relay(bt_scenario), reason="outbox unavailable", allow_internal=True
+    )
+    assert invites(bt_scenario) == []
+    stored = owed(bt_scenario)
+    assert stored is not None and stored.invite_queued is False
+    monkeypatch.setattr(bt_scenario.dl, "outbox_append", outbox_append)
+    invite_where_legal = RelayCreationTimeRevisionNode._invite_where_legal
+    applied: list[str] = []
+
+    def _spy(
+        self: RelayCreationTimeRevisionNode,
+        dl: CaseOutboxPersistence,
+        recipient_id: str,
+        deadline: datetime | None,
+    ) -> None:
+        applied.append(recipient_id)
+        invite_where_legal(self, dl, recipient_id, deadline)
+
+    monkeypatch.setattr(
+        RelayCreationTimeRevisionNode, "_invite_where_legal", _spy
+    )
+
+    result = relay(bt_scenario)
+
+    bt_scenario.assert_success(result)
+    (invite,) = invites(bt_scenario)
+    assert invite.id_ == PROPOSAL_ID
+    committed = [
+        e
+        for e in bt_scenario.dl.list_objects("CaseLedgerEntry")
+        if getattr(e, "log_object_id", None) == PROPOSAL_ID
+    ]
+    assert len(committed) == 1
+    assert applied == [REPORTER]
+    assert index(bt_scenario) == {EMBARGO_ID: PROPOSAL_ID}
+    assert owed(bt_scenario) is None
+
+
+@pytest.mark.executes_as(MANAGER)
+@pytest.mark.spec("EP-04-011")
+def test_a_sent_invite_writes_its_queued_receipt(
+    bt_scenario: BTTestScenario, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The receipt is written as soon as the Invite is queued, so a failure
+    after it (here, the index write) does not queue the Invite again."""
+    seed(bt_scenario)
+    owe(bt_scenario)
+
+    def _fail(*_args: object, **_kwargs: object) -> bool:
+        raise RuntimeError("index write failed")
+
+    monkeypatch.setattr(
+        embargo_revision_relay, "record_embargo_proposal_index", _fail
+    )
+
+    bt_scenario.assert_failure(
+        relay(bt_scenario), reason="index write failed", allow_internal=True
+    )
+
+    assert owed(bt_scenario) == marker(invite_queued=True)
+    assert len(invites(bt_scenario)) == 1
+
+
+@pytest.mark.spec("EP-04-011")
+def test_the_invite_id_is_never_minted_without_a_marker() -> None:
+    """The marker's id is the relay's only idempotency key, so the node
+    refuses to fall back to a fresh one (BT-HELPER-01)."""
+    node = RelayCreationTimeRevisionNode(case_id=CASE_ID)
+
+    with pytest.raises(RuntimeError, match="no relay marker loaded"):
+        node._activity_id_for(REPORTER)

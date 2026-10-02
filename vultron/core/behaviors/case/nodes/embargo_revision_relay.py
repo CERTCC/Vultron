@@ -14,14 +14,12 @@
 """Relay the creation-time revision to the party whose terms won (EP-04-011).
 
 ``RegisterLongerProposalAsRevisionNode`` registers the shortest-wins loser as a
-pending revision inside ``InitializeDefaultEmbargoNode`` and publishes it as a
-:class:`CreationTimeRevision` for this execution only.
-:class:`RecordCreationTimeRevisionRelayNode` turns that into a durable
-:class:`PendingCreationTimeRevisionRelay` marker, and
-:class:`RelayCreationTimeRevisionNode` sends the revision like any other
-(EP-09, ADR-0113) once the case tree has finished its initialization sequence
-(CM-14-007), indexes it so the owner's default selection reaches it
-(EP-08-002), and deletes the marker.
+pending revision inside ``InitializeDefaultEmbargoNode``, and records the relay
+as owed in a durable :class:`PendingCreationTimeRevisionRelay` marker just
+before it does.  :class:`RelayCreationTimeRevisionNode` sends the revision
+like any other (EP-09, ADR-0113) once the case tree has finished its
+initialization sequence (CM-14-007), indexes it so the owner's default
+selection reaches it (EP-08-002), and deletes the marker.
 
 The marker is what makes a failed relay recoverable (#4121).  Initialization
 runs once per case (EP-04-012), so a redelivered proposal never registers the
@@ -42,10 +40,6 @@ from typing import cast
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.case.nodes.embargo_revision import (
-    REVISION_KEY,
-    CreationTimeRevision,
-)
 from vultron.core.behaviors.case.nodes.proposal_ledger import (
     CREATE_CASE_EVENT_TYPE,
 )
@@ -65,7 +59,6 @@ from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.pending_creation_time_revision_relay import (
-    LosingSource,
     PendingCreationTimeRevisionRelay,
 )
 from vultron.core.participants.recipients import invitation_recipients
@@ -86,77 +79,6 @@ class _RelayState(Enum):
     NOT_YET = auto()  # the case's creation entries are not committed yet
     CLOSED = auto()  # the revision is no longer an open proposal
     COMMITTED = auto()  # its Invite is already in the ledger
-
-
-class RecordCreationTimeRevisionRelayNode(DataLayerActionWithPorts):
-    """Persist the registered creation-time revision as a relay obligation.
-
-    Placed right after ``InitializeDefaultEmbargoNode``, so the obligation is
-    durable before anything else in the case tree can fail.  Reads the
-    :class:`CreationTimeRevision` the registration published and writes a
-    :class:`PendingCreationTimeRevisionRelay` keyed on the case, carrying the
-    report the reporter is resolved from and the CASE_MANAGER that owes the
-    relay.  Writing a record initiates no embargo modification, so this does
-    not run ahead of CM-14-007's sequence the way the relay itself would.
-
-    Writes nothing, and succeeds, when no revision was registered in this
-    execution (no contest, a tie, or a case already initialized) or when the
-    published revision names another case.  A registered revision with no
-    report to resolve the reporter from raises: no relay could ever be sent
-    for it, so recording it would only fail at every retry.  That and a store
-    fault are the manager's own, and ``BTBridge`` reports them as internal
-    errors.
-    """
-
-    def __init__(self, report_id: str | None, name: str | None = None) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self._report_id = report_id
-
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **DataLayerActionWithPorts.INPUT_PORTS,
-        "case_id": PortInformation(data_type=str, required=False),
-        REVISION_KEY: PortInformation(
-            data_type=CreationTimeRevision | None, required=False
-        ),
-    }
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"case_id": "/case_id", REVISION_KEY: f"/{REVISION_KEY}"}
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        assert self.datalayer is not None
-        assert self.actor_id is not None
-        revision = self._try_get_input(REVISION_KEY)
-        if not isinstance(revision, CreationTimeRevision) or (
-            revision.case_id != self._try_get_input("case_id")
-        ):
-            self.feedback_message = "no creation-time revision registered"
-            self.logger.debug("%s: %s", self.name, self.feedback_message)
-            return Status.SUCCESS
-        if not self._report_id:
-            raise RuntimeError(
-                f"{self.name}: creation-time revision '{revision.embargo_id}'"
-                f" on case '{revision.case_id}' has no report, so the reporter"
-                " it is relayed to or for cannot be resolved (EP-04-011)"
-            )
-        marker = PendingCreationTimeRevisionRelay(
-            case_id=revision.case_id,
-            embargo_id=revision.embargo_id,
-            proposal_id=revision.proposal_id,
-            losing_source=cast(LosingSource, revision.losing_source.value),
-            report_id=self._report_id,
-            case_actor_id=self.actor_id,
-        )
-        self.datalayer.save(marker)
-        self.feedback_message = (
-            f"recorded relay of creation-time revision"
-            f" '{revision.embargo_id}' on case '{revision.case_id}'"
-        )
-        self.logger.info("%s: %s", self.name, self.feedback_message)
-        return Status.SUCCESS
 
 
 class RelayCreationTimeRevisionNode(RelayEmbargoInviteToEachNode):
@@ -199,10 +121,11 @@ class RelayCreationTimeRevisionNode(RelayEmbargoInviteToEachNode):
     - the revision is no longer an open proposal: nothing to relay, the
       marker is deleted;
     - its Invite is already in the ledger (a relay that failed after its
-      commit): it is not sent again, but the winner's PEC INVITE is applied
-      where still legal and the Invite indexed, and the marker is deleted.
-      Whether the Invite reached the outbox cannot be told from the store,
-      since delivery empties it, so it is not queued again;
+      commit): it is not built or committed again.  It is queued again unless
+      the marker carries the receipt the send wrote right after queueing it
+      (``invite_queued``) — delivery empties the outbox, so the outbox itself
+      cannot say — then the winner's PEC INVITE is applied where still legal,
+      the Invite indexed, and the marker deleted (#4156);
     - a reporter that is itself the CASE_OWNER: nobody to invite, nothing is
       indexed, the marker is deleted;
     - otherwise the Invite is sent, indexed, and the marker deleted.
@@ -245,7 +168,21 @@ class RelayCreationTimeRevisionNode(RelayEmbargoInviteToEachNode):
         self._case_id = case_id if isinstance(case_id, str) else ""
 
     def _activity_id_for(self, recipient_id: str) -> str | None:
-        return self._marker.proposal_id if self._marker else None
+        # The marker's id is the relay's only idempotency key; ``None`` would
+        # mint a fresh Invite the ledger could never match (BT-HELPER-01).
+        if self._marker is None:
+            raise RuntimeError(
+                f"{self.name}: no relay marker loaded for case"
+                f" '{self._case_id}', so the Invite has no id to carry"
+            )
+        return self._marker.proposal_id
+
+    def _record_queued(self, activity_id: str) -> None:
+        """Write the receipt that the Invite reached the outbox (#4156)."""
+        assert self.datalayer is not None
+        assert self._marker is not None
+        self._marker = self._marker.model_copy(update={"invite_queued": True})
+        self.datalayer.save(self._marker)
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -364,7 +301,8 @@ class RelayCreationTimeRevisionNode(RelayEmbargoInviteToEachNode):
     ) -> None:
         """Finish a relay that failed after committing its Invite.
 
-        The PEC INVITE is legality-gated, so applying it again changes nothing
+        Queues the Invite unless the marker holds its queued receipt.  The PEC
+        INVITE is legality-gated, so applying it again changes nothing
         it already changed (EP-09-004); the index follows the send (EP-08-002).
         """
         entry = next(
@@ -372,6 +310,19 @@ class RelayCreationTimeRevisionNode(RelayEmbargoInviteToEachNode):
         )
         deadline = invite_rsvp_deadline(entry.payload_snapshot)
         dl = cast(CaseOutboxPersistence, self.datalayer)
+        if not marker.invite_queued:
+            # Committed but never receipted as queued: the outbox write
+            # failed, or the run stopped before the receipt.  Queue the sealed
+            # Invite again; an Invite delivered twice under one id is one
+            # Invite to its receiver.
+            dl.outbox_append(marker.proposal_id)
+            self._record_queued(marker.proposal_id)
+            self.logger.info(
+                "%s: re-queued committed Invite '%s' for revision '%s'",
+                self.name,
+                marker.proposal_id,
+                marker.embargo_id,
+            )
         for recipient_id in self._recipients:
             self._invite_where_legal(dl, recipient_id, deadline)
         self._index_relayed(marker)
@@ -424,7 +375,4 @@ class RelayCreationTimeRevisionNode(RelayEmbargoInviteToEachNode):
             )
 
 
-__all__ = [
-    "RecordCreationTimeRevisionRelayNode",
-    "RelayCreationTimeRevisionNode",
-]
+__all__ = ["RelayCreationTimeRevisionNode"]

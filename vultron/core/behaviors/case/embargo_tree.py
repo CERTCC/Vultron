@@ -73,12 +73,16 @@ class InitializeDefaultEmbargoNode(py_trees.composites.Selector):
     Args:
         actor_config: Source of the protocol default embargo duration
             (EP-04-005).  ``None`` uses the ``ActorConfig`` defaults.
+        report_id: URI of the report the case is created from, recorded on a
+            contested creation's relay obligation so the relay can resolve
+            the reporter (EP-04-011).  A contest with none raises.
         name: Optional node name.
     """
 
     def __init__(
         self,
         actor_config: ActorConfig | None = None,
+        report_id: str | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(
@@ -100,7 +104,9 @@ class InitializeDefaultEmbargoNode(py_trees.composites.Selector):
                         # EP-04-003: the longer creation-time candidate becomes
                         # a pending revision (ACTIVE → REVISE) when both
                         # parties proposed.
-                        RegisterLongerProposalAsRevisionNode(),
+                        RegisterLongerProposalAsRevisionNode(
+                            report_id=report_id
+                        ),
                     ],
                 ),
             ],
