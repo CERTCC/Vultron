@@ -11,12 +11,14 @@ related_specs:
   - specs/received-status-handling.yaml
   - specs/behavior-tree-integration.yaml
   - specs/cs-behavior.yaml
+  - specs/embargo-policy.yaml
 related_notes:
   - notes/bt-integration.md
   - notes/call-out-configuration.md
   - notes/bt-fuzzer-rm-threat.md
   - notes/message-type-reference.md
   - notes/bt-pitfalls.md
+  - notes/case-communication-model.md
 relevant_packages:
   - vultron/core/behaviors/status
   - vultron/core/behaviors/report
@@ -35,7 +37,7 @@ the other forms relate to it. CONCERN-3473's inventory found, per state machine:
 | Machine | Act (activity-typed) | Declaration (status-typed) | Ledger |
 |---|---|---|---|
 | RM | `Accept`/`TentativeReject`/`Reject(Offer(Report))`, `Join`/`Ignore(Case)`, `Leave(Case)` | `Add(ParticipantStatus).rmState` | `add_participant_status_to_participant`, `close_case` |
-| EM | `Accept`/`Reject(Invite(EmbargoEvent))`, `Add`/`Remove(EmbargoEvent)` | `Add(CaseStatus).emState`, embedded `caseStatus` | `remove_embargo_event_from_case` only |
+| EM | `Accept`/`Reject(Invite(EmbargoEvent))`, `Add`/`Remove(EmbargoEvent)` | `Add(CaseStatus).emState`, embedded `caseStatus` | `remove_embargo_event_from_case`; the revision relay's `invite_to_embargo_on_case` (proposal and each relayed Invite) and `accept`/`reject_invite_to_embargo_on_case` (#3915) |
 | CS V/F/D | — | `Add(ParticipantStatus).vfdState` | `add_participant_status_to_participant` |
 | CS P/X/A | — | `Add(CaseStatus).pxaState`, embedded `caseStatus` | **none** |
 | PEC | side-effects of EM acts only (MSM-07) | derived, never asserted | via participant status |
@@ -65,7 +67,10 @@ issue under epic #3472:
   event types and
   has no node for `add_case_status_to_case`, the report verdicts, or
   engage/defer. Order of repair is fixed: add the replay nodes (RSH-08-004), then
-  gate the effects (RSH-08-003). Gating first blinds every replica.
+  gate the effects (RSH-08-003). Gating first blinds every replica. The
+  embargo Invite path is the first done in that order (#3915): its relay
+  entries are replayed, and the participant's Invite tree now stores and
+  answers without writing state (EP-09-003).
 
 What is **not** changed: the CS dimensions, the PEC side-effect model, the single
 `ParticipantStatus` writer, and this note's two-gate design for adoption.

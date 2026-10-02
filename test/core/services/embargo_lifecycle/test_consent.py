@@ -20,6 +20,7 @@ from typing import cast
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.services.embargo_lifecycle import (
@@ -29,6 +30,7 @@ from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 from vultron.errors import (
     VultronInvalidStateTransitionError,
+    VultronNotFoundError,
     VultronValidationError,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
@@ -246,3 +248,63 @@ def test_record_embargo_rejection_of_an_unknown_embargo_raises(
             case_id=case.id_, actor_id=finder.id_, embargo_id=stranger.id_
         )
     assert _pec_of(dl, finder_p) == PEC.SIGNATORY.value
+
+
+# ---------------------------------------------------------------------------
+# record_embargo_invite — the relay's and the replay's one rule (EP-09-004)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("EP-09-004")
+@pytest.mark.spec("CM-28-013")
+def test_record_embargo_invite_invites_an_unbound_participant(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    owner, dl = owner_and_dl
+    invitee = _make_actor(dl, "Invitee")
+    case, participants = _make_case(
+        dl, owner.id_, [invitee.id_], em_state=EM.REVISE
+    )
+    deadline = days_from_now_utc(7)
+
+    result = EmbargoLifecycle(persistence=dl).record_embargo_invite(
+        case_id=case.id_, invitee_id=invitee.id_, rsvp_deadline=deadline
+    )
+
+    assert result.em_before == result.em_after == EM.REVISE
+    assert [c.pec_after for c in result.participant_changes] == [
+        PEC.INVITED.value
+    ]
+    record = cast(CaseParticipant, dl.read(participants[1].id_))
+    assert record.embargo_consent_state == PEC.INVITED
+    assert record.invite_rsvp_deadline == deadline
+
+
+@pytest.mark.spec("EP-09-004")
+def test_record_embargo_invite_leaves_a_signatory_signed(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """INVITE is illegal from SIGNATORY: a recorded no-op, never a fault."""
+    owner, dl = owner_and_dl
+    invitee = _make_actor(dl, "Signatory")
+    case, participants = _make_case(dl, owner.id_, [invitee.id_])
+    _seed_consent(dl, participants[1].id_, PEC.SIGNATORY, [])
+
+    result = EmbargoLifecycle(persistence=dl).record_embargo_invite(
+        case_id=case.id_, invitee_id=invitee.id_
+    )
+
+    assert result.participant_changes == []
+    assert _pec_of(dl, participants[1].id_) == PEC.SIGNATORY
+
+
+def test_record_embargo_invite_raises_for_an_unknown_invitee(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_)
+
+    with pytest.raises(VultronNotFoundError):
+        EmbargoLifecycle(persistence=dl).record_embargo_invite(
+            case_id=case.id_, invitee_id="https://example.org/users/nobody"
+        )

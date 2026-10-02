@@ -1,15 +1,18 @@
 ---
-source: ISSUE-4113
-timestamp: '2026-10-02T04:09:32.656466+00:00'
+source: NOTES-sync-ledger-replication--fan-out-graceful-degradation
+timestamp: '2026-10-02T04:37:14.328229+00:00'
 title: 'Superseded: Fan-Out Graceful Degradation (sync-ledger-replication)'
 type: note
 ---
 
-Superseded section of `notes/sync-ledger-replication.md`, archived when #4113
-made a missing sync port a wiring fault on the commit path. Replaced by the
-section "A Missing Sync Port Is a Wiring Fault" in the same note. The rule
-below (fan-out may skip silently without a port) let CASE_MANAGER commits
-from received use cases go unannounced.
+Archived because #4113 made a missing sync port a wiring fault on the commit
+path: the rule below (fan-out may skip silently without a port) let
+CASE_MANAGER commits from received use cases go unannounced.
+
+Superseded by `notes/sync-ledger-replication.md` § "A Missing Sync Port Is
+a Wiring Fault".
+
+---
 
 ## Fan-Out Graceful Degradation
 

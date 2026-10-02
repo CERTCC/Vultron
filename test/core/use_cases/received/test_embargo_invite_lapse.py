@@ -19,6 +19,9 @@ from typing import Literal, cast
 
 import pytest
 
+from test.core.use_cases.received.conftest import (
+    seed_store_owner_as_case_manager,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -63,6 +66,21 @@ _FUTURE = datetime.now(tz=UTC) + timedelta(days=7)
 _COORD = "https://example.org/actors/coordinator"
 _INVITEE = "https://example.org/actors/invitee"
 _OTHER = "https://example.org/actors/other-vendor"
+
+
+def _answers_in_outbox(dl: SqliteDataLayer, actor_id: str) -> list[str]:
+    """Types of the Accept/Reject answers *actor_id* queued to the manager."""
+    answers = []
+    for activity_id in dl.outbox_list():
+        activity = dl.read(activity_id)
+        type_ = getattr(activity, "type_", None)
+        if (
+            type_ in ("Accept", "Reject")
+            and getattr(activity, "actor", None) == actor_id
+        ):
+            assert getattr(activity, "to", None) == [_COORD]
+            answers.append(str(type_))
+    return answers
 
 
 def _make_dl(actor_id: str = _COORD) -> SqliteDataLayer:
@@ -286,10 +304,20 @@ class TestInviteStoresDeadline:
         )
         invitee_cp_core = invitee_cp
 
+        # The CASE_MANAGER role is never unfilled (CM-24-006); the invitee
+        # addresses its answer to the holder.
+        coord_cp = WireCP(
+            attributed_to=_COORD,
+            context=case_id,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+
         dl.create(case)
         dl.create(embargo)
         dl.create(invitee_cp_core)
+        dl.create(coord_cp)
         case.actor_participant_index[_INVITEE] = invitee_cp_core.id_
+        case.actor_participant_index[_COORD] = coord_cp.id_
         dl.save(case)
 
         # Propose with a deadline
@@ -305,6 +333,7 @@ class TestInviteStoresDeadline:
         InviteToEmbargoOnCaseReceivedUseCase(
             dl,
             event,
+            trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
@@ -507,6 +536,7 @@ class TestInviteeIsTheAddressee:
         InviteToEmbargoOnCaseReceivedUseCase(
             dl,
             event,
+            trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
@@ -515,9 +545,11 @@ class TestInviteeIsTheAddressee:
             "carries no 'to:' recipient" in record.message
             for record in caplog.records
         )
-        # Degrades to the receiving actor rather than dropping the invite.
+        # Degrades to the receiving actor rather than dropping the invite:
+        # this replica answers it and writes no consent (EP-09-003).
         invitee = self._read_participant(dl, invitee_p_id)
-        assert invitee.embargo_consent_state == PEC.INVITED
+        assert invitee.embargo_consent_state == PEC.UNBOUND
+        assert _answers_in_outbox(dl, _INVITEE) == ["Accept"]
 
     def test_reject_declines_the_rejecting_actor_not_the_receiver(
         self, make_payload
@@ -594,15 +626,19 @@ class TestInviteeIsTheAddressee:
         InviteToEmbargoOnCaseReceivedUseCase(
             dl,
             event,
+            trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
 
+        # This replica answers for its own actor and writes no consent
+        # (EP-09-003); the deadline is still stored on receipt (#3961).
         invitee = self._read_participant(dl, invitee_p_id)
-        assert invitee.embargo_consent_state == PEC.INVITED
+        assert invitee.embargo_consent_state == PEC.UNBOUND
         assert invitee.invite_rsvp_deadline == _FUTURE
+        assert _answers_in_outbox(dl, _INVITEE) == ["Accept"]
 
-        # The other recipient is invited in *its own* replica, not this one.
+        # The other recipient answers in *its own* replica, not this one.
         other = self._read_participant(dl, other_p_id)
         assert other.embargo_consent_state == PEC.UNBOUND
         assert other.invite_rsvp_deadline is None
@@ -645,6 +681,7 @@ class TestInviteeIsTheAddressee:
         InviteToEmbargoOnCaseReceivedUseCase(
             dl,
             event,
+            trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
@@ -654,8 +691,9 @@ class TestInviteeIsTheAddressee:
             for record in caplog.records
         )
         invitee = self._read_participant(dl, invitee_p_id)
-        assert invitee.embargo_consent_state == PEC.INVITED
+        assert invitee.embargo_consent_state == PEC.UNBOUND
         assert invitee.invite_rsvp_deadline == _FUTURE
+        assert _answers_in_outbox(dl, _INVITEE) == ["Accept"]
 
     def test_multi_recipient_not_addressed_to_this_store_warns(
         self, make_payload, caplog
@@ -713,12 +751,12 @@ class TestInviteeIsTheAddressee:
         """A named subject that resolves to no participant is not silent.
 
         ``to:`` is sender-supplied and never canonicalised, so a short id or a
-        trailing slash misses ``actor_participant_index``.  The lenient
-        fallback in ``OptionalLookupParticipantNode`` exists for "no
-        participant on this peer yet"; when a subject *was* named it must not
-        be indistinguishable from that.
+        trailing slash misses ``actor_participant_index``.  The participant
+        replica's ``CanAnswerEmbargoInviteNode`` skips an Invite it cannot
+        answer; when a subject *was* named it must say so rather than skip
+        silently.
 
-        The lenient lookup is the participant replica's arm of the tree —
+        That check is the participant replica's arm of the tree —
         the CASE_MANAGER relays from its roster and never resolves ``to:`` —
         so the Invite lands in a participant's store.  A store other than
         the named invitee's, because ``inbox_handler`` canonicalises the
@@ -746,15 +784,16 @@ class TestInviteeIsTheAddressee:
         InviteToEmbargoOnCaseReceivedUseCase(
             dl,
             event,
+            trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert any(
-            "No participant found for actor" in record.message
-            for record in caplog.records
+            "is not the invitee" in record.message for record in caplog.records
         )
-        # Nothing is written to any real participant.
+        # Nothing is written to any real participant, and nothing answers.
+        assert _answers_in_outbox(dl, _OTHER) == []
         invitee = self._read_participant(dl, invitee_p_id)
         assert invitee.embargo_consent_state == PEC.UNBOUND
         coord = self._read_participant(dl, coord_p_id)
@@ -915,8 +954,9 @@ class TestInviteeIsTheAddressee:
         """The owner's EJ received here decides the proposal and moves no consent.
 
         The coordinator owns the case (``attributed_to``): its Reject of
-        proposed B prunes B from the open-proposal records and leaves every
-        participant's state and list as they were — the owner's included.
+        proposed B prunes B from the open-proposal records, returns EM
+        ``REVISE → ACTIVE`` (EJ), and leaves every participant's state and
+        list as they were — the owner's included.
         """
         dl = _make_dl(actor_id=_COORD)
         case_id = "https://example.org/cases/addressee11"
@@ -936,6 +976,8 @@ class TestInviteeIsTheAddressee:
         )
         dl.create(revision)
         case_obj = cast(VulnerabilityCase, dl.read(case_id))
+        # An open revision of the active embargo puts the case in REVISE.
+        case_obj.append_case_status(em_state=EM.REVISE)
         case_obj.proposed_embargoes = [revision.id_]
         case_obj.pending_embargo_proposal_index = {
             revision.id_: f"{case_id}/proposals/revision"
@@ -977,6 +1019,8 @@ class TestInviteeIsTheAddressee:
         assert case_after.proposed_embargoes == []
         assert case_after.pending_embargo_proposal_index == {}
         assert case_after.active_embargo_id == active_id
+        # EJ: the owner keeps the prior terms (MSM-07-004).
+        assert case_after.current_status.em.state == EM.ACTIVE
 
     def test_reject_naming_an_unknown_embargo_is_refused(self, make_payload):
         """A Reject of an embargo the case has never seen is a protocol error.
@@ -1105,15 +1149,18 @@ class TestInviteeIsTheAddressee:
         assert invitee.embargo_consent_state == PEC.DECLINED
 
     @pytest.mark.spec("HP-01-003")
-    def test_invite_to_already_invited_is_skipped(self, make_payload):
-        """A repeated Invite to an already-INVITED invitee changes nothing.
+    @pytest.mark.spec("EP-09-003")
+    def test_a_second_invite_to_an_invited_participant_is_answered(
+        self, make_payload
+    ):
+        """A new Invite to an already-INVITED invitee is answered, not skipped.
 
-        INVITE is not a legal PEC trigger from INVITED (CM-18-003), so the
-        replica arm records that nothing moved.  That is a duplicate, not a
-        refusal of the message (#2255), and the handler reads it off the
-        node's own result rather than re-reading the store.  Delivered into
-        the invitee's store: at the CASE_MANAGER the same message is a
-        proposal to adjudicate and relay, which *is* an effect (EP-09-001).
+        The replica writes no consent on receipt (EP-09-003), so there is no
+        "already invited" no-op to report: a different Invite — a re-proposal
+        or counter — is a new question, and the invitee answers it.  A
+        redelivery of the *same* Invite is still a SKIPPED repeat
+        (CLP-13-001).  Delivered into the invitee's store: at the CASE_MANAGER
+        the same message is a proposal to adjudicate and relay (EP-09-001).
         """
         dl = _make_dl(actor_id=_INVITEE)
         case_id = "https://example.org/cases/addressee10"
@@ -1134,14 +1181,25 @@ class TestInviteeIsTheAddressee:
         result = InviteToEmbargoOnCaseReceivedUseCase(
             dl,
             event,
+            trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
 
-        assert result.disposition is HandlerDisposition.SKIPPED
-        assert "already invited" in (result.reason or "")
+        assert result.disposition is HandlerDisposition.APPLIED
         invitee = self._read_participant(dl, invitee_p_id)
         assert invitee.embargo_consent_state == PEC.INVITED
+        assert _answers_in_outbox(dl, _INVITEE) == ["Accept"]
+
+        again = InviteToEmbargoOnCaseReceivedUseCase(
+            dl,
+            make_payload(invite, receiving_actor_id=_INVITEE),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        assert again.disposition is HandlerDisposition.SKIPPED
+        assert _answers_in_outbox(dl, _INVITEE) == ["Accept"]
 
 
 class TestInviteeIdProperty:
@@ -1502,6 +1560,8 @@ class TestLateAcceptHandling:
         invitee_cp_core = invitee_cp
         invitee_cp_core.invite_rsvp_deadline = _FUTURE
 
+        # The receiver is the CASE_MANAGER (CM-24-006, BT-17-005).
+        seed_store_owner_as_case_manager(dl, case)
         dl.create(case)
         dl.create(embargo)
         dl.create(invitee_cp_core)
@@ -1554,6 +1614,8 @@ class TestLateAcceptHandling:
         invitee_cp_core = invitee_cp
         # No deadline set — invite_rsvp_deadline stays None
 
+        # The receiver is the CASE_MANAGER (CM-24-006, BT-17-005).
+        seed_store_owner_as_case_manager(dl, case)
         dl.create(case)
         dl.create(embargo)
         dl.create(invitee_cp_core)
