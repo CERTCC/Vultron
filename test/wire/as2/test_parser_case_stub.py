@@ -123,8 +123,18 @@ def test_the_stub_serialises_its_type_id_and_case():
         {"caseId": _CASE_ID, "id": _STUB_ID},
         {"case_id": _CASE_ID, "id_": _STUB_ID},
         {"case_id": _CASE_ID},
+        {"case_id": _CASE_ID, "id": None},
+        {"caseId": _CASE_ID, "id_": None},
+        {"caseId": _CASE_ID, "id": None, "id_": None},
     ],
-    ids=["wire", "field-names", "derived"],
+    ids=[
+        "wire",
+        "field-names",
+        "derived",
+        "derived-over-null-alias",
+        "derived-over-null-field-name",
+        "derived-over-both-nulls",
+    ],
 )
 def test_a_stub_validates_from_either_spelling(data):
     assert as_VulnerabilityCaseStub.model_validate(data).id_ == _STUB_ID

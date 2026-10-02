@@ -812,3 +812,64 @@ def test_rm_invite_stub_is_enriched_from_an_inline_active_embargo(
     assert isinstance(stub.case_status, as_CaseStatus)
     assert stub.case_status.em is not None
     assert stub.case_status.em.state == EM.ACTIVE
+
+
+@pytest.mark.spec("CM-17-010")
+@pytest.mark.spec("CM-17-002")
+def test_enriched_stub_carries_only_the_embargo_terms(sample_actor):
+    """An embargo-active stub adds only ``activeEmbargo`` and ``caseStatus``,
+    and its ``caseStatus`` states only the EM state (CM-17-010).
+
+    The case here is public with an exploit (``PXa``).  The stub's status is
+    built for the stub, not read from the case, so a ``pxaState`` on the wire
+    would be the class default and would tell the invitee the case is not
+    public.  The dump goes through the outbound form, the subtype-aware JSON
+    dump (VM-07-001).
+    """
+    from vultron.core.models._helpers import days_from_now_utc
+    from vultron.core.models.case import VulnerabilityCase
+    from vultron.core.models.case_status import CaseStatus
+    from vultron.core.models.dimensions import EmDimension, PxaDimension
+    from vultron.core.models.embargo_event import EmbargoEvent
+    from vultron.core.states.cs import CS_pxa
+    from vultron.core.states.em import EM
+
+    case_id = "https://example.org/cases/enriched-stub"
+    embargo = EmbargoEvent(context=case_id, end_time=days_from_now_utc(30))
+    case = VulnerabilityCase(
+        id_=case_id,
+        name="CVE-2025-011",
+        summary="Case content the invitee must not see",
+        attributed_to=_ACTOR_URI,
+        case_statuses=[
+            CaseStatus(
+                context=case_id,
+                attributed_to=_ACTOR_URI,
+                em=EmDimension(state=EM.ACTIVE),
+                pxa=PxaDimension(state=CS_pxa.PXa),
+            )
+        ],
+        active_embargo=embargo,
+    )
+
+    invite = rm_invite_to_case_activity(
+        invitee=sample_actor, target=case, actor=_ACTOR_URI
+    )
+    wire = json.loads(
+        invite.model_dump_json(
+            by_alias=True, exclude_none=True, serialize_as_any=True
+        )
+    )
+
+    stub = wire["target"]
+    assert set(stub) == {
+        "@context",
+        "type",
+        "id",
+        "caseId",
+        "activeEmbargo",
+        "caseStatus",
+    }
+    status = stub["caseStatus"]
+    assert status["emState"] == EM.ACTIVE.value
+    assert set(status) <= {"@context", "id", "type", "context", "emState"}

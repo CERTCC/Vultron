@@ -216,6 +216,10 @@ The formal stub object requirements are now specified in
   `updated` defaults from `as_Object`. Otherwise `model_dump(exclude_none=True)`
   leaks timestamps and violates the selective-disclosure rule of CM-17-010
   (`id`, `type`, `caseId`, embargo terms when active, optional `summary`).
+- The stub's `caseStatus` is built for the stub, not read from the case, so
+  its PXA state is the class default. The stub serializes `caseStatus` with
+  only its identity and `emState` (CM-17-010, CM-17-002); a `pxaState` on
+  the wire would state a PXA value nobody observed.
 - `event.activity` cannot be reduced to ID strings for `AnnounceVulnerabilityCase`
   handling. `AnnounceVulnerabilityCaseReceivedUseCase` needs the full inline
   `VulnerabilityCase` on `activity.object_`, so `extract_intent()` must
