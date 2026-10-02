@@ -3311,6 +3311,62 @@ class TestEP04SenderProposalAtCaseCreation:
         revision = dl.read(again.proposed_embargoes[0])
         assert isinstance(revision, EmbargoEvent)
 
+    @pytest.mark.spec("EP-04-012")
+    @pytest.mark.spec("CP-05-006")
+    def test_a_redelivery_after_the_embargo_exited_initializes_nothing(
+        self, make_payload
+    ):
+        """The same proposal redelivered after the case's embargo has ended
+        reuses the case and is answered, and the terms it carries are not
+        reconciled against the case: EM stays ``EXITED``, no embargo is
+        attached and no ``EmbargoEvent`` is stored (EP-04-012, #3986).
+
+        Before the guard read the EM state, termination's cleared reference
+        let the creation arm run: an orphan event, then the EM machine's
+        refusal of ``EXITED → PROPOSED`` failed the tree before the Accept.
+        """
+        from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
+        from vultron.core.use_cases.received.case_proposal import (
+            CreateCaseProposalReceivedUseCase,
+        )
+
+        dl = self._store()
+        case, terms = self._run(
+            make_payload, dl, sender_days=self._SENDER_END_DAYS
+        )
+        assert case.current_status.em.state == EM.ACTIVE
+        EmbargoLifecycle(persistence=dl).terminate_active_embargo(
+            case_id=case.id_, actor_id=_VENDOR_URI
+        )
+        while dl.outbox_pop() is not None:
+            pass
+        events_before = {e.id_ for e in dl.list_objects("EmbargoEvent")}
+
+        event, _ = self._event_with_terms(
+            make_payload, sender_days=self._SENDER_END_DAYS, terms=terms
+        )
+        result = CreateCaseProposalReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition == HandlerDisposition.APPLIED, result
+        assert "Accept(CaseProposal)" in _outbox_labels(dl)
+        (again,) = [
+            c
+            for c in dl.list_objects("VulnerabilityCase")
+            if isinstance(c, VulnerabilityCase)
+        ]
+        assert again.id_ == case.id_
+        assert again.current_status.em.state == EM.EXITED
+        assert again.active_embargo_id is None
+        assert again.proposed_embargoes == []
+        assert {
+            e.id_ for e in dl.list_objects("EmbargoEvent")
+        } == events_before
+
     @pytest.mark.spec("EP-04-004")
     def test_an_expired_proposal_is_no_proposal(self, make_payload):
         """Terms that have already run out do not stop the case; the owner's
