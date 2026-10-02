@@ -46,11 +46,6 @@ CASE_ID = "https://example.org/cases/inv-guards-01"
 STATUS_ID = "https://example.org/cases/inv-guards-01/statuses/asserted"
 
 
-@pytest.fixture(autouse=True)
-def clear_blackboard():
-    py_trees.blackboard.Blackboard.storage.clear()
-
-
 @pytest.fixture
 def dl():
     return SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_ID)

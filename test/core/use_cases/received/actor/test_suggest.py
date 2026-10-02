@@ -15,7 +15,6 @@
 import logging
 from unittest.mock import MagicMock
 
-import py_trees
 import pytest
 
 from test.conftest import TEST_ACTOR_ID
@@ -46,12 +45,6 @@ def _case_ref(case_id: str) -> as_VulnerabilityCase:
 
 class TestOfferActorToCaseReceivedUseCase:
     """Tests for the CaseActor-inbox Offer(Actor,Case) use case (CM-16)."""
-
-    @pytest.fixture(autouse=True)
-    def clear_blackboard(self):
-        py_trees.blackboard.Blackboard.storage.clear()
-        yield
-        py_trees.blackboard.Blackboard.storage.clear()
 
     def _setup_dl(
         self,
@@ -274,12 +267,6 @@ class TestOfferActorToCaseAtNonCaseManager:
     _RECOMMENDER_ID = "https://example.org/actors/finder"
     _RECOMMENDED_ID = "https://example.org/actors/vendor-new"
 
-    @pytest.fixture(autouse=True)
-    def clear_blackboard(self):
-        py_trees.blackboard.Blackboard.storage.clear()
-        yield
-        py_trees.blackboard.Blackboard.storage.clear()
-
     def _vendor_store(self, seed_case_manager):
         """The receiving vendor's own store; somebody else is CASE_MANAGER."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -367,12 +354,6 @@ class TestOwnerDirectInviteAtCaseManager:
     _OWNER_ID = "https://example.org/actors/case-owner"
     _INVITEE_ID = "https://example.org/actors/invitee"
     _CASE_ID = "https://example.org/cases/owner-direct-invite-case"
-
-    @pytest.fixture(autouse=True)
-    def clear_blackboard(self):
-        py_trees.blackboard.Blackboard.storage.clear()
-        yield
-        py_trees.blackboard.Blackboard.storage.clear()
 
     def _setup_dl(self, seed_case_manager, with_active_embargo=False):
         from datetime import UTC, datetime

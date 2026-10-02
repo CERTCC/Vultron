@@ -63,15 +63,6 @@ CASE_ID = "https://example.org/cases/c-ack-test"
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture(autouse=True)
-def _clear_blackboard():
-    import py_trees
-
-    py_trees.blackboard.Blackboard.storage.clear()
-    yield
-    py_trees.blackboard.Blackboard.storage.clear()
-
-
 def _make_case_store(owner_id: str = CASE_ACTOR_ID) -> SqliteDataLayer:
     """*owner_id*'s replica of the case, with the CaseActor as CASE_MANAGER.
 

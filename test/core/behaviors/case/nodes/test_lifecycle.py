@@ -49,17 +49,6 @@ ACTIVITY_ID = "https://example.org/activities/act-001"
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture(autouse=True)
-def clear_blackboard():
-    from vultron.core.models.pending_assertion import _reset_stores
-
-    py_trees.blackboard.Blackboard.storage.clear()
-    _reset_stores()
-    yield
-    py_trees.blackboard.Blackboard.storage.clear()
-    _reset_stores()
-
-
 @pytest.fixture
 def datalayer():
     dl = SqliteDataLayer(

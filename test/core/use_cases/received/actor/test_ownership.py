@@ -686,41 +686,36 @@ class TestOwnershipTransferUseCases:
         Absent-stamp path (CLP-10-005): resolve_receiving_actor_id falls back
         to dl.actor_id, so the offer is persisted rather than dropped.
         """
-        import py_trees
 
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
         actor_id = "https://example.org/actors/store-owner-ot"
-        py_trees.blackboard.Blackboard.storage.clear()
-        try:
-            dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
 
-            case = as_VulnerabilityCase(
-                id_="https://example.org/cases/case_ot_nostamp",
-                name="OT No-Stamp Test",
-            )
-            activity = offer_case_ownership_transfer_activity(
-                case,
-                target="https://example.org/users/transferee",
-                actor="https://example.org/users/vendor",
-                to=[actor_id],
-            )
-            event = make_payload(activity, receiving_actor_id=None)
+        case = as_VulnerabilityCase(
+            id_="https://example.org/cases/case_ot_nostamp",
+            name="OT No-Stamp Test",
+        )
+        activity = offer_case_ownership_transfer_activity(
+            case,
+            target="https://example.org/users/transferee",
+            actor="https://example.org/users/vendor",
+            to=[actor_id],
+        )
+        event = make_payload(activity, receiving_actor_id=None)
 
-            OfferCaseOwnershipTransferReceivedUseCase(
-                dl,
-                event,
-                wire_render_port=As2WireRenderAdapter(),
-                sync_port=SyncActivityAdapter(dl),
-            ).execute()
+        OfferCaseOwnershipTransferReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
 
-            stored = dl.get(activity.type_.value, activity.id_)
-            assert stored is not None, (
-                "Offer must be persisted even when receiving_actor_id is absent"
-                " (store-owner fallback, CLP-10-005)"
-            )
-        finally:
-            py_trees.blackboard.Blackboard.storage.clear()
+        stored = dl.get(activity.type_.value, activity.id_)
+        assert stored is not None, (
+            "Offer must be persisted even when receiving_actor_id is absent"
+            " (store-owner fallback, CLP-10-005)"
+        )
 
     def test_accept_case_ownership_transfer_uses_store_owner_when_no_receiving_actor(
         self, make_payload
@@ -731,53 +726,48 @@ class TestOwnershipTransferUseCases:
         to dl.actor_id (coordinator), so the ownership transfer is applied rather
         than dropped.
         """
-        import py_trees
 
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
         coordinator_id = "https://example.org/users/coordinator-nostamp"
-        py_trees.blackboard.Blackboard.storage.clear()
-        try:
-            dl = SqliteDataLayer("sqlite:///:memory:", actor_id=coordinator_id)
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=coordinator_id)
 
-            case = as_VulnerabilityCase(
-                id_="https://example.org/cases/case_ot_acc_nostamp",
-                name="OT Accept No-Stamp Test",
-                attributed_to="https://example.org/users/vendor-nostamp",
-            )
-            dl.create(case)
+        case = as_VulnerabilityCase(
+            id_="https://example.org/cases/case_ot_acc_nostamp",
+            name="OT Accept No-Stamp Test",
+            attributed_to="https://example.org/users/vendor-nostamp",
+        )
+        dl.create(case)
 
-            offer = offer_case_ownership_transfer_activity(
-                case,
-                target=coordinator_id,
-                actor="https://example.org/users/vendor-nostamp",
-                id_="https://example.org/activities/offer_ot_nostamp",
-            )
-            dl.create(offer)
+        offer = offer_case_ownership_transfer_activity(
+            case,
+            target=coordinator_id,
+            actor="https://example.org/users/vendor-nostamp",
+            id_="https://example.org/activities/offer_ot_nostamp",
+        )
+        dl.create(offer)
 
-            activity = accept_case_ownership_transfer_activity(
-                offer, actor=coordinator_id
-            )
-            event = make_payload(activity, receiving_actor_id=None)
+        activity = accept_case_ownership_transfer_activity(
+            offer, actor=coordinator_id
+        )
+        event = make_payload(activity, receiving_actor_id=None)
 
-            AcceptCaseOwnershipTransferReceivedUseCase(
-                dl,
-                event,
-                wire_render_port=As2WireRenderAdapter(),
-                sync_port=SyncActivityAdapter(dl),
-            ).execute()
+        AcceptCaseOwnershipTransferReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
 
-            updated = dl.get(case.type_, case.id_)
-            assert updated is not None
-            from typing import Any, cast
+        updated = dl.get(case.type_, case.id_)
+        assert updated is not None
+        from typing import Any, cast
 
-            data = cast(Any, updated).get("data_", updated)
-            assert data.get("attributed_to") == coordinator_id, (
-                "Store owner (coordinator) must become new owner when"
-                " receiving_actor_id is absent (CLP-10-005)"
-            )
-        finally:
-            py_trees.blackboard.Blackboard.storage.clear()
+        data = cast(Any, updated).get("data_", updated)
+        assert data.get("attributed_to") == coordinator_id, (
+            "Store owner (coordinator) must become new owner when"
+            " receiving_actor_id is absent (CLP-10-005)"
+        )
 
 
 class TestOwnershipOfferAtNonRecipient:

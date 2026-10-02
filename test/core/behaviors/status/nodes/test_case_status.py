@@ -50,11 +50,6 @@ STATUS_ID = "https://example.org/cases/case-01/statuses/s1"
 STATUS2_ID = "https://example.org/cases/case-01/statuses/s2"
 
 
-@pytest.fixture(autouse=True)
-def clear_blackboard():
-    py_trees.blackboard.Blackboard.storage.clear()
-
-
 @pytest.fixture
 def dl():
     return SqliteDataLayer(

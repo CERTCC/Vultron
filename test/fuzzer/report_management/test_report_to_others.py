@@ -281,14 +281,6 @@ def test_identify_coordinators_never_fails():
 # --- Exhaustion-based loop: MoreVendors / MoreCoordinators ---
 
 
-@pytest.fixture(autouse=True)
-def clear_blackboard():
-    """Clear py_trees global blackboard state between tests."""
-    py_trees.blackboard.Blackboard.storage.clear()
-    yield
-    py_trees.blackboard.Blackboard.storage.clear()
-
-
 def test_more_vendors_succeeds_when_list_non_empty():
     """MoreVendors returns SUCCESS when identified_vendors is non-empty."""
     node = MoreVendors()

@@ -53,11 +53,6 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
 ACTOR_ID = "https://example.org/actors/vendor"
 
 
-@pytest.fixture(autouse=True)
-def clear_blackboard():
-    py_trees.blackboard.Blackboard.storage.clear()
-
-
 def _make_factory(
     announce_id: str = "https://example.org/activities/ann1",
 ) -> MagicMock:

@@ -32,7 +32,6 @@ from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock
 
-import py_trees
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -60,13 +59,6 @@ _CASE_ACTOR_ID = "https://example.org/actors/case-actor-lock-test"
 _PEER_ID = "https://example.org/actors/peer-lock-test"
 _CASE_ID = "https://example.org/cases/case-lock-test"
 _OWNER_ID = "https://example.org/actors/owner-lock-test"
-
-
-@pytest.fixture(autouse=True)
-def clear_blackboard():
-    py_trees.blackboard.Blackboard.storage.clear()
-    yield
-    py_trees.blackboard.Blackboard.storage.clear()
 
 
 @pytest.fixture(autouse=True)

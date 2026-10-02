@@ -33,14 +33,17 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 
 _EXAMPLE_BASE_URL = "https://demo.vultron.local/"
 
-#: The one moment every clock-derived example field is built from.
+#: The fixed moment the pinned example objects are stamped with.
 #:
-#: Example builders read no clock.  A test compares an activity's embedded
-#: object against a second call to the same builder, and two clock reads that
-#: straddle a tick differ — at second precision for the ``published`` and
-#: ``updated`` default stamps, at minute precision for an embargo
-#: ``start_time`` (#4095).  It also keeps rendered examples from churning on
-#: every docs build.  The date is fixed, so it is in the past.
+#: Tests compare an activity's embedded object against a second call to the
+#: same builder, and two clock reads that straddle a tick differ — at second
+#: precision for the ``published`` and ``updated`` default stamps, at minute
+#: precision for an embargo ``start_time`` (#4095).  So every object a test
+#: compares that way (the embargo, note, participant, participant and case
+#: status, invite and vendor-profile builders) is pinned to this moment.
+#: Outer activities still take their ``published`` stamp from the clock;
+#: tests compare those by ``id_`` only.  The date is fixed, so it is in the
+#: past.
 EXAMPLE_TIMESTAMP: datetime = datetime(2026, 6, 1, 19, 12, tzinfo=UTC)
 
 

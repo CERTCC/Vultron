@@ -126,15 +126,6 @@ from vultron.demo.fuzzer.report_management.validate import (
     GatherValidationInfo,
 )
 
-
-@pytest.fixture(autouse=True)
-def clear_blackboard():
-    """Clear py_trees global blackboard state between tests."""
-    py_trees.blackboard.Blackboard.storage.clear()
-    yield
-    py_trees.blackboard.Blackboard.storage.clear()
-
-
 # ---------------------------------------------------------------------------
 # CallOutBackendFactory type alias
 # ---------------------------------------------------------------------------

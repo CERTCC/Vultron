@@ -117,12 +117,6 @@ STATUS2_ID = "https://example.org/cases/case-bt-01/statuses/s2"
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture(autouse=True)
-def clear_blackboard():
-    """Clear py_trees global blackboard storage between tests."""
-    py_trees.blackboard.Blackboard.storage.clear()
-
-
 @pytest.fixture
 def dl():
     # The node-level tests below run as ACTOR_ID, so this is ACTOR_ID's store.
