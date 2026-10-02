@@ -43,7 +43,7 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.models.pending_create_case_activity import (
     PendingCreateCaseActivity,
 )
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 
 
 class ProposeReportCaseToActorNode(DataLayerActionWithPorts):

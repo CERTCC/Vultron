@@ -22,13 +22,15 @@ import pytest
 
 from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.config.actor import ActorConfig
-from vultron.core.behaviors.case.nodes import CreateCaseOwnerParticipant
 from vultron.core.behaviors.case.nodes.participant import (
     AttachOwnerParticipantToCaseNode,
     CreateOwnerInitialStatusNode,
     CreateOwnerParticipantNode,
     PersistOwnerCaseNode,
     RecordOwnerJoinedEventNode,
+)
+from vultron.core.behaviors.case.participant_tree import (
+    CreateCaseOwnerParticipant,
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor

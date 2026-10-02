@@ -35,7 +35,7 @@ import logging
 
 from vultron.adapters.outbox_sealed_body import seal_outbound_body
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import add_activity_to_outbox
 from vultron.wire.as2.factories import (
     announce_log_entry_activity,

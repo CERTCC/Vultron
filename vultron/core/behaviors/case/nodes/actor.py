@@ -58,7 +58,7 @@ from vultron.core.behaviors.node_logger import node_logger
 from vultron.core.behaviors.sync.commit_tree import (
     commit_emitted_activity,
 )
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.enums.roles import CVDRole, serialize_roles
 
 

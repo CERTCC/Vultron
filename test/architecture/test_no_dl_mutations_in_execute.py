@@ -36,8 +36,9 @@ Two rules, one ratchet:
    ``vultron/core/use_cases/`` — a module-level helper, a ``self._method()``,
    a helper imported from a sibling module, and so on transitively — is a
    violation of the file that holds the ``execute()``.  Resolution stops at
-   the use-case package boundary: a write inside a BT node the tree runs is
-   the tree's business, not a violation.  A helper is named as a violation of
+   the boundary of the use-case package and ``vultron/core/services/`` (the
+   neutral helpers a use case shares with a BT node): a write inside a BT node
+   the tree runs is the tree's business, not a violation.  A helper is named as a violation of
    its *caller*, never of the module that defines it, because the rule is
    about what ``execute()`` does (CLP-10-005), not where code lives.
    Trigger-side ``execute()`` and ``_prepare()`` bodies are governed by
@@ -84,19 +85,30 @@ from test.architecture._use_case_call_graph import (
 _USE_CASES_ROOT = _corpus.REPO_ROOT / "vultron" / "core" / "use_cases"
 _RECEIVED_ROOT = _USE_CASES_ROOT / "received"
 _USE_CASES_PKG = "vultron.core.use_cases"
+_SERVICES_ROOT = _corpus.REPO_ROOT / "vultron" / "core" / "services"
+_SERVICES_PKG = "vultron.core.services"
 
 
 def _build_corpus() -> _UseCaseCorpus:
-    """Index every module of the real use-case package.
+    """Index every module of the real use-case and core-services packages.
+
+    ``vultron/core/services/`` is indexed because it holds the helpers a use
+    case shares with a BT node (BT-22-005): a write a received ``execute()``
+    reaches through one is still that ``execute()``'s write.
 
     ``all_trees`` rather than a fragment prefilter (TB-13-002's escape
     hatch): a helper chain can pass through a module that never spells
     ``dl.`` itself, and dropping that module would break the chain.
     """
     return _UseCaseCorpus(
-        dict(_corpus.all_trees(under=_USE_CASES_ROOT)),
-        root=_USE_CASES_ROOT,
-        package=_USE_CASES_PKG,
+        {
+            **dict(_corpus.all_trees(under=_USE_CASES_ROOT)),
+            **dict(_corpus.all_trees(under=_SERVICES_ROOT)),
+        },
+        roots={
+            _USE_CASES_ROOT: _USE_CASES_PKG,
+            _SERVICES_ROOT: _SERVICES_PKG,
+        },
     )
 
 

@@ -28,7 +28,7 @@ from pydantic import ValidationError
 
 from vultron.core.models.activity import VultronCreateCaseActivity
 from vultron.core.models.actor import CoreActor
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.errors import (
     VultronActivityConstructionError,
     VultronAlreadyExistsError,

@@ -52,6 +52,9 @@ from vultron.core.behaviors.call_out.nodes import AlwaysFail
 from vultron.core.behaviors.case.nodes.vfd_role_guards import (
     CheckIsCaseOwnerNode,
 )
+from vultron.core.behaviors.case_status_snapshot import (
+    EmitCaseStatusUpdateNode,
+)
 from vultron.core.behaviors.status.add_participant_status_tree import (
     add_participant_status_tree,
 )
@@ -63,7 +66,6 @@ from vultron.core.behaviors.status.nodes import (
     AppendStatusAndSaveParticipantNode,
     CheckStatusNotAlreadyAppendedNode,
     CloseNotYetEmittedConditionNode,
-    EmitCaseStatusUpdateNode,
     EmitRMGapNoteNode,
     LoadParticipantNode,
     PublicDisclosureBranchNode,

@@ -19,6 +19,9 @@ from collections.abc import Callable
 
 import py_trees
 
+from vultron.core.behaviors.case_status_snapshot import (
+    EmitCaseStatusUpdateNode,
+)
 from vultron.core.behaviors.embargo.nodes import (
     AcceptEmbargoLifecycleNode,
     HasActiveEmbargoNode,
@@ -45,11 +48,6 @@ from vultron.core.models.embargo_event import EmbargoEvent
 
 
 def _make_emit_node(case_id: str) -> py_trees.behaviour.Behaviour:
-    # Lazy import breaks the cycle: status.nodes.__init__ → lifecycle → trigger_tree
-    from vultron.core.behaviors.status.nodes.case_status import (  # noqa: PLC0415  # ruff-baseline #3950
-        EmitCaseStatusUpdateNode,
-    )
-
     return EmitCaseStatusUpdateNode(
         case_id=case_id, name="EmitCaseStatusUpdate"
     )

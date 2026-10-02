@@ -13,14 +13,14 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Tests for StoreDeadLetterRecordNode (dead_letter.py)."""
+"""Tests for StoreDeadLetterRecordNode (dead_letter/nodes/store.py)."""
 
 import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.inbox.nodes.dead_letter import (
+from vultron.core.behaviors.dead_letter.nodes.store import (
     StoreDeadLetterRecordNode,
 )
 from vultron.core.models.events import MessageSemantics

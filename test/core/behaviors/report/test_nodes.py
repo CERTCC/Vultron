@@ -479,7 +479,7 @@ class TestComputeReportAddresseesFallback:
         """Fallback path returns offer_actor_id from VultronOfferRecord."""
         from typing import cast
 
-        from vultron.core.ports.case_persistence import CaseOutboxPersistence
+        from vultron.core.ports.case_outbox import CaseOutboxPersistence
 
         actor_id = "urn:test:actor:1"
         submitter_id = "urn:test:submitter:1"
@@ -503,7 +503,7 @@ class TestComputeReportAddresseesFallback:
         """Fallback path returns None when offer_record is None."""
         from typing import cast
 
-        from vultron.core.ports.case_persistence import CaseOutboxPersistence
+        from vultron.core.ports.case_outbox import CaseOutboxPersistence
 
         result = _compute_report_addressees(
             report_id="urn:test:report:no-case",
@@ -519,7 +519,7 @@ class TestComputeReportAddresseesFallback:
         """Fallback path excludes actor_id (self) from addressees."""
         from typing import cast
 
-        from vultron.core.ports.case_persistence import CaseOutboxPersistence
+        from vultron.core.ports.case_outbox import CaseOutboxPersistence
 
         actor_id = "urn:test:actor:self"
         offer_record = VultronOfferRecord(

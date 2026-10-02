@@ -29,7 +29,7 @@ from vultron.adapters.driving.fastapi.deps import (
 )
 from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
 from vultron.core.models.actor import CoreActor
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.datalayer import DataLayer
 from vultron.wire.as2.rehydration import rehydrate
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer

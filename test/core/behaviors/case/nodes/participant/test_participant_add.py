@@ -21,9 +21,6 @@ import py_trees
 import pytest
 
 from test.core.behaviors.bt_harness import BTTestScenario
-from vultron.core.behaviors.case.nodes import (
-    CreateCaseParticipantNode,
-)
 from vultron.core.behaviors.case.nodes.participant import (
     AttachParticipantToCaseNode,
     CaseHasActiveEmbargoNode,
@@ -32,8 +29,11 @@ from vultron.core.behaviors.case.nodes.participant import (
     CreateParticipantNode,
     QueueAddParticipantNotificationNode,
     RecordParticipantAddedEventNode,
-    SeedParticipantAsSignatoryIfEmbargoActiveNode,
     SeedParticipantAsSignatoryNode,
+)
+from vultron.core.behaviors.case.participant_tree import (
+    CreateCaseParticipantNode,
+    SeedParticipantAsSignatoryIfEmbargoActiveNode,
 )
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase

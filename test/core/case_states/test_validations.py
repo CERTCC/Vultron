@@ -224,6 +224,19 @@ class MyTestCase(unittest.TestCase):
             with self.assertRaises(err.HistoryValidationError):
                 v.is_valid_history(h)
 
+    def test_cs_event_letters_spell_vfdpxa(self):
+        self.assertEqual(("V", "F", "D", "P", "X", "A"), v.CS_EVENT_LETTERS)
+
+    def test_valid_states_are_the_32_lattice_states(self):
+        states = v.valid_states()
+        self.assertEqual(32, len(states))
+        self.assertEqual(sorted(ok_states), sorted(states))
+        for pfx, (p, x, a) in product(bogus_pfx, product("pP", "xX", "aA")):
+            self.assertNotIn(f"{pfx}{p}{x}{a}", states)
+
+    def test_valid_states_match_the_hypercube_graph(self):
+        self.assertEqual(v.valid_states(), list(self.sg.states))
+
     def test_is_valid_history_ok(self):
         valid = self.sg.histories
         self.assertEqual(70, len(valid))

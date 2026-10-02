@@ -36,6 +36,11 @@ from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
 )
 from vultron.core.services.carried_embargo import store_carried_embargo
+from vultron.core.services.case_replica_seeding import (
+    link_report_case_links,
+    normalize_participant_refs,
+    store_embedded_participants,
+)
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
 
@@ -93,16 +98,6 @@ class SeedAnnouncedCaseNode(DataLayerActionWithPorts):
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
-        # Local import avoids a behaviors → use_cases circular dependency.
-        # The helpers are pure utility functions with no BT knowledge.
-        from vultron.core.use_cases.received.actor.announce import (  # noqa: PLC0415  # ruff-baseline #3950
-            _link_report_case_links,
-        )
-        from vultron.core.use_cases.received.case._helpers import (  # noqa: PLC0415  # ruff-baseline #3950
-            _normalize_participant_refs,
-            _store_embedded_participants,
-        )
-
         # Hold the embargo the case names before saving it, on either path,
         # and refuse a case naming one this store cannot read (EMB-18-003).
         try:
@@ -129,41 +124,41 @@ class SeedAnnouncedCaseNode(DataLayerActionWithPorts):
                 self.case_id,
             )
             _store_embedded_reports(self.case_obj, self.datalayer)
-            _store_embedded_participants(
+            store_embedded_participants(
                 self.case_obj, self.datalayer, self.case_id
             )
             # Persist a copy whose case_participants are string IDs only.
             # model_copy avoids direct field assignment (CM-27-001, #2295).
             _case_to_save = self.case_obj.model_copy(
                 update={
-                    "case_participants": _normalize_participant_refs(
+                    "case_participants": normalize_participant_refs(
                         self.case_obj
                     )
                 }
             )
             self.datalayer.save(_case_to_save)
-            _link_report_case_links(self.datalayer, self.case_obj)
+            link_report_case_links(self.datalayer, self.case_obj)
             return Status.SUCCESS
 
         try:
             # Store participants first so their standalone records exist before
             # we normalise case_participants to string IDs, then save the case
             # with only ID refs (no inline objects) — #2233 write-path fix.
-            _store_embedded_participants(
+            store_embedded_participants(
                 self.case_obj, self.datalayer, self.case_id
             )
             # Persist a copy whose case_participants are string IDs only.
             # model_copy avoids direct field assignment (CM-27-001, #2295).
             _case_to_save = self.case_obj.model_copy(
                 update={
-                    "case_participants": _normalize_participant_refs(
+                    "case_participants": normalize_participant_refs(
                         self.case_obj
                     )
                 }
             )
             self.datalayer.save(_case_to_save)
             _store_embedded_reports(self.case_obj, self.datalayer)
-            _link_report_case_links(self.datalayer, self.case_obj)
+            link_report_case_links(self.datalayer, self.case_obj)
             self.logger.info(
                 "%s: seeded case '%s' from actor '%s'",
                 self.name,

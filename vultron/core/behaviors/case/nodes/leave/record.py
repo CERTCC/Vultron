@@ -41,7 +41,7 @@ from vultron.core.models.participant_status import (
     ParticipantStatus,
     participant_status_rm_state,
 )
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.states.rm import RM, rm_closure_path
 from vultron.enums.roles import CVDRole
 
@@ -61,7 +61,7 @@ class CommitCaseActorRMClosedEntryNode(DataLayerActionWithPorts):
 
     Why the replicas cannot infer it. ``close_case`` names the *departing* actor
     in ``payloadSnapshot.actor``, and the Case Actor never sends itself a
-    ``Leave``, so :class:`~vultron.core.behaviors.sync.nodes.close_case_effect
+    ``Leave``, so :class:`~vultron.core.behaviors.case.nodes.close_case_effect
     .ApplyCloseCaseFromLedgerNode` never fires for it.  ``case_fully_closed``
     is attributed to the *owner* who left, not to the Case Actor, and has no
     effect node at all.  Without this entry the CASE_MANAGER is therefore

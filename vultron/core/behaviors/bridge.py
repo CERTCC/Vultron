@@ -776,7 +776,7 @@ class BTBridge:
                 # `self.datalayer.actor_id` and `/actor_id` the same actor, and
                 # the three sites that pass the store's own actor to a nested
                 # call (`case/nodes/leave/advance.py` twice,
-                # `sync/nodes/close_case_effect.py`) therefore usually pass the
+                # `case/nodes/close_case_effect.py`) therefore usually pass the
                 # value already on the blackboard.  Where they do not — a case
                 # whose CASE_MANAGER sits on another container after a handoff
                 # (CP-08-003) — `OwnerLeaveSeq`
