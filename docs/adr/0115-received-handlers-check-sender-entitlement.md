@@ -63,7 +63,7 @@ Chosen option: "A guard per handler, built from one shared module, declared once
    A handler not yet fixed is declared exempt with a reason naming its tracking issue, so the remaining gap is a list in code.
 5. **Being in the roster is not entitlement.**
    Where a message requires a participant, the participant must be active (CM-10-004).
-   The rule that authority to act follows the same active-participant predicate as entitlement to case content is recorded where ADR-0114's joining model is maintained.
+   The rule that authority to act follows the same active-participant predicate as entitlement to case content is decided and recorded by #2257, which maintains ADR-0114's joining model.
    A reply to an ask is authorized by the ask naming its sender, not by membership.
 6. **A replica accepts case-state changes only from the CASE_MANAGER** (PCR-03-001).
    A sender clause names what the CASE_MANAGER checks, and replicas check that the sender is the CASE_MANAGER.
@@ -75,12 +75,12 @@ Chosen option: "A guard per handler, built from one shared module, declared once
 - Good, because the CASE_MANAGER gate keeps its meaning as a receiver check, and the sender check stands beside it rather than being inferred from it.
 - Bad, because every received use case gains a declaration, including those that are exempt.
 - Bad, because a handler built outside `create_receive_activity_tree` gets no guard from the factory.
-  The add/remove participant, Remove(Note) and Add(Report) handlers move onto the factory as part of their fixes.
+  The Remove(Note) and Add(Report) handlers move onto the factory as part of their fix (#4074); the add/remove participant handlers do so under #2257.
 
 ## Validation
 
 - An architecture ratchet under `test/architecture/` fails on a received use case with no entitlement declaration and on a sender predicate outside the module (HP-01-007).
-- Each per-message sender clause (CM-11-017, CM-16-019, CM-21-011, CM-30-001, CM-30-002, CP-06-005, SYNC-03-005) has a marked test that sends the message from an unentitled sender and asserts `REFUSED` with no write and an empty outbox.
+- Each per-message sender clause (CM-11-017, CM-16-019, CM-21-011, CM-30-001, CM-30-002, CP-06-005, SYNC-03-005) has a marked test that sends the message from an unentitled sender and asserts `REFUSED` with no protocol effect and an empty outbox.
 
 ## Pros and Cons of the Options
 
@@ -106,3 +106,5 @@ Chosen option: "A guard per handler, built from one shared module, declared once
 - CONCERN-3733 lists the handlers and what an unentitled sender achieves at each.
 - ADR-0095 introduced `REFUSED` and the received-side `HandlerResult`.
 - ADR-0114 separates roster membership from being an active participant.
+
+Generated spec requirements: `handler-protocol.yaml` HP-01-006, HP-01-007; `case-management.yaml` CM-11-017, CM-16-019, CM-21-011, CM-30-001, CM-30-002; `case-proposal.yaml` CP-06-005; `sync-ledger-replication.yaml` SYNC-03-005.

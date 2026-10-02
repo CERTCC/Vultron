@@ -60,6 +60,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.actor import (
     AcceptOfferCaseParticipantReceivedEvent,
 )
@@ -87,6 +88,7 @@ from vultron.core.use_cases.received.note import (
 from vultron.core.use_cases.received.sync import (
     RejectLedgerEntryReceivedUseCase,
 )
+from vultron.enums.roles import CVDRole
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
     accept_case_ownership_transfer_activity,
@@ -188,6 +190,7 @@ def test_ownership_accept_from_non_transferee_is_refused(
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert _reload_case(cm_store, owned_case.id_).attributed_to == _OWNER_ID
+    assert cm_store.outbox_list() == []
 
 
 @pytest.mark.xfail(
@@ -220,6 +223,52 @@ def test_accept_of_unrecorded_invite_is_refused(
     assert result.disposition is HandlerDisposition.REFUSED
     case = _reload_case(cm_store, owned_case.id_)
     assert _IMPOSTOR_ID not in case.actor_participant_index
+    assert cm_store.outbox_list() == []
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="CM-11-017: roles are taken from the Invite embedded in the reply. Tracked by #4071.",
+)
+@pytest.mark.spec("CM-11-017")
+def test_accept_of_invite_takes_roles_from_recorded_invite(
+    cm_store, owned_case, make_payload
+):
+    """The invitee's reply embeds a copy of its Invite with a forged role."""
+    invitee_id = "https://example.org/actors/invitee"
+    invite_id = f"{owned_case.id_}/invitations/recorded"
+    cm_store.create(owned_case)
+    cm_store.create(
+        rm_invite_to_case_activity(
+            as_Actor(id_=invitee_id),
+            target=as_VulnerabilityCaseStub(id_=owned_case.id_),
+            roles=[CVDRole.VENDOR],
+            actor=_OWNER_ID,
+            id_=invite_id,
+        )
+    )
+    forged = rm_invite_to_case_activity(
+        as_Actor(id_=invitee_id),
+        target=as_VulnerabilityCaseStub(id_=owned_case.id_),
+        roles=[CVDRole.VENDOR, CVDRole.CASE_OWNER],
+        actor=_OWNER_ID,
+        id_=invite_id,
+    )
+    event = make_payload(
+        rm_accept_invite_to_case_activity(forged, actor=invitee_id)
+    )
+
+    AcceptInviteActorToCaseReceivedUseCase(
+        cm_store,
+        event,
+        sync_port=MagicMock(),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute()
+
+    case = _reload_case(cm_store, owned_case.id_)
+    participant = cm_store.read(case.actor_participant_index[invitee_id])
+    assert isinstance(participant, CaseParticipant)
+    assert CVDRole.CASE_OWNER not in participant.case_roles
 
 
 @pytest.mark.xfail(
@@ -228,8 +277,23 @@ def test_accept_of_unrecorded_invite_is_refused(
 )
 @pytest.mark.spec("CM-16-019")
 def test_recommendation_accept_from_non_owner_is_refused():
-    """The recommendation is recorded; the Accept's sender is not the owner."""
+    """The Accept comes from a participant that is not the Case Owner.
+
+    Seeding the sender as a participant shows the check is about ownership,
+    not case membership.
+    """
     dl, _ = _seed_dl_for_case_actor()
+    case = _reload_case(dl, RECOMMEND_CASE_ID)
+    participant = CaseParticipant(
+        id_=f"{RECOMMEND_CASE_ID}/participants/impostor",
+        attributed_to=_IMPOSTOR_ID,
+        context=RECOMMEND_CASE_ID,
+        case_roles=[CVDRole.VENDOR],
+    )
+    dl.create(participant)
+    case.case_participants.append(participant.id_)
+    case.actor_participant_index[_IMPOSTOR_ID] = participant.id_
+    dl.save(case)
     accept = accept_case_participant_offer_activity(
         _build_offer_activity(),
         target=_case_ref(RECOMMEND_CASE_ID),
@@ -275,6 +339,7 @@ def test_case_proposal_accept_from_non_addressee_is_refused(make_payload):
     link = dl.read(link_id)
     assert isinstance(link, VultronReportCaseLink)
     assert link.trusted_case_actor_id is None
+    assert dl.outbox_list() == []
 
 
 @pytest.mark.xfail(
@@ -305,6 +370,7 @@ def test_note_removal_by_stranger_is_refused(
     assert result.disposition is HandlerDisposition.REFUSED
     case = _reload_case(cm_store, owned_case.id_)
     assert note.id_ in [_ref_id(n) for n in case.notes]
+    assert cm_store.outbox_list() == []
 
 
 @pytest.mark.xfail(
@@ -329,6 +395,7 @@ def test_report_addition_by_non_owner_is_refused(
     assert result.disposition is HandlerDisposition.REFUSED
     case = _reload_case(cm_store, owned_case.id_)
     assert report.id_ not in [_ref_id(r) for r in case.vulnerability_reports]
+    assert cm_store.outbox_list() == []
 
 
 @pytest.mark.xfail(
