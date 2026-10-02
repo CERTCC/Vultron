@@ -379,13 +379,20 @@ is handled gracefully without patching.
 Both recipient collectors in `vultron/core/behaviors/sync/nodes/fanout.py`,
 the replay sender `SendMissingEntriesNode` and the genesis pre-seed
 `AnnounceCaseOnGenesisRejectNode` apply the CM-10-004 embargo content gate.
-The predicate is `embargo_withheld_actor_ids()` in
-`vultron/core/participants/embargo_gate.py`, the same one
-`find_excluded_actor_ids()` uses for case updates. Under an active embargo, a
-participant that has not accepted it is paused: it is sent no entries, and a
-`Reject(CaseLedgerEntry)` from it replays nothing and seeds no case. Without
-the replay gate, the paused replica's forward-gap Reject (SYNC-14-002) would
-pull the withheld entries straight through.
+All of them ask the shared active-participant selection in
+`vultron/core/participants/recipients.py` (CM-10-007, #4046), the same one
+`find_excluded_actor_ids()` uses for case updates: the collectors through
+`case_content_recipients()`, the replay and the pre-seed through
+`is_case_content_recipient()`. A peer that is not an active participant is
+sent no entries, and a `Reject(CaseLedgerEntry)` from it replays nothing and
+seeds no case. Without the replay gate, the paused replica's forward-gap
+Reject (SYNC-14-002) would pull the withheld entries straight through.
+
+Only a joined participant the active embargo withholds (not `SIGNATORY` to
+it) is *paused*; `embargo_withheld_participants()` names them, and the
+collectors publish them as `fanout_withheld`. A participant that has not
+joined is inert whatever the embargo, and gets its case and ledger through
+the join path (ADR-0114), so no pause record is created for it.
 
 The pause is recorded on the peer's `VultronReplicationState` as
 `embargo_paused_from_index`: the first `log_index` withheld. A later withheld

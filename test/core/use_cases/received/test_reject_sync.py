@@ -272,9 +272,18 @@ class TestRejectLedgerEntryReceivedUseCase:
             case_roles=[CVDRole.CASE_MANAGER],
         )
         dl.create(manager)
+        # The Reject's sender is a joined participant, so the replay's
+        # active-participant gate admits it (CM-10-004).
+        peer = as_CaseParticipant(
+            id_=f"{CASE_URI}/participants/peer",
+            context=CASE_URI,
+            attributed_to=PARTICIPANT_URI,
+        )
+        dl.create(peer)
         case = as_VulnerabilityCase(id_=CASE_URI, name="Reject Sync Case")
-        case.case_participants.append(manager.id_)
+        case.case_participants.extend([manager.id_, peer.id_])
         case.actor_participant_index[CASE_ACTOR_URI] = manager.id_
+        case.actor_participant_index[PARTICIPANT_URI] = peer.id_
         dl.create(case)
 
         event = self._make_event(entry1, entry0.entry_hash)
@@ -344,9 +353,18 @@ class TestRejectLedgerEntryReceivedUseCase:
             case_roles=[CVDRole.CASE_MANAGER],
         )
         dl.create(manager)
+        # The Reject's sender is a joined participant, so the replay's
+        # active-participant gate admits it (CM-10-004).
+        peer = as_CaseParticipant(
+            id_=f"{CASE_URI}/participants/peer",
+            context=CASE_URI,
+            attributed_to=PARTICIPANT_URI,
+        )
+        dl.create(peer)
         case = as_VulnerabilityCase(id_=CASE_URI, name="Reject Sync Case")
-        case.case_participants.append(manager.id_)
+        case.case_participants.extend([manager.id_, peer.id_])
         case.actor_participant_index[CASE_ACTOR_URI] = manager.id_
+        case.actor_participant_index[PARTICIPANT_URI] = peer.id_
         dl.create(case)
 
         # Participant says they only have up to entry0

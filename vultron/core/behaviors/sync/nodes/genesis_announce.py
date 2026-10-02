@@ -113,7 +113,7 @@ class AnnounceCaseOnGenesisRejectNode(DataLayerActionWithPorts):
             return Status.FAILURE
         if withheld:
             self.logger.info(
-                "%s: peer '%s' has not accepted the active embargo on case"
+                "%s: peer '%s' is not an active participant of case"
                 " '%s'; not pre-seeding the case (CM-10-004)",
                 self.name,
                 peer_id,

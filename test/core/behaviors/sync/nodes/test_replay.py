@@ -66,6 +66,25 @@ def datalayer():
     return SqliteDataLayer("sqlite:///:memory:", actor_id=OWNER_ACTOR_ID)
 
 
+@pytest.fixture
+def case_obj(datalayer):
+    """A case that seats the replaying peer as a joined participant.
+
+    Shadows the package fixture: replay is case content, so a peer outside
+    the roster is refused (CM-10-004).
+    """
+    participant = CaseParticipant(
+        id_=f"{CASE_ID}/participants/reporter",
+        attributed_to=PARTICIPANT_ACTOR_ID,
+        context=CASE_ID,
+    )
+    datalayer.create(participant)
+    case = VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+    case.add_participant(participant)
+    datalayer.save(case)
+    return case
+
+
 @pytest.mark.spec("SYNC-03-002")
 def test_replay_missing_entries_node_is_sequence_with_named_leaf_nodes():
     tree = ReplayMissingEntriesNode(name="ReplayMissingEntries")
@@ -316,7 +335,7 @@ def test_replay_missing_entries_node_replays_from_divergence(
 
 @pytest.mark.spec("SYNC-02-001")
 @pytest.mark.spec("SYNC-02-003")
-def test_fanout_log_entry_node_sends_to_case_addressees(bridge, datalayer):
+def test_fanout_log_entry_node_sends_to_active_participants(bridge, datalayer):
     case_obj = VulnerabilityCase(
         id_=CASE_ID,
         attributed_to=OWNER_ACTOR_ID,
@@ -325,6 +344,10 @@ def test_fanout_log_entry_node_sends_to_case_addressees(bridge, datalayer):
             PARTICIPANT_ACTOR_ID: f"{CASE_ID}/participants/reporter",
         },
     )
+    for actor_id, pid in case_obj.actor_participant_index.items():
+        datalayer.save(
+            CaseParticipant(id_=pid, attributed_to=actor_id, context=CASE_ID)
+        )
     datalayer.save(case_obj)
     entry = _make_entry(0)
     sync_port = MagicMock(spec=SyncActivityPort)

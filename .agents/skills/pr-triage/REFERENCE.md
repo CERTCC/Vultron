@@ -72,7 +72,8 @@ confirmed violations.
 
 - [ ] Received-side use cases do NOT spoof another actor's identity
 - [ ] Trigger-side `execute()` delegates SM transitions to `BTBridge`, not inline
-- [ ] No `case_addressees()` on the participant sender side (PCR-08-001/02)
+- [ ] No roster-wide recipient list on the participant sender side; a
+  participant sends to the CASE_MANAGER alone (PCR-08-001/02)
 
 ### Adapters (if `adapters/` changed)
 

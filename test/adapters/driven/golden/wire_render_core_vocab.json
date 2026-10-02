@@ -29,6 +29,7 @@
     "caseRoles": [],
     "embargoConsentState": "UNBOUND",
     "id": "urn:test:caseparticipant:golden",
+    "joined": true,
     "participantStatuses": [
       {
         "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",

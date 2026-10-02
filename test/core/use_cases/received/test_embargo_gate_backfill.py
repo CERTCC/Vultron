@@ -78,6 +78,12 @@ class _GateScenario:
             case_manager_actor_id=MANAGER_ID,
         )
         stored = cast(VulnerabilityCase, self.dl.read(case.id_))
+        # The shared fixture indexes the extra participants without listing
+        # them in ``case_participants``; the activation consent cascade walks
+        # that list (EP-05-001), so seat every indexed record on it.
+        for participant_id in stored.actor_participant_index.values():
+            if participant_id not in stored.case_participants:
+                stored.case_participants.append(participant_id)
         stored.current_status.em.state = EM.ACTIVE
         stored.set_embargo(embargo.id_)
         stored.proposed_embargoes.append(embargo.id_)

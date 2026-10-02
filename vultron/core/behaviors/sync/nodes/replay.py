@@ -37,6 +37,7 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.behaviors.sync.nodes.embargo_pause import (
     clear_embargo_pause,
+    peer_is_embargo_withheld,
     peer_is_withheld,
     record_embargo_pause,
     send_ledger_suffix,
@@ -257,9 +258,10 @@ class FindDivergenceIndexNode(DataLayerActionWithPorts):
 class SendMissingEntriesNode(DataLayerActionWithPorts):
     """Replay the ledger suffix a peer's ``Reject(CaseLedgerEntry)`` asks for.
 
-    A peer the CM-10-004 embargo gate withholds content from is sent nothing:
-    its stream is paused from the first entry it asked for, and the backfill
-    that admits it starts there (CM-10-005, CM-10-006). An admitted peer's
+    A peer that is not an active participant (CM-10-004) is sent nothing.
+    When the active embargo is what withholds it, its stream is paused from
+    the first entry it asked for, and the backfill that admits it starts there
+    (CM-10-005, CM-10-006). An admitted peer's
     replay clears any recorded pause: it resends everything past the
     contiguous prefix the peer reports holding (SYNC-10-004), so nothing
     withheld is left to backfill.
@@ -325,10 +327,14 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
         from_index = cast(int, self.replay_from_index)
         datalayer = cast(CasePersistence, self.datalayer)
 
-        # CM-10-005: replay is case content too. A withheld peer gets nothing
-        # — not even the gap it asked for — and its pause starts at that gap.
+        # CM-10-005: replay is case content too. A peer that is not an active
+        # participant gets nothing — not even the gap it asked for — and when
+        # the embargo is what withholds it, its pause starts at that gap.
         try:
             withheld = peer_is_withheld(
+                datalayer, case_id=entry.case_id, peer_id=peer_id
+            )
+            paused = withheld and peer_is_embargo_withheld(
                 datalayer, case_id=entry.case_id, peer_id=peer_id
             )
         except VultronError as exc:
@@ -336,15 +342,16 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
             self.logger.exception("%s: embargo gate undecidable", self.name)
             return Status.FAILURE
         if withheld:
-            record_embargo_pause(
-                datalayer,
-                case_id=entry.case_id,
-                peer_id=peer_id,
-                from_index=from_index + 1,
-            )
+            if paused:
+                record_embargo_pause(
+                    datalayer,
+                    case_id=entry.case_id,
+                    peer_id=peer_id,
+                    from_index=from_index + 1,
+                )
             self.logger.info(
-                "%s: peer '%s' has not accepted the active embargo on case"
-                " '%s'; replay withheld (CM-10-005)",
+                "%s: peer '%s' is not an active participant of case"
+                " '%s'; replay withheld (CM-10-004, CM-10-005)",
                 self.name,
                 peer_id,
                 entry.case_id,

@@ -32,8 +32,14 @@ cleared (CM-10-006). Admission is caught at two points:
   cascades) ends the embargo, then ``EmitCaseStatusUpdateNode`` commits the
   new case status;
 - **after an admitting effect** — ``BackfillAdmittedParticipantsNode`` runs
-  behind the received Accept or Remove effect, because a received activity is
-  committed (and fanned out) *before* its effect admits anyone (CLP-10-006).
+  behind the received Accept, Remove or ``Add(EmbargoEvent)`` effect, because
+  a received activity is committed (and fanned out) *before* its effect admits
+  anyone (CLP-10-006).
+
+Who is withheld is the shared selection's answer
+(:mod:`vultron.core.participants.recipients`, CM-10-007): a peer that is not an
+active participant gets no case content, and only a joined peer the active
+embargo withholds has its stream paused (``embargo_withheld_participants``).
 
 Helpers here raise on a broken invariant and never return ``None`` in place of
 a failure (BT-HELPER-01).
@@ -48,7 +54,11 @@ from vultron.core.behaviors.sync.nodes.replay_guard import _read_state
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.replication_state import VultronReplicationState
-from vultron.core.participants.embargo_gate import embargo_withheld_actor_ids
+from vultron.core.participants.recipients import (
+    case_content_recipients,
+    embargo_withheld_participants,
+    is_case_content_recipient,
+)
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.errors import VultronError
@@ -172,23 +182,49 @@ def clear_embargo_pause(
     datalayer.save(state)
 
 
-def peer_is_withheld(
-    datalayer: CasePersistence, *, case_id: str, peer_id: str
-) -> bool:
-    """Report whether the CM-10-004 gate withholds case content from *peer_id*.
-
-    Raises:
-        VultronError: *case_id* does not resolve to a case in *datalayer*. A
-            send that is about to answer for this case's content cannot decide
-            the gate without it.
-    """
+def _require_case(
+    datalayer: CasePersistence, case_id: str, peer_id: str
+) -> VulnerabilityCase:
     case = datalayer.read(case_id)
     if not isinstance(case, VulnerabilityCase):
         raise VultronError(
             f"embargo gate: case '{case_id}' not found; cannot decide whether"
             f" '{peer_id}' may receive its content"
         )
-    return peer_id in embargo_withheld_actor_ids(case, datalayer)
+    return case
+
+
+def peer_is_withheld(
+    datalayer: CasePersistence, *, case_id: str, peer_id: str
+) -> bool:
+    """Report whether *peer_id* is denied *case_id*'s content (CM-10-004).
+
+    True for any peer that is not an active participant
+    (:func:`is_case_content_recipient`), whatever the reason.
+
+    Raises:
+        VultronError: *case_id* does not resolve to a case in *datalayer*. A
+            send that is about to answer for this case's content cannot decide
+            the gate without it.
+    """
+    case = _require_case(datalayer, case_id, peer_id)
+    return not is_case_content_recipient(case, datalayer, peer_id)
+
+
+def peer_is_embargo_withheld(
+    datalayer: CasePersistence, *, case_id: str, peer_id: str
+) -> bool:
+    """Report whether the active embargo alone withholds *peer_id* (CM-10-005).
+
+    Such a peer's stream is paused, to be backfilled on admission
+    (CM-10-006); a peer withheld for any other reason (it has not joined) is
+    not.
+
+    Raises:
+        VultronError: *case_id* does not resolve to a case in *datalayer*.
+    """
+    case = _require_case(datalayer, case_id, peer_id)
+    return peer_id in embargo_withheld_participants(case, datalayer)
 
 
 def backfill_admitted_peers(
@@ -201,11 +237,10 @@ def backfill_admitted_peers(
 ) -> list[str]:
     """Backfill every paused peer the gate now admits, then clear its pause.
 
-    For each participant of *case* (other than *actor_id*) whose stream is
-    paused and who is no longer withheld, send every canonical entry from the
-    first one withheld through *through_index* (``None``: the ledger tail) in
-    log order, through :func:`send_ledger_suffix` — the replay's own send
-    (CM-10-006).
+    For each active participant of *case* (other than *actor_id*) whose
+    stream is paused, send every canonical entry from the first one withheld
+    through *through_index* (``None``: the ledger tail) in log order, through
+    :func:`send_ledger_suffix` — the replay's own send (CM-10-006).
 
     Args:
         datalayer: The CASE_MANAGER's store, which holds the canonical ledger
@@ -220,15 +255,15 @@ def backfill_admitted_peers(
     Returns:
         The peers backfilled, in index order.
     """
-    # The gate is decided over the whole case, never a caller's candidate
-    # list: a fan-out collector filters (e.g. RM.CLOSED peers) before it
-    # gates, so its withheld list would read a filtered-out peer as admitted.
-    withheld = embargo_withheld_actor_ids(case, datalayer)
+    # Admission is decided over the whole case, never from a caller's
+    # withheld list: a fan-out collector filters (e.g. RM.CLOSED peers)
+    # before it gates, so its withheld list would read a filtered-out peer
+    # as admitted.
     entries: list[CaseLedgerEntry] | None = None
     backfilled: list[str] = []
-    for peer_id in case.actor_participant_index:
-        if peer_id == actor_id or peer_id in withheld:
-            continue
+    for peer_id in case_content_recipients(
+        case, datalayer, excluding={actor_id}
+    ):
         paused_from = embargo_paused_from_index(
             datalayer, case_id=case.id_, peer_id=peer_id
         )

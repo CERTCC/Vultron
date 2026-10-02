@@ -347,3 +347,121 @@ def test_record_actor_pec_rejection_withdrawal_drops_every_open_proposal(
     )
     assert [c.pec_after for c in withdrawn] == [PEC.DECLINED.value]
     assert _accepted_ids_of(dl, owner_p.id_) == []
+
+
+# ---------------------------------------------------------------------------
+# Inert participants: consent moves only by their own replies (#4046 AC-5)
+# ---------------------------------------------------------------------------
+
+
+def _make_inert(dl: SqliteDataLayer, participant_id: str, how: str) -> None:
+    """Make a participant inert by *how* — test setup only.
+
+    ``"unjoined"``: it has not accepted its stub Invite.  ``"closed"``: it has
+    recorded RM ``CLOSED`` (CM-23-004).
+    """
+    from typing import cast
+
+    from vultron.core.models.case_participant import CaseParticipant
+    from vultron.core.models.dimensions import RmDimension
+    from vultron.core.models.participant_status import ParticipantStatus
+    from vultron.core.states.rm import RM
+
+    participant = cast(CaseParticipant, dl.read(participant_id))
+    update: dict[str, object] = (
+        {"joined": False}
+        if how == "unjoined"
+        else {
+            "participant_statuses": [
+                ParticipantStatus(
+                    context=cast(str, participant.context),
+                    attributed_to=participant.attributed_to,
+                    rm=RmDimension(state=RM.CLOSED),
+                )
+            ]
+        }
+    )
+    dl.save(participant.model_copy(update=update))
+
+
+@pytest.mark.spec("CM-10-007")
+@pytest.mark.parametrize("how", ["unjoined", "closed"])
+def test_advance_holders_of_promotes_only_on_the_participants_own_reply(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer], how: str
+) -> None:
+    """Activation promotes an inert participant only if it accepted itself.
+
+    Both participants are inert and INVITED.  The one whose own
+    ``accepted_embargo_ids`` holds the activated id (it accepted early)
+    advances; the one that never replied stays INVITED.
+    """
+    owner, dl = owner_and_dl
+    replied = _make_actor(dl, "Replied")
+    silent = _make_actor(dl, "Silent")
+    case, participants = _make_case(
+        dl, owner.id_, extra_participant_ids=[replied.id_, silent.id_]
+    )
+    _, replied_p, silent_p = participants
+    embargo = _make_embargo(dl, case.id_)
+    _seed_consent(dl, replied_p.id_, PEC.INVITED, [embargo.id_])
+    _force_pec(dl, silent_p.id_, PEC.INVITED)
+    _make_inert(dl, replied_p.id_, how)
+    _make_inert(dl, silent_p.id_, how)
+
+    changes = EmbargoLifecycle(persistence=dl)._advance_holders_of(
+        case, embargo.id_
+    )
+
+    assert [c.participant_id for c in changes] == [replied_p.id_]
+    assert _pec_of(dl, replied_p.id_) == PEC.SIGNATORY.value
+    assert _pec_of(dl, silent_p.id_) == PEC.INVITED.value
+
+
+@pytest.mark.spec("EP-05-001")
+@pytest.mark.parametrize("how", ["unjoined", "closed"])
+def test_longer_revision_lapses_an_inert_signatory_too(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer], how: str
+) -> None:
+    """A signatory that never accepted longer terms lapses, inert or not.
+
+    Skipping it would leave it SIGNATORY to terms it never agreed to — and a
+    closed participant still receives case content, so that would leak the
+    longer-embargo period's content to it (CM-10-004).
+    """
+    owner, dl = owner_and_dl
+    inert = _make_actor(dl, "Inert")
+    case, participants = _make_case(
+        dl, owner.id_, extra_participant_ids=[inert.id_]
+    )
+    inert_p = participants[1]
+    active = _make_embargo(dl, case.id_)
+    longer = _make_embargo(dl, case.id_, days=90)
+    _seed_consent(dl, inert_p.id_, PEC.SIGNATORY, [active.id_])
+    _make_inert(dl, inert_p.id_, how)
+
+    changes = EmbargoLifecycle(persistence=dl)._cascade_pec_revise(
+        case, revised_embargo_id=longer.id_
+    )
+
+    assert [c.participant_id for c in changes] == [inert_p.id_]
+    assert _pec_of(dl, inert_p.id_) == PEC.LAPSED.value
+
+
+@pytest.mark.spec("CM-10-007")
+def test_cascade_pec_reset_reaches_an_inert_participant(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """Termination resets every record, an inert one included (#4046 AC-5)."""
+    owner, dl = owner_and_dl
+    inert = _make_actor(dl, "Inert")
+    case, participants = _make_case(
+        dl, owner.id_, extra_participant_ids=[inert.id_]
+    )
+    inert_p = participants[1]
+    _force_pec(dl, inert_p.id_, PEC.INVITED)
+    _make_inert(dl, inert_p.id_, "unjoined")
+
+    changes = EmbargoLifecycle(persistence=dl)._cascade_pec_reset(case)
+
+    assert [c.participant_id for c in changes] == [inert_p.id_]
+    assert _pec_of(dl, inert_p.id_) == PEC.UNBOUND.value

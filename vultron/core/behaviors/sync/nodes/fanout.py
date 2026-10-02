@@ -14,20 +14,21 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Fan-out action nodes for SYNC log-replication.
 
-Standard fan-out (every case addressee):
+Standard fan-out (all active participants):
   ``CollectLogEntryRecipientsNode`` + ``SendLogEntryToEachNode`` →
   composed as ``FanOutLogEntryNode``.
 
-Closed-filtered fan-out (skip already-closed participants):
+Closed-filtered fan-out (active participants not at RM.CLOSED, CM-23-004):
   ``CollectNonClosedLogEntryRecipientsNode`` + ``SendLogEntryToEachNode`` →
   composed as ``FanOutLogEntryExcludingClosedNode`` (CM-23-004).
 
-Both collectors apply the CM-10-004 embargo content gate through the shared
-predicate (``vultron.core.participants.embargo_gate``, CM-10-007): a participant
-that has not accepted the active embargo is moved from ``fanout_recipients`` to
-``fanout_withheld``. The send node pauses a withheld peer's stream from this
-entry on (CM-10-005) and, before sending, backfills any paused peer the gate now
-admits (CM-10-006) — see ``embargo_pause.py``.
+Both collectors pick recipients through the shared selection
+(``vultron.core.participants.recipients``, CM-10-007), so only active
+participants receive an entry (CM-10-004). They also publish, as
+``fanout_withheld``, the participants the active embargo alone withholds
+(``embargo_withheld_participants``). The send node pauses a withheld peer's
+stream from this entry on (CM-10-005) and, before sending, backfills any
+paused peer the gate now admits (CM-10-006) — see ``embargo_pause.py``.
 """
 
 from __future__ import annotations
@@ -47,18 +48,14 @@ from vultron.core.behaviors.sync.nodes.embargo_pause import (
     backfill_admitted_peers,
     record_embargo_pause,
 )
-from vultron.core.models._helpers import _as_id
-from vultron.core.models.case import VulnerabilityCase, case_addressees
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.participant_status import (
-    ParticipantStatus,
-    participant_status_rm_state,
+from vultron.core.participants.recipients import (
+    case_content_recipients,
+    embargo_withheld_participants,
 )
-from vultron.core.participants.embargo_gate import embargo_withheld_actor_ids
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
-from vultron.core.states.rm import RM
 from vultron.errors import VultronError
 
 logger = logging.getLogger(__name__)
@@ -74,100 +71,6 @@ _COLLECTOR_REMAPPINGS: dict[str, str] = {
     "fanout_recipients": "/fanout_recipients",
     "fanout_withheld": "/fanout_withheld",
 }
-
-
-def _apply_embargo_gate(
-    candidates: list[str],
-    case_obj: VulnerabilityCase,
-    datalayer: CasePersistence,
-) -> tuple[list[str], list[str]]:
-    """Split *candidates* into ``(recipients, withheld)`` by the CM-10-004 gate.
-
-    Order is preserved in both lists, so the fan-out stays deterministic.
-    """
-    gate = embargo_withheld_actor_ids(case_obj, datalayer)
-    recipients = [actor_id for actor_id in candidates if actor_id not in gate]
-    withheld = [actor_id for actor_id in candidates if actor_id in gate]
-    return recipients, withheld
-
-
-class CollectNonClosedLogEntryRecipientsNode(DataLayerActionWithPorts):
-    """Collect fan-out recipients, excluding actors already at RM.CLOSED.
-
-    Like ``CollectLogEntryRecipientsNode`` but filters out any participant
-    whose latest RM state is ``RM.CLOSED``.  Used for the ``case_fully_closed``
-    fan-out so that already-closed participants are not re-notified (CM-23-004).
-    """
-
-    def __init__(self, case_id: str, name: str | None = None) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **DataLayerActionWithPorts.INPUT_PORTS,
-        "log_entry": PortInformation(data_type=CaseLedgerEntry, required=True),
-    }
-
-    OUTPUT_PORTS: dict[str, PortInformation] = _COLLECTOR_OUTPUT_PORTS
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return dict(_COLLECTOR_REMAPPINGS)
-
-    def initialise(self) -> None:
-        super().initialise()
-        self.log_entry = self.get_input("log_entry")
-
-    def _is_rm_closed(self, participant_id: str) -> bool:
-        assert self.datalayer is not None
-        if not participant_id:
-            return False
-        participant = self.datalayer.read(participant_id)
-        if not isinstance(participant, CaseParticipant):
-            return False
-        for ps_ref in participant.participant_statuses:
-            if isinstance(ps_ref, str):
-                ref_id = _as_id(ps_ref)
-                ps = self.datalayer.read(ref_id) if ref_id else None
-            else:
-                ps = ps_ref
-            if not isinstance(ps, ParticipantStatus):
-                continue
-            if participant_status_rm_state(ps) == RM.CLOSED:
-                return True
-        return False
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        assert self.datalayer is not None
-        assert self.actor_id is not None
-
-        # Regime 1 (ADR-0087, #3101): fan-out runs after the local commit
-        # persisted this entry to the case (DeclineForeignLedgerCommitNode
-        # already handled the not-my-case branch upstream), so a missing case
-        # is an anomaly. Previously this warned, emitted zero recipients, and
-        # returned SUCCESS — silently dropping replication of a committed entry
-        # even though the commit tree treats non-SUCCESS as a real failure
-        # (ADR-0073, BT-05-006).
-        case_obj, failure = self._require_case(self.case_id)
-        if failure is not None:
-            return failure
-
-        candidates = [
-            actor_id
-            for actor_id in case_obj.actor_participant_index
-            if actor_id != self.actor_id
-            and not self._is_rm_closed(
-                case_obj.actor_participant_index.get(actor_id, "")
-            )
-        ]
-        recipients, withheld = _apply_embargo_gate(
-            candidates, case_obj, self.datalayer
-        )
-        self._set_output("fanout_recipients", recipients)
-        self._set_output("fanout_withheld", withheld)
-        return Status.SUCCESS
 
 
 class FanOutLogEntryExcludingClosedNode(py_trees.composites.Sequence):
@@ -194,7 +97,7 @@ class FanOutLogEntryExcludingClosedNode(py_trees.composites.Sequence):
 # ---------------------------------------------------------------------------
 # Unfiltered fan-out — moved here from ``replay.py`` (BTND-07-004).
 #
-# These are the plain fan-out nodes; the filtered variants above skip
+# These are the plain fan-out nodes; the filtered variants above also skip
 # participants already at RM.CLOSED.  They lived in ``replay.py`` because
 # reject-driven replay was written first, but fan-out is a distinct concern:
 # replay is catch-up for one lagging peer, fan-out is distribution of one
@@ -204,6 +107,17 @@ class FanOutLogEntryExcludingClosedNode(py_trees.composites.Sequence):
 
 
 class CollectLogEntryRecipientsNode(DataLayerActionWithPorts):
+    """Collect a ledger entry's fan-out recipients: the active participants.
+
+    Every participant entitled to case content except the sender
+    (CM-10-004, SYNC-02-003), chosen by the shared selection (CM-10-007).
+    The participants the active embargo alone withholds go to
+    ``fanout_withheld``, so the send node can pause their streams (CM-10-005).
+    """
+
+    #: Also leave out participants at RM.CLOSED (CM-23-004).
+    SKIP_CLOSED: bool = False
+
     def __init__(self, case_id: str, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
@@ -229,21 +143,43 @@ class CollectLogEntryRecipientsNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        # Regime 1 (ADR-0087, #3101): see CollectNonClosedLogEntryRecipientsNode
-        # — fan-out follows a local commit, so a missing case is an anomaly, not
-        # a silent zero-recipient SUCCESS.
+        # Regime 1 (ADR-0087, #3101): fan-out runs after the local commit
+        # persisted this entry to the case (DeclineForeignLedgerCommitNode
+        # already handled the not-my-case branch upstream), so a missing case
+        # is an anomaly. Previously this warned, emitted zero recipients, and
+        # returned SUCCESS — silently dropping replication of a committed entry
+        # even though the commit tree treats non-SUCCESS as a real failure
+        # (ADR-0073, BT-05-006).
         case_obj, failure = self._require_case(self.case_id)
         if failure is not None:
             return failure
 
-        recipients, withheld = _apply_embargo_gate(
-            case_addressees(case_obj, excluding_actor_id=self.actor_id),
+        excluding = {self.actor_id}
+        recipients = case_content_recipients(
             case_obj,
             self.datalayer,
+            excluding=excluding,
+            skip_closed=self.SKIP_CLOSED,
+        )
+        withheld = embargo_withheld_participants(
+            case_obj,
+            self.datalayer,
+            excluding=excluding,
+            skip_closed=self.SKIP_CLOSED,
         )
         self._set_output("fanout_recipients", recipients)
         self._set_output("fanout_withheld", withheld)
         return Status.SUCCESS
+
+
+class CollectNonClosedLogEntryRecipientsNode(CollectLogEntryRecipientsNode):
+    """Collect fan-out recipients, excluding actors already at RM.CLOSED.
+
+    The active participants (CM-10-004) minus any that has recorded RM
+    ``RM.CLOSED`` (CM-23-004), chosen by the shared selection (CM-10-007).
+    """
+
+    SKIP_CLOSED = True
 
 
 class SendLogEntryToEachNode(DataLayerActionWithPorts):
