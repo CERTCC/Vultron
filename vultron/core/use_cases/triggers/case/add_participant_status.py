@@ -14,15 +14,19 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
-from typing import Any, cast
+from typing import Any, cast, cast as typing_cast
 
 import py_trees.behaviour
 
 from vultron.core.behaviors.case.add_participant_status_trigger_tree import (
     add_participant_status_trigger_bt,
 )
+from vultron.core.behaviors.case.nodes.participant import (
+    resolve_participant_state_from_dl,
+)
 from vultron.core.models.use_case_result import StatusResult
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
@@ -115,15 +119,6 @@ class SvcAddParticipantStatusUseCase(SvcBTTriggerBase[StatusResult]):
         participant_id: str,
     ) -> tuple[RM, CS_vf | None, CS_d | None]:
         """Return (current_rm, current_vf, current_d) from the participant's latest status."""
-        from typing import cast as typing_cast
-
-        from vultron.core.behaviors.case.nodes.participant import (
-            resolve_participant_state_from_dl,
-        )
-        from vultron.core.ports.case_persistence import (
-            CasePersistence,
-        )
-
         return resolve_participant_state_from_dl(
             typing_cast(CasePersistence, dl), participant_id
         )

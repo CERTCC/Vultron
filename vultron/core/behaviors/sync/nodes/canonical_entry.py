@@ -73,7 +73,10 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("Join", "VulnerabilityCase"),
     ("Ignore", "VulnerabilityCase"),
     ("Leave", "VulnerabilityCase"),
+    # The full-case Invite names its case by URI (CM-11-010); the stub Invite
+    # carries the stub, a type of its own (CM-11-013).
     ("Invite", "VulnerabilityCase"),
+    ("Invite", "VulnerabilityCaseStub"),
     ("Accept", "Invite"),
     ("Reject", "Invite"),
     ("Announce", "VulnerabilityCase"),
@@ -96,6 +99,7 @@ _CASE_AUTHORED_SIGNATURES: frozenset[tuple[str, str]] = frozenset(
         ("Invite", "EmbargoEvent"),
         ("Offer", "CaseParticipant"),
         ("Invite", "VulnerabilityCase"),
+        ("Invite", "VulnerabilityCaseStub"),
         ("Offer", "VulnerabilityCase"),
         ("Leave", "VulnerabilityCase"),
         ("Accept", "Offer"),
@@ -132,8 +136,9 @@ _ACTOR_TYPES: frozenset[str] = frozenset(
 def _snapshot_object_type(
     snapshot: dict[str, Any], case_id: str
 ) -> str | None:
-    # Invite(Actor, target=Case): object_ is the actor; use target.type so the
-    # signature resolves to ('Invite','VulnerabilityCase') not ('Invite','Org').
+    # Invite(Actor, target=...): object_ is the actor; use target.type so the
+    # signature resolves to ('Invite','VulnerabilityCaseStub') for the stub
+    # Invite, or ('Invite','VulnerabilityCase'), not ('Invite','Org').
     # A target that is the case URI itself names the same thing (see
     # ``_bare_inline_object_path``), so it resolves the same way.
     obj = snapshot.get("object") or snapshot.get("object_")

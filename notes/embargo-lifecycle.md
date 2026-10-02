@@ -8,8 +8,11 @@ description: >
   order for multiple open proposals (EP-08); and the fragmentation concern that
   motivates the EmbargoLifecycle service (see #538); and the revision relay
   through the CASE_MANAGER, under which the ledger carries state but never asks
-  (EP-09, ADR-0113); and the invariant that a case never names an embargo its
-  store cannot read (EMB-18-003).
+  (EP-09, ADR-0113), including who records an answer and how RSH-04-002
+  reads on the relay trees; the invariant that a case never names an
+  embargo its store cannot read (EMB-18-003); and the trigger write gate under
+  which only the CASE_MANAGER writes and commits shared EM state while any
+  other participant asks (EP-09-008, SYNC-11-002, EMB-19-001).
 related_specs:
   - specs/case-management.yaml
   - specs/embargo-policy.yaml
@@ -18,6 +21,10 @@ related_specs:
   - specs/participant-case-replica.yaml
   - specs/received-status-handling.yaml
   - specs/protocol-asks.yaml
+  - specs/sync-ledger-replication.yaml
+  - specs/behavior-tree-integration.yaml
+  - specs/handler-protocol.yaml
+  - specs/case-ledger-processing.yaml
 related_notes:
   - notes/embargo-default-semantics.md
   - notes/bt-integration.md
@@ -30,7 +37,11 @@ related_notes:
 relevant_packages:
   - vultron/core/states/em.py
   - vultron/core/services/embargo_lifecycle/
+  - vultron/core/services/carried_embargo.py
   - vultron/core/behaviors/embargo/
+  - vultron/core/behaviors/embargo/nodes/relay_effect.py
+  - vultron/core/behaviors/embargo/nodes/manager_commit.py
+  - vultron/core/models/pending_assertion.py
   - vultron/core/use_cases/triggers/embargo.py
   - vultron/core/use_cases/received/embargo.py
   - vultron/bt/embargo_management
@@ -94,6 +105,9 @@ class EmbargoLifecycle:
     def activate_embargo(
         self, *, case_id, embargo_id, actor_id=None, transition_mode=STRICT
     ) -> EmbargoLifecycleResult: ...
+    def initialize_creation_embargo(
+        self, *, case_id, embargo_id, actor_id=None
+    ) -> EmbargoLifecycleResult: ...  # NONE → ACTIVE, one write (EP-04-002)
     def record_participant_consent(
         self, *, case_id, actor_id, pec_trigger, embargo_id=None
     ) -> EmbargoLifecycleResult: ...
@@ -122,42 +136,59 @@ makes that invariant hold by construction rather than repairing it after the
 fact. Three kinds of path write `active_embargo`, and each must hold the record
 first:
 
-- **Seeding** — every trigger-built outbound case goes through
-  `_case_for_wire`, which carries `active_embargo` inline when the sender holds
-  the record, and `_store_embedded_embargo` stores it as its own record on
-  receipt, so a replica seeded mid-embargo holds A. Seeding writes the sender's
-  `active_embargo` in a whole-case save (`SeedAnnouncedCaseNode`, the
-  create/engage replica stores, and the inbox pre-store of an inbound case), so
-  it is a writer too. Two gaps remain until #4032 lands: the case is saved
-  *before* its embargo record, and a sender that lacks its own record logs a
-  WARNING and sends a bare id, which `_store_embedded_embargo` skips — leaving
-  the replica pointing at a record it cannot read.
+- **Seeding** — a sender carries `active_embargo` inline in every outbound
+  case: trigger-built cases through `_case_for_wire`, and the CASE_MANAGER's
+  case-proposal `Create(VulnerabilityCase)` through
+  `WriteCreateCaseMarkerNode._build_case_object`. A sender whose own store
+  cannot read the record has already broken the invariant, so it refuses to
+  build the activity (`VultronValidationError`; the marker node fails, logged
+  at ERROR) rather than sending a bare id. On receipt, every seeding
+  writer calls `store_carried_embargo()`
+  (`vultron/core/services/carried_embargo.py`) *before* saving the case:
+  `SeedAnnouncedCaseNode`, the create/engage replica stores
+  (`_hold_carried_embargo`) and the inbox pre-store of an inbound case. It
+  stores an inline `EmbargoEvent` as its own record, then reads the named
+  embargo through `read_embargo_event()`; a case naming one the store cannot
+  read is refused — the node fails, the handler reports `REFUSED`, the inbox
+  pre-store skips the case — and nothing is saved. An inline embargo whose
+  `context` is not the carrying case is refused unstored: the inbox pre-store
+  runs before the handler's trust checks and a first write wins, so a sender
+  must not plant another case's embargo under an id that case will name.
+  Extraction reduces an inline embargo to its id, so on the received side it
+  is the inbox pre-store that holds the carried record before dispatch.
 - **Ledger replay** — entries are applied in chain order (SYNC-14-003), and the
   CASE_MANAGER commits A's proposal before any activation that replaces it.
-  Each embargo apply node will store the `EmbargoEvent` its entry carries
-  before calling `EmbargoLifecycle` (#3915); today the only embargo apply node
-  is teardown.
-- **The activation writers** — `accept_embargo_invite()` and
-  `activate_embargo()`, the only paths that *activate* an embargo (EM state
-  plus `active_embargo`). On a revision they already read both records through
-  `_revision_ends_no_later`. On a first activation they do not yet read the
-  activated record, so a bare id from an inbox (which stores only the first
-  level of nesting: `Accept(Invite(A))` keeps the Invite, not A) can land;
-  #4032 makes them read it and fail closed before any write.
+  Each embargo apply node — proposal, relayed Invite, Accept, Reject and
+  teardown — stores the `EmbargoEvent` its entry carries before calling
+  `EmbargoLifecycle` (#3915), and fails, blocking the persist (SYNC-12-001),
+  when the entry names the embargo by id only and the replica lacks it.
+- **The activation writers** — `accept_embargo_invite()`,
+  `activate_embargo()` and the creation-time `initialize_creation_embargo()`,
+  the only paths that *activate* an embargo (EM state plus `active_embargo`).
+  All three compute their EP-05-001 arm through
+  `EmbargoLifecycle._activation_arm()` before any write: it reads the
+  activated record, and on a revision the replaced one too, so a bare id from
+  an inbox (which stores only the first level of nesting: `Accept(Invite(A))`
+  keeps the Invite, not A) raises `VultronNotFoundError` or
+  `VultronNotAnEmbargoError` (a `VultronValidationError` that names the
+  embargo id) in either `TransitionMode` and writes nothing. These
+  methods live in `embargo_lifecycle/activation_arm.py`.
 
 So "a replica lacking the replaced embargo" is a broken invariant, not a
 replication lag, and no catch-up fetch, replay-on-store trigger, or
-`end_time`-in-snapshot mechanism is built for it (CONCERN-4004). Today
-`RecordParticipantAcceptanceNode` still prefixes that failure with
-`REPLACED_EMBARGO_UNREPLICATED_PREFIX` (logged at WARNING) and the handler
-reports `DEFERRED` — the arm PR #4002 added. #4032 retires it: nothing would
-re-drive the parked item, so once it lands the failure is refused and logged at
-ERROR instead.
+`end_time`-in-snapshot mechanism is built for it (CONCERN-4004). Nothing would
+re-drive a parked item, so there is no `DEFERRED` arm:
+`RecordParticipantAcceptanceNode` reports an unreadable replaced embargo
+(missing, or not an `EmbargoEvent`) as an invariant violation logged at ERROR,
+and the handler reports `REFUSED` (HP-01-003). A sender-side refusal to build
+an announce during sync replay is logged at ERROR too, not as a recoverable
+WARNING. An unknown *accepted* embargo stays an ordinary WARNING refusal.
 
 **`TransitionMode`**: `STRICT` enforces valid transitions and precondition
-guards (used by trigger-side BT behaviors).  `OBSERVED` syncs local state
-unconditionally to match a remote party's assertion (used by received-side use
-cases — bypasses all guards).
+guards. A trigger runs it only in its CASE_MANAGER arm; a non-manager's trigger
+runs no lifecycle write at all (EP-09-008). `OBSERVED` syncs local state
+unconditionally to match the CASE_MANAGER's committed assertion (used by
+received-side and ledger-replay nodes — bypasses all guards).
 
 **P/X/A embargo-eligibility guards** (added in
 [#1454](https://github.com/CERTCC/Vultron/issues/1454)): `EmbargoLifecycle`
@@ -183,13 +214,31 @@ a counter-proposal — recording the *proposer's* consent, after a read-only
 `EmStateAdmitsProposalNode` guard ahead of the commit has refused an `EXITED`
 case; then `RelayEmbargoInviteToEachNode` relays the Invite to every participant
 except the proposer, commits each emission and applies PEC `INVITE` where
-CM-18-003 allows it. In any other store the tree records the Invite on the
-replica (`UpdateParticipantEmbargoPecNode(where_legal=True)`) until #3915 lands
-the replay node and gates that write off (RSH-08-004). EMB-01-002 and
+CM-18-003 allows it. In any other store the tree stores the Invite and its
+`EmbargoEvent` and answers it to the CASE_MANAGER through the response decision
+(EMB-15), writing no EM or consent state (EP-09-003); the replica takes that
+state from the ledger through the relay replay nodes in
+`vultron/core/behaviors/embargo/nodes/relay_effect.py` (#3915, RSH-08-004).
+The owner's Reject of an open proposal is decided by
+`DecideRejectedEmbargoProposalNode` in both stores, `STRICT` on the CASE_MANAGER
+and `OBSERVED` on replay: `reject_embargo_invite` returns EM `REVISE → ACTIVE`
+(or `PROPOSED → NONE`) and forgets the proposal. EMB-01-002 and
 EMB-02-002 are enforced as explicit pre-flight guards in
 `InviteToEmbargoOnCaseReceivedUseCase.execute()` and
 `AcceptInviteToEmbargoOnCaseReceivedUseCase.execute()` respectively (implemented
-in [#1484](https://github.com/CERTCC/Vultron/issues/1484)).
+in [#1484](https://github.com/CERTCC/Vultron/issues/1484)); the refusal lives in
+`vultron/core/use_cases/received/_embargo_pxa.py`. The Invite refusal stores the
+Invite and the `EmbargoEvent` it carries, because the store keeps an Invite's
+object by reference and the ER factory needs the proposal whole (#4104). It
+answers where any Invite answer goes: the CASE_MANAGER answers the proposer, and a
+participant answers the CASE_MANAGER, never a peer (EP-09-003, PCR-08-001). It sends
+no ER for an Invite addressed to someone else (EP-09-010) or one naming terms the
+receiver does not hold (Regime 2, ADR-0087). An Invite the receiver already
+answered (`pending_embargo_proposal_index` maps its embargo to it) is skipped, so a
+later P/X/A never contradicts an earlier answer. "Already stored" is not that
+signal: FastAPI ingress stores the Invite before dispatch. The refusal itself
+records no decision, so a repeated refusal answers twice (#4140). Moving this
+refusal into the receive tree is #3872.
 
 **Auto-terminate on publication** (CS.P/X/A event): handled by
 `PublicDisclosureBranchNode` in `vultron/core/behaviors/status/nodes/lifecycle.py`.
@@ -256,18 +305,23 @@ When implementing any code that transitions embargo state:
 8. **Reading EM state inside an action node** goes through `ReadEmStateNode`
    (`vultron/core/behaviors/embargo/nodes/em_state.py`), never
    `case.current_status.em` inline (AC-1, #1474; `WriteEmStateNode` was retired
-   in #2712 — writes go through the service). The pattern:
+   in #2712 — writes go through the service). Call the shared
+   `read_case_em_state()` helper beside it rather than wiring a
+   `ReadEmStateNode` up by hand; it raises `BtNodePreconditionError` when the
+   case or its state cannot be read (BT-HELPER-01, CS-22-001):
 
    ```python
-   result_out: dict[str, object] = {}
-   read_node = ReadEmStateNode(case_id=case_id, result_out=result_out)
-   read_node.datalayer = self.datalayer
-   if read_node.update() != Status.SUCCESS:
-       self.feedback_message = read_node.feedback_message
+   try:
+       current_em = read_case_em_state(self.datalayer, case_id)
+   except BtNodePreconditionError as exc:
+       self.feedback_message = str(exc)
        return Status.FAILURE
-   current_em = result_out["em_before"]
-   assert isinstance(current_em, EM)
    ```
+
+   A refusal arm in a Selector lets the error propagate instead of catching
+   it (`notes/bt-pitfalls.md` § "A Refusal Arm in a Selector Fails Toward
+   'Admit'"). A node that exposes a `result_out` dict to its caller passes it
+   as the third argument, and the read fills `em_before` or `error` into it.
 
    Moved here from `vultron/core/behaviors/AGENTS.md` (CONCERN-2559) when that
    file reached its line ceiling.
@@ -315,11 +369,11 @@ Two rules follow for any new proposal-selection code:
   accept, owner reject, activation, termination) and `RemoveFromProposedEmbargoesNode`
   call it. A participant's accept or reject is consent, not a decision, and prunes
   nothing. Replicas prune too: the received Accept goes through
-  `accept_embargo_invite`, and the received `Reject(Invite)` tree appends
-  `RemoveFromProposedEmbargoesNode(decided_by=<rejecting actor>)`, which prunes only
-  when that actor is the case owner — without it the owner's Reject left the decided
-  proposal in every participant's records, where a later default selection could still
-  pick it. Termination decides *every* open proposal, not only the terminated
+  `accept_embargo_invite`, and the received `Reject(Invite)` tree and its ledger
+  replay both run `DecideRejectedEmbargoProposalNode`, which acts only when the
+  rejecting actor is the case owner and goes through `reject_embargo_invite` — so
+  the decided proposal is forgotten and EM leaves `REVISE`/`PROPOSED` in every
+  store, where a later default selection could otherwise still pick it. Termination decides *every* open proposal, not only the terminated
   embargo's own entry (EP-08-004, ADR-0113): a case has one active embargo
   (VP-04-002), so every proposal open while EM is `ACTIVE` or `REVISE` is a
   revision of it, and a revision of an embargo that no longer exists cannot be
@@ -390,10 +444,12 @@ do about it? The answer, in order:
    consensus (EP-09-006); no quorum or vote is defined — that is actor policy,
    a call-out point.
 6. Only the CASE_MANAGER evaluates lapse; the lapse entry is role-gated and
-   replayed (CM-28-014). Replay nodes reconstruct every step (proposal, each
-   Invite, each answer, each lapse, the decision) via `EmbargoLifecycle(OBSERVED)`
-   (EP-09-007, RSH-08-004), which is what makes the participant-side embargo
-   trees gateable.
+   replayed (CM-28-014). Replay nodes reconstruct the proposal, each relayed
+   Invite, each answer and the owner's decision via `EmbargoLifecycle(OBSERVED)`
+   (EP-09-007, RSH-08-004, built in #3915), which is what made the
+   participant-side Invite tree gateable; the lapse replay is #3961's. The
+   slot table is in `notes/case-communication-model.md` § "What the
+   participant and its replica do".
 
 **Why invite at all if the owner decides by fiat.** The Invites are not a vote.
 They gather the consent records the activation cascade reads: when the owner
@@ -411,21 +467,81 @@ discharged by the CASE_MANAGER's commit and announcement of the received
 activity. No EK message exists in production and none is to be built
 (EP-09-009, MSM-02-009).
 
-**A trigger writes shared EM state only as the CASE_MANAGER (EP-09-008).** The
-five embargo triggers used to write their own local EM state before the manager
-answered, then declare it; nothing corrected the write on a refusal. Now the
-write sits under the same role gate the received trees use. A non-manager's
-trigger emits to the manager, records the activity in the pending-assertion
-store (SYNC-11) as the note trigger does, writes nothing and declares nothing;
-its replica moves on the announced commit, and the manager's `Reject` closes
-the pending entry. Same ordering rule as RSH-08-004: the replay nodes land
-before the local write is gated, or a proposer's case never leaves `NONE`.
+**A trigger writes shared EM state only as the CASE_MANAGER (EP-09-008).**
+The five embargo triggers used to write their own local EM state before the
+manager answered, then declare it; nothing corrected the write on a refusal.
+Each trigger tree in `vultron/core/behaviors/embargo/trigger_tree.py` now ends
+in two mutually exclusive arms built by `_by_role()`
+(`create_case_manager_gated_tree` beside
+`create_participant_replica_gated_tree`, BT-17-001):
+
+- **As the CASE_MANAGER** the decision is canonical: the
+  `*EmbargoLifecycleNode` write runs `STRICT`, then `CommitEmbargoDecisionNode`
+  (`nodes/manager_commit.py`) builds the decision activity, commits its sealed
+  blob as a ledger entry the announce slots replay, and only then queues it
+  (#4085; before, the manager's own decisions committed nothing and replicas
+  never moved). Nothing is addressed to the manager itself (CLP-10-001): an
+  `Accept`/`Reject` is addressed to nobody and only committed; its own proposal
+  is committed and then relayed as one `Invite` per other participant
+  (EP-09-002), which `ApplyEmbargoProposalFromLedgerNode` also replays as a
+  relayed Invite because it is self-attributed; its teardown goes to every
+  other participant (EMB-19-001, #4112). `EmitCaseStatusUpdateNode` follows,
+  because RSH-04-002 requires a `CaseStatus` write after every EM mutation and
+  its duplicate-entry exemption covers only received trees (see "RSH-04-002 on
+  the relay trees" below). No replica apply node reads that entry for EM: the
+  decision entry carries the transition (RSH-08-004). The ask arm makes no EM
+  mutation, so it writes no `CaseStatus`.
+- **As anyone else** the tree writes no EM state and declares none. It queues
+  the activity to the CASE_MANAGER through `sender_side_bt` and writes its id to
+  `result_out[ASSERTED_ACTIVITY_KEY]`. `SvcEmbargoTriggerBase` records it with
+  `record_pending_assertion()` (SYNC-11-002), the helper the note trigger also
+  uses, keyed by a `subject_id` (the terms, the answered proposal, the ended
+  embargo) so a repeat inside the window is suppressed before the tree runs
+  and reported with no activity. The replica moves on the announced commit
+  (SYNC-11-003 clears the entry); a refused proposal is never committed, so
+  the CASE_MANAGER's `Reject` of it closes the entry instead
+  (`close_refused_embargo_proposal`).
+
+The receive-side cascades that end an embargo (`ThreatTerminationBranchNode`,
+`PublicDisclosureBranchNode`'s ET arm) reach the same `terminate_embargo_bt`,
+so they too tear down only at the CASE_MANAGER and a non-manager receiver
+asks. `reject_proposed_embargo_bt` (the P/X/A abandonment of a proposal) is
+not yet gated — #4131. Ratchet:
+`test/architecture/test_embargo_trigger_writes_are_case_manager_gated.py`.
 Participant self-status (RM) keeps its local write — the participant is the
 authority on its own progress. ADR-0108 was amended to match.
 
 **The role is never unfilled.** Both creation paths register a `CASE_MANAGER`
 holder at birth and delegation hands it on (CM-24-006). No "no manager" arm
 belongs in any embargo tree; a resolver that finds nobody fails.
+
+**Only the CASE_MANAGER records an answer, and only one it can apply.** The
+received `Accept`/`Reject(Invite(EmbargoEvent))` trees put their effects
+behind `create_case_manager_gated_tree`; a participant handed an answer
+directly reports `REFUSED` through `not_case_manager_refusal()` and writes
+nothing (BT-17-001, HP-01-005). A `Reject` naming an embargo that is neither
+active nor open — a late answer to a decided revision — is refused by a
+read-only guard *before* the guarded commit (`IsRejectableEmbargoNode`). Once
+committed, an entry whose replica apply node fails blocks its persist
+(SYNC-12-001) and every later entry buffers behind it (SYNC-14-001), so a
+refusal the manager makes after its commit stalls every replica. The replay
+of a rejection of an embargo the replica no longer holds is a no-op for the
+same reason.
+
+**The owner's Reject decides one proposal, not all of them.** With several
+open (EP-08-001), it forgets the one it names (EP-08-003) and EM stays
+`PROPOSED`/`REVISE` while another is open. When it rejects the last open
+revision after P/X/A is set, the case does not return to the prior terms: the
+manager runs the terminate path (`terminate_embargo_bt`, ET), as
+`PublicDisclosureBranchNode` does, and replicas follow its
+`Remove(EmbargoEvent)` (EMB-04-002).
+
+**RSH-04-002 on the relay trees.** These received trees add no
+`EmitCaseStatusUpdateNode`. Their guarded commit records the activity that
+caused the transition, and its relay apply node replays that transition in
+every replica (EP-09-007, RSH-08-004, ADR-0113), so the committed entry *is*
+the canonical ledger write. A second `CaseStatus` entry would duplicate it.
+RSH-04-002's text says so (#4103).
 
 The creation-time revision from shortest-wins follows the same relay
 (EP-04-011) — see `notes/embargo-default-semantics.md`.

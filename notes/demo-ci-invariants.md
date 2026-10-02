@@ -6,6 +6,7 @@ related_specs:
   - specs/multi-actor-demo.yaml
   - specs/ci-security.yaml
   - specs/case-ledger-processing.yaml
+  - specs/case-management.yaml
 related_notes:
   - notes/ci-workflow-authoring.md
   - notes/demo-scenario-authoring.md
@@ -374,9 +375,23 @@ restating the block.
 
 The expected-event-types list (Invariant 5) checks **presence** of an event
 at least once. Scenarios that require an event to appear **N or more times**
-(e.g. `invite_actor_to_case` at least twice in FCV, FVCV-*, FCCV-*) use
+(e.g. `invite_actor_to_case` at least twice in FVCV-*, FCCV-*) use
 separate `test_XXX_<event>_at_least_N` functions built on
 `check_event_type_count`. These two mechanisms complement each other.
+
+`check_event_type_count` also takes a keyword-only `max_count`. FCV pins
+`invite_actor_to_case` to exactly one (`min_count=1, max_count=1`): the
+Coordinator invites only the Vendor, because the Finder is the reporter and
+the CASE_MANAGER seats it at case creation (CM-22-002, CM-14-005;
+DEMOMA-12-003). A floor alone cannot tell a scenario's own sends from a
+duplicate. Until #4096, every scenario committed the owner's Invite twice
+under one activity id, and that duplicate met FCV's old "at least twice"
+floor, which assumed a Finder invite the scenario never sends (#4120). The
+universal `test_invariant_clp07_unique_payload_snapshot_ids` (CLP-07-002) now
+catches a duplicate commit in every scenario, so the other scenarios keep
+floors; add a `max_count` where a count above the scenario's own sends would
+itself be a defect that CLP-07-002 cannot see, such as a second Invite with
+its own activity id.
 
 ---
 

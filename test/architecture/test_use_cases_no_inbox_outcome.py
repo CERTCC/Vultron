@@ -23,8 +23,8 @@ use-case layer (ADR-0095).
 
 The scan covers every module under ``vultron/core/use_cases/`` and fails on
 any name — bare, attribute, or imported — equal to one of the forbidden class
-names.  It does not forbid the inbox *package*: ``received/unknown.py``
-legitimately reaches its dead-letter BT tree.  ``KNOWN_VIOLATIONS`` is empty
+names.  It does not forbid the inbox *package*: a use case may name an inbox
+module so long as it never names the outcome types.  ``KNOWN_VIOLATIONS`` is empty
 and the assertion is bidirectional (ARCH-18-001), so the first offender fails.
 
 Spec: HP-01-004 (``specs/handler-protocol.yaml``); UCORG-05-011; ADR-0095.
@@ -128,14 +128,10 @@ def test_detector_flags_an_inbox_outcome_import() -> None:
     assert "InboxOutcome" in site
 
 
-def test_detector_ignores_the_dead_letter_tree_import() -> None:
+def test_detector_ignores_a_non_outcome_inbox_import() -> None:
     """The inbox *package* is not forbidden — only the outcome vocabulary."""
     assert (
-        _sites(
-            "from vultron.core.behaviors.inbox.dead_letter_tree import (\n"
-            "    create_store_dead_letter_tree,\n"
-            ")\n"
-        )
+        _sites("from vultron.core.behaviors.inbox import process_payload\n")
         == []
     )
 

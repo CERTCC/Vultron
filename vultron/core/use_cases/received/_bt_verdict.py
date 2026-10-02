@@ -49,12 +49,19 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
+from vultron.core.behaviors.case.nodes.conditions import (
+    CheckIsCaseManagerNode,
+)
+from vultron.core.behaviors.case.nodes.intake import (
+    IntakeReceivedActivityNode,
+)
 from vultron.core.behaviors.helpers import WIRING_UNAVAILABLE_MESSAGES
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
 )
+from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.errors import VultronBTInternalError
 
@@ -135,10 +142,6 @@ def not_case_manager(tree: py_trees.behaviour.Behaviour | _HasRoot) -> bool:
     then has to say what that success was: see
     :func:`not_case_manager_refusal`.
     """
-    from vultron.core.behaviors.case.nodes.conditions import (
-        CheckIsCaseManagerNode,
-    )
-
     return node_failed(tree, CheckIsCaseManagerNode)
 
 
@@ -160,8 +163,6 @@ def not_case_manager_refusal(
     message that reaches an actor without that role was misaddressed, and the
     receiver's inbox record says so rather than reporting a processed no-op.
     """
-    from vultron.core.participants.authority import resolve_case_manager_id
-
     if not not_case_manager(tree):
         return None
     case = dl.read(case_id)
@@ -229,19 +230,18 @@ def intake_verdict(
     *,
     label: str,
 ) -> HandlerResult:
-    """The ``HandlerResult`` for a tree whose only work is intake.
+    """The ``HandlerResult`` for a tree whose state change is intake.
 
-    Intake archives what arrived and nothing else, so a run that archived
-    the activity is ``APPLIED`` and a run that found it already archived is
-    the benign no-op of a redelivery, ``SKIPPED`` (HP-01-003).  The
-    intake node reports which it was, so the handler does not inspect the
-    DataLayer (ADR-0111).  A refused or failed run reads as
+    Intake archives what arrived, so a run that archived the activity is
+    ``APPLIED`` and a run that found it already archived is the benign no-op
+    of a redelivery, ``SKIPPED`` (HP-01-003).  A tree may also carry effect
+    nodes, but only ones that are idempotent on a redelivery — a narrative
+    log line, or a write that keeps an existing record (the invitee's trust
+    anchor) — because they run again and the verdict still reads
+    ``SKIPPED``.  The intake node reports which it was, so the handler does
+    not inspect the DataLayer (ADR-0111).  A refused or failed run reads as
     :func:`verdict_from_bt` reads it.
     """
-    from vultron.core.behaviors.case.nodes.intake import (
-        IntakeReceivedActivityNode,
-    )
-
     verdict = verdict_from_bt(tree, result, label=label)
     if verdict.disposition is not HandlerDisposition.APPLIED:
         return verdict

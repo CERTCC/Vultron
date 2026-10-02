@@ -37,16 +37,16 @@ Refined by: `docs/adr/0041-caseactor-authoritative-case-initialization.md`
 
 ## Motivation
 
-`CreateCaseActorNode` currently creates the CaseActor locally in the vendor's
-DataLayer. When the case-actor service is external (issue #810), the vendor
+`CreateCaseActorNode` currently creates the CaseActor locally in the receiver's
+DataLayer. When the case-actor service is external (issue #810), the receiver
 needs a way to tell the case-actor service about a new case.
 
-Sending `Create(VulnerabilityCase)` from the vendor is not correct. In
-ActivityStreams, `Create(X)` means "I created X." The vendor is not the
+Sending `Create(VulnerabilityCase)` from the report receiver is not correct. In
+ActivityStreams, `Create(X)` means "I created X." The report receiver is not the
 authoritative creator of the case — the case-actor service is. Using the
-vendor as `actor` on a `Create(VulnerabilityCase)` violates this semantics.
+receiver as `actor` on a `Create(VulnerabilityCase)` violates this semantics.
 
-The `CaseProposal` object provides a clean solution: the vendor proposes that
+The `CaseProposal` object provides a clean solution: the receiver proposes that
 the case-actor service create the case, while the case-actor service does the
 actual creation.
 
@@ -55,15 +55,15 @@ actual creation.
 ## Protocol Flow
 
 **Note**: The flow below reflects the corrected CASE_MANAGER-authoritative model
-(ADR-0041). The vendor does NOT create a `VulnerabilityCase` locally before
-the CASE_MANAGER responds. The vendor stores the report, writes a pending
+(ADR-0041). The report receiver does NOT create a `VulnerabilityCase` locally before
+the CASE_MANAGER responds. The report receiver stores the report, writes a pending
 `VultronReportCaseLink`, and waits.
 
 ```text
-Vendor                              CaseActor Service
+Report receiver                     CaseActor Service
   |                                       |
   | --- Create(CaseProposal) -----------> |
-  |         actor: vendor URI             |
+  |         actor: receiver URI           |
   |         object_: as_CaseProposal      |
   |                                       |
   |   [creates case, adds participants,   |
@@ -88,23 +88,23 @@ Vendor                              CaseActor Service
   |         object_: as_CaseProposal      |
 ```
 
-### Step 1: Vendor sends `Create(as_CaseProposal)`
+### Step 1: Report receiver sends `Create(as_CaseProposal)`
 
-The vendor creates an `as_CaseProposal` object containing:
+The report receiver creates an `as_CaseProposal` object containing:
 
 - `id_`: auto-generated URI for the proposal
-- `attributed_to`: the vendor actor URI
+- `attributed_to`: the report receiver's actor URI (the future CASE_OWNER)
 - `object_`: inline or URI-referenced `as_VulnerabilityReport`
 - `target`: the case-actor service URI
 - `summary` (optional): human-readable description
 
-The vendor then sends `Create(as_CaseProposal)` to the case-actor service's
-inbox, with `actor=vendor_uri`.
+The report receiver then sends `Create(as_CaseProposal)` to the case-actor service's
+inbox, with `actor=owner_uri`.
 
 ### Step 2a: Case-actor accepts (happy path)
 
 When the case-actor service decides to create the case, it sends **two**
-activities back to the vendor:
+activities back to the report receiver:
 
 1. **`Accept(as_CaseProposal)`** — acknowledgment that the proposal was
    accepted. `object_` embeds the `as_CaseProposal` inline.
@@ -128,7 +128,7 @@ When the case-actor service declines, it sends:
 
 **`Reject(as_CaseProposal)`** — `object_` embeds the `as_CaseProposal`
 inline (consistent with the Accept pattern; inline is preferred over URI-only
-for rejection so the vendor has the full proposal context without a round-trip).
+for rejection so the receiver has the full proposal context without a round-trip).
 
 What *decides* the refusal is the `EvaluateCaseProposal` call-out point — see
 [Admission Decision](#admission-decision-cp-05-002).
@@ -215,10 +215,14 @@ proposal: this implementation requires the `actor` of `Create(as_CaseProposal)`
 to be the proposing actor's full profile inline, carrying its `embargoPolicy`
 when it has published one (CP-01-010). The protocol also permits a profile
 reference the CASE_MANAGER dereferences (CP-01-009); this prototype requires the
-inline form so case creation never fetches. A bare-URI `actor`, or a profile
-whose `id` is not the proposal's `attributed_to`, is to be refused at the parse
-edge. None of this is built yet: the sender still puts a bare actor URI on the
-`Create` (#4027).
+inline form so case creation never fetches. The sender adapter puts its own
+stored profile on the `Create`, and `refuse_malformed_case_proposal_envelope`
+(`vultron/wire/as2/case_proposal_envelope.py`) refuses at the parse edge a
+bare-URI `actor` and a profile whose `id` is not the proposal's
+`attributed_to`. `CoreActor`'s own validator refuses a profile carrying another
+actor's `embargoPolicy` (EP-01-001). The extractor hands the profile to core as
+`proposer_profile`; how the tree reads the default from it is in
+`notes/embargo-default-semantics.md`.
 
 All classes in `vultron/wire/as2/vocab/objects/` use the `as_` prefix
 (ARCH-14-001). The new type is `as_CaseProposal`; the bare name `CaseProposal`
@@ -257,16 +261,16 @@ perform the following natively — no back-fill, no prologue:
    `add_participant_status_to_participant` × N, `add_case_status_to_case`)
 6. Emit `Accept(as_CaseProposal)` with `result=case_id`
 7. Emit `Create(VulnerabilityCase)` with inline participant objects so that
-   `CreateCaseReceivedUseCase._store_embedded_participants` seeds them correctly
-   on the vendor's replica
+   `store_embedded_participants` seeds them correctly
+   on the receiver's replica
 
 The `Create(VulnerabilityCase)` payload MUST embed participant objects inline
-(not bare IDs) so the vendor can seed its replica without a DataLayer round-trip
+(not bare IDs) so the receiver can seed its replica without a DataLayer round-trip
 to the CaseActor.
 
 ### Removed nodes (ADR-0041)
 
-The following nodes are **removed** from the vendor's
+The following nodes are **removed** from the receiver's
 `receive_report_case_tree.py` and must not be re-added:
 
 | Removed node | Reason |
@@ -275,11 +279,11 @@ The following nodes are **removed** from the vendor's
 | `CreateCaseOwnerParticipant` | CaseActor adds receiver as participant |
 | `InitializeDefaultEmbargoNode` | CaseActor initializes embargo |
 | `CreateCaseActivity` / `UpdateActorOutbox` | CaseActor emits `Create(VulnerabilityCase)` |
-| `CreateCaseActorNode` | CaseActor is a pre-existing service, not spawned by vendor |
+| `CreateCaseActorNode` | CaseActor is a pre-existing service, not spawned by the receiver |
 | `SendOfferCaseManagerRoleNode` *(deleted, issue #2429)* | CaseActor adds itself as `CASE_MANAGER` natively — replaced by `OFFER_CASE_PARTICIPANT_ROLE` (ADR-0039) |
 | `WritePrologueLedgerEntriesNode` | Back-fill replaced by native CaseActor init |
 
-### Corrected vendor tree shape (ADR-0041)
+### Corrected receiver tree shape (ADR-0041)
 
 `receive_report_case_tree.py` becomes:
 
@@ -293,7 +297,7 @@ ReceiveReportCaseBT (Sequence)
       └─ ProposeCaseToActorNode              # Create(as_CaseProposal) → CaseActor
 ```
 
-No `VulnerabilityCase`, no participants, no embargo created by the vendor.
+No `VulnerabilityCase`, no participants, no embargo created by the report receiver.
 
 ## BT Integration: `ProposeCaseToActorNode`
 
@@ -310,8 +314,8 @@ Three received-side use cases are required:
 | Use Case | Actor | Handles |
 |----------|-------|---------|
 | `CreateCaseProposalReceivedUseCase` | Case-actor service | `Create(as_CaseProposal)` arriving at case-actor inbox |
-| `AcceptCaseProposalReceivedUseCase` | Vendor | `Accept(as_CaseProposal)` arriving at vendor inbox |
-| `RejectCaseProposalReceivedUseCase` | Vendor | `Reject(as_CaseProposal)` arriving at vendor inbox |
+| `AcceptCaseProposalReceivedUseCase` | Report receiver | `Accept(as_CaseProposal)` arriving at receiver inbox |
+| `RejectCaseProposalReceivedUseCase` | Report receiver | `Reject(as_CaseProposal)` arriving at receiver inbox |
 
 All three must be registered as the `use_case_class` of their `SEMANTIC_REGISTRY`
 entry, keyed by the corresponding `MessageSemantics` value, so that they appear
@@ -393,7 +397,7 @@ case_actor_id = f"{server_base_url}/actors/case-actor-{case_slug}"
 ```
 
 The base URL is wrong because it silently works in single-container demos and
-mis-routes in multi-container topologies (the Vendor proposes to itself). The slug
+mis-routes in multi-container topologies (the receiver proposes to itself). The slug
 is wrong because it is unhostable at all — see above. The fix:
 
 ```python
@@ -422,14 +426,14 @@ See `docs/adr/0023-case-proposal-protocol.md` for the alternatives evaluated.
 
 The case-actor's accepted path involves two sequenced outbound activities
 (`Accept(CaseProposal)` then `Create(VulnerabilityCase)`). If the second
-delivery fails after the first succeeds, the vendor receives an Accept with
+delivery fails after the first succeeds, the report receiver receives an Accept with
 no corresponding case announcement.
 
 To recover from this, a `PendingCreateCaseActivity` marker is written to
 the DataLayer **after** `Accept` is sent and **before** `Create` is
 attempted (implemented in `WriteCreateCaseMarkerNode` in
 `vultron/core/behaviors/case/nodes/proposal_retry_marker.py`). The marker captures the proposal ID,
-case-actor ID, vendor URI, and the pre-constructed
+case-actor ID, receiver URI, and the pre-constructed
 `Create(VulnerabilityCase)` payload. It is deleted on successful
 `Create` delivery, so only failed deliveries leave a marker.
 
@@ -490,7 +494,7 @@ new `Accept(as_CaseProposal)` (AC-2) with:
 - **`result` = URI of the existing `VulnerabilityCase`** (CP-05-006 AC-2)
 
 The `result` field is where the duplicate Accept carries the existing-case
-reference so the vendor can correlate it to the already-created case without
+reference so the report receiver can correlate it to the already-created case without
 waiting for a second `Create(VulnerabilityCase)`.
 
 For first-time proposals, `EmitAcceptCaseProposalNode` also sets
@@ -507,16 +511,17 @@ subtree was not until #3393: `InitializeDefaultEmbargoNode`'s creation arm
 re-ran on the existing case, minting an orphan `EmbargoEvent` on the default
 path and registering the losing candidate as a *second* pending revision on
 the contested one (EP-04-003) — one revision per delivery of the same report.
-`CaseEmbargoAlreadyInitializedNode` is now the subtree's first arm: an active
-embargo attached means initialization already ran. The vendor stops feeding
-the duplicate too — `CheckProposalAlreadySentForReport` treats an answered
-`ReportCaseLink` (case linked) as "already proposed", so a re-delivered Offer
-does not re-propose. What the case-actor *answers* a same-report duplicate
-with — a fresh `Accept`, as this section describes, or the stored original
-CP-05-006 now requires — is open in #3977.
+`CaseEmbargoAlreadyInitializedNode` is now the subtree's first arm: an EM
+state other than `NONE` means initialization already ran (EP-04-012, #4019;
+the active-embargo reference it first read is cleared by termination). The
+receiver stops feeding the duplicate too — `CheckProposalAlreadySentForReport`
+treats an answered `ReportCaseLink` (case linked) as "already proposed", so a
+re-delivered Offer does not re-propose. What the case-actor *answers* a
+same-report duplicate with — a fresh `Accept`, as this section describes, or
+the stored original CP-05-006 now requires — is open in #3977.
 
 **What "duplicate" means here.** An exact redelivery of the same proposal —
-at-least-once delivery, or the vendor asking again because the `Accept` was lost
+at-least-once delivery, or the receiver asking again because the `Accept` was lost
 (CP-05-006's rationale, ADR-0080; note that CP-05-006's *statement* still keys
 the duplicate on "a proposal for the same report", so amending that key is part
 of #3977, not something the spec already says). It does *not* mean a second report that
@@ -544,7 +549,7 @@ before persisting it to the DataLayer and outbox.
 
 After `validate-report` runs in an exchange demo, `ProposeReportCaseToActorNode`
 fires automatically and the CaseActor creates the canonical `VulnerabilityCase`.
-Do NOT call `create_case_activity` to create a vendor-local case — that produces
+Do NOT call `create_case_activity` to create a receiver-local case — that produces
 a second, unlinked case with no participants.
 
 **Pattern for exchange demo setup:**
@@ -561,7 +566,7 @@ def _find_canonical_case(client) -> dict:
 `GET /datalayer/VulnerabilityCases/` returns a `dict[str, dict]` keyed by object
 ID. The canonical case is the one with `case_participants` populated.
 
-A vendor-local case created by calling `create_case_activity` anyway is broken in
+A receiver-local case created by calling `create_case_activity` anyway is broken in
 three distinct ways, none of which raise:
 
 - it has no `ReportCaseLink`, so `create_case_received` skips it;
@@ -573,7 +578,7 @@ three distinct ways, none of which raise:
 The canonical case is always in the shared DataLayer after `validate-report`,
 even in single-backend test environments where `TestClientRouter` does not
 register the CaseActor's delivery address (`https://vultron.example`) — the
-CaseActor's `Create(VulnerabilityCase)` delivery to vendor is silently dropped
+CaseActor's `Create(VulnerabilityCase)` delivery to the receiver is silently dropped
 there, but the case itself is in the DataLayer.
 
 Source: ISSUE-1994

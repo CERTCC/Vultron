@@ -44,23 +44,16 @@ from vultron.adapters.driving.fastapi.inbox_pending_queue import (
 )
 from vultron.adapters.driving.fastapi.inbox_port_factories import (
     _CASE_PROPOSAL_SEMANTICS,
-    _CLOSE_CASE_SEMANTICS,
-    _STATUS_AUTH_SYNC_TRIGGER_SEMANTICS,
     _STATUS_AUTH_TRIGGER_SEMANTICS,
     _SUBMIT_REPORT_SEMANTICS,
-    _SYNC_AND_TRIGGER_PORT_SEMANTICS,
-    _SYNC_PORT_SEMANTICS,
     _TRIGGER_ACTIVITY_PORT_SEMANTICS,
     _case_proposal_port_factory,
-    _close_case_port_factory,
-    _status_auth_sync_trigger_port_factory,
     _status_auth_trigger_port_factory,
     _submit_report_port_factory,
-    _sync_and_trigger_port_factory,
-    _sync_port_factory,
     _trigger_activity_port_factory,
 )
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
+from vultron.adapters.driving.fastapi.startup_slot import StartupSlot
 from vultron.core.dispatcher import get_dispatcher
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events import VultronEvent, is_case_bootstrap
@@ -109,7 +102,8 @@ def prepare_for_dispatch(activity: as_Activity) -> VultronEvent:
     return event
 
 
-_DISPATCHER: ActivityDispatcher | None = None
+#: The module-level dispatcher, installed by :func:`init_dispatcher`.
+_DISPATCHER_SLOT: StartupSlot[ActivityDispatcher] = StartupSlot()
 
 
 def make_dispatcher() -> ActivityDispatcher:
@@ -117,7 +111,7 @@ def make_dispatcher() -> ActivityDispatcher:
 
     Use this in :func:`create_app` lifespans to build a per-app dispatcher
     that is stored on ``app.state.dispatcher`` instead of the module-level
-    ``_DISPATCHER``.  Production code (``app_v2``) continues to call
+    ``_DISPATCHER_SLOT``.  Production code (``app_v2``) continues to call
     :func:`init_dispatcher` so the global is set for backward-compatible
     callers such as the CLI.
     """
@@ -125,14 +119,10 @@ def make_dispatcher() -> ActivityDispatcher:
     # would cause a silent dict.update() overwrite — exactly the class of bug
     # that #628 introduced — so fail fast with an actionable message.
     _all_sets = (
-        _SYNC_PORT_SEMANTICS,
         _TRIGGER_ACTIVITY_PORT_SEMANTICS,
-        _SYNC_AND_TRIGGER_PORT_SEMANTICS,
         _SUBMIT_REPORT_SEMANTICS,
         _CASE_PROPOSAL_SEMANTICS,
-        _CLOSE_CASE_SEMANTICS,
         _STATUS_AUTH_TRIGGER_SEMANTICS,
-        _STATUS_AUTH_SYNC_TRIGGER_SEMANTICS,
     )
     for i, left in enumerate(_all_sets):
         for right in _all_sets[i + 1 :]:
@@ -141,26 +131,14 @@ def make_dispatcher() -> ActivityDispatcher:
                 raise AssertionError(
                     f"Port-semantics sets overlap: {overlap!r}. "
                     "Each semantic must appear in exactly one set. "
-                    "For sync+trigger semantics use _SYNC_AND_TRIGGER_PORT_SEMANTICS; "
-                    "for semantics that also need extra ports (e.g. actor_config) "
+                    "For semantics that need extra ports (e.g. actor_config) "
                     "create a dedicated set+factory pair like _SUBMIT_REPORT_SEMANTICS."
                 )
 
     port_factories: dict = {
-        sem: _sync_port_factory for sem in _SYNC_PORT_SEMANTICS
+        sem: _trigger_activity_port_factory
+        for sem in _TRIGGER_ACTIVITY_PORT_SEMANTICS
     }
-    port_factories.update(
-        {
-            sem: _trigger_activity_port_factory
-            for sem in _TRIGGER_ACTIVITY_PORT_SEMANTICS
-        }
-    )
-    port_factories.update(
-        {
-            sem: _sync_and_trigger_port_factory
-            for sem in _SYNC_AND_TRIGGER_PORT_SEMANTICS
-        }
-    )
     port_factories.update(
         {sem: _submit_report_port_factory for sem in _SUBMIT_REPORT_SEMANTICS}
     )
@@ -168,30 +146,22 @@ def make_dispatcher() -> ActivityDispatcher:
         {sem: _case_proposal_port_factory for sem in _CASE_PROPOSAL_SEMANTICS}
     )
     port_factories.update(
-        {sem: _close_case_port_factory for sem in _CLOSE_CASE_SEMANTICS}
-    )
-    port_factories.update(
         {
             sem: _status_auth_trigger_port_factory
             for sem in _STATUS_AUTH_TRIGGER_SEMANTICS
         }
     )
-    port_factories.update(
-        {
-            sem: _status_auth_sync_trigger_port_factory
-            for sem in _STATUS_AUTH_SYNC_TRIGGER_SEMANTICS
-        }
-    )
-    # Every received use case gets a WireRenderPort, on top of whatever else
-    # its semantics needs.  A received tree's guarded ledger commit snapshots
-    # the activity as an AS2 rendering, which core cannot produce itself
-    # (ARCH-20-001, CLP-07-009).  The port is given to every use case rather
-    # than to a hand-kept list of those whose trees commit, because a list that
-    # falls behind is exactly how the snapshot path ran portless before #3930;
-    # a use case that runs no tree accepts it and has nothing to pass it to.
+    # Every received use case gets a WireRenderPort and a SyncActivityPort, on
+    # top of whatever else its semantics needs: a received tree's guarded
+    # ledger commit snapshots the activity as an AS2 rendering core cannot
+    # produce itself (ARCH-20-001, CLP-07-009), and the CASE_MANAGER fans the
+    # entry out to the participants (SYNC-02-003).  See
+    # with_received_baseline_ports for why this is not a hand-kept list
+    # (#3930, #4113); a use case that runs no tree accepts both ports and has
+    # nothing to pass them to.
     use_cases = _use_case_map()
     port_factories = {
-        sem: inbox_port_factories.with_wire_render_port(
+        sem: inbox_port_factories.with_received_baseline_ports(
             port_factories.get(sem, lambda dl: {})
         )
         for sem in use_cases
@@ -216,9 +186,9 @@ def init_dispatcher() -> None:
     and its one remaining caller reached for the unscoped ``get_datalayer()``
     to satisfy it — which ADR-0073 removes.
     """
-    global _DISPATCHER  # noqa: PLW0603  # ruff-baseline #3985
-    _DISPATCHER = make_dispatcher()
-    logger.info("Initialised inbox dispatcher: %s", type(_DISPATCHER).__name__)
+    dispatcher = make_dispatcher()
+    _DISPATCHER_SLOT.install(dispatcher)
+    logger.info("Initialised inbox dispatcher: %s", type(dispatcher).__name__)
 
 
 def dispatch(
@@ -229,7 +199,7 @@ def dispatch(
     """Dispatch the given domain event and return the handler's verdict.
 
     Uses *dispatcher* when provided; otherwise falls back to the module-level
-    ``_DISPATCHER`` (set by :func:`init_dispatcher`).  Passing an explicit
+    ``_DISPATCHER_SLOT`` (set by :func:`init_dispatcher`).  Passing an explicit
     dispatcher enables per-app isolation when multiple :func:`create_app`
     instances coexist in the same process (issue #534).
 
@@ -237,16 +207,16 @@ def dispatch(
         event: The domain event to dispatch.
         dl: The DataLayer instance scoped to the current actor.
         dispatcher: Optional per-app dispatcher.  When ``None`` the
-            module-level ``_DISPATCHER`` is used (backward-compatible).
+            module-level ``_DISPATCHER_SLOT`` is used (backward-compatible).
 
     Returns:
         The ``HandlerResult`` of the routed use case (UCORG-05-010).
 
     Raises:
         RuntimeError: If no dispatcher is available (neither *dispatcher*
-            nor the module-level ``_DISPATCHER`` has been initialised).
+            nor the module-level ``_DISPATCHER_SLOT`` has been initialised).
     """
-    _d = dispatcher or _DISPATCHER
+    _d = dispatcher or _DISPATCHER_SLOT.value
     if _d is None:
         raise RuntimeError(
             "Inbox dispatcher not initialised. "
@@ -273,7 +243,7 @@ def handle_inbox_item(
         obj: The Activity item to process.
         dl: The DataLayer instance used for reads and dispatch.
         dispatcher: Optional per-app dispatcher.  When ``None`` the
-            module-level ``_DISPATCHER`` is used (backward-compatible).
+            module-level ``_DISPATCHER_SLOT`` is used (backward-compatible).
     """
     logger.info("Processing item '%s' for actor '%s'", obj.name, actor_id)
     logger.debug(
@@ -490,7 +460,7 @@ async def inbox_handler(
         dispatcher: Optional per-app dispatcher (from
             ``request.app.state.dispatcher``).  When provided, inbox items
             are routed through this dispatcher instead of the module-level
-            ``_DISPATCHER``, giving each :func:`create_app` instance its
+            ``_DISPATCHER_SLOT``, giving each :func:`create_app` instance its
             own fully isolated routing table (issue #534).
     """
     queue_dl: DataLayer = cast(

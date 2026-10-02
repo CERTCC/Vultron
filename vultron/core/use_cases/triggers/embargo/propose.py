@@ -15,69 +15,20 @@
 
 """Embargo proposal trigger use case."""
 
-import json
 import logging
-from typing import cast
-
-import py_trees.behaviour
 
 from vultron.core.behaviors.embargo.trigger_tree import (
     propose_embargo_trigger_bt,
 )
-from vultron.core.models.embargo_event import EmbargoEvent
-from vultron.core.use_cases.triggers._base import SvcEmbargoTriggerBase
-from vultron.core.use_cases.triggers._helpers import (
-    resolve_actor,
-    resolve_case,
-)
-from vultron.core.use_cases.triggers.requests import (
-    ProposeEmbargoTriggerRequest,
+from vultron.core.use_cases.triggers.embargo._terms import (
+    SvcOfferEmbargoTermsBase,
 )
 
 logger = logging.getLogger(__name__)
 
 
-class SvcProposeEmbargoUseCase(SvcEmbargoTriggerBase):
-    def _prepare(self) -> None:
-        request = cast(ProposeEmbargoTriggerRequest, self._request)
-        actor = resolve_actor(request.actor_id, self._dl)
-        self._actor_id = actor.id_
-        self._case = resolve_case(request.case_id, self._dl)
-
-        self._embargo = EmbargoEvent(
-            context=self._case.id_, end_time=request.end_time
-        )
-
-    def _build_tree(self) -> py_trees.behaviour.Behaviour:
-        def _build_activities(case_manager_id: str) -> list[str]:
-            proposal_id, proposal_dict = self._factory.propose_embargo(
-                embargo_id=self._embargo.id_,
-                case_id=self._case.id_,
-                actor=self._actor_id,
-                to=[case_manager_id],
-            )
-            self._captured["activity"] = json.loads(proposal_dict)
-            self._captured["proposal_id"] = proposal_id
-            return [proposal_id]
-
-        return propose_embargo_trigger_bt(
-            case_id=self._case.id_,
-            embargo=self._embargo,
-            result_out=self._result_out,
-            activity_builder=_build_activities,
-        )
-
-    def _handle_result(self) -> None:
-        super()._handle_result()
-        proposal_id = self._captured.get("proposal_id")
-        if isinstance(proposal_id, str) and proposal_id:
-            from vultron.core.use_cases.received.embargo import (
-                _record_embargo_proposal_index,
-            )
-
-            _record_embargo_proposal_index(
-                self._dl, self._case.id_, self._embargo.id_, proposal_id
-            )
+class SvcProposeEmbargoUseCase(SvcOfferEmbargoTermsBase):
+    _tree_factory = staticmethod(propose_embargo_trigger_bt)
 
     def _log_lifecycle_result(self) -> None:
         lr = self._lifecycle_result

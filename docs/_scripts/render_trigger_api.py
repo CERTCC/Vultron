@@ -163,6 +163,9 @@ def _render_endpoint(path: str, op: dict, all_schemas: dict) -> list[str]:
 
 def render() -> str:
     """Return the full Markdown for the trigger API reference page."""
+    # Deferred until the module-level sys.path entry above exists, so the
+    # import resolves when mkdocs execs this file outside the package
+    # (PLC0415 is exempted for this file in pyproject.toml).
     from vultron.adapters.driving.fastapi.app import (
         create_app,
     )

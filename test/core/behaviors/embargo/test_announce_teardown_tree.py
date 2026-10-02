@@ -30,6 +30,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
     make_case_and_embargo,
     make_case_with_manager,
 )
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.embargo.announce_teardown_tree import (
@@ -41,6 +42,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.embargo import (
     RemoveEmbargoEventFromCaseReceivedEvent,
 )
+from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.states.em import EM
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
@@ -116,6 +118,7 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
             datalayer=dl,
             trigger_activity=factory,
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         )
         activity = _make_remove_event(
             case, embargo, "https://example.org/activities/remove1"
@@ -160,6 +163,10 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
             datalayer=dl,
             trigger_activity=factory,
             wire_render_port=As2WireRenderAdapter(),
+            # A mock port: the removal entry's ledger fan-out is not under
+            # test, and the empty-outbox check below is about the embargo
+            # Announce alone.
+            sync_port=MagicMock(spec=SyncActivityPort),
         )
         activity = _make_remove_event(
             case, embargo, "https://example.org/activities/remove2"
@@ -182,7 +189,9 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
             case_id=case.id_, embargo_id=embargo.id_
         )
         bridge = BTBridge(
-            datalayer=dl, wire_render_port=As2WireRenderAdapter()
+            datalayer=dl,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         )  # no trigger_activity
         activity = _make_remove_event(
             case, embargo, "https://example.org/activities/remove3"
@@ -221,6 +230,7 @@ class TestRemoveEmbargoTeardownFailuresSurface:
             datalayer=dl,
             trigger_activity=factory,
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         )
         activity = _make_remove_event(
             case, embargo, "https://example.org/activities/remove4"
@@ -250,6 +260,7 @@ class TestRemoveEmbargoTeardownFailuresSurface:
             datalayer=dl,
             trigger_activity=factory,
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         )
         activity = _make_remove_event(
             case, embargo, "https://example.org/activities/remove5"

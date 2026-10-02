@@ -213,11 +213,10 @@ replay is what gives the participant the history it then judges.
 
 ### The stub is its own type and its own object
 
-`VulnerabilityCaseStub` gets its own wire `type` value (`"VulnerabilityCaseStub"`)
-and its own ID, the case ID with `/stub` appended. It names the case it stands
-for explicitly, so no receiver derives one ID from the other. A stub Invite and
-a full-case Invite therefore differ in shape and are classified without a
-lookup.
+`VulnerabilityCaseStub` gets its own wire `type` value (`"VulnerabilityCaseStub"`) and its own ID, the case ID with `/stub` appended.
+It names the case it stands for explicitly, in its `caseId` field, so no receiver derives one ID from the other.
+What else it carries is CM-17-010: only the embargo terms, and only while an embargo is active.
+A stub Invite and a full-case Invite therefore differ in shape and are classified without a lookup.
 
 ### On-behalf status targets existing participants only
 

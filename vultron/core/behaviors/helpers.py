@@ -44,15 +44,14 @@ from py_trees.common import Status
 from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
 from pydantic import BaseModel
 
+from vultron.core.behaviors.node_logger import node_logger
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import (
     participant_status_rm_state,
 )
-from vultron.core.ports.case_persistence import (
-    CaseOutboxPersistence,
-    CasePersistence,
-)
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer, StorableRecord
 from vultron.core.states.rm import RM
 from vultron.errors import VultronValidationError, VultronWiringError
@@ -143,7 +142,10 @@ def read_rm_states(
             "Non-canonical ParticipantStatus shape for participant"
             f" '{participant_id}': {exc}"
         )
-        node.logger.error(f"{node.name}: {node.feedback_message}")  # noqa: TRY400  # ruff-baseline #3353
+        log = node_logger(node)
+        log.error(  # noqa: TRY400  # ruff-baseline #3353
+            "%s: %s", node.name, node.feedback_message
+        )
         return None
 
 
@@ -210,19 +212,20 @@ def require_case(
     SYNC-02-002 / ADR-0073) and case-under-construction flows where absence
     legitimately precedes a create.
     """
+    log = node_logger(node)
     datalayer = getattr(node, "datalayer", None)
     if datalayer is None:
         node.feedback_message = DATALAYER_UNAVAILABLE
-        node.logger.error(f"{node.name}: {node.feedback_message}")
+        log.error("%s: %s", node.name, node.feedback_message)
         return None, Status.FAILURE  # type: ignore[return-value]
     if not case_id:
         node.feedback_message = "no case_id available to resolve case"
-        node.logger.error(f"{node.name}: {node.feedback_message}")
+        log.error("%s: %s", node.name, node.feedback_message)
         return None, Status.FAILURE  # type: ignore[return-value]
     case = datalayer.read_case(case_id)
     if not isinstance(case, VulnerabilityCase):
         node.feedback_message = f"case '{case_id}' not found in DataLayer"
-        node.logger.error(f"{node.name}: {node.feedback_message}")
+        log.error("%s: %s", node.name, node.feedback_message)
         return None, Status.FAILURE  # type: ignore[return-value]
     return case, None
 
@@ -251,9 +254,12 @@ def resolve_case_replica(
         return None
     case = datalayer.read_case(case_id)
     if not isinstance(case, VulnerabilityCase):
-        node.logger.debug(
-            f"{node.name}: case '{case_id}' not present in local replica;"
-            " skipping apply (SYNC-02-002)"
+        log = node_logger(node)
+        log.debug(
+            "%s: case '%s' not present in local replica;"
+            " skipping apply (SYNC-02-002)",
+            node.name,
+            case_id,
         )
         return None
     return case
@@ -284,9 +290,7 @@ class DataLayerCondition(py_trees.behaviour.Behaviour):
         # py_trees creates self.logger = logging.Logger(name) with parent=None,
         # so messages are silently dropped.  Replace with a proper managed logger
         # so BT node log messages propagate through the standard logging hierarchy.
-        self.logger = logging.getLogger(  # type: ignore[assignment]
-            f"{self.__class__.__module__}.{self.__class__.__name__}"
-        )
+        self.logger = node_logger(self)  # type: ignore[assignment]
         self.datalayer: CasePersistence | None = None
         self.actor_id: str | None = None
         self.wire_render_port: WireRenderPort | None = None
@@ -320,10 +324,12 @@ class DataLayerCondition(py_trees.behaviour.Behaviour):
 
         if self.datalayer is None:
             self.logger.error(
-                f"{self.name}: DataLayer not found in blackboard"
+                "%s: DataLayer not found in blackboard", self.name
             )
         if self.actor_id is None:
-            self.logger.error(f"{self.name}: actor_id not found in blackboard")
+            self.logger.error(
+                "%s: actor_id not found in blackboard", self.name
+            )
 
     def _require_datalayer(self) -> Status | None:
         """Return FAILURE if ``self.datalayer`` is not set, else None."""
@@ -388,9 +394,7 @@ class DataLayerAction(py_trees.behaviour.Behaviour):
         # py_trees creates self.logger = logging.Logger(name) with parent=None,
         # so messages are silently dropped.  Replace with a proper managed logger
         # so BT node log messages propagate through the standard logging hierarchy.
-        self.logger = logging.getLogger(  # type: ignore[assignment]
-            f"{self.__class__.__module__}.{self.__class__.__name__}"
-        )
+        self.logger = node_logger(self)  # type: ignore[assignment]
         self.datalayer: CasePersistence | None = None
         self.actor_id: str | None = None
         self.trigger_activity_factory: TriggerActivityPort | None = None
@@ -436,10 +440,12 @@ class DataLayerAction(py_trees.behaviour.Behaviour):
 
         if self.datalayer is None:
             self.logger.error(
-                f"{self.name}: DataLayer not found in blackboard"
+                "%s: DataLayer not found in blackboard", self.name
             )
         if self.actor_id is None:
-            self.logger.error(f"{self.name}: actor_id not found in blackboard")
+            self.logger.error(
+                "%s: actor_id not found in blackboard", self.name
+            )
 
     def _require_datalayer(self) -> Status | None:
         """Return FAILURE if ``self.datalayer`` is not set, else None."""
@@ -517,9 +523,7 @@ class DataLayerConditionWithPorts(BehaviourWithPorts):
 
     def __init__(self, name: str):
         super().__init__(name=name)
-        self.logger = logging.getLogger(
-            f"{self.__class__.__module__}.{self.__class__.__name__}"
-        )
+        self.logger = node_logger(self)
         self.datalayer: CasePersistence | None = None
         self.actor_id: str | None = None
 
@@ -616,9 +620,7 @@ class DataLayerActionWithPorts(BehaviourWithPorts):
 
     def __init__(self, name: str):
         super().__init__(name=name)
-        self.logger = logging.getLogger(
-            f"{self.__class__.__module__}.{self.__class__.__name__}"
-        )
+        self.logger = node_logger(self)
         self.datalayer: CasePersistence | None = None
         self.actor_id: str | None = None
         self.trigger_activity_factory: TriggerActivityPort | None = None
@@ -805,14 +807,14 @@ class _EmitSingleActivityBase(DataLayerActionWithPorts):
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
         if (f := self._require_factory()) is not None:
-            self.logger.error(self.feedback_message)
+            self.logger.error("%s", self.feedback_message)
             return f
         try:
             activity_id, activity_blob = self._call_factory()
             self._emit_through_seam(activity_id, activity_blob)
         except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = f"{self.__class__.__name__} failed: {e}"
-            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
+            self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
         self._on_success(activity_id, activity_blob)
         return Status.SUCCESS
@@ -1030,19 +1032,19 @@ class ReadObject(DataLayerConditionWithPorts):
                 self.feedback_message = (
                     f"Object not found: {self.table}/{self.object_id}"
                 )
-                self.logger.debug(self.feedback_message)
+                self.logger.debug("%s", self.feedback_message)
                 return Status.FAILURE
 
             self._set_output("object_data", record)
             self.feedback_message = f"Read {self.table}/{self.object_id}"
-            self.logger.debug(self.feedback_message)
+            self.logger.debug("%s", self.feedback_message)
             return Status.SUCCESS
 
         except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = (
                 f"Error reading {self.table}/{self.object_id}: {e}"
             )
-            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
+            self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
 
@@ -1116,7 +1118,7 @@ class UpdateObject(DataLayerActionWithPorts):
                 self.feedback_message = (
                     f"Object not in blackboard: {self.object_id}"
                 )
-                self.logger.error(self.feedback_message)
+                self.logger.error("%s", self.feedback_message)
                 return Status.FAILURE
 
             # Build an updated StorableRecord without importing the adapter-layer Record.
@@ -1156,12 +1158,12 @@ class UpdateObject(DataLayerActionWithPorts):
             self.feedback_message = (
                 f"Updated {self.object_id} with {len(self.updates)} fields"
             )
-            self.logger.info(self.feedback_message)
+            self.logger.info("%s", self.feedback_message)
             return Status.SUCCESS
 
         except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = f"Error updating {self.object_id}: {e}"
-            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
+            self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
 
@@ -1209,7 +1211,7 @@ class CreateObject(DataLayerAction):
                 self.feedback_message = (
                     "Object data missing required 'id_' field"
                 )
-                self.logger.error(self.feedback_message)
+                self.logger.error("%s", self.feedback_message)
                 return Status.FAILURE
 
             # Get type from data, default to table name
@@ -1227,14 +1229,14 @@ class CreateObject(DataLayerAction):
             self.datalayer.create(storable)
 
             self.feedback_message = f"Created {self.table}/{object_id}"
-            self.logger.info(self.feedback_message)
+            self.logger.info("%s", self.feedback_message)
             return Status.SUCCESS
 
         except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = (
                 f"Error creating object in {self.table}: {e}"
             )
-            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
+            self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
 
@@ -1298,7 +1300,7 @@ class UpdateActorOutbox(DataLayerActionWithPorts):
             activity_id = self.activity_id
             if activity_id is None:
                 self.logger.error(
-                    f"{self.name}: activity_id not found in blackboard"
+                    "%s: activity_id not found in blackboard", self.name
                 )
                 return Status.FAILURE
 
@@ -1318,5 +1320,7 @@ class UpdateActorOutbox(DataLayerActionWithPorts):
             return Status.SUCCESS
 
         except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
-            self.logger.error(f"{self.name}: Error updating actor outbox: {e}")  # noqa: TRY400  # ruff-baseline #3353
+            self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
+                "%s: Error updating actor outbox: %s", self.name, e
+            )
             return Status.FAILURE

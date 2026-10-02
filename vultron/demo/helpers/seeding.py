@@ -21,11 +21,31 @@ a clean baseline before a demo run.
 """
 
 import logging
+import uuid
 from collections.abc import Callable, Sequence
 from urllib.parse import quote
 
+from vultron.config.app import get_config
+from vultron.core.behaviors.case.case_actor_identity import (
+    case_actor_identity,
+)
+from vultron.core.behaviors.case.nodes.embargo import creation_time_embargo_id
 from vultron.core.behaviors.store_scope import store_for_actor
+from vultron.core.models._helpers import _as_id, from_now_utc
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import RmDimension
+from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.services.embargo_duration import (
+    actor_default_duration,
+    resolve_initial_embargo_duration,
+    stored_actor_profile,
+)
+from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
+from vultron.core.states.rm import RM
 from vultron.demo.utils import (
     DataLayerClient,
     demo_check,
@@ -33,6 +53,7 @@ from vultron.demo.utils import (
     seed_actor,
     seed_peer,
 )
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
 logger = logging.getLogger(__name__)
@@ -1132,12 +1153,6 @@ def _actors_to_verify(label: str, client: DataLayerClient) -> list[str]:
 
 
 def _seed_vendor_participant(case_obj, vendor_actor_id: str, dl) -> None:
-    from vultron.core.models.case_participant import CaseParticipant
-    from vultron.core.models.dimensions import RmDimension
-    from vultron.core.models.participant_status import ParticipantStatus
-    from vultron.core.states.rm import RM
-    from vultron.enums.roles import CVDRole
-
     case_id = case_obj.id_
     if vendor_actor_id in case_obj.actor_participant_index:
         return
@@ -1178,9 +1193,6 @@ def _seed_vendor_participant(case_obj, vendor_actor_id: str, dl) -> None:
 def _seed_reporter_participant(
     case_obj, reporter_actor_id: str | None, dl
 ) -> None:
-    from vultron.core.models.case_participant import CaseParticipant
-    from vultron.enums.roles import CVDRole
-
     case_id = case_obj.id_
     if not reporter_actor_id:
         return
@@ -1204,16 +1216,6 @@ def _seed_reporter_participant(
 
 
 def _seed_case_actor_participant(case_obj, report_id: str | None, dl) -> None:
-    import uuid as _uuid
-
-    from vultron.config.app import get_config
-    from vultron.core.behaviors.case.case_actor_identity import (
-        case_actor_identity,
-    )
-    from vultron.core.models.case_actor import CaseActor
-    from vultron.core.models.case_participant import CaseParticipant
-    from vultron.enums.roles import CVDRole
-
     case_id = case_obj.id_
     del report_id  # the CaseActor identity does not vary by report (#1872)
     case_actor_id = case_actor_identity() or case_actor_identity(
@@ -1258,7 +1260,7 @@ def _seed_case_actor_participant(case_obj, report_id: str | None, dl) -> None:
     # matching production where RegisterCaseActorParticipantNode creates
     # the participant with a separate UUID attributed to case_actor_id.
     participant_id = (
-        f"urn:uuid:{_uuid.uuid5(_uuid.NAMESPACE_URL, case_actor_id)}"
+        f"urn:uuid:{uuid.uuid5(uuid.NAMESPACE_URL, case_actor_id)}"
     )
     manager_p = CaseParticipant(
         id_=participant_id,
@@ -1282,49 +1284,51 @@ def _seed_active_embargo(case_obj, dl) -> None:
     """Seed the active embargo ``InitializeDefaultEmbargoNode`` would have made.
 
     The duration is resolved the way the case-creation tree resolves it
-    (EP-04-005 through EP-04-007): the owner's shortest published
-    ``EmbargoPolicy`` if there is one, else the protocol default.  A seeded
-    case carries no sender proposal.  ``EmbargoEvent`` has no default
+    (EP-04-005 through EP-04-007): the ``embargo_policy`` on the owner's
+    profile if it has published one, else the protocol default.  The tree
+    reads that profile from the ``Create(CaseProposal)`` it received
+    (CP-01-010); a seeded case had no such Create, so the owner's own record
+    in *dl* stands in for it — the seeder is run on the owner's store.  A
+    seeded case carries no sender proposal.  ``EmbargoEvent`` has no default
     duration (EP-04-010, #3404), so this is stated here rather than inherited.
-    """
-    from vultron.config.app import get_config
-    from vultron.core.models._helpers import _as_id, from_now_utc
-    from vultron.core.models.dimensions import EmDimension
-    from vultron.core.models.embargo_event import EmbargoEvent
-    from vultron.core.services.embargo_duration import (
-        owner_embargo_policies,
-        resolve_initial_embargo_duration,
-        select_actor_default,
-    )
-    from vultron.core.states.em import EM
 
+    Raises:
+        ValueError: when the case has no owner.
+        VultronNotFoundError: when *dl* holds no actor record for the owner.
+    """
     case_id = case_obj.id_
     if case_obj.active_embargo:
         return
     owner_id = _as_id(case_obj.attributed_to)
     if not owner_id:
         # ``ResolveEmbargoDurationNode`` fails on a case with no owner rather
-        # than scoping the policy lookup to nobody; the seeder mirrors it.
+        # than reading nobody's profile; the seeder mirrors it.
         raise ValueError(
             f"_seed_active_embargo: case {case_id!r} has no attributed_to,"
-            " so its owner's embargo policies cannot be resolved"
+            " so there is no owner profile to read the actor default from"
         )
     resolved = resolve_initial_embargo_duration(
         sender_proposal=None,
-        actor_default=select_actor_default(
-            owner_embargo_policies(dl, owner_id)
+        actor_default=actor_default_duration(
+            stored_actor_profile(dl, owner_id)
         ),
         protocol_default=get_config().actor.protocol_default_embargo_duration,
     )
     embargo = EmbargoEvent(
-        context=case_id, end_time=from_now_utc(resolved.duration)
+        id_=creation_time_embargo_id(case_id),
+        context=case_id,
+        end_time=from_now_utc(resolved.duration),
     )
     try:
         dl.create(embargo)
     except ValueError:
         pass
-    case_obj.active_embargo = embargo.id_
-    case_obj.current_status.em = EmDimension(state=EM.ACTIVE)
+    # The EM write goes through the lifecycle service like the tree's own
+    # (EMB-18-001): one save at EM.ACTIVE, with the owner's consent recorded
+    # and the owner seeded SIGNATORY as the creation arm does (CM-14-005).
+    EmbargoLifecycle(persistence=dl).initialize_creation_embargo(
+        case_id=case_id, embargo_id=embargo.id_, actor_id=owner_id
+    )
     logger.debug(
         "seed_case_participants_for_demo: seeded active embargo for '%s'",
         case_id,
@@ -1361,8 +1365,6 @@ def seed_case_participants_for_demo(
             replica?" is exactly the question a shared DataLayer let callers skip,
             and the participants seeded here are per-replica state.
     """
-    from vultron.core.models.case import VulnerabilityCase
-
     case_obj = dl.read(case_id)
     if not isinstance(case_obj, VulnerabilityCase):
         logger.warning(
@@ -1373,6 +1375,7 @@ def seed_case_participants_for_demo(
     _seed_vendor_participant(case_obj, vendor_actor_id, dl)
     _seed_reporter_participant(case_obj, reporter_actor_id, dl)
     _seed_case_actor_participant(case_obj, report_id, dl)
-    _seed_active_embargo(case_obj, dl)
-
+    # Participants first: the embargo write reads the case from the store
+    # and records consent on the participants it indexes.
     dl.save(case_obj)
+    _seed_active_embargo(case_obj, dl)

@@ -15,42 +15,23 @@ import unittest
 from itertools import product
 
 import vultron.core.case_states.hypercube as hc
-from vultron.core.case_states.validations import is_valid_transition
+from vultron.core.case_states.validations import (
+    is_valid_transition,
+    valid_states,
+)
 from vultron.errors import TransitionValidationError
 
 
 class MyTestCase(unittest.TestCase):
-    def test_proto_states(self):
-        ps = hc._proto_states()
-        self.assertEqual(len(ps), 6)
-        for x in "vfdpxa":
-            s = f"{x.lower()}{x.upper()}"
-            self.assertIn(s, ps)
-
-    def test_create_states(self):
-        states = hc._create_states()
-        self.assertEqual(len(states), 32)
-        count = 0
-        for p, x, a in product("pP", "xX", "aA"):
-            s = "".join([p, x, a])
-            for allowed in ["vfd", "Vfd", "VFd", "VFD"]:
-                state = f"{allowed}{s}"
-                self.assertIn(state, states)
-                count += 1
-            for disallowed in ["vFd", "vfD", "vFD", "VfD"]:
-                d = f"{disallowed}{s}"
-                self.assertNotIn(d, states)
-        self.assertEqual(count, len(states))
-
     def test_create_graph(self):
         G = hc._create_graph()
-        states = hc._create_states()
+        states = valid_states()
         self.assertEqual(len(G.nodes), len(states))
-        for state in hc._create_states():
+        for state in states:
             self.assertIn(state, G.nodes)
 
     def test_diffstate(self):
-        states = hc._create_states()
+        states = valid_states()
         for s1, s2 in product(states, states):
             try:
                 is_valid_transition(s1, s2)
@@ -68,7 +49,7 @@ class MyTestCase(unittest.TestCase):
             self.assertEqual(diff[0][0].upper(), diff[0][1])
 
     def test_model_states(self):
-        states = hc._create_states()
+        states = valid_states()
         m = hc.CVDmodel()
         self.assertEqual(len(m.states), len(states))
         for state in states:

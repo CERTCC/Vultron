@@ -9,6 +9,7 @@ related_specs:
   - specs/architecture.yaml (ARCH-10-001, ARCH-12-001, ARCH-12-002,
     ARCH-15-001 through ARCH-15-004, ARCH-21-001 through ARCH-21-005)
   - specs/case-management.yaml (CM-23-012, CM-27-001 through CM-27-003)
+  - specs/rm-behavior.yaml (RMB-14-004, RMB-14-005)
   - specs/participant-role-management.yaml (PRM-03-003)
   - specs/error-handling.yaml (EH-05-002, EH-07-001 through EH-07-003)
   - specs/code-style.yaml (CS-23-001)
@@ -211,7 +212,7 @@ mismatch and must raise (ARCH-15-001, ARCH-15-002).
 object that is not a core participant is *the sender's defect*, not this
 actor's corrupt row, and it must not cost the receiver the whole case.
 `_project_to_core_participant()` in
-`vultron/core/use_cases/received/case/_helpers.py` therefore skips such an
+`vultron/core/services/case_replica_seeding.py` therefore skips such an
 object with an ERROR rather than raising, and only what passes that check
 reaches the strict reader. Under ADR-0099 detail 3 there is no projection
 step — a received status *is* the core `ParticipantStatus`, and a flat
@@ -417,9 +418,9 @@ Both gaps are now closed (ISSUE-3199):
   `previous_rm_state` / `force_rm_state` constructor fields; when
   `previous_rm_state` is supplied the model's `mode="after"` validator refuses
   backward RM steps at construction time, with `force_rm_state=True` as the
-  sanctioned override (same semantics as
+  bootstrap-only override (same semantics as
   `CreateParticipantStatusNode.force_rm_state`).  `CreateParticipantStatusNode`
-  now passes `previous_rm_state=context.current_rm` (when not force-closing) to
+  now passes `previous_rm_state=context.current_rm` (when not overridden) to
   get construction-time double-checking on top of the existing BT validation.
 
 This closes ISSUE-2255 (sender-feedback diagnostics).
@@ -691,33 +692,34 @@ watch.
 
 Giving the write node the *whole* rule set made it validate RM for the first
 time, and three call sites surfaced: `close_case_effect.py` and both sites in
-`leave.py` stamp a departing actor `RM.CLOSED` regardless of the rung its RM
-machine is on. `RM.CLOSED` is reachable by adjacency only from `ACCEPTED`,
-`INVALID` or `DEFERRED`, so from an earlier rung this write is non-adjacent —
-which the emit-side adjacency rule (BTND-10-001) would otherwise refuse, and
-which was invisible while the write node ignored RM. ADR-0086 predicted the
-bypass sites would gain trigger-path diagnostics "at no additional cost"; for RM
-that is not true.
+`leave.py` stamped a departing actor `RM.CLOSED` from whatever rung its RM
+machine was on. From *Received* or *Valid* that write was non-adjacent, which the
+emit-side adjacency rule (BTND-10-001) refuses, and which was invisible while the
+write node ignored RM. ADR-0086 predicted the bypass sites would gain
+trigger-path diagnostics "at no additional cost"; for RM that was not true.
 
-Those sites carry a `force_rm_state=True` exemption that suppresses **only** the
-RM adjacency rule, pinned to that exact list by the ratchet above so it can only
-shrink. Do not add users, and do not read the exemption as "closure may write
-whatever it likes": every other rule still applies.
+Those sites first carried a `force_rm_state=True` exemption, sanctioned as
+self-declaration (CM-23-012, #3106).
 
-**Resolved (CM-23-012, [#3106](https://github.com/CERTCC/Vultron/issues/3106)):**
-the override is *sanctioned*, not a standing violation. A `Leave` is the
-departing actor's own self-declaratory closure act (ADR-0084), so advancing
-*that single actor* to `RM.CLOSED` regardless of rung is legitimate
-self-declaration — the RM adjacency rule is a report-handling invariant that a
-case-level `Leave` legitimately overrides. The scope is the key constraint: each
-site advances exactly one named actor (the leaver, or the CASE_MANAGER closing its
-own lifecycle on owner Leave, ADR-0051). Closure **never** force-advances a
-non-leaving ("bystander") participant — a participant that never sent `Leave`
-has made no closure declaration, so it retains its last RM state when the case
-closes around it ("the library closed before every book was returned"). The demo
-scenarios' "all participants `RM.CLOSED`" milestone (DEMOMA-07-003) is reached
-because every participant closes its own handling through the protocol, not
-because closure pushes them there.
+**Resolved by changing the table, not the override (ADR-0114, RMB-14-004/005,
+[#4044](https://github.com/CERTCC/Vultron/issues/4044)):** the RM transition
+function now closes from *Received* (`R → C`), and a closure from *Valid*, which
+has no close edge (VP-02-004), is written as `V → D → C`. All three sites go
+through `RMClosureWriter` (`case/nodes/participant/rm_closure.py`), which walks
+`rm_closure_path()` with RM adjacency validation in force, so no closure write
+carries `force_rm_state`. `test/architecture/test_rm_closure_no_force.py` pins
+that; the remaining `_RM_FORCE_QUARANTINE` entries are bootstrap writes only.
+If a new closure path seems to need the override, the RM table is wrong or the
+path is — do not add an exemption.
+
+The scope rule is unchanged: each site advances exactly one named actor (the
+leaver, or the CASE_MANAGER closing its own lifecycle on owner Leave, ADR-0051).
+Closure **never** advances a non-leaving ("bystander") participant — a
+participant that never sent `Leave` has made no closure declaration, so it
+retains its last RM state when the case closes around it. The demo scenarios'
+"all participants `RM.CLOSED`" milestone (DEMOMA-07-003) is reached because
+every participant closes its own handling through the protocol, not because
+closure pushes them there.
 
 ### Surfacing a violation list
 

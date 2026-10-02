@@ -19,15 +19,19 @@ Covers actor invitations, recommendations, participant management, and
 Case Actor / CASE_MANAGER delegation activities.
 """
 
+import json
 import logging
 from typing import Any, cast
+
+from pydantic import BaseModel, ValidationError
 
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.ownership_transfer_offer_record import (
     VultronOwnershipTransferOfferRecord,
 )
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.use_cases._helpers import read_received_activity
 from vultron.enums.roles import CVDRole
 from vultron.errors import (
     VultronAlreadyExistsError,
@@ -52,9 +56,18 @@ from vultron.wire.as2.factories.case import (
     offer_case_participant_role_activity,
     reject_case_participant_role_activity,
     rm_reject_invite_to_case_activity,
+    validate_held_case_invite,
 )
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Invite,
+    as_Offer,
+)
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 from ._base import _case_for_wire, _seal, _to_wire
 
@@ -77,21 +90,48 @@ def _active_embargo_of(
     return active_embargo
 
 
-def _stored_invite_by_case_uri(
+def _stored_case_invite(
     dl: CaseOutboxPersistence, invite_id: str
-) -> Any:
-    """Read the stored Invite with its ``target`` reduced to the case URI.
+) -> as_Invite:
+    """Read the received Invite as this invitee holds it, stub and all.
 
-    Read-back rehydrates the Invite's ``target`` into whatever case this store
-    holds.  The Accept or Reject that embeds the Invite goes to the
-    CASE_MANAGER, which holds the case, so the embedded Invite addresses it by
-    URI (AKM-02-003) rather than carrying a reconstruction of it (VM-08-003).
+    The Invite is read with ``read_received_activity``: archived by intake, or
+    held by the inbox while it waits for the case bootstrap.  The reply
+    factory checks that it is a case Invite.  The Accept or Reject embeds the
+    Invite as received, so its ``target`` stays the case stub
+    (VAM-04-005, VAM-04-006): the CASE_MANAGER reads the case from the stub's
+    ``caseId`` (CM-11-003), and the stub's ``type`` is what tells the reply
+    apart from a reply to a full-case Invite (CM-11-013).
+
+    The held record is validated into ``as_Invite`` here, at the adapter
+    edge (ADR-0032): intake archives the activity as the event carried it,
+    a core activity the wire factories cannot name (ARCH-22-001).
+
+    Raises:
+        VultronNotFoundError: when no activity with *invite_id* was received.
+        VultronValidationError: when the stored record is not a model, or it
+            does not validate as an Invite (a stub without ``caseId`` included).
     """
-    invite = cast(Any, dl.read(invite_id))
-    target = getattr(invite, "target", None)
-    if target is not None and not isinstance(target, str):
-        invite = invite.model_copy(update={"target": _as_id(target)})
-    return invite
+    held = read_received_activity(dl, invite_id, "RmInviteToCaseActivity")
+    if not isinstance(held, BaseModel):
+        raise VultronValidationError(
+            f"invite '{invite_id}' is held as {type(held).__name__},"
+            " not as an activity model"
+        )
+    # The protocol's ``model_copy`` returns the protocol; read it as the model.
+    invite = cast(BaseModel, held)
+    if isinstance(invite, as_Invite):
+        return invite
+    data = json.loads(
+        invite.model_dump_json(by_alias=True, serialize_as_any=True)
+    )
+    try:
+        validated = validate_held_case_invite(data)
+    except ValidationError as exc:
+        raise VultronValidationError(
+            f"invite '{invite_id}' does not validate as an Invite"
+        ) from exc
+    return validated
 
 
 class _ActorsMixin:
@@ -107,17 +147,16 @@ class _ActorsMixin:
         case_id: str,
         actor: str,
         to: list[str] | None = None,
-        cc: list[str] | None = None,
         id_: str | None = None,
         attributed_to: str | None = None,
         roles: list[str] | None = None,
         target: VulnerabilityCase | None = None,
     ) -> tuple[str, str]:
-        """Create and persist an ``Invite(Actor, Case)`` activity.
+        """Create and persist an ``Invite(Actor, CaseStub)`` activity.
 
-        ``actor`` SHOULD be the Case Actor ID (PCR-08-007); ``attributed_to``
-        MAY carry the case owner's ID for attribution.  ``cc`` MAY carry the
-        Case Actor's own ID for self-archival (CLP-10-001).
+        ``actor`` MUST be the CASE_MANAGER's ID (PCR-08-007); ``attributed_to``
+        MAY carry the case owner's ID for attribution.  The Invite carries no
+        ``cc`` (CM-17-006, ADR-0109).
 
         ``roles`` carries the intended CVD roles for the invitee (CM-17-003).
         ``target`` may be a core ``as_VulnerabilityCase`` (projected to an enriched
@@ -127,8 +166,6 @@ class _ActorsMixin:
         CM-17-002 enrichment.
         """
         extra: dict[str, Any] = {"actor": actor, "to": to}
-        if cc is not None:
-            extra["cc"] = cc
         if id_ is not None:
             extra["id_"] = id_
         if attributed_to is not None:
@@ -178,7 +215,7 @@ class _ActorsMixin:
         hydrated AS2 object; a ``VultronValidationError`` is raised if the
         invite carries no routable actor reference.
         """
-        invite = _stored_invite_by_case_uri(self._dl, invite_id)
+        invite = _stored_case_invite(self._dl, invite_id)
         invite_actor_id = _as_id(getattr(invite, "actor", None))
         if not invite_actor_id:
             raise VultronValidationError(
@@ -209,7 +246,7 @@ class _ActorsMixin:
         outbox handler.  Mirrors ``accept_case_invite`` but uses
         ``rm_reject_invite_to_case_activity``.
         """
-        invite = _stored_invite_by_case_uri(self._dl, invite_id)
+        invite = _stored_case_invite(self._dl, invite_id)
         invite_actor_id = _as_id(getattr(invite, "actor", None))
         if not invite_actor_id:
             raise VultronValidationError(
@@ -241,10 +278,6 @@ class _ActorsMixin:
         The ``to:`` list should contain the CaseActor URI so the Accept routes
         back to CaseActor for processing.
         """
-        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-            as_Offer,
-        )
-
         raw = self._dl.read(cp_offer_id)
         if raw is None:
             raise VultronNotFoundError("Offer(CaseParticipant)", cp_offer_id)
@@ -538,8 +571,6 @@ class _ActorsMixin:
 
         Returns ``(activity_id, activity_dict)``.
         """
-        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-
         case = _case_for_wire(self._dl, case_id)
         target = as_Actor(id_=target_actor_id)
         activity = offer_case_participant_role_activity(
@@ -570,10 +601,6 @@ class _ActorsMixin:
         to: list[str] | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Accept(_OfferCaseParticipantRoleActivity)`` (ADR-0039)."""
-        from vultron.wire.as2.vocab.base.objects.actors import (
-            as_Actor,
-        )
-
         target = as_Actor(id_=target_actor_id)
         case = _case_for_wire(self._dl, case_id)
         offer = offer_case_participant_role_activity(
@@ -607,10 +634,6 @@ class _ActorsMixin:
         to: list[str] | None = None,
     ) -> tuple[str, str]:
         """Create and persist a ``Reject(_OfferCaseParticipantRoleActivity)`` (ADR-0039)."""
-        from vultron.wire.as2.vocab.base.objects.actors import (
-            as_Actor,
-        )
-
         target = as_Actor(id_=target_actor_id)
         case = _case_for_wire(self._dl, case_id)
         offer = offer_case_participant_role_activity(
@@ -692,10 +715,6 @@ class _ActorsMixin:
         imports are allowed, so both delivery paths converge on the same Accept
         (#2225, ADR-0035 DL-06-002).
         """
-        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-            as_Offer,
-        )
-
         raw = self._dl.read(offer_id)
         if raw is None:
             raise VultronNotFoundError("Offer(VulnerabilityCase)", offer_id)
@@ -731,10 +750,6 @@ class _ActorsMixin:
         replica (the SYNC path seeds it before the offer entry is applied), so
         read it and project it to its wire form.
         """
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
-        )
-
         case = self._dl.read(record.case_id)
         if case is None:
             raise VultronNotFoundError("VulnerabilityCase", record.case_id)

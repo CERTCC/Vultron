@@ -48,6 +48,7 @@ from vultron.core.models.participant_status import (
     ParticipantStatus,
     coerce_cvd_roles,
     coerce_em_consent_state,
+    participant_status_rm_state,
 )
 from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 from vultron.core.states.rm import RM
@@ -89,6 +90,15 @@ class CaseParticipant(CoreObject):
     participant_statuses: list[ParticipantStatus] = Field(default_factory=list)
     accepted_embargo_ids: list[NonEmptyString] = Field(default_factory=list)
     embargo_consent_state: PEC = Field(default=PEC.UNBOUND)
+    # The participant has joined the case: it was seated by the case
+    # initialization sequence (CM-14-001) or it accepted its stub Invite
+    # (CM-10-004, ADR-0114).  One input to the case-level active check
+    # (``VulnerabilityCase.is_active_participant``), never the answer itself.
+    # Replicated with the record so every replica derives the same answer.
+    # Defaults to True because every record created today is created at one of
+    # those two moments — case initialization or the Accept of the Invite; the
+    # record created at Invite time (#4048) sets False explicitly.
+    joined: bool = True
     participant_case_name: NonEmptyString | None = None
     # Local bookkeeping, not an AS2 property: the deadline by which this actor's
     # own implementation wants an RSVP.  Kept in the stored row and dropped from
@@ -235,6 +245,18 @@ class CaseParticipant(CoreObject):
             e for e in self.accepted_embargo_ids if e != embargo_id
         ]
         return True
+
+    @property
+    def rm_closed(self) -> bool:
+        """True when any recorded RM state is ``CLOSED``.
+
+        ``CLOSED`` is terminal (ADR-0085), so any status recording it means the
+        participant has closed, whatever the order of the history.
+        """
+        return any(
+            participant_status_rm_state(status) == RM.CLOSED
+            for status in self.participant_statuses
+        )
 
     @property
     def participant_status(self) -> ParticipantStatus | None:

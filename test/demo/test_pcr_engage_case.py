@@ -25,7 +25,7 @@ Coverage
   strings to full ``CaseParticipant`` objects in the outbound
   ``Join(VulnerabilityCase)`` before delivery.
 - **#573 (receive side):** ``EngageCaseReceivedUseCase`` calls
-  ``_store_embedded_participants`` so the sender's ``CaseParticipant`` is
+  ``store_embedded_participants`` so the sender's ``CaseParticipant`` is
   persisted in the receiver's DataLayer before ``EngageCaseBT`` runs.
 - **#574 (demo):** The full owner-validate → engage-case sequence completes
   without a BT timeout.
@@ -303,7 +303,7 @@ def _bootstrap_and_engage(
     for link in owner_dl.list_objects("ReportCaseLink"):
         if isinstance(link, VultronReportCaseLink):
             link.case_id = case_id
-            link.trusted_case_actor_id = owner_actor_id
+            link.case_manager_id = owner_actor_id
             owner_dl.save(link)
             break
 
@@ -386,7 +386,7 @@ class TestEngageCaseParticipantExpansion:
         Verifies end-to-end:
         - Outbound ``Join(VulnerabilityCase)`` carries expanded participant
           objects (``dl.hydrate()`` is responsible — #572 regression).
-        - ``EngageCaseReceivedUseCase`` calls ``_store_embedded_participants``
+        - ``EngageCaseReceivedUseCase`` calls ``store_embedded_participants``
           before running ``EngageCaseBT``, so the owner's ``CaseParticipant``
           is persisted in reporter's DataLayer (#573 regression).
         """
@@ -418,7 +418,7 @@ class TestEngageCaseParticipantExpansion:
             f"Owner's CaseParticipant (attributed_to='{owner_actor_id}') "
             f"not found in reporter's DataLayer after receiving "
             f"Join(VulnerabilityCase) for case '{case_id}'.  "
-            f"_store_embedded_participants may not have been called in "
+            f"store_embedded_participants may not have been called in "
             f"EngageCaseReceivedUseCase (#573), or participant expansion "
             f"was not performed on the outbound activity (#572).  "
             f"CaseParticipants found: "

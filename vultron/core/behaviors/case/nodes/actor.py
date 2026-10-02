@@ -30,7 +30,6 @@ Composite subtrees assembling these leaf nodes are defined in the sibling
 ``actor_trigger_trees.py`` and ``ownership_transfer_tree.py`` modules at
 the process-area root per BTND-07-003:
 
-- ``invite_actor_to_case_trigger_bt``
 - ``accept_case_invite_trigger_bt``
 - ``reject_case_invite_trigger_bt``
 - ``create_accept_ownership_transfer_tree``
@@ -47,40 +46,44 @@ from vultron.core.behaviors.case.nodes.invite_response import (  # noqa: F401
     EmitAcceptCaseInviteNode,
     EmitRejectCaseInviteNode,
 )
+from vultron.core.behaviors.case.nodes.participant.roles import (
+    suggested_roles_key,
+)
 from vultron.core.behaviors.case.offer_provenance import find_offer_for_report
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     _EmitSingleActivityBase,
 )
+from vultron.core.behaviors.node_logger import node_logger
 from vultron.core.behaviors.sync.commit_tree import (
     commit_emitted_activity,
 )
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.enums.roles import CVDRole, serialize_roles
 
 
 class EmitInviteActorToCaseNode(_EmitSingleActivityBase):
-    """Create Invite(Actor, Case) and queue in the Case Actor's outbox.
+    """Create Invite(Actor, CaseStub), commit it, and queue it in this actor's outbox.
 
-    Uses ``trigger_activity_factory.invite_actor_to_case()`` with
-    ``actor=self.actor_id`` (expected to be the Case Actor URI),
-    ``to=[invitee_id]``, and ``cc=[case_actor_id]`` when ``case_actor_id``
-    is provided so ASGI self-delivery routes the Invite to the CaseActor's
-    own inbox for canonical ledger archival (CLP-10-001).  An optional
-    ``attributed_to`` carries the original requesting actor when the invite
-    is sent from the Case Actor identity (PCR-08-007).
+    Runs only in a CASE_MANAGER-gated received tree, so ``self.actor_id`` is
+    the CASE_MANAGER and the store is its own (BT-05-006, CM-24-004).  The
+    Invite is addressed ``to=[invitee_id]`` and to no one else: the
+    CASE_MANAGER never addresses a copy to itself (CLP-10-001, ADR-0109).
+    Build → commit → outbox append is the order, so the in-tree commit is the
+    only ledger entry the Invite ever gets and a failed commit cannot orphan
+    an outbox item (CM-17-006).  An optional ``attributed_to`` carries the
+    participant who asked for the invitation (PCR-08-007).
 
     Roles are resolved via ``_read_suggested_roles()``, which uses two paths:
 
     1. **Injected roles** (``roles`` constructor parameter): used when the
        node is instantiated from a stored ``Offer(CaseParticipant)`` in the
-       DataLayer (ISSUE-1745).  The stored Offer is the trusted source because
-       the received ``Accept`` is untrusted — the accepting actor may have
-       modified or omitted roles.  This path is used in BT execution 2, where
-       the blackboard is empty.
-    2. **Blackboard fallback**: used in the single-execution path where
-       ``EvaluateDefaultRolesNode`` wrote ``suggested_roles`` to the blackboard
-       in the same ``BTBridge.execute_with_setup()`` call (CM-17-003).
+       DataLayer (ISSUE-1745, CM-16-018).  The stored Offer is the trusted
+       source because the received ``Accept`` is untrusted.
+    2. **Evaluator output** (``recommendation_id`` constructor parameter):
+       the roles :class:`EvaluateDefaultRolesNode` wrote earlier in the same
+       tree under its namespaced key ``suggested_roles_{id_segment}``
+       (BTND-03-004, CM-16-003, CM-17-007).
 
     Reads the ``VulnerabilityCase`` from the DataLayer and passes it as
     ``target`` to ``TriggerActivityPort.invite_actor_to_case()``.  The adapter
@@ -93,18 +96,22 @@ class EmitInviteActorToCaseNode(_EmitSingleActivityBase):
         self,
         invitee_id: str,
         case_id: str,
-        case_actor_id: str | None = None,
         attributed_to: str | None = None,
         captured: dict | None = None,
         roles: list[str] | None = None,
+        recommendation_id: str | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(captured=captured, name=name)
         self.invitee_id = invitee_id
         self.case_id = case_id
-        self.case_actor_id = case_actor_id
         self.attributed_to = attributed_to
         self._injected_roles = roles
+        self._roles_key = (
+            f"/{suggested_roles_key(recommendation_id)}"
+            if recommendation_id is not None
+            else None
+        )
         self._suggested_roles_bb = None
 
     INPUT_PORTS: dict[str, PortInformation] = {
@@ -112,13 +119,16 @@ class EmitInviteActorToCaseNode(_EmitSingleActivityBase):
         "suggested_roles": PortInformation(data_type=list, required=False),
     }
 
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"suggested_roles": "/suggested_roles"}
+    def _instance_port_remappings(self) -> dict[str, str]:
+        if self._roles_key is None:
+            return {}
+        return {"suggested_roles": self._roles_key}
 
     def initialise(self) -> None:
         super().initialise()
         self._suggested_roles_bb = None
+        if self._roles_key is None:
+            return
         try:
             self._suggested_roles_bb = self.get_input("suggested_roles")
         except (NoDataAvailable, NotImplementedError):
@@ -135,13 +145,12 @@ class EmitInviteActorToCaseNode(_EmitSingleActivityBase):
         return None
 
     def _call_factory(self) -> tuple[str, str]:
-        """Build Invite(Actor, Case) activity and commit the ledger correlation marker."""
-        cc = [self.case_actor_id] if self.case_actor_id else None
+        """Build Invite(Actor, CaseStub) activity and commit the ledger correlation marker."""
         roles = self._read_suggested_roles()
         if roles is not None and not roles:
             raise ValueError(
                 f"suggested_roles for actor '{self.invitee_id}' is empty"
-                " — cannot emit Invite(Actor, Case) without at least one role"
+                " — cannot emit Invite(Actor, CaseStub) without at least one role"
             )
         # CM-17-002: pass the full case object so the adapter+factory can
         # project it to an enriched stub (with end_time) when em_state==ACTIVE.
@@ -160,7 +169,6 @@ class EmitInviteActorToCaseNode(_EmitSingleActivityBase):
                 case_id=self.case_id,
                 actor=self.actor_id,
                 to=[self.invitee_id],
-                cc=cc,
                 attributed_to=self.attributed_to,
                 roles=roles,
                 target=case,
@@ -181,7 +189,7 @@ class EmitInviteActorToCaseNode(_EmitSingleActivityBase):
 
     def _on_success(self, activity_id: str, activity_blob: str) -> None:
         self.logger.info(
-            "Actor '%s' emitted Invite(Actor, Case) to '%s' for case '%s'",
+            "Actor '%s' emitted Invite(Actor, CaseStub) to '%s' for case '%s'",
             self.actor_id,
             self.invitee_id,
             self.case_id,
@@ -378,12 +386,9 @@ class EvaluateDefaultRolesNode(BehaviourWithPorts):
         self.suggested_actor_id = suggested_actor_id
         self.case_id = case_id
         self.recommendation_id = recommendation_id
-        self.logger = logging.getLogger(  # type: ignore[assignment]
-            f"{self.__class__.__module__}.{self.__class__.__name__}"
-        )
+        self.logger = node_logger(self)  # type: ignore[assignment]
         self._injected_roles = self._coerce_injected_roles(injected_roles)
-        _seg = recommendation_id.rsplit("/", maxsplit=1)[-1]
-        self._roles_key = f"suggested_roles_{_seg}"
+        self._roles_key = suggested_roles_key(recommendation_id)
 
     def _coerce_injected_roles(
         self, injected_roles: list[str] | None
@@ -448,7 +453,7 @@ class EvaluateDefaultRolesNode(BehaviourWithPorts):
                 f"{self.name}: _compute_roles() returned an empty list "
                 f"for actor '{self.suggested_actor_id}' — cannot assign roles"
             )
-            self.logger.error(self.feedback_message)
+            self.logger.error("%s", self.feedback_message)
             return Status.FAILURE
         self._set_output("suggested_roles", roles)
         self.logger.debug(

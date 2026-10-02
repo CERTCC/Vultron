@@ -149,10 +149,10 @@ def test_the_derived_reference_set_covers_the_activity_slots() -> None:
     } <= set(examined["as_Offer"])
     assert "items" in examined["as_OrderedCollection"]
     assert "closed" in examined["as_Question"]
-    # The hand-spelled ``as_VulnerabilityCase | NonEmptyString`` and
-    # ``as_VulnerabilityCaseStub | NonEmptyString | None`` unions.
+    # The hand-spelled ``as_VulnerabilityCase | NonEmptyString`` union.  The
+    # case Invite's ``target`` is no longer a union: it requires the stub
+    # (#4045, SE-08-002), so it has no IRI branch to examine.
     assert "context" in examined["_OfferCaseParticipantRoleActivity"]
-    assert "target" in examined["_RmInviteToCaseActivity"]
 
 
 def test_ratchet_flags_a_bare_str_reference_branch() -> None:

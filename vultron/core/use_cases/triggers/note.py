@@ -29,7 +29,7 @@ from vultron.core.behaviors.note.add_note_trigger_tree import (
     add_note_to_case_trigger_bt,
 )
 from vultron.core.models.events.base import MessageSemantics
-from vultron.core.models.pending_assertion import get_pending_assertion_store
+from vultron.core.models.pending_assertion import record_pending_assertion
 from vultron.core.models.use_case_result import NoteResult
 from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
@@ -109,8 +109,8 @@ class SvcAddNoteToCaseUseCase(SvcBTTriggerBase[NoteResult]):
         )
         add_activity_id = str(self._result_out.get("add_activity_id", ""))
         if add_activity_id:
-            store = get_pending_assertion_store(self._actor_id)
-            store.add(
+            record_pending_assertion(
+                self._actor_id,
                 self._case_id,
                 MessageSemantics.ADD_NOTE_TO_CASE.value,
                 add_activity_id,

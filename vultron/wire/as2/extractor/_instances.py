@@ -157,7 +157,7 @@ AddReportToCaseActivityPattern = ActivityPattern(
 
 CreateCaseProposalPattern = ActivityPattern(
     description=(
-        "Vendor actor requests case initialization at a case-actor service "
+        "Report receiver requests case initialization at a case-actor service "
         "by creating a CaseProposal object. "
         "Corresponds to Create(as_CaseProposal) — CP-03-001."
     ),
@@ -167,7 +167,7 @@ CreateCaseProposalPattern = ActivityPattern(
 )
 AcceptCaseProposalPattern = ActivityPattern(
     description=(
-        "Case-actor service accepts a vendor's CaseProposal. "
+        "Case-actor service accepts a report receiver's CaseProposal. "
         "Corresponds to Accept(as_CaseProposal) — CP-03-002."
     ),
     activity_=TAtype.ACCEPT,
@@ -176,7 +176,7 @@ AcceptCaseProposalPattern = ActivityPattern(
 )
 RejectCaseProposalPattern = ActivityPattern(
     description=(
-        "Case-actor service rejects a vendor's CaseProposal. "
+        "Case-actor service rejects a report receiver's CaseProposal. "
         "Corresponds to Reject(as_CaseProposal) — CP-03-003."
     ),
     activity_=TAtype.REJECT,
@@ -279,9 +279,18 @@ RejectCaseOwnershipTransferActivityPattern = ActivityPattern(
 # ---------------------------------------------------------------------------
 
 InviteActorToCasePattern = ActivityPattern(
+    description=(
+        "The stub Invite: Invite(Actor)[target=VulnerabilityCaseStub]"
+        " (VAM-04-004).  The target's type alone identifies it (CM-11-013);"
+        " strict (SE-08-004), so an Invite whose target is a bare URI — the"
+        " full-case Invite references its case by ID (CM-11-010) — does not"
+        " match.  Strictness also covers ``object``: an invitee still a bare"
+        " URI after rehydration cannot be confirmed as an actor."
+    ),
     activity_=TAtype.INVITE,
     object_=AOtype.ACTOR,
-    target_=VOtype.VULNERABILITY_CASE,
+    target_=VOtype.VULNERABILITY_CASE_STUB,
+    strict=True,
 )
 AcceptInviteActorToCasePattern = ActivityPattern(
     activity_=TAtype.ACCEPT,

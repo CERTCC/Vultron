@@ -34,39 +34,31 @@ from vultron.core.behaviors.call_out.bundles.deploy_fix import (
     DEPLOY_FIX_DETERMINISTIC,
     DeployFixCallOutBundle,
 )
+from vultron.demo.fuzzer.report_management.deploy_fix import (
+    DeployFix,
+    MonitorDeployment,
+    MonitoringRequirement,
+    PrioritizeDeployment,
+)
 
 
 def _stochastic_prioritize_deployment(
     name: str,
 ) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.deploy_fix import (
-        PrioritizeDeployment,
-    )
-
     return PrioritizeDeployment(name)
 
 
 def _stochastic_monitoring_requirement(
     name: str,
 ) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.deploy_fix import (
-        MonitoringRequirement,
-    )
-
     return MonitoringRequirement(name)
 
 
 def _stochastic_deploy_fix(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.deploy_fix import DeployFix
-
     return DeployFix(name)
 
 
 def _stochastic_monitor_deployment(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.deploy_fix import (
-        MonitorDeployment,
-    )
-
     return MonitorDeployment(name)
 
 

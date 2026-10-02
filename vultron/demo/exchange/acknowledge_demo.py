@@ -103,7 +103,7 @@ def demo_acknowledge_only(
             content="Possible integer overflow in the network parsing library.",
             name="Network Parser Integer Overflow",
         )
-        logger.info(f"Created report: {logfmt(report)}")
+        logger.info("Created report: %s", logfmt(report))
         offer = rm_submit_report_activity(
             report, actor=finder.id_, to=vendor.id_
         )
@@ -171,7 +171,7 @@ def demo_acknowledge_then_validate(
             ),
             name="Admin Login SQL Injection",
         )
-        logger.info(f"Created report: {logfmt(report)}")
+        logger.info("Created report: %s", logfmt(report))
         offer = rm_submit_report_activity(
             report, actor=finder.id_, to=vendor.id_
         )
@@ -254,7 +254,7 @@ def demo_acknowledge_then_invalidate(
             ),
             name="Empty Form Submission Crash",
         )
-        logger.info(f"Created report: {logfmt(report)}")
+        logger.info("Created report: %s", logfmt(report))
         offer = rm_submit_report_activity(
             report, actor=finder.id_, to=vendor.id_
         )

@@ -110,15 +110,17 @@ sharing restricted content.
 
 ### The stub object pattern
 
-The protocol specification defines the stub the protocol uses, the **case stub**, in [§11.2 Invitation and Acceptance](../reference/vultron-spec/index.md#112-invitation-and-acceptance-n).
+The protocol specification defines the stub the protocol uses, the **case stub**, in [§11.2 Invitation and Acceptance](../reference/vultron-spec/interactions.md#112-invitation-and-acceptance-n).
 In the specification's words, it is "a minimal description of the case carrying enough for the invitee to decide, and no vulnerability detail."
 The specification, not this page, says what that description contains.
-At the wire level a stub carries at least the case's `id`, which lets the recipient match it to the full case later, and its `type`, which lets messages be routed and matched correctly ([MV-10-001](../reference/specs/protocol.md#mv-10-001)).
+At the wire level a stub carries at least an `id` and a `type` ([MV-10-001](../reference/specs/protocol.md#mv-10-001)).
+The case stub's `type` is `VulnerabilityCaseStub`, so a recipient tells it from a full case by its type alone, and messages are routed and matched correctly.
+Its `id` is the stub's own, not the case's, and its `caseId` field names the case it describes ([CM-11-013](../reference/specs/protocol.md#cm-11-013)).
 
 A minimal stub is still valid ActivityStreams 2.0.
 Almost all AS2 properties are optional, so an object with only `id` and `type` is standards-conformant.
 
-When a recipient receives a stub, they look up the full case in their own records by its `id`, and use it if they already hold it.
+When a recipient receives a stub, they look up the full case in their own records by its `caseId`, and use it if they already hold it.
 If they do not, the stub is a placeholder: it does not create a new case record, and the full case is delivered separately once the invitee has been admitted and its [embargo consent](behavior_logic/use-cases/embargo-lifecycle.md) resolved ([MV-10-004, MV-10-005](../reference/specs/protocol.md#mv-10)).
 A stub never overwrites a full case the recipient already holds ([MV-10-003](../reference/specs/protocol.md#mv-10-003)).
 
@@ -127,7 +129,7 @@ A stub never overwrites a full case the recipient already holds ([MV-10-003](../
 | Situation | Object form |
 |---|---|
 | Normal protocol messages (Create, Accept, Announce) | Full inline object |
-| Inviting a participant before embargo acceptance | Case stub ([§11.2](../reference/vultron-spec/index.md#112-invitation-and-acceptance-n)) |
+| Inviting a participant before embargo acceptance | Case stub ([§11.2 Invitation and Acceptance](../reference/vultron-spec/interactions.md#112-invitation-and-acceptance-n)) |
 | Case content already confirmed with recipient | Full inline object |
 | Privacy-sensitive fields must be withheld | Redacted object (a stub is permitted only for a case, [MV-10-001](../reference/specs/protocol.md#mv-10-001)) |
 
@@ -162,7 +164,7 @@ into a single null value.
 | Receiver role | Update your model; your own logic decides what to do next. |
 | Work and messages | Work causes messages. Messages do not cause work. |
 | Full objects | Default for protocol messages; receivers can process without querying sender. |
-| Stub objects | A case stub ([§11.2](../reference/vultron-spec/index.md#112-invitation-and-acceptance-n)); used when full object disclosure is premature. |
+| Stub objects | A case stub ([§11.2 Invitation and Acceptance](../reference/vultron-spec/interactions.md#112-invitation-and-acceptance-n)); used when full object disclosure is premature. |
 | Redaction | Explicit "withheld" is different from null or absent. |
 
 ---

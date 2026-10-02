@@ -64,13 +64,23 @@ from typing import cast
 
 from py_trees.common import Status
 
+from vultron.adapters.driven import actor_hosts
+from vultron.adapters.driven.datalayer import (
+    get_all_actor_datalayers,
+    get_datalayer,
+)
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.proposal import (
+    RequeuePendingCreateCaseActivityNode,
+)
 from vultron.core.models.pending_create_case_activity import (
     PendingCreateCaseActivity,
 )
-from vultron.core.ports.case_persistence import (
-    CaseOutboxPersistence,
-    CasePersistence,
-)
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer
 from vultron.errors import VultronError
 
@@ -93,9 +103,6 @@ def _discover_actor_ids_from_stores() -> list[str]:
     Returns:
         Unique ``case_actor_id`` values found in any hosted actor's store.
     """
-    from vultron.adapters.driven import actor_hosts
-    from vultron.adapters.driven.datalayer import get_datalayer
-
     actor_ids: set[str] = set()
     for host_id in actor_hosts.hosted_actor_ids():
         host_dl = get_datalayer(host_id)
@@ -123,10 +130,6 @@ def _persist_prepared_activity(
             marker.id_,
         )
         return None
-
-    from vultron.adapters.driven.trigger_activity_adapter import (
-        TriggerActivityAdapter,
-    )
 
     try:
         activity_id, _body = TriggerActivityAdapter(
@@ -161,11 +164,6 @@ def _enqueue_and_clear(
     the operation the same audit trail as every other protocol effect, which is
     exactly what a crash-recovery path should have.
     """
-    from vultron.core.behaviors.bridge import BTBridge
-    from vultron.core.behaviors.case.nodes.proposal import (
-        RequeuePendingCreateCaseActivityNode,
-    )
-
     tree = RequeuePendingCreateCaseActivityNode(
         marker=marker, activity_id=activity_id
     )
@@ -232,8 +230,6 @@ def retry_pending_create_case_activities(
     if actor_datalayers_factory is not None:
         actor_dls: dict[str, DataLayer] = dict(actor_datalayers_factory())
     else:
-        from vultron.adapters.driven.datalayer import get_all_actor_datalayers
-
         actor_dls = dict(get_all_actor_datalayers())  # type: ignore[assignment]
 
     # Supplement the map with actors discovered from persisted markers.  On
@@ -246,8 +242,6 @@ def retry_pending_create_case_activities(
         marker_scan_factory is not None
     )
     if _run_marker_scan:
-        from vultron.adapters.driven.datalayer import get_datalayer
-
         discovered = (
             marker_scan_factory()
             if marker_scan_factory is not None

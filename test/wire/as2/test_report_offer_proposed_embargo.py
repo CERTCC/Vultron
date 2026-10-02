@@ -27,6 +27,7 @@ from typing import Any
 
 import pytest
 
+from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events import MessageSemantics
@@ -183,7 +184,9 @@ def _case_proposal(offer: as_Offer | None = None) -> as_CaseProposal:
 def test_case_proposal_embeds_the_offer_and_round_trips_through_the_parser():
     """An activity nested inside an object: the first such shape in the vocab."""
     activity = as_Create(
-        actor=_VENDOR, object_=_case_proposal(), to=[_CASE_ACTOR]
+        actor=VultronOrganization(id_=_VENDOR),
+        object_=_case_proposal(),
+        to=[_CASE_ACTOR],
     )
     body = _wire(activity)
     assert body["object"]["inReplyTo"]["type"] == "Offer"
@@ -225,7 +228,9 @@ def test_case_proposal_without_the_offer_still_validates():
 @pytest.mark.spec("EP-04-004")
 def test_extraction_surfaces_the_proposal_on_the_case_proposal_event():
     activity = as_Create(
-        actor=_VENDOR, object_=_case_proposal(), to=[_CASE_ACTOR]
+        actor=VultronOrganization(id_=_VENDOR),
+        object_=_case_proposal(),
+        to=[_CASE_ACTOR],
     )
     event = extract_event(parse_activity(_wire(activity)))
     assert isinstance(event, CreateCaseProposalReceivedEvent)
@@ -237,7 +242,9 @@ def test_extraction_surfaces_the_proposal_on_the_case_proposal_event():
 def test_case_proposal_without_terms_extracts_none():
     offer = rm_submit_report_activity(_report(), to=_VENDOR, actor=_FINDER)
     activity = as_Create(
-        actor=_VENDOR, object_=_case_proposal(offer), to=[_CASE_ACTOR]
+        actor=VultronOrganization(id_=_VENDOR),
+        object_=_case_proposal(offer),
+        to=[_CASE_ACTOR],
     )
     event = extract_event(parse_activity(_wire(activity)))
     assert isinstance(event, CreateCaseProposalReceivedEvent)

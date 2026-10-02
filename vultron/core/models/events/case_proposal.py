@@ -21,12 +21,13 @@ Covers the three CaseProposal message flows:
 
 from typing import Literal
 
+from vultron.core.models.actor import CoreActor
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
 
 
 class CreateCaseProposalReceivedEvent(VultronEvent):
-    """Case-actor received a Create(CaseProposal) from a vendor actor.
+    """Case-actor received a Create(CaseProposal) from a report receiver.
 
     ``object_`` contains a minimal ``CoreObject`` wrapping the
     ``as_CaseProposal`` wire object; the full proposal is accessible via the
@@ -40,6 +41,11 @@ class CreateCaseProposalReceivedEvent(VultronEvent):
     # inline (CP-01-008, EP-04-004); ``context`` is still the report until the
     # CASE_MANAGER rewrites it at case creation (EP-04-009).
     proposed_embargo: EmbargoEvent | None = None
+    # The proposer's actor profile, sent inline as the Create's ``actor``
+    # (CP-01-010).  Its ``embargo_policy`` is the CASE_OWNER's actor default
+    # for this case and no other (EP-04-003).  Required: the parse edge and
+    # the extractor refuse a Create(CaseProposal) without one (ADR-0032).
+    proposer_profile: CoreActor
 
     @property
     def proposal_id(self) -> str | None:
@@ -48,9 +54,9 @@ class CreateCaseProposalReceivedEvent(VultronEvent):
 
 
 class AcceptCaseProposalReceivedEvent(VultronEvent):
-    """Vendor received an Accept(CaseProposal) from the case-actor service.
+    """Report receiver received an Accept(CaseProposal) from the case-actor service.
 
-    The case-actor accepted the vendor's proposal; a
+    The case-actor accepted the report receiver's proposal; a
     Create(VulnerabilityCase) will follow separately (CP-05-003).
     ``object_`` contains a minimal ``CoreObject`` wrapping the
     ``as_CaseProposal`` that was accepted.
@@ -67,9 +73,9 @@ class AcceptCaseProposalReceivedEvent(VultronEvent):
 
 
 class RejectCaseProposalReceivedEvent(VultronEvent):
-    """Vendor received a Reject(CaseProposal) from the case-actor service.
+    """Report receiver received a Reject(CaseProposal) from the case-actor service.
 
-    The case-actor declined the vendor's proposal (CP-05-004).
+    The case-actor declined the report receiver's proposal (CP-05-004).
     ``object_`` contains a minimal ``CoreObject`` wrapping the
     ``as_CaseProposal`` that was rejected.
     """

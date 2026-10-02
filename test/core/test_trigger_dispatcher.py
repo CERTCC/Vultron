@@ -44,17 +44,19 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import RmDimension, VfDimension
 from vultron.core.models.use_case_result import (
     OfferResult,
     RoleOfferResult,
     StatusResult,
 )
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.trigger_dispatcher import TriggerDispatcher
 from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.states.cs import CS_vf
+from vultron.core.states.rm import RM
 from vultron.core.trigger_dispatcher import RegistryTriggerDispatcher
 from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
 from vultron.core.use_cases.triggers.request_bodies import CaseTriggerRequest
@@ -67,7 +69,10 @@ from vultron.enums.roles import CVDRole
 from vultron.errors import VultronApiHandlerNotFoundError
 from vultron.trigger_registry import TriggerEntry, TriggerExposure, entries
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.case_participant import (
+    as_CaseParticipant,
+    as_ParticipantStatus,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -308,7 +313,10 @@ def test_real_registry_runs_add_on_behalf_status_to_a_status_result(
     actor_and_dl, ports
 ) -> None:
     """The real rows, a real store, a real BT: ``StatusResult`` comes back
-    typed and the vendor's participant carries the asserted ``Vf``."""
+    typed and the vendor's participant carries the asserted ``Vf``.
+
+    The vendor is an existing invitee: an on-behalf assertion never creates
+    a participant (PRM-06-006)."""
     actor, dl = actor_and_dl
     case = as_VulnerabilityCase(name="Dispatch Case")
     cm = as_CaseParticipant(
@@ -316,11 +324,25 @@ def test_real_registry_runs_add_on_behalf_status_to_a_status_result(
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
     )
-    case.actor_participant_index[actor.id_] = cm.id_
-    case.case_participants.append(cm.id_)
-    dl.create(case)
-    dl.create(cm)
     vendor_id = "https://example.org/actors/vendor-co"
+    vendor = as_CaseParticipant(
+        attributed_to=vendor_id,
+        context=case.id_,
+        case_roles=[CVDRole.VENDOR],
+        participant_statuses=[
+            as_ParticipantStatus(
+                attributed_to=vendor_id,
+                context=case.id_,
+                rm=RmDimension(state=RM.RECEIVED),
+                vf=VfDimension(state=CS_vf.vf),
+            )
+        ],
+    )
+    for actor_id, participant in ((actor.id_, cm), (vendor_id, vendor)):
+        case.actor_participant_index[actor_id] = participant.id_
+        case.case_participants.append(participant.id_)
+        dl.create(participant)
+    dl.create(case)
 
     dispatcher = RegistryTriggerDispatcher(entries(), **ports)
     result = dispatcher.trigger(

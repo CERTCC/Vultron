@@ -18,7 +18,7 @@
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable
 
-from vultron.core.behaviors.embargo.nodes.em_state import ReadEmStateNode
+from vultron.core.behaviors.embargo.nodes.em_state import read_case_em_state
 from vultron.core.behaviors.embargo.nodes.emit import _SendEmbargoActivityBase
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
@@ -26,9 +26,9 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.behaviors.narrative_log import log_em_transition
-from vultron.core.models._helpers import _as_id
-from vultron.core.models.case import case_addressees
+from vultron.core.behaviors.sync.nodes import _require_log_entry
 from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.participants.recipients import case_content_recipients
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
@@ -37,7 +37,7 @@ from vultron.core.states.em import EM
 from vultron.core.use_cases._helpers import (
     reset_case_participant_embargo_consent,
 )
-from vultron.errors import VultronNotFoundError
+from vultron.errors import BtNodePreconditionError, VultronNotFoundError
 
 
 class HasEmbargoActiveNode(DataLayerConditionWithPorts):
@@ -60,18 +60,12 @@ class HasEmbargoActiveNode(DataLayerConditionWithPorts):
             return f
         assert self.datalayer is not None
 
-        result_out: dict[str, object] = {}
-        read_node = ReadEmStateNode(
-            case_id=self.case_id, result_out=result_out
-        )
-        read_node.datalayer = self.datalayer
-        read_status = read_node.update()
-        if read_status != Status.SUCCESS:
-            self.feedback_message = read_node.feedback_message
+        try:
+            em_state = read_case_em_state(self.datalayer, self.case_id)
+        except BtNodePreconditionError as exc:
+            self.feedback_message = str(exc)
             return Status.FAILURE
 
-        em_state = result_out["em_before"]
-        assert isinstance(em_state, EM)
         if em_state == EM.EXITED:
             self.feedback_message = f"Case '{self.case_id}' EM already EXITED — teardown not needed"
             return Status.FAILURE
@@ -101,17 +95,11 @@ class ClearActiveEmbargoNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
 
-        result_out: dict[str, object] = {}
-        read_node = ReadEmStateNode(
-            case_id=self.case_id, result_out=result_out
-        )
-        read_node.datalayer = self.datalayer
-        read_status = read_node.update()
-        if read_status != Status.SUCCESS:
-            self.feedback_message = read_node.feedback_message
+        try:
+            current_em = read_case_em_state(self.datalayer, self.case_id)
+        except BtNodePreconditionError as exc:
+            self.feedback_message = str(exc)
             return Status.FAILURE
-        current_em = result_out["em_before"]
-        assert isinstance(current_em, EM)
 
         if current_em == EM.EXITED:
             self.feedback_message = (
@@ -240,8 +228,6 @@ class ApplyEmbargoTeardownNode(DataLayerActionWithPorts):
         if self.case_id is not None:
             case_id = self.case_id
         else:
-            from vultron.core.behaviors.sync.nodes import _require_log_entry
-
             entry = _require_log_entry(self._activity, self.name)
             case_id = entry.case_id
 
@@ -324,7 +310,11 @@ class SendAnnounceEmbargoEventNode(_SendEmbargoActivityBase):
         # teardown reached nobody.  The Case Manager is still resolved above,
         # because "the case has a manager" remains the precondition for
         # announcing canonical case state at all.
-        self._recipients = case_addressees(case, self.actor_id or "")
+        # Only active participants receive the announce (CM-10-004); the shared
+        # selection decides who those are (CM-10-007).
+        self._recipients = case_content_recipients(
+            case, self.datalayer, excluding={self.actor_id or ""}
+        )
         if not self._recipients:
             self.feedback_message = (
                 f"No other participants on case '{self._case_id}'"
@@ -370,13 +360,9 @@ class RemoveFromProposedEmbargoesNode(DataLayerActionWithPorts):
 
     Saves the case only when a change is made.
 
-    ``decided_by`` gates the prune on *who* decided: when set, the node prunes
-    only if that actor is the case owner (``attributed_to``), because only the
-    owner's accept or reject decides a proposal — a participant's is consent
-    (the same ``is_owner`` rule ``EmbargoLifecycle`` applies).  A non-owner's
-    id therefore returns SUCCESS and changes nothing, so a best-effort Sequence
-    that carries this node still reaches the nodes after it.  Left ``None``
-    (teardown), the prune is unconditional.
+    The owner's Reject of an open proposal is decided by
+    ``DecideRejectedEmbargoProposalNode``, which also moves EM; this node is
+    the unconditional teardown prune.
 
     On teardown this node removes the torn-down embargo's own entry ahead of
     the EM write; ``ClearActiveEmbargoNode`` then runs
@@ -390,13 +376,10 @@ class RemoveFromProposedEmbargoesNode(DataLayerActionWithPorts):
         case_id: str,
         embargo_id: str,
         name: str | None = None,
-        *,
-        decided_by: str | None = None,
     ):
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
         self.embargo_id = embargo_id
-        self.decided_by = decided_by
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -406,17 +389,6 @@ class RemoveFromProposedEmbargoesNode(DataLayerActionWithPorts):
         case, failure = self._require_case(self.case_id)
         if failure is not None:
             return failure  # Regime 1 (ADR-0087)
-
-        if (
-            self.decided_by is not None
-            and _as_id(case.attributed_to) != self.decided_by
-        ):
-            self.feedback_message = (
-                f"Actor '{self.decided_by}' is not the owner of case"
-                f" '{self.case_id}': its answer is consent, not a decision, so"
-                f" embargo '{self.embargo_id}' stays an open proposal"
-            )
-            return Status.SUCCESS
 
         if case.discard_proposed_embargo(self.embargo_id):
             self.datalayer.save(case)

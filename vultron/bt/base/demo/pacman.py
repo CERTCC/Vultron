@@ -15,6 +15,7 @@
 This is a demo of the bt tree library. It is a stub implementation of a bot that plays Pacman.
 """
 
+import argparse
 import logging
 import random
 import sys
@@ -71,7 +72,7 @@ EatPill = action_node("EatPill", eat_pill)
 def inc_ghost_score(obj: BtNode) -> bool:
     """increments the score for the next ghost."""
     obj.bb.per_ghost *= GHOST_INC
-    logger.info(f"Ghost score is now {obj.bb.per_ghost}")
+    logger.info("Ghost score is now %s", obj.bb.per_ghost)
     return True
 
 
@@ -92,7 +93,7 @@ ScoreGhost = action_node("ScoreGhost", score_ghost)
 def decr_ghost_count(obj: BtNode) -> bool:
     """decrements the ghost count"""
     ghost = obj.bb.ghosts_remaining.pop()
-    logger.info(f"{ghost} was caught!")
+    logger.info("%s was caught!", ghost)
     return True
 
 
@@ -197,7 +198,7 @@ MaybeEatPills = sequence_node(
 def do_tick(bot, ticks):
     bb = bot.bb
 
-    logger.info(f"=== Tick {ticks} ===")
+    logger.info("=== Tick %s ===", ticks)
 
     # maybe make the ghosts scared
     # note this also demonstrates the world changing outside the bot
@@ -212,7 +213,8 @@ def do_tick(bot, ticks):
     # die on the first failure
     if bot.status == bt.NodeStatus.FAILURE:
         logger.info(
-            f"Pacman died! He was eaten by {random.choice(bb.ghosts_remaining)}!"
+            "Pacman died! He was eaten by %s!",
+            random.choice(bb.ghosts_remaining),
         )
     if bb.dots <= 0:
         logger.info("Pacman cleared the board!")
@@ -242,9 +244,9 @@ def main(args):
         if result == bt.NodeStatus.FAILURE:
             break
 
-    logger.info(f"Final score: {bot.bb.score}")
-    logger.info(f"Ticks: {ticks}")
-    logger.info(f"Dots Remaining: {bot.bb.dots}")
+    logger.info("Final score: %s", bot.bb.score)
+    logger.info("Ticks: %s", ticks)
+    logger.info("Dots Remaining: %s", bot.bb.dots)
 
     nghosts = len(bot.bb.ghosts_remaining)
     if nghosts > 0:
@@ -252,12 +254,10 @@ def main(args):
         ghosts = f"({ghosts})"
     else:
         ghosts = ""
-    logger.info(f"Ghosts Remaining: {nghosts} {ghosts}")
+    logger.info("Ghosts Remaining: %s %s", nghosts, ghosts)
 
 
 def _parse_args():
-    import argparse
-
     parser = argparse.ArgumentParser(description="Pacman Bot Demo")
     parser.add_argument(
         "--print-tree",

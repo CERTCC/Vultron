@@ -20,9 +20,13 @@ from typing import cast
 from py_trees.common import Status
 from py_trees.ports import PortInformation
 
+from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.participant.common import (
     _create_and_attach_participant,
     _queue_participant_add_notification,
+)
+from vultron.core.behaviors.case.nodes.participant.status import (
+    CreateParticipantStatusNode,
 )
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.models._helpers import _as_id
@@ -32,6 +36,7 @@ from vultron.core.models.participant_status import (
     ParticipantStatus,
 )
 from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
+from vultron.core.states.rm import RM as _RM
 from vultron.enums.roles import CVDRole
 
 
@@ -55,10 +60,6 @@ class CreateParticipantInitialStatusNode(DataLayerActionWithPorts):
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.participant_actor_id = participant_actor_id
-        from vultron.core.behaviors.case.nodes.participant.status import (
-            CreateParticipantStatusNode,
-        )
-        from vultron.core.states.rm import RM as _RM
 
         self._status_node = CreateParticipantStatusNode(
             actor_id=participant_actor_id,
@@ -95,8 +96,6 @@ class CreateParticipantInitialStatusNode(DataLayerActionWithPorts):
         if not self.actor_id:
             self.feedback_message = "actor_id not set"
             return Status.FAILURE
-
-        from vultron.core.behaviors.bridge import BTBridge
 
         result = BTBridge(datalayer=self.datalayer).execute_with_setup(
             self._status_node,

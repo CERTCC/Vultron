@@ -20,7 +20,7 @@ from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
 )
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import verdict_from_bt
@@ -88,11 +88,11 @@ class OfferCaseParticipantRoleReceivedUseCase:
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
         ).execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
             activity=request,
-            sync_port=self._sync_port,
         )
         verdict = verdict_from_bt(
             tree, result, label="OfferCaseParticipantRoleReceivedBT"

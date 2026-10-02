@@ -58,6 +58,10 @@ Every EM transition runs through one service.
 A behavior tree node never assigns `case.current_status.em` and saves the case as a shortcut (EMB-18-001).
 The reason is that a transition is not a field write.
 It has to be validated against the state machine, and a failed validation must stop the node rather than log a warning and write anyway (EMB-18-002).
+A case also never names an embargo whose record its store does not hold (EMB-18-003).
+Activating an embargo reads both the record being activated and the one it replaces, and refuses before any write if either cannot be read.
+A sender carries the embargo record inline with the case, and a receiver stores that record before the case that names it, so a case naming an embargo the receiver lacks is refused rather than stored.
+A receiver refuses an inline embargo record whose context is a different case, so a sender cannot plant one case's embargo under another's id.
 
 The transitions themselves are small and fixed:
 
@@ -87,17 +91,19 @@ Every Participant Embargo Consent transition is a side effect of an EM activity,
 | Embargo Proposal (EP), `Invite(Event)` on the case | `NONE` to `PROPOSED`; a further proposal leaves it `PROPOSED` | the invited Participant moves from `UNBOUND`, `DECLINED` or `LAPSED` to `INVITED` (MSM-07-002) |
 | Embargo Acceptance (EA), `Accept(Invite(Event))` | from the case owner: `PROPOSED` to `ACTIVE` | the accepting Participant records the terms and moves to `SIGNATORY` (MSM-07-003) |
 | Embargo Revision Acceptance (EC), `Accept(Invite(Event))` | from the case owner: `REVISE` to `ACTIVE` with the revised terms | a non-owner accepting a proposed revision records it and stays `SIGNATORY` to the terms in force; when the owner activates a revision that ends later than the old terms, every `SIGNATORY` that has not accepted it moves to `LAPSED`, and a revision that ends no later carries every signatory over (MSM-07-003, MSM-07-005) |
-| Embargo Rejection (ER), `Reject(Invite(Event))` | from the case owner: `PROPOSED` to `NONE` | the rejecting Participant moves to `DECLINED` (MSM-07-004) |
-| Embargo Revision Rejection (EJ), `Reject(Invite(Event))` | from the case owner: `REVISE` back to `ACTIVE`; the prior terms stand | none: a signatory that refuses proposed terms remains a signatory to the terms in force, the owner included (MSM-07-004) |
+| Embargo Rejection (ER), `Reject(Invite(Event))` | from the case owner: `PROPOSED` to `NONE` once no other proposal is open; while another is, the case stays `PROPOSED` (EP-08-001, EP-08-003) | the rejecting Participant moves to `DECLINED` (MSM-07-004) |
+| Embargo Revision Rejection (EJ), `Reject(Invite(Event))` | from the case owner: `REVISE` back to `ACTIVE` once no other revision is open, and the prior terms stand; once public disclosure, a public exploit or an attack is known, the owner's rejection of the last open revision ends the embargo instead (ET, EMB-04-002) | none: a signatory that refuses proposed terms remains a signatory to the terms in force, the owner included (MSM-07-004) |
 | Embargo Revision (EV) | `ACTIVE` to `REVISE` | none; the proposer is recorded as having accepted the terms it proposed (MSM-07-005, EP-05-002) |
 | Embargo Termination (ET) | `ACTIVE` or `REVISE` to `EXITED` | every Participant returns to `UNBOUND`, with no further message (MSM-07-006) |
 | Invitation deadline passes | none | `INVITED` moves to `DECLINED`, recorded in the case ledger (MSM-07-007) |
 
 One activity can therefore move both scopes at once: an Accept from the case owner activates the embargo *and* makes the owner a signatory.
-A `SIGNATORY` that rejects the *active* embargo is withdrawing its own consent: its record moves to `DECLINED` ([§9.2](../../../reference/vultron-spec/index.md#92-transitions-and-guards)).
+
+Only the case manager records an answer; a Participant handed an Accept or Reject meant for the case manager refuses it, and a Reject of terms that are neither in force nor still proposed is refused rather than recorded.
+A `SIGNATORY` that rejects the *active* embargo is withdrawing its own consent: its record moves to `DECLINED` ([§9.2 Transitions and Guards](../../../reference/vultron-spec/tracking-models.md#92-transitions-and-guards)).
 A `SIGNATORY` that rejects a *proposed* revision is refusing those terms only: it stays a signatory to the embargo in force.
 In neither case does the case's embargo change, because only the case owner's reject moves EM (MSM-07-004).
-The full consent transition table is in [§9.2 of the specification](../../../reference/vultron-spec/index.md#92-transitions-and-guards).
+The full consent transition table is in [§9.2 Transitions and Guards in the specification](../../../reference/vultron-spec/tracking-models.md#92-transitions-and-guards).
 
 ---
 
@@ -218,6 +224,7 @@ The embargo is over for everyone at once, which is the one thing about the EM sc
 | [EMB-16-001](../../../reference/specs/protocol.md#emb-16-001) | An actor at `EM.PROPOSED` observing the case go public MUST abandon the proposal and emit ER |
 | [EMB-17-001](../../../reference/specs/protocol.md#emb-17-001) | A late `Accept` MUST NOT be refused solely because the deadline passed |
 | [EMB-18-001](../../../reference/specs/architecture.md#emb-18-001) | Every EM transition MUST route through the embargo lifecycle service |
+| [EMB-18-003](../../../reference/specs/architecture.md#emb-18-003) | A case MUST NOT name an embargo whose record its store does not hold |
 | [EMB-19-001](../../../reference/specs/protocol.md#emb-19-001) | A teardown announcement MUST be authored by the case manager and exclude it from the recipients |
 | [EP-04-001](../../../reference/specs/protocol.md#ep-04-001) | A default embargo applied at case creation MUST produce `EM.ACTIVE`, not `EM.PROPOSED` |
 | [EP-07-003](../../../reference/specs/protocol.md#ep-07-003) | A sub-minimum RSVP deadline MUST be clamped up, not rejected |

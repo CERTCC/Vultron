@@ -133,7 +133,7 @@ def trigger_activity(datalayer):
     from vultron.adapters.driven.trigger_activity_adapter import (
         TriggerActivityAdapter,
     )
-    from vultron.core.ports.case_persistence import CaseOutboxPersistence
+    from vultron.core.ports.case_outbox import CaseOutboxPersistence
 
     return TriggerActivityAdapter(cast(CaseOutboxPersistence, datalayer))
 
@@ -703,7 +703,7 @@ def test_tree_execution_actor_isolation():
         TriggerActivityAdapter,
     )
     from vultron.core.models.case import VulnerabilityCase
-    from vultron.core.ports.case_persistence import CaseOutboxPersistence
+    from vultron.core.ports.case_outbox import CaseOutboxPersistence
 
     report_id = "https://example.org/reports/CVE-2024-001"
     offer_id = "https://example.org/activities/offer-123"

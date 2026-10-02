@@ -18,6 +18,7 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.use_cases._helpers import (
     _idempotent_create,
@@ -33,10 +34,12 @@ class CreateCaseParticipantReceivedUseCase:
         self,
         dl: CasePersistence,
         request: CreateCaseParticipantReceivedEvent,
+        sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
+        self._sync_port = sync_port
         self._request: CreateCaseParticipantReceivedEvent = request
 
     def execute(self) -> HandlerResult:
@@ -56,10 +59,12 @@ class AddCaseParticipantToCaseReceivedUseCase:
         self,
         dl: CasePersistence,
         request: AddCaseParticipantToCaseReceivedEvent,
+        sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
+        self._sync_port = sync_port
         self._request: AddCaseParticipantToCaseReceivedEvent = request
 
     def execute(self) -> HandlerResult:
@@ -79,7 +84,9 @@ class AddCaseParticipantToCaseReceivedUseCase:
             case_id=case_id,
         )
         bridge = BTBridge(
-            datalayer=self._dl, wire_render_port=self._wire_render_port
+            datalayer=self._dl,
+            wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
         )
         result = bridge.execute_with_setup(
             tree=tree,
@@ -118,10 +125,12 @@ class RemoveCaseParticipantFromCaseReceivedUseCase:
         self,
         dl: CasePersistence,
         request: RemoveCaseParticipantFromCaseReceivedEvent,
+        sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
+        self._sync_port = sync_port
         self._request: RemoveCaseParticipantFromCaseReceivedEvent = request
 
     def execute(self) -> HandlerResult:
@@ -155,7 +164,9 @@ class RemoveCaseParticipantFromCaseReceivedUseCase:
             case_id=case_id,
         )
         bridge = BTBridge(
-            datalayer=self._dl, wire_render_port=self._wire_render_port
+            datalayer=self._dl,
+            wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
         )
         result = bridge.execute_with_setup(
             tree=tree,

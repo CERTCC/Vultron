@@ -21,7 +21,7 @@ these activities to all participants see
 
 Two authorities appear below, and they are distinct roles rather than one actor.
 The **Case Owner** decides for the case: who is admitted, which roles they hold, and whether an ownership transfer is offered.
-The **CASE_MANAGER** is the case's single-writer authority: it mints and updates the `VulnerabilityCase` object, records every case-scoped message in the ledger, and delivers case snapshots to participants (spec [§5.4.1](../vultron-spec/index.md#541-single-writer-authority), [ADR-0088](../../adr/0088-consolidate-case-authority-determination.md)).
+The **CASE_MANAGER** is the case's single-writer authority: it mints and updates the `VulnerabilityCase` object, records every case-scoped message in the ledger, and delivers case snapshots to participants (spec [§5.4.1 Single-Writer Authority](../vultron-spec/layers.md#541-single-writer-authority), [ADR-0088](../../adr/0088-consolidate-case-authority-determination.md)).
 The CASE_MANAGER acts on the Case Owner's behalf; the two roles are often held by the same actor but need not be.
 The 300-level introduction is [The Case Manager and the Case Ledger](../../topics/case_lifecycle/case_manager_and_ledger.md).
 
@@ -37,7 +37,11 @@ print(render_page("case_management", heading=False))
 
 ## Create Case
 
-- **Protocol role:** The CASE_MANAGER mints a new `VulnerabilityCase`, seats the initial participants (the Case Owner and the reporter), and links the report, then sends the completed case once to the report submitter as the trust bootstrap (spec [§4.5](../vultron-spec/index.md#45-trust-and-bootstrap-semantics); [CBT-01-001](../specs/protocol.md#cbt-01-001), [CM-22-002](../specs/protocol.md#cm-22-002)).
+- **Protocol role:** The CASE_MANAGER mints a new `VulnerabilityCase`, seats the initial participants (the Case Owner and the reporter), and links the report, then sends the completed case once to the report submitter as the trust bootstrap (spec [§4.5 Trust and Bootstrap Semantics](../vultron-spec/layers.md#45-trust-and-bootstrap-semantics); [CBT-01-001](../specs/protocol.md#cbt-01-001), [CM-22-002](../specs/protocol.md#cm-22-002)).
+- **Who is named where:** the `actor` of the `Create` is the CASE_MANAGER that mints the case, and the case's `attributedTo` is the Case Owner ([CP-09-001](../specs/protocol.md#cp-09-001), [CM-02-008](../specs/protocol.md#cm-02-008)).
+  The two coincide when the Case Owner creates its own case, as in the example below.
+  When a case-actor service creates the case from a [Case Proposal](case_proposal.md), the service is the `actor` and `attributedTo` names the proposing actor, never the service itself.
+  Every owner check reads `attributedTo`, and an ownership transfer rewrites it ([CM-21-002](../specs/protocol.md#cm-21-002)).
 - **Triggering transition:** none — object construction precedes protocol state.
 - **Wire activity:** `Create(VulnerabilityCase)`.
 - **Example artifact:** [create_case.json](../examples/create_case.json).
@@ -52,7 +56,7 @@ print(json2md(create_case()))
 
 ## Update Case
 
-- **Protocol role:** The CASE_MANAGER records a changed `VulnerabilityCase` object — for example after a title edit or an ownership transfer is applied — and fans it out through the ledger ([§5.4.2](../vultron-spec/index.md#542-routing-topology)).
+- **Protocol role:** The CASE_MANAGER records a changed `VulnerabilityCase` object — for example after a title edit or an ownership transfer is applied — and fans it out through the ledger ([§5.4.2 Routing Topology](../vultron-spec/layers.md#542-routing-topology)).
   A participant that wants a change made asks the CASE_MANAGER; it does not send `Update` to its peers.
 - **Triggering transition:** none — metadata change, not a state transition.
 - **Wire activity:** `Update(VulnerabilityCase)`.
@@ -101,7 +105,7 @@ print(json2md(close_case()))
 
 - **Protocol role:** An authorized participant offers a specific `CVDRole` on the case to another actor.
   The object type alone identifies the activity as a role offer rather than an ownership-transfer offer (ADR-0039).
-  Roles are granted through the case's authority chain ([§11.1](../vultron-spec/index.md#111-role-assignment-n)).
+  Roles are granted through the case's authority chain ([§11.1 Role Assignment](../vultron-spec/interactions.md#111-role-assignment-n)).
 - **Triggering transition:** none — roster action, not a state-machine event.
 - **Wire activity:** `Offer(CaseParticipantRole)`, with `target` = the Actor
   receiving the role and `context` = the case.
@@ -159,7 +163,7 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
 ## Offer Case Ownership Transfer
 
 - **Protocol role:** The current Case Owner offers to transfer ownership to another actor (e.g. from a reporter to a coordinator).
-  The offer is routed through the CASE_MANAGER, which records it in the ledger ([§11.3](../vultron-spec/index.md#113-case-ownership-transfer-n)); see [Case Ownership Transfer](../../topics/case_lifecycle/ownership_transfer.md).
+  The offer is routed through the CASE_MANAGER, which records it in the ledger ([§11.3 Case Ownership Transfer](../vultron-spec/interactions.md#113-case-ownership-transfer-n)); see [Case Ownership Transfer](../../topics/case_lifecycle/ownership_transfer.md).
 - **Triggering transition:** none — ownership transfer is a roster operation.
 - **Wire activity:** `Offer(VulnerabilityCase)` with `target` = recipient URI.
 - **Example artifact:** [offer_case_ownership_transfer.json](../examples/offer_case_ownership_transfer.json).
@@ -206,9 +210,10 @@ print(json2md(reject_case_ownership_transfer()))
 
 - **Protocol role:** The CASE_MANAGER invites a new actor to join the case, carrying the case stub and the embargo terms the invitee would agree to.
   The Case Owner decides whom to invite; a participant that wants a third party brought in sends a recommendation instead (`Offer(CaseParticipant)`, on [General (GI) Messages](general.md)).
-  See [§11.2](../vultron-spec/index.md#112-invitation-and-acceptance-n).
+  See [§11.2 Invitation and Acceptance](../vultron-spec/interactions.md#112-invitation-and-acceptance-n).
 - **Triggering transition:** none — roster action.
-- **Wire activity:** `Offer(Invite)` targeting the actor being invited.
+- **Wire activity:** `Invite(Actor, target=VulnerabilityCaseStub)`.
+  The `object` is the actor being invited, and the `target` is the case stub, of type `VulnerabilityCaseStub`, which names the case in its `caseId` ([CM-11-013](../specs/protocol.md#cm-11-013), [CM-17-010](../specs/protocol.md#cm-17-010)).
 - **Example artifact:** [invite_to_case.json](../examples/invite_to_case.json).
 
 ```python exec="true" idprefix=""
@@ -223,7 +228,7 @@ print(json2md(rm_invite_to_case()))
 
 - **Protocol role:** The invited actor accepts and joins the case at RM Received.
   The CASE_MANAGER records the acceptance in the ledger, seats the participant, and then sends `Announce(VulnerabilityCase)` to seed the new participant's replica ([CM-17-004](../specs/protocol.md#cm-17-004)).
-- **Wire activity:** `Accept(Invite)`.
+- **Wire activity:** `Accept(Invite(Actor, target=VulnerabilityCaseStub))`.
 - **Example artifact:** [accept_invite_to_case.json](../examples/accept_invite_to_case.json).
 
 ```python exec="true" idprefix=""
@@ -238,7 +243,7 @@ print(json2md(accept_invite_to_case()))
 
 - **Protocol role:** The invited actor declines.
 - **Triggering transition:** none — roster action.
-- **Wire activity:** `Reject(Invite)`.
+- **Wire activity:** `Reject(Invite(Actor, target=VulnerabilityCaseStub))`.
 - **Example artifact:** [reject_invite_to_case.json](../examples/reject_invite_to_case.json).
 
 ```python exec="true" idprefix=""

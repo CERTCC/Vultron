@@ -26,13 +26,16 @@ import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case_status_snapshot import (
+    EmitCaseStatusUpdateNode,
+)
 from vultron.core.behaviors.status.nodes.case_status import (
     CASE_STATUS_ALREADY_PRESENT,
     AppendCaseStatusToCaseNode,
     CheckCaseStatusIdempotencyNode,
-    EmitCaseStatusUpdateNode,
 )
 from vultron.core.models.case import VulnerabilityCase as CoreCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -62,7 +65,11 @@ def dl():
 
 @pytest.fixture
 def bridge(dl):
-    return BTBridge(datalayer=dl, wire_render_port=As2WireRenderAdapter())
+    return BTBridge(
+        datalayer=dl,
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(dl),
+    )
 
 
 @pytest.fixture
@@ -88,7 +95,9 @@ def populated_dl(dl, case, status_obj):
 @pytest.fixture
 def populated_bridge(populated_dl):
     return BTBridge(
-        datalayer=populated_dl, wire_render_port=As2WireRenderAdapter()
+        datalayer=populated_dl,
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(populated_dl),
     )
 
 
@@ -123,7 +132,9 @@ class TestCheckCaseStatusIdempotencyNode:
         populated_dl.save(case)
 
         bridge = BTBridge(
-            datalayer=populated_dl, wire_render_port=As2WireRenderAdapter()
+            datalayer=populated_dl,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(populated_dl),
         )
         node = CheckCaseStatusIdempotencyNode(
             case_id=CASE_ID, status_id=STATUS_ID
@@ -230,7 +241,9 @@ class TestAppendCaseStatusToCaseNode:
 
 
 # ---------------------------------------------------------------------------
-# EmitCaseStatusUpdateNode
+# EmitCaseStatusUpdateNode — lives in vultron.core.behaviors.case_status_snapshot
+# (shared with the embargo trees, BTND-04-001); tested here beside the
+# AddCaseStatusToCase nodes it shares fixtures with.
 # ---------------------------------------------------------------------------
 
 
@@ -240,7 +253,9 @@ class TestEmitCaseStatusUpdateNode:
     def test_happy_path_appends_new_case_status(self, populated_dl):
         """SUCCESS: appends a new CaseStatus to case.case_statuses."""
         bridge = BTBridge(
-            datalayer=populated_dl, wire_render_port=As2WireRenderAdapter()
+            datalayer=populated_dl,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(populated_dl),
         )
         case_before = populated_dl.read(CASE_ID)
         assert isinstance(case_before, CoreCase)
@@ -269,9 +284,10 @@ class TestEmitCaseStatusUpdateNode:
         initial_count = len(case_before.case_statuses)
 
         node = EmitCaseStatusUpdateNode(case_id=CASE_ID)
-        result = BTBridge(datalayer=populated_dl).execute_with_setup(
-            tree=node, actor_id=ACTOR_ID
-        )
+        result = BTBridge(
+            datalayer=populated_dl,
+            sync_port=SyncActivityAdapter(populated_dl),
+        ).execute_with_setup(tree=node, actor_id=ACTOR_ID)
 
         assert result.status == Status.FAILURE
         assert result.internal_error is True
@@ -288,7 +304,9 @@ class TestEmitCaseStatusUpdateNode:
     def test_happy_path_commits_ledger_entry(self, populated_dl):
         """SUCCESS: a CaseLedgerEntry with event_type='add_case_status_to_case' is committed."""
         bridge = BTBridge(
-            datalayer=populated_dl, wire_render_port=As2WireRenderAdapter()
+            datalayer=populated_dl,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(populated_dl),
         )
         node = EmitCaseStatusUpdateNode(case_id=CASE_ID)
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
@@ -321,7 +339,9 @@ class TestEmitCaseStatusUpdateNode:
         from vultron.core.models.case_status import CaseStatus
 
         bridge = BTBridge(
-            datalayer=populated_dl, wire_render_port=As2WireRenderAdapter()
+            datalayer=populated_dl,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(populated_dl),
         )
         node = EmitCaseStatusUpdateNode(case_id=CASE_ID)
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)

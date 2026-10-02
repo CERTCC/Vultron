@@ -11,10 +11,13 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+import logging
 import unittest
 from io import StringIO
+from types import SimpleNamespace
 from unittest.mock import patch
 
+from vultron.bt import behaviors
 from vultron.bt.base.demo import cvd as vultrabot
 
 
@@ -52,6 +55,38 @@ class MyTestCase(unittest.TestCase):
         if any_closed:
             with self.subTest(item="CLOSED"):
                 self.assertIn("CLOSED", output)
+
+
+def test_reset_statelog_empties_the_list_every_importer_holds():
+    """``reset_statelog`` clears in place, so ``cvd``'s import stays live (#3985)."""
+    held = behaviors.STATELOG
+    held.append({"q_rm": "sentinel"})
+
+    behaviors.reset_statelog()
+
+    assert behaviors.STATELOG is held
+    assert vultrabot.STATELOG is held
+    assert held == []
+
+
+def test_setup_logger_routes_module_records_to_the_root_handler():
+    """The module logger is left alone; its records reach the root handler."""
+    root = logging.getLogger()
+    saved_level, saved_handlers = root.level, list(root.handlers)
+    module_logger = vultrabot.logger
+    try:
+        vultrabot._setup_logger(SimpleNamespace(log_level=logging.INFO))
+        assert vultrabot.logger is module_logger
+        assert module_logger.name == vultrabot.__name__
+        assert root.level == logging.INFO
+        assert module_logger.getEffectiveLevel() == logging.INFO
+        added = [h for h in root.handlers if h not in saved_handlers]
+        assert len(added) == 1
+        assert isinstance(added[0], logging.StreamHandler)
+    finally:
+        for handler in [h for h in root.handlers if h not in saved_handlers]:
+            root.removeHandler(handler)
+        root.setLevel(saved_level)
 
 
 if __name__ == "__main__":

@@ -46,6 +46,7 @@ into :class:`EmbargoLifecycle` in ``service.py``:
 - ``proposals.py``  — ``propose_embargo``
 - ``answers.py``    — ``accept_embargo_invite``, ``reject_embargo_invite``
 - ``activation.py`` — ``terminate_active_embargo``, ``activate_embargo``
+- ``creation.py``   — ``initialize_creation_embargo`` (EP-04-002)
 - ``consent.py``    — ``record_participant_consent``,
   ``record_embargo_rejection``, ``detect_and_apply_lapse``,
   ``assert_embargo_eligible``

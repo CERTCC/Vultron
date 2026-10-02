@@ -16,8 +16,8 @@
 The read and verification steps the ``report-with-embargo`` exchange demo
 runs against the CaseActor's store once the case exists: which
 ``EmbargoEvent`` became active, which was left pending as a revision, that
-every event is about the case (EP-04-009), and that the Receiver's replica
-agrees.  They live here rather than in the demo module so that the module
+every event is about the case (EP-04-009), that an accepted relayed revision
+settled the case (EP-04-011), and that the Receiver's replica agrees.  They live here rather than in the demo module so that the module
 stays a script of runs (CS-18-001) and a second negotiated-path scenario can
 reuse the checks instead of copying them (DEMOMA-17-001).
 
@@ -29,7 +29,8 @@ import logging
 from datetime import datetime, timedelta
 
 from vultron.core.states.em import EM
-from vultron.demo.helpers.workflow import wait_for_case_for_offer
+from vultron.demo.helpers.polling import _poll_until
+from vultron.demo.helpers.workflow import find_case_for_offer
 from vultron.demo.utils import DataLayerClient, demo_check
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
@@ -45,6 +46,9 @@ logger = logging.getLogger(__name__)
 WINDOW_TOLERANCE = timedelta(minutes=1)
 #: The protocol default may be configured no longer than this (EP-04-005).
 PROTOCOL_DEFAULT_CEILING = timedelta(days=5)
+#: How long to wait for an effect another actor's answer causes: the relayed
+#: revision's Accept, or the replica catching up with it.
+ANSWER_TIMEOUT_SECONDS = 20.0
 
 
 # ---------------------------------------------------------------------------
@@ -92,6 +96,46 @@ def assert_window_is(
 
 
 # ---------------------------------------------------------------------------
+def read_case(
+    client: DataLayerClient, case_actor_id: str, case_id: str
+) -> as_VulnerabilityCase:
+    """Read the canonical case from the CaseActor's own store."""
+    data = client.get(client.dl_path(case_id, actor_id=case_actor_id))
+    return as_VulnerabilityCase.model_validate(data)
+
+
+def wait_for_revision_activated(
+    client: DataLayerClient,
+    case_actor_id: str,
+    case_id: str,
+    revision_id: str,
+    timeout_seconds: float = ANSWER_TIMEOUT_SECONDS,
+) -> as_VulnerabilityCase:
+    """Poll the canonical case until *revision_id* is its active embargo.
+
+    The cause is the CASE_OWNER's ``Accept`` of the relayed revision Invite
+    (EP-04-011): an owner's acceptance activates the revision, so the case
+    leaves ``EM.REVISE`` some time after it was created there (ADR-0058).
+    """
+    found: dict[str, as_VulnerabilityCase] = {}
+
+    def _check() -> bool:
+        case = read_case(client, case_actor_id, case_id)
+        found["case"] = case
+        return case.active_embargo_id == revision_id
+
+    _poll_until(
+        _check,
+        timeout_seconds,
+        error_msg=(
+            f"Timed out waiting for revision {revision_id!r} to become the"
+            f" active embargo of {case_id!r} — the CASE_OWNER's answer to the"
+            " relayed Invite may not have arrived (EP-04-011)"
+        ),
+    )
+    return found["case"]
+
+
 # Verification of the creation-time outcome
 # ---------------------------------------------------------------------------
 
@@ -122,39 +166,6 @@ def verify_reporter_terms_active(
         assert_about_the_case(active, case)
     logger.info(
         "Reporter's terms are the active embargo: %s ends %s",
-        active.id_,
-        active.end_time.isoformat(),
-    )
-    return active
-
-
-def verify_receiver_default_active(
-    client: DataLayerClient,
-    case_actor_id: str,
-    case: as_VulnerabilityCase,
-    proposal_id: str,
-    default_days: int,
-) -> as_EmbargoEvent:
-    """The Receiver's default, not the Reporter's event, is the active embargo.
-
-    *default_days* is the Receiver's published default, whose window the
-    active embargo must run.
-    """
-    active_id = case.active_embargo_id
-    with demo_check("Active embargo is not the Reporter's proposed event"):
-        if active_id is None or active_id == proposal_id:
-            raise AssertionError(
-                f"Expected the Receiver's default to be active, found"
-                f" active_embargo={active_id!r} (proposal {proposal_id!r})"
-            )
-    assert active_id is not None
-    active = read_embargo(client, case_actor_id, active_id)
-    with demo_check(
-        f"Active embargo runs the Receiver's {default_days}-day default"
-    ):
-        assert_window_is(active, timedelta(days=default_days), "Active")
-    logger.info(
-        "Receiver's default is the active embargo: %s ends %s",
         active.id_,
         active.end_time.isoformat(),
     )
@@ -202,6 +213,28 @@ def verify_pending_revision(
     return revision
 
 
+def verify_revision_settled(case: as_VulnerabilityCase) -> None:
+    """The accepted revision left the case ACTIVE with nothing pending."""
+    with demo_check(
+        "Case is back at EM.ACTIVE with nothing pending — the revision was"
+        " accepted, not left open"
+    ):
+        if case.current_status.em_state != EM.ACTIVE:
+            raise AssertionError(
+                f"Expected EM.ACTIVE, found {case.current_status.em_state}"
+            )
+        if case.proposed_embargo_ids:
+            raise AssertionError(
+                "Expected no pending revision once it was accepted, found"
+                f" {case.proposed_embargo_ids}"
+            )
+    logger.info(
+        "Accepted revision settled the case: %s at %s, nothing pending",
+        case.active_embargo_id,
+        case.current_status.em_state,
+    )
+
+
 def verify_uncontested(
     case: as_VulnerabilityCase, active: as_EmbargoEvent
 ) -> None:
@@ -242,19 +275,29 @@ def verify_receiver_replica_agrees(
     """The Receiver's replica shows the same EM outcome as the canonical case.
 
     The replica's arrival is a causal effect of the CaseActor's
-    ``Create(VulnerabilityCase)`` fan-out (ADR-0058), observed here rather
-    than gated: nothing downstream depends on it, so a replica that has not
-    landed is a recorded check, not a skipped run (EDF-06-005).
+    ``Create(VulnerabilityCase)`` fan-out (ADR-0058), and its EM state of the
+    ledger entries that follow it — an accepted revision reaches the replica
+    after the case does.  Both are observed here rather than gated: nothing
+    downstream depends on them, so a replica that has not caught up within
+    the wait is a recorded check, not a skipped run (EDF-06-005).
     """
     with demo_check(
         "Receiver's replica carries the same EM state (observed, not gated)"
     ):
-        replica = wait_for_case_for_offer(client, offer_id)
-        if (
-            replica.current_status.em_state
-            != canonical.current_status.em_state
-        ):
+        expected = canonical.current_status.em_state
+        seen: dict[str, EM] = {}
+
+        def _agrees() -> bool:
+            replica = find_case_for_offer(client, offer_id)
+            if replica is None:
+                return False
+            seen["em"] = replica.current_status.em_state
+            return seen["em"] == expected
+
+        try:
+            _poll_until(_agrees, ANSWER_TIMEOUT_SECONDS)
+        except AssertionError as exc:
             raise AssertionError(
-                f"Receiver {vendor.id_} sees {replica.current_status.em_state},"
-                f" the CaseActor holds {canonical.current_status.em_state}"
-            )
+                f"Receiver {vendor.id_} sees {seen.get('em')}, the CaseActor"
+                f" holds {expected}"
+            ) from exc

@@ -56,12 +56,15 @@ from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
 )
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.sync_helpers import _reconstruct_tail_hash
-from vultron.core.use_cases._helpers import resolve_receiving_actor_id
+from vultron.core.use_cases._helpers import (
+    _find_case_actor_id,
+    resolve_receiving_actor_id,
+)
 from vultron.core.use_cases.received._bt_verdict import (
     node_failed,
     node_succeeded,
@@ -87,12 +90,13 @@ def _run_announce_bt(
     """
     tree = create_announce_log_entry_tree()
     result = BTBridge(
-        datalayer=dl, wire_render_port=wire_render_port
+        datalayer=dl,
+        wire_render_port=wire_render_port,
+        sync_port=sync_port,
     ).execute_with_setup(
         tree=tree,
         actor_id=receiving_actor_id,
         activity=request,
-        sync_port=sync_port,
         gap_buffer=gap_buffer,
     )
     return tree, result
@@ -195,8 +199,6 @@ def drain_gap_buffer(
     flight; ``actor_id`` is resolved to the CaseActor when known, falling back to
     ``case_id``.
     """
-    from vultron.core.use_cases._helpers import _find_case_actor_id
-
     actor_id = _find_case_actor_id(dl, case_id) or case_id
     while True:
         try:

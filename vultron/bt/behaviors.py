@@ -34,9 +34,13 @@ logger = logging.getLogger(__name__)
 STATELOG: list[dict[str, Any]] = []
 
 
-def reset_statelog():
-    global STATELOG  # noqa: PLW0603  # ruff-baseline #3985
-    STATELOG = []
+def reset_statelog() -> None:
+    """Empty the shared state log in place.
+
+    Clearing rather than rebinding keeps every importer of ``STATELOG``
+    (e.g. ``vultron.bt.base.demo.cvd``) looking at the same list.
+    """
+    STATELOG.clear()
 
 
 class Snapshot(ActionNode):
@@ -101,7 +105,7 @@ class CvdProtocolBt(bt.BehaviorTree):
 
         self.preconditions = {}
         for a in attributes:
-            logger.debug(f"State: {a}: {getattr(self.bb, a)}")
+            logger.debug("State: %s: %s", a, getattr(self.bb, a))
             self.preconditions[a] = deepcopy(getattr(self.bb, a))
         logger.debug("--------")
 
@@ -115,7 +119,7 @@ class CvdProtocolBt(bt.BehaviorTree):
         if changes:
             logger.debug("--------")
         for change in changes:
-            logger.debug(change)
+            logger.debug("%s", change)
 
     @property
     def closed(self):

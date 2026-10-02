@@ -384,7 +384,7 @@ groups:
     statement: >-
       A participant actor MUST NOT assume that other participants will receive its case-scoped
       messages through any channel other than the CASE_MANAGER's `Announce(CaseLedgerEntry)` broadcast.
-      Sending to `case_addressees()` or any multi-recipient list that includes non-CASE_MANAGER actors
+      Sending to the whole roster or any multi-recipient list that includes non-CASE_MANAGER actors
       is a violation of this rule.
   - id: PCR-08-003
     priority: MUST
@@ -435,12 +435,12 @@ groups:
       Trigger use cases and their supporting BTs that cause a participant to send a case-scoped
       message MUST resolve the CASE_MANAGER's actor ID from the case's participant list (the
       participant with `CVDRole.CASE_MANAGER`) and use that ID as the sole `to:` recipient.
-      Any helper that returns all participants (e.g. `case_addressees()`) MUST NOT be used as
+      Any helper that returns all participants (e.g. the roster index) MUST NOT be used as
       the sole source of recipients for outbound participant activities.
     verification: >-
       A unit test confirms that case-scoped trigger BT emit nodes resolve
       `CVDRole.CASE_MANAGER` from the participant list and set that ID as the
-      sole `to:` recipient, and that `case_addressees()` is not permitted as
+      sole `to:` recipient, and that a roster-wide list is not permitted as
       the recipient source.
     stories:
     - story_2022_046
@@ -566,7 +566,7 @@ groups:
         failure to resolve the CASE_MANAGER is a trigger-side error
     - rel_type: refines
       spec_id: PCR-08-002
-      note: Using case_addressees() or None as the recipient in a trigger BT is
+      note: Using a roster-wide list or None as the recipient in a trigger BT is
         the specific violation this requirement prevents
     stories:
     - story_2022_039
@@ -735,7 +735,7 @@ groups:
     kind: project
     statement: >-
       Unit tests MUST verify that `Announce(VulnerabilityCase)` from an actor with no
-      prior local trust record — no matching `VultronReportCaseLink.trusted_case_actor_id`
+      prior local trust record — no matching `VultronReportCaseLink.case_manager_id`
       and no invite trust anchor for the announced case ID — is rejected with a WARNING
       log entry and the case is NOT seeded in the receiver's DataLayer.
     verification: >-

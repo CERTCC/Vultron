@@ -13,7 +13,6 @@ from vultron.core.behaviors.embargo.nodes import (
     EmStateAdmitsProposalNode,
     IsActiveEmbargoNode,
     LookupParticipantNode,
-    OptionalLookupParticipantNode,
     PersistEmbargoEventNode,
     ProposeEmbargoLifecycleNode,
     ReadEmbargoIdNode,
@@ -26,8 +25,8 @@ from vultron.core.behaviors.embargo.nodes import (
     SendTerminateEmbargoActivityNode,
     SetEmbargoActiveNode,
     TerminateEmbargoLifecycleNode,
-    UpdateParticipantEmbargoPecNode,
     ValidateCaseExistsNode,
+    ValidateEmbargoProposalStateNode,
     ValidateEmbargoRevisionStateNode,
 )
 
@@ -41,7 +40,6 @@ __all__ = [
     "CreateAndStoreInviteNode",
     "IsActiveEmbargoNode",
     "LookupParticipantNode",
-    "OptionalLookupParticipantNode",
     "PersistEmbargoEventNode",
     "ProposeEmbargoLifecycleNode",
     "ReadEmbargoIdNode",
@@ -53,7 +51,7 @@ __all__ = [
     "SendTerminateEmbargoActivityNode",
     "SetEmbargoActiveNode",
     "TerminateEmbargoLifecycleNode",
-    "UpdateParticipantEmbargoPecNode",
     "ValidateCaseExistsNode",
+    "ValidateEmbargoProposalStateNode",
     "ValidateEmbargoRevisionStateNode",
 ]

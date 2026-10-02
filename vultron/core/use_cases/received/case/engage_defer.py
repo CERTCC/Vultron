@@ -3,6 +3,11 @@
 import logging
 from typing import TYPE_CHECKING
 
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.report.prioritize_tree import (
+    create_defer_case_tree,
+    create_engage_case_tree,
+)
 from vultron.core.models.events.case import (
     DeferCaseReceivedEvent,
     EngageCaseReceivedEvent,
@@ -12,12 +17,14 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.services.case_replica_seeding import (
+    store_embedded_participants,
+)
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import verdict_from_bt
 
 from ._helpers import (
-    _store_embedded_embargo,
-    _store_embedded_participants,
+    _hold_carried_embargo,
 )
 
 if TYPE_CHECKING:
@@ -45,10 +52,6 @@ class EngageCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.report.prioritize_tree import (
-            create_engage_case_tree,
-        )
 
         actor_id = request.actor_id
         case_id = request.case_id
@@ -71,8 +74,10 @@ class EngageCaseReceivedUseCase:
         # paths (CBT-05-005, fixes #573).
         case_obj = request.case
         if case_obj is not None:
-            _store_embedded_participants(case_obj, self._dl, case_id)
-            _store_embedded_embargo(case_obj, self._dl, case_id)
+            refusal = _hold_carried_embargo(case_obj, self._dl, case_id)
+            if refusal is not None:
+                return refusal
+            store_embedded_participants(case_obj, self._dl, case_id)
 
         logger.info(
             "Actor '%s' engages case '%s' (RM → ACCEPTED)",
@@ -122,10 +127,6 @@ class DeferCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.report.prioritize_tree import (
-            create_defer_case_tree,
-        )
 
         actor_id = request.actor_id
         case_id = request.case_id

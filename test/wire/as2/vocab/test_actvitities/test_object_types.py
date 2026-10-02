@@ -42,6 +42,7 @@ from vultron.wire.as2.vocab.objects.case_status import (
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
+    as_VulnerabilityCaseStub,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -57,23 +58,27 @@ _LINK = as_Link(href="https://example.org/objects/123")
 ACTOR_ID = "https://example.org/actors/alice"
 
 
-def _make_activity(cls, object_):
-    """Attempt to construct *cls* with the given object_, return the instance."""
-    return cls(actor=ACTOR_ID, object_=object_)
+def _make_activity(cls, object_, **fields):
+    """Attempt to construct *cls* with the given object_, return the instance.
+
+    *fields* carries any other field the class requires (for example the
+    case Invite's stub ``target``), so a refusal is about ``object_`` alone.
+    """
+    return cls(actor=ACTOR_ID, object_=object_, **fields)
 
 
-def _assert_rejects_string(cls):
+def _assert_rejects_string(cls, **fields):
     with pytest.raises(ValidationError):
-        _make_activity(cls, _STR_URI)
+        _make_activity(cls, _STR_URI, **fields)
 
 
-def _assert_rejects_link(cls):
+def _assert_rejects_link(cls, **fields):
     with pytest.raises(ValidationError):
-        _make_activity(cls, _LINK)
+        _make_activity(cls, _LINK, **fields)
 
 
-def _assert_accepts_inline(cls, obj):
-    instance = _make_activity(cls, obj)
+def _assert_accepts_inline(cls, obj, **fields):
+    instance = _make_activity(cls, obj, **fields)
     assert instance.object_ is obj or instance.object_ == obj
 
 
@@ -291,15 +296,28 @@ class TestRmInviteToCaseActivity:
     from vultron.wire.as2.vocab.activities.case import _RmInviteToCaseActivity
 
     cls = _RmInviteToCaseActivity
+    stub = {"target": as_VulnerabilityCaseStub(case_id="urn:uuid:case-1")}
 
     def test_rejects_string(self):
-        _assert_rejects_string(self.cls)
+        _assert_rejects_string(self.cls, **self.stub)
 
     def test_rejects_link(self):
-        _assert_rejects_link(self.cls)
+        _assert_rejects_link(self.cls, **self.stub)
 
     def test_accepts_inline_actor(self):
-        _assert_accepts_inline(self.cls, as_Actor())
+        _assert_accepts_inline(self.cls, as_Actor(), **self.stub)
+
+    @pytest.mark.spec("SE-08-002")
+    @pytest.mark.parametrize(
+        "target",
+        [None, "urn:uuid:case-1"],
+        ids=["no-target", "uri-target"],
+    )
+    def test_requires_a_stub_target(self, target):
+        """The stub is this Invite's discriminator, so the class requires it."""
+        fields = {} if target is None else {"target": target}
+        with pytest.raises(ValidationError):
+            _make_activity(self.cls, as_Actor(), **fields)
 
 
 # ---------------------------------------------------------------------------

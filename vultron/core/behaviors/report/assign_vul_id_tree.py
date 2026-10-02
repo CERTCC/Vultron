@@ -31,6 +31,10 @@ from typing import TYPE_CHECKING
 
 import py_trees
 
+from vultron.core.behaviors.call_out.bundles.assign_vul_id import (
+    ASSIGN_VUL_ID_DETERMINISTIC,
+)
+
 if TYPE_CHECKING:
     from vultron.core.behaviors.call_out.bundles.assign_vul_id import (
         AssignVulIdCallOutBundle,
@@ -58,10 +62,6 @@ def create_assign_vul_id_tree(
     Returns:
         Root node of the assign-VUL-ID behavior tree (Phase 1 stub Sequence).
     """
-    from vultron.core.behaviors.call_out.bundles.assign_vul_id import (
-        ASSIGN_VUL_ID_DETERMINISTIC,
-    )
-
     bundle = call_out if call_out is not None else ASSIGN_VUL_ID_DETERMINISTIC
     root = py_trees.composites.Sequence(
         name="AssignVulIDBT",
@@ -71,5 +71,5 @@ def create_assign_vul_id_tree(
             bundle.id_assignable_factory("IdAssignable"),
         ],
     )
-    logger.info(f"Created AssignVulIDBT (Phase 1 stub) for case={case_id}")
+    logger.info("Created AssignVulIDBT (Phase 1 stub) for case=%s", case_id)
     return root

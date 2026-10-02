@@ -39,6 +39,7 @@ from test.ci.invariants.common import (
     check_per_actor_replica_participant_status_schema_completeness,
     check_per_actor_replica_rm_closed_termination,
     check_rm_closed_termination,
+    check_unique_payload_snapshot_ids,
     for_each_replica,
 )
 from vultron.demo.helpers.ledger_dump import DUMP_MANIFEST_FILENAME
@@ -207,6 +208,71 @@ def test_check_event_type_count_returns_violation_when_below_min():
         replicas, "add_participant_status_to_participant", 3
     )
     assert violations
+
+
+def _invite_replicas(count: int) -> dict[str, list[dict]]:
+    """A case-actor log holding *count* distinct ``invite_actor_to_case`` entries."""
+    entries: list[dict] = []
+    prev = GENESIS_HASH
+    for i in range(count):
+        h = _SHA256(f"invite:{i}")
+        entries.append(_entry(i, h, prev, event_type="invite_actor_to_case"))
+        prev = h
+    return {"case-actor": entries}
+
+
+def test_check_event_type_count_returns_violation_when_above_max() -> None:
+    """A count above ``max_count`` is reported as a violation naming both numbers."""
+    violations = check_event_type_count(
+        _invite_replicas(2), "invite_actor_to_case", 1, max_count=1
+    )
+    assert violations
+    assert "at most 1" in violations[0]
+    assert "found 2" in violations[0]
+
+
+@pytest.mark.parametrize("count", [1, 2])
+def test_check_event_type_count_passes_within_bounds(count: int) -> None:
+    violations = check_event_type_count(
+        _invite_replicas(count), "invite_actor_to_case", 1, max_count=2
+    )
+    assert violations == []
+
+
+@pytest.mark.parametrize(
+    ("count", "min_count", "max_count", "violates"),
+    [
+        pytest.param(1, 1, 1, False, id="exact-match"),
+        pytest.param(0, 1, 1, True, id="exact-below"),
+        pytest.param(0, 0, 0, False, id="absence-held"),
+        pytest.param(1, 0, 0, True, id="absence-broken"),
+    ],
+)
+def test_check_event_type_count_exact_bound(
+    count: int, min_count: int, max_count: int, violates: bool
+) -> None:
+    """``min_count == max_count`` pins an exact count, including zero."""
+    violations = check_event_type_count(
+        _invite_replicas(count),
+        "invite_actor_to_case",
+        min_count,
+        max_count=max_count,
+    )
+    assert bool(violations) is violates
+
+
+def test_check_event_type_count_has_no_upper_bound_by_default() -> None:
+    violations = check_event_type_count(
+        _invite_replicas(5), "invite_actor_to_case", 1
+    )
+    assert violations == []
+
+
+def test_check_event_type_count_rejects_max_below_min() -> None:
+    with pytest.raises(ValueError, match="max_count"):
+        check_event_type_count(
+            _invite_replicas(1), "invite_actor_to_case", 2, max_count=1
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1594,3 +1660,69 @@ class TestCheckClp14TimestampInvariants:
             {"case-actor": []}
         )
         assert not violations
+
+
+# ---------------------------------------------------------------------------
+# CLP-07-002: one entry per activity on every replica
+# ---------------------------------------------------------------------------
+
+_INVITE_ID = "https://example.org/activities/invite-1"
+
+
+def _invite_chain(*payload_ids: str) -> list[dict]:
+    entries: list[dict] = []
+    prev = GENESIS_HASH
+    for i, pid in enumerate(payload_ids):
+        h = _SHA256(f"invite:{i}")
+        entries.append(
+            _entry(
+                i,
+                h,
+                prev,
+                event_type="invite_actor_to_case",
+                payload={"id": pid, "type": "Invite"},
+            )
+        )
+        prev = h
+    return entries
+
+
+@pytest.mark.spec("CLP-07-002")
+def test_unique_payload_ids_flags_the_double_committed_invite():
+    """The retired self-cc: path committed one Invite twice on the manager."""
+    replicas = {
+        "case-actor": _invite_chain(_INVITE_ID, _INVITE_ID),
+        "vendor": _invite_chain(_INVITE_ID),
+    }
+    violations = check_unique_payload_snapshot_ids(replicas)
+    assert len(violations) == 1
+    assert "'case-actor'" in violations[0]
+    assert _INVITE_ID in violations[0]
+    assert "[0, 1]" in violations[0]
+
+
+@pytest.mark.spec("CLP-07-002")
+def test_unique_payload_ids_flags_a_duplicate_on_a_participant_replica():
+    replicas = {
+        "case-actor": _invite_chain(_INVITE_ID),
+        "vendor": _invite_chain(_INVITE_ID, _INVITE_ID),
+    }
+    violations = check_unique_payload_snapshot_ids(replicas)
+    assert len(violations) == 1
+    assert "'vendor'" in violations[0]
+
+
+@pytest.mark.spec("CLP-07-002")
+def test_unique_payload_ids_passes_one_entry_per_activity_per_replica():
+    """The same activity on two replicas is replication, not a duplicate."""
+    other = "https://example.org/activities/accept-1"
+    replicas = {
+        "case-actor": _invite_chain(_INVITE_ID, other),
+        "vendor": _invite_chain(_INVITE_ID, other),
+    }
+    assert check_unique_payload_snapshot_ids(replicas) == []
+
+
+def test_unique_payload_ids_ignores_snapshots_without_an_id():
+    replicas = {"case-actor": [_entry(0, _SHA256("a"), GENESIS_HASH)] * 2}
+    assert check_unique_payload_snapshot_ids(replicas) == []

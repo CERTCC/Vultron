@@ -17,7 +17,8 @@ Strict-``xfail`` tests for the case-joining requirements planned under #4006
 
 - CM-11-006 — the stub Invite creates the invitee's inert participant.
 - CM-11-005 — a joined participant never answers the original report Offer.
-- PRM-06-006 — an on-behalf status assertion never creates a participant.
+- PRM-06-006 — an on-behalf status assertion never creates a participant
+  (passing since #4047).
 - CM-11-014 — a stub Invite carries a deadline; an unanswered invitee does
   not hold up case closure, but a joined one still at RECEIVED does.
 - CM-11-015 — a re-invite reuses the record; a re-invite to ``CLOSED`` is
@@ -51,15 +52,18 @@ from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.adapters.outbox_sealed_body import read_sealed_body
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
+from vultron.core.models.events.actor import OfferActorToCaseReceivedEvent
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.participant_status import (
     ParticipantStatus,
@@ -73,6 +77,9 @@ from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM
+from vultron.core.use_cases.received.actor.suggest import (
+    OfferActorToCaseReceivedUseCase,
+)
 from vultron.core.use_cases.triggers.actor import SvcInviteActorToCaseUseCase
 from vultron.core.use_cases.triggers.case import (
     AddOnBehalfStatusTriggerRequest,
@@ -87,7 +94,9 @@ from vultron.core.use_cases.triggers.requests import (
 )
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronError
+from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import rm_submit_report_activity
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Invite,
@@ -137,22 +146,76 @@ def _participant_of(
     return participant
 
 
+def _hold_case_owner(dl: SqliteDataLayer, case_id: str, actor_id: str) -> None:
+    """Give *actor_id*'s participant record ``CVDRole.CASE_OWNER``.
+
+    The invite trigger is the Case Owner's action, and the CASE_MANAGER emits
+    the Invite directly only for an Offer whose sender holds CASE_OWNER on the
+    roster (CM-17-007).  The store-owner seeds here name the CASE_MANAGER;
+    this adds the ownership the trigger presumes.
+    """
+    case = dl.read_case(case_id)
+    assert case is not None
+    participant_id = case.actor_participant_index.get(actor_id)
+    assert participant_id is not None, f"{actor_id} is not on the roster"
+    participant = dl.read(participant_id)
+    assert isinstance(participant, CaseParticipant)
+    if CVDRole.CASE_OWNER not in participant.case_roles:
+        participant.add_role(CVDRole.CASE_OWNER)
+        dl.save(participant)
+
+
 def _send_stub_invite(
     dl: SqliteDataLayer, actor_id: str, case_id: str, invitee_id: str
 ) -> dict[str, Any]:
-    """Run the invite trigger as *actor_id*; return the emitted Invite."""
-    result = SvcInviteActorToCaseUseCase(
+    """Invite *invitee_id* as the owner *actor_id*; return the Invite emitted.
+
+    The owner's trigger sends its own ``Offer(Actor, Case)`` to the
+    CASE_MANAGER; the CASE_MANAGER emits the Invite (CM-17-007, ADR-0109).
+    *actor_id* is both here — the store's owner holds CASE_MANAGER — so the
+    Offer is delivered to the same store, as ADR-0109 lets an owner that is
+    also the CASE_MANAGER address it to itself.
+    """
+    _hold_case_owner(dl, case_id, actor_id)
+    offer = activity_of(
+        SvcInviteActorToCaseUseCase(
+            dl,
+            InviteActorToCaseTriggerRequest(
+                actor_id=actor_id,
+                case_id=case_id,
+                invitee_id=invitee_id,
+                roles=[CVDRole.VENDOR],
+            ),
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+    )
+    already_queued = set(dl.outbox_list())
+    stored_offer = dl.read(offer["id"])
+    assert isinstance(stored_offer, as_Activity)
+    event = extract_event(stored_offer).model_copy(
+        update={"receiving_actor_id": actor_id}
+    )
+    assert isinstance(event, OfferActorToCaseReceivedEvent)
+    result = OfferActorToCaseReceivedUseCase(
         dl,
-        InviteActorToCaseTriggerRequest(
-            actor_id=actor_id,
-            case_id=case_id,
-            invitee_id=invitee_id,
-            roles=[CVDRole.VENDOR],
-        ),
+        event,
         trigger_activity=TriggerActivityAdapter(dl),
+        sync_port=SyncActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
     ).execute()
-    return activity_of(result)
+    assert result.disposition is HandlerDisposition.APPLIED, result
+    for item in dl.outbox_list():
+        if item in already_queued:
+            continue
+        sealed = read_sealed_body(dl, item)
+        if sealed is None:
+            continue
+        body: dict[str, Any] = json.loads(sealed.body)
+        if body["type"] == "Invite":
+            return body
+    raise AssertionError("the CASE_MANAGER emitted no Invite")
 
 
 def _vendor_participant(
@@ -324,6 +387,7 @@ def test_joined_participant_never_answers_the_original_report_offer(
                 actor_id=joiner.id_, offer_id=offer.id_
             ),
             trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
     except VultronError:
         # Refusing the trigger outright also satisfies CM-11-005.  The setup
@@ -342,13 +406,6 @@ def test_joined_participant_never_answers_the_original_report_offer(
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "PRM-06-006: an on-behalf assertion for a non-participant is"
-        " refused and creates no participant. Tracked by #4047."
-    ),
-)
 @pytest.mark.spec("PRM-06-006")
 @pytest.mark.parametrize(
     "dimension",
@@ -362,9 +419,9 @@ def test_on_behalf_assertion_for_absent_target_is_refused(
 
     The Case Manager asserts ``v→V`` or ``d→D`` on behalf of an actor that is
     not a participant.  The trigger must refuse before any write and leave
-    the roster exactly as it was.  Today it mints a participant for the
-    absent target (and, for ``d→D``, leaves it behind when the RM↔D
-    entailment then refuses the status write).
+    the roster exactly as it was.  It used to mint a participant for the
+    absent target (and, for ``d→D``, leave it behind when the RM↔D
+    entailment then refused the status write).
     """
     manager, dl = actor_store("CaseManager")
     outsider, _ = actor_store("Outsider")
@@ -384,6 +441,7 @@ def test_on_behalf_assertion_for_absent_target_is_refused(
                 **dimension,
             ),
             trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
     after = dl.read_case(case.id_)
@@ -456,7 +514,10 @@ def test_reinvite_reuses_the_invitee_record_with_a_new_deadline(
 ) -> None:
     """Re-inviting an unanswered invitee adds no second record.
 
-    Today the re-invite goes out without a deadline.
+    Today no re-invite goes out at all: the CASE_MANAGER's recommend-actor
+    tree finds the invitee already on the roster and answers the owner's
+    Offer from its already-participant branch, ahead of the owner-direct
+    branch that emits the Invite (#3821).
     """
     manager, dl = actor_store("CaseManager")
     invitee, _ = actor_store("Vendor")
@@ -486,7 +547,9 @@ def test_reinvite_reuses_the_invitee_record_with_a_new_deadline(
 def test_reinvite_to_closed_participant_is_refused(actor_store) -> None:
     """``CLOSED`` is terminal with no rejoin; the trigger refuses the Invite.
 
-    Today the Invite is sent and queued.
+    Today the trigger accepts the request and queues the owner's Offer; the
+    CASE_MANAGER then answers it from its already-participant branch and
+    sends no Invite (#3821), so nothing refuses it.
     """
     manager, dl = actor_store("CaseManager")
     invitee, _ = actor_store("Vendor")
@@ -540,6 +603,7 @@ def test_embargo_change_reissues_outstanding_stub_invite(actor_store) -> None:
         dl,
         TerminateEmbargoTriggerRequest(actor_id=owner.id_, case_id=case.id_),
         trigger_activity=TriggerActivityAdapter(dl),
+        sync_port=SyncActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
     ).execute()
 
@@ -672,6 +736,7 @@ def test_reject_of_superseded_stub_invite_is_honoured(actor_store) -> None:
         dl,
         TerminateEmbargoTriggerRequest(actor_id=owner.id_, case_id=case.id_),
         trigger_activity=TriggerActivityAdapter(dl),
+        sync_port=SyncActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
     ).execute()
     assert [

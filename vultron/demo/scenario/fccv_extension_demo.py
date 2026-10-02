@@ -308,7 +308,7 @@ def _phase_report_submission(
         # needs, so a failed trigger or lookup skips its dependents instead of
         # handing them ``None`` (ADR-0058 nested-block model, EDF-06-005, #3038).
         with demo_step("C1 invites C2 with CVDRole.COORDINATOR"):
-            invite = (
+            invite_offer = (
                 ActorSession(client=c1_client, actor=c1_in_c1)
                 .with_case(case)
                 .quiet()
@@ -316,7 +316,9 @@ def _phase_report_submission(
                     invitee_id=c2.id_, roles=[CVDRole.COORDINATOR]
                 )
             ).activity
-            logger.info("C2 invite created: %s", invite.id_)
+            logger.info(
+                "Asked the CASE_MANAGER to invite C2: %s", invite_offer.id_
+            )
 
             # Wait for the CaseActor-routed Invite to appear in C2's DataLayer.
             with demo_gate(
@@ -457,7 +459,7 @@ def _phase_c2_suggests_vendor(
             )
     logger.info("C1 sent Accept(Offer(CaseParticipant)) to CaseActor")
 
-    # CaseActor receives Accept → emits Invite(Actor, Case) to Vendor.  Poll
+    # CaseActor receives Accept → emits Invite(Actor, CaseStub) to Vendor.  Poll
     # Vendor's DataLayer for the arriving Invite, then puppeteer Vendor's accept.
     # The invite is the causal precondition for the accept, so this is a
     # demo_gate with the accept nested inside it — a timeout skips the accept

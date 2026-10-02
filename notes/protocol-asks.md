@@ -12,6 +12,7 @@ related_specs:
   - specs/received-status-handling.yaml
   - specs/embargo-policy.yaml
   - specs/case-management.yaml
+  - specs/sync-ledger-replication.yaml
 related_notes:
   - notes/bt-integration.md
   - notes/bt-pitfalls.md
@@ -217,11 +218,20 @@ not survive N simultaneous Invites of one event type — the ask-kind registry
 
 **The pending-assertion store has a second client.** Embargo triggers that do
 not hold the CASE_MANAGER role emit their proposal, answer or termination to
-the manager and record it in the pending-assertion store, exactly as the note
-trigger does; they write no EM state (EP-09-008). The store stays what it is —
-a duplicate suppressor that never holds case state (CLP-06-002) — and the
-manager's `Reject` of a refused proposal closes the entry like an announced
-commit does.
+the manager and record it in the pending-assertion store; they write no EM
+state (EP-09-008). Both clients record through one helper,
+`record_pending_assertion()` in `vultron/core/models/pending_assertion.py`
+(SYNC-11-002, ASK-04-008). An embargo repeat carries a fresh activity id, so
+its entry also carries a `subject_id` — the terms a proposal offers, the
+proposal an answer names, the embargo a teardown ends — and
+`SvcEmbargoTriggerBase._suppressed_duplicate()` checks
+`pending_for_subject()` before the tree runs: a repeat inside the window is
+reported with no activity and queues nothing. The store stays what it is — a
+duplicate suppressor that never holds case state (CLP-06-002). An announced
+commit clears the entry (SYNC-11-003); a refused proposal is never committed,
+so the received CASE_MANAGER's `Reject` of it closes the entry instead
+(`close_refused_embargo_proposal`, `received/_pending_refusal.py`), and a
+`Reject` from anyone else closes nothing.
 
 **Asks are visible to the whole case.** An ask is an ordinary recorded entry and
 replicates normally (ASK-06-001), so a stalled decision is visible to

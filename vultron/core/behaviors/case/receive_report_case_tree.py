@@ -16,9 +16,10 @@
 """
 Receive-report case-proposal behavior tree composition (ADR-0041).
 
-This module composes the vendor-side workflow that runs when a vendor receives
-a vulnerability report (RM.RECEIVED).  Per ADR-0041 the vendor MUST NOT create
-a ``VulnerabilityCase`` locally; instead it:
+This module composes the receiver-side workflow that runs when an actor
+receives a vulnerability report (RM.RECEIVED) and so becomes the case's
+prospective CASE_OWNER — a Vendor or a Coordinator alike.  Per ADR-0041 the
+receiver MUST NOT create a ``VulnerabilityCase`` locally; instead it:
 
 1. Writes a pending ``VultronReportCaseLink`` marker recording the expected
    CaseActor that will send ``Create(VulnerabilityCase)`` in response.
@@ -66,9 +67,9 @@ def create_receive_report_case_tree(
     actor_config: ActorConfig | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """
-    Create the vendor-side behavior tree for report receipt (ADR-0041).
+    Create the receiver-side behavior tree for report receipt (ADR-0041).
 
-    Per ADR-0041, the vendor no longer creates a ``VulnerabilityCase`` at
+    Per ADR-0041, the report receiver no longer creates a ``VulnerabilityCase`` at
     report receipt.  This tree writes a pending ``VultronReportCaseLink``
     and sends ``Create(as_CaseProposal)`` to the CaseActor service.  The
     ``VulnerabilityCase`` replica is seeded when ``Create(VulnerabilityCase)``

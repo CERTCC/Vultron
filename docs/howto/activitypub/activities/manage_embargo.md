@@ -103,6 +103,12 @@ Embargo Termination (ET) is implemented in ActivityStreams as `Remove(Event)`.
 Send `Remove(Event)`, then `Announce(Event)` so participants see that the embargo is gone.
 The case moves to `EM.EXITED`, with immediate effect.
 
+Only the CASE_MANAGER changes the case's EM state (EP-09-008).
+If you are the CASE_MANAGER, address `Remove(Event)` to every other participant and never to yourself (EMB-19-001).
+If you are not the CASE_MANAGER, address `Remove(Event)` to the CASE_MANAGER.
+The CASE_MANAGER commits the termination to the case ledger and fans the entry out to every participant.
+Your own copy of the case moves to `EM.EXITED` when the CASE_MANAGER's ledger entry for the termination reaches you, not when you send.
+
 !!! warning "Termination is not a revision"
 
     `Remove(Event)` ends the embargo now, rather than proposing a shorter one.
@@ -120,7 +126,7 @@ See [Early Termination](../../../topics/process_models/em/early_termination.md).
 | `Invite(Event)` on an active embargo | The case `em_state` is `REVISE`. |
 | `Add(Event)` after a revision | The case `em_state` is `ACTIVE` and the active embargo carries the new terms. |
 | `Reject(Invite(Event))` on a revision | The case `em_state` is `ACTIVE` and the terms are unchanged. |
-| `Remove(Event)` | The case `em_state` is `EXITED` and no embargo is active. |
+| `Remove(Event)` | Once the CASE_MANAGER's ledger entry arrives, the case `em_state` is `EXITED` and no embargo is active. |
 
 ---
 
@@ -146,5 +152,5 @@ See [Early Termination](../../../topics/process_models/em/early_termination.md).
 
 - [Embargo Management (EM) Messages](../../../reference/messages/em.md) — the wire format and a rendered example for each activity above, and the state-context rule that distinguishes a revision from a proposal
 - [Embargo Management](../../../topics/process_models/em/index.md) — the state machine these activities drive
-- [Participant Embargo Consent](../../../topics/behavior_logic/use-cases/embargo-lifecycle.md#which-messages-move-consent) ([§9 of the specification](../../../reference/vultron-spec/index.md#9-participant-embargo-consent-pec-state-machine-n)) — how each participant's own commitment is tracked alongside the case EM state
+- [Participant Embargo Consent](../../../topics/behavior_logic/use-cases/embargo-lifecycle.md#which-messages-move-consent) ([§9 Participant Embargo Consent (PEC) State Machine in the specification](../../../reference/vultron-spec/tracking-models.md#9-participant-embargo-consent-pec-state-machine-n)) — how each participant's own commitment is tracked alongside the case EM state
 - [Trigger API Reference](../../../reference/trigger-api.md#embargo-management) — request schema and endpoint details for `propose-embargo-revision` and `terminate-embargo`

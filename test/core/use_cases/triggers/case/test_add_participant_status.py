@@ -84,7 +84,7 @@ class _FakeDL:
 
 def _as_persistence(dl: "_FakeDL"):
     """Cast the stub to CaseOutboxPersistence so pyright is satisfied."""
-    from vultron.core.ports.case_persistence import CaseOutboxPersistence
+    from vultron.core.ports.case_outbox import CaseOutboxPersistence
 
     return cast(CaseOutboxPersistence, dl)
 
@@ -1215,7 +1215,11 @@ class TestCreateParticipantStatusNode:
         )
 
     def test_force_rm_state_permits_the_closure_stamp(self):
-        """The exempted write itself succeeds — today's closure behaviour."""
+        """The exempted write itself succeeds.
+
+        Closure no longer uses the override (RMB-14-005); the bootstrap writes
+        still do, so the exemption's own behaviour stays pinned.
+        """
         from vultron.core.behaviors.case.nodes.participant import (
             CreateParticipantStatusNode,
         )

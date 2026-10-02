@@ -74,15 +74,14 @@ def test_seal_stores_the_exact_factory_dump(dl):
 def test_sealed_body_keeps_the_case_stub_inline(dl):
     """What is sealed is what the factory built: the Invite's case stub.
 
-    The activity *record* cannot say this — persistence dehydrates ``target``
-    to an id and read-back rehydrates it into the full stored case — which is
-    why delivery reads the sealed body and not the record (#2655).
+    Delivery reads the sealed body and not the activity record (#2655), so
+    the stub reaches the wire exactly as the factory built it.
     """
     invite = _invite()
     body = json.loads(seal_outbound_body(dl, invite))
     assert isinstance(body["target"], dict)
-    assert body["target"]["type"] == "VulnerabilityCase"
-    assert body["context"] == body["target"]["id"]
+    assert body["target"]["type"] == "VulnerabilityCaseStub"
+    assert body["context"] == body["target"]["caseId"]
 
 
 def test_seal_is_write_once_per_activity_id(dl):

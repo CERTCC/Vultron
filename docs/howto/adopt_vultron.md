@@ -32,7 +32,7 @@ You finish with a role profile, a conformance claim for the system you will run,
 ## Step 1: Name the roles you hold
 
 List the cases your program handled in the last year and note the role you held in each.
-Vultron uses the roles the CVD process already uses: Reporter, Vendor, Coordinator, Deployer, CVE Numbering Authority (CNA), and Observer ([§2.2 of the Vultron Protocol Specification](../reference/vultron-spec/index.md#22-roles)).
+Vultron uses the roles the CVD process already uses: Reporter, Vendor, Coordinator, Deployer, CVE Numbering Authority (CNA), and Observer ([§2.2 Roles in the Vultron Protocol Specification](../reference/vultron-spec/introduction.md#22-roles)).
 
 Record every role that appears.
 A vendor's product security team is usually a Vendor, sometimes a Reporter, and occasionally a Coordinator for a downstream case.
@@ -40,7 +40,7 @@ A national Computer Security Incident Response Team (CSIRT) is usually a Coordin
 A research team is a Reporter.
 
 If you hold several roles in one case, list them all.
-Roles are not exclusive, and your system will hold all of them at once ([§3.5](../reference/vultron-spec/index.md#35-participants-and-roles)).
+Roles are not exclusive, and your system will hold all of them at once ([§3.5 Participants and Roles](../reference/vultron-spec/introduction.md#35-participants-and-roles)).
 
 You now have a **role profile**: the set of roles your program must be able to play.
 
@@ -49,11 +49,11 @@ You now have a **role profile**: the set of roles your program must be able to p
 Answer two questions about the cases in your list.
 
 1. Did you open the case, or make the disclosure decisions in it?
-   If so, you were the [**Case Owner**](../reference/vultron-spec/index.md#22-roles) in that case.
+   If so, you were the [**Case Owner**](../reference/vultron-spec/introduction.md#22-roles) in that case.
 2. Did you run the case on behalf of others, keeping its record and admitting participants?
    If so, you were acting as its [**Case Manager**](../topics/case_lifecycle/case_manager_and_ledger.md).
 
-The answers pick the **capability sets** the system you run must provide ([§12.2](../reference/vultron-spec/index.md#122-capability-sets)).
+The answers pick the **capability sets** the system you run must provide ([§12.2 Capability Sets](../reference/vultron-spec/conformance.md#122-capability-sets)).
 
 | Your answer | Capability sets you need |
 |---|---|
@@ -62,7 +62,7 @@ The answers pick the **capability sets** the system you run must provide ([§12.
 | You also run cases for others | Case Observer + Case Decision + Case Hosting |
 
 Every participant needs Case Observer; there is no smaller way to take part.
-Write the result together with your role profile as a **conformance claim**, in the form the specification uses ([§12.1](../reference/vultron-spec/index.md#121-conformance-model-overview)).
+Write the result together with your role profile as a **conformance claim**, in the form the specification uses ([§12.1 Conformance Model Overview](../reference/vultron-spec/conformance.md#121-conformance-model-overview)).
 `Case Observer / Vendor` says a vendor's system takes part in cases run by others.
 `Case Observer + Case Decision + Case Hosting / Coordinator + CNA` says a coordinator's system opens cases, decides for them, runs them, and assigns CVE IDs.
 
@@ -110,7 +110,7 @@ A Reporter who submits with no terms has accepted the recipient's published defa
 Decide the following before your first invitation arrives, and write the answers next to your policy.
 
 - Who in your organization answers an embargo invitation, and within how many days.
-  An invitation that is not answered by its deadline counts as declined ([§9.4](../reference/vultron-spec/index.md#94-deadlines-and-the-pocket-veto)), and a declined participant is in the case without receiving its embargoed content.
+  An invitation that is not answered by its deadline counts as declined, a rule called the [Pocket Veto](../topics/behavior_logic/use-cases/embargo-lifecycle.md) ([§9.4 Deadlines and the Pocket Veto](../reference/vultron-spec/tracking-models.md#94-deadlines-and-the-pocket-veto)), and a declined participant is in the case without receiving its embargoed content.
 - Whom you will propose adding to an embargoed case, and whom you will not.
   [Adding Participants to an Embargoed Case](../topics/process_models/em/working_with_others.md) gives the protocol's guidance on who belongs and when to bring them in.
 - What you do when an embargo ends early.
@@ -170,4 +170,4 @@ Vultron is a protocol, not a product, so the last step is to obtain software tha
 - [Embargo Principles](../topics/process_models/em/principles.md) — the norms your embargo rules should follow
 - [ISO Crosswalk](../reference/iso_crosswalks/index.md) — where each step lands in ISO/IEC 29147, 30111, and TR 5895
 - [Interactions Between the Vultron Protocol and SSVC](../reference/ssvc_crosswalk.md) — where a prioritization decision enters a case
-- [Vultron Protocol Specification, §12 Conformance](../reference/vultron-spec/index.md#12-conformance-n) — the normative definition of capability sets and conformance claims
+- [Vultron Protocol Specification, §12 Conformance](../reference/vultron-spec/conformance.md#12-conformance-n) — the normative definition of capability sets and conformance claims

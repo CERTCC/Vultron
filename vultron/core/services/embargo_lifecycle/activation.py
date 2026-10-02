@@ -14,8 +14,9 @@
 """Active-embargo EM operations: activate and terminate.
 
 Both operate on ``case.active_embargo`` directly rather than answering an
-invite — activation is the owner's atomic accept at case creation
-(EP-04-002) or a replica's sync of an announced activation, termination is
+invite — activation is a replica's sync of an announced activation (the
+creation-time accept is ``initialize_creation_embargo`` in ``creation.py``,
+one write per EP-04-002), termination is
 the ``ET`` teardown that also resets every participant's consent and decides
 every open proposal (EP-08-004).
 """
@@ -163,9 +164,12 @@ class _ActivationOperationsMixin(_PecEffectsMixin):
             :class:`EmbargoLifecycleResult` describing what changed.
 
         Raises:
-            VultronNotFoundError: If *case_id* does not resolve to a case, or
-                the embargo being replaced cannot be read for the EP-05-001
-                comparison.
+            VultronNotFoundError: If *case_id* does not resolve to a case,
+                or the embargo being activated or the one it replaces cannot
+                be read (EMB-18-003, EP-05-001) — in either mode, before any
+                write.
+            VultronValidationError: If either embargo record is not an
+                ``EmbargoEvent``.
             VultronInvalidStateTransitionError: In ``STRICT`` mode, if the EM
                 state does not allow an ACCEPT trigger (valid sources: PROPOSED,
                 REVISE).
@@ -174,15 +178,11 @@ class _ActivationOperationsMixin(_PecEffectsMixin):
 
         em_before = case.current_status.em.state
         previous_embargo_id = case.active_embargo_id
-        # Decide the EP-05-001 arm before anything is written (fail closed).
-        ends_no_later = (
-            self._revision_ends_no_later(
-                previous_embargo_id=previous_embargo_id,
-                revised_embargo_id=embargo_id,
-            )
-            if previous_embargo_id is not None
-            and previous_embargo_id != embargo_id
-            else None
+        # Read the activated (and any replaced) embargo and decide the
+        # EP-05-001 arm before anything is written (fail closed, EMB-18-003).
+        ends_no_later = self._activation_arm(
+            previous_embargo_id=previous_embargo_id,
+            activated_embargo_id=embargo_id,
         )
 
         em_after = self._drive_em_transition(
@@ -194,12 +194,7 @@ class _ActivationOperationsMixin(_PecEffectsMixin):
             actor_id=actor_id,
         )
 
-        case.current_status.em = EmDimension(state=em_after)
-
-        case.set_embargo(embargo_id)
-        # Activation decides the proposal that carried it (EP-08-003).
-        case.discard_proposed_embargo(embargo_id)
-        self._persistence.save(case)
+        self._save_activation(case, em_after=em_after, embargo_id=embargo_id)
 
         # The embargo in force changed: the same consent effect as the owner
         # path of accept_embargo_invite (EP-05-001; on a replacement the
@@ -218,11 +213,8 @@ class _ActivationOperationsMixin(_PecEffectsMixin):
             em_after,
         )
 
-        return EmbargoLifecycleResult(
+        return self._activation_result(
             em_before=em_before,
             em_after=em_after,
-            case_changed=True,
-            case_embargo_changed=True,
-            pec_reset=False,
             participant_changes=participant_changes,
         )

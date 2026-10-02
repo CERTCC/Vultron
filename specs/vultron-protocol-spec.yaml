@@ -1433,7 +1433,7 @@ groups:
     priority: SHOULD_NOT
     kind: protocol
     statement: >-
-      Participants SHOULD NOT close reports ($q^{rm} \in \{I,D,A\} \xrightarrow{c} C$) while
+      Participants SHOULD NOT close reports ($q^{rm} \in \{R,I,D,A\} \xrightarrow{c} C$) while
       an embargo is active ($q^{em} \in \{A, R\}$)
   - id: VP-13-006
     priority: SHOULD

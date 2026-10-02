@@ -48,7 +48,7 @@ OFFER_CASE_PARTICIPANT_REPLY_TYPES: frozenset[str] = frozenset(
     }
 )
 
-#: Reply event types that close an ``Invite(Actor, Case)`` protocol pair.
+#: Reply event types that close an ``Invite(Actor, CaseStub)`` protocol pair.
 INVITE_ACTOR_TO_CASE_REPLY_TYPES: frozenset[str] = frozenset(
     {
         "accept_invite_actor_to_case",

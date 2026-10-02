@@ -27,14 +27,19 @@ import logging
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
+from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.participant.common import (
     _create_and_attach_participant,
 )
+from vultron.core.behaviors.case.nodes.participant.status import (
+    CreateParticipantStatusNode,
+)
+from vultron.core.behaviors.case.report_author import report_author_id
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.report import VulnerabilityReport
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
+from vultron.errors import BtNodePreconditionError, VultronNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +55,7 @@ class AddReporterParticipantNode(DataLayerActionWithPorts):
     SUCCESS) so the overall flow is not blocked by a missing reporter.
 
     **Why degrading is right here, and where it went wrong.** The case is valid
-    without this participant: a proposal names the vendor and the case actor
+    without this participant: a proposal names the report receiver and the case actor
     directly, and refusing the whole case because one *derived* participant could
     not be built would lose more than it protects. So SUCCESS is correct.
 
@@ -72,9 +77,6 @@ class AddReporterParticipantNode(DataLayerActionWithPorts):
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._report_id = report_id
-        from vultron.core.behaviors.case.nodes.participant.status import (
-            CreateParticipantStatusNode,
-        )
 
         self._reporter_status_node = CreateParticipantStatusNode(
             actor_id="",
@@ -104,8 +106,9 @@ class AddReporterParticipantNode(DataLayerActionWithPorts):
 
     def _resolve_reporter_uri(self, report_id: str) -> str | None:
         assert self.datalayer is not None
-        raw_report = self.datalayer.read(report_id)
-        if not isinstance(raw_report, VulnerabilityReport):
+        try:
+            return report_author_id(self.datalayer, report_id)
+        except VultronNotFoundError:
             logger.warning(
                 "%s: report '%s' not found, so the reporter cannot be"
                 " identified — skipping reporter participant (best-effort)."
@@ -115,17 +118,14 @@ class AddReporterParticipantNode(DataLayerActionWithPorts):
                 self.name,
                 report_id,
             )
-            return None
-        reporter_uri = getattr(raw_report, "attributed_to", None)
-        if not isinstance(reporter_uri, str) or not reporter_uri:
+        except BtNodePreconditionError:
             logger.warning(
                 "%s: report '%s' has no attributed_to — skipping reporter"
                 " participant (best-effort)",
                 self.name,
                 report_id,
             )
-            return None
-        return reporter_uri
+        return None
 
     def _already_has_participant(self, case_id: str, actor_uri: str) -> bool:
         assert self.datalayer is not None
@@ -192,8 +192,6 @@ class AddReporterParticipantNode(DataLayerActionWithPorts):
             return Status.FAILURE
 
         self.datalayer.save(updated_case)
-
-        from vultron.core.behaviors.bridge import BTBridge
 
         # Pre-set the actor_id so execute_with_setup can use actor_id=self.actor_id
         # (the CaseActor's store) without polluting the outer BT's blackboard.

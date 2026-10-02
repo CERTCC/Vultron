@@ -27,126 +27,22 @@ from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
 )
-from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
-from vultron.errors import VultronNotFoundError, VultronValidationError
+from vultron.core.states.em import EM
+from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.use_cases._helpers import (
+    _idempotent_create,
+)
+from vultron.errors import (
+    VultronNotAnEmbargoError,
+    VultronNotFoundError,
+    VultronValidationError,
+)
 
 #: Opens the feedback of a :class:`RecordParticipantRejectionNode` FAILURE
 #: that is a repeat of a Reject already recorded.  The received reject use
 #: case reads it to report ``SKIPPED`` rather than ``REFUSED`` (HP-01-003) —
 #: the node's own verdict, not the store's state, names the repeat.
 ALREADY_DECLINED_PREFIX = "Already declined"
-
-#: Opens the feedback of a :class:`RecordParticipantAcceptanceNode` FAILURE
-#: caused by the embargo the accepted one *replaces* not being replicated
-#: here, so the EP-05-001 comparison could not run.  The received accept use
-#: case reads it to report ``DEFERRED`` — the item is parked for replay, not
-#: refused (HP-01-003).
-REPLACED_EMBARGO_UNREPLICATED_PREFIX = "Replaced embargo not replicated here"
-
-
-class UpdateParticipantEmbargoPecNode(DataLayerActionWithPorts):
-    """Apply a PEC trigger to participant.embargo_consent_state.
-
-    Reads participant from blackboard 'participant' key. If participant not found,
-    returns SUCCESS without updating (idempotent). This supports the lenient
-    OptionalLookupParticipantNode pattern: when participant doesn't exist on this
-    peer, skip the PEC update but continue to cascade log entry to all peers.
-
-    Returns SUCCESS when the participant is absent or the DataLayer is
-    unavailable. Raises ``VultronInvalidStateTransitionError`` (via
-    ``apply_pec_transition``) if the trigger is illegal for the current
-    PEC state — callers should ensure the trigger is valid for the
-    participant's current consent state before invoking this node, or pass
-    ``where_legal=True`` to make an illegal trigger a recorded no-op instead:
-    an embargo Invite moves a participant to ``INVITED`` only from ``UNBOUND``,
-    ``LAPSED`` or ``DECLINED`` (CM-18-003), and a ``SIGNATORY`` asked about a
-    revision keeps its state (EP-09-004).
-
-    ``result_out``, when given, receives ``pec_before``, ``pec_after`` and
-    ``pec_changed`` so the handler can tell a repeat (nothing moved) from a
-    fresh application without re-reading the store (HP-01-003, #2255).
-    """
-
-    def __init__(
-        self,
-        pec_trigger: PEC_Trigger,
-        name: str | None = None,
-        *,
-        where_legal: bool = False,
-        result_out: dict[str, object] | None = None,
-    ):
-        super().__init__(name=name or self.__class__.__name__)
-        self.pec_trigger = pec_trigger
-        self._where_legal = where_legal
-        self._result_out = result_out
-
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **DataLayerActionWithPorts.INPUT_PORTS,
-        "participant": PortInformation(data_type=object, required=False),
-    }
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"participant": "/participant"}
-
-    def initialise(self) -> None:
-        super().initialise()
-        self._participant = None
-        try:
-            self._participant = self.get_input("participant")
-        except (NoDataAvailable, NotImplementedError):
-            self._participant = None
-
-    def update(self) -> Status:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            return Status.SUCCESS
-
-        participant = self._participant
-        if participant is None:
-            self.logger.warning(
-                "%s: participant not found in blackboard", self.name
-            )
-            return Status.SUCCESS
-
-        if not isinstance(participant, CaseParticipant):
-            self.logger.warning(
-                "%s: invalid participant on blackboard", self.name
-            )
-            return Status.SUCCESS
-
-        pec_before = participant.embargo_consent_state
-        if self._where_legal:
-            applied = participant.apply_pec_transition_if_legal(
-                self.pec_trigger
-            )
-        else:
-            participant.apply_pec_transition(self.pec_trigger)
-            applied = True
-        self._record(pec_before, participant.embargo_consent_state)
-        if not applied:
-            self.feedback_message = (
-                f"Participant '{participant.id_}' is {pec_before.name};"
-                f" {self.pec_trigger.name} does not apply from there"
-                " (CM-18-003) — consent state unchanged"
-            )
-            self.logger.info("%s: %s", self.name, self.feedback_message)
-            return Status.SUCCESS
-        self.datalayer.save(participant)
-
-        self.feedback_message = (
-            f"Updated participant '{participant.id_}' embargo consent"
-            f" state via {self.pec_trigger.name} trigger"
-        )
-        self.logger.info("%s: %s", self.name, self.feedback_message)
-        return Status.SUCCESS
-
-    def _record(self, pec_before: PEC, pec_after: PEC) -> None:
-        if self._result_out is None:
-            return
-        self._result_out["pec_before"] = pec_before
-        self._result_out["pec_after"] = pec_after
-        self._result_out["pec_changed"] = pec_before != pec_after
 
 
 class CreateAndStoreInviteNode(DataLayerActionWithPorts):
@@ -191,10 +87,6 @@ class CreateAndStoreInviteNode(DataLayerActionWithPorts):
             )
             return Status.SUCCESS
 
-        from vultron.core.use_cases._helpers import (
-            _idempotent_create,
-        )
-
         activity_type = getattr(request, "activity_type", None)
         activity_id = getattr(request, "activity_id", None)
         activity = getattr(request, "activity", None)
@@ -218,6 +110,26 @@ class CreateAndStoreInviteNode(DataLayerActionWithPorts):
         self.feedback_message = f"Stored invite activity '{activity_id}'"
         self.logger.info("%s: %s", self.name, self.feedback_message)
         return Status.SUCCESS
+
+
+def _unreadable_embargo_id(
+    exc: VultronNotFoundError | VultronValidationError,
+) -> str | None:
+    """The embargo id a fail-closed embargo read named, if *exc* is one.
+
+    :func:`~vultron.core.services.embargo_ordering.read_embargo_event` raises
+    :exc:`VultronNotFoundError` for a missing ``EmbargoEvent`` and
+    :exc:`VultronNotAnEmbargoError` for a record of another type; any other
+    error did not come from an embargo read.
+    """
+    if (
+        isinstance(exc, VultronNotFoundError)
+        and exc.resource_type == "EmbargoEvent"
+    ):
+        return exc.resource_id
+    if isinstance(exc, VultronNotAnEmbargoError):
+        return exc.embargo_id
+    return None
 
 
 class RecordParticipantAcceptanceNode(DataLayerActionWithPorts):
@@ -246,8 +158,6 @@ class RecordParticipantAcceptanceNode(DataLayerActionWithPorts):
         self.accepting_actor_id = accepting_actor_id
 
     def update(self) -> Status:
-        from vultron.core.states.em import EM
-
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
@@ -272,22 +182,25 @@ class RecordParticipantAcceptanceNode(DataLayerActionWithPorts):
                 actor_id=actor_id,
                 transition_mode=TransitionMode.OBSERVED,
             )
-        except VultronNotFoundError as exc:
-            if exc.resource_id != self.embargo_id:
-                # A partial replica may lack the embargo the accepted one
-                # replaces; the EP-05-001 comparison fails closed on it, and
-                # the handler parks the Accept for replay rather than
-                # refusing it.  Replay once the record arrives: #4004.
+        except (VultronNotFoundError, VultronValidationError) as exc:
+            unreadable_id = _unreadable_embargo_id(exc)
+            if unreadable_id is not None and unreadable_id != self.embargo_id:
+                # The case names an active embargo its own store cannot read
+                # (missing, or not an EmbargoEvent): no path may write that
+                # state (EMB-18-003), so this is a broken invariant, refused —
+                # never parked for a replay that nothing would drive.
                 self.feedback_message = (
-                    f"{REPLACED_EMBARGO_UNREPLICATED_PREFIX}: {exc}"
+                    f"Invariant violation (EMB-18-003): case '{self.case_id}'"
+                    f" names active embargo '{unreadable_id}', which this"
+                    " store cannot read; refusing the acceptance of embargo"
+                    f" '{self.embargo_id}'"
+                )
+                self.logger.exception(
+                    "%s: %s", self.name, self.feedback_message
                 )
             else:
                 self.feedback_message = str(exc)
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-        except VultronValidationError as exc:
-            self.feedback_message = str(exc)
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
+                self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
         if result.em_after == EM.ACTIVE and result.em_before not in (

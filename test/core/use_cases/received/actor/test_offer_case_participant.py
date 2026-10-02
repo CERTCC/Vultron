@@ -31,6 +31,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -188,6 +189,7 @@ class TestOfferCaseParticipantReceivedUseCase:
             event,
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 
@@ -207,6 +209,7 @@ class TestOfferCaseParticipantReceivedUseCase:
             event,
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert result.disposition is HandlerDisposition.REFUSED
@@ -234,6 +237,7 @@ class TestOfferCaseParticipantReceivedUseCase:
             event,
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert result.disposition is HandlerDisposition.APPLIED
@@ -259,7 +263,10 @@ class TestOfferCaseParticipantReceivedUseCase:
         event = self._event()
         with caplog.at_level(logging.WARNING):
             result = OfferCaseParticipantReceivedUseCase(
-                dl, event, wire_render_port=As2WireRenderAdapter()
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
         # The store holds no such case (RSH rule 3).
         assert result.disposition is HandlerDisposition.REFUSED
@@ -278,6 +285,7 @@ class TestOfferCaseParticipantReceivedUseCase:
                 dl,
                 mock_event,
                 wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
         assert any("missing" in r.message.lower() for r in caplog.records)
         assert result.disposition is HandlerDisposition.REFUSED
@@ -317,6 +325,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
             event,
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 
@@ -339,6 +348,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
                 event,
                 trigger_activity=TriggerActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
         assert result.disposition is HandlerDisposition.REFUSED
         assert "never recorded" in (result.reason or "")
@@ -365,6 +375,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
             event,
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
         assert result.disposition is HandlerDisposition.REFUSED
         assert "no recommendation" in (result.reason or "")
@@ -389,6 +400,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
                 event,
                 trigger_activity=TriggerActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
         messages = " ".join(r.message.lower() for r in caplog.records)
         assert "no local actor" not in messages
@@ -405,6 +417,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
                 dl,
                 mock_event,
                 wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
         assert any("missing" in r.message.lower() for r in caplog.records)
         assert result.disposition is HandlerDisposition.REFUSED
@@ -425,6 +438,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
                 dl,
                 mock_event,
                 wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
         assert any("missing" in r.message.lower() for r in caplog.records)
         assert result.disposition is HandlerDisposition.REFUSED
@@ -458,6 +472,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
             event,
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 
@@ -512,6 +527,7 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
             event,
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 
@@ -528,6 +544,7 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
                 event,
                 trigger_activity=TriggerActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
         assert result.disposition is HandlerDisposition.REFUSED
         assert "never recorded" in (result.reason or "")
@@ -554,6 +571,7 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
             event,
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
         assert result.disposition is HandlerDisposition.REFUSED
         assert "no recommendation" in (result.reason or "")
@@ -580,6 +598,7 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
             event,
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
         assert result.disposition is HandlerDisposition.REFUSED
         assert "no recommended actor" in (result.reason or "")
@@ -604,6 +623,7 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
                 event,
                 trigger_activity=TriggerActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
         messages = " ".join(r.message.lower() for r in caplog.records)
         assert "no local actor" not in messages
@@ -620,6 +640,7 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
                 dl,
                 mock_event,
                 wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
         assert any("missing" in r.message.lower() for r in caplog.records)
         assert result.disposition is HandlerDisposition.REFUSED
@@ -649,6 +670,7 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
             event,
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 
@@ -784,6 +806,7 @@ class TestRolesFromStoredOffer:
             event,
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         outbox = dl.outbox_list()
@@ -823,6 +846,7 @@ class TestRolesFromStoredOffer:
             event,
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         # Step 2: find the stored Invite
@@ -936,6 +960,7 @@ class TestAcceptOfferCaseParticipantRolesThreading:
             event,
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         outbox = dl.outbox_list()
@@ -974,6 +999,7 @@ class TestAcceptOfferCaseParticipantRolesThreading:
             event,
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         # Step 2: find the stored Invite
@@ -1079,6 +1105,7 @@ class TestOfferCaseParticipantDecisionsAtNonCaseManager:
             event,
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert result.disposition is HandlerDisposition.REFUSED
@@ -1108,6 +1135,7 @@ class TestOfferCaseParticipantDecisionsAtNonCaseManager:
             event,
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert result.disposition is HandlerDisposition.REFUSED

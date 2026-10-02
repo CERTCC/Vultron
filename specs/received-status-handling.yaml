@@ -222,7 +222,12 @@ groups:
       Every BT node or tree that mutates EM state (Propose, Accept, Reject,
       Terminate, and all cascade variants) MUST immediately follow the
       state-mutation step with a write of the updated `CaseStatus` to the
-      canonical case ledger.
+      canonical case ledger. A received tree whose guarded commit records the
+      very activity that caused the transition, and whose entry type has a
+      replica apply node that replays the same transition (RSH-08-004,
+      ADR-0113), has made that write: the committed entry carries the change
+      to every replica, and a second `CaseStatus` entry for it would be a
+      duplicate.
     rationale: >
       EM state changes are only observable to remote actors via `CaseStatus`
       entries in `Announce(CaseLedgerEntry)` messages. A mutation without a
@@ -274,7 +279,10 @@ groups:
       Implemented in ISSUE-2175 (`EmitCaseStatusUpdateNode`). The inbound
       adoption path was refactored onto the same node in ISSUE-2176 (RSH-01-003),
       and the former `EmitAddCaseStatusToSelfNode` inbox-loopback kludge has
-      since been removed (ADR-0108).
+      since been removed (ADR-0108). The received embargo-relay trees
+      (proposal, Invite, Accept, Reject) need no `EmitCaseStatusUpdateNode`:
+      their committed entries are replayed by the relay apply nodes
+      (RSH-04-002, EP-09-007, ADR-0113).
 
     stories:
     - story_2022_045

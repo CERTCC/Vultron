@@ -454,7 +454,7 @@ def test_embargoed_invite_stub_is_judged_as_the_stub(
 
     case_id = "https://example.org/cases/1"
     stub = as_VulnerabilityCaseStub(
-        id_=case_id,
+        case_id=case_id,
         active_embargo="https://example.org/embargoes/1",
         case_status=CaseStatus(
             context=case_id, em=EmDimension(state=EM.ACTIVE)
@@ -480,20 +480,19 @@ def test_embargoed_invite_stub_is_judged_as_the_stub(
 
 @pytest.mark.spec("MV-11-002")
 @pytest.mark.parametrize("misspelled", ["CaseStatus", "case-status"])
-def test_near_miss_of_a_stub_only_key_is_refused(misspelled: str) -> None:
-    """A misspelled ``caseStatus`` refuses; it is not set aside (MV-11-002).
+def test_near_miss_of_a_stub_key_is_refused(misspelled: str) -> None:
+    """A misspelled ``caseStatus`` on a stub refuses; it is not set aside.
 
-    The resolver judges keys as the partition does, so a near miss of a key
-    only the stub declares still selects the stub, and the stub's partition
-    refuses it naming ``caseStatus``.  Judged against the full case, which has
-    no such spelling, it would have been set aside and the embargo state lost.
+    The stub's ``type`` selects the stub (CM-11-013), and the stub's partition
+    refuses the near miss naming ``caseStatus`` (MV-11-002) rather than
+    setting it aside and losing the embargo state the invitee consents on.
     """
     body = _envelope(
         type="Invite",
         object="https://example.org/actors/bob",
         target={
-            "type": "VulnerabilityCase",
-            "id": "https://example.org/cases/1",
+            "type": "VulnerabilityCaseStub",
+            "caseId": "https://example.org/cases/1",
             misspelled: {"type": "CaseStatus", "context": "x"},
         },
     )
@@ -501,6 +500,39 @@ def test_near_miss_of_a_stub_only_key_is_refused(misspelled: str) -> None:
         parse_activity(body)
     message = str(exc_info.value)
     assert repr(misspelled) in message and "'caseStatus'" in message
+
+
+@pytest.mark.spec("MV-10-001")
+@pytest.mark.spec("CM-11-013")
+def test_a_sparse_case_carrying_stub_keys_is_still_a_case(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A ``VulnerabilityCase`` is a case however few fields it carries.
+
+    Before the stub had its own type, a sparse case carrying ``caseStatus``
+    was guessed to be a stub.  The type alone now decides (CM-11-013), so the
+    full case's partition judges the key: ``caseStatus`` is no field of the
+    case, and it is set aside as foreign.
+    """
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        VulnerabilityCase,
+    )
+
+    body = _envelope(
+        type="Invite",
+        object="https://example.org/actors/bob",
+        target={
+            "type": "VulnerabilityCase",
+            "id": "https://example.org/cases/1",
+            "caseStatus": {"type": "CaseStatus", "context": "x"},
+        },
+    )
+    caplog.set_level(logging.INFO)
+
+    activity = parse_activity(body)
+
+    assert type(activity.target) is VulnerabilityCase
+    assert _info_records_naming(caplog, "caseStatus")
 
 
 @pytest.mark.spec("MV-10-001")
@@ -552,28 +584,32 @@ def test_a_body_nested_too_deeply_is_refused_not_crashed(depth: int) -> None:
 
 
 @pytest.mark.spec("MV-10-001")
-@pytest.mark.spec("CS-14-002")
+@pytest.mark.spec("CM-11-013")
+@pytest.mark.parametrize(
+    ("wire_type", "expected"),
+    [
+        ("VulnerabilityCaseStub", "as_VulnerabilityCaseStub"),
+        ("VulnerabilityCase", "VulnerabilityCase"),
+    ],
+)
 @pytest.mark.parametrize(
     "spelling",
     ["activeEmbargo", "active_embargo", "caseStatus", "case_status"],
 )
-def test_case_stub_is_recognised_by_every_input_spelling(
-    spelling: str,
+def test_the_type_alone_selects_the_stub_or_the_case(
+    spelling: str, wire_type: str, expected: str
 ) -> None:
-    """A stub's own fields select the stub whether camelCase or field name.
+    """The ``type`` decides the class, whatever keys ride along (CM-11-013).
 
-    Both roots validate by field name (CS-14-001, CS-14-002), so a stub whose
-    sender wrote ``active_embargo`` is as much a stub as one that wrote
-    ``activeEmbargo``; judging only the wire spelling sent the field-name form
-    to the full case, where ``case_status`` has no slot.
+    No key set turns a ``VulnerabilityCase`` into a stub, and no key set turns
+    a ``VulnerabilityCaseStub`` into a case, in either input spelling
+    (CS-14-001, CS-14-002).
     """
     from vultron.wire.as2.unknown_keys import resolve_inline_class
-    from vultron.wire.as2.vocab.objects.vulnerability_case import (
-        as_VulnerabilityCaseStub,
-    )
 
-    inline = {"type": "VulnerabilityCase", "id": "urn:uuid:c1", spelling: "x"}
-    assert resolve_inline_class(inline) is as_VulnerabilityCaseStub
+    inline = {"type": wire_type, "id": "urn:uuid:c1", spelling: "x"}
+    resolved = resolve_inline_class(inline)
+    assert resolved is not None and resolved.__name__ == expected
 
 
 # ---------------------------------------------------------------------------
@@ -803,8 +839,6 @@ def test_no_exemption_names_a_jsonld_keyword() -> None:
         "_UNEXAMINED_KEYS": unknown_keys._UNEXAMINED_KEYS,
         "OPAQUE_PAYLOAD_KEYS": unknown_keys.OPAQUE_PAYLOAD_KEYS,
         "RETIRED_NAMES": frozenset(unknown_keys.RETIRED_NAMES),
-        "CASE_STUB_KEYS": unknown_keys.CASE_STUB_KEYS,
-        "_CASE_STUB_INPUT_KEYS": unknown_keys._CASE_STUB_INPUT_KEYS,
     }
     assert {
         name: sorted(keywords & keys)

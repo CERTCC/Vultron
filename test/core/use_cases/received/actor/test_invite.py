@@ -20,6 +20,7 @@ import pytest
 from test.core.use_cases.received.conftest import (
     seed_store_owner_as_case_manager,
 )
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
@@ -35,9 +36,6 @@ from vultron.wire.as2.factories import (
     rm_reject_invite_to_case_activity,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCaseStub,
-)
 
 
 def _outbound_blob(activity) -> str:
@@ -151,7 +149,7 @@ def _seed_late_joiner_case() -> dict[str, Any]:
     object.__setattr__(case_actor, "context", case.id_)
     invite = rm_invite_to_case_activity(
         invitee,
-        target=as_VulnerabilityCaseStub(id_=case.id_),
+        target=case.id_,
         actor=case_actor_id,
         id_=f"{case.id_}/invitations/1",
     )
@@ -229,11 +227,18 @@ class TestInviteActorUseCases:
     """Tests for invite_actor_to_case, accept_invite_actor_to_case,
     and reject_invite_actor_to_case."""
 
-    def test_invite_actor_to_case_stores_invite(
-        self, monkeypatch, make_payload
-    ):
-        """InviteActorToCaseReceivedUseCase persists the Invite activity to the DataLayer."""
+    @pytest.mark.spec("CLP-10-017")
+    def test_invite_actor_to_case_archives_invite(self, make_payload):
+        """The invitee's use case stores the Invite only through intake.
+
+        Intake is the use case's only store of a received activity
+        (CLP-10-019): the Invite is archived as a ``ReceivedActivityRecord``
+        and the use case writes nothing under the sender's id (CLP-10-017).
+        """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.models.received_activity_record import (
+            ReceivedActivityRecord,
+        )
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
@@ -249,12 +254,18 @@ class TestInviteActorUseCases:
 
         event = make_payload(invite)
 
-        InviteActorToCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+        result = InviteActorToCaseReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
-        stored = dl.get(invite.type_.value, invite.id_)
-        assert stored is not None
+        assert result.disposition is HandlerDisposition.APPLIED
+        record = dl.read(ReceivedActivityRecord.build_id(invite.id_))
+        assert isinstance(record, ReceivedActivityRecord)
+        assert record.activity.id_ == invite.id_
+        assert dl.get(invite.type_.value, invite.id_) is None
 
     def test_invite_receipt_logged_in_narrative_form(
         self, make_payload, caplog
@@ -282,7 +293,10 @@ class TestInviteActorUseCases:
 
         with caplog.at_level(logging.INFO):
             InviteActorToCaseReceivedUseCase(
-                dl, event, wire_render_port=As2WireRenderAdapter()
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
 
         narrative = [
@@ -318,7 +332,10 @@ class TestInviteActorUseCases:
 
         with caplog.at_level(logging.DEBUG):
             InviteActorToCaseReceivedUseCase(
-                dl, event, wire_render_port=As2WireRenderAdapter()
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
 
         awaiting = [
@@ -359,7 +376,10 @@ class TestInviteActorUseCases:
         )
         event = make_payload(invite)
         InviteActorToCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         pending_id = VultronPendingCaseInbox.build_id(case_id)
@@ -399,10 +419,16 @@ class TestInviteActorUseCases:
         )
 
         InviteActorToCaseReceivedUseCase(
-            dl, make_payload(invite1), wire_render_port=As2WireRenderAdapter()
+            dl,
+            make_payload(invite1),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
         InviteActorToCaseReceivedUseCase(
-            dl, make_payload(invite2), wire_render_port=As2WireRenderAdapter()
+            dl,
+            make_payload(invite2),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         pending = dl.read(VultronPendingCaseInbox.build_id(case_id))
@@ -411,45 +437,123 @@ class TestInviteActorUseCases:
             "First-invite-wins: trust anchor MUST NOT be overwritten by a second invite"
         )
 
-    def test_invite_actor_to_case_idempotent(self, monkeypatch, make_payload):
-        """InviteActorToCaseReceivedUseCase skips storing a duplicate Invite."""
+    @pytest.mark.spec("HP-01-003")
+    def test_invite_actor_to_case_redelivery_is_skipped_not_refused(
+        self, make_payload
+    ):
+        """A duplicate Invite reports SKIPPED and writes nothing new."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.models.pending_case_inbox import (
+            VultronPendingCaseInbox,
+        )
+
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        case_id = "https://example.org/cases/case1"
+        invite = rm_invite_to_case_activity(
+            as_Actor(id_="https://example.org/users/coordinator"),
+            target=case_id,
+            actor="https://example.org/users/owner",
+            id_=f"{case_id}/invitations/2",
+        )
+        event = make_payload(invite)
+
+        first = InviteActorToCaseReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+        anchor = dl.read(VultronPendingCaseInbox.build_id(case_id))
+        second = InviteActorToCaseReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert first.disposition is HandlerDisposition.APPLIED
+        assert second.disposition is HandlerDisposition.SKIPPED
+        assert dl.read(VultronPendingCaseInbox.build_id(case_id)) == anchor
+
+    @pytest.mark.parametrize("missing", ["target", "object"])
+    def test_invite_missing_case_or_invitee_is_refused(
+        self, make_payload, missing
+    ):
+        """An Invite that names no case or no invitee is refused up front."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
-
         invite = rm_invite_to_case_activity(
             as_Actor(id_="https://example.org/users/coordinator"),
             target="https://example.org/cases/case1",
             actor="https://example.org/users/owner",
-            id_="https://example.org/cases/case1/invitations/2",
+            id_="https://example.org/cases/case1/invitations/missing",
         )
+        field = "target" if missing == "target" else "object_"
+        event = make_payload(invite).model_copy(update={field: None})
 
-        event = make_payload(invite)
-
-        InviteActorToCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
-        ).execute()
-        InviteActorToCaseReceivedUseCase(
+        result = InviteActorToCaseReceivedUseCase(
             dl,
             event,
             wire_render_port=As2WireRenderAdapter(),
-        ).execute()  # second call is no-op
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
 
-        stored = dl.get(invite.type_.value, invite.id_)
-        assert stored is not None
+        assert result.disposition is HandlerDisposition.REFUSED
+
+    @pytest.mark.spec("CLP-10-005")
+    @pytest.mark.spec("CLP-10-013")
+    def test_invite_runs_one_tree_under_the_resolved_receiver(
+        self, make_payload, monkeypatch
+    ):
+        """``execute()`` runs one tree, once, as the resolved receiving actor."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.behaviors.bridge import BTBridge
+
+        owner_id = "https://test.example/api/v2/actors/test-actor"
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=owner_id)
+        invite = rm_invite_to_case_activity(
+            as_Actor(id_="https://example.org/users/coordinator"),
+            target="https://example.org/cases/case1",
+            actor="https://example.org/users/owner",
+            id_="https://example.org/cases/case1/invitations/one-tree",
+        )
+        calls: list[dict[str, Any]] = []
+        real = BTBridge.execute_with_setup
+
+        def _spy(self, *args, **kwargs):
+            calls.append(kwargs)
+            return real(self, *args, **kwargs)
+
+        monkeypatch.setattr(BTBridge, "execute_with_setup", _spy)
+
+        InviteActorToCaseReceivedUseCase(
+            dl,
+            make_payload(invite),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert len(calls) == 1
+        assert calls[0]["actor_id"] == owner_id
+        assert calls[0]["tree"].name == "InviteActorToCaseReceivedBT"
 
     @pytest.mark.spec("HP-01-003")
     @pytest.mark.spec("CLP-10-017")
     def test_case_actor_redelivered_invite_is_skipped(self, make_payload):
-        """On the CaseActor's own inbox a redelivered Invite reports SKIPPED.
+        """An Invite reaching the CASE_MANAGER's inbox reports SKIPPED on redelivery.
 
-        The self-delivery tree's only work is intake and the guarded commit,
-        so the first delivery is APPLIED and a redelivery, which intake finds
-        already archived, is the benign no-op of HP-01-003 — never a second
-        APPLIED and never REFUSED.
+        The CASE_MANAGER emits and commits its own Invite and is never mailed
+        a copy (CM-17-006, ADR-0109).  Should one arrive anyway, the
+        invitee-only effects stay behind the replica gate — no trust anchor
+        is written — so the first delivery is APPLIED by intake and a
+        redelivery is the benign no-op of HP-01-003, never REFUSED.
         """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.models.received_activity_record import (
@@ -483,7 +587,7 @@ class TestInviteActorUseCases:
 
         invite = rm_invite_to_case_activity(
             as_Actor(id_="https://example.org/users/coordinator"),
-            target=as_VulnerabilityCaseStub(id_=case_id),
+            target=case_id,
             actor=case_actor_id,
             id_=f"{case_id}/invitations/1",
         )
@@ -492,14 +596,25 @@ class TestInviteActorUseCases:
         )
 
         first = InviteActorToCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
         second = InviteActorToCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert first.disposition is HandlerDisposition.APPLIED
         assert second.disposition is HandlerDisposition.SKIPPED
+        from vultron.core.models.pending_case_inbox import (
+            VultronPendingCaseInbox,
+        )
+
+        assert dl.read(VultronPendingCaseInbox.build_id(case_id)) is None
         archived = dl.read(ReceivedActivityRecord.build_id(invite.id_))
         assert isinstance(archived, ReceivedActivityRecord)
         assert archived.activity_id == invite.id_
@@ -550,7 +665,7 @@ class TestInviteActorUseCases:
         )
         invite = rm_invite_to_case_activity(
             as_Actor(id_=invitee_id),
-            target=as_VulnerabilityCaseStub(id_=case_id),
+            target=case_id,
             actor=case_actor_id,
             id_=f"{case_id}/invitations/1",
         )
@@ -575,6 +690,7 @@ class TestInviteActorUseCases:
             dl,
             event.model_copy(update={"receiving_actor_id": case_actor_id}),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         entries = [
@@ -613,7 +729,7 @@ class TestInviteActorUseCases:
         seed_store_owner_as_case_manager(dl, case)
         invite = rm_invite_to_case_activity(
             invitee,
-            target=as_VulnerabilityCaseStub(id_=case.id_),
+            target=case.id_,
             actor="https://example.org/users/owner",
             id_="https://example.org/cases/caseIA1/invitations/1",
         )
@@ -674,7 +790,7 @@ class TestInviteActorUseCases:
         seed_store_owner_as_case_manager(dl, case)
         invite = rm_invite_to_case_activity(
             invitee,
-            target=as_VulnerabilityCaseStub(id_=case.id_),
+            target=case.id_,
             actor="https://example.org/users/owner",
             id_="https://example.org/cases/caseIA2/invitations/1",
         )
@@ -737,7 +853,7 @@ class TestInviteActorUseCases:
         seed_store_owner_as_case_manager(dl, case)
         invite = rm_invite_to_case_activity(
             invitee,
-            target=as_VulnerabilityCaseStub(id_=case.id_),
+            target=case.id_,
             actor=owner_id,
             id_="https://example.org/cases/caseRM001/invitations/1",
         )
@@ -815,7 +931,7 @@ class TestInviteActorUseCases:
         )
         invite = rm_invite_to_case_activity(
             invitee,
-            target=as_VulnerabilityCaseStub(id_=case.id_),
+            target=case.id_,
             actor=owner_id,
             id_="https://example.org/cases/caseRM002/invitations/1",
         )
@@ -902,7 +1018,7 @@ class TestInviteActorUseCases:
         )
         invite = rm_invite_to_case_activity(
             invitee,
-            target=as_VulnerabilityCaseStub(id_=case.id_),
+            target=case.id_,
             actor="https://example.org/users/owner",
             id_="https://example.org/cases/caseIA3/invitations/1",
         )
@@ -1090,7 +1206,7 @@ class TestInviteActorUseCases:
         object.__setattr__(case_actor, "context", case.id_)
         invite = rm_invite_to_case_activity(
             invitee,
-            target=as_VulnerabilityCaseStub(id_=case.id_),
+            target=case.id_,
             actor=case_actor_id,
             id_=f"{case.id_}/invitations/1",
         )
@@ -1266,7 +1382,7 @@ class TestInviteActorUseCases:
         )
         invite = rm_invite_to_case_activity(
             invitee,
-            target=as_VulnerabilityCaseStub(id_=case.id_),
+            target=case.id_,
             actor=case_actor_id,
             id_=f"{case.id_}/invitations/1",
         )
@@ -1355,7 +1471,7 @@ class TestInviteActorUseCases:
         object.__setattr__(case_actor, "context", case.id_)
         invite = rm_invite_to_case_activity(
             invitee,
-            target=as_VulnerabilityCaseStub(id_=case.id_),
+            target=case.id_,
             actor=case_actor_id,
             id_=f"{case.id_}/invitations/1",
         )
@@ -1449,7 +1565,7 @@ class TestAcceptInviteRolesAC4:
         seed_store_owner_as_case_manager(dl, case)
         invite = rm_invite_to_case_activity(
             invitee,
-            target=as_VulnerabilityCaseStub(id_=case.id_),
+            target=case.id_,
             actor="https://example.org/users/owner",
             id_="https://example.org/cases/ac4-test/invitations/1",
             roles=["vendor"],
@@ -1497,7 +1613,7 @@ class TestAcceptInviteRolesAC4:
         seed_store_owner_as_case_manager(dl, case)
         invite = rm_invite_to_case_activity(
             invitee,
-            target=as_VulnerabilityCaseStub(id_=case.id_),
+            target=case.id_,
             actor="https://example.org/users/owner",
             id_="https://example.org/cases/ac4-neg/invitations/1",
         )
@@ -1539,7 +1655,7 @@ class TestInviteDispositions:
     def _invite(self, case_id: str):
         return rm_invite_to_case_activity(
             as_Actor(id_=self._INVITEE),
-            target=as_VulnerabilityCaseStub(id_=case_id),
+            target=case_id,
             actor=self._OWNER,
             id_=f"{case_id}/invitations/1",
         )
@@ -1575,10 +1691,16 @@ class TestInviteDispositions:
         event = make_payload(self._invite("https://example.org/cases/d-inv1"))
 
         first = InviteActorToCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
         second = InviteActorToCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert first.disposition == HandlerDisposition.APPLIED
@@ -1590,7 +1712,10 @@ class TestInviteDispositions:
         event = MagicMock(case_id=None, receiving_actor_id=None)
 
         result = RejectInviteActorToCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
@@ -1609,7 +1734,10 @@ class TestInviteDispositions:
         )
 
         result = RejectInviteActorToCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
@@ -1657,7 +1785,10 @@ class TestInviteDispositions:
         )
 
         result = RejectInviteActorToCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
@@ -1676,7 +1807,10 @@ class TestInviteDispositions:
         )
 
         result = RejectInviteActorToCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert result.disposition == HandlerDisposition.APPLIED

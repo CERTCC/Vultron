@@ -26,6 +26,7 @@ from fastapi.testclient import TestClient
 
 import vultron.adapters.driving.fastapi.outbox_handler as _outbox_handler
 from test.conftest import seed_case_actor_replica
+from test.support.received import archive_received
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi import trigger_runner
 from vultron.adapters.driving.fastapi.deps import get_trigger_dl
@@ -38,7 +39,6 @@ from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-    as_VulnerabilityCaseStub,
 )
 
 # ---------------------------------------------------------------------------
@@ -69,8 +69,10 @@ def _store_for(actor_id: str) -> SqliteDataLayer:
 
 
 @pytest.fixture
-def client_triggers(dl):
-    _outbox_handler._default_emitter = _NoopEmitter()
+def client_triggers(dl, monkeypatch):
+    monkeypatch.setattr(
+        _outbox_handler._DEFAULT_EMITTER_SLOT, "value", _NoopEmitter()
+    )
     app = FastAPI()
     app.include_router(trigger_actor_router.router)
 
@@ -81,7 +83,6 @@ def client_triggers(dl):
     client = TestClient(app)
     yield client
     app.dependency_overrides = {}
-    _outbox_handler._default_emitter = None
 
 
 @pytest.fixture
@@ -174,20 +175,22 @@ def case_obj_with_case_actor(dl, actor):
 
 @pytest.fixture
 def invite(other_actor_and_dl, actor, case_obj):
-    """Persist an RmInviteToCaseActivity in the *invitee's* store.
+    """Archive an RmInviteToCaseActivity in the *invitee's* store.
 
     The invitee is the actor that accepts or rejects, and the accept/reject
     trigger runs against its own store — the one it received the invitation into.
     Seeding the inviter's store instead only worked while the two shared one
-    store (#2548, DL-07-009).
+    store (#2548, DL-07-009). A received activity that reached its use case is
+    held as intake's archive record (CLP-10-017, ADR-0111), so that is what is
+    seeded.
     """
     other, other_dl = other_actor_and_dl
     invite_activity = rm_invite_to_case_activity(
         other,
-        target=as_VulnerabilityCaseStub(id_=case_obj.id_),
+        target=case_obj.id_,
         actor=actor.id_,
     )
-    other_dl.create(invite_activity)
+    archive_received(other_dl, invite_activity)
     return invite_activity
 
 
@@ -633,9 +636,9 @@ def case_for_invite(dl, actor):
     dl.create(case)
     dl.create(owner_participant)
     dl.create(case_manager_participant)
-    # The Invite is authored as the CaseActor and committed to its ledger, so the
-    # tree runs in the CaseActor's store — which needs the case for its genesis
-    # anchor (CLP-08-001/002).
+    # Delegated emits (an ownership-transfer Offer) are authored as the
+    # CaseActor and committed to its ledger, so they run in the CaseActor's
+    # store — which needs the case for its genesis anchor (CLP-08-001/002).
     seed_case_actor_replica(
         dl, case_actor.id_, case, owner_participant, case_manager_participant
     )
@@ -673,16 +676,18 @@ def test_trigger_invite_actor_to_case_response_contains_activity(
     data = resp.json()
     assert "activity" in data
     assert data["activity"] is not None
-    assert data["activity"]["type"] == "Invite"
+    assert data["activity"]["type"] == "Offer"
 
 
-def test_trigger_invite_actor_to_case_activity_actor_is_case_actor(
+@pytest.mark.spec("CM-17-007")
+def test_trigger_invite_actor_to_case_sends_the_owners_offer(
     client_triggers_invite, actor, case_for_invite, other_actor
 ):
-    """Invite activity must be emitted from the Case Actor's identity (PCR-08-007).
+    """The owner's own Offer goes to the CASE_MANAGER (CM-17-007, ADR-0109).
 
-    Also verifies that emitting_actor_id in the response matches the Case Actor,
-    which is the value used to select the correct outbox for outbox_handler.
+    The owner's container never emits as the CASE_MANAGER, so the activity
+    and the outbox it is queued in are the owner's; the CASE_MANAGER emits
+    the Invite when the Offer reaches it.
     """
     case, case_actor = case_for_invite
     resp = client_triggers_invite.post(
@@ -691,8 +696,10 @@ def test_trigger_invite_actor_to_case_activity_actor_is_case_actor(
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
     data = resp.json()
-    assert data["activity"]["actor"] == case_actor.id_
-    assert data["emitting_actor_id"] == case_actor.id_
+    assert data["activity"]["actor"] == actor.id_
+    assert data["activity"]["to"] == [case_actor.id_]
+    assert "cc" not in data["activity"]
+    assert data["emitting_actor_id"] == actor.id_
 
 
 def test_trigger_invite_actor_to_case_missing_case_id_returns_422(
@@ -843,14 +850,19 @@ def test_suggest_actor_to_case_drains_the_emitting_actors_outbox(
     assert drained == [(emitter, emitter)]
 
 
-def test_invite_actor_to_case_still_drains_the_case_actors_outbox(
+@pytest.mark.spec("CM-24-004")
+def test_invite_actor_to_case_drains_the_owners_outbox(
     client_triggers_invite, actor, case_for_invite, other_actor, drained
 ):
-    """The pre-existing #2484 behaviour holds through the shared helper."""
-    case, case_actor = case_for_invite
+    """The owner's Offer is queued in the owner's outbox, so that is drained.
+
+    Before ADR-0109 the Invite was queued as the CaseActor and its outbox was
+    drained (#2484); the owner now emits nothing as the CaseActor.
+    """
+    case, _ = case_for_invite
     resp = client_triggers_invite.post(
         f"/actors/{actor.id_}/trigger/invite-actor-to-case",
         json={"case_id": case.id_, "invitee_id": other_actor.id_},
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
-    assert drained == [(case_actor.id_, case_actor.id_)]
+    assert drained == [(actor.id_, actor.id_)]

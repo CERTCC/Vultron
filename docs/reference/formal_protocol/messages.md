@@ -223,7 +223,7 @@ For convenience, these are collected into the table below.
 | RM | $RV$ | Report Valid | $\{R,I\} \xrightarrow{v} V$ |
 | RM | $RD$ | Report/Case Deferred | $\{V,A\} \xrightarrow{d} D$ |
 | RM | $RA$ | Report/Case Accepted | $\{V,D\} \xrightarrow{a} A$ |
-| RM | $RC$ | Report Closed | $\{I,D,A\} \xrightarrow{c} C$ |
+| RM | $RC$ | Report Closed | $\{R,I,D,A\} \xrightarrow{c} C$ |
 | RM | $RK$ | Report Acknowledgment | any valid RM message |
 | RM | $RE$ | Report Error | any unexpected RM message |
 | EM | $EP$ | Embargo Proposal | $\{N,P\} \xrightarrow{p} P$ |

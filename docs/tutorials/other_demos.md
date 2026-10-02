@@ -263,10 +263,13 @@ vultron-demo report-with-embargo
 
 This demo exercises the negotiated embargo path, which no other demo reaches.
 The Reporter proposes embargo terms *with* the report: the Report Submission (RS), `Offer(VulnerabilityReport)`, carries a proposed `EmbargoEvent` as `proposedEmbargo`, sent through the `submit-report` trigger's `proposed_embargo_end_time`.
-The recipient's default is the `EmbargoPolicy` on its own actor profile, published through `PUT /actors/{actor_id}/embargo-policy` (EP-04-003, CP-01-010).
-Until the case is attributed to the recipient (#4026) and its profile travels inline on the case proposal (#4027), the demo publishes that default on the CaseActor that creates the recipient's cases as a workaround, which is the step the diagram shows.
+The recipient's default is the `EmbargoPolicy` on its own actor profile, published through `PUT /actors/{actor_id}/embargo-policy` (EP-04-003).
+The recipient sends that profile inline as the `actor` of its case proposal, and the CaseActor reads the default from there (CP-01-010).
 When the case is created, the shorter of the two becomes the active embargo and the longer is left pending as a revision, so the EM state is `REVISE`; when the recipient has published no default, the Reporter's terms apply at their stated length and the EM state is `ACTIVE`.
-No proposal exchange is visible on the wire: the comparison is settled at case creation.
+No proposal exchange precedes the case: the comparison is settled at case creation.
+The CaseActor then relays the pending revision to the party whose terms won, on behalf of the party whose terms lost (EP-04-011).
+When the Reporter proposed 60 days, that party is the Vendor, the case owner: it accepts by default, and an owner's acceptance activates the Reporter's terms, so the case returns to `ACTIVE`.
+When the Reporter proposed 10 days, the Reporter is invited instead, and its acceptance only records consent, so the case stays at `REVISE`.
 
 ```mermaid
 ---
@@ -277,17 +280,24 @@ sequenceDiagram
     participant V as Vendor
     participant CA as CaseActor
 
-    CA->>CA: Publish EmbargoPolicy (30 days)<br/>workaround until #4026/#4027
+    V->>V: Publish EmbargoPolicy (30 days)<br/>on its own profile
     R->>V: Report Submission (RS)<br/>Offer(VulnerabilityReport) + proposedEmbargo
-    V->>CA: Create(CaseProposal)<br/>carrying the Offer
+    V->>CA: Create(CaseProposal)<br/>carrying the Offer, actor = Vendor profile
     alt Reporter proposes 10 days
         Note over CA: Reporter's terms ACTIVE<br/>30-day default pending, EM = REVISE
+        CA->>V: Create(VulnerabilityCase)
+        CA->>R: Invite(Event)<br/>30-day default, on the Vendor's behalf
+        R->>CA: Accept — consent only, EM stays REVISE
     else Reporter proposes 60 days
         Note over CA: 30-day default ACTIVE<br/>Reporter's terms pending, EM = REVISE
+        CA->>V: Create(VulnerabilityCase)
+        CA->>V: Invite(Event)<br/>Reporter's terms, on the Reporter's behalf
+        V->>CA: Accept — the owner's answer activates them
+        Note over CA: Reporter's terms ACTIVE<br/>nothing pending, EM = ACTIVE
     else No policy published
         Note over CA: Reporter's terms ACTIVE<br/>nothing pending, EM = ACTIVE
+        CA->>V: Create(VulnerabilityCase)
     end
-    CA->>V: Create(VulnerabilityCase)
 ```
 
 See [How to Report a Vulnerability](../howto/activitypub/activities/report_vulnerability.md#submit-a-report) for the Offer that carries the terms, and [Default Embargoes](../topics/process_models/em/defaults.md) for why the shorter terms win.

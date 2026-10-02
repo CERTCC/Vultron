@@ -22,6 +22,7 @@ or no-op answer, FAILURE plus an already-``DECLINED`` record for a repeat
 ``test/core/services/embargo_lifecycle/test_consent.py``.
 """
 
+import logging
 from typing import cast
 
 import py_trees
@@ -34,17 +35,15 @@ from test.core.behaviors.embargo.nodes.conftest import (
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.embargo.nodes.proposal import (
     ALREADY_DECLINED_PREFIX,
-    REPLACED_EMBARGO_UNREPLICATED_PREFIX,
     RecordParticipantAcceptanceNode,
     RecordParticipantRejectionNode,
-    UpdateParticipantEmbargoPecNode,
 )
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.note import VultronNote
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
-from vultron.errors import VultronInvalidStateTransitionError
+from vultron.core.states.participant_embargo_consent import PEC
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
@@ -162,7 +161,7 @@ class TestRecordParticipantAcceptanceNodeFailsClosed:
     def _revise_case(
         self, dl: SqliteDataLayer, *, active_replicated: bool
     ) -> tuple[VulnerabilityCase, str, str, str]:
-        """A REVISE case owned by OWNER: active A (maybe unreplicated), proposed B."""
+        """A REVISE case owned by OWNER: active A (maybe unheld), proposed B."""
         case, active = make_case_and_embargo(
             "rpa1", em_state=EM.REVISE, attributed_to=OWNER
         )
@@ -187,11 +186,12 @@ class TestRecordParticipantAcceptanceNodeFailsClosed:
             dl.create(active)
         return case, active.id_, revision.id_, owner_p.id_
 
+    @pytest.mark.spec("EMB-18-003")
     @pytest.mark.spec("EP-05-001")
-    def test_unreplicated_replaced_embargo_fails_and_names_the_gap(
-        self, dl: SqliteDataLayer
+    def test_unreadable_replaced_embargo_fails_as_an_invariant_violation(
+        self, dl: SqliteDataLayer, caplog: pytest.LogCaptureFixture
     ):
-        """A is missing here: FAILURE with the gap prefix, nothing written."""
+        """A is missing here: FAILURE, an ERROR naming case and A, no write."""
         case, active_id, revision_id, owner_p_id = self._revise_case(
             dl, active_replicated=False
         )
@@ -200,10 +200,14 @@ class TestRecordParticipantAcceptanceNodeFailsClosed:
             case_id=case.id_, embargo_id=revision_id, accepting_actor_id=OWNER
         )
 
-        assert _tick(node) == py_trees.common.Status.FAILURE
-        assert node.feedback_message.startswith(
-            REPLACED_EMBARGO_UNREPLICATED_PREFIX
-        )
+        with caplog.at_level(logging.ERROR):
+            assert _tick(node) == py_trees.common.Status.FAILURE
+        errors = [r for r in caplog.records if r.levelno == logging.ERROR]
+        assert len(errors) == 1
+        message = errors[0].getMessage()
+        assert "Invariant violation" in message
+        assert case.id_ in message
+        assert active_id in message
         untouched = cast(VulnerabilityCase, dl.read(case.id_))
         assert untouched.current_status.em.state == EM.REVISE
         assert untouched.active_embargo_id == active_id
@@ -211,99 +215,59 @@ class TestRecordParticipantAcceptanceNodeFailsClosed:
         owner_p = cast(CaseParticipant, dl.read(owner_p_id))
         assert owner_p.accepted_embargo_ids == [active_id]
 
-    def test_unknown_accepted_embargo_fails_without_the_gap_prefix(
-        self, dl: SqliteDataLayer
+    @pytest.mark.spec("EMB-18-003")
+    @pytest.mark.spec("EP-05-001")
+    def test_replaced_embargo_of_another_type_fails_as_an_invariant_violation(
+        self, dl: SqliteDataLayer, caplog: pytest.LogCaptureFixture
     ):
-        """The *accepted* embargo is the one missing: a plain refusal, not a gap."""
-        case, _active_id, _revision_id, _ = self._revise_case(
+        """A resolves to a non-embargo record: the same ERROR, no write."""
+        case, active_id, revision_id, owner_p_id = self._revise_case(
+            dl, active_replicated=False
+        )
+        dl.create(VultronNote(id_=active_id, content="not an embargo"))
+        setup_blackboard(dl)
+        node = RecordParticipantAcceptanceNode(
+            case_id=case.id_, embargo_id=revision_id, accepting_actor_id=OWNER
+        )
+
+        with caplog.at_level(logging.WARNING):
+            assert _tick(node) == py_trees.common.Status.FAILURE
+        errors = [r for r in caplog.records if r.levelno >= logging.WARNING]
+        assert [r.levelno for r in errors] == [logging.ERROR]
+        message = errors[0].getMessage()
+        assert "Invariant violation" in message
+        assert case.id_ in message
+        assert active_id in message
+        untouched = cast(VulnerabilityCase, dl.read(case.id_))
+        assert untouched.current_status.em.state == EM.REVISE
+        assert untouched.active_embargo_id == active_id
+        assert untouched.proposed_embargoes == [revision_id]
+        owner_p = cast(CaseParticipant, dl.read(owner_p_id))
+        assert owner_p.accepted_embargo_ids == [active_id]
+
+    @pytest.mark.spec("EMB-18-003")
+    def test_unknown_accepted_embargo_fails_without_an_invariant_error(
+        self, dl: SqliteDataLayer, caplog: pytest.LogCaptureFixture
+    ):
+        """The *accepted* embargo is the one missing: a plain refusal."""
+        case, active_id, revision_id, owner_p_id = self._revise_case(
             dl, active_replicated=True
         )
         setup_blackboard(dl)
+        stranger = f"{case.id_}/embargo_events/stranger"
         node = RecordParticipantAcceptanceNode(
             case_id=case.id_,
-            embargo_id=f"{case.id_}/embargo_events/stranger",
+            embargo_id=stranger,
             accepting_actor_id=OWNER,
         )
 
-        assert _tick(node) == py_trees.common.Status.FAILURE
-        assert not node.feedback_message.startswith(
-            REPLACED_EMBARGO_UNREPLICATED_PREFIX
-        )
-
-
-def _participant_on_blackboard(
-    dl: SqliteDataLayer, pec: PEC
-) -> CaseParticipant:
-    """Seed a participant and place it on the ``participant`` key."""
-    participant = CaseParticipant(
-        attributed_to=REJECTER,
-        context="https://example.org/cases/pec-node",
-        embargo_consent_state=pec,
-    )
-    dl.create(participant)
-    setup_blackboard(dl)
-    bb = py_trees.blackboard.Client(name="participant-seed")
-    bb.register_key(key="participant", access=py_trees.common.Access.WRITE)
-    bb.participant = participant
-    return participant
-
-
-class TestUpdateParticipantEmbargoPecNodeWhereLegal:
-    """``where_legal=True`` turns an illegal trigger into a recorded no-op."""
-
-    @pytest.mark.spec("EP-09-004")
-    @pytest.mark.spec("CM-18-003")
-    def test_a_signatory_keeps_its_state_and_the_node_succeeds(
-        self, dl: SqliteDataLayer
-    ):
-        participant = _participant_on_blackboard(dl, PEC.SIGNATORY)
-        out: dict[str, object] = {}
-        node = UpdateParticipantEmbargoPecNode(
-            PEC_Trigger.INVITE, where_legal=True, result_out=out
-        )
-        assert _tick(node) is py_trees.common.Status.SUCCESS
-        stored = cast(CaseParticipant, dl.read(participant.id_))
-        assert stored.embargo_consent_state == PEC.SIGNATORY
-        assert out == {
-            "pec_before": PEC.SIGNATORY,
-            "pec_after": PEC.SIGNATORY,
-            "pec_changed": False,
-        }
-
-    def test_a_legal_trigger_applies_and_reports_the_change(
-        self, dl: SqliteDataLayer
-    ):
-        participant = _participant_on_blackboard(dl, PEC.UNBOUND)
-        out: dict[str, object] = {}
-        node = UpdateParticipantEmbargoPecNode(
-            PEC_Trigger.INVITE, where_legal=True, result_out=out
-        )
-        assert _tick(node) is py_trees.common.Status.SUCCESS
-        stored = cast(CaseParticipant, dl.read(participant.id_))
-        assert stored.embargo_consent_state == PEC.INVITED
-        assert out["pec_changed"] is True
-        assert (out["pec_before"], out["pec_after"]) == (
-            PEC.UNBOUND,
-            PEC.INVITED,
-        )
-
-    def test_without_where_legal_an_illegal_trigger_still_raises(
-        self, dl: SqliteDataLayer
-    ):
-        """The default stays fail-closed for every caller that did not opt in."""
-        _participant_on_blackboard(dl, PEC.SIGNATORY)
-        node = UpdateParticipantEmbargoPecNode(PEC_Trigger.INVITE)
-        with pytest.raises(VultronInvalidStateTransitionError):
-            _tick(node)
-
-    def test_no_participant_records_nothing(self, dl: SqliteDataLayer):
-        setup_blackboard(dl)
-        bb = py_trees.blackboard.Client(name="participant-seed")
-        bb.register_key(key="participant", access=py_trees.common.Access.WRITE)
-        bb.participant = None
-        out: dict[str, object] = {}
-        node = UpdateParticipantEmbargoPecNode(
-            PEC_Trigger.INVITE, where_legal=True, result_out=out
-        )
-        assert _tick(node) is py_trees.common.Status.SUCCESS
-        assert out == {}
+        with caplog.at_level(logging.WARNING):
+            assert _tick(node) == py_trees.common.Status.FAILURE
+        assert stranger in node.feedback_message
+        assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
+        untouched = cast(VulnerabilityCase, dl.read(case.id_))
+        assert untouched.current_status.em.state == EM.REVISE
+        assert untouched.active_embargo_id == active_id
+        assert untouched.proposed_embargoes == [revision_id]
+        owner_p = cast(CaseParticipant, dl.read(owner_p_id))
+        assert owner_p.accepted_embargo_ids == [active_id]

@@ -20,6 +20,7 @@ related_notes:
   - notes/protocol-asks.md
   - notes/sync-ledger-replication.md
   - notes/case-joining.md
+  - notes/bt-integration.md
 relevant_packages:
   - transitions
   - vultron/bt/embargo_management
@@ -113,9 +114,11 @@ Decision: ADR-0093 (revised 2026-09-29, Concern #3884).*
 
 Consent is given to specific terms — an `EmbargoEvent` — and there are two
 records of it. `CaseParticipant.accepted_embargo_ids` (CM-10-001) lists every
-embargo, active or proposed, the participant has accepted; it is what the
-content gate reads (`find_excluded_actor_ids`, CM-10-004). The scalar PEC state
+embargo, active or proposed, the participant has accepted. The scalar PEC state
 answers one question only: *is this participant bound by the active embargo?*
+— and that is what the content gate reads
+(`VulnerabilityCase.is_active_participant`, CM-10-004, #4046), so the rules
+below that keep the two records in agreement are what make the gate right.
 A participant can be `SIGNATORY` to active embargo A and have B, a proposed
 revision, in its list at the same time.
 
@@ -153,7 +156,7 @@ model, in which coverage never breaks during a revision, and it had concrete
 costs: a rejected revision stranded every signatory (no trigger restores
 `LAPSED → SIGNATORY`, and the `LAPSED → DECLINED` timer was never
 implemented); `embargo_adherence` read false for participants still bound by A
-and still receiving embargoed content, because the gate reads the list and not
+and still receiving embargoed content, because the gate then read the list and not
 the scalar; the proposer lapsed too; and the owner's own EJ recorded the owner
 as `DECLINED`. The cascade also ran only in the proposer's store, because at the
 time no received path moved any other store's EM to `REVISE` (#3892; closed by
@@ -176,14 +179,15 @@ unconditionally therefore faults on precisely the participants a revision most
 concerns. The `INVITE` write belongs to the CASE_MANAGER's commit of each Invite
 emission — built in #3913 as `RelayEmbargoInviteToEachNode._invite_where_legal()`
 (`vultron/core/behaviors/embargo/nodes/relay.py`) — and to the replay node that
-reconstructs it on replicas (#3915); *that* is where the state check lives. The
-check is `CaseParticipant.apply_pec_transition_if_legal()`: the one sanctioned
-"apply where legal" shape, which asks `accepts_pec_trigger()` first and then
-routes through `apply_pec_transition()`, so an illegal trigger is a recorded
-no-op rather than a fault and every other caller stays fail-closed.
-`UpdateParticipantEmbargoPecNode(where_legal=True)` — the participant replica's
-on-receipt write, retained until #3915 gates it off (RSH-08-004) — uses the same
-method.
+reconstructs it on replicas, `ApplyEmbargoInviteFromLedgerNode`
+(`vultron/core/behaviors/embargo/nodes/relay_effect.py`, #3915); *that* is
+where the state check lives. The check is
+`CaseParticipant.apply_pec_transition_if_legal()`: the one sanctioned "apply
+where legal" shape, which asks `accepts_pec_trigger()` first and then routes
+through `apply_pec_transition()`, so an illegal trigger is a recorded no-op
+rather than a fault and every other caller stays fail-closed. Both stores reach
+it through `EmbargoLifecycle.record_embargo_invite()`, and the participant
+replica writes no consent on receipt at all (EP-09-003).
 
 Two further rules from the same decision matter to consent:
 
@@ -297,7 +301,7 @@ Consent-write sites (every one routes through `apply_pec_transition()`):
 | Site | Uses `apply_pec_transition()`? | Syncs status? |
 |---|---|---|
 | `case/nodes/proposal_consent.py` | yes | yes |
-| `case/nodes/embargo.py` | yes | yes |
+| `case/nodes/embargo_signatory.py` | yes | yes |
 | `case/nodes/participant/participant_add.py` | yes | yes |
 | `case/nodes/invite_embargo_consent.py` | yes | yes |
 | `embargo/nodes/proposal.py` | yes | yes |
@@ -319,7 +323,7 @@ service once (`_assert_rejectable`) rather than in a node.
 
 Three rules keep the scalar state and `accepted_embargo_ids` in agreement
 about who is bound by the active embargo (the disagreement Concern #3884
-found; the content gate `find_excluded_actor_ids` reads the *list*):
+found; the content gate `is_active_participant` reads the *scalar*):
 
 - **Every activation advances the holders of the new id.**
   `_consent_at_activation` is the one consent effect of an activation, shared
@@ -438,20 +442,20 @@ enforcement cannot fire and nothing raises: the invitee has no deadline to lapse
 against, and the record that *did* receive one is not the one being checked.
 
 The failure is silent in both directions, which is why it survived for a
-release: `OptionalLookupParticipantNode` is lenient by design and
-`UpdateParticipantEmbargoPecNode` returns SUCCESS when no participant is on the
-blackboard. CM-28-003 makes the CASE_MANAGER the enforcement authority for invite
-expiry, so deriving the invitee from the receiving actor puts the deadline on
+release: the participant lookup on that path was lenient by design and the PEC
+write returned SUCCESS when no participant was found. CM-28-003 makes the
+CASE_MANAGER the enforcement authority for invite expiry, so deriving the invitee from the receiving actor puts the deadline on
 the enforcer's own record and disarms exactly the actor responsible for acting
 on it.
 
 The invitee is the Invite's **sole** `to:` recipient (EP-09-010). Every emitter
 sends a single-recipient Invite — a participant to the CASE_MANAGER, the
-CASE_MANAGER to one participant per relayed Invite — so the multi-recipient
-resolution `resolve_invitee_id()` once carried was built for a shape nothing
-emits, and its fallback to the receiving actor put the deadline on the
-enforcer's own record. An Invite with no recipient or several is refused as a
-misrouting, never guessed at. See also `notes/bt-integration.md` § "The message
+CASE_MANAGER to one participant per relayed Invite — so `resolve_invitee_id()`
+takes that one recipient and refuses an Invite with none or several as a
+misrouting, naming the count, rather than guessing from the receiving actor. A
+proposal addressed to the CASE_MANAGER names the manager as its sole recipient,
+but the manager is that Invite's adjudicator, not its invitee: its own record
+never takes the deadline. See also `notes/bt-integration.md` § "The message
 subject is a fourth identity, and it must stay separate".
 
 ### It Is an `Invite`, Not an `Offer`
@@ -547,9 +551,11 @@ notes with sensitive information) is gated on `embargo_adherence=True`.
 
 ### Ledger Fan-Out Is Case Content (CM-10-005, CM-10-006)
 
-*Source: Concern #3917 (2026-10-01). Not yet implemented; tracked in #4042.*
+*Source: Concern #3917 (2026-10-01). The fan-out recipients come from the
+shared selection in `vultron/core/participants/recipients.py` (#4046); the
+replay gate, the pause and the backfill on admission are implemented in #4042.*
 
-The gate (`find_excluded_actor_ids`, CM-10-004) was first applied only to
+The gate (CM-10-004) was first applied only to
 `Announce(VulnerabilityCase)`. The `Announce(CaseLedgerEntry)` fan-out, which
 is how participants actually learn of an added report or note, filtered on
 RM-closed alone, so a non-signatory received every entry's payload verbatim.
@@ -564,11 +570,18 @@ participant **stream**, not per entry:
   replay would send the withheld entry anyway. The replay path therefore needs
   the gate as much as fan-out does.
 - **So: pause, then backfill in order.** While an embargo is active, a
-  participant whose `accepted_embargo_ids` lacks it is sent no ledger entries,
+  participant that is not `SIGNATORY` to it is sent no ledger entries,
   by fan-out or by replay; its replica is a contiguous prefix ending where the
   pause began. When the gate admits it — it accepts, or the embargo ends — the
   CASE_MANAGER sends the withheld suffix in log order, starting with the first
   entry withheld, so the catch-up gate (SYNC-10-004) never sees a gap.
+
+The predicate is the shared active-participant selection in
+`vultron/core/participants/recipients.py` (CM-10-007), the one the case-update
+broadcast, the ledger fan-out, the replay and the genesis pre-seed all ask.
+Where the pause is recorded and the points that catch admission are in
+[sync-ledger-replication.md](sync-ledger-replication.md) § "Fan-Out Recipients
+and the Embargo Gate".
 
 The embargo meta-protocol above is unaffected: Invites and their responses
 are addressed to the participant directly, not fanned out from the ledger, so

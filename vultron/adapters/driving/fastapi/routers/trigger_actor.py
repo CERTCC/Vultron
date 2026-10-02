@@ -175,8 +175,9 @@ def trigger_reject_case_invite(
     status_code=status.HTTP_202_ACCEPTED,
     summary="Directly invite an actor to a case.",
     description=(
-        "Emits an RmInviteToCaseActivity from the case owner to the "
-        "specified invitee.  The case must exist in the actor's DataLayer."
+        "Sends the case owner's Offer of the invitee, with the offered "
+        "roles, to the case's CASE_MANAGER, which emits and commits the "
+        "Invite (ADR-0109).  The case must exist in the actor's DataLayer."
     ),
     operation_id="actors_trigger_invite_actor_to_case",
     response_model=ActivityResult,

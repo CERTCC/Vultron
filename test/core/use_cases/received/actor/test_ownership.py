@@ -18,8 +18,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases.received.actor.ownership import (
     AcceptCaseOwnershipTransferReceivedUseCase,
     OfferCaseOwnershipTransferReceivedUseCase,
@@ -60,7 +62,10 @@ class TestOwnershipTransferUseCases:
         event = make_payload(activity)
 
         result = OfferCaseOwnershipTransferReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         stored = dl.get(activity.type_.value, activity.id_)
@@ -69,7 +74,10 @@ class TestOwnershipTransferUseCases:
 
         # HP-01-003: a redelivered Offer stores nothing new.
         again = OfferCaseOwnershipTransferReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
         assert again.disposition == HandlerDisposition.SKIPPED
 
@@ -104,6 +112,7 @@ class TestOwnershipTransferUseCases:
                 anonymous_store(inner),
                 event,
                 wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(anonymous_store(inner)),
             ).execute()
 
         assert inner.get(activity.type_.value, activity.id_) is None
@@ -152,6 +161,7 @@ class TestOwnershipTransferUseCases:
             dl,
             event,
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         updated_record = dl.get(case.type_, case.id_)
@@ -191,6 +201,7 @@ class TestOwnershipTransferUseCases:
             dl,
             event,
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
@@ -209,6 +220,7 @@ class TestOwnershipTransferUseCases:
             dl,
             event,
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
@@ -282,6 +294,7 @@ class TestOwnershipTransferUseCases:
             event,
             trigger_activity=trigger_activity,
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         # trigger_activity.offer_case_ownership_transfer must be called with
@@ -387,6 +400,7 @@ class TestOwnershipTransferUseCases:
             event,
             trigger_activity=trigger_activity,
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert calls == [
@@ -473,6 +487,7 @@ class TestOwnershipTransferUseCases:
             event,
             trigger_activity=trigger_activity,
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         kwargs = (
@@ -551,6 +566,7 @@ class TestOwnershipTransferUseCases:
                 event,
                 trigger_activity=trigger_activity,
                 wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
 
         kwargs = (
@@ -622,6 +638,7 @@ class TestOwnershipTransferUseCases:
                 event,
                 # trigger_activity intentionally omitted,
                 wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
 
         assert any("no trigger_activity" in r.message for r in caplog.records)
@@ -654,6 +671,7 @@ class TestOwnershipTransferUseCases:
                 MagicMock(),
                 event,
                 wire_render_port=As2WireRenderAdapter(),
+                sync_port=MagicMock(spec=SyncActivityPort),
             ).execute()
 
         assert any("rejected" in r.message.lower() for r in caplog.records)
@@ -690,7 +708,10 @@ class TestOwnershipTransferUseCases:
             event = make_payload(activity, receiving_actor_id=None)
 
             OfferCaseOwnershipTransferReceivedUseCase(
-                dl, event, wire_render_port=As2WireRenderAdapter()
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
 
             stored = dl.get(activity.type_.value, activity.id_)
@@ -740,7 +761,10 @@ class TestOwnershipTransferUseCases:
             event = make_payload(activity, receiving_actor_id=None)
 
             AcceptCaseOwnershipTransferReceivedUseCase(
-                dl, event, wire_render_port=As2WireRenderAdapter()
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
 
             updated = dl.get(case.type_, case.id_)
@@ -783,7 +807,10 @@ class TestOwnershipOfferAtNonRecipient:
         event = make_payload(activity, receiving_actor_id=bystander_id)
 
         result = OfferCaseOwnershipTransferReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED

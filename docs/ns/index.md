@@ -30,14 +30,13 @@ The shape of an activity is described in [Vultron and ActivityPub](../howto/acti
 | `ParticipantStatus` | Per-participant snapshot: Report Management (RM) state, the vendor fix (vf) and deployment (d) dimensions of the CS, roles, and [embargo consent](../topics/behavior_logic/use-cases/embargo-lifecycle.md#which-messages-move-consent) |
 | `ProcessingFault` | Negative acknowledgment returned when a received activity could not be processed |
 | `VulnerabilityCase` | Coordination container for a vulnerability disclosure case |
+| `VulnerabilityCaseStub` | Minimal stand-in for a case, sent as the target of a case Invite so the invitee can give informed consent before it holds the case |
 | `VulnerabilityRecord` | Persistent identifier record for a confirmed vulnerability |
 | `VulnerabilityReport` | Initial report artifact submitted to a case |
 
 This table must list exactly the terms `context.jsonld` declares.
-Those terms come from the wire `type` value each class emits, never from its
-class name, so a class that emits another class's `type` value gets no term of
-its own: the stub form of a case is transmitted as
-`"type": "VulnerabilityCase"`, and the wire sees one term for both.
+Those terms come from the wire `type` value each class emits, never from its class name, so a class that emits another class's `type` value gets no term of its own.
+The stub form of a case is its own type: it is transmitted as `"type": "VulnerabilityCaseStub"` and gets its own term.
 
 ## Usage in wire messages
 

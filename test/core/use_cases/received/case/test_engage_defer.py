@@ -17,6 +17,7 @@ import logging
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -24,6 +25,7 @@ from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.events import MessageSemantics
@@ -121,6 +123,7 @@ class TestEngageDeferCaseBTFailureReason:
                 event,
                 trigger_activity=TriggerActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
 
         # HP-01-003: an actor with no participant record is refused.
@@ -155,6 +158,7 @@ class TestEngageDeferCaseBTFailureReason:
                 event,
                 trigger_activity=TriggerActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
 
         # HP-01-003: an actor with no participant record is refused.
@@ -175,7 +179,7 @@ class TestEngageDeferCaseBTFailureReason:
 
 
 class TestEngageCaseStoresEmbeddedParticipants:
-    """EngageCaseReceivedUseCase must call _store_embedded_participants (#573).
+    """EngageCaseReceivedUseCase must call store_embedded_participants (#573).
 
     Regression tests: when Join(VulnerabilityCase) arrives with inline
     participant objects, those objects must be persisted as independent
@@ -225,7 +229,7 @@ class TestEngageCaseStoresEmbeddedParticipants:
         """Embedded CaseParticipant is persisted before EngageCaseBT runs.
 
         Even when the BT fails (no pre-registered participant in the DataLayer),
-        _store_embedded_participants must run first and persist the inline
+        store_embedded_participants must run first and persist the inline
         participant object (#573 regression).
         """
         EngageCaseReceivedUseCase(
@@ -233,6 +237,7 @@ class TestEngageCaseStoresEmbeddedParticipants:
             engage_event_with_inline_case,
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         stored = dl.read(self._PARTICIPANT_ID)
@@ -245,7 +250,7 @@ class TestEngageCaseStoresEmbeddedParticipants:
     def test_bare_string_participant_is_not_stored(self, dl):
         """When case_participants contains bare strings, nothing is stored.
 
-        _store_embedded_participants is idempotent on strings; no error and
+        store_embedded_participants is idempotent on strings; no error and
         no false record is created (#573 does not regress bare-string path).
         """
         case_str_participants = VulnerabilityCase(id_=self._CASE_ID)
@@ -263,14 +268,46 @@ class TestEngageCaseStoresEmbeddedParticipants:
             event,
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         stored = dl.read(self._PARTICIPANT_ID)
         assert stored is None, (
-            "_store_embedded_participants must skip bare string participant "
+            "store_embedded_participants must skip bare string participant "
             "refs — no CaseParticipant record should be created for a bare "
             "string"
         )
+
+    @pytest.mark.spec("EMB-18-003")
+    def test_case_naming_an_unheld_embargo_is_refused(
+        self, dl, case_with_inline_participant
+    ):
+        """A case naming an embargo this store cannot read stores nothing."""
+        object.__setattr__(
+            case_with_inline_participant,
+            "active_embargo",
+            f"{self._CASE_ID}/embargo_events/unheld",
+        )
+        event = EngageCaseReceivedEvent(
+            activity_id="https://example.org/activities/engage-4032",
+            actor_id=self._ACTOR_ID,
+            object_=case_with_inline_participant,
+            semantic_type=MessageSemantics.ENGAGE_CASE,
+        )
+
+        result = EngageCaseReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert "EMB-18-003" in (result.reason or "")
+        assert dl.read(self._PARTICIPANT_ID) is None
+        assert dl.read(self._CASE_ID) is None
+        assert dl.list_objects("EmbargoEvent") == []
 
 
 class TestEngageCaseLedgerCommit:
@@ -389,6 +426,7 @@ class TestEngageCaseLedgerCommit:
             self._engage_event(),
             trigger_activity=TriggerActivityAdapter(seeded_dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(seeded_dl),
         ).execute()
 
         entries = seeded_dl.list_objects("CaseLedgerEntry")
@@ -404,8 +442,18 @@ class TestEngageCaseLedgerCommit:
 
     @staticmethod
     def _queued_announces(dl: SqliteDataLayer) -> list[as_Announce]:
+        """Queued case-update Announces, minus the ledger fan-out.
+
+        Each committed entry is also announced to the participants
+        (SYNC-02-003); that replication is not the case broadcast checked here.
+        """
         queued = [dl.read(activity_id) for activity_id in dl.outbox_list()]
-        return [a for a in queued if isinstance(a, as_Announce)]
+        return [
+            a
+            for a in queued
+            if isinstance(a, as_Announce)
+            and not isinstance(a.object_, CaseLedgerEntry)
+        ]
 
     def test_engage_received_by_case_manager_broadcasts(self, seeded_dl):
         """Control: the CASE_MANAGER announces the updated case (CM-06-001)."""
@@ -414,6 +462,7 @@ class TestEngageCaseLedgerCommit:
             self._engage_event(),
             trigger_activity=TriggerActivityAdapter(seeded_dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(seeded_dl),
         ).execute()
 
         announces = self._queued_announces(seeded_dl)
@@ -440,6 +489,7 @@ class TestEngageCaseLedgerCommit:
             event,
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert self._queued_announces(dl) == []
@@ -461,6 +511,7 @@ class TestEngageCaseLedgerCommit:
             event,
             trigger_activity=TriggerActivityAdapter(seeded_dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(seeded_dl),
         ).execute()
 
         assert [
@@ -478,6 +529,7 @@ class TestEngageCaseLedgerCommit:
             self._engage_event(),
             trigger_activity=TriggerActivityAdapter(seeded_dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(seeded_dl),
         ).execute()
         assert result.disposition == HandlerDisposition.APPLIED
 
@@ -581,6 +633,7 @@ class TestDeferCaseLedgerCommit:
             event,
             trigger_activity=TriggerActivityAdapter(seeded_dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(seeded_dl),
         ).execute()
 
         assert [
@@ -604,6 +657,7 @@ class TestDeferCaseLedgerCommit:
             self._defer_event(),
             trigger_activity=TriggerActivityAdapter(seeded_dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(seeded_dl),
         ).execute()
 
         entries = seeded_dl.list_objects("CaseLedgerEntry")
@@ -624,6 +678,7 @@ class TestDeferCaseLedgerCommit:
             self._defer_event(),
             trigger_activity=TriggerActivityAdapter(seeded_dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(seeded_dl),
         ).execute()
         assert result.disposition == HandlerDisposition.APPLIED
 

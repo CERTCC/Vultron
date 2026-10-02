@@ -51,6 +51,7 @@ from typing import cast
 
 from fastapi import Depends, Path, Request
 
+from vultron.adapters.driven import actor_hosts
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -58,7 +59,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.trigger_dispatcher import TriggerDispatcher
 from vultron.core.trigger_dispatcher import RegistryTriggerDispatcher
@@ -185,8 +186,6 @@ def get_hosted_actor_dls(
     actor_dls = getattr(registry, "actor_dls", None) if registry else None
     if actor_dls:
         return dict(actor_dls)
-
-    from vultron.adapters.driven import actor_hosts
 
     return {
         actor_id: cast(DataLayer, get_datalayer(actor_id))

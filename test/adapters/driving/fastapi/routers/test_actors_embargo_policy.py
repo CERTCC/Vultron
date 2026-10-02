@@ -14,8 +14,10 @@
 """``GET`` and ``PUT /actors/{actor_id}/embargo-policy`` (EP-02, #3972).
 
 A published policy is the actor default shortest-wins reads at case creation
-(EP-04-003), so the tests assert what ``owner_embargo_policies`` sees in the
-actor's own store, not only what the response body says.
+(EP-04-003).  It is a field of the actor's own profile record (EP-01-001,
+EP-01-004) — the profile carries it inline on every ``Create(CaseProposal)``
+the actor sends (CP-01-010) — so the tests assert what that record holds in
+the actor's own store, not only what the response body says.
 """
 
 from datetime import timedelta
@@ -24,12 +26,13 @@ import pytest
 from fastapi import status
 
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
-from vultron.adapters.driven.datalayer_sqlite import get_datalayer
-from vultron.core.models.embargo_policy import EmbargoPolicy
-from vultron.core.services.embargo_duration import (
-    owner_embargo_policies,
-    select_actor_default,
+from vultron.adapters.driven.datalayer_sqlite import (
+    SqliteDataLayer,
+    get_datalayer,
 )
+from vultron.core.models.actor import CoreActor
+from vultron.core.models.embargo_policy import EmbargoPolicy
+from vultron.core.services.embargo_duration import actor_default_duration
 
 _SLUG = "policy-vendor"
 _PATH = f"/actors/{_SLUG}/embargo-policy"
@@ -55,6 +58,22 @@ def _store_for(actor_id: str):
     return get_datalayer(actor_id, db_url="sqlite:///:memory:")
 
 
+def _stored_profile(actor_id: str) -> CoreActor:
+    record = _store_for(actor_id).read(actor_id)
+    assert isinstance(record, CoreActor)
+    return record
+
+
+def _profile_policy(actor_id: str) -> EmbargoPolicy | None:
+    """The policy the actor's stored profile carries inline (EP-01-004)."""
+    return _stored_profile(actor_id).embargo_policy
+
+
+def _policy_records(actor_id: str) -> list:
+    """Free-standing ``EmbargoPolicy`` records in the actor's store."""
+    return list(_store_for(actor_id).list_objects("EmbargoPolicy"))
+
+
 class TestPutEmbargoPolicy:
     @pytest.mark.spec("EP-01-004")
     @pytest.mark.spec("HTTP-03-002")
@@ -70,19 +89,21 @@ class TestPutEmbargoPolicy:
         assert body["inbox"] == f"{hosted_actor}/inbox"
         assert body["preferredDuration"] == "P30D"
 
-        stored = owner_embargo_policies(_store_for(hosted_actor), hosted_actor)
-        assert [p.preferred_duration for p in stored] == [timedelta(days=30)]
+        stored = _profile_policy(hosted_actor)
+        assert stored is not None
+        assert stored.preferred_duration == timedelta(days=30)
+        # Part of the profile, not a separate object beside it (EP-01-001).
+        assert _policy_records(hosted_actor) == []
 
     @pytest.mark.spec("EP-04-003")
-    @pytest.mark.spec("EP-04-010")
+    @pytest.mark.spec("CP-01-010")
     def test_the_published_policy_is_the_actor_default_shortest_wins_reads(
         self, client_actors, hosted_actor
     ):
         client_actors.put(_PATH, json={"preferred_duration": "P21D"})
 
-        store = _store_for(hosted_actor)
-        assert select_actor_default(
-            owner_embargo_policies(store, hosted_actor)
+        assert actor_default_duration(
+            _stored_profile(hosted_actor)
         ) == timedelta(days=21)
 
     @pytest.mark.spec("EP-02-003")
@@ -99,8 +120,10 @@ class TestPutEmbargoPolicy:
         assert second.status_code == status.HTTP_200_OK
         assert second.json()["preferredDuration"] == "P45D"
         assert second.json()["notes"] == "revised"
-        stored = owner_embargo_policies(_store_for(hosted_actor), hosted_actor)
-        assert [p.preferred_duration for p in stored] == [timedelta(days=45)]
+        stored = _profile_policy(hosted_actor)
+        assert stored is not None
+        assert stored.preferred_duration == timedelta(days=45)
+        assert _policy_records(hosted_actor) == []
         # One well-known record, overwritten — not a new one beside the old.
         assert second.json()["id"] == first.json()["id"]
 
@@ -109,49 +132,20 @@ class TestPutEmbargoPolicy:
     def test_the_published_policy_is_the_record_at_the_endpoint_url(
         self, client_actors, hosted_actor
     ):
-        """The policy's id is the URL the profile lists for it."""
+        """The policy's id is the endpoint URL, in the profile as well."""
         resp = client_actors.put(_PATH, json={"preferred_duration": "P30D"})
 
         assert resp.json()["id"] == f"{hosted_actor}/embargo-policy"
         assert resp.json()["id"] == EmbargoPolicy.build_id(hosted_actor)
         profile = client_actors.get(f"/actors/{_SLUG}/profile").json()
-        assert profile["embargoPolicy"] == resp.json()["id"]
+        assert profile["embargoPolicy"]["id"] == resp.json()["id"]
 
     @pytest.mark.spec("EP-02-003")
-    def test_two_publishes_that_both_see_no_prior_policy_leave_one_record(
-        self, client_actors, hosted_actor, monkeypatch
-    ):
-        """Two overlapping first publishes must not leave two policies.
-
-        The race: both requests read the store before either writes, so each
-        believes it is the first publish.  Simulated by pinning that read to
-        "nothing published" for both calls; the deterministic record id makes
-        the second write an overwrite, so the interleaving cannot matter.
-        """
-        from vultron.adapters.driving.fastapi.routers.actors import (
-            _embargo_policy,
-        )
-
-        monkeypatch.setattr(
-            _embargo_policy, "owner_embargo_policies", lambda store, aid: []
-        )
-        first = client_actors.put(_PATH, json={"preferred_duration": "P30D"})
-        second = client_actors.put(_PATH, json={"preferred_duration": "P45D"})
-        monkeypatch.undo()
-
-        # Each believed itself first (201); the store still holds one record.
-        assert first.status_code == status.HTTP_201_CREATED
-        assert second.status_code == status.HTTP_201_CREATED
-        stored = owner_embargo_policies(_store_for(hosted_actor), hosted_actor)
-        assert [p.preferred_duration for p in stored] == [timedelta(days=45)]
-
-    @pytest.mark.spec("EP-02-003")
-    def test_a_publish_sweeps_policies_seeded_under_other_ids(
+    def test_a_publish_leaves_a_seeded_policy_record_unread(
         self, client_actors, hosted_actor
     ):
-        """A record seeded under some other id is removed by the publish, so
-        shortest-wins cannot read a withdrawn default beside the published one.
-        """
+        """A free-standing record is not the actor's policy: only the profile
+        field is, so a publish neither reads nor counts it (#4027)."""
         _store_for(hosted_actor).create(
             EmbargoPolicy(
                 actor_id=hosted_actor,
@@ -162,9 +156,11 @@ class TestPutEmbargoPolicy:
 
         resp = client_actors.put(_PATH, json={"preferred_duration": "P30D"})
 
-        assert resp.status_code == status.HTTP_200_OK  # it replaced a record
-        stored = owner_embargo_policies(_store_for(hosted_actor), hosted_actor)
-        assert [p.preferred_duration for p in stored] == [timedelta(days=30)]
+        assert resp.status_code == status.HTTP_201_CREATED  # first publish
+        stored = _profile_policy(hosted_actor)
+        assert stored is not None
+        assert stored.preferred_duration == timedelta(days=30)
+        assert client_actors.get(_PATH).json()["preferredDuration"] == "P30D"
 
     @pytest.mark.spec("EP-01-003")
     def test_optional_bounds_are_carried(self, client_actors, hosted_actor):
@@ -182,18 +178,23 @@ class TestPutEmbargoPolicy:
         assert resp.json()["maximumDuration"] == "P90D"
 
     @pytest.mark.spec("EP-02-002")
-    def test_the_actor_profile_lists_the_policy_url_after_publish(
+    @pytest.mark.spec("EP-01-001")
+    def test_the_actor_profile_carries_the_policy_inline_after_publish(
         self, client_actors, hosted_actor
     ):
         before = client_actors.get(f"/actors/{_SLUG}/profile").json()
         assert "embargoPolicy" not in before
 
-        client_actors.put(_PATH, json={"preferred_duration": "P30D"})
+        published = client_actors.put(
+            _PATH, json={"preferred_duration": "P30D"}
+        ).json()
 
         profile = client_actors.get(f"/actors/{_SLUG}/profile").json()
-        assert profile["embargoPolicy"] == f"{hosted_actor}/embargo-policy"
+        assert profile["embargoPolicy"] == published
         actor = client_actors.get(f"/actors/{_SLUG}").json()
-        assert actor["embargoPolicy"] == f"{hosted_actor}/embargo-policy"
+        assert actor["embargoPolicy"] == published
+        # The endpoint returns the record the profile carries (EP-02-002).
+        assert client_actors.get(_PATH).json() == profile["embargoPolicy"]
 
     @pytest.mark.spec("HTTP-03-005")
     def test_an_actor_this_node_does_not_host_is_404(self, client_actors):
@@ -205,7 +206,8 @@ class TestPutEmbargoPolicy:
         assert resp.status_code == status.HTTP_404_NOT_FOUND
         # Nothing was minted for the phantom actor.
         nobody = canonical_actor_uri("nobody-here")
-        assert owner_embargo_policies(_store_for(nobody), nobody) == []
+        assert _store_for(nobody).read(nobody) is None
+        assert _policy_records(nobody) == []
 
     @pytest.mark.spec("HTTP-03-009")
     @pytest.mark.parametrize(
@@ -227,10 +229,7 @@ class TestPutEmbargoPolicy:
         resp = client_actors.put(_PATH, json=bad)
 
         assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
-        assert (
-            owner_embargo_policies(_store_for(hosted_actor), hosted_actor)
-            == []
-        )
+        assert _profile_policy(hosted_actor) is None
 
     @pytest.mark.spec("EP-01-005")
     @pytest.mark.spec("EP-02-003")
@@ -282,12 +281,11 @@ class TestGetEmbargoPolicy:
 
         assert resp.status_code == status.HTTP_404_NOT_FOUND
 
-    @pytest.mark.spec("EP-04-010")
-    def test_shows_the_policy_shortest_wins_would_use(
+    def test_policy_records_beside_the_profile_are_not_shown(
         self, client_actors, hosted_actor
     ):
-        """Several stored policies (a seeded store, say): the shortest is shown,
-        the same choice ``select_actor_default`` makes."""
+        """Records in the store that the profile does not carry are not the
+        actor's policy: the store-wide scan is retired (#4027)."""
         store = _store_for(hosted_actor)
         for days in (60, 14, 30):
             store.create(
@@ -300,7 +298,7 @@ class TestGetEmbargoPolicy:
 
         resp = client_actors.get(_PATH)
 
-        assert resp.json()["preferredDuration"] == "P14D"
+        assert resp.status_code == status.HTTP_404_NOT_FOUND
 
     def test_another_actors_policy_in_the_store_is_not_this_actors(
         self, client_actors, hosted_actor
@@ -317,3 +315,99 @@ class TestGetEmbargoPolicy:
         resp = client_actors.get(_PATH)
 
         assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+
+def _interleave_rival_writes(monkeypatch, rival, *, times: int) -> list[int]:
+    """Land ``rival(store, expected, n)`` before each of the next *times* PUT writes.
+
+    The rival writes the actor's profile between the PUT's read and its
+    compare-and-set — the window a plain read-then-save left unguarded
+    (#4102).  Returns the attempts it interleaved, in order.
+    """
+    real = SqliteDataLayer.save_if_unchanged
+    interleaved: list[int] = []
+
+    def rival_then_write(self, obj, expected):
+        if len(interleaved) < times:
+            interleaved.append(len(interleaved) + 1)
+            rival(self, expected, interleaved[-1])
+        return real(self, obj, expected)
+
+    monkeypatch.setattr(SqliteDataLayer, "save_if_unchanged", rival_then_write)
+    return interleaved
+
+
+def _rename(store, profile: CoreActor, n: int) -> None:
+    """A rival profile write that touches a field other than the policy."""
+    store.save(profile.model_copy(update={"name": f"Renamed {n}"}))
+
+
+def _rival_publish(store, profile: CoreActor, _n: int) -> None:
+    """A rival publish of different terms, as a concurrent PUT would write."""
+    store.save(
+        type(profile).model_validate(
+            {
+                **dict(profile),
+                "embargo_policy": EmbargoPolicy(
+                    id_=EmbargoPolicy.build_id(profile.id_),
+                    actor_id=profile.id_,
+                    inbox=profile.inbox,
+                    preferred_duration=timedelta(days=10),
+                ),
+            }
+        )
+    )
+
+
+class TestConcurrentProfileWrite:
+    """A publish rewrites the whole profile, so it must not overwrite a rival write."""
+
+    @pytest.mark.spec("EP-02-004")
+    def test_a_profile_write_inside_the_window_is_kept_beside_the_policy(
+        self, client_actors, hosted_actor, monkeypatch
+    ):
+        interleaved = _interleave_rival_writes(monkeypatch, _rename, times=1)
+
+        resp = client_actors.put(_PATH, json={"preferred_duration": "P30D"})
+
+        assert interleaved == [1]
+        assert resp.status_code == status.HTTP_201_CREATED
+        profile = _stored_profile(hosted_actor)
+        assert profile.name == "Renamed 1"
+        assert profile.embargo_policy is not None
+        assert profile.embargo_policy.preferred_duration == timedelta(days=30)
+
+    @pytest.mark.spec("EP-02-004")
+    def test_a_rival_publish_inside_the_window_makes_this_one_a_replace(
+        self, client_actors, hosted_actor, monkeypatch
+    ):
+        """Whether a publish replaced one is read from the fresh profile."""
+        interleaved = _interleave_rival_writes(
+            monkeypatch, _rival_publish, times=1
+        )
+
+        resp = client_actors.put(_PATH, json={"preferred_duration": "P30D"})
+
+        assert interleaved == [1]
+        assert resp.status_code == status.HTTP_200_OK
+        policy = _profile_policy(hosted_actor)
+        assert policy is not None
+        assert policy.preferred_duration == timedelta(days=30)
+
+    @pytest.mark.spec("EP-02-004")
+    def test_a_profile_changed_under_every_attempt_is_409_and_writes_nothing(
+        self, client_actors, hosted_actor, monkeypatch
+    ):
+        interleaved = _interleave_rival_writes(monkeypatch, _rename, times=100)
+
+        resp = client_actors.put(_PATH, json={"preferred_duration": "P30D"})
+
+        assert resp.status_code == status.HTTP_409_CONFLICT
+        detail = resp.json()["detail"]
+        assert detail["status"] == status.HTTP_409_CONFLICT
+        assert detail["error"] == "Conflict"
+        assert hosted_actor in detail["message"]
+        assert interleaved == [1, 2, 3]
+        profile = _stored_profile(hosted_actor)
+        assert profile.name == "Renamed 3"
+        assert profile.embargo_policy is None

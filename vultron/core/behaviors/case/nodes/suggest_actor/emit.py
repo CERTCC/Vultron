@@ -37,6 +37,7 @@ from py_trees.ports import NoDataAvailable, PortInformation
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.participant.roles import (
     resolve_case_owner_id,
+    suggested_roles_key,
 )
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
@@ -44,10 +45,8 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
-from vultron.core.ports.case_persistence import (
-    CaseOutboxPersistence,
-    CasePersistence,
-)
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.enums.roles import CVDRole
 
 
@@ -58,12 +57,12 @@ def _resolve_owner_recipient(
 ) -> str | None:
     """Return the Case Owner's actor URI to address a CaseActor DM to.
 
-    The CaseActor's own copy of the case is ``attributed_to`` **itself** — it
-    authored it (CM-22-001, CP-05-003).  Addressing the Case Owner from that
-    field therefore made the CaseActor DM itself, and the owner never saw the
-    ``Offer(CaseParticipant)`` it was required to decide on (CM-16-004): the
-    fcvcv ADR-0026 chain stalled there, and ``accept-actor-recommendation``
-    returned 422 because no offer had ever arrived.
+    A DM the CaseActor addresses to itself never reaches the owner, who then
+    never sees the ``Offer(CaseParticipant)`` it is required to decide on
+    (CM-16-004): the fcvcv ADR-0026 chain stalls, and
+    ``accept-actor-recommendation`` returns 422 because no offer arrived.
+    ``attributed_to`` names the owner (CP-09-001), but a store may hold a case
+    attributed to the CaseActor itself, so that field alone is not enough.
 
     The CASE_OWNER participant role is the authoritative record of ownership
     (CM-21-002), so resolve that first.  ``attributed_to`` stays as a fallback
@@ -178,13 +177,12 @@ class EmitOfferCaseParticipantToOwnerNode(DataLayerActionWithPorts):
     }
 
     def setup(self, **kwargs) -> None:
-        id_segment = self.recommendation_id.split("/")[-1]
         self.setup_ports(
             port_remappings={
                 "datalayer": "/datalayer",
                 "actor_id": "/actor_id",
                 "trigger_activity_factory": "/trigger_activity_factory",
-                "suggested_roles": f"/suggested_roles_{id_segment}",
+                "suggested_roles": f"/{suggested_roles_key(self.recommendation_id)}",
             }
         )
 
@@ -207,7 +205,7 @@ class EmitOfferCaseParticipantToOwnerNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         assert self.actor_id is not None
         if (f := self._require_factory()) is not None:
-            self.logger.error(self.feedback_message)
+            self.logger.error("%s", self.feedback_message)
             return f
         assert self.trigger_activity_factory is not None
 
@@ -218,7 +216,7 @@ class EmitOfferCaseParticipantToOwnerNode(DataLayerActionWithPorts):
                 f"suggested_roles for actor '{self.recommended_id}' is empty "
                 "— cannot emit Offer(CaseParticipant) without at least one role"
             )
-            self.logger.error(self.feedback_message)
+            self.logger.error("%s", self.feedback_message)
             return Status.FAILURE
         try:
             owner_id = _resolve_owner_recipient(
@@ -229,7 +227,7 @@ class EmitOfferCaseParticipantToOwnerNode(DataLayerActionWithPorts):
                     f"case '{self.case_id}' names no Case Owner other than "
                     f"'{self.actor_id}' — cannot address Offer(CaseParticipant)"
                 )
-                self.logger.error(self.feedback_message)
+                self.logger.error("%s", self.feedback_message)
                 return Status.FAILURE
             activity_id, activity_blob = factory.offer_actor_to_case(
                 recommender_id=self.recommender_id,
@@ -274,7 +272,7 @@ class EmitOfferCaseParticipantToOwnerNode(DataLayerActionWithPorts):
             self.feedback_message = (
                 f"EmitOfferCaseParticipantToOwner failed: {e}"
             )
-            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
+            self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
 
@@ -316,7 +314,7 @@ class EmitNoteDuplicateRecommendationToOwnerNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         assert self.actor_id is not None
         if (f := self._require_factory()) is not None:
-            self.logger.error(self.feedback_message)
+            self.logger.error("%s", self.feedback_message)
             return f
         assert self.trigger_activity_factory is not None
 
@@ -331,7 +329,7 @@ class EmitNoteDuplicateRecommendationToOwnerNode(DataLayerActionWithPorts):
                     f"'{self.actor_id}' — cannot address the "
                     "duplicate-recommendation Note"
                 )
-                self.logger.error(self.feedback_message)
+                self.logger.error("%s", self.feedback_message)
                 return Status.FAILURE
 
             actor_segment = self.recommended_id.split("/")[-1]
@@ -373,7 +371,7 @@ class EmitNoteDuplicateRecommendationToOwnerNode(DataLayerActionWithPorts):
             self.feedback_message = (
                 f"EmitNoteDuplicateRecommendationToOwner failed: {e}"
             )
-            self.logger.error(self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
+            self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
 

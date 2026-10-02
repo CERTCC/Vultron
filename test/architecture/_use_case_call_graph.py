@@ -15,10 +15,13 @@
 """Call-graph resolution through the use-case package for the mutation ratchet.
 
 Companion to ``test_no_dl_mutations_in_execute.py`` (CLP-10-020): the classes
-here index every module of ``vultron/core/use_cases/`` and follow a call from an
-``execute()`` body to the function or method it names — a module-level helper,
-a ``self._method()``, a name imported absolutely, relatively, or through a
-package ``__init__`` re-export — until the search leaves the package.  The test
+here index every module of ``vultron/core/use_cases/`` — and of
+``vultron/core/services/``, the neutral home of helpers a use case shares with
+a BT node (BT-22-005), so moving a helper there does not hide its writes — and
+follow a call from an ``execute()`` body to the function or method it names — a
+module-level helper, a ``self._method()``, a name imported absolutely,
+relatively, or through a package ``__init__`` re-export — until the search
+leaves the indexed packages.  The test
 module owns the rule and the ``KNOWN_VIOLATIONS`` set; this module owns the
 walk.  No ``ast.parse`` or ``rglob`` here (TB-13-003): trees come from
 ``_corpus`` or from the test's ``parse_inline`` calls.
@@ -192,29 +195,33 @@ def _absolute_module(module: str, node: ast.ImportFrom) -> str | None:
 
 
 class _UseCaseCorpus:
-    """Resolve calls from an ``execute()`` body through the use-case package.
+    """Resolve calls from an ``execute()`` body through the indexed packages.
 
-    *trees* maps each module file under *root* to its parsed AST; *package*
-    is the dotted name of *root*.  Resolution never leaves the package: a
+    *trees* maps each module file to its parsed AST; *roots* maps each
+    indexed package directory to its dotted name, and every file in *trees*
+    lies under one of them.  Resolution never leaves the indexed packages: a
     callee that lives anywhere else is where the search stops.
     """
 
     def __init__(
-        self, trees: Mapping[Path, ast.AST], *, root: Path, package: str
+        self, trees: Mapping[Path, ast.AST], *, roots: Mapping[Path, str]
     ) -> None:
-        self._package = package
+        self._roots = dict(roots)
         self._modules: dict[str, _ModuleIndex] = {}
         self._paths: dict[str, Path] = {}
         for path, tree in trees.items():
-            name = self._module_name(path, root)
+            name = self._module_name(path)
             self._modules[name] = _ModuleIndex(name, tree)
             self._paths[name] = path
 
-    def _module_name(self, path: Path, root: Path) -> str:
-        parts = list(path.relative_to(root).with_suffix("").parts)
-        if parts and parts[-1] == "__init__":
-            parts.pop()
-        return ".".join([self._package, *parts])
+    def _module_name(self, path: Path) -> str:
+        for root, package in self._roots.items():
+            if path.is_relative_to(root):
+                parts = list(path.relative_to(root).with_suffix("").parts)
+                if parts and parts[-1] == "__init__":
+                    parts.pop()
+                return ".".join([package, *parts])
+        raise ValueError(f"{path} lies under none of {sorted(self._roots)}")
 
     def modules_under(self, sub_root: Path) -> Iterator[tuple[str, Path]]:
         """Yield ``(module, path)`` for every indexed module under *sub_root*."""
@@ -226,7 +233,7 @@ class _UseCaseCorpus:
             yield name, path
 
     def execute_reaches_mutation(self, module: str) -> bool:
-        """True if any ``execute()`` in *module* reaches a DL write in-package."""
+        """True if any ``execute()`` in *module* reaches an indexed DL write."""
         index = self._modules[module]
         for cls, methods in index.methods.items():
             execute = methods.get("execute")

@@ -6,6 +6,7 @@ Covers suggest-actor, ownership-transfer, and invite-actor-to-case semantics.
 from typing import TYPE_CHECKING, Literal, cast
 
 from vultron.core.models.activity import VultronActivity
+from vultron.core.models.case_stub import stub_case_id
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
 
 if TYPE_CHECKING:
@@ -134,6 +135,11 @@ class InviteActorToCaseReceivedEvent(VultronEvent):
     )
     activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
 
+    @property
+    def case_id(self) -> str | None:
+        """The case the Invite's stub names (CM-11-003), not the stub's ID."""
+        return stub_case_id(self.target)
+
 
 class AcceptInviteActorToCaseReceivedEvent(VultronEvent):
     """Actor accepted an invitation to join a VulnerabilityCase."""
@@ -144,11 +150,8 @@ class AcceptInviteActorToCaseReceivedEvent(VultronEvent):
 
     @property
     def case_id(self) -> str | None:
-        return self.inner_target_id
-
-    @property
-    def case(self) -> "VulnerabilityCase | None":
-        return cast("VulnerabilityCase | None", self.inner_target)
+        """The case the nested Invite's stub names (CM-11-003)."""
+        return stub_case_id(self.inner_target)
 
     @property
     def invitee_id(self) -> str | None:
@@ -177,7 +180,8 @@ class RejectInviteActorToCaseReceivedEvent(VultronEvent):
 
     @property
     def case_id(self) -> str | None:
-        return self.inner_target_id
+        """The case the nested Invite's stub names (CM-11-003)."""
+        return stub_case_id(self.inner_target)
 
 
 class AnnounceVulnerabilityCaseReceivedEvent(VultronEvent):

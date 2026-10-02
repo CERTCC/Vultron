@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """Integration tests for RejectLogEntryReceivedBT."""
 
+import logging
 from typing import cast
 from unittest.mock import MagicMock
 
@@ -19,6 +20,7 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.errors import VultronValidationError
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import reject_log_entry_activity
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
@@ -88,9 +90,18 @@ def case_manager_case(datalayer):
         case_roles=[CVDRole.CASE_MANAGER],
     )
     datalayer.create(participant)
+    # The Reject's sender is a joined participant, so the replay and the
+    # genesis pre-seed's active-participant gate admit it (CM-10-004).
+    peer = as_CaseParticipant(
+        id_=f"{CASE_ID}/participants/reporter",
+        context=CASE_ID,
+        attributed_to=PEER_ID,
+    )
+    datalayer.create(peer)
     case = as_VulnerabilityCase(id_=CASE_ID, name="Sync Case")
-    case.case_participants.append(participant.id_)
+    case.case_participants.extend([participant.id_, peer.id_])
     case.actor_participant_index[OWNER_ACTOR_ID] = participant.id_
+    case.actor_participant_index[PEER_ID] = peer.id_
     datalayer.create(case)
     return case
 
@@ -234,6 +245,50 @@ def test_genesis_reject_queues_announce_vulnerability_case(
     call_kwargs = trigger_activity.announce_vulnerability_case.call_args.kwargs
     assert call_kwargs["case_id"] == CASE_ID
     assert call_kwargs["to"] == [PEER_ID]
+
+
+@pytest.mark.spec("SYNC-15-002")
+@pytest.mark.spec("EMB-18-003")
+def test_genesis_reject_logs_an_unbuildable_announce_at_error(
+    datalayer, case_manager_case, caplog: pytest.LogCaptureFixture
+):
+    """An announce the sender cannot build from its own records is an ERROR.
+
+    The trigger adapter refuses to send a case naming an embargo its store
+    cannot read (EMB-18-003); replay still continues, but the broken invariant
+    is not logged as a recoverable WARNING.
+    """
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
+
+    entry = _make_entry(0)
+    datalayer.save(entry)
+    event = _make_event(entry, tail_hash="")
+    sync_port = MagicMock(spec=SyncActivityPort)
+    trigger_activity = MagicMock(spec=TriggerActivityPort)
+    trigger_activity.announce_vulnerability_case.side_effect = (
+        VultronValidationError("case names an unreadable embargo (EMB-18-003)")
+    )
+
+    bridge = BTBridge(
+        datalayer=datalayer,
+        sync_port=sync_port,
+        trigger_activity=trigger_activity,
+    )
+    with caplog.at_level(logging.WARNING):
+        result = bridge.execute_with_setup(
+            tree=create_reject_log_entry_tree(),
+            actor_id=OWNER_ACTOR_ID,
+            activity=event,
+            sync_port=sync_port,
+        )
+
+    assert result.status == Status.SUCCESS
+    refusals = [
+        r for r in caplog.records if "refusing to queue" in r.getMessage()
+    ]
+    assert [r.levelno for r in refusals] == [logging.ERROR]
+    assert refusals[0].exc_info is not None
+    assert "EMB-18-003" in str(refusals[0].exc_info[1])
 
 
 @pytest.mark.spec("SYNC-15-002")

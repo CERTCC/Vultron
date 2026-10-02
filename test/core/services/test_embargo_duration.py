@@ -20,94 +20,85 @@ from typing import cast
 
 import pytest
 
+from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.embargo_policy import EmbargoPolicy
-from vultron.core.models.enums import VultronObjectType
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.embargo_duration import (
     EmbargoDurationSource,
-    owner_embargo_policies,
+    actor_default_duration,
     resolve_initial_embargo_duration,
-    select_actor_default,
-    select_actor_default_policy,
+    stored_actor_profile,
 )
+from vultron.errors import VultronNotFoundError
 
 ACTOR_ID = "https://example.org/actors/vendor"
 OTHER_ACTOR_ID = "https://example.org/actors/other"
 PROTOCOL_DEFAULT = timedelta(hours=72)
 
 
-def _policy(
-    policy_id: str, days: int, actor_id: str = ACTOR_ID
-) -> EmbargoPolicy:
+def _policy(days: int, actor_id: str = ACTOR_ID) -> EmbargoPolicy:
     return EmbargoPolicy(
-        id_=f"{actor_id}/{policy_id}",
         actor_id=actor_id,
         inbox=f"{actor_id}/inbox",
         preferred_duration=timedelta(days=days),
     )
 
 
-class _PolicyStore:
-    """The one ``CasePersistence`` method ``owner_embargo_policies`` reads."""
+class _ActorStore:
+    """The one ``CasePersistence`` method ``stored_actor_profile`` reads."""
 
-    def __init__(self, records: list[PersistableModel]) -> None:
+    def __init__(self, records: dict[str, PersistableModel]) -> None:
         self.records = records
-        self.queried: list[str] = []
 
-    def list_objects(self, type_key: str) -> list[PersistableModel]:
-        self.queried.append(type_key)
-        return list(self.records)
+    def read(self, object_id: str) -> PersistableModel | None:
+        return self.records.get(object_id)
 
 
-class TestOwnerEmbargoPolicies:
-    """The candidate set is the owner's own policies and nothing else."""
+class TestActorDefaultDuration:
+    """The actor default is the profile's own policy and nothing else."""
 
     @pytest.mark.spec("EP-04-006")
-    def test_only_the_owners_policies_are_returned(self) -> None:
-        """Another actor's shorter policy in the same store is excluded
-        (#3753 scoping), and the lookup is keyed on the policy type."""
-        mine = _policy("mine", 30)
-        store = _PolicyStore(
-            [mine, _policy("theirs", 5, actor_id=OTHER_ACTOR_ID)]
-        )
+    @pytest.mark.spec("CP-01-010")
+    def test_the_profile_policy_is_the_actor_default(self) -> None:
+        profile = VultronOrganization(id_=ACTOR_ID, embargo_policy=_policy(30))
+        assert actor_default_duration(profile) == timedelta(days=30)
 
-        policies = owner_embargo_policies(
-            cast(CasePersistence, store), ACTOR_ID
-        )
-
-        assert [p.id_ for p in policies] == [mine.id_]
-        assert store.queried == [VultronObjectType.EMBARGO_POLICY]
-
-    def test_no_policies_for_owner_is_empty(self) -> None:
-        store = _PolicyStore([_policy("theirs", 5, actor_id=OTHER_ACTOR_ID)])
-
+    @pytest.mark.spec("CP-01-010")
+    def test_a_profile_without_a_policy_has_no_actor_default(self) -> None:
         assert (
-            owner_embargo_policies(cast(CasePersistence, store), ACTOR_ID)
-            == []
+            actor_default_duration(VultronOrganization(id_=ACTOR_ID)) is None
         )
 
 
-class TestSelectActorDefault:
-    def test_no_policies_is_none(self) -> None:
-        assert select_actor_default([]) is None
-        assert select_actor_default_policy([]) is None
+class TestStoredActorProfile:
+    def test_returns_the_actors_own_record(self) -> None:
+        profile = VultronOrganization(id_=ACTOR_ID)
+        store = _ActorStore({ACTOR_ID: profile})
+        assert (
+            stored_actor_profile(cast(CasePersistence, store), ACTOR_ID)
+            is profile
+        )
 
-    @pytest.mark.spec("EP-04-010")
-    def test_the_policy_shown_is_the_one_whose_duration_is_used(self) -> None:
-        """The embargo-policy endpoint shows ``select_actor_default_policy``'s
-        choice, so it must be the record ``select_actor_default`` reads."""
-        policies = [_policy("a", 45), _policy("b", 14), _policy("c", 60)]
-        chosen = select_actor_default_policy(policies)
-        assert chosen is not None
-        assert chosen.id_ == _policy("b", 14).id_
-        assert chosen.preferred_duration == select_actor_default(policies)
+    def test_a_missing_record_raises(self) -> None:
+        store = _ActorStore({})
+        with pytest.raises(VultronNotFoundError):
+            stored_actor_profile(cast(CasePersistence, store), ACTOR_ID)
 
-    @pytest.mark.spec("EP-04-010")
-    def test_shortest_wins_regardless_of_order(self) -> None:
-        policies = [_policy("a", 45), _policy("b", 14), _policy("c", 60)]
-        assert select_actor_default(policies) == timedelta(days=14)
-        assert select_actor_default(reversed(policies)) == timedelta(days=14)
+    def test_a_non_actor_record_raises(self) -> None:
+        store = _ActorStore({ACTOR_ID: _policy(5)})
+        with pytest.raises(VultronNotFoundError):
+            stored_actor_profile(cast(CasePersistence, store), ACTOR_ID)
+
+
+class TestProfilePolicyOwnership:
+    @pytest.mark.spec("EP-01-001")
+    @pytest.mark.spec("ARCH-10-001")
+    def test_a_profile_cannot_carry_another_actors_policy(self) -> None:
+        with pytest.raises(ValueError, match="differs from the profile id"):
+            VultronOrganization(
+                id_=ACTOR_ID, embargo_policy=_policy(5, OTHER_ACTOR_ID)
+            )
 
 
 class TestResolveInitialEmbargoDuration:

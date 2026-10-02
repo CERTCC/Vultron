@@ -31,11 +31,16 @@ Per specs/case-management.yaml CM-02 requirements.
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.case.case_actor_identity import (
+    case_actor_identity,
+)
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
+from vultron.core.behaviors.store_scope import store_for_actor
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_actor import CaseActor
 from vultron.errors import VultronAlreadyExistsError
 
 
@@ -68,13 +73,15 @@ class PersistCase(DataLayerActionWithPorts):
         try:
             self.datalayer.save(self.case_obj)
             self.logger.info(
-                f"{self.name}: Persisted VulnerabilityCase {self.case_obj.id_}"
+                "%s: Persisted VulnerabilityCase %s",
+                self.name,
+                self.case_obj.id_,
             )
             self._set_output("case_id", self.case_obj.id_)
             return Status.SUCCESS
 
         except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
-            self.logger.error(f"{self.name}: Error persisting case: {e}")  # noqa: TRY400  # ruff-baseline #3353
+            self.logger.error("%s: Error persisting case: %s", self.name, e)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
 
@@ -83,7 +90,7 @@ class SetCaseAttributedTo(DataLayerActionWithPorts):
     Set VulnerabilityCase.attributed_to to the receiving actor's ID.
 
     Must run before PersistCase so the stored case already carries the
-    vendor/coordinator owner reference.
+    report receiver's (CASE_OWNER's) reference.
 
     Per specs/case-management.yaml CM-02-008.
     """
@@ -94,13 +101,15 @@ class SetCaseAttributedTo(DataLayerActionWithPorts):
 
     def update(self) -> Status:
         if self.actor_id is None:
-            self.logger.error(f"{self.name}: actor_id not available")
+            self.logger.error("%s: actor_id not available", self.name)
             return Status.FAILURE
 
         self.case_obj.attributed_to = self.actor_id
         self.logger.debug(
-            f"{self.name}: Set attributed_to={self.actor_id}"
-            f" on case {self.case_obj.id_}"
+            "%s: Set attributed_to=%s on case %s",
+            self.name,
+            self.actor_id,
+            self.case_obj.id_,
         )
         return Status.SUCCESS
 
@@ -139,7 +148,7 @@ class RecordOfferReceivedEventNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         case_id = self.case_id_bb
         if not isinstance(case_id, str):
-            self.logger.error(f"{self.name}: case_id not found in blackboard")
+            self.logger.error("%s: case_id not found in blackboard", self.name)
             return Status.FAILURE
 
         case, failure = self._require_case(case_id)
@@ -185,13 +194,13 @@ class RecordCaseCreatedEventNode(DataLayerActionWithPorts):
 
         case_id = self.case_id_bb
         if not isinstance(case_id, str):
-            self.logger.error(f"{self.name}: case_id not found in blackboard")
+            self.logger.error("%s: case_id not found in blackboard", self.name)
             return Status.FAILURE
 
         case = self.case_for_creation_events_bb
         if case is None:
             self.logger.error(
-                f"{self.name}: case_for_creation_events missing or invalid"
+                "%s: case_for_creation_events missing or invalid", self.name
             )
             return Status.FAILURE
 
@@ -238,13 +247,9 @@ class PublishCaseActorIdentityNode(DataLayerActionWithPorts):
         return {"case_id": "/case_id", "case_actor_id": "/case_actor_id"}
 
     def update(self) -> Status:
-        from vultron.core.behaviors.case.case_actor_identity import (
-            case_actor_identity,
-        )
-
         if not self._case_id:
             self.feedback_message = f"{self.name}: case_id is empty"
-            self.logger.error(self.feedback_message)
+            self.logger.error("%s", self.feedback_message)
             return Status.FAILURE
 
         case_actor_id = case_actor_identity()
@@ -253,7 +258,7 @@ class PublishCaseActorIdentityNode(DataLayerActionWithPorts):
                 f"{self.name}: case_actor_service_url is not configured"
                 " (set VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL)"
             )
-            self.logger.error(self.feedback_message)
+            self.logger.error("%s", self.feedback_message)
             return Status.FAILURE
 
         self._set_output("case_id", self._case_id)
@@ -296,12 +301,6 @@ class EnsureCaseActorHostedNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
 
     def update(self) -> Status:
-        from vultron.core.behaviors.case.case_actor_identity import (
-            case_actor_identity,
-        )
-        from vultron.core.behaviors.store_scope import store_for_actor
-        from vultron.core.models.case_actor import CaseActor
-
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
@@ -312,7 +311,7 @@ class EnsureCaseActorHostedNode(DataLayerActionWithPorts):
                 f"{self.name}: case_actor_service_url is not configured"
                 " (set VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL)"
             )
-            self.logger.error(self.feedback_message)
+            self.logger.error("%s", self.feedback_message)
             return Status.FAILURE
 
         case_actor = CaseActor(id_=case_actor_id, name="CaseActor")

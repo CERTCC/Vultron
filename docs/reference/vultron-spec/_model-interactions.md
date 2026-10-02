@@ -51,11 +51,11 @@ this order:
 !!! note "Recall: report management states"
     {% include-markdown "./includes/_rm-states-table.md" %}
 
-    Full definitions are in [§6.1](index.md#61-states).
+    Full definitions are in [§6.1 States](tracking-models.md#61-states).
 
 Steps 2, 3 and 4 MUST occur in that order. Step 4 delivers the content that
 step 3 authorizes, and step 2 establishes the RM state that step 4's delivery
-gate tests ([§9.7](index.md#97-gating-full-case-delivery)).
+gate tests ([§9.7 Gating Full Case Delivery](tracking-models.md#97-gating-full-case-delivery)).
 
 ### 10.2 Embargo Revision and Termination Cascades
 
@@ -66,7 +66,7 @@ A change that is only proposed does not.
 !!! note "Recall: embargo management states"
     {% include-markdown "./includes/_em-states-table.md" %}
 
-    Full definitions are in [§7.1](index.md#71-states).
+    Full definitions are in [§7.1 States](tracking-models.md#71-states).
 
 - **EM enters `Revised`.** No consent changes.
   The prior embargo is still in force and every signatory to it remains `SIGNATORY`; the CASE_MANAGER records the proposer as having accepted the terms it proposed.
@@ -84,7 +84,7 @@ A change that is only proposed does not.
 !!! note "Recall: participant embargo consent states"
     {% include-markdown "./includes/_pec-states-table.md" %}
 
-    Full definitions are in [§9.1](index.md#91-states).
+    Full definitions are in [§9.1 States](tracking-models.md#91-states).
 
 ### 10.3 Status Adoption: The Two-Seam Model
 
@@ -101,14 +101,14 @@ claim as truth" are separate decisions with separate authority.
 A participant reports an observation by sending `Add(ParticipantStatus)` to the
 CASE_MANAGER. A participant does not send `Add(CaseStatus)`: writing canonical
 case status is reserved to the CASE_MANAGER
-([§5.4.1](index.md#541-single-writer-authority)).
+([§5.4.1 Single-Writer Authority](layers.md#541-single-writer-authority)).
 
 The CASE_MANAGER records the claim in the case ledger first, and then decides
 whether to adopt it as canonical:
 
 - The CASE_MANAGER MUST adopt a Case Owner's report without seeking approval.
   Asking the Case Owner to approve its own report would be circular
-  ([§12.4.4](index.md#1244-case-owner-authority)).
+  ([§12.4.4 Case Owner Authority](conformance.md#1244-case-owner-authority)).
 - For every other sender, the CASE_MANAGER MUST obtain Case Owner authorization
   before adopting the report as canonical case state. This is the default
   posture, and it is deliberate: without it, any admitted participant could
@@ -139,7 +139,7 @@ state requires:
 
 - The CASE_MANAGER MUST check whether the adopted status set Public Aware,
   Exploit Public, or Attacks Observed
-  ([§8.2](index.md#82-pxa-public-aware-exploit-public-attacks-observed)).
+  ([§8.2 PXA — Public Aware, Exploit Public, Attacks Observed](tracking-models.md#82-pxa-public-aware-exploit-public-attacks-observed)).
 - If any of those is now set, the CASE_MANAGER MUST evaluate embargo teardown.
 - **This check MUST run after the canonical write, never before.** What is
   written is the `CaseStatus` record holding the case's shared EM and PXA
@@ -163,7 +163,7 @@ without a change to the other.
 !!! note "Where the gate model applies"
     Seam 1 governs any reported status. Its authorization question matters most
     for the participant-agnostic PXA values, which any participant may report
-    ([§12.4.2](index.md#1242-participant-agnostic-cs-transitions-pxa)) —
+    ([§12.4.2 Participant-Agnostic CS Transitions (PXA)](conformance.md#1242-participant-agnostic-cs-transitions-pxa)) —
     including reports about other participants.
 
 !!! info "See also"

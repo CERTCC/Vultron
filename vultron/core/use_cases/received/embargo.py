@@ -8,8 +8,23 @@ if TYPE_CHECKING:
     from vultron.core.models.case import VulnerabilityCase
     from vultron.core.ports.wire_render import WireRenderPort
 
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.embargo.announce_teardown_tree import (
+    accept_invite_to_embargo_tree,
+    add_embargo_to_case_tree,
+    embargo_admission_backfill_tree,
+    invite_to_embargo_on_case_tree,
+    reject_invite_to_embargo_tree,
+    remove_embargo_from_case_tree,
+)
 from vultron.core.behaviors.embargo.nodes import (
     EmbargoProposalNotYetRecordedNode,
+)
+from vultron.core.behaviors.embargo.nodes.proposal import (
+    ALREADY_DECLINED_PREFIX,
+)
+from vultron.core.behaviors.embargo.proposal_index import (
+    record_embargo_proposal_index,
 )
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
@@ -31,22 +46,15 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.participants.authority import resolve_case_manager_id
-from vultron.core.ports.case_persistence import (
-    CaseOutboxPersistence,
-    CasePersistence,
-)
-from vultron.core.predicates.addressing import is_addressed_to
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.predicates.addressing import same_actor_id
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
 )
-from vultron.core.states.cs import (
-    is_pxa_attacks_observed,
-    is_pxa_exploit_public,
-    is_pxa_public_aware,
-)
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
+from vultron.core.states.participant_embargo_consent import PEC_Trigger
 from vultron.core.use_cases._helpers import (
     _idempotent_create,
     add_activity_to_outbox,
@@ -55,7 +63,23 @@ from vultron.core.use_cases._helpers import (
 from vultron.core.use_cases.received._bt_verdict import (
     applied_or_raise,
     node_failed,
+    not_case_manager_refusal,
     verdict_from_bt,
+)
+from vultron.core.use_cases.received._embargo_pxa import (
+    pxa_embargo_ineligible,
+    queue_pxa_reject,
+    refuse_pxa_invite,
+)
+from vultron.core.use_cases.received._pending_refusal import (
+    close_refused_embargo_proposal,
+)
+from vultron.core.use_cases.triggers._helpers import (
+    _prepare_delegated_context,
+)
+from vultron.errors import (
+    VultronNotFoundError,
+    VultronProtocolViolationError,
 )
 
 if TYPE_CHECKING:
@@ -65,81 +89,32 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _pxa_embargo_ineligible(dl: CasePersistence, case_id: str) -> bool:
-    """Return True when P/X/A is set on the case (EMB-01-002, EMB-02-002).
-
-    Reads the case from the DataLayer; returns False (eligible) when the case
-    cannot be resolved so normal processing can continue.
-    """
-    case = dl.read_case(case_id)
-    if case is None:
-        return False
-    pxa_state = case.current_status.pxa.state
-    return (
-        is_pxa_public_aware(pxa_state)
-        or is_pxa_exploit_public(pxa_state)
-        or is_pxa_attacks_observed(pxa_state)
-    )
-
-
 def resolve_invitee_id(
-    request: InviteToEmbargoOnCaseReceivedEvent,
-    receiving_actor_id: str,
-    invite_id: str,
+    request: InviteToEmbargoOnCaseReceivedEvent, invite_id: str
 ) -> str:
-    """Resolve whose participant record an embargo invitation applies to.
+    """Return the invitee of an ``Invite(EmbargoEvent)``: its sole ``to``.
 
-    The invitee is a *message subject*: it comes from the activity's ``to:``
-    field, never from ``resolve_receiving_actor_id()`` (ADR-0022).  Resolution
-    is by **addressee membership**, not by position, mirroring
-    ``_is_primary_submit_report_recipient`` in ``received/report.py``:
+    The invitee is a *message subject*, read from the message and never from
+    the store it reached (ADR-0022, CLP-10-015).  Every emitter sends one
+    recipient — a participant to the CASE_MANAGER, the CASE_MANAGER to one
+    participant per relayed Invite (EP-09-002) — so an Invite naming none or
+    several is a misrouting, refused rather than guessed at (EP-09-010).  The
+    recipient is returned in its canonical spelling, so a trailing slash still
+    names the actor (#2667), and two spellings of one actor are one recipient.
 
-    1. ``receiving_actor_id`` is among the recipients — the ordinary case.
-       Preferring it is what makes a multi-recipient ``Invite`` correct in
-       *every* recipient's replica rather than only the first one's, and it is
-       canonical by construction, since ``inbox_handler`` normalises
-       ``receiving_actor_id`` against ``activity.to`` (HP-09-001).
-    2. Exactly one recipient, and it is not this store's actor — the CaseActor
-       relaying on a participant's behalf, CLI dispatch, or log replay.
-    3. Several recipients, none of them this store's actor — ambiguous.  Warn
-       and degrade rather than guessing positionally.
-    4. No recipient at all — an OX-08-001 violation upstream.  Warn and
-       degrade.
-
-    Cases 3 and 4 fall back to ``receiving_actor_id`` rather than dropping the
-    invitation, because the guarded-commit branch lives inside the same single
-    tree (ADR-0022): skipping the writes would also discard the canonical
-    ledger commit this message is entitled to.  The WARNING is what the old
-    ``invitee_id = receiving_actor_id`` fallback lacked.
+    Raises:
+        VultronProtocolViolationError: ``to`` names no recipient or more
+            than one; the message gives the count.
     """
-    recipients = request.to_recipients
-
-    if is_addressed_to(receiving_actor_id, recipients):
-        return receiving_actor_id
-
-    if len(recipients) == 1:
-        return recipients[0]
-
-    if recipients:
-        logger.warning(
-            "invite_to_embargo_on_case: invite '%s' names %d recipients"
-            " and none of them is receiving actor '%s' — cannot tell which"
-            " participant this replica should apply the invitation to;"
-            " treating the receiving actor as the subject",
-            invite_id,
-            len(recipients),
-            receiving_actor_id,
+    invitee_id = request.invitee_id
+    if invitee_id is None:
+        raise VultronProtocolViolationError(
+            f"Invite(EmbargoEvent) '{invite_id}' names"
+            f" {len(request.to_recipients)} 'to' recipients; its invitee is"
+            " its sole recipient, so it is refused as a misrouting"
+            " (EP-09-010, OX-08-001)"
         )
-        return receiving_actor_id
-
-    logger.warning(
-        "invite_to_embargo_on_case: invite '%s' carries no 'to:' recipient"
-        " (OX-08-001) — treating receiving actor '%s' as the invitation's"
-        " subject",
-        invite_id,
-        receiving_actor_id,
-    )
-    return receiving_actor_id
+    return invitee_id
 
 
 def _resolve_case_for_embargo_acceptance(
@@ -201,35 +176,27 @@ def resolve_proposer_id(
     return request.actor_id
 
 
-def _record_embargo_proposal_index(
-    dl: CasePersistence,
-    case_id: str,
-    embargo_id: str,
-    proposal_id: str,
-) -> None:
-    """Record embargo_id → proposal_id in case core state (ADR-0035 DL-06)."""
-    case = dl.read_case(case_id)
-    if case is None:
-        return
-    if case.pending_embargo_proposal_index.get(embargo_id) == proposal_id:
-        return
-    # Validated assignment, like the pruner ``discard_proposed_embargo``.
-    case.pending_embargo_proposal_index = {
-        **case.pending_embargo_proposal_index,
-        embargo_id: proposal_id,
-    }
-    dl.save(case)
-
-
 def _store_invite_deadline(
     dl: CasePersistence,
     case_id: str,
     actor_id: str,
     rsvp_deadline: datetime,
 ) -> None:
-    """Store RSVP deadline on the participant record for lazy lapse detection."""
+    """Store RSVP deadline on the invitee's record for lazy lapse detection.
+
+    A proposal addressed to the CASE_MANAGER names it as the sole recipient,
+    but the manager adjudicates that Invite and is never its invitee
+    (EP-09-010): its record gets no deadline, so the enforcer of invite
+    expiry is never the record expiry is evaluated on (CM-28-003).
+    """
     case = dl.read_case(case_id)
     if case is None:
+        return
+    manager_id = resolve_case_manager_id(case, dl)
+    if manager_id is None:
+        # No enforcer to tell from the invitee (CM-24-006, CM-28-003).
+        raise VultronNotFoundError("CASE_MANAGER of case", case_id)
+    if same_actor_id(actor_id, manager_id):
         return
     participant_id = case.actor_participant_index.get(actor_id)
     if not participant_id:
@@ -248,10 +215,12 @@ class CreateEmbargoEventReceivedUseCase:
         self,
         dl: CasePersistence,
         request: CreateEmbargoEventReceivedEvent,
+        sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
+        self._sync_port = sync_port
         self._request: CreateEmbargoEventReceivedEvent = request
 
     def execute(self) -> HandlerResult:
@@ -280,11 +249,6 @@ class AddEmbargoEventToCaseReceivedUseCase:
         self._sync_port = sync_port
 
     def execute(self) -> HandlerResult:
-        from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.embargo.announce_teardown_tree import (
-            add_embargo_to_case_tree,
-        )
-
         request = self._request
         embargo_id = request.embargo_id
         case_id = request.case_id
@@ -301,7 +265,11 @@ class AddEmbargoEventToCaseReceivedUseCase:
             embargo_id=embargo_id,
         )
         bridge = BTBridge(
-            datalayer=self._dl, wire_render_port=self._wire_render_port
+            datalayer=self._dl,
+            wire_render_port=self._wire_render_port,
+            # The commit fans the entry out to every participant replica
+            # (EP-09-007, RSH-08-004); without the port nothing replays it.
+            sync_port=self._sync_port,
         )
         result = bridge.execute_with_setup(
             tree=tree,
@@ -312,7 +280,6 @@ class AddEmbargoEventToCaseReceivedUseCase:
                 self._dl, request.receiving_actor_id
             ),
             activity=request,
-            sync_port=self._sync_port,
         )
 
         verdict = verdict_from_bt(tree, result, label="AddEmbargoToCaseBT")
@@ -340,11 +307,6 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
         self._sync_port = sync_port
 
     def execute(self) -> HandlerResult:
-        from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.embargo.announce_teardown_tree import (
-            remove_embargo_from_case_tree,
-        )
-
         request = self._request
         embargo_id = request.embargo_id
         case_id = request.case_id
@@ -368,13 +330,14 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
             case_id=case_id, embargo_id=embargo_id
         )
         bridge = BTBridge(
-            datalayer=self._dl, wire_render_port=self._wire_render_port
+            datalayer=self._dl,
+            wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
         )
         result = bridge.execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
             activity=request,
-            sync_port=self._sync_port,
         )
 
         verdict = verdict_from_bt(
@@ -395,10 +358,12 @@ class AnnounceEmbargoEventToCaseReceivedUseCase:
         self,
         dl: CasePersistence,
         request: AnnounceEmbargoEventToCaseReceivedEvent,
+        sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
+        self._sync_port = sync_port
         self._request: AnnounceEmbargoEventToCaseReceivedEvent = request
 
     def execute(self) -> HandlerResult:
@@ -426,11 +391,6 @@ class InviteToEmbargoOnCaseReceivedUseCase:
         self._trigger_activity = trigger_activity
 
     def execute(self) -> HandlerResult:
-        from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.embargo.announce_teardown_tree import (
-            invite_to_embargo_on_case_tree,
-        )
-
         request = self._request
         case_id = request.context_id or ""
         invite_id = request.activity_id
@@ -451,63 +411,46 @@ class InviteToEmbargoOnCaseReceivedUseCase:
                 f"Invite(EmbargoEvent) '{invite_id}' names no embargo"
             )
 
+        # The invitee is a subject the message names, not the actor whose
+        # replica this is (ADR-0022): the Invite's sole `to` recipient.  An
+        # Invite naming none or several is a misrouting, refused before the
+        # P/X/A check answers it (EP-09-010, HP-01-005).
+        try:
+            invitee_id = resolve_invitee_id(request, invite_id)
+        except VultronProtocolViolationError as exc:
+            logger.warning(
+                "invite_to_embargo_on_case: refusing invite '%s' from actor"
+                " '%s' at receiving actor '%s': %s",
+                invite_id,
+                request.actor_id,
+                request.receiving_actor_id,
+                exc,
+            )
+            return HandlerResult.refused(str(exc))
+
         receiving_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
         )
-        # EMB-01-002: MUST NOT process EP when P/X/A is set; MUST emit ER.
-        if case_id and _pxa_embargo_ineligible(self._dl, case_id):
-            logger.info(
-                "invite_to_embargo_on_case: P/X/A set on case '%s'"
-                " — rejecting EP '%s' (EMB-01-002)",
-                case_id,
-                invite_id,
+        if case_id and pxa_embargo_ineligible(self._dl, case_id):
+            return refuse_pxa_invite(
+                self._dl,
+                self._trigger_activity,
+                request,
+                case_id=case_id,
+                invite_id=invite_id,
+                embargo_id=embargo_id,
+                invitee_id=invitee_id,
+                receiving_actor_id=receiving_actor_id,
             )
-            if self._trigger_activity is not None:
-                _idempotent_create(
-                    self._dl,
-                    request.activity_type,
-                    invite_id,
-                    request.activity,
-                    "InviteToEmbargoOnCase",
-                    invite_id,
-                )
-                reject_id, _ = self._trigger_activity.reject_embargo(
-                    proposal_id=invite_id,
-                    case_id=case_id,
-                    actor=receiving_actor_id,
-                    to=[request.actor_id],
-                )
-                add_activity_to_outbox(receiving_actor_id, reject_id, self._dl)
-            else:
-                logger.warning(
-                    "invite_to_embargo_on_case: trigger_activity unavailable"
-                    " — ER not emitted for EP '%s' on case '%s'",
-                    invite_id,
-                    case_id,
-                )
-            return HandlerResult.refused(
-                f"EMB-01-002: P/X/A set on case '{case_id}'; embargo"
-                " proposal rejected"
-            )
-
-        # The invitee is a subject the message names, not the actor whose
-        # replica this is (ADR-0022).  Resolving it from `to:` is what keeps
-        # the two apart: an EP dispatched into any store other than the
-        # addressee's — CLI, replay, or a CaseActor relaying on a
-        # participant's behalf — would otherwise write this participant's PEC
-        # transition and RSVP deadline (CM-28-001, CM-28-003) onto the wrong
-        # record.  Resolved after the P/X/A guard so the warnings it may emit
-        # describe an invitation this use case is actually going to apply.
-        invitee_id = resolve_invitee_id(request, receiving_actor_id, invite_id)
 
         # Single BT execution under receiving_actor_id (ADR-0022 / CLP-10-005).
         # invitee_id is threaded into the tree as a node constructor arg so
-        # OptionalLookupParticipantNode looks up the correct participant even
-        # when receiving_actor_id != invitee_id.  The tree's two arms are
+        # only the addressee's store answers the Invite, even when
+        # receiving_actor_id != invitee_id.  The tree's two arms are
         # role-gated in-tree (BT-17-001): the CASE_MANAGER adjudicates and
-        # relays the proposal of ``proposer_id`` (EP-09-001, EP-09-002); any
-        # other receiver records the Invite on its replica.
-        pec_result: dict[str, object] = {}
+        # relays the proposal of ``proposer_id`` (EP-09-001, EP-09-002); the
+        # addressee's replica answers the Invite to the CASE_MANAGER and
+        # writes no EM or consent state (EP-09-003).
         tree = invite_to_embargo_on_case_tree(
             case_id=case_id,
             invitee_id=invitee_id,
@@ -519,18 +462,17 @@ class InviteToEmbargoOnCaseReceivedUseCase:
                 if isinstance(request.object_, EmbargoEvent)
                 else None
             ),
-            pec_result_out=pec_result,
         )
         bridge = BTBridge(
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
         )
         result = bridge.execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
             activity=request,
-            sync_port=self._sync_port,
         )
 
         verdict = verdict_from_bt(
@@ -543,35 +485,27 @@ class InviteToEmbargoOnCaseReceivedUseCase:
             verdict = HandlerResult.skipped(
                 f"invite '{invite_id}' was already applied on case '{case_id}'"
             )
-        if (
-            verdict.disposition is HandlerDisposition.APPLIED
-            and pec_result.get("pec_before") is PEC.INVITED
-            and not pec_result.get("pec_changed")
-        ):
-            # The replica arm found the invitee already INVITED and moved
-            # nothing.  A redelivery of the *same* Invite never reaches here
-            # (the idempotency guard above catches it), so this is a
-            # *different* Invite — a re-proposal or counter — landing on a
-            # replica whose participant is still INVITED from an earlier one.
-            # The replica writes no consent for it (CM-18-003) and reports a
-            # no-op, not a refusal (HP-01-003, #2255); the manager's relay of
-            # the new proposal, not this receipt, is what the replica will
-            # learn it from once #3915 lands the replay node.  Keyed on the
-            # node's own verdict, never on a re-read of the store.
-            verdict = HandlerResult.skipped(
-                f"'{invitee_id}' is already invited on case '{case_id}'"
-            )
         if verdict.disposition is not HandlerDisposition.APPLIED:
             logger.warning("%s (invite '%s')", verdict.reason, invite_id)
             return verdict
 
         # Record embargo_id → invite_id in core state so accept/reject
         # trigger use cases can correlate without re-reading the Invite wire
-        # activity (ADR-0035 DL-06).
+        # activity (ADR-0035 DL-06).  A partial replica that holds no copy
+        # of the case keeps the Invite and indexes nothing (Regime 2,
+        # ADR-0087); CanAnswerEmbargoInviteNode has already warned.
         if case_id and embargo_id and invite_id:
-            _record_embargo_proposal_index(
-                self._dl, case_id, embargo_id, invite_id
-            )
+            try:
+                record_embargo_proposal_index(
+                    self._dl, case_id, embargo_id, invite_id
+                )
+            except VultronNotFoundError:
+                logger.info(
+                    "invite '%s': case '%s' not held here — proposal not"
+                    " indexed",
+                    invite_id,
+                    case_id,
+                )
 
         # Store RSVP deadline on the invitee's participant record so
         # detect_and_apply_lapse() can check it without reading the stored
@@ -612,7 +546,6 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         # keep the entry idempotent — a repeated late-Accept does not double-log.
         if not has_pec_change:
             return
-        from vultron.core.behaviors.bridge import BTBridge
 
         tree = create_commit_log_entry_tree(
             case_id=case_id,
@@ -639,15 +572,30 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             },
         )
         result = BTBridge(
-            datalayer=self._dl, wire_render_port=self._wire_render_port
+            datalayer=self._dl,
+            wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
         ).execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
-            sync_port=self._sync_port,
         )
         # The lapse is already applied to the replica; an unrecorded lapse
         # would diverge the replicas silently (CM-28-009).
         applied_or_raise(tree, result, label="CommitLapseLedgerEntryBT")
+
+    def _backfill_admitted(
+        self, *, case_id: str, receiving_actor_id: str
+    ) -> None:
+        tree = embargo_admission_backfill_tree(case_id)
+        result = BTBridge(
+            datalayer=self._dl,
+            wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
+        ).execute_with_setup(
+            tree=tree,
+            actor_id=receiving_actor_id,
+        )
+        applied_or_raise(tree, result, label="EmbargoAdmissionBackfillBT")
 
     def _handle_emb17_routing(
         self,
@@ -696,6 +644,11 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
                 case_id,
                 embargo_id,
             )
+            # CM-10-006: the honored Accept admits the participant to case
+            # content, so send it what the embargo gate withheld.
+            self._backfill_admitted(
+                case_id=case_id, receiving_actor_id=receiving_actor_id
+            )
 
         elif em_state in (EM.ACTIVE, EM.REVISE, EM.PROPOSED):
             # AC-3 of #2213: stale embargo — re-invite with current embargo.
@@ -704,10 +657,6 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
                 and active_embargo_id
                 and accepting_actor_id
             ):
-                from vultron.core.use_cases.triggers._helpers import (
-                    _prepare_delegated_context,
-                )
-
                 actor_id, _ = _prepare_delegated_context(
                     self._dl, case_id, receiving_actor_id
                 )
@@ -765,14 +714,6 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             )
 
     def execute(self) -> HandlerResult:
-        from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.embargo.announce_teardown_tree import (
-            accept_invite_to_embargo_tree,
-        )
-        from vultron.core.behaviors.embargo.nodes.proposal import (
-            REPLACED_EMBARGO_UNREPLICATED_PREFIX,
-        )
-
         request = self._request
         embargo_id = request.embargo_id
         if embargo_id is None:
@@ -801,25 +742,26 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
 
         # EMB-02-002: MUST NOT process EA to transition EM to Active when P/X/A
         # is set; MUST emit ER instead.
-        if _pxa_embargo_ineligible(self._dl, case_id):
+        if pxa_embargo_ineligible(self._dl, case_id):
             logger.info(
                 "accept_invite_to_embargo_on_case: P/X/A set on case '%s'"
                 " — rejecting EA (EMB-02-002)",
                 case_id,
             )
-            if self._trigger_activity is not None and invite_id:
-                reject_id, _ = self._trigger_activity.reject_embargo(
-                    proposal_id=invite_id,
+            if invite_id:
+                queue_pxa_reject(
+                    self._dl,
+                    self._trigger_activity,
+                    invite_id=invite_id,
                     case_id=case_id,
-                    actor=receiving_actor_id,
-                    to=[request.actor_id],
+                    actor_id=receiving_actor_id,
+                    recipient_id=request.actor_id,
+                    label="accept_invite_to_embargo_on_case",
                 )
-                add_activity_to_outbox(receiving_actor_id, reject_id, self._dl)
             else:
                 logger.warning(
-                    "accept_invite_to_embargo_on_case: trigger_activity"
-                    " unavailable or missing invite_id — ER not emitted"
-                    " for EA on case '%s'",
+                    "accept_invite_to_embargo_on_case: missing invite_id"
+                    " — ER not emitted for EA on case '%s'",
                     case_id,
                 )
             return HandlerResult.refused(
@@ -871,26 +813,25 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             invite_id=invite_id,
         )
         bridge = BTBridge(
-            datalayer=self._dl, wire_render_port=self._wire_render_port
+            datalayer=self._dl,
+            wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
         )
         result = bridge.execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
             activity=request,
-            sync_port=self._sync_port,
         )
 
         verdict = verdict_from_bt(
             tree, result, label="AcceptInviteToEmbargoBT"
         )
-        if (
-            verdict.disposition is HandlerDisposition.REFUSED
-            and REPLACED_EMBARGO_UNREPLICATED_PREFIX in (verdict.reason or "")
-        ):
-            # This replica lacks the embargo the accepted one replaces, so it
-            # cannot yet run the EP-05-001 comparison: park the Accept for
-            # replay rather than refuse a well-formed assertion (HP-01-003).
-            verdict = HandlerResult.deferred(verdict.reason)
+        if verdict.disposition is HandlerDisposition.APPLIED:
+            # Only the CASE_MANAGER records an answer; a replica learns it
+            # from the ledger broadcast (BT-17-001, HP-01-005).
+            refusal = not_case_manager_refusal(tree, self._dl, case_id)
+            if refusal is not None:
+                verdict = refusal
         if verdict.disposition is not HandlerDisposition.APPLIED:
             logger.warning(
                 "%s (embargo '%s', case '%s')",
@@ -907,34 +848,27 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
         dl: CaseOutboxPersistence,
         request: RejectInviteToEmbargoOnCaseReceivedEvent,
         sync_port: "SyncActivityPort | None" = None,
+        trigger_activity: "TriggerActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
         self._request: RejectInviteToEmbargoOnCaseReceivedEvent = request
         self._sync_port = sync_port
+        # The owner's Reject of a revision after disclosure terminates the
+        # embargo, and the CASE_MANAGER tells the participants (EMB-04-002).
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> HandlerResult:
-        from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.embargo.announce_teardown_tree import (
-            reject_invite_to_embargo_tree,
-        )
-        from vultron.core.behaviors.embargo.nodes.proposal import (
-            ALREADY_DECLINED_PREFIX,
-        )
-
         request = self._request
         rejecting_actor_id = request.actor_id
         invite_id = request.invite_id
 
         logger.info(
-            "Actor '%s' rejected embargo proposal '%s'",
-            rejecting_actor_id,
-            invite_id,
+            "'%s' rejected embargo '%s'", rejecting_actor_id, invite_id
         )
-
-        case_id = request.case_id
-        embargo_id = request.embargo_id
+        close_refused_embargo_proposal(self._dl, request)  # EP-09-008
+        case_id, embargo_id = request.case_id, request.embargo_id
 
         if not case_id:
             logger.warning(
@@ -960,7 +894,12 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
             embargo_id=embargo_id,
         )
         bridge = BTBridge(
-            datalayer=self._dl, wire_render_port=self._wire_render_port
+            datalayer=self._dl,
+            trigger_activity=self._trigger_activity,
+            wire_render_port=self._wire_render_port,
+            # The commit fans the entry out to every participant replica
+            # (EP-09-007, RSH-08-004); without the port nothing replays it.
+            sync_port=self._sync_port,
         )
         result = bridge.execute_with_setup(
             tree=tree,
@@ -976,6 +915,12 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
         verdict = verdict_from_bt(
             tree, result, label="RejectInviteToEmbargoBT"
         )
+        if verdict.disposition is HandlerDisposition.APPLIED:
+            # Only the CASE_MANAGER records an answer; a replica learns it
+            # from the ledger broadcast (BT-17-001, HP-01-005).
+            refusal = not_case_manager_refusal(tree, self._dl, case_id)
+            if refusal is not None:
+                verdict = refusal
         if (
             verdict.disposition is HandlerDisposition.REFUSED
             and ALREADY_DECLINED_PREFIX in (verdict.reason or "")

@@ -124,7 +124,7 @@ def test_prioritize_publication_intents_is_evaluator():
 
 def test_prioritize_publication_intents_output_is_structured_record():
     """AC-3: output key is the typed PublicationIntentDecision (not str)."""
-    from vultron.core.behaviors.report.publication_tree import (
+    from vultron.core.behaviors.report.publication_intent import (
         INTENT_DECISION_KEY,
         PublicationIntentDecision,
     )

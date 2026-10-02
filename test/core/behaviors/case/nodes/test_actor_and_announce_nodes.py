@@ -24,6 +24,7 @@ import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.outbox_sealed_body import dump_outbound_body
 from vultron.core.behaviors.bridge import BTBridge
@@ -34,8 +35,9 @@ from vultron.core.behaviors.case.nodes.announce import SeedAnnouncedCaseNode
 from vultron.core.behaviors.case.nodes.ownership_transfer import (
     AcceptCaseOwnershipTransferNode,
 )
-from vultron.core.models._helpers import now_utc
+from vultron.core.models._helpers import days_from_now_utc, now_utc
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
@@ -86,7 +88,11 @@ def dl(store_for):
 
 @pytest.fixture
 def bridge(dl):
-    return BTBridge(datalayer=dl, wire_render_port=As2WireRenderAdapter())
+    return BTBridge(
+        datalayer=dl,
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(dl),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -317,14 +323,20 @@ def case():
     return as_VulnerabilityCase(id_=CASE_ID2, name="Seed Announce Test")
 
 
-@pytest.fixture
-def announce_event(case) -> AnnounceVulnerabilityCaseReceivedEvent:
+def _announce_event_for(
+    case: as_VulnerabilityCase,
+) -> AnnounceVulnerabilityCaseReceivedEvent:
     activity = announce_vulnerability_case_activity(
         case, actor=ACTOR_ID, context=case.id_
     )
     event = extract_event(activity)
     assert event.semantic_type == MessageSemantics.ANNOUNCE_VULNERABILITY_CASE
     return cast(AnnounceVulnerabilityCaseReceivedEvent, event)
+
+
+@pytest.fixture
+def announce_event(case) -> AnnounceVulnerabilityCaseReceivedEvent:
+    return _announce_event_for(case)
 
 
 class TestSeedAnnouncedCaseNode:
@@ -394,7 +406,7 @@ class TestSeedAnnouncedCaseNode:
         """Persisted VulnerabilityCase must not carry inline CaseParticipant objects.
 
         Regression for #2233 write path: _build_case_object materialises inline
-        participants for delivery so that _store_embedded_participants on the
+        participants for delivery so that store_embedded_participants on the
         receiver side can project and persist them.  SeedAnnouncedCaseNode must
         normalise case_participants to string IDs *before* saving the case, so
         the stored row never carries stale inline snapshots that would freeze
@@ -438,6 +450,80 @@ class TestSeedAnnouncedCaseNode:
             "Standalone CaseParticipant record must be stored alongside the case"
         )
 
+    @pytest.mark.spec("EMB-18-003")
+    def test_stores_the_inline_embargo_the_case_names(
+        self, bridge, dl
+    ) -> None:
+        """An inline active embargo becomes a record this store can read."""
+        embargo = EmbargoEvent(
+            id_=f"{CASE_ID2}/embargo_events/inline",
+            context=CASE_ID2,
+            end_time=days_from_now_utc(45),
+        )
+        case = as_VulnerabilityCase(
+            id_=CASE_ID2, name="Inline Embargo", active_embargo=embargo
+        )
+        event = _announce_event_for(case)
+        tree = SeedAnnouncedCaseNode(
+            case_id=CASE_ID2, case_obj=case, request=event
+        )
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID, activity=event
+        )
+        assert result.status == Status.SUCCESS
+        assert isinstance(dl.read(embargo.id_), EmbargoEvent)
+        assert dl.read(CASE_ID2) is not None
+
+    @pytest.mark.spec("EMB-18-003")
+    def test_refuses_a_case_naming_an_unheld_embargo(self, bridge, dl) -> None:
+        """A bare embargo id this store cannot read is refused, not seeded."""
+        case = as_VulnerabilityCase(
+            id_=CASE_ID2,
+            name="Unheld Embargo",
+            active_embargo=f"{CASE_ID2}/embargo_events/unheld",
+        )
+        event = _announce_event_for(case)
+        tree = SeedAnnouncedCaseNode(
+            case_id=CASE_ID2, case_obj=case, request=event
+        )
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID, activity=event
+        )
+        assert result.status == Status.FAILURE
+        assert dl.read(CASE_ID2) is None
+
+    @pytest.mark.spec("EMB-18-003")
+    def test_refuses_a_reannounce_naming_an_unheld_embargo(
+        self, bridge, dl, case
+    ) -> None:
+        """An already-held case is left as stored, participants included."""
+        dl.create(case)
+        participant_id = f"{CASE_ID2}/participants/reannounced"
+        reannounced = as_VulnerabilityCase(
+            id_=CASE_ID2,
+            name="Re-announced",
+            active_embargo=f"{CASE_ID2}/embargo_events/unheld",
+            case_participants=[
+                as_CaseParticipant(
+                    id_=participant_id,
+                    attributed_to=ACTOR_ID,
+                    context=CASE_ID2,
+                )
+            ],
+        )
+        event = _announce_event_for(reannounced)
+        tree = SeedAnnouncedCaseNode(
+            case_id=CASE_ID2, case_obj=reannounced, request=event
+        )
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID, activity=event
+        )
+        assert result.status == Status.FAILURE
+        stored = dl.read(CASE_ID2)
+        assert stored is not None
+        assert stored.active_embargo is None
+        assert dl.read(participant_id) is None
+
 
 # ---------------------------------------------------------------------------
 # EmitInviteActorToCaseNode._read_suggested_roles (AC-3, Issue-1405)
@@ -468,6 +554,86 @@ class TestEmitInviteActorToCaseNodeReadSuggestedRoles:
         assert result is None, (
             f"AC-3: expected None when suggested_roles absent, got {result!r}"
         )
+
+
+class TestEmitInviteActorToCaseNodeCommitsBeforeQueuing:
+    """AC-3 (#3821): the emitting tree's commit is the Invite's only commit.
+
+    The CASE_MANAGER builds the Invite, commits it, then appends it to its
+    outbox, and the Invite carries no ``cc:`` copy back to the manager
+    (CM-17-006, ADR-0109).
+    """
+
+    @pytest.fixture
+    def dl(self, store_for):
+        return store_for(ACTOR_ID)
+
+    @pytest.fixture(autouse=True)
+    def clear_blackboard(self):
+        py_trees.blackboard.Blackboard.storage.clear()
+        yield
+        py_trees.blackboard.Blackboard.storage.clear()
+
+    @pytest.mark.spec("CM-17-006")
+    def test_invite_has_no_cc_and_is_committed_before_the_outbox_append(
+        self, dl, monkeypatch
+    ):
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+
+        case = as_VulnerabilityCase(
+            id_=AC3_CASE_ID, name="AC3 commit order", attributed_to=ACTOR_ID
+        )
+        dl.create(case)
+
+        def _invite_entries() -> list[CaseLedgerEntry]:
+            return [
+                e
+                for e in dl.list_objects("CaseLedgerEntry")
+                if isinstance(e, CaseLedgerEntry)
+                and e.event_type == "invite_actor_to_case"
+            ]
+
+        ledger_at_append: list[list[str | None]] = []
+        original_append = SqliteDataLayer.outbox_append
+
+        def _spy(self_dl, activity_id):
+            ledger_at_append.append(
+                [e.payload_snapshot.get("id") for e in _invite_entries()]
+            )
+            return original_append(self_dl, activity_id)
+
+        monkeypatch.setattr(SqliteDataLayer, "outbox_append", _spy)
+
+        node = EmitInviteActorToCaseNode(
+            invitee_id=INVITEE_ID,
+            case_id=AC3_CASE_ID,
+            attributed_to=NEW_OWNER_ID,
+            roles=["vendor"],
+        )
+        result = BTBridge(
+            datalayer=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.SUCCESS
+
+        outbox = dl.outbox_list()
+        assert len(outbox) == 1
+        invite_id = outbox[0]
+        invite = dl.read(invite_id)
+        assert getattr(invite, "cc", None) in (None, [])
+        assert getattr(invite, "actor", None) == ACTOR_ID
+        assert getattr(invite, "attributed_to", None) == NEW_OWNER_ID
+
+        entries = _invite_entries()
+        assert [e.payload_snapshot.get("id") for e in entries] == [invite_id]
+        assert "cc" not in entries[0].payload_snapshot
+        # The one append saw the entry already committed.
+        assert ledger_at_append == [[invite_id]]
 
 
 class TestEmitInviteActorToCaseNodePassesRolesNoneToFactory:
@@ -537,6 +703,7 @@ class TestEmitInviteActorToCaseNodePassesRolesNoneToFactory:
             datalayer=dl,
             trigger_activity=mock_factory,
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         )
         node = EmitInviteActorToCaseNode(
             invitee_id=INVITEE_ID,
@@ -641,6 +808,7 @@ class TestEmitAddCaseParticipantNode:
             datalayer=dl,
             trigger_activity=mock_factory,
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         )
         node = EmitAddCaseParticipantNode(
             case_id=EMIT_ADD_CASE_ID, invitee_id=EMIT_ADD_INVITEE_ID
@@ -723,6 +891,7 @@ class TestEmitAddCaseParticipantNode:
             datalayer=dl,
             trigger_activity=mock_factory,
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         )
         node = EmitAddCaseParticipantNode(
             case_id=EMIT_ADD_CASE_ID, invitee_id=EMIT_ADD_INVITEE_ID
@@ -779,6 +948,7 @@ class TestEmitAddCaseParticipantNode:
             datalayer=dl,
             trigger_activity=mock_factory,
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         )
         node = EmitAddCaseParticipantNode(
             case_id=EMIT_ADD_CASE_ID, invitee_id=EMIT_ADD_INVITEE_ID
@@ -818,6 +988,7 @@ class TestEmitAddCaseParticipantNode:
             datalayer=dl,
             trigger_activity=mock_factory,
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         )
         node = EmitAddCaseParticipantNode(
             case_id=EMIT_ADD_CASE_ID, invitee_id=EMIT_ADD_INVITEE_ID
@@ -832,13 +1003,21 @@ class TestEmitAddCaseParticipantNode:
         assert result.status == Status.FAILURE
         mock_factory.add_participant_to_case.assert_not_called()
 
-    def test_to_field_contains_http_actor_urls_not_bare_uuids(self, dl):
+    @pytest.mark.parametrize("embargoed", [False, True])
+    @pytest.mark.spec("CM-10-004")
+    def test_to_field_contains_http_actor_urls_not_bare_uuids(
+        self, dl, embargoed
+    ):
         """to= passed to add_participant_to_case must contain HTTP actor URLs.
 
         Production storage keeps case.case_participants as bare UUID strings
         (e.g. "urn:uuid:…").  _resolve_actor_recipients must use
         case.actor_participant_index keys (HTTP URIs) instead, or outbox
         delivery will fail with "Request URL is missing 'http://'".
+
+        The announce is case content, so it reaches active participants only
+        (#4046): a participant that never joined gets nothing, and under an
+        active embargo neither does one that is not SIGNATORY.
         """
         from unittest.mock import MagicMock
 
@@ -850,26 +1029,48 @@ class TestEmitAddCaseParticipantNode:
         )
         from vultron.core.models.case import VulnerabilityCase
         from vultron.core.models.case_participant import CaseParticipant
+        from vultron.core.states.participant_embargo_consent import PEC
 
         # Two existing participants stored as bare UUID strings in case_participants
         # (matching production DataLayer storage format).
         existing_actor_1 = "https://example.org/actors/existing-actor-1"
         existing_actor_2 = "https://example.org/actors/existing-actor-2"
+        unjoined_actor = "https://example.org/actors/unjoined-actor"
         existing_p1_id = "urn:uuid:11111111-0000-0000-0000-000000000001"
         existing_p2_id = "urn:uuid:22222222-0000-0000-0000-000000000002"
+        unjoined_p_id = "urn:uuid:33333333-0000-0000-0000-000000000003"
 
         case = VulnerabilityCase(
             id_=EMIT_ADD_CASE_ID,
             name="to-field-http-url-test",
             attributed_to=EMIT_ADD_ACTOR_ID,
             # bare UUID strings, as stored in production
-            case_participants=[existing_p1_id, existing_p2_id],
+            case_participants=[existing_p1_id, existing_p2_id, unjoined_p_id],
             actor_participant_index={
                 existing_actor_1: existing_p1_id,
                 existing_actor_2: existing_p2_id,
+                unjoined_actor: unjoined_p_id,
             },
         )
+        if embargoed:
+            case.set_embargo(f"{EMIT_ADD_CASE_ID}/embargoes/e1")
         dl.create(case)
+        # The recipient selection reads each roster entry's record (CM-10-007).
+        # existing_actor_2 has been invited to the embargo but not accepted.
+        for actor_id, pid, consent, joined in (
+            (existing_actor_1, existing_p1_id, PEC.SIGNATORY, True),
+            (existing_actor_2, existing_p2_id, PEC.INVITED, True),
+            (unjoined_actor, unjoined_p_id, PEC.SIGNATORY, False),
+        ):
+            dl.create(
+                CaseParticipant(
+                    id_=pid,
+                    attributed_to=actor_id,
+                    context=EMIT_ADD_CASE_ID,
+                    embargo_consent_state=consent,
+                    joined=joined,
+                )
+            )
 
         participant = CaseParticipant(
             id_=EMIT_ADD_PARTICIPANT_ID,
@@ -906,6 +1107,7 @@ class TestEmitAddCaseParticipantNode:
             datalayer=dl,
             trigger_activity=mock_factory,
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         )
         node = EmitAddCaseParticipantNode(
             case_id=EMIT_ADD_CASE_ID, invitee_id=EMIT_ADD_INVITEE_ID
@@ -932,7 +1134,8 @@ class TestEmitAddCaseParticipantNode:
                 f"Full to= list: {to_arg}"
             )
         assert existing_actor_1 in to_arg
-        assert existing_actor_2 in to_arg
+        assert (existing_actor_2 in to_arg) is not embargoed
+        assert unjoined_actor not in to_arg
         # The new invitee must NOT be in the recipients (it's the one being added)
         assert EMIT_ADD_INVITEE_ID not in to_arg
 
@@ -1015,6 +1218,7 @@ class TestEmitOwnershipTransferNodes:
             datalayer=dl,
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         )
         result = bridge.execute_with_setup(tree=node, actor_id=_OT_OWNER_ID)
 
@@ -1070,6 +1274,7 @@ class TestEmitOwnershipTransferNodes:
             datalayer=dl,
             trigger_activity=mock_factory,
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         )
         result = bridge.execute_with_setup(
             tree=node, actor_id=_OT_TRANSFEREE_ID

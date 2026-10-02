@@ -11,8 +11,8 @@ This page defines the Report Management (RM) process as a deterministic finite a
 It is for readers who want the formal model behind the [RM process model](index.md), which describes each state and transition in practitioner terms.
 The [formal protocol](../../../reference/formal_protocol/index.md) builds on the definitions given here.
 
-The normative RM states and transitions are specified in [§6 of the Vultron Protocol Specification](../../../reference/vultron-spec/index.md#6-report-management-rm-state-machine-n).
-The [states table (§6.1)](../../../reference/vultron-spec/index.md#61-states) and the [transitions table (§6.2)](../../../reference/vultron-spec/index.md#62-transitions-and-guards) are the authority.
+The normative RM states and transitions are specified in [§6 Report Management (RM) State Machine in the Vultron Protocol Specification](../../../reference/vultron-spec/tracking-models.md#6-report-management-rm-state-machine-n).
+The states table in [§6.1 States](../../../reference/vultron-spec/tracking-models.md#61-states) and the transitions table in [§6.2 Transitions and Guards](../../../reference/vultron-spec/tracking-models.md#62-transitions-and-guards) are the authority.
 This page restates them in DFA notation and adds what the specification does not carry: the symbol set, a right-linear grammar, the shortest possible histories, and a set of named state subsets that other process-model pages use.
 
 ---
@@ -84,7 +84,7 @@ The [formal protocol messages](../../../reference/formal_protocol/messages.md) p
     $$\delta^{rm} =
     \begin{cases}
     S & \to rR \\
-    R & \to vV~|~iI \\
+    R & \to vV~|~iI~|~cC \\
     I & \to vV~|~cC \\
     V & \to aA~|~dD \\
     A & \to dD~|~cC \\
@@ -94,15 +94,16 @@ The [formal protocol messages](../../../reference/formal_protocol/messages.md) p
 
 The transition function is written at right as a right-linear grammar.
 Each production reads as "from this state, this symbol leads to that state".
-For example, $R \to vV~|~iI$ says that a *Received* report moves to *Valid* on *validate* and to *Invalid* on *invalidate*.
+For example, $R \to vV~|~iI~|~cC$ says that a *Received* report moves to *Valid* on *validate*, to *Invalid* on *invalidate*, and to *Closed* on *close*.
+A report closes from *Received*, *Invalid*, *Accepted*, or *Deferred*, but never from *Valid*: a Participant that has judged a report valid either accepts or defers it before closing it.
 
-The grammar has one production alternative for each of the eleven transitions in the specification's transitions table, and no others.
+The grammar has one production alternative for each of the twelve transitions in the specification's transitions table, and no others.
 The [RM state machine diagram](index.md#rm-state-transitions) shows the same transitions.
 
 ## Possible RM histories
 
 The strings the grammar generates are the possible sequences of actions one Participant can take on one report.
-There are 15 such strings of length seven or less: *ric*, *rvac*, *rvdc*, *rivac*, *rivdc*, *rvadc*, *rvdac*, *rivadc*, *rivdac*, *rvadac*, *rvdadc*, *rivadac*, *rivdadc*, *rvadadc*, and *rvdadac*.
+There are 16 such strings of length seven or less: *rc*, *ric*, *rvac*, *rvdc*, *rivac*, *rivdc*, *rvadc*, *rvdac*, *rivadc*, *rivdac*, *rvadac*, *rvdadc*, *rivadac*, *rivdadc*, *rvadadc*, and *rvdadac*.
 
 Longer strings only add *defer*–*accept* (*da*) or *accept*–*defer* (*ad*) cycles before closure (*c*).
 RM processes are usually short, and Participants tend to avoid frequent starts and stops.
@@ -128,7 +129,7 @@ We therefore expect most reports to follow one of the strings above, with the re
                     \delta^{rm} = &
                         \begin{cases}
                             S \to & rR \\
-                            R \to & vV~|~iI \\
+                            R \to & vV~|~iI~|~cC \\
                             I \to & vV~|~cC \\
                             V \to & aA~|~dD \\
                             A \to & dD~|~cC \\

@@ -25,12 +25,14 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import (
     RmDimension,
 )
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.report import (
     AckReportReceivedEvent,
@@ -197,12 +199,21 @@ class TestFullReportFlow:
                 )
             ],
         )
+        # The receiver holds the embargo record its replica names, as the
+        # inbox pre-store leaves it when the sender carries it inline
+        # (EMB-18-003).
+        embargo = EmbargoEvent(
+            id_=f"{self.CASE_ID}/embargoes/flow-embargo",
+            context=self.CASE_ID,
+            end_time=days_from_now_utc(45),
+        )
+        dl.save(embargo)
         case = as_VulnerabilityCase.model_construct(
             id_=self.CASE_ID,
             name="Flow test case",
             vulnerability_reports=[self.REPORT_ID],
             case_participants=[case_manager, vendor_participant],
-            active_embargo=f"{self.CASE_ID}/embargoes/flow-embargo",
+            active_embargo=embargo.id_,
             # The index travels on the wire alongside the inline participants
             # (CM-19-003): participants are resolved through it, never by
             # scanning inline snapshots.
@@ -592,7 +603,7 @@ class TestValidateReportReceivedGuardedCommit:
         link = VultronReportCaseLink(
             report_id=self.REPORT_ID,
             case_id=case.id_,
-            trusted_case_actor_id=self.CASE_ACTOR_ID,
+            case_manager_id=self.CASE_ACTOR_ID,
         )
         dl.save(link)
 
@@ -661,7 +672,7 @@ class TestValidateReportReceivedGuardedCommit:
         link = VultronReportCaseLink(
             report_id=self.REPORT_ID,
             case_id=CASE_ID,
-            trusted_case_actor_id=self.CASE_ACTOR_ID,
+            case_manager_id=self.CASE_ACTOR_ID,
         )
         dl.save(link)
 
@@ -695,8 +706,17 @@ class TestValidateReportReceivedGuardedCommit:
             tracking_create,
         )
 
+        from vultron.adapters.driven.sync_activity_adapter import (
+            SyncActivityAdapter,
+        )
+
+        # The commit tree refuses to mint without a sync port, and that
+        # wiring fault now reaches the handler as an internal error (#4113).
         ValidateReportReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         assert commit_tree_calls, (

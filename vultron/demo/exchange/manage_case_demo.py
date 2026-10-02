@@ -82,6 +82,9 @@ from vultron.wire.as2.factories import (
     rm_submit_report_activity,
     rm_validate_report_activity,
 )
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Create,
+)
 
 # Vultron imports
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -139,9 +142,6 @@ def setup_report_and_case(
         case_roles=[CVDRole.VENDOR],
         attributed_to=vendor.id_,
         context=case.id_,
-    )
-    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-        as_Create,
     )
 
     create_vendor_participant = as_Create(
@@ -332,7 +332,7 @@ def demo_invalidate_path(
             "usernames.",
             name="Alleged Username Enumeration",
         )
-        logger.info(f"Created report: {logfmt(report)}")
+        logger.info("Created report: %s", logfmt(report))
         offer = rm_submit_report_activity(
             report, actor=finder.id_, to=vendor.id_
         )

@@ -63,6 +63,9 @@ from vultron.core.behaviors.case.nodes.suggest_actor import (
     PendingOfferCaseParticipantNode,
     RecordRecommendationRecommenderNode,
 )
+from vultron.core.behaviors.case.nodes.vfd_role_guards import (
+    CheckIsCaseOwnerNode,
+)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -105,13 +108,18 @@ def create_recommend_actor_to_case_received_tree(
     """Received-side BT for Offer(Actor, Case) on the CASE_MANAGER's inbox.
 
     Commits a canonical ``CaseLedgerEntry`` for the received Offer
-    (CM-16-002), then routes to one of four branches via a Selector:
+    (CM-16-002), then routes to one of five branches via a Selector:
 
     1. **AC-7b** — already participant: auto-accept to recommender (CM-16-009).
     2. **AC-7a** — invite in-flight: auto-accept to recommender (CM-16-009).
     3. **AC-6** — pending Case Owner decision: send Note DM, no second Offer
        (CM-16-008).
-    4. **Fresh path** — evaluate default roles and forward
+    4. **Owner-direct** — the recommender holds ``CVDRole.CASE_OWNER``: the
+       recommender is also the decider, so evaluate roles (the offered ones
+       when the Offer carries any) and emit the ``Invite`` directly, committed
+       in this tree (CM-17-006, CM-17-007, ADR-0109).  Forwarding the Offer to
+       the owner would only ask the owner a question it has already answered.
+    5. **Fresh path** — evaluate default roles and forward
        ``Offer(CaseParticipant)`` to the Case Owner (CM-16-003, CM-16-004).
 
     Tree structure::
@@ -129,7 +137,11 @@ def create_recommend_actor_to_case_received_tree(
                     │                   EmitAcceptActorRecommendationNode)
                     ├── AC-6:  Sequence(PendingOfferCaseParticipantNode,
                     │                   EmitNoteDuplicateRecommendationToOwnerNode)
-                    └── Fresh: Sequence(EvaluateDefaultRolesNode,
+                    ├── Owner: Sequence(CheckIsCaseOwnerNode(recommender),
+                    │                   EvaluateDefaultRolesNode,
+                    │                   EmitInviteActorToCaseNode)
+                    └── Fresh: Sequence(Inverter(CheckIsCaseOwnerNode),
+                                        EvaluateDefaultRolesNode,
                                         EmitOfferCaseParticipantToOwnerNode)
 
     A receiver that is not the case's CASE_MANAGER passes the gate's skip arm
@@ -143,6 +155,11 @@ def create_recommend_actor_to_case_received_tree(
         offer_content: Optional ``content`` field from the inbound Offer
             activity; forwarded to the duplicate-recommendation Note per
             CM-16-008.
+        suggested_roles: Role strings the received Offer carries
+            (``suggestedRoles``), as the CASE_MANAGER stored it.  Injected
+            into the role Evaluator on both the owner-direct and fresh paths;
+            ``None`` leaves the choice to the Evaluator's default
+            (CM-16-003).
 
     Returns:
         Root ``RecommendActorToCaseBT`` Sequence node.
@@ -199,10 +216,44 @@ def create_recommend_actor_to_case_received_tree(
         ],
     )
 
+    owner_direct_invite = py_trees.composites.Sequence(
+        name="OwnerDirectInvite",
+        memory=False,
+        children=[
+            CheckIsCaseOwnerNode(
+                sender_actor_id=recommender_id,
+                case_id=case_id,
+                name="RecommenderIsCaseOwner",
+            ),
+            EvaluateDefaultRolesNode(
+                suggested_actor_id=recommended_id,
+                case_id=case_id,
+                recommendation_id=recommendation_id,
+                injected_roles=suggested_roles,
+            ),
+            EmitInviteActorToCaseNode(
+                invitee_id=recommended_id,
+                case_id=case_id,
+                attributed_to=recommender_id,
+                recommendation_id=recommendation_id,
+            ),
+        ],
+    )
+
+    # The fresh path re-checks that the recommender is *not* the owner, so an
+    # owner-direct emit that fails does not fall through to forwarding the
+    # owner's own Offer back to it: the failure surfaces instead.
     fresh_path = py_trees.composites.Sequence(
         name="FreshRecommendation",
         memory=False,
         children=[
+            py_trees.decorators.Inverter(
+                name="RecommenderIsNotCaseOwner",
+                child=CheckIsCaseOwnerNode(
+                    sender_actor_id=recommender_id,
+                    case_id=case_id,
+                ),
+            ),
             EvaluateDefaultRolesNode(
                 suggested_actor_id=recommended_id,
                 case_id=case_id,
@@ -225,6 +276,7 @@ def create_recommend_actor_to_case_received_tree(
             ac7b_already_participant,
             ac7a_invite_in_flight,
             ac6_pending_offer,
+            owner_direct_invite,
             fresh_path,
         ],
     )
@@ -315,7 +367,6 @@ def create_accept_actor_recommendation_received_tree(
                     EmitInviteActorToCaseNode(
                         invitee_id=invitee_id,
                         case_id=case_id,
-                        case_actor_id=None,
                         roles=roles,
                     ),
                 ],

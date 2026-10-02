@@ -20,6 +20,7 @@ the router package.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+import logging
 from typing import Any
 
 import pytest
@@ -30,6 +31,7 @@ from vultron.adapters.driving.fastapi.inbox_storage import (
 )
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Announce,
@@ -109,13 +111,63 @@ def test_store_nested_inbox_object_stores_the_parsed_inline_case(
     assert isinstance(stored, VulnerabilityCase)
 
 
+@pytest.mark.spec("EMB-18-003")
+def test_store_nested_inbox_object_stores_the_inline_embargo_a_case_names(
+    datalayer,
+):
+    """An inline active embargo is held as a record beside the case."""
+    case_id = "urn:uuid:case-embargo-001"
+    embargo_id = f"{case_id}/embargo_events/e1"
+    activity = _parsed_announce(
+        {
+            "type": "VulnerabilityCase",
+            "id": case_id,
+            "name": "Embargoed Case",
+            "activeEmbargo": {
+                "type": "EmbargoEvent",
+                "id": embargo_id,
+                "context": case_id,
+                "startTime": _PUBLISHED,
+                "endTime": "2099-01-01T00:00:00+00:00",
+            },
+        }
+    )
+
+    _store_nested_inbox_object(datalayer, activity)
+
+    assert isinstance(datalayer.read(embargo_id), EmbargoEvent)
+    assert isinstance(datalayer.read(case_id), VulnerabilityCase)
+
+
+@pytest.mark.spec("EMB-18-003")
+def test_store_nested_inbox_object_skips_a_case_naming_an_unheld_embargo(
+    datalayer, caplog
+):
+    """A bare embargo id this store cannot read keeps the case out of it."""
+    case_id = "urn:uuid:case-embargo-002"
+    activity = _parsed_announce(
+        {
+            "type": "VulnerabilityCase",
+            "id": case_id,
+            "name": "Unheld Embargo Case",
+            "activeEmbargo": f"{case_id}/embargo_events/unheld",
+        }
+    )
+
+    with caplog.at_level(logging.WARNING):
+        _store_nested_inbox_object(datalayer, activity)
+
+    assert datalayer.read(case_id) is None
+    assert any("EMB-18-003" in r.getMessage() for r in caplog.records)
+
+
 @pytest.mark.spec("MV-11-005")
 def test_store_nested_inbox_object_stores_the_parsed_case_stub(
     datalayer, persisted
 ):
     """A case stub is stored as the ``as_VulnerabilityCaseStub`` parsed."""
     activity = _parsed_announce(
-        {"type": "VulnerabilityCase", "id": "urn:uuid:case-stub-001"}
+        {"type": "VulnerabilityCaseStub", "caseId": "urn:uuid:case-stub-001"}
     )
     assert type(activity.object_) is as_VulnerabilityCaseStub
 

@@ -10,11 +10,13 @@ description: >
 related_specs:
   - specs/behavior-tree-integration.yaml
   - specs/behavior-tree-node-design.yaml
+  - specs/case-management.yaml
   - specs/case-proposal.yaml
   - specs/code-style.yaml
   - specs/received-status-handling.yaml
 related_notes:
   - notes/bt-integration.md
+  - notes/sync-ledger-replication.md
   - notes/call-out-configuration.md
   - notes/bt-canonical-reference.md
   - notes/bt-design-patterns.md
@@ -328,9 +330,9 @@ there is an explicit opt-in, described in the section below.
 
 Note the discriminator, because it is easy to get backwards: a key the *caller*
 passes as a `context_data` kwarg **is** managed and restored, even when a node
-also writes it. Flat `/suggested_roles` is that case — `SvcInviteActorToCaseUseCase`
-puts it in `_extra_execute_kwargs()`, so it arrives as `context_data` — and it is
-therefore not an example of this rule.
+also writes it. The flat `/suggested_roles` key was that case until #3821 deleted the
+trigger tree that took it as a `context_data` kwarg; the roles now travel in the
+owner's Offer (CM-17-007).
 
 The same noun covers both cases, so name the key form and not the noun: the
 *namespaced* `/suggested_roles_{id_segment}` written by `EvaluateDefaultRolesNode`
@@ -624,15 +626,19 @@ occurred", because the pattern immediately above defeats it twice over:
   calling node's *own* `except Exception` in `update()` and converted to
   `Status.FAILURE`. So the outer bridge sees an ordinary failure and the flag
   stays `False` — verified at `case/nodes/actor.py`.
-- The nine nodes that run a subtree through their own `BTBridge` discard the
+- Most nodes that run a subtree through their own `BTBridge` discard the
   inner `result.internal_error` and return a bare `Status.FAILURE`
-  (`case/nodes/lifecycle.py`, `status/nodes/case_status.py`, and seven more), so
-  a crash inside a subtree is invisible in the outer result.
+  (`case_status_snapshot.py` and several more), so a crash inside a subtree
+  is invisible in the outer result.
 
-Both gaps are uniform across every nested-bridge site — there is no site where
-the flag survives the hop. Propagating it through nested calls is tracked on
-CONCERN-3019; until then, do not branch on `internal_error is False` as
-evidence that a failure was deliberate.
+The exception is `CommitCaseLedgerEntryNode` (`case/nodes/lifecycle.py`). It
+raises `VultronBTInternalError` when its nested commit reports
+`internal_error`, and `BTBridge` classifies that exception as internal. Every
+received commit runs through it, so a missing sync port reaches the handler
+as an internal error, not a refusal (#4113, ADR-0095). Use the same idiom at
+another nested site rather than a new one. Propagating the flag through the
+remaining nested calls is tracked on CONCERN-3019; until then, do not branch
+on `internal_error is False` as evidence that a failure was deliberate.
 
 On the test side the mirror-image rule — a FAILURE assertion must prove the
 harness can produce the reason it names — is in

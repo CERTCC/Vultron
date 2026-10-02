@@ -19,10 +19,24 @@ from __future__ import annotations
 import urllib.parse
 from typing import Any, Literal
 
-from pydantic import Field, model_validator
+from pydantic import AliasChoices, Field, model_validator
 
 from vultron.core.models.base import CoreRecord, NonEmptyString, UriString
 from vultron.core.states.rm import RM
+
+# Keys a link was stored under before #4020 renamed the two actor-id fields.
+# CodeQL's ``py/clear-text-logging-sensitive-data`` heuristic reads any name
+# containing "trusted" as a secret, so every log line printing an actor id
+# resolved through those attributes was flagged.  The old keys stay readable
+# as validation aliases so a link persisted before the rename still loads;
+# a dump writes only the new field names, so a re-saved row migrates itself.
+# The aliases are load-bearing: ``CoreRecord`` does not forbid extras, so
+# without them an old key would be ignored and the CBT-01-006 trust anchors
+# would silently read back as ``None``.  If a row somehow carries both
+# spellings, the new name wins (it is listed first) — the old key can only
+# be stale, since nothing writes it after the rename.
+_LEGACY_CASE_CREATOR_FIELD = "trusted_case_creator_id"
+_LEGACY_CASE_MANAGER_FIELD = "trusted_case_actor_id"
 
 
 class VultronReportCaseLink(CoreRecord):
@@ -56,20 +70,26 @@ class VultronReportCaseLink(CoreRecord):
         default=None,
         description="URI of the linked case replica, once known",
     )
-    trusted_case_creator_id: UriString | None = Field(
+    case_creator_id: UriString | None = Field(
         default=None,
+        validation_alias=AliasChoices(
+            "case_creator_id", _LEGACY_CASE_CREATOR_FIELD
+        ),
         description=(
             "URI of the actor that the reporter sent the original report offer "
             "to.  Set at submission time; validated against the bootstrap "
             "Create(VulnerabilityCase) sender (CBT-01-005, CBT-01-006)."
         ),
     )
-    trusted_case_actor_id: UriString | None = Field(
+    case_manager_id: UriString | None = Field(
         default=None,
+        validation_alias=AliasChoices(
+            "case_manager_id", _LEGACY_CASE_MANAGER_FIELD
+        ),
         description=(
-            "URI of the CaseActor trusted for this case after bootstrap "
-            "validation.  Extracted from the CASE_MANAGER participant in the "
-            "bootstrap snapshot; used to validate subsequent "
+            "URI of the case's CASE_MANAGER, recorded after bootstrap "
+            "validation (ADR-0088).  Extracted from the CASE_MANAGER "
+            "participant in the bootstrap snapshot; used to validate subsequent "
             "Announce(VulnerabilityCase) senders (CBT-01-006)."
         ),
     )
