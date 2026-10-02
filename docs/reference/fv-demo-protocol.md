@@ -169,6 +169,7 @@ The report travels inline, because the Vendor has no way to read it out of the F
 
 The `context` names the new case and the `inReplyTo` names the `Accept(CaseProposal)` that authorized it (CP-05-003).
 The case object is abbreviated here; on the wire it carries every participant inline (CBT-01-007).
+The `actor` is the Case Actor, acting as `CASE_MANAGER`, while the case's `attributedTo` names the Vendor, the Case Owner (CP-09-001).
 
 ```json
 {
@@ -184,7 +185,7 @@ The case object is abbreviated here; on the wire it carries every participant in
   "object": {
     "type": "VulnerabilityCase",
     "id": "urn:uuid:8eee4e72-…",
-    "attributedTo": "http://vendor:7999/api/v2/actors/case-actor"
+    "attributedTo": "http://vendor:7999/api/v2/actors/{vendor_id}"
   }
 }
 ```
@@ -360,7 +361,7 @@ Closure flows through `Leave(VulnerabilityCase)`, not through a participant asse
   "object": {
     "type": "VulnerabilityCase",
     "id": "urn:uuid:8eee4e72-…",
-    "attributedTo": "http://vendor:7999/api/v2/actors/case-actor"
+    "attributedTo": "http://vendor:7999/api/v2/actors/{vendor_id}"
   }
 }
 ```

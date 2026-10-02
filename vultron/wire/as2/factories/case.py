@@ -28,6 +28,7 @@ from typing import Any, cast
 
 from pydantic import ValidationError
 
+from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.dimensions import (
     EmDimension,
@@ -963,7 +964,7 @@ def bootstrap_replay_question_activity(
 
 
 def create_case_proposal_activity(
-    actor_id: str,
+    actor: CoreActor | as_Actor,
     proposal: as_CaseProposal,
     to: list[str],
     **kwargs,
@@ -973,10 +974,14 @@ def create_case_proposal_activity(
     The vendor actor sends this to the case-actor service to initiate the
     case initialization protocol (CP-04-001).  The ``as_CaseProposal``
     is embedded inline so the case-actor service has full context without
-    an additional round-trip.
+    an additional round-trip, and so is the sender's own actor profile: it
+    carries the embargo policy that is the CASE_OWNER's actor default, and
+    the CASE_MANAGER reads that default from nowhere else (CP-01-010).
 
     Args:
-        actor_id: URI of the vendor actor that is sending the proposal.
+        actor: The sending actor's full profile, with its ``embargo_policy``
+            when it has published one.  Its ``id`` must be the proposal's
+            ``attributed_to``.
         proposal: The ``as_CaseProposal`` being created (embedded inline as
             ``object_``).
         to: List of recipient URIs (typically the case-actor service URI).
@@ -986,11 +991,18 @@ def create_case_proposal_activity(
         An ``as_Create`` whose ``object_`` is the ``as_CaseProposal``.
 
     Raises:
-        VultronActivityConstructionError: If Pydantic validation fails.
+        VultronActivityConstructionError: If Pydantic validation fails, or
+            *actor* is not the proposal's ``attributed_to``.
     """
+    if actor.id_ != proposal.attributed_to:
+        raise VultronActivityConstructionError(
+            f"create_case_proposal_activity: actor {actor.id_!r} is not the"
+            f" proposal's attributed_to {proposal.attributed_to!r}"
+            " (CP-01-010)"
+        )
     try:
         return as_Create(
-            actor=actor_id,
+            actor=actor,
             object_=proposal,
             to=to,
             **kwargs,

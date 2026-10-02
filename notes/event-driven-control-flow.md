@@ -450,7 +450,7 @@ manual invitation spoofing):
        ↓ added to coordinator outbox → delivered to case_actor inbox
 
 2. Case-actor receives RecommendActorActivity
-       ↓ BT: verify case_actor IS the case owner (attributed_to check)
+       ↓ BT: verify case_actor holds CASE_MANAGER (BT-17-001; not the owner)
        ↓ BT: emit AcceptActorRecommendationActivity(to=[coordinator])
        ↓ BT: emit RmInviteToCaseActivity(actor=case_actor, object=invitee, target=case, to=[invitee])
        ↓ both activities added to case_actor outbox → delivered

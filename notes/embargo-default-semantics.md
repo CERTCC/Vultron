@@ -39,6 +39,9 @@ relevant_packages:
   - vultron/core/use_cases/triggers
   - vultron/wire/as2/extractor
   - vultron/wire/as2/factories
+  - vultron/wire/as2/parser.py
+  - vultron/adapters/driven/trigger_activity_adapter
+  - vultron/adapters/driving/fastapi/routers/actors
 ---
 
 # Embargo Default Semantics — Implementation Notes
@@ -218,8 +221,8 @@ What replaced it:
 |---|---|
 | Configured fallback, refused outside `[72h, 5d]` (EP-04-005) | `ActorConfig.protocol_default_embargo_duration` (`vultron/config/actor.py`) |
 | Shortest-wins over candidates only, fallback when none (EP-04-006/007) | `resolve_initial_embargo_duration()` (`vultron/core/services/embargo_duration.py`) |
-| Deterministic actor default: shortest, ties by policy id (EP-04-010) | `select_actor_default()` (same module); once the policy is read from the CASE_OWNER's profile (#4027) there is at most one candidate (EP-01-001) |
-| Actor default is the CASE_OWNER's own policy (EP-04-003, EP-04-010) | `ResolveEmbargoDurationNode` keys on `case.attributed_to`; on the case-actor path that field still names the case actor until #4026 sets it to the CASE_OWNER (CM-02-008) |
+| Deterministic actor default (EP-04-010) | `actor_default_duration()` (same module) reads the one `embargo_policy` field of the CASE_OWNER's profile (EP-01-001), so there is never a choice among records |
+| Actor default is the CASE_OWNER's own policy (EP-04-003, CP-01-010) | `ResolveEmbargoDurationNode` reads the inline profile on the blackboard (`owner_profile`) and fails unless its id is `case.attributed_to`, which names the CASE_OWNER on every creation path (CM-02-008, CP-09-001) |
 | Distinct blackboard names (EP-04-010) | `actor_default_embargo_duration`, `protocol_default_embargo_duration`, and the resolved `initial_embargo_duration` (duration plus source) |
 | P/X/A refusal before anything is created (EP-04-008) | `CaseNotEmbargoEligibleNode`, the first arm of the `InitializeDefaultEmbargoNode` Selector |
 
@@ -244,16 +247,31 @@ later shortest-wins. The protocol also permits a profile reference that the
 CASE_MANAGER dereferences (CP-01-009); this prototype requires the inline form.
 A profile with no policy means no actor default.
 
-**Until #4026 and #4027 land, the prototype diverges from this.** Under
-ADR-0041 as built, `case.attributed_to` is the **CaseActor** that created the
-case (`CreateCaseFromProposalNode`), not the vendor that received the report —
-the vendor holds `CASE_OWNER` as a role, not as the case's `attributed_to` — and
-`ResolveEmbargoDurationNode` reads `owner_embargo_policies` on that field. So a
-policy the vendor publishes on itself never reaches the comparison, because
-nothing carries it to the CaseActor. The `report-with-embargo` demo therefore
-publishes the Receiver's default on the CaseActor its node hosts, and marks that
-step as a workaround in its narration and docstring, so #4027 can move the
-publish onto the Receiver's own profile (planned in #3979, PR #4025).
+**How the prototype implements it (#4027).** The policy is a field of the
+actor's profile record (`CoreActor.embargo_policy`, EP-01-001), which the
+`PUT /actors/{id}/embargo-policy` endpoint writes; no free-standing
+`EmbargoPolicy` record is read by anything. The sending adapter puts the
+proposer's stored profile inline as the Create's `actor`
+(`create_case_proposal_activity`). The parser refuses a bare-URI actor or a
+profile whose id differs from `attributedTo`
+(`refuse_malformed_case_proposal_envelope`), and the profile's own validator
+refuses a policy naming another actor. The extractor carries the profile on the
+event as `proposer_profile`; the use case hands it to the tree as
+`owner_profile`, which `BTBridge.execute_with_setup` restores after the run, so a
+profile seen on one proposal is never the default for another (CP-01-010). The
+store-wide scan the tree used to run (`owner_embargo_policies`) is gone, and the
+demo seeder reads the owner's own record from the owner's store instead.
+
+**Stored records from before #4027 are refused, not converted.** The old PUT
+kept the policy as a free-standing record and stored its URL in the actor's
+`embargo_policy`. `CoreActor` now refuses a string there with a message naming
+the pre-#4027 shape and the remedy, so such an actor row reads as absent and the
+datalayer's warning says why. There is no silent coercion, because the URL no
+longer names anything a reader may follow (EP-01-001). An operator with a
+file-backed store from before the change resets it (`docker compose down -v`);
+in-memory stores are unaffected. An inbound inline actor carrying a URL-string
+`embargoPolicy` is refused at the parse edge on every activity type, for the
+same reason.
 
 **Initialization runs once per case.** `InitializeDefaultEmbargoNode`'s first
 arm (`CaseEmbargoAlreadyInitializedNode`) succeeds when the case already
