@@ -484,9 +484,8 @@ self-addressed `Add(CaseStatus)` loopback that threaded them is gone — ADR-010
 
 ### ThreatTerminationBranchNode
 
-Replaces `PublicDisclosureBranchNode` (which is removed from
-`add_participant_status_tree`). Fires `terminate_embargo_bt` when the canonical
-CaseStatus carries any of:
+Replaces `PublicDisclosureBranchNode`, which is deleted (#4154). Fires
+`terminate_embargo_bt` when the canonical CaseStatus carries any of:
 
 - **CS.P** — public awareness (previously covered)
 - **CS.X** — exploit public (newly covered)
@@ -501,8 +500,11 @@ One skip is not an authorization check: when the status was declared by the
 CASE_MANAGER and the executing actor is someone else, the branch does nothing
 (`_DeclaredByCaseManagerNode`, RSH-03-004, #4149). The CASE_MANAGER tore down
 on its own detection before declaring the status, so the replica waits for the
-committed teardown entry instead of asking for what is already done. The
-abandonment arm itself writes and sends nothing at a non-manager
+committed teardown entry instead of asking for what is already done. The skip
+decides *who* carries out the teardown, not *whether* it is allowed. The same
+condition keeps `PxaEmInvariantDiagnosticNode` from posting a CSB-18 Note at
+the replica, since the gap it would report is the one the manager's entry
+closes. The abandonment arm itself writes and sends nothing at a non-manager
 (EMB-16-002, #4148); see [embargo-lifecycle.md](embargo-lifecycle.md).
 
 This node is the enforcement mechanism for CSB-18-002, CSB-18-003, and
@@ -551,7 +553,7 @@ Placed in `vultron/core/behaviors/call_out/bundles/status_authorization.py`
 
 | Before | After |
 |---|---|
-| `PublicDisclosureBranchNode` in `add_participant_status_tree` | Removed |
+| `PublicDisclosureBranchNode` in `add_participant_status_tree` | Deleted (#4154) |
 | Gates: CS.P AND CASE_OWNER sender | N/A |
 | Runs before canonical write | N/A |
 | `ThreatTerminationBranchNode` in `add_case_status_tree` | Added |

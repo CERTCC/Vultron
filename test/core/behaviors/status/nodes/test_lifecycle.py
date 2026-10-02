@@ -15,8 +15,8 @@
 
 """Unit tests for case lifecycle trigger nodes.
 
-Tests PublicDisclosureBranchNode and EmitCloseCaseNode
-from nodes.lifecycle.
+Tests EmitCloseCaseNode from nodes.lifecycle, and the EM PROPOSED path of
+ThreatTerminationBranchNode (EMB-16-001, EMB-16-002).
 
 Per DEMOMA-07-003 steps 4–5.
 """
@@ -34,10 +34,9 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.status.nodes.lifecycle import (
-    EmitCloseCaseNode,
-    PublicDisclosureBranchNode,
-    _PublicDisclosureSkipConditionNode,
+from vultron.core.behaviors.status.nodes.lifecycle import EmitCloseCaseNode
+from vultron.core.behaviors.status.nodes.threat_termination import (
+    ThreatTerminationBranchNode,
 )
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
@@ -108,13 +107,6 @@ def public_aware_status():
 
 
 @pytest.fixture
-def embargo():
-    return as_EmbargoEvent(
-        id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now_utc(45)
-    )
-
-
-@pytest.fixture
 def populated_dl(dl, participant, status_obj):
     case_manager_participant = CaseParticipant(
         id_=CM_PARTICIPANT_ID,
@@ -143,173 +135,15 @@ def populated_bridge(populated_dl):
     )
 
 
-def _make_dl_with_em_state(
-    em_state: EM,
-    *,
-    with_embargo: bool = False,
-    with_proposed_embargo: bool = False,
-    with_active_embargo: bool = False,
-) -> SqliteDataLayer:
-    """Return a populated SqliteDataLayer for skip-condition unit tests."""
-    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_ID)
-    case = VulnerabilityCase(
-        id_=CASE_ID, name="Test Case", attributed_to=ACTOR_ID
-    )
-    case.append_case_status(em_state=em_state)
-
-    if with_proposed_embargo or with_embargo:
-        embargo = as_EmbargoEvent(
-            id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now_utc(45)
-        )
-        case.proposed_embargoes = [embargo.id_]
-        dl.create(embargo)
-
-    if with_active_embargo or with_embargo:
-        embargo = as_EmbargoEvent(
-            id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now_utc(45)
-        )
-        case.active_embargo = embargo.id_
-        try:
-            dl.create(embargo)
-        except Exception:  # noqa: BLE001, S110  # ruff-baseline #3989
-            pass
-
-    participant = CaseParticipant(
-        id_=PARTICIPANT_ID,
-        context=CASE_ID,
-        attributed_to=ACTOR_ID,
-        case_roles=[CVDRole.CASE_OWNER],
-    )
-    case.add_participant(participant)
-    dl.create(case)
-    dl.create(participant)
-    return dl
-
-
 # ---------------------------------------------------------------------------
-# _PublicDisclosureSkipConditionNode — unit tests (AC-4, EMB-16-001)
+# ThreatTerminationBranchNode — PROPOSED path (EMB-16-001)
 # ---------------------------------------------------------------------------
 
 
-class TestPublicDisclosureSkipConditionNode:
-    """Unit tests for _PublicDisclosureSkipConditionNode.
-
-    Per EMB-16-001: teardown (FAILURE = proceed) must fire for EM PROPOSED,
-    ACTIVE, and REVISE.  For EM NONE/EXITED or non-public-aware status the
-    node must skip (SUCCESS).
-    """
-
-    def _make_bridge_and_node(
-        self, dl: SqliteDataLayer, status_obj: as_ParticipantStatus
-    ) -> tuple[BTBridge, _PublicDisclosureSkipConditionNode]:
-        bridge = BTBridge(
-            datalayer=dl,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        )
-        node = _PublicDisclosureSkipConditionNode(
-            status_obj=status_obj,
-            sender_actor_id=ACTOR_ID,
-            case_id=CASE_ID,
-        )
-        return bridge, node
-
-    # AC-4 case 1: PROPOSED + public-aware PXA → FAILURE (do not skip)
-    def test_proposed_em_public_aware_returns_failure(
-        self, public_aware_status
-    ):
-        """EM PROPOSED + CS.P set → skip-condition returns FAILURE (EMB-16-001).
-
-        Spec: EMB-16-001 — when CASE_OWNER sends public-aware status while
-        EM is PROPOSED the BT must route to reject_proposed_embargo_bt.
-        """
-        dl = _make_dl_with_em_state(EM.PROPOSED, with_proposed_embargo=True)
-        bridge, node = self._make_bridge_and_node(dl, public_aware_status)
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
-        assert result.status == Status.FAILURE
-
-    # AC-4 case 2: ACTIVE + public-aware PXA → FAILURE (do not skip)
-    def test_active_em_public_aware_returns_failure(self, public_aware_status):
-        """EM ACTIVE + CS.P set → skip-condition returns FAILURE (EMB-16-001)."""
-        dl = _make_dl_with_em_state(EM.ACTIVE, with_active_embargo=True)
-        bridge, node = self._make_bridge_and_node(dl, public_aware_status)
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
-        assert result.status == Status.FAILURE
-
-    # AC-4 case 2b: REVISE + public-aware PXA → FAILURE (do not skip)
-    def test_revise_em_public_aware_returns_failure(self, public_aware_status):
-        """EM REVISE + CS.P set → skip-condition returns FAILURE (EMB-16-001)."""
-        dl = _make_dl_with_em_state(EM.REVISE, with_active_embargo=True)
-        bridge, node = self._make_bridge_and_node(dl, public_aware_status)
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
-        assert result.status == Status.FAILURE
-
-    # AC-4 case 3: NONE + public-aware PXA → SUCCESS (skip; nothing to tear down)
-    def test_none_em_public_aware_returns_success(self, public_aware_status):
-        """EM NONE + CS.P set → skip-condition returns SUCCESS (nothing to tear down)."""
-        dl = _make_dl_with_em_state(EM.NONE)
-        bridge, node = self._make_bridge_and_node(dl, public_aware_status)
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
-        assert result.status == Status.SUCCESS
-
-    # AC-4 case 3b: EXITED + public-aware PXA → SUCCESS (skip; embargo already gone)
-    def test_exited_em_public_aware_returns_success(self, public_aware_status):
-        """EM EXITED + CS.P set → skip-condition returns SUCCESS (nothing to tear down)."""
-        dl = _make_dl_with_em_state(EM.EXITED)
-        bridge, node = self._make_bridge_and_node(dl, public_aware_status)
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
-        assert result.status == Status.SUCCESS
-
-    def test_public_aware_returns_success_when_pxa_attr_is_none(
-        self, populated_bridge
-    ):
-        """_public_aware() returns False (SUCCESS) when case_status.pxa is None (issue #2877 sibling).
-
-        A status_obj whose case_status.pxa is None must not raise AttributeError.
-        The node must return SUCCESS (skip — no public awareness detected).
-        """
-
-        class _PxaNone:
-            pxa = None
-
-        status_obj_mock = MagicMock()
-        status_obj_mock.case_status = _PxaNone()
-
-        node = _PublicDisclosureSkipConditionNode(
-            status_obj=status_obj_mock,
-            sender_actor_id=ACTOR_ID,
-            case_id=CASE_ID,
-        )
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID
-        )
-        assert result.status == Status.SUCCESS
-
-    # AC-4 case 4: non-public-aware status → SUCCESS (skip regardless of EM)
-    def test_non_public_aware_status_always_returns_success(
-        self, status_obj, populated_bridge
-    ):
-        """Non-public-aware status → skip regardless of EM state."""
-        node = _PublicDisclosureSkipConditionNode(
-            status_obj=status_obj,
-            sender_actor_id=ACTOR_ID,
-            case_id=CASE_ID,
-        )
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID
-        )
-        assert result.status == Status.SUCCESS
-
-
-# ---------------------------------------------------------------------------
-# PublicDisclosureBranchNode — integration tests (AC-5, EMB-16-001)
-# ---------------------------------------------------------------------------
-
-
-class TestPublicDisclosureBranchNodeProposedEmPath:
+class TestThreatTerminationBranchNodeProposedEmPath:
     """Integration tests: CS.P/X/A fires while EM is PROPOSED.
 
-    Per EMB-16-001 the BranchNode routes to reject_proposed_embargo_bt (not
+    Per EMB-16-001 the branch routes to reject_proposed_embargo_bt (not
     terminate_embargo_bt).  Abandoning the proposal writes shared EM state,
     so only the CASE_MANAGER makes it (EP-09-008, #4131): the manager's run
     drives EM ``PROPOSED → NONE``, and the owner's run writes and sends
@@ -321,7 +155,7 @@ class TestPublicDisclosureBranchNodeProposedEmPath:
         public_aware_status: as_ParticipantStatus,
         *,
         store_actor: str = ACTOR_ID,
-    ) -> tuple[SqliteDataLayer, BTBridge, PublicDisclosureBranchNode]:
+    ) -> tuple[SqliteDataLayer, BTBridge, ThreatTerminationBranchNode]:
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=store_actor)
 
         embargo = as_EmbargoEvent(
@@ -363,7 +197,7 @@ class TestPublicDisclosureBranchNodeProposedEmPath:
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
         )
-        node = PublicDisclosureBranchNode(
+        node = ThreatTerminationBranchNode(
             status_obj=public_aware_status,
             sender_actor_id=ACTOR_ID,
             case_id=CASE_ID,
@@ -396,40 +230,6 @@ class TestPublicDisclosureBranchNodeProposedEmPath:
         assert updated_case.current_status.em.state == EM.PROPOSED
         assert updated_case.proposed_embargo_ids == [EMBARGO_ID]
         assert dl.outbox_list() == []
-
-
-# ---------------------------------------------------------------------------
-# PublicDisclosureBranchNode
-# ---------------------------------------------------------------------------
-
-
-class TestPublicDisclosureBranchNode:
-    def test_always_succeeds_when_not_public_aware(
-        self, populated_bridge, status_obj
-    ):
-        """Non-public-aware status → skip condition returns SUCCESS → branch
-        returns SUCCESS without attempting embargo teardown."""
-        node = PublicDisclosureBranchNode(
-            status_obj=status_obj,
-            sender_actor_id=ACTOR_ID,
-            case_id=CASE_ID,
-        )
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID
-        )
-        assert result.status == Status.SUCCESS
-
-    def test_none_case_id_succeeds(self, populated_bridge, status_obj):
-        """None case_id → skip condition exits early → returns SUCCESS."""
-        node = PublicDisclosureBranchNode(
-            status_obj=status_obj,
-            sender_actor_id=ACTOR_ID,
-            case_id=None,
-        )
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID
-        )
-        assert result.status == Status.SUCCESS
 
 
 # ---------------------------------------------------------------------------

@@ -1708,8 +1708,10 @@ groups:
       ER per open proposal, and that committed entry is the ER that notifies
       every other Participant (EP-09-007, EP-09-009). A Participant that is
       not the CASE_MANAGER meets this requirement through its replica, which
-      moves when the entry is replayed; it emits no ER of its own
-      (EMB-16-002).
+      moves when the entry is replayed; it emits no ER of its own as the
+      abandonment (EMB-16-002). That is separate from EMB-01-002: a
+      proposal, Invite or revision a Participant receives while the case is
+      at P/X/A is still answered with ER by that Participant.
     verification: >-
       `test/core/behaviors/embargo/nodes/test_abandon.py` runs
       `reject_proposed_embargo_bt` as the CASE_MANAGER and asserts EM is NONE,
@@ -1763,14 +1765,26 @@ groups:
     kind: protocol
     statement: >-
       A Participant that does not hold `CVDRole.CASE_MANAGER` and detects a
-      P/X/A CS transition while EM is Proposed MUST NOT emit ER for the open
-      proposals, and MUST NOT write the abandonment to its own EM state.
+      P/X/A CS transition while EM is Proposed MUST NOT emit ER as the
+      abandonment of the case's open proposals, and MUST NOT write the
+      abandonment to its own EM state.
     rationale: >-
-      The P/X/A signal already reaches the CASE_MANAGER as a status
-      declaration, and the CASE_MANAGER abandons on its own detection
-      (EMB-16-001, EP-09-008). An ER from a Participant arrives at the
-      CASE_MANAGER as that Participant declining the proposal (MSM-07-004),
-      so asking that way would record a decline nobody made (#4148).
+      Abandoning the case's open proposals is a decision for the case, made
+      by the case owner or the CASE_MANAGER it delegates to (EMB-16-001,
+      EP-09-008). The P/X/A signal already reaches the CASE_MANAGER as a
+      status declaration, and the CASE_MANAGER abandons on its own
+      detection. An ER sent on the case's behalf by another Participant
+      arrives at the CASE_MANAGER as that Participant declining the proposal
+      (MSM-07-004), so it would record an abandonment the Participant had no
+      standing to make (#4148).
+    note: >-
+      Two rules sit side by side. This one covers the abandonment of
+      proposals already open on the case: only the CASE_MANAGER makes it.
+      EMB-01-002 covers what a Participant receives: a proposal, Invite or
+      revision that reaches it while it believes the case is at P, X or A is
+      answered with ER by that Participant, CASE_MANAGER or not. That ER is
+      its own answer to something addressed to it, not an abandonment on the
+      case's behalf, so EMB-16-002 does not forbid it.
     verification: >-
       `test/core/behaviors/embargo/nodes/test_abandon.py` runs
       `reject_proposed_embargo_bt` as a non-manager and asserts nothing is
@@ -1784,8 +1798,7 @@ groups:
     adr:
     - ADR-0113
     stories:
-    - story_2022_080
-    - story_2022_023
+    - story_2022_014
 - id: EMB-17
   title: Late Accept of an Expired Embargo Invitation
   description: >-

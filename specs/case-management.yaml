@@ -2771,7 +2771,7 @@ groups:
       actor's `CaseParticipant.case_roles` and MUST update
       `VulnerabilityCase.attributed_to` to the accepting actor's ID.
     rationale: >-
-      `PublicDisclosureBranchNode` (and any other role-gated protocol node)
+      A role-gated protocol node (for example `CheckIsCaseOwnerNode`)
       determines case-owner authority by reading `CaseParticipant.case_roles`,
       not by comparing actor IDs against `attributed_to`.  Updating only
       `attributed_to` without also updating the participant record leaves the

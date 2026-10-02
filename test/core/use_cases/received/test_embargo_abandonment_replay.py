@@ -19,7 +19,7 @@ nothing but the ``Announce(CaseLedgerEntry)`` fan-out drops each proposal
 and reaches EM ``NONE`` with the last (EP-09-007, RSH-08-004).
 """
 
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from py_trees.common import Status
@@ -33,7 +33,9 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.embargo.trigger_tree import (
     reject_proposed_embargo_bt,
 )
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.em import EM
+from vultron.core.states.participant_embargo_consent import PEC
 
 from .test_embargo_relay_replay import (
     BYSTANDER,
@@ -42,6 +44,15 @@ from .test_embargo_relay_replay import (
     _propose,
     _replay_to_bystander,
 )
+
+
+def _consents(net: _Network, actor_id: str) -> dict[str, PEC]:
+    """Every participant's consent as *actor_id*'s store records it."""
+    dl = net.stores[actor_id]
+    return {
+        actor: cast(CaseParticipant, dl.read(pid)).embargo_consent_state
+        for actor, pid in net.case(actor_id).actor_participant_index.items()
+    }
 
 
 def _abandon_as_manager(net: _Network) -> Status:
@@ -65,6 +76,7 @@ def _abandon_as_manager(net: _Network) -> Status:
 @pytest.mark.spec("EP-09-008")
 @pytest.mark.spec("RSH-08-004")
 @pytest.mark.spec("TB-06-007")
+@pytest.mark.spec("CM-18-005")
 def test_a_replica_follows_the_managers_abandonment_of_every_proposal():
     """PROPOSED with two open → NONE in the manager's store and the
     replica's, from the ledger fan-out alone."""
@@ -81,6 +93,8 @@ def test_a_replica_follows_the_managers_abandonment_of_every_proposal():
             actor_id
         )
 
+    consents = {a: _consents(net, a) for a in (MANAGER, BYSTANDER)}
+
     assert _abandon_as_manager(net) == Status.SUCCESS
     # The manager mails itself nothing (CLP-10-001).
     assert net.queued(MANAGER, to=MANAGER) == []
@@ -91,3 +105,5 @@ def test_a_replica_follows_the_managers_abandonment_of_every_proposal():
         assert case.current_status.em.state == EM.NONE, actor_id
         assert case.proposed_embargo_ids == [], actor_id
         assert case.active_embargo_id is None, actor_id
+        # The abandonment declines nobody, in any store (CM-18-005, #4148).
+        assert _consents(net, actor_id) == consents[actor_id], actor_id

@@ -170,7 +170,7 @@ def _seed_manager_only_case(dl):
 class TestTeardownRecipients:
     """EMB-19-001: the teardown must not be addressed to its own author.
 
-    The cascade path (``PublicDisclosureBranchNode`` → ``terminate_embargo_bt``)
+    The cascade path (``ThreatTerminationBranchNode`` → ``terminate_embargo_bt``)
     runs as the CASE_MANAGER, because that is who the received tree's ledger
     commit is gated on. Addressing the resulting ``Remove(EmbargoEvent, Case)``
     to ``case_manager_id`` therefore addressed it to the sender, delivery

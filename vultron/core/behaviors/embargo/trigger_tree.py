@@ -111,13 +111,23 @@ def _asserting(
     return _build
 
 
+#: Name suffix of ``reject_proposed_embargo_bt``'s non-manager arm, which
+#: asks nothing (EMB-16-002).
+ABANDONMENT_LEFT_TO_CASE_MANAGER = "LeaveToCaseManager"
+
+
 def _by_role(
     name: str,
     case_id: str,
     as_case_manager: list[py_trees.behaviour.Behaviour],
     otherwise: list[py_trees.behaviour.Behaviour],
+    otherwise_suffix: str = "AskCaseManager",
 ) -> list[py_trees.behaviour.Behaviour]:
-    """The two mutually exclusive arms every embargo trigger tree ends with."""
+    """The two mutually exclusive arms every embargo trigger tree ends with.
+
+    *otherwise_suffix* names the non-manager arm for what it does; the
+    default fits every arm that asks the CASE_MANAGER.
+    """
     return [
         create_case_manager_gated_tree(
             name=f"{name}AsCaseManager",
@@ -125,7 +135,7 @@ def _by_role(
             children=as_case_manager,
         ),
         create_participant_replica_gated_tree(
-            name=f"{name}AskCaseManager",
+            name=f"{name}{otherwise_suffix}",
             case_id=case_id,
             children=otherwise,
         ),
@@ -354,24 +364,28 @@ def reject_proposed_embargo_bt(
 ) -> py_trees.behaviour.Behaviour:
     """Shared BT for abandoning the open embargo proposals (EMB-16-001).
 
-    Used through ``pxa_embargo_teardown_bt`` (``ThreatTerminationBranchNode``,
-    ``PublicDisclosureBranchNode``) when CS.P/X/A fires while the case EM
-    state is PROPOSED: no proposal can be accepted any more
+    Used through ``pxa_embargo_teardown_bt`` (``ThreatTerminationBranchNode``)
+    when CS.P/X/A fires while the case EM state is PROPOSED: no proposal can be accepted any more
     (EMB-02-002), so every open one is abandoned.  Mirrors the routing-guard
     ordering of :func:`terminate_embargo_bt`:
 
     1. ``ReadEmStateNode`` / ``IsProposedEmbargoNode`` — EM must be PROPOSED.
     2. ``ResolveCaseManagerNode`` — routing guard; FAILURE = no state change.
-    3. As the CASE_MANAGER (EP-09-008): ``ReadOpenEmbargoProposalsNode`` maps
-       each open proposal to the Invite its ER answers (FAILURE before
-       anything moves when one has none), ``AbandonEmbargoProposalsLifecycleNode``
-       drives ``PROPOSED → NONE``, then one ER per proposal is committed as an
+    3. As the CASE_MANAGER (EP-09-008): ``ReadOpenEmbargoProposalsNode``
+       maps each open proposal to the readable Invite its ER answers
+       (FAILURE before anything moves when one has none),
+       ``AbandonEmbargoProposalsLifecycleNode`` drives ``PROPOSED → NONE``,
+       then one ER per proposal is committed as an
        ``EMBARGO_ABANDONMENT_EVENT_TYPE`` entry the ``EmbargoAbandonment``
        slot replays (EP-09-007), addressed to nobody (CLP-10-001), then the
        ``Add(CaseStatus)`` declaration.
-    4. As any other participant: no EM write and no ask (EMB-16-002, #4148).
-       The manager has the P/X/A signal from the status declaration and
-       abandons on its own detection; an ER would read as a DECLINE.
+    4. As any other participant: no EM write and no ask (EMB-16-002,
+       #4148).  The manager has the P/X/A signal from the status
+       declaration and abandons on its own detection; an ER sent on the
+       case's behalf would read as this participant's DECLINE.  A
+       proposal, Invite or revision the participant *receives* while the
+       case is at P/X/A is a different matter: it answers that with ER
+       (EMB-01-002) on the received path, not here.
     """
     return py_trees.composites.Sequence(
         name="RejectProposedEmbargoBT",
@@ -392,6 +406,7 @@ def reject_proposed_embargo_bt(
                     _make_emit_node(case_id),
                 ],
                 otherwise=[LeaveAbandonmentToCaseManagerNode(case_id=case_id)],
+                otherwise_suffix=ABANDONMENT_LEFT_TO_CASE_MANAGER,
             ),
         ],
     )

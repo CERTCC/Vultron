@@ -188,8 +188,12 @@ groups:
       The node belongs in the tree that writes canonical state. Its presence
       in `add_participant_status_tree` predates the two-seam design and must
       be migrated as part of implementing RSH-01 and RSH-02.
-    verification: Inspection of `vultron/core/behaviors/status/` confirms `PublicDisclosureBranchNode` is absent from
-      `add_participant_status_tree` and `ThreatTerminationBranchNode` is present in `add_case_status_tree`.
+    verification: >
+      `PublicDisclosureBranchNode` is deleted (#4154);
+      `test/core/behaviors/status/test_add_participant_status_bt.py` asserts no
+      node of that name is in `add_participant_status_tree`, and
+      `test/core/behaviors/status/test_add_case_status_bt.py` asserts
+      `ThreatTerminationBranchNode` is present in `add_case_status_tree`.
 
     stories:
     - story_2022_081
@@ -206,14 +210,26 @@ groups:
       The CASE_MANAGER tears down on its own P/X/A detection, commits the
       teardown and declares the new status. The declaration can reach a
       replica before the teardown entries do, and the replica would then ask
-      the CASE_MANAGER to do what it has already done (one ET, or one ER per
-      proposal), each answered with a refusal (#4149).
+      the CASE_MANAGER to terminate the embargo it has already terminated,
+      an ask answered with a refusal (#4149). An open proposal raises no ask
+      either way (EMB-16-002). The same replica would also post the
+      CASE_MANAGER a CSB-18 diagnostic Note for the P/X/A–EM gap the
+      teardown entry is about to close, so `PxaEmInvariantDiagnosticNode`
+      skips on the same condition.
+    note: >
+      The skip decides who carries out the teardown, not whether it is
+      allowed (RSH-03-002).
     verification: >
       `test/core/behaviors/status/test_add_case_status_bt.py` runs
       `ThreatTerminationBranchNode` on a replica that still holds the active
-      embargo or the open proposal, with the CASE_MANAGER as sender, and
-      asserts nothing is queued; with another sender the terminate ask is
-      still queued.
+      embargo, with the CASE_MANAGER as sender, and asserts nothing is
+      queued; with another sender the terminate ask is still queued. The
+      same file runs the whole `add_case_status_tree` at a replica and
+      asserts the outbox stays empty (no ask, no diagnostic Note) for the
+      CASE_MANAGER's declaration, and
+      `test/core/behaviors/status/test_add_participant_status_bt.py` pins
+      that `add_participant_status_tree` gives the branch the status's
+      sender.
     relationships:
     - rel_type: refines
       spec_id: RSH-03-001

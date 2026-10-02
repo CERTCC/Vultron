@@ -33,10 +33,14 @@ BT-17-001):
   (EP-09-009).
 - Any other participant sends nothing (EMB-16-002, #4148):
   :class:`LeaveAbandonmentToCaseManagerNode` succeeds without a write or an
-  ask.  Its P/X/A signal already reached the manager as its status
-  declaration, and the manager abandons on its own detection.  An ER from it
-  would be read as that participant declining the proposal (MSM-07-004),
-  which nobody decided.
+  ask.  Only the case owner, or the CASE_MANAGER it delegates to, decides
+  the abandonment.  The participant's P/X/A signal already reached the
+  manager as its status declaration, and the manager abandons on its own
+  detection.  An ER sent as the abandonment would be read as that
+  participant declining the proposal (MSM-07-004).  This covers only the
+  proposals already open on the case: a proposal, Invite or revision the
+  participant *receives* at P/X/A is still answered with ER on the received
+  path (EMB-01-002).
 - On a replica, :class:`ApplyEmbargoAbandonmentFromLedgerNode` replays an
   entry in ``OBSERVED`` mode (EP-09-007, RSH-08-004).  The replica drops the
   proposal because the entry is the manager's committed decision, not
@@ -95,11 +99,15 @@ def _read_proposals(node: DataLayerActionWithPorts) -> dict[str, str]:
 class ReadOpenEmbargoProposalsNode(DataLayerActionWithPorts):
     """Map every open proposal of the case to the Invite that proposed it.
 
-    Read-only; the first node of the CASE_MANAGER's arm.  Writes ``{embargo_id: invite_id}``, in the case's record
-    order, to ``/abandoned_proposals`` — an empty map first, so a reader never
-    sees a stale value.  FAILURE, before anything moves, when the case has no
-    open proposal or an open proposal names no Invite in
-    ``pending_embargo_proposal_index``: no ER could name it (MSM-02-006).
+    Read-only; the first node of the CASE_MANAGER's arm.  Writes
+    ``{embargo_id: invite_id}``, in the case's record order, to
+    ``/abandoned_proposals`` — an empty map first, so a reader never sees a
+    stale value.  FAILURE, before anything moves, when the case has no open
+    proposal, or an open proposal names no Invite in
+    ``pending_embargo_proposal_index``, or names one this store cannot
+    read: no ER could answer it (MSM-02-006), and failing later, after the
+    EM write, would leave the manager at ``NONE`` with no entry to tell any
+    replica.
     """
 
     OUTPUT_PORTS: dict[str, PortInformation] = dict(_PROPOSALS_PORT)
@@ -133,6 +141,17 @@ class ReadOpenEmbargoProposalsNode(DataLayerActionWithPorts):
             self.feedback_message = (
                 f"open proposal(s) {unindexed} of case '{self._case_id}' name"
                 " no Invite, so no ER can answer them (MSM-02-006)"
+            )
+            self.logger.error("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+        assert self.datalayer is not None
+        unreadable = [
+            index[i] for i in open_ids if self.datalayer.read(index[i]) is None
+        ]
+        if unreadable:
+            self.feedback_message = (
+                f"Invite(s) {unreadable} of case '{self._case_id}' are not in"
+                " this store, so no ER can answer them (MSM-02-006)"
             )
             self.logger.error("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
@@ -246,9 +265,12 @@ class LeaveAbandonmentToCaseManagerNode(DataLayerActionWithPorts):
     (EP-09-008), and it sends no ER either (EMB-16-002, #4148).  The P/X/A
     status that brought it here is its own declaration to the manager, or
     the manager's declaration to it, so the manager has the signal and
-    abandons on its own detection.  An ER would reach the manager as this
-    participant declining the proposal (MSM-07-004).  Its replica moves when
-    the manager's abandonment entry is replayed (EP-09-007).  Always SUCCESS.
+    abandons on its own detection.  An ER sent as the abandonment would
+    reach the manager as this participant declining the proposal
+    (MSM-07-004).  Its replica moves when the manager's abandonment entry is
+    replayed (EP-09-007).  A proposal, Invite or revision it *receives* at
+    P/X/A is answered with ER on the received path instead (EMB-01-002), so
+    this node does not stand for "never send ER".  Always SUCCESS.
     """
 
     def __init__(self, case_id: str, name: str | None = None) -> None:

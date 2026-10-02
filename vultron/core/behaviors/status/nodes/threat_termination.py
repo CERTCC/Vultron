@@ -40,8 +40,10 @@ from vultron.core.behaviors.helpers import (
     resolve_case_replica,
 )
 from vultron.core.models._helpers import _as_id
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.states.cs import CS_pxa
 
 logger = logging.getLogger(__name__)
@@ -190,6 +192,24 @@ class _ThreatTerminationSkipConditionNode(DataLayerConditionWithPorts):
         return Status.FAILURE
 
 
+def teardown_left_to_case_manager(
+    case: VulnerabilityCase,
+    datalayer: CasePersistence,
+    sender_actor_id: str | None,
+    actor_id: str | None,
+) -> bool:
+    """True when a P/X/A status on *case* was declared by its CASE_MANAGER
+    and *actor_id* is someone else (RSH-03-004).
+
+    The manager tore down on its own detection before declaring, so this
+    actor's replica only lags the committed teardown entry.  This decides
+    who carries the teardown out, never whether it is allowed (RSH-03-002).
+    """
+    if not sender_actor_id or sender_actor_id == actor_id:
+        return False
+    return resolve_case_manager_id(case, datalayer) == sender_actor_id
+
+
 class _DeclaredByCaseManagerNode(DataLayerConditionWithPorts):
     """Skip guard: the status came from the CASE_MANAGER (RSH-03-004, #4149).
 
@@ -226,7 +246,9 @@ class _DeclaredByCaseManagerNode(DataLayerConditionWithPorts):
         case = resolve_case_replica(self, self.case_id)
         if case is None or self.datalayer is None:
             return Status.FAILURE
-        if resolve_case_manager_id(case, self.datalayer) != sender:
+        if not teardown_left_to_case_manager(
+            case, self.datalayer, sender, self.actor_id
+        ):
             return Status.FAILURE
         self.feedback_message = (
             f"P/X/A status on case '{self.case_id}' was declared by the"
@@ -262,7 +284,7 @@ class ThreatTerminationBranchNode(py_trees.composites.Selector):
     - Child 3 ``TeardownSelector``: SUCCESS on teardown; FAILURE on routing
       prerequisites absent or dispatch failure (BT-14-001).
 
-    Per RSH-03-001 to RSH-03-003, ADR-0046.
+    Per RSH-03-001 to RSH-03-004, ADR-0046.
     """
 
     def __init__(
@@ -302,6 +324,7 @@ __all__ = [
     "_DeclaredByCaseManagerNode",
     "pxa_embargo_teardown_bt",
     "resolve_pxa_threat_state",
+    "teardown_left_to_case_manager",
     "_ThreatTerminationSkipConditionNode",
     "ThreatTerminationBranchNode",
 ]

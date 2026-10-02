@@ -14,7 +14,8 @@ description: >
   which only the CASE_MANAGER writes and commits shared EM state while any
   other participant asks (EP-09-008, SYNC-11-002, EMB-19-001), including
   the P/X/A abandonment of every open proposal (EMB-16-001), which a
-  non-manager neither writes nor asks for (EMB-16-002), and the replica that
+  non-manager neither writes nor asks for (EMB-16-002) while still answering
+  with ER any proposal it receives at P/X/A (EMB-01-002), and the replica that
   leaves a CASE_MANAGER-declared teardown to its entry (RSH-03-004).
 related_specs:
   - specs/case-management.yaml
@@ -246,10 +247,9 @@ refusal into the receive tree is #3872.
 
 **Auto-terminate on publication** (CS.P/X/A event): the live receive path is
 `ThreatTerminationBranchNode` (`status/nodes/threat_termination.py`), under the
-teardown gate of `add_case_status_tree` and `add_participant_status_tree`.
-`PublicDisclosureBranchNode` (`status/nodes/lifecycle.py`) is built by no
-production tree. Both build `pxa_embargo_teardown_bt`, a Selector whose arms
-depend on the current EM state:
+teardown gate of `add_case_status_tree` and `add_participant_status_tree`. It
+builds `pxa_embargo_teardown_bt`, a Selector whose arms depend on the current
+EM state:
 
 - **EM ACTIVE or REVISE** → `terminate_embargo_bt` (ET + EM → EXITED). This is
   the cascade path for AC-2 of issue #1454.
@@ -353,15 +353,15 @@ reason EP-08 exists:
 - `find_embargo_proposal_id` returned the *first recorded* proposal, so after a
   counter-proposal a default `accept` took the **superseded** terms. Fixed by
   #3470.
-- **Neither record of open proposals is fully pruned.** Nothing at all removes a
-  decided entry from `pending_embargo_proposal_index` — one writer, no remover.
-  The neighbouring `proposed_embargoes` list is pruned *only on teardown*, by
-  `RemoveFromProposedEmbargoesNode`, which is wired into
-  `remove_embargo_from_case_tree` and nowhere else, so a **rejected** proposal
-  survives in both records. (The P/X/A abandonment prunes both, through
-  `discard_proposed_embargo`.) An unpruned record is not a weaker
-  guarantee than a pruned one; it is a different and wrong answer, because a
-  decided proposal stays selectable. Both records are #3470's job.
+- **Neither record of open proposals was fully pruned.** Nothing removed a
+  decided entry from `pending_embargo_proposal_index`, and `proposed_embargoes`
+  was pruned only on teardown, so a **rejected** proposal survived in both.
+  Fixed by #3470: `VulnerabilityCase.discard_proposed_embargo` forgets a
+  proposal in both records at once, and every decision path calls it —
+  activation, the owner's `Reject` (`answers.py`), teardown and the P/X/A
+  abandonment. An unpruned record is not a weaker guarantee than a
+  pruned one; it is a different and wrong answer, because a decided proposal
+  stays selectable.
 
 Two rules follow for any new proposal-selection code:
 
@@ -510,10 +510,10 @@ in two mutually exclusive arms built by `_by_role()`
   the CASE_MANAGER's `Reject` of it closes the entry instead
   (`close_refused_embargo_proposal`).
 
-The receive-side cascades that end an embargo (`ThreatTerminationBranchNode`,
-`PublicDisclosureBranchNode`) reach the same `terminate_embargo_bt`, so they
-too tear down only at the CASE_MANAGER and a non-manager receiver asks. Both
-build their teardown with `pxa_embargo_teardown_bt`: terminate an active
+The receive-side cascade that ends an embargo (`ThreatTerminationBranchNode`)
+reaches the same `terminate_embargo_bt`, so it too tears down only at the
+CASE_MANAGER and a non-manager receiver asks. It builds its teardown with
+`pxa_embargo_teardown_bt`: terminate an active
 embargo, else abandon the open proposals with `reject_proposed_embargo_bt`
 (EMB-16-001, #4145). Ratchet:
 `test/architecture/test_embargo_trigger_writes_are_case_manager_gated.py`.
@@ -524,9 +524,12 @@ new status, and the declaration can reach a replica before the teardown
 entries do. `ThreatTerminationBranchNode` is given the status's sender, and
 `_DeclaredByCaseManagerNode` skips the branch when that sender holds the
 CASE_MANAGER role and is not the executing actor: the replica waits for the
-entry instead of asking for what is already done. This is not a sender-role
-authorization gate (RSH-03-002); a status from anyone else still runs the
-branch.
+entry instead of asking for what is already done. The skip decides *who*
+carries out the teardown, not *whether* it is allowed: it is not a sender-role
+authorization gate (RSH-03-002), and a status from anyone else still runs the
+branch. For the same reason `PxaEmInvariantDiagnosticNode` posts no CSB-18
+Note for a CASE_MANAGER-declared status at a replica: the P/X/A–EM gap it
+would report is the one the manager's entry is about to close.
 
 **The P/X/A abandonment decides every open proposal (EMB-16-001, #4131).**
 `P → N` leaves nothing open, so the earliest-expiring order of EP-08-002 does
@@ -542,16 +545,26 @@ as a teardown already decides every open proposal (EP-08-004). Only the
 manager reads each proposal's Invite from `pending_embargo_proposal_index`,
 and a proposal with none fails its run closed before anything moves.
 
-**A non-manager sends no ER for the abandonment (EMB-16-002, #4148).** Its
-P/X/A signal already reaches the CASE_MANAGER as its status declaration, and
-the manager abandons on that detection. A `Reject(Invite)` from the
-participant would arrive as an ordinary ER, which the manager reads as that
-participant declining the proposal (MSM-07-004) — a decline nobody made — and
-which would not make the manager abandon anything. So the non-manager arm
-(`LeaveAbandonmentToCaseManagerNode`) writes and sends nothing, and the
+**A non-manager sends no ER for the abandonment (EMB-16-002, #4148).** Only
+the case owner, or the CASE_MANAGER it delegates to, decides to abandon the
+case's open proposals. A non-manager's P/X/A signal already reaches the
+CASE_MANAGER as its status declaration, and the manager abandons on that
+detection. A `Reject(Invite)` sent as the abandonment would arrive as an
+ordinary ER, which the manager reads as that participant declining the
+proposal (MSM-07-004) — an abandonment the participant had no standing to
+make — and which would not make the manager abandon anything. So the
+non-manager arm (`LeaveAbandonmentToCaseManagerNode`) writes and sends
+nothing, and the
 participant's replica moves when the manager's entry is replayed. EMB-16-001's
 "emit ER" is met by the manager's committed entries, as EP-09-009 makes the
 manager's commit the EK.
+
+**Two rules, side by side.** EMB-16-002 covers the abandonment of proposals
+already open on the case; EMB-01-002 covers what a participant *receives*. A
+proposal, Invite or revision that reaches a participant while it believes the
+case is at P, X or A is still answered with ER by that participant, manager or
+not: that ER is its own answer to something addressed to it, not an
+abandonment on the case's behalf.
 Participant self-status (RM) keeps its local write — the participant is the
 authority on its own progress. ADR-0108 was amended to match.
 
@@ -577,7 +590,7 @@ open (EP-08-001), it forgets the one it names (EP-08-003) and EM stays
 `PROPOSED`/`REVISE` while another is open. When it rejects the last open
 revision after P/X/A is set, the case does not return to the prior terms: the
 manager runs the terminate path (`terminate_embargo_bt`, ET), as
-`PublicDisclosureBranchNode` does, and replicas follow its
+`ThreatTerminationBranchNode` does, and replicas follow its
 `Remove(EmbargoEvent)` (EMB-04-002).
 
 **RSH-04-002 on the relay trees.** These received trees add no

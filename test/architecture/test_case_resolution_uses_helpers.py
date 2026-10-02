@@ -224,10 +224,6 @@ KNOWN_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
             "PxaEmInvariantDiagnosticNode.update",
         ),
         (
-            "vultron/core/behaviors/status/nodes/lifecycle.py",
-            "_PublicDisclosureSkipConditionNode.update",
-        ),
-        (
             "vultron/core/behaviors/status/nodes/threat_termination.py",
             "_ThreatTerminationSkipConditionNode._case_status_from_datalayer",
         ),

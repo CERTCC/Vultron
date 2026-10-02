@@ -41,6 +41,7 @@ from vultron.core.behaviors.embargo.nodes import (
     TerminateEmbargoLifecycleNode,
 )
 from vultron.core.behaviors.embargo.trigger_tree import (
+    ABANDONMENT_LEFT_TO_CASE_MANAGER,
     accept_embargo_trigger_bt,
     propose_embargo_revision_trigger_bt,
     propose_embargo_trigger_bt,
@@ -109,6 +110,7 @@ def _assert_manager_arm_order(
     tree: py_trees.behaviour.Behaviour,
     lifecycle_type: type,
     commit_type: type = CommitEmbargoDecisionNode,
+    other_suffix: str = "AskCaseManager",
 ) -> None:
     """Write → commit → declare, as the CASE_MANAGER only."""
     manager = _arm(tree, "AsCaseManager")
@@ -120,7 +122,7 @@ def _assert_manager_arm_order(
         < index[commit_type]
         < index[EmitCaseStatusUpdateNode]
     ), "the EM write is committed before it is declared"
-    other = _arm(tree, "AskCaseManager")
+    other = _arm(tree, other_suffix)
     assert not any(
         isinstance(n, (lifecycle_type, commit_type, EmitCaseStatusUpdateNode))
         for n in other
@@ -202,6 +204,7 @@ class TestRejectProposedEmbargoBt:
             tree,
             AbandonEmbargoProposalsLifecycleNode,
             CommitEmbargoAbandonmentNode,
+            other_suffix=ABANDONMENT_LEFT_TO_CASE_MANAGER,
         )
 
     @pytest.mark.spec("EMB-16-002")
@@ -210,7 +213,10 @@ class TestRejectProposedEmbargoBt:
             case_id=CASE_ID,
             result_out=result_out,
         )
-        other = _arm(tree, "AskCaseManager")
+        assert not any(
+            n.name.endswith("AskCaseManager") for n in _collect_nodes(tree)
+        ), "the non-manager arm asks nothing, and is not named as if it did"
+        other = _arm(tree, ABANDONMENT_LEFT_TO_CASE_MANAGER)
         assert any(
             isinstance(n, LeaveAbandonmentToCaseManagerNode) for n in other
         )

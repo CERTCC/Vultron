@@ -220,25 +220,23 @@ def test_a_non_manager_neither_writes_nor_asks(indexed: bool):
     assert committed_event_types(dl, case.id_) == []
 
 
-@pytest.mark.spec("EMB-16-002")
+@pytest.mark.spec("CM-18-005")
 @pytest.mark.spec("MSM-07-004")
-def test_the_abandonment_declines_nobody():
-    """No participant ends up DECLINED: nobody sent an ER (#4148).
+def test_the_managers_abandonment_changes_no_consent():
+    """The abandonment declines nobody: no participant's consent moves.
 
-    The non-manager queues no ``Reject`` the manager could read as a
-    decline, and the manager's own abandonment changes no consent.
+    The non-manager side sends no ``Reject`` at all
+    (``test_a_non_manager_neither_writes_nor_asks``); the replica side is
+    pinned in ``test_embargo_abandonment_replay.py``.
     """
-    case, manager_dl, proposals = _proposed_case(
+    case, dl, _proposals = _proposed_case(
         "abandon-consent", consent=PEC.INVITED
     )
-    replica = _replica_of(manager_dl, case, proposals, OTHER_PARTICIPANT_ACTOR)
-    before = _consents(manager_dl, case.id_)
+    before = _consents(dl, case.id_)
 
-    assert _run(replica, case.id_, OTHER_PARTICIPANT_ACTOR) == Status.SUCCESS
-    assert not any(a.type_ == "Reject" for a in _queued(replica))
-    assert _run(manager_dl, case.id_, CASE_MANAGER_ACTOR) == Status.SUCCESS
+    assert _run(dl, case.id_, CASE_MANAGER_ACTOR) == Status.SUCCESS
 
-    assert _consents(manager_dl, case.id_) == before
+    assert _consents(dl, case.id_) == before
 
 
 @pytest.mark.spec("EMB-18-003")
@@ -253,6 +251,32 @@ def test_a_proposal_naming_no_invite_fails_before_anything_moves():
     assert updated.proposed_embargo_ids == list(proposals)
     assert committed_event_types(dl, case.id_) == []
     assert _queued(dl) == []
+
+
+@pytest.mark.spec("EMB-16-001")
+@pytest.mark.spec("MSM-02-006")
+def test_an_unreadable_invite_fails_before_anything_moves():
+    """An indexed Invite missing from the store fails the read, not the
+    commit: failing after the EM write would leave the manager at NONE with
+    no entry for any replica."""
+    case, dl, proposals = _proposed_case("abandon-unreadable")
+    missing = next(iter(proposals.values()))
+    _drop(dl, missing)
+
+    assert _run(dl, case.id_, CASE_MANAGER_ACTOR) == Status.FAILURE
+
+    updated = cast(VulnerabilityCase, dl.read(case.id_))
+    assert updated.current_status.em.state == EM.PROPOSED
+    assert updated.proposed_embargo_ids == list(proposals)
+    assert committed_event_types(dl, case.id_) == []
+    assert _queued(dl) == []
+
+
+def _drop(dl: SqliteDataLayer, obj_id: str) -> None:
+    obj = dl.read(obj_id)
+    assert obj is not None
+    assert dl.delete(str(obj.type_), obj_id)
+    assert dl.read(obj_id) is None
 
 
 # ---------------------------------------------------------------------------
@@ -304,3 +328,15 @@ def test_read_names_the_proposal_with_no_invite():
     assert _tick(node) == Status.FAILURE
     for embargo_id in proposals:
         assert embargo_id in node.feedback_message
+
+
+def test_read_names_the_invite_it_cannot_read():
+    case, dl, proposals = _proposed_case("abandon-unread")
+    missing = list(proposals.values())[-1]
+    _drop(dl, missing)
+    setup_blackboard(dl, actor_id=CASE_MANAGER_ACTOR)
+
+    node = ReadOpenEmbargoProposalsNode(case_id=case.id_)
+    assert _tick(node) == Status.FAILURE
+    assert missing in node.feedback_message
+    assert _read_back() == {}

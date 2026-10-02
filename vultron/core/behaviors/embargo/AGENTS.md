@@ -86,6 +86,9 @@ only, in this order: `*EmbargoLifecycleNode` (`STRICT`) →
 outbox write) → `EmitCaseStatusUpdateNode`. The other arm writes no EM state:
 it queues to the manager through `sender_side_bt` with `_asserting()`, which
 writes `result_out[ASSERTED_ACTIVITY_KEY]` for the pending-assertion record.
+The one exception is `reject_proposed_embargo_bt` (the P/X/A abandonment):
+its other arm sends nothing at all (EMB-16-002), so it passes
+`otherwise_suffix` and is not named `...AskCaseManager`.
 
 - A decision every replica learns from the entry (`Accept`/`Reject`) is
   addressed to nobody; a teardown goes to every *other* participant
