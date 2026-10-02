@@ -13,7 +13,8 @@ description: >
   revision's registration order no longer touches consent (ADR-0093); how
   the creation-time revision is relayed to the other party (EP-04-011, ADR-0113);
   why creation-time initialization runs once per case with the EM state, not
-  the active-embargo reference, as the evidence (EP-04-012); and why the actor
+  the active-embargo reference, as the evidence (EP-04-012), and why a rerun
+  on a half-built case reuses the minted event's case-derived id; and why the actor
   default is the CASE_OWNER's profile policy, carried inline on the case proposal
   (CP-01-009, CP-01-010).
 related_specs:

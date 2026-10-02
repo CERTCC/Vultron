@@ -63,13 +63,18 @@ from vultron.errors import (
 logger = logging.getLogger(__name__)
 
 
+#: Appended to the case id to name the creation-time embargo's uuid5.
+_CREATION_TIME_EMBARGO_SUFFIX = "#creation-time-embargo"
+
+
 def creation_time_embargo_id(case_id: str) -> str:
     """Return the id of the creation-time embargo minted for *case_id*.
 
     The id is derived from the case, so every attempt to initialize the same
     case names the same event (EP-04-012).
     """
-    return f"urn:uuid:{uuid.uuid5(uuid.NAMESPACE_URL, f'{case_id}#creation-time-embargo')}"
+    name = f"{case_id}{_CREATION_TIME_EMBARGO_SUFFIX}"
+    return f"urn:uuid:{uuid.uuid5(uuid.NAMESPACE_URL, name)}"
 
 
 def persist_creation_time_embargo(
@@ -179,7 +184,9 @@ class CreateEmbargoEventNode(DataLayerActionWithPorts):
             # from the report to the case (EP-04-004).
             embargo = sender_event.with_subject(case_id)
             end_time = embargo.end_time
+            minted = False
         else:
+            minted = True
             end_time = from_now_utc(duration)
             embargo = EmbargoEvent(
                 id_=creation_time_embargo_id(case_id),
@@ -187,7 +194,11 @@ class CreateEmbargoEventNode(DataLayerActionWithPorts):
                 context=case_id,
             )
         try:
-            if not self._restamp_half_built_attempt(embargo, case_id):
+            # Only a minted event is ours to re-stamp: a stored twin of the
+            # sender's event must still match it (persist_*, EP-04-004).
+            if not (
+                minted and self._restamp_half_built_attempt(embargo, case_id)
+            ):
                 persist_creation_time_embargo(self.datalayer, embargo, case_id)
         except VultronError as exc:
             self.feedback_message = f"{self.name}: {exc}"
@@ -228,8 +239,10 @@ class CreateEmbargoEventNode(DataLayerActionWithPorts):
             return False
         self.datalayer.save(embargo)
         self.logger.info(
-            "Re-stamped creation-time embargo '%s' for case '%s', left at"
-            " EM.NONE by an earlier attempt (end_time %s -> %s; EP-04-012)",
+            "Actor '%s' re-stamped creation-time embargo '%s' for case '%s',"
+            " left at EM.NONE by an earlier attempt (end_time %s -> %s;"
+            " EP-04-012)",
+            self.actor_id,
             embargo.id_,
             case_id,
             stored.end_time.isoformat(),

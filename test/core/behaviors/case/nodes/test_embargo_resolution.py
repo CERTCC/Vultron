@@ -705,13 +705,13 @@ class TestCaseEmbargoAlreadyInitializedNode:
         event was written would: the case is left at ``EM.NONE`` with the
         creation-time event already stored and nothing referencing it.
         """
-        monkeypatch.setattr(
-            embargo_nodes_module.AdvanceEMStateToActiveNode,
-            "update",
-            lambda self: Status.FAILURE,
-        )
-        status, _, _ = _run(bt_scenario, **run_args)
-        monkeypatch.undo()
+        with monkeypatch.context() as patch:
+            patch.setattr(
+                embargo_nodes_module.AdvanceEMStateToActiveNode,
+                "update",
+                lambda self: Status.FAILURE,
+            )
+            status, _, _ = _run(bt_scenario, **run_args)
         assert status == Status.FAILURE
         assert _em_state(bt_scenario) == EM.NONE
         assert _active_embargo(bt_scenario) is None
@@ -719,7 +719,6 @@ class TestCaseEmbargoAlreadyInitializedNode:
         assert len(stored) == 1
         return stored
 
-    @pytest.mark.spec("EP-04-002")
     @pytest.mark.parametrize(
         "owner_policy",
         [None, ACTOR_DEFAULT],
@@ -751,6 +750,7 @@ class TestCaseEmbargoAlreadyInitializedNode:
             active, owner_policy or PROTOCOL_DEFAULT, before, after
         )
 
+    @pytest.mark.spec("EP-04-004")
     def test_a_rerun_on_a_half_built_case_keeps_the_senders_event(
         self,
         bt_scenario: BTTestScenario,
@@ -777,6 +777,35 @@ class TestCaseEmbargoAlreadyInitializedNode:
         assert active is not None
         assert only.id_ == active.id_ == sender_event.id_
         assert active.end_time == sender_event.end_time
+
+    @pytest.mark.spec("EP-04-004")
+    def test_a_sender_twin_with_other_terms_is_refused_not_restamped(
+        self, bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
+    ) -> None:
+        """Re-stamping is for the event this node minted.  A stored twin of
+        the Reporter's event about this case that ends at a different time is
+        still refused by ``persist_creation_time_embargo``, never overwritten
+        with the terms on the proposal (EP-04-004)."""
+        event_id = "https://example.org/embargoes/sender-twin"
+        stored_end = datetime(2099, 1, 1, tzinfo=UTC)
+        bt_scenario.dl.create(
+            EmbargoEvent(id_=event_id, context=CASE_ID, end_time=stored_end)
+        )
+
+        status, _, _ = _run(
+            bt_scenario,
+            sender_proposal=SENDER_PROPOSAL,
+            sender_proposed_embargo=_sender_event(
+                from_now_utc(SENDER_PROPOSAL), event_id=event_id
+            ),
+        )
+
+        assert status == Status.FAILURE
+        assert _em_state(bt_scenario) == EM.NONE
+        assert _active_embargo(bt_scenario) is None
+        stored = bt_scenario.dl.read(event_id)
+        assert isinstance(stored, EmbargoEvent)
+        assert stored.end_time == stored_end
 
     def test_a_foreign_object_at_the_creation_time_id_is_refused(
         self, bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
