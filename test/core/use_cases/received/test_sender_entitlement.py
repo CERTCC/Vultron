@@ -161,6 +161,7 @@ def _report_id(report: Any) -> str:
 
 @pytest.mark.xfail(
     strict=True,
+    raises=AssertionError,
     reason="CM-21-011: ownership Accept from a non-transferee is applied. Tracked by #4070.",
 )
 @pytest.mark.spec("CM-21-011")
@@ -185,7 +186,10 @@ def test_ownership_accept_from_non_transferee_is_refused(
     )
 
     result = AcceptCaseOwnershipTransferReceivedUseCase(
-        cm_store, event, wire_render_port=As2WireRenderAdapter()
+        cm_store,
+        event,
+        sync_port=SyncActivityAdapter(cm_store),
+        wire_render_port=As2WireRenderAdapter(),
     ).execute()
 
     assert result.disposition is HandlerDisposition.REFUSED
@@ -195,6 +199,7 @@ def test_ownership_accept_from_non_transferee_is_refused(
 
 @pytest.mark.xfail(
     strict=True,
+    raises=AssertionError,
     reason="CM-11-017: Accept of an Invite never recorded admits the sender. Tracked by #4071.",
 )
 @pytest.mark.spec("CM-11-017")
@@ -205,7 +210,7 @@ def test_accept_of_unrecorded_invite_is_refused(
     cm_store.create(owned_case)
     invite = rm_invite_to_case_activity(
         as_Actor(id_=_IMPOSTOR_ID),
-        target=as_VulnerabilityCaseStub(id_=owned_case.id_),
+        target=as_VulnerabilityCaseStub(case_id=owned_case.id_),
         actor=_OWNER_ID,
         id_=f"{owned_case.id_}/invitations/forged",
     )
@@ -228,6 +233,7 @@ def test_accept_of_unrecorded_invite_is_refused(
 
 @pytest.mark.xfail(
     strict=True,
+    raises=AssertionError,
     reason="CM-11-017: roles are taken from the Invite embedded in the reply. Tracked by #4071.",
 )
 @pytest.mark.spec("CM-11-017")
@@ -241,7 +247,7 @@ def test_accept_of_invite_takes_roles_from_recorded_invite(
     cm_store.create(
         rm_invite_to_case_activity(
             as_Actor(id_=invitee_id),
-            target=as_VulnerabilityCaseStub(id_=owned_case.id_),
+            target=as_VulnerabilityCaseStub(case_id=owned_case.id_),
             roles=[CVDRole.VENDOR],
             actor=_OWNER_ID,
             id_=invite_id,
@@ -249,7 +255,7 @@ def test_accept_of_invite_takes_roles_from_recorded_invite(
     )
     forged = rm_invite_to_case_activity(
         as_Actor(id_=invitee_id),
-        target=as_VulnerabilityCaseStub(id_=owned_case.id_),
+        target=as_VulnerabilityCaseStub(case_id=owned_case.id_),
         roles=[CVDRole.VENDOR, CVDRole.CASE_OWNER],
         actor=_OWNER_ID,
         id_=invite_id,
@@ -273,6 +279,7 @@ def test_accept_of_invite_takes_roles_from_recorded_invite(
 
 @pytest.mark.xfail(
     strict=True,
+    raises=AssertionError,
     reason="CM-16-019: Accept(Offer(CaseParticipant)) from a non-owner invites. Tracked by #4073.",
 )
 @pytest.mark.spec("CM-16-019")
@@ -308,6 +315,7 @@ def test_recommendation_accept_from_non_owner_is_refused():
         dl,
         event,
         trigger_activity=TriggerActivityAdapter(dl),
+        sync_port=SyncActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
     ).execute()
 
@@ -317,6 +325,7 @@ def test_recommendation_accept_from_non_owner_is_refused():
 
 @pytest.mark.xfail(
     strict=True,
+    raises=AssertionError,
     reason="CP-06-005: Accept(CaseProposal) from a non-addressee is recorded. Tracked by #4072.",
 )
 @pytest.mark.spec("CP-06-005")
@@ -338,12 +347,13 @@ def test_case_proposal_accept_from_non_addressee_is_refused(make_payload):
     assert result.disposition is HandlerDisposition.REFUSED
     link = dl.read(link_id)
     assert isinstance(link, VultronReportCaseLink)
-    assert link.trusted_case_actor_id is None
+    assert link.case_manager_id is None
     assert dl.outbox_list() == []
 
 
 @pytest.mark.xfail(
     strict=True,
+    raises=AssertionError,
     reason="CM-30-001: Remove(Note) from neither author nor owner is applied. Tracked by #4074.",
 )
 @pytest.mark.spec("CM-30-001")
@@ -375,6 +385,7 @@ def test_note_removal_by_stranger_is_refused(
 
 @pytest.mark.xfail(
     strict=True,
+    raises=AssertionError,
     reason="CM-30-002: Add(VulnerabilityReport) from a non-owner is applied. Tracked by #4074.",
 )
 @pytest.mark.spec("CM-30-002")
@@ -400,6 +411,7 @@ def test_report_addition_by_non_owner_is_refused(
 
 @pytest.mark.xfail(
     strict=True,
+    raises=AssertionError,
     reason="SYNC-03-005: Reject(CaseLedgerEntry) from a non-participant replays. Tracked by #4075.",
 )
 @pytest.mark.spec("SYNC-03-005")
