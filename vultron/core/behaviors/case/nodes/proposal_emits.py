@@ -27,6 +27,9 @@ from typing import cast
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
+from vultron.core.behaviors.case.nodes.proposal_retry_marker import (
+    announced_case_id,
+)
 from vultron.core.behaviors.helpers import (
     DataLayerAction,
     DataLayerActionWithPorts,
@@ -181,16 +184,14 @@ class EmitCreateVulnerabilityCaseNode(DataLayerAction):
         (CP-05-005, #4146).
         """
         assert self.datalayer is not None
-        create_id = PendingCreateCaseActivity.create_activity_id(
-            self._proposal_id
-        )
-        if self.datalayer.read(create_id) is None:
+        case_id = announced_case_id(self.datalayer, self._proposal_id)
+        if case_id is None:
             return False
         logger.info(
-            "%s: Create(VulnerabilityCase) '%s' for proposal '%s' was already"
-            " queued — not announcing the case again (CP-05-005)",
+            "%s: Create(VulnerabilityCase) of case '%s' for proposal '%s' was"
+            " already queued — not announcing the case again (CP-05-005)",
             self.name,
-            create_id,
+            case_id,
             self._proposal_id,
         )
         return True
@@ -205,8 +206,16 @@ class EmitCreateVulnerabilityCaseNode(DataLayerAction):
         # with CP-05-005 retry logic.
         marker_id = PendingCreateCaseActivity.build_id(self._proposal_id)
         raw_marker = self.datalayer.read(marker_id)
-        if raw_marker is None and self._already_queued():
-            return Status.SUCCESS
+        if raw_marker is None:
+            try:
+                already_queued = self._already_queued()
+            except VultronError as exc:
+                # WriteCreateCaseMarkerNode fails the tree on this first; here
+                # it only means there is nothing this node may emit.
+                logger.warning("%s: %s", self.name, exc)
+                already_queued = False
+            if already_queued:
+                return Status.SUCCESS
         if not isinstance(raw_marker, PendingCreateCaseActivity):
             self.feedback_message = (
                 f"PendingCreateCaseActivity marker '{marker_id}' not found"

@@ -443,7 +443,15 @@ id is therefore derived from the proposal
 (`PendingCreateCaseActivity.create_activity_id()`), not minted. A redelivery
 that finds that activity already stored writes no marker and queues nothing,
 whether the first delivery succeeded or a later leaf failed after the marker
-was cleared (#4146).
+was cleared (#4146). The proposal id is the sender's, so the stored activity
+is checked, not just found: `announced_case_id()` (in
+`proposal_retry_marker.py`) refuses anything but a `Create` naming a case, and
+`WriteCreateCaseMarkerNode` fails if that case is not the one it just built.
+A sender that reused a proposal id for another report would otherwise get a
+case that is never announced while the tree reports SUCCESS. Reading the store
+is sound only because the marker is cleared *after* the enqueue: while it
+exists, `CheckMarkerExistsNode` short-circuits and the retry runner owns
+recovery, so "Create stored, no marker" means "queued".
 
 ### Retry Runner (AC-2: startup-scan option)
 

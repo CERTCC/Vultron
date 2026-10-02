@@ -613,7 +613,8 @@ groups:
       indexes the replayed Invite while the invitee's does not. Node and service tests
       (`TestTheRevisionIsConsentedToByItsProposer`) assert that the losing party's record,
       not the executing actor's, gains the revision id, and that a contest with no report
-      to name the reporter fails before any write (MSM-07-005, #4152).
+      to name the reporter fails before the initialization commit, leaving the case at
+      `EM.NONE` (MSM-07-005, #4152).
     relationships:
     - rel_type: refines
       spec_id: EP-04-003

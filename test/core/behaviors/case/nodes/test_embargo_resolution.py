@@ -1453,10 +1453,15 @@ class TestTheRevisionIsConsentedToByItsProposer:
         owner = _owner_participant(bt_scenario)
         assert owner.accepted_embargo_ids == [case.active_embargo_id]
 
-    def test_a_contest_with_no_report_fails_before_any_write(
+    def test_a_contest_with_no_report_fails_before_the_commit(
         self, bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
     ) -> None:
-        """No report, no reporter: the revision has no proposer to name."""
+        """No report, no reporter: the revision has no proposer to name.
+
+        The winning ``EmbargoEvent`` is already stored by then
+        (``CreateEmbargoEventNode``), which EP-04-012 allows; nothing of the
+        initialization commit is written, so the case stays at ``EM.NONE``.
+        """
         result = bt_scenario.run(
             InitializeDefaultEmbargoNode(),
             actor_id=ACTOR_ID,
@@ -1471,3 +1476,10 @@ class TestTheRevisionIsConsentedToByItsProposer:
         assert result.status == Status.FAILURE
         assert _em_state(bt_scenario) == EM.NONE
         assert _owner_participant(bt_scenario).accepted_embargo_ids == []
+        case = bt_scenario.dl.read(CASE_ID)
+        assert isinstance(case, VulnerabilityCase)
+        assert case.proposed_embargoes == []
+        assert case.active_embargo_id is None
+        assert len(bt_scenario.dl.list_objects("EmbargoEvent")) == 1, (
+            "only the winner CreateEmbargoEventNode stored; no revision"
+        )

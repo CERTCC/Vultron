@@ -261,7 +261,8 @@ class InitializeCreationEmbargoNode(DataLayerActionWithPorts):
     The revision is proposed by the party whose terms lost: the reporter of
     *report_id* or the case owner (``creation_revision_parties``), so that
     party's consent record, not the executing actor's, gains it (MSM-07-005,
-    #4152).  A contest with no resolvable reporter fails before any write.
+    #4152).  A contest with no resolvable reporter fails before the
+    initialization commit, leaving the case at ``EM.NONE``.
 
     A registered revision is published, under a freshly minted proposal id,
     as ``creation_time_revision`` for ``RelayCreationTimeRevisionNode``

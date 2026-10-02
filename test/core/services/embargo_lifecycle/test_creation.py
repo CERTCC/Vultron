@@ -184,6 +184,33 @@ def test_an_owner_already_signatory_stays_signatory(
     assert _accepted_ids_of(dl, owner_p.id_) == [embargo.id_]
 
 
+@pytest.mark.spec("CM-14-003")
+@pytest.mark.spec("CM-18-003")
+def test_a_declined_owner_records_nothing_until_re_invited(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """``ACCEPT`` is not legal from DECLINED, so the owner seed records
+    nothing: the case still activates, and the owner keeps its decline and an
+    empty accepted list until it is re-invited (CM-18-003)."""
+    owner, dl = owner_and_dl
+    case, (owner_p,) = _make_case(dl, owner.id_)
+    _force_pec(dl, owner_p.id_, PEC.DECLINED)
+    embargo = _make_embargo(dl, case.id_)
+
+    result = EmbargoLifecycle(persistence=dl).initialize_creation_embargo(
+        case_id=case.id_,
+        embargo_id=embargo.id_,
+        actor_id="https://example.org/actors/not-a-participant",
+    )
+
+    assert _stored_case(dl, case.id_).active_embargo_id == embargo.id_
+    assert _pec_of(dl, owner_p.id_) == PEC.DECLINED.value
+    assert _accepted_ids_of(dl, owner_p.id_) == []
+    assert owner_p.id_ not in [
+        c.participant_id for c in result.participant_changes
+    ]
+
+
 @pytest.mark.spec("CM-14-002")
 @pytest.mark.parametrize("unseedable", ["no_owner", "no_record"])
 def test_an_owner_without_a_participant_record_is_refused_unchanged(

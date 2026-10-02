@@ -144,7 +144,9 @@ class _CreationOperationsMixin(_ProposalOperationsMixin):
         it, so a stale listing is discarded in the same write (EP-08-003).
         The case owner — ``attributed_to``, never the executing actor, which
         on the CASE_MANAGER's creation path is someone else — is then seeded
-        ``SIGNATORY`` of the embargo it set (CM-14-003).
+        ``SIGNATORY`` of the embargo it set (CM-14-003).  An owner that has
+        already ``DECLINED`` records nothing: ``ACCEPT`` is not legal from
+        that state, so it stays declined until re-invited (CM-18-003).
 
         A *revision* is the longer creation-time proposal that lost
         shortest-wins (EP-04-003).  It is stored and proposed through

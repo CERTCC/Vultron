@@ -168,16 +168,15 @@ class TestPendingCreateCaseActivityModel:
 _CASE_URI = "https://example.org/cases/c-001"
 
 
-@pytest.mark.spec("CP-05-005")
-def _store_announced_create(dl: SqliteDataLayer) -> None:
+def _store_announced_create(
+    dl: SqliteDataLayer, case_id: str = _CASE_URI
+) -> None:
     """Store the Create a first delivery of ``_PROPOSAL_URI`` announced."""
     from vultron.core.models.activity import VultronCreateCaseActivity
     from vultron.core.models.case import VulnerabilityCase
 
     port = As2WireRenderAdapter()
-    case = VulnerabilityCase(
-        id_="https://example.org/cases/c-001", attributed_to=_VENDOR_URI
-    )
+    case = VulnerabilityCase(id_=case_id, attributed_to=_VENDOR_URI)
     create = VultronCreateCaseActivity(
         id_=PendingCreateCaseActivity.create_activity_id(_PROPOSAL_URI),
         actor=_CASE_ACTOR_URI,
@@ -187,6 +186,7 @@ def _store_announced_create(dl: SqliteDataLayer) -> None:
     TriggerActivityAdapter(dl).emit_prepared_create_case(port.render(create))
 
 
+@pytest.mark.spec("CP-05-005")
 class TestWriteCreateCaseMarkerNode:
     """Unit tests for WriteCreateCaseMarkerNode."""
 
@@ -287,6 +287,53 @@ class TestWriteCreateCaseMarkerNode:
         assert dl.read(PendingCreateCaseActivity.build_id(_PROPOSAL_URI)) is (
             None
         )
+
+    @pytest.mark.spec("CP-05-005")
+    def test_a_create_announcing_another_case_fails_loudly(self, caplog):
+        """A sender that reuses a proposal id for a new case finds the old
+        case's Create under the derived id.  Reporting SUCCESS would leave the
+        new case never announced, so the node fails and says why."""
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        _store_announced_create(dl, case_id="https://example.org/cases/c-old")
+        with caplog.at_level(logging.ERROR):
+            status = self._run_node(
+                dl,
+                actor_id=_CASE_ACTOR_URI,
+                case_id=_CASE_URI,
+                accept_id="https://example.org/activities/a-001",
+            )
+        assert status == py_trees.common.Status.FAILURE
+        assert dl.read(PendingCreateCaseActivity.build_id(_PROPOSAL_URI)) is (
+            None
+        )
+        assert any(
+            "https://example.org/cases/c-old" in r.getMessage()
+            and r.levelno == logging.ERROR
+            for r in caplog.records
+        )
+
+    @pytest.mark.spec("CP-05-005")
+    def test_a_non_create_under_the_derived_id_fails(self):
+        """Something other than a Create under the derived id announces no
+        case; the node fails rather than taking it as announced."""
+        from vultron.core.models.case import VulnerabilityCase
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        dl.save(
+            VulnerabilityCase(
+                id_=PendingCreateCaseActivity.create_activity_id(
+                    _PROPOSAL_URI
+                ),
+                attributed_to=_VENDOR_URI,
+            )
+        )
+        status = self._run_node(
+            dl,
+            actor_id=_CASE_ACTOR_URI,
+            case_id=_CASE_URI,
+            accept_id="https://example.org/activities/a-001",
+        )
+        assert status == py_trees.common.Status.FAILURE
 
     @pytest.mark.spec("EMB-18-003")
     def test_marker_payload_carries_the_active_embargo_inline(self):
@@ -2464,8 +2511,9 @@ class TestARedeliveryAnnouncesTheCaseOnce:
         _run_full_bt(make_payload, dl)
         (first,) = _announced_case_creates(dl)
 
-        _run_full_bt(make_payload, dl)
+        result = _run_full_bt(make_payload, dl)
 
+        assert result.disposition == HandlerDisposition.APPLIED
         assert _announced_case_creates(dl) == [first]
 
 
@@ -3462,6 +3510,17 @@ class TestEP04SenderProposalAtCaseCreation:
         invitee = dl.read(stored.actor_participant_index[winner])
         assert isinstance(invitee, CaseParticipant)
         assert invitee.embargo_consent_state is PEC.SIGNATORY
+        # Proposing the revision is the loser's consent to it (MSM-07-005):
+        # the executing CaseActor and the winner record nothing (#4152).
+        proposer = dl.read(stored.actor_participant_index[loser])
+        assert isinstance(proposer, CaseParticipant)
+        assert revision_id in proposer.accepted_embargo_ids
+        assert revision_id not in invitee.accepted_embargo_ids
+        case_actor_record = stored.actor_participant_index.get(_CASE_ACTOR_URI)
+        assert case_actor_record is not None, "the CaseActor is a participant"
+        executor = dl.read(case_actor_record)
+        assert isinstance(executor, CaseParticipant)
+        assert revision_id not in executor.accepted_embargo_ids
         # The invitee holds the case before an Invite about it (CP-09-003,
         # CM-14-011): the relay is queued after Create(VulnerabilityCase).
         labels = _outbox_labels(dl)
