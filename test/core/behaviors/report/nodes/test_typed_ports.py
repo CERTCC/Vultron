@@ -97,7 +97,6 @@ class TestDataLayerConditionWithPortsContract:
 
     def test_missing_required_port_raises_at_get_input(self) -> None:
         """NoDataAvailable raised when required port not on blackboard (BTND-03-011)."""
-        py_trees.blackboard.Blackboard.storage.clear()
 
         class _MinimalNode(DataLayerConditionWithPorts):
             def update(self):
@@ -110,7 +109,6 @@ class TestDataLayerConditionWithPortsContract:
 
     def test_get_input_reads_btbridge_flat_key(self) -> None:
         """get_input('datalayer') reads the /datalayer key written by BTBridge."""
-        py_trees.blackboard.Blackboard.storage.clear()
         dl = _fresh_dl()
         _write_btbridge_keys(dl)
 
@@ -159,7 +157,6 @@ class TestCheckRMStateValidPorts:
         assert CheckRMStateValid.output_ports() == {}
 
     def test_missing_datalayer_raises_no_data_available(self) -> None:
-        py_trees.blackboard.Blackboard.storage.clear()
         node = CheckRMStateValid(report_id=REPORT_ID)
         node.setup_ports()
         with pytest.raises(NoDataAvailable):
@@ -219,7 +216,6 @@ class TestCheckRMStateReceivedOrInvalidPorts:
         assert "actor_id" in ports
 
     def test_missing_datalayer_raises_no_data_available(self) -> None:
-        py_trees.blackboard.Blackboard.storage.clear()
         node = CheckRMStateReceivedOrInvalid(report_id=REPORT_ID)
         node.setup_ports()
         with pytest.raises(NoDataAvailable):
@@ -266,7 +262,6 @@ class TestEnsureEmbargoExistsPorts:
         assert "case_id" in ports
 
     def test_missing_datalayer_raises_no_data_available(self) -> None:
-        py_trees.blackboard.Blackboard.storage.clear()
         node = EnsureEmbargoExists(report_id=REPORT_ID)
         node.setup_ports()
         with pytest.raises(NoDataAvailable):

@@ -125,7 +125,6 @@ class TestResetEmbargoConsentWithInlineParticipants:
         )
 
         py_trees.blackboard.Blackboard.enable_activity_stream()
-        py_trees.blackboard.Blackboard.storage.clear()
 
         actor_id = "https://example.org/users/finder"
         case_id = "https://example.org/cases/case_609_inline"

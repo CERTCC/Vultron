@@ -84,7 +84,6 @@ class TestEmbargoLogEntryCascade:
         import py_trees
 
         py_trees.blackboard.Blackboard.enable_activity_stream()
-        py_trees.blackboard.Blackboard.storage.clear()
 
         author_id = "https://example.org/users/coord"
         case_id = "https://example.org/cases/em_cas_rem"
@@ -133,7 +132,6 @@ class TestEmbargoLogEntryCascade:
         import py_trees
 
         py_trees.blackboard.Blackboard.enable_activity_stream()
-        py_trees.blackboard.Blackboard.storage.clear()
 
         author_id = "https://example.org/users/coord"
         case_id = "https://example.org/cases/em_cas_rem_fail"

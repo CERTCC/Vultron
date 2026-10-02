@@ -48,13 +48,6 @@ CASE_ID = "https://example.org/cases/case-sync"
 _ZERO_HASH: str = "0" * 64  # arbitrary prev_log_hash for test chains
 
 
-@pytest.fixture(autouse=True)
-def clear_blackboard():
-    py_trees.blackboard.Blackboard.storage.clear()
-    yield
-    py_trees.blackboard.Blackboard.storage.clear()
-
-
 @pytest.fixture
 def datalayer():
     """The participant's own replica store (ADR-0073).

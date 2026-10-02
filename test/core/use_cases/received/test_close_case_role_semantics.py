@@ -93,13 +93,6 @@ _ZERO_HASH = "0" * 64
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture(autouse=True)
-def _clear_blackboard():
-    py_trees.blackboard.Blackboard.storage.clear()
-    yield
-    py_trees.blackboard.Blackboard.storage.clear()
-
-
 def _make_dl(actor_id: str = CASE_ACTOR_ID) -> SqliteDataLayer:
     """The store of *actor_id*, defaulting to the CaseActor.
 
