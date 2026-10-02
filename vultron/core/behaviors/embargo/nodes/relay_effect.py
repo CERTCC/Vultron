@@ -44,13 +44,13 @@ from typing import Any
 from py_trees.common import Status
 from pydantic import ValidationError
 
-from vultron.core.behaviors.embargo.nodes import (
-    DecideRejectedEmbargoProposalNode,
+from vultron.core.behaviors.embargo.nodes.proposal import (
+    ALREADY_DECLINED_PREFIX,
     RecordParticipantAcceptanceNode,
     RecordParticipantRejectionNode,
 )
-from vultron.core.behaviors.embargo.nodes.proposal import (
-    ALREADY_DECLINED_PREFIX,
+from vultron.core.behaviors.embargo.nodes.reject_proposed import (
+    DecideRejectedEmbargoProposalNode,
 )
 from vultron.core.behaviors.embargo.nodes.relay import invite_rsvp_deadline
 from vultron.core.behaviors.embargo.proposal_index import (

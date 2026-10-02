@@ -26,9 +26,6 @@ from typing import Any
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
-from vultron.core.behaviors.embargo.nodes.relay import (
-    EMBARGO_INVITE_EVENT_TYPE,
-)
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
 from vultron.core.behaviors.sync.nodes.conditions import _require_log_entry
@@ -50,6 +47,7 @@ _ACCEPT_CASE_OWNERSHIP_TRANSFER_EVENT = "accept_case_ownership_transfer"
 # each relayed Invite share one event type and are told apart by authorship:
 # see :func:`is_relayed_embargo_invite`.
 _ATTRIBUTED_TO = wire_key("attributed_to")
+_EMBARGO_INVITE_EVENT = MessageSemantics.INVITE_TO_EMBARGO_ON_CASE.value
 _ACCEPT_EMBARGO_INVITE_EVENT = (
     MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value
 )
@@ -305,7 +303,7 @@ class _EmbargoInviteEventNode(_ActivityEventNode):
 
     def update(self) -> Status:
         entry = _require_log_entry(self.activity, self.name)
-        if entry.event_type != EMBARGO_INVITE_EVENT_TYPE:
+        if entry.event_type != _EMBARGO_INVITE_EVENT:
             return Status.FAILURE
         if self.datalayer is None:
             # Telling a proposal from a relayed Invite needs the store; a
@@ -313,7 +311,7 @@ class _EmbargoInviteEventNode(_ActivityEventNode):
             # leave the entry unreplayed with nothing said (a wiring fault).
             raise VultronWiringError(
                 f"{self.name}: no DataLayer to classify the"
-                f" '{EMBARGO_INVITE_EVENT_TYPE}' entry on case"
+                f" '{_EMBARGO_INVITE_EVENT}' entry on case"
                 f" '{entry.case_id}'"
             )
         case = self._resolve_case_replica(entry.case_id)

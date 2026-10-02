@@ -36,7 +36,7 @@ relevant_packages:
   - vultron/core/services/embargo_lifecycle/
   - vultron/core/services/carried_embargo.py
   - vultron/core/behaviors/embargo/
-  - vultron/core/behaviors/sync/nodes/embargo_relay_effect.py
+  - vultron/core/behaviors/embargo/nodes/relay_effect.py
   - vultron/core/use_cases/triggers/embargo.py
   - vultron/core/use_cases/received/embargo.py
   - vultron/bt/embargo_management
@@ -208,7 +208,7 @@ CM-18-003 allows it. In any other store the tree stores the Invite and its
 `EmbargoEvent` and answers it to the CASE_MANAGER through the response decision
 (EMB-15), writing no EM or consent state (EP-09-003); the replica takes that
 state from the ledger through the relay replay nodes in
-`vultron/core/behaviors/sync/nodes/embargo_relay_effect.py` (#3915, RSH-08-004).
+`vultron/core/behaviors/embargo/nodes/relay_effect.py` (#3915, RSH-08-004).
 The owner's Reject of an open proposal is decided by
 `DecideRejectedEmbargoProposalNode` in both stores, `STRICT` on the CASE_MANAGER
 and `OBSERVED` on replay: `reject_embargo_invite` returns EM `REVISE → ACTIVE`

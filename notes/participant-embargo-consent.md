@@ -179,7 +179,7 @@ concerns. The `INVITE` write belongs to the CASE_MANAGER's commit of each Invite
 emission — built in #3913 as `RelayEmbargoInviteToEachNode._invite_where_legal()`
 (`vultron/core/behaviors/embargo/nodes/relay.py`) — and to the replay node that
 reconstructs it on replicas, `ApplyEmbargoInviteFromLedgerNode`
-(`vultron/core/behaviors/sync/nodes/embargo_relay_effect.py`, #3915); *that* is
+(`vultron/core/behaviors/embargo/nodes/relay_effect.py`, #3915); *that* is
 where the state check lives. The check is
 `CaseParticipant.apply_pec_transition_if_legal()`: the one sanctioned "apply
 where legal" shape, which asks `accepts_pec_trigger()` first and then routes

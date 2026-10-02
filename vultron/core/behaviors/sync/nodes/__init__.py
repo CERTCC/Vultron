@@ -54,12 +54,6 @@ from vultron.core.behaviors.sync.nodes.conditions import (
     VerifySenderIsOwnIdNode,
     _require_log_entry,
 )
-from vultron.core.behaviors.sync.nodes.embargo_relay_effect import (
-    ApplyEmbargoAcceptanceFromLedgerNode,
-    ApplyEmbargoInviteFromLedgerNode,
-    ApplyEmbargoProposalFromLedgerNode,
-    ApplyEmbargoRejectionFromLedgerNode,
-)
 from vultron.core.behaviors.sync.nodes.event_conditions import (
     IsAcceptEmbargoInviteEventNode,
     IsAddNoteEventNode,
@@ -149,11 +143,6 @@ __all__ = [
     "ApplyOwnershipTransferFromLedgerNode",
     "ApplyOfferOwnershipTransferFromLedgerNode",
     "IsOfferOwnershipTransferEventNode",
-    # embargo revision relay (EP-09-007)
-    "ApplyEmbargoProposalFromLedgerNode",
-    "ApplyEmbargoInviteFromLedgerNode",
-    "ApplyEmbargoAcceptanceFromLedgerNode",
-    "ApplyEmbargoRejectionFromLedgerNode",
     # receive
     "LogDeliveryConfirmationNode",
     "PersistReceivedLogEntryNode",
