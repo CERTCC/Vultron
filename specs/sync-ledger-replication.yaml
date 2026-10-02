@@ -220,6 +220,31 @@ groups:
       Integration tests in `test/demo/` confirm that messages from Participant Actors
       to the CASE_MANAGER include the last accepted canonical log hash in the
       activity context field.
+  - id: SYNC-03-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST act on `Reject(CaseLedgerEntry)` only when the sender is an
+      active participant in the case (CM-10-004). From any other sender it MUST report
+      `REFUSED`, record no replication state for the sender, and replay no entry and no
+      case to it.
+    rationale: >-
+      A rejection with an empty last-accepted hash makes the CASE_MANAGER replay the whole
+      ledger and announce the case, so an unchecked sender obtains embargoed content just by
+      asking. The replay cooldown limits how often, not who. See #3733.
+    verification: >-
+      A test marked `SYNC-03-005`
+      sends the Reject from a non-participant and asserts `REFUSED` with an empty outbox.
+    stories:
+    - story_2022_035
+    - story_2022_045
+    relationships:
+    - rel_type: refines
+      spec_id: HP-01-006
+    - rel_type: refines
+      spec_id: SYNC-03-002
+    adr:
+    - ADR-0115
 - id: SYNC-04
   title: Per-Peer Replication State
   specs:
