@@ -17,8 +17,8 @@
 
 Two kinds of default exist and are kept apart here (EP-04-010):
 
-- The **actor default** is a duration from a published ``EmbargoPolicy`` — a
-  standing proposal.  It is a *candidate*, alongside any sender proposal.
+- The **actor default** is the duration of the embargo policy the case
+  owner's profile carries (EP-01-001) — a standing proposal.  It is a *candidate*, alongside any sender proposal.
 - The **protocol default** is the configured fallback applied when the
   candidate set is empty.  It is never a candidate (EP-04-006) and never a
   minimum on agreed terms (EP-04-007).
@@ -27,16 +27,15 @@ Embargo eligibility (EP-04-008) is not decided here: a case with P/X/A set
 never reaches duration resolution.  See ``InitializeDefaultEmbargoNode``.
 """
 
-from collections.abc import Iterable
 from datetime import timedelta
 from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict
 
-from vultron.core.models.embargo_policy import EmbargoPolicy
-from vultron.core.models.enums import VultronObjectType
+from vultron.core.models.actor import CoreActor
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.embargo_ordering import earliest_ending
+from vultron.errors import VultronNotFoundError
 
 
 class EmbargoDurationSource(StrEnum):
@@ -56,51 +55,36 @@ class InitialEmbargoDuration(BaseModel):
     source: EmbargoDurationSource
 
 
-def owner_embargo_policies(
-    store: CasePersistence, owner_id: str
-) -> list[EmbargoPolicy]:
-    """Return the ``EmbargoPolicy`` records *owner_id* has published in *store*.
+def actor_default_duration(profile: CoreActor) -> timedelta | None:
+    """Return *profile*'s actor default duration, or ``None`` (EP-04-010).
 
-    The candidate set for :func:`select_actor_default`, scoped to the case
-    owner so another actor's policy in the same store cannot supply the
-    default (#3753).  Shared by the case-creation node and the demo seeder so
-    the two cannot drift on what counts as the owner's policies.
+    The actor default is the ``preferred_duration`` of the embargo policy the
+    profile carries inline (EP-01-001).  A profile with no policy has no actor
+    default: ``None`` means "this actor published nothing", never the protocol
+    default, which the caller supplies separately (EP-04-006).
+
+    On the proposal path the profile is the one the proposer sent inline on
+    ``Create(CaseProposal)`` and nothing else (CP-01-010); on the demo seeder's
+    path it is the owner's own stored record (:func:`stored_actor_profile`).
     """
-    return [
-        p
-        for p in store.list_objects(VultronObjectType.EMBARGO_POLICY)
-        if isinstance(p, EmbargoPolicy) and p.actor_id == owner_id
-    ]
-
-
-def select_actor_default_policy(
-    policies: Iterable[EmbargoPolicy],
-) -> EmbargoPolicy | None:
-    """Return the policy that supplies the actor default, or ``None``.
-
-    Selection is deterministic regardless of store iteration order
-    (EP-04-010): the shortest ``preferred_duration`` wins, per
-    ``em/principles.md``'s "shortest duration possible", and ties fall to the
-    lowest policy id.  The embargo-policy endpoint shows this record, so what
-    it shows is what shortest-wins uses.
-    """
-    ordered = sorted(policies, key=lambda p: (p.preferred_duration, p.id_))
-    if not ordered:
-        return None
-    return ordered[0]
-
-
-def select_actor_default(
-    policies: Iterable[EmbargoPolicy],
-) -> timedelta | None:
-    """Return the actor default duration from *policies*, or ``None``.
-
-    The duration of :func:`select_actor_default_policy`'s choice.
-    """
-    policy = select_actor_default_policy(policies)
+    policy = profile.embargo_policy
     if policy is None:
         return None
     return policy.preferred_duration
+
+
+def stored_actor_profile(store: CasePersistence, actor_id: str) -> CoreActor:
+    """Return *actor_id*'s own actor record from *store*.
+
+    Raises:
+        VultronNotFoundError: when *store* holds no actor record for
+            *actor_id* — an actor default is read from a profile, so there is
+            nothing to read it from.
+    """
+    record = store.read(actor_id)
+    if not isinstance(record, CoreActor):
+        raise VultronNotFoundError("Actor", actor_id)
+    return record
 
 
 def resolve_initial_embargo_duration(
@@ -138,6 +122,7 @@ def resolve_initial_embargo_duration(
 __all__ = [
     "EmbargoDurationSource",
     "InitialEmbargoDuration",
+    "actor_default_duration",
     "resolve_initial_embargo_duration",
-    "select_actor_default",
+    "stored_actor_profile",
 ]

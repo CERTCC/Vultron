@@ -39,9 +39,9 @@ from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.embargo_duration import (
-    owner_embargo_policies,
+    actor_default_duration,
     resolve_initial_embargo_duration,
-    select_actor_default,
+    stored_actor_profile,
 )
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
@@ -1283,10 +1283,17 @@ def _seed_active_embargo(case_obj, dl) -> None:
     """Seed the active embargo ``InitializeDefaultEmbargoNode`` would have made.
 
     The duration is resolved the way the case-creation tree resolves it
-    (EP-04-005 through EP-04-007): the owner's shortest published
-    ``EmbargoPolicy`` if there is one, else the protocol default.  A seeded
-    case carries no sender proposal.  ``EmbargoEvent`` has no default
+    (EP-04-005 through EP-04-007): the ``embargo_policy`` on the owner's
+    profile if it has published one, else the protocol default.  The tree
+    reads that profile from the ``Create(CaseProposal)`` it received
+    (CP-01-010); a seeded case had no such Create, so the owner's own record
+    in *dl* stands in for it — the seeder is run on the owner's store.  A
+    seeded case carries no sender proposal.  ``EmbargoEvent`` has no default
     duration (EP-04-010, #3404), so this is stated here rather than inherited.
+
+    Raises:
+        ValueError: when the case has no owner.
+        VultronNotFoundError: when *dl* holds no actor record for the owner.
     """
     case_id = case_obj.id_
     if case_obj.active_embargo:
@@ -1294,15 +1301,15 @@ def _seed_active_embargo(case_obj, dl) -> None:
     owner_id = _as_id(case_obj.attributed_to)
     if not owner_id:
         # ``ResolveEmbargoDurationNode`` fails on a case with no owner rather
-        # than scoping the policy lookup to nobody; the seeder mirrors it.
+        # than reading nobody's profile; the seeder mirrors it.
         raise ValueError(
             f"_seed_active_embargo: case {case_id!r} has no attributed_to,"
-            " so its owner's embargo policies cannot be resolved"
+            " so there is no owner profile to read the actor default from"
         )
     resolved = resolve_initial_embargo_duration(
         sender_proposal=None,
-        actor_default=select_actor_default(
-            owner_embargo_policies(dl, owner_id)
+        actor_default=actor_default_duration(
+            stored_actor_profile(dl, owner_id)
         ),
         protocol_default=get_config().actor.protocol_default_embargo_duration,
     )

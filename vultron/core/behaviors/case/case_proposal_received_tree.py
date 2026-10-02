@@ -14,22 +14,20 @@ The normal-path Sequence performs CaseActor-native initialization per
 ADR-0041, emits the outbound activities, and commits the canonical ledger
 entries last (CP-09-009):
 
-  1. Resolve (or create) the VulnerabilityCase
-  2. Add the proposing actor (report receiver) as CASE_OWNER participant at
-     RM.RECEIVED, with any additional roles from
+  1. Resolve (or create) the case, attributed to the proposer (CP-09-001)
+  2. Add the proposer as CASE_OWNER at RM.RECEIVED, plus any
      ``ActorConfig.default_case_roles`` (AC-1)
   3. Add reporter as participant at RM.ACCEPTED (AC-2)
-  4. Initialize the default embargo (AC-3)
-  5. Seed vendor (CASE_OWNER) as embargo SIGNATORY (CM-13)
-  6. Seed reporter as embargo SIGNATORY (CM-14-005)
-  7. Emit ``Accept(as_CaseProposal)``
-  8. Write durable retry marker (CP-05-005)
-  9. Emit ``Create(VulnerabilityCase)`` with inline participants (AC-5)
-  10. Clear retry marker on success
-  11. Commit canonical ledger entries natively (AC-4) — last, so their
-      fan-out queues behind the Create and every participant holds the case
-      before its first ``Announce(CaseLedgerEntry)`` arrives (CM-14-011,
-      CP-09-009)
+  4. Initialize the default embargo, seeding the CASE_OWNER as SIGNATORY
+     (AC-3, CM-14-003)
+  5. Seed reporter as embargo SIGNATORY (CM-14-005)
+  6. Emit ``Accept(as_CaseProposal)``
+  7. Write durable retry marker (CP-05-005)
+  8. Emit ``Create(VulnerabilityCase)`` with inline participants (AC-5)
+  9. Clear retry marker on success
+  10. Commit canonical ledger entries (AC-4) — last, so every participant
+      holds the case before its first ``Announce(CaseLedgerEntry)``
+      (CM-14-011, CP-09-009)
 
 Admission (CP-05-002) and idempotency (CP-05-006):
 
@@ -118,7 +116,6 @@ from vultron.core.behaviors.case.nodes.proposal_case_resolution import (
 )
 from vultron.core.behaviors.case.nodes.proposal_consent import (
     SeedReporterSignatoryNode,
-    SeedVendorOwnerSignatoryNode,
 )
 from vultron.core.behaviors.case.nodes.proposal_emits import (
     EmitAcceptCaseProposalNode,
@@ -236,7 +233,8 @@ def create_case_proposal_received_tree(
 
       * ``LoadExistingCaseNode`` (AC-1/AC-2): if a case already exists for
         *report_id*, write its ID to the blackboard and succeed.
-      * ``CreateCaseFromProposalNode`` (normal path): create a new case.
+      * ``CreateCaseFromProposalNode`` (normal path): create a new case,
+        attributed to *vendor_uri* — the CASE_OWNER (CP-09-001).
 
       Then CaseActor-native initialization steps (ADR-0041):
 
@@ -248,31 +246,31 @@ def create_case_proposal_received_tree(
       5. ``AddReporterParticipantNode`` — reporter added at RM.ACCEPTED
          (ADR-0041 AC-2)
       6. ``InitializeDefaultEmbargoNode`` — default embargo initialized
-         (ADR-0041 AC-3)
-      7. ``SeedVendorOwnerSignatoryNode`` — vendor (CASE_OWNER) seeded as
-         embargo SIGNATORY (CM-13)
-      8. ``SeedReporterSignatoryNode`` — reporter seeded as embargo
+         (ADR-0041 AC-3); its ``SeedOwnerAsSignatoryNode`` seeds the case
+         owner (``attributed_to``, the CASE_OWNER) as embargo SIGNATORY
+         (CM-14-003)
+      7. ``SeedReporterSignatoryNode`` — reporter seeded as embargo
          SIGNATORY (CM-14-005); implicit consent per ADR-0048
       Then the outbound messaging steps:
 
-      9. ``EmitAcceptCaseProposalNode`` — emits Accept(as_CaseProposal)
-      10. ``WriteCreateCaseMarkerNode`` — writes durable retry marker with
+      8. ``EmitAcceptCaseProposalNode`` — emits Accept(as_CaseProposal)
+      9. ``WriteCreateCaseMarkerNode`` — writes durable retry marker with
          inline case object (CP-05-005, ADR-0041 AC-5)
-      11. ``EmitCreateVulnerabilityCaseNode`` — emits
+      10. ``EmitCreateVulnerabilityCaseNode`` — emits
          Create(VulnerabilityCase) with inline participants
-      12. ``ClearCreateCaseMarkerNode`` — removes marker on success
+      11. ``ClearCreateCaseMarkerNode`` — removes marker on success
          (CP-05-005)
 
       Then, last:
 
-      13. ``CommitNativeLedgerEntriesNode`` — canonical ledger entries
+      12. ``CommitNativeLedgerEntriesNode`` — canonical ledger entries
          committed (ADR-0041 AC-4).  Each commit fans out through the FIFO
          outbox, so it runs after the Create: every recipient must hold the
          case object before its first ``Announce(CaseLedgerEntry)`` arrives
          (CM-14-011, CP-09-009), or it enters the SYNC-15 pre-genesis
          reject/replay path on the normal case-creation route (#3033, #2898).
 
-    If node 11 fails, the marker written in node 10 remains in the DataLayer so
+    If node 10 fails, the marker written in node 9 remains in the DataLayer so
     that a retry runner (#1139) can complete the ``Create(VulnerabilityCase)``
     delivery independently.
 
@@ -284,7 +282,10 @@ def create_case_proposal_received_tree(
             (CP-01-004). Pass ``None`` if the report URI could not be
             extracted — the case will be created without a report link.
         proposal_id: URI of the ``as_CaseProposal`` object.
-        vendor_uri: URI of the vendor actor to whom the responses are sent.
+        vendor_uri: URI of the proposing actor — the report receiver — to
+            whom the responses are sent.  It becomes the case's CASE_OWNER:
+            the new case is attributed to it (CP-09-001) and it is the
+            participant given ``CVDRole.CASE_OWNER``.
         proposal_dict: The proposal's AS2 rendering (from ``WireRenderPort``).
             When supplied, the Accept's ``object_`` carries the full inline proposal,
             satisfying CP-05-003 and the AKM-03-001 outbox requirement. Falls back
@@ -319,7 +320,9 @@ def create_case_proposal_received_tree(
         memory=False,
         children=[
             LoadExistingCaseNode(report_id=report_id),
-            CreateCaseFromProposalNode(report_id=report_id),
+            CreateCaseFromProposalNode(
+                report_id=report_id, owner_id=vendor_uri
+            ),
         ],
     )
 
@@ -356,13 +359,11 @@ def create_case_proposal_received_tree(
             ),
             # ADR-0041 AC-2: add reporter at RM.ACCEPTED
             AddReporterParticipantNode(report_id=report_id),
-            # ADR-0041 AC-3: initialize default embargo
+            # ADR-0041 AC-3: initialize default embargo.  Its
+            # SeedOwnerAsSignatoryNode seeds the case owner — the CASE_OWNER
+            # this case is attributed to — as SIGNATORY (CM-14-003), the one
+            # owner-seeding path.
             InitializeDefaultEmbargoNode(actor_config=actor_config),
-            # CM-13: seed the vendor (CASE_OWNER) as embargo SIGNATORY.
-            # InitializeDefaultEmbargoNode's SeedOwnerAsSignatoryNode keys on
-            # actor_id (the CaseActor), which is not a participant here, so it
-            # no-ops; this node seeds the vendor explicitly.
-            SeedVendorOwnerSignatoryNode(vendor_uri=vendor_uri),
             # CM-14-005: seed the reporter as embargo SIGNATORY.
             # Reporter consent is implicit in submitting the report (ADR-0048);
             # no invitation round-trip is needed or appropriate.

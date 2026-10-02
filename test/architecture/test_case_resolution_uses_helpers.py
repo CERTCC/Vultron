@@ -166,10 +166,6 @@ KNOWN_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         ),
         (
             f"{_NODES}/proposal_consent.py",
-            "SeedVendorOwnerSignatoryNode.update",
-        ),
-        (
-            f"{_NODES}/proposal_consent.py",
             "SeedReporterSignatoryNode._resolve_participant",
         ),
         # R3 — optional addressing / stub enrichment; factory tolerates None.

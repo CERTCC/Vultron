@@ -250,3 +250,27 @@ def seed_case_actor_replica(dl, case_actor_id, case, *extra):
     for obj in extra:
         case_actor_dl.create(obj)
     return case_actor_dl
+
+
+def seed_case_owner_participant(dl, case):
+    """Seed the CASE_OWNER participant of *case* — the actor ``attributed_to``
+    names (CM-02-008) — and index it on *case*; return the participant.
+
+    Embargo initialization seeds that participant as SIGNATORY (CM-14-003) and
+    fails when it is missing, because the owner's record is created before the
+    embargo (CM-14-002).  Call this before persisting *case*.
+    """
+    from vultron.core.models._helpers import _as_id
+    from vultron.core.models.case_participant import CaseParticipant
+    from vultron.enums.roles import CVDRole
+
+    owner_id = _as_id(case.attributed_to)
+    assert owner_id is not None, "case.attributed_to names no owner"
+    owner = CaseParticipant(
+        attributed_to=owner_id,
+        context=case.id_,
+        case_roles=[CVDRole.CASE_OWNER],
+    )
+    case.add_participant(owner)
+    dl.create(owner)
+    return owner

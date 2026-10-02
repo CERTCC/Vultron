@@ -27,6 +27,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from vultron.core.models.activity import VultronCreateCaseActivity
+from vultron.core.models.actor import CoreActor
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.errors import (
     VultronActivityConstructionError,
@@ -38,6 +39,7 @@ from vultron.wire.as2.factories.case import (
     reject_case_proposal_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -76,7 +78,17 @@ class _ProposalsMixin:
         sender inlines what it introduces (ADR-0107).  That is how the
         Reporter's proposed embargo terms reach case creation (EP-04-004).
 
+        The sending actor's own profile, read from this store with its
+        ``embargo_policy`` when it has published one, travels inline as the
+        Create's ``actor`` (CP-01-010): it is the only place the CASE_MANAGER
+        reads the CASE_OWNER's actor default from.
+
         Per CP-04-001, CP-04-002.
+
+        Raises:
+            ValueError: when the report, or the sending actor's own profile,
+                is not in this store.
+            TypeError: when the sending actor's record is not an actor.
         """
         report_obj = self._dl.read(report_id)
         if report_obj is None:
@@ -85,6 +97,9 @@ class _ProposalsMixin:
                 " in DataLayer"
             )
         report = _to_wire(report_obj, as_VulnerabilityReport)
+        # Before anything is persisted: a proposal without the profile would
+        # be refused at the CASE_MANAGER's parse edge (CP-01-010).
+        sender = self._sender_profile(actor)
         offer: as_Offer | None = None
         if offer_id is not None:
             stored_offer = self._dl.read(offer_id)
@@ -120,7 +135,7 @@ class _ProposalsMixin:
             )
         recipients = to if to is not None else [case_actor_id]
         activity = create_case_proposal_activity(
-            actor_id=actor,
+            actor=sender,
             proposal=proposal,
             to=recipients,
         )
@@ -132,6 +147,31 @@ class _ProposalsMixin:
                 activity.id_,
             )
         return _seal(self._dl, activity)
+
+    def _sender_profile(self, actor_id: str) -> CoreActor | as_Actor:
+        """Return *actor_id*'s own profile from this store (CP-01-010).
+
+        Raises:
+            ValueError: when the store holds no record for *actor_id*.
+            TypeError: when the record for *actor_id* is not an actor.
+
+        A proposal without the profile would be refused at the CASE_MANAGER's
+        parse edge, so it is not built.
+        """
+        profile = self._dl.read(actor_id)
+        if profile is None:
+            raise ValueError(
+                f"create_case_proposal: the proposing actor '{actor_id}' has"
+                " no actor record in its own store to send inline as the"
+                " Create's actor (CP-01-010)"
+            )
+        if not isinstance(profile, (CoreActor, as_Actor)):
+            raise TypeError(
+                f"create_case_proposal: the record for '{actor_id}' is a"
+                f" {type(profile).__name__}, not an actor profile to send"
+                " inline as the Create's actor (CP-01-010)"
+            )
+        return profile
 
     def reject_case_proposal(
         self,

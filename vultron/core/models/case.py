@@ -168,15 +168,17 @@ class VulnerabilityCase(CoreObject):
     ) -> Any:
         """Compute ``genesis_hash`` at case creation when not explicitly set.
 
-        Uses ``id_``, ``published``, and ``attributed_to`` (the CaseActor URI)
-        as inputs to :func:`~vultron.core.models.case_ledger.compute_genesis_hash`.
+        Uses ``id_``, ``published``, and ``attributed_to`` (the case owner's
+        URI, CP-09-001) as inputs to :func:`~vultron.core.models.case_ledger.compute_genesis_hash`.
         When ``attributed_to`` is present, ``genesis_hash`` MUST be non-empty
         after this validator runs — if the hash cannot be computed (e.g.,
         ``published`` is absent), a
         :exc:`~vultron.errors.VultronValidationError` is raised (fail-closed
         per CLP-08-003/CLP-08-004).  No-ops when ``genesis_hash`` is already
-        set or when ``attributed_to`` is absent (genesis hash requires a
-        CaseActor URI as input).
+        set or when ``attributed_to`` is absent (genesis hash requires an
+        owner URI as input).  A creator whose CaseActor is not the owner
+        passes ``genesis_hash`` explicitly, bound to that CaseActor
+        (CLP-08-002), as ``CreateCaseFromProposalNode`` does.
 
         Both spellings of each input are read: the class is its own wire class
         (ADR-0099 detail 3), so an inbound case arrives as ``attributedTo`` and

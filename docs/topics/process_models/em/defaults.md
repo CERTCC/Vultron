@@ -127,8 +127,11 @@ A generous fallback would remove the reason to publish at all.
 
     | Term | What it is | Competes under shortest-wins? |
     |---|---|---|
-    | **Actor default** | A duration from an Actor's published `EmbargoPolicy` — a *standing proposal* | **Yes** |
+    | **Actor default** | A duration from the `EmbargoPolicy` on the Case Owner's actor profile — a *standing proposal* | **Yes** |
     | **Protocol default** | The fallback when no proposal and no actor default applies | **No** |
+
+    The actor default is the Case Owner's, the Receiver that received the report, and no one else's: a policy the Case Manager or any other actor published is never a candidate.
+    The policy is a field of the Case Owner's profile, and the Case Owner sends that profile inline as the `actor` of the case proposal, so the Case Manager reads the default from that profile alone and keeps it for no other case (CP-01-010).
 
 Nor is the protocol default a *minimum*.
 A Participant who proposes terms shorter than it gets the terms they proposed; the range above bounds what the fallback may be set to, not what parties may agree.
