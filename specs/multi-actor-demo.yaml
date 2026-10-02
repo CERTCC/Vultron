@@ -3157,7 +3157,7 @@ groups:
     coordinator holding off on inviting a short-deadline vendor until the
     embargo window is near its close. V2 accepts the case invite and becomes
     SIGNATORY. Finally, R publishes (CS.P fires), triggering
-    `PublicDisclosureBranchNode` which auto-terminates the embargo (EM→EXITED).
+    `ThreatTerminationBranchNode` which auto-terminates the embargo (EM→EXITED).
     This scenario is the first to exercise: (a) an embargo revision cycle
     (EV→ER/EJ arc), (b) a late-invitee V2 joining an active embargo (PEC
     INVITED→SIGNATORY after EM.ACTIVE), (c) accidental embargo collapse via
@@ -3247,16 +3247,16 @@ groups:
       The accidental_collapse phase of rcvv-embargo MUST trigger the P-transition
       by calling `actor_notifies_published` on the reporter's client; the scenario
       MUST then poll for CaseActor to emit the embargo teardown (EM.EXITED via
-      `PublicDisclosureBranchNode`) before asserting `em_state == EM.EXITED` on
+      `ThreatTerminationBranchNode`) before asserting `em_state == EM.EXITED` on
       the coordinator's replica.
     rationale: >-
       Variation (d) specifically exercises the accidental/automatic embargo
       collapse path rather than the deliberate termination (ET) path.
-      `PublicDisclosureBranchNode` fires when CS.P is detected on the CaseActor,
+      `ThreatTerminationBranchNode` fires when CS.P is detected on the CaseActor,
       emitting the EM termination activity automatically. Using `actor_notifies_published`
       from `vultron/demo/helpers/actions.py` exercises this code path end-to-end.
       Calling `trigger_terminate_embargo` directly would test variation (e)
-      instead and would not exercise `PublicDisclosureBranchNode`.
+      instead and would not exercise `ThreatTerminationBranchNode`.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-21-001
@@ -3381,7 +3381,7 @@ groups:
         reporter's client to fire CS.P; trigger_terminate_embargo MUST NOT be
         called (DEMOMA-21-004, DEMOMA-21-014)
       expected: >-
-        CaseActor emits the embargo teardown via PublicDisclosureBranchNode and
+        CaseActor emits the embargo teardown via ThreatTerminationBranchNode and
         em_state == EM.EXITED on the Coordinator's replica
     - order: 7
       actor: demo-script
@@ -3463,7 +3463,7 @@ groups:
       an automatic consequence of CS.P, not a deliberate termination.
     rationale: >-
       Variation (d) specifically exercises the automatic embargo collapse path
-      via `PublicDisclosureBranchNode`; calling `trigger_terminate_embargo`
+      via `ThreatTerminationBranchNode`; calling `trigger_terminate_embargo`
       directly would test variation (e) instead.
 - id: DEMOMA-22
   title: Causal Gating and Scenario Narratives

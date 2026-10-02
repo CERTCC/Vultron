@@ -58,6 +58,7 @@ class EmbargoLifecycle(
         - :meth:`propose_embargo`
         - :meth:`accept_embargo_invite`
         - :meth:`reject_embargo_invite`
+        - :meth:`abandon_embargo_proposals`
         - :meth:`terminate_active_embargo`
         - :meth:`activate_embargo`
         - :meth:`initialize_creation_embargo` (STRICT only; one write, EP-04-002)

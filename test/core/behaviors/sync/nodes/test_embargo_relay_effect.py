@@ -665,6 +665,7 @@ def test_announce_tree_carries_a_slot_per_relay_event_type():
         "EmbargoInviteRelay",
         "EmbargoAcceptance",
         "EmbargoRejection",
+        "EmbargoAbandonment",
     ):
         assert any(label in name for name in names), label
 

@@ -92,9 +92,9 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
         - An ordinary participant is *requesting* that the manager tear the
           embargo down, so the manager is the addressee.
         - The manager itself is *reporting* a teardown it has already applied
-          (the cascade from ``PublicDisclosureBranchNode``, which runs as the
-          CASE_MANAGER because that is who the received tree's ledger commit is
-          gated on). Its audience is every other participant.
+          (the P/X/A cascade from ``ThreatTerminationBranchNode``, which runs
+          as the CASE_MANAGER because that is who the received tree's ledger
+          commit is gated on). Its audience is every other participant.
 
         Addressing ``case_manager_id`` unconditionally collapsed the second case
         into a message from the manager to itself. Delivery discarded it, so
