@@ -190,8 +190,9 @@ The expected flow:
 
 1. CASE_MANAGER inbox receives participant activity.
 2. CASE_MANAGER's received-side use case (or BT) processes the assertion.
-3. On acceptance: `commit_log_entry()` → `_fan_out_log_entry()` (queues
-   `Announce(CaseLedgerEntry)` to all participants via the CASE_MANAGER outbox).
+3. On acceptance: the guarded commit records the entry, then
+   `FanOutLogEntryNode` (`core/behaviors/sync/nodes/fanout.py`) queues
+   `Announce(CaseLedgerEntry)` to all participants via the CASE_MANAGER outbox.
 4. `OutboxMonitor` drains the CASE_MANAGER outbox → delivers to each
    participant's inbox.
 5. Participant's `AnnounceLedgerEntryReceivedUseCase` (`received/sync.py`)

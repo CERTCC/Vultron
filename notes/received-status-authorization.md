@@ -537,18 +537,6 @@ Placed in `vultron/core/behaviors/call_out/bundles/status_authorization.py`
 
 ---
 
-## Migration from PublicDisclosureBranchNode
-
-| Before | After |
-|---|---|
-| `PublicDisclosureBranchNode` in `add_participant_status_tree` | Removed |
-| Gates: CS.P AND CASE_OWNER sender | N/A |
-| Runs before canonical write | N/A |
-| `ThreatTerminationBranchNode` in `add_case_status_tree` | Added |
-| Gates: CS.P OR CS.X OR CS.A (no sender gate) | Correct tree, post-write |
-
----
-
 ## CaseStatus Emission Authority (RSH-04)
 
 ### The invariant

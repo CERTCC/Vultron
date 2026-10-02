@@ -715,6 +715,35 @@ groups:
     - rel_type: refines
       spec_id: BT-17-003
       note: BT-17-003 covers node-owned output keys; this entry covers bridge-managed execution-scoped keys
+  - id: BT-17-008
+    priority: MUST
+    kind: project
+    statement: >-
+      Every emit node in the effect section of a received-side tree MUST sit
+      inside the CASE_MANAGER gate (BT-17-001) or behind a check that the
+      executing actor is the actor the emit speaks for. A received-side tree
+      MUST NOT emit, as the executing actor's own act, an activity that another
+      actor authored, and MUST NOT emit an activity whose only recipient is the
+      executing actor.
+    rationale: >-
+      The AckReport received tree emitted `Read(Offer)` under the receiver's name for
+      acknowledgements it never authored, and at the CASE_MANAGER its sole recipient was
+      itself, so it looped (#2667). An on-behalf send names the doer in `actor` and the
+      asker in `attributedTo` (CM-24-001, CM-24-002); re-publishing another actor's act
+      is neither. A container never mails an actor it hosts (ADR-0109), so a self-
+      addressed emit is a loop.
+    verification: >-
+      `test_every_effect_is_inside_the_case_manager_gate` in
+      `test/core/behaviors/case/test_suggest_actor_tree.py` checks gate
+      placement for the suggest-actor trees. The corpus-wide structural check
+      over every received-tree factory, with an explicit allowlist for
+      addressee-gated trees, is the ratchet owned by #3830; until it lands, a
+      reviewer checks each new or changed received tree's emit nodes against
+      this requirement.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-17-001
+      note: BT-17-001 requires the gate for CASE_MANAGER-only subtrees; this entry says every received-side emit is gated by role or by sender
 - id: BT-16
   title: Simulation Fuzzer Node Layout
   specs:

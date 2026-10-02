@@ -430,18 +430,27 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A Participant in EM Active or Revise (q^em ∈ {A, R}) with CS in a
-      public/exploit/attack state (q^cs ∉ ···pxa) receiving EV MUST emit ET
-      to terminate the embargo immediately.
+      An embargo in EM Active or Revise (q^em ∈ {A, R}) MUST be terminated (ET)
+      because the case is in a public/exploit/attack CS state (q^cs ∉ ···pxa),
+      whenever that fact becomes known to the participant; it is the public,
+      exploit or attack fact that causes the termination, never a revision
+      proposal. A Participant receiving EV on such a case MUST refuse the
+      proposal and MUST NOT adopt it. Where receiving the EV is how the
+      Participant first learns the case is public, exploited or attacked, the
+      termination still follows from that fact, not from the proposal.
     rationale: >-
-      Revision negotiation is not viable once public disclosure has occurred.
-      VP-11-001 and VP-11-002 require termination in these states; receiving a
-      revision proposal while in a terminal CS state triggers immediate embargo
-      exit.
+      Revision negotiation is not viable once disclosure has occurred (VP-11-001,
+      VP-11-002). A proposal is at most the occasion on which a participant notices the
+      case is public; making it the cause would tie termination to someone proposing
+      terms. In the CASE_MANAGER topology the CS public-event cascade ends the embargo,
+      and a proposal that arrives before it runs is refused with ER (EP-09-001). #4161
+      owns the markers.
     verification: >-
-      Integration tests in `test/demo/` confirm that receiving EV in EM ACTIVE or
-      REVISE with a public/exploit/attack CS causes ET to be emitted and EM to
-      transition to EXITED.
+      `test/core/behaviors/status/test_add_case_status_bt.py::TestThreatTerminationBranchNode::test_triggers_teardown_on_threat_pxa_states`
+      shows a recorded P, X or A state tearing down the active embargo, and
+      `test/core/use_cases/received/test_embargo_revision_relay.py::test_a_revision_of_a_public_case_is_refused_with_er`
+      shows a revision proposal on a public case refused with ER and not
+      adopted.
     testable: true
     preconditions:
     - em_state:
@@ -462,10 +471,10 @@ groups:
     steps:
     - order: 1
       actor: receiver
-      action: Emit ET to terminate the embargo immediately
-      expected: ET queued for participants; EM transitions to EXITED
+      action: Terminate the embargo because the case is public, exploited or attacked (the CS public-event cascade), and refuse any revision proposal received on the case
+      expected: ET emitted for participants; EM transitions to EXITED; a received EV is answered with ER and not adopted
     postconditions:
-    - description: ET emitted; EM state is EXITED
+    - description: ET emitted; EM state is EXITED; no revision proposal adopted
     relationships:
     - rel_type: satisfies
       spec_id: VP-11-002

@@ -27,6 +27,7 @@ related_notes:
   - notes/testing-pitfalls.md
   - notes/protocol-asks.md
   - notes/peer-broadcast-failure-semantics.md
+  - notes/agentic-workflow.md
 relevant_packages:
   - py_trees
   - vultron/core/behaviors
@@ -1248,6 +1249,10 @@ Two corollaries worth keeping:
   it was an indexed read while the proposal-keyed one scanned a table; once the
   per-request record exists, the indexed read *is* the correct probe, and the
   scan degrades to a legacy fallback that a negative indexed prefilter can skip.
+
+The general form — fix every member of the set, not the site the report names —
+is in `notes/agentic-workflow.md` § "Enumerate the Affected Set From Its
+Consumers, Not From the Site the Report Names".
 
 *Source: ISSUE-3399, found by two pre-PR review passes on #1315 — the second
 pass broke the first pass's fix.*

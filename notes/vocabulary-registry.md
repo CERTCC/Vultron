@@ -354,9 +354,8 @@ issue #2937. **A pairing registry exists to reconcile two classes that mean the
 same thing.** ADR-0099 deletes the second hierarchy instead — measured across the
 27 paired classes, none of the 346 differing fields is a semantic disagreement —
 so there is no pair left to record. The paired domain classes are now gone (the
-`as_*` names survive only as aliases of the core classes), so ARCH-23-001 has
-nothing left to govern; its rewrite is tracked by #3491. It is not a target to
-build.
+`as_*` names survive only as aliases of the core classes), so ARCH-23-001 had
+nothing left to govern and was removed (#3491). It is not a target to build.
 
 The other half of ADR-0082 has landed and still stands: `VOCABULARY` and
 `CORE_VOCABULARY` no longer share bare-name keys, and nothing resolves a

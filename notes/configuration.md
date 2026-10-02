@@ -74,7 +74,6 @@ logger = logging.getLogger(__name__)
 
 LogLevelName = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
-
 class YamlConfigSource(PydanticBaseSettingsSource):
     """Custom pydantic-settings source that reads from a YAML file."""
 
@@ -94,7 +93,6 @@ class YamlConfigSource(PydanticBaseSettingsSource):
     def get_fields_value(self, field_name: str, field_info):
         ...  # not called directly; __call__ returns the full dict
 
-
 class ServerConfig(BaseSettings):
     base_url: str = "http://localhost:7999"
     log_level: LogLevelName = "INFO"
@@ -106,12 +104,10 @@ class ServerConfig(BaseSettings):
 
     model_config = {"env_prefix": "VULTRON_SERVER__"}
 
-
 class DatabaseConfig(BaseSettings):
     db_url: str = "sqlite:///vultron.db"
 
     model_config = {"env_prefix": "VULTRON_DATABASE__"}
-
 
 class AppConfig(BaseSettings):
     server: ServerConfig = ServerConfig()
@@ -139,15 +135,12 @@ class AppConfig(BaseSettings):
             YamlConfigSource(settings_cls),
         )
 
-
 @functools.cache
 def get_config() -> AppConfig:
     return AppConfig()
 
-
 def clear_config_cache() -> None:
     get_config.cache_clear()
-
 
 def reload_config() -> AppConfig:
     clear_config_cache()
@@ -258,65 +251,6 @@ actor-policy defaults used by BT nodes and the production adapter:
 | `VULTRON_LEDGER__FUTURE_TOLERANCE_SECONDS` | `ledger.future_tolerance_seconds` | `300` |
 | `VULTRON_LEDGER__STALENESS_WINDOW_DAYS` | `ledger.staleness_window_days` | `7` |
 
-### Legacy env var migration
-
-The following env var names were used in the codebase before this design
-was adopted. They MUST be replaced everywhere:
-
-| Old name | New name |
-|----------|----------|
-| `LOG_LEVEL` | `VULTRON_SERVER__LOG_LEVEL` |
-| `VULTRON_BASE_URL` | `VULTRON_SERVER__BASE_URL` |
-| `VULTRON_DB_URL` | `VULTRON_DATABASE__DB_URL` |
-
-`SeedConfig`-specific env vars (`VULTRON_ACTOR_NAME`, `VULTRON_ACTOR_TYPE`,
-`VULTRON_ACTOR_ID`, `VULTRON_SEED_CONFIG`) are unchanged.
-
----
-
-## Call-site Migration
-
-### Before (scattered os.environ.get)
-
-```python
-# vultron/adapters/utils.py
-BASE_URL = os.environ.get("VULTRON_BASE_URL", "https://demo.vultron.local/")
-
-# vultron/adapters/driven/datalayer_sqlite.py
-_DEFAULT_DB_URL = os.environ.get("VULTRON_DB_URL", "sqlite:///vultron.db")
-
-# vultron/adapters/driving/fastapi/app.py
-log_level_name = os.environ.get("LOG_LEVEL", "INFO").upper()
-```
-
-### After (unified get_config())
-
-```python
-from vultron.config import get_config
-
-# vultron/adapters/utils.py
-BASE_URL = get_config().server.base_url
-
-# vultron/adapters/driven/datalayer_sqlite.py
-_DEFAULT_DB_URL = get_config().database.db_url
-
-# vultron/adapters/driving/fastapi/app.py
-log_level_name = get_config().server.log_level
-```
-
-### FastAPI Depends injection
-
-```python
-from fastapi import Depends
-from vultron.config import AppConfig, get_config
-
-@router.get("/info")
-async def info(config: AppConfig = Depends(get_config)):
-    return {"base_url": config.server.base_url}
-```
-
----
-
 ## Testing Pattern
 
 ### Preferred: `config_override()` context manager (CFG-06-006)
@@ -400,7 +334,6 @@ is almost always a config bug.
 import pytest
 from vultron.config import clear_config_cache, get_config, reload_config
 
-
 @pytest.fixture(autouse=True)
 def reset_config():
     yield
@@ -411,19 +344,16 @@ def reset_config():
     # with a clean env provided by the session-level conftest.py.
     clear_config_cache()
 
-
 def test_defaults(tmp_path):
     cfg = get_config()
     assert cfg.server.base_url == "http://localhost:7999"
     assert cfg.server.log_level == "INFO"
     assert cfg.database.db_url == "sqlite:///vultron.db"
 
-
 def test_env_override(monkeypatch):
     monkeypatch.setenv("VULTRON_SERVER__BASE_URL", "http://myserver:8080")
     reload_config()
     assert get_config().server.base_url == "http://myserver:8080"
-
 
 def test_yaml_file(tmp_path, monkeypatch):
     cfg_file = tmp_path / "config.yaml"
@@ -431,7 +361,6 @@ def test_yaml_file(tmp_path, monkeypatch):
     monkeypatch.setenv("VULTRON_CONFIG", str(cfg_file))
     reload_config()
     assert get_config().server.log_level == "DEBUG"
-
 
 def test_env_overrides_yaml(tmp_path, monkeypatch):
     cfg_file = tmp_path / "config.yaml"

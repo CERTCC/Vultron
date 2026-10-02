@@ -115,9 +115,10 @@ identity, so calls to it answer 404.
   so downstream components receive plaintext, validated activities.
 - When persisting activities, store ciphertext only if you intend to retain
   encrypted blobs; otherwise store the canonical plaintext activity objects.
-- For Accept/Reject responses and similar reply activities, set `object` to
-  the referenced activity's ID string (not an inline object) to ensure
-  rehydration and validation succeed after transport.
+- For Accept/Reject responses and similar reply activities, carry the
+  referenced activity **inline** in `object`, as every outbound activity must
+  (MV-09-001); a bare ID string is refused at delivery (MV-09-002). Encryption
+  wraps the whole sealed body, so it does not change this.
 
 ## Open questions (to decide)
 
