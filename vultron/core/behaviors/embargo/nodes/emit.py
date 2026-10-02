@@ -31,6 +31,7 @@ class _SendEmbargoActivityBase(DataLayerActionWithPorts):
     3. Resolve ``embargo_id`` and ``case_manager_id`` → ``_resolve_embargo_and_manager()``.
     4. Call the factory → ``_call_factory(actor_id, embargo_id, case_manager_id)``.
     5. Write the activity to the outbox; on failure → ``_on_outbox_write_failure()``.
+    6. On success → ``_on_queued(activity_id)`` (default: nothing).
 
     Subclasses must override all four hook methods.  Subclasses that read from
     the blackboard must also override ``setup()`` to register their keys (calling
@@ -80,6 +81,13 @@ class _SendEmbargoActivityBase(DataLayerActionWithPorts):
         """
         raise NotImplementedError
 
+    def _on_queued(self, _activity_id: str) -> None:
+        """Hook run once the activity is in the outbox; a no-op by default.
+
+        An ask to the CASE_MANAGER overrides it to record the pending
+        assertion (SYNC-11-002).  Not called on any skip or failure path.
+        """
+
     def update(self) -> Status:
         if self.trigger_activity_factory is None:
             return self._on_factory_unavailable()
@@ -114,6 +122,7 @@ class _SendEmbargoActivityBase(DataLayerActionWithPorts):
         except Exception as exc:  # noqa: BLE001  # ruff-baseline #3768
             return self._on_outbox_write_failure(activity_id, exc)
 
+        self._on_queued(activity_id)
         self.feedback_message = (
             f"Queued '{activity_id}' for case '{self._case_id}'"
         )

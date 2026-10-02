@@ -13,20 +13,108 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Embargo termination activity emit node (BTND-07-005)."""
+"""Embargo termination ask: the emit node and its pending-ask guard.
 
+A participant that does not hold ``CVDRole.CASE_MANAGER`` asks the manager to
+end the embargo and records the ask in its pending-assertion store, keyed by
+the embargo it ends (EP-09-008, SYNC-11-002).  A repeat inside the window is
+suppressed by :class:`TeardownAskPendingNode`; the manager's announced commit
+of the ask clears it (SYNC-11-003).  BTND-07-005.
+"""
+
+import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.embargo.nodes.emit import _SendEmbargoActivityBase
-from vultron.core.behaviors.helpers import PortInformation
-from vultron.core.participants.recipients import case_content_recipients
+from vultron.core.behaviors.embargo.nodes.manager_commit import (
+    EMBARGO_TEARDOWN_EVENT_TYPE,
+)
+from vultron.core.behaviors.helpers import (
+    DataLayerConditionWithPorts,
+    PortInformation,
+)
+from vultron.core.models.pending_assertion import (
+    get_pending_assertion_store,
+    record_pending_assertion,
+)
+from vultron.errors import VultronWiringError
+
+
+class TeardownAskPendingNode(DataLayerConditionWithPorts):
+    """SUCCESS when this actor already asked for this embargo's teardown.
+
+    The guard ahead of :class:`SendTerminateEmbargoActivityNode` in the
+    received-side ask (``terminate_embargo_bt`` with no activity builder):
+    a P/X/A signal repeated inside the pending window — the same status
+    arriving twice, or a second threat dimension — would otherwise queue a
+    second ``Remove(EmbargoEvent)`` for an embargo the CASE_MANAGER has not
+    answered yet (SYNC-11-002).  The trigger path makes the same check in
+    ``SvcEmbargoTriggerBase._suppressed_duplicate()``; both read one store
+    through ``pending_for_subject()``, so an ask from either path suppresses
+    a repeat from the other.
+
+    FAILURE (ask) when nothing is pending, the entry was cleared by the
+    manager's announced commit (SYNC-11-003), or it timed out (SYNC-11-005).
+    Raises :class:`VultronWiringError` when the executing actor is unknown:
+    a FAILURE there would read as "not pending" and send the ask anyway.
+    """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        "embargo_id": PortInformation(data_type=str, required=True),
+    }
+
+    def __init__(self, case_id: str, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._case_id = case_id
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"embargo_id": "/embargo_id"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.embargo_id: str = self.get_input("embargo_id")
+
+    def update(self) -> Status:
+        if not self.actor_id:
+            raise VultronWiringError(
+                f"{self.name}: no executing actor to look up a pending"
+                f" teardown ask on case '{self._case_id}'"
+            )
+        pending = get_pending_assertion_store(
+            self.actor_id
+        ).pending_for_subject(
+            self._case_id, EMBARGO_TEARDOWN_EVENT_TYPE, self.embargo_id
+        )
+        if pending is None:
+            return Status.FAILURE
+        self.feedback_message = (
+            f"actor '{self.actor_id}' already asked the CASE_MANAGER to end"
+            f" embargo '{self.embargo_id}' on case '{self._case_id}'"
+            f" (activity_id={pending.object_id}, pending since"
+            f" {pending.emitted_at.isoformat()}) — duplicate suppressed, not"
+            " re-emitted (SYNC-11-002)"
+        )
+        self.logger.info("%s: %s", self.name, self.feedback_message)
+        return Status.SUCCESS
 
 
 class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
-    """Build and queue a ``Terminate(EmbargoEvent)`` activity.
+    """Ask the CASE_MANAGER to end the embargo: queue ``Remove(EmbargoEvent)``.
 
-    Reads ``embargo_id`` and ``case_manager_id`` from the blackboard and
-    constructs the outbound activity via ``trigger_activity_factory``.
+    The non-manager arm of ``terminate_embargo_bt`` on the cascades, where no
+    use case builds the activity.  Reads ``embargo_id`` and
+    ``case_manager_id`` from the blackboard, builds the activity through
+    ``trigger_activity_factory`` addressed to the manager alone (PCR-08-001),
+    and once it is queued records the ask in this actor's pending-assertion
+    store, keyed by the embargo it ends (EP-09-008, SYNC-11-002).
+
+    The CASE_MANAGER never runs this node: its arm commits and announces the
+    teardown itself (``CommitEmbargoTeardownNode``, EMB-19-001), and it keeps
+    no pending assertions (SYNC-11-004).  An executing actor that *is* the
+    manager is a composition fault and raises :class:`VultronWiringError`
+    rather than mailing the manager an ask from itself.
 
     Returns FAILURE (BT-14-001) when the factory is unavailable, a required
     blackboard key is missing, or dispatch raises an exception.
@@ -53,7 +141,6 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
         super().initialise()
         self.embargo_id: str = self.get_input("embargo_id")
         self.case_manager_id: str = self.get_input("case_manager_id")
-        self._to: list[str] = []
 
     def _on_factory_unavailable(self) -> Status:
         self.feedback_message = (
@@ -64,70 +151,33 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
         return Status.FAILURE
 
     def _resolve_embargo_and_manager(self) -> "tuple[str, str] | Status":
-        """Resolve the factory arguments, or skip when there is no audience.
-
-        The recipients are computed here rather than at the factory call so an
-        empty audience can take the base class's graceful-skip path (EMB-19-002).
-        An activity addressed to nobody is undeliverable and delivery discards it
-        anyway, so building one only adds an outbox entry that can never resolve.
-        SUCCESS, not FAILURE: the teardown itself has already happened, and there
-        is simply nobody to tell.
-        """
-        assert self.actor_id is not None
-        self._to = self._recipients(self.actor_id, self.case_manager_id)
-        if not self._to:
-            self.feedback_message = (
-                f"case '{self._case_id}' has no participants besides the"
-                " manager — nothing to tell (EMB-19-002)"
+        if self.actor_id == self.case_manager_id:
+            raise VultronWiringError(
+                f"{self.name}: the CASE_MANAGER '{self.actor_id}' reached the"
+                f" teardown ask on case '{self._case_id}' — its arm commits"
+                " the teardown itself (EP-09-008, EMB-19-001)"
             )
-            self.logger.debug("%s: %s", self.name, self.feedback_message)
-            return Status.SUCCESS
         return self.embargo_id, self.case_manager_id
 
-    def _recipients(self, actor_id: str, case_manager_id: str) -> list[str]:
-        """Return whom this teardown is addressed to (EMB-19-001).
-
-        Two callers share this node, and they are asking different things:
-
-        - An ordinary participant is *requesting* that the manager tear the
-          embargo down, so the manager is the addressee.
-        - The manager itself is *reporting* a teardown it has already applied
-          (the P/X/A cascade from ``ThreatTerminationBranchNode``, which runs
-          as the CASE_MANAGER because that is who the received tree's ledger
-          commit is gated on). Its audience is every other participant.
-
-        Addressing ``case_manager_id`` unconditionally collapsed the second case
-        into a message from the manager to itself. Delivery discarded it, so
-        every other replica kept an embargo the manager had already removed —
-        EM stayed ACTIVE for everyone but the manager and nothing raised. This is
-        the third site with this defect; ``SendAnnounceEmbargoEventNode`` and the
-        teardown announce tree were the first two, which is why EMB-19-001 exists.
-        """
-        if actor_id != case_manager_id:
-            return [case_manager_id]
-
-        assert self.datalayer is not None
-        # Regime 3 / defer-to-upstream (ADR-0087): this is addressing
-        # enrichment, not coordination. A missing case is caught and failed by
-        # the nodes that precede this one in the sequence; here we simply fall
-        # back to the meaningful default recipient (the case manager) rather
-        # than a silent empty list. Deliberately unguarded (conformance allowlist).
-        case = self.datalayer.read_case(self._case_id)
-        if case is None:
-            return [case_manager_id]
-        return case_content_recipients(
-            case, self.datalayer, excluding={actor_id}
-        )
-
     def _call_factory(
-        self, actor_id: str, embargo_id: str, _case_manager_id: str
+        self, actor_id: str, embargo_id: str, case_manager_id: str
     ) -> tuple[str, object]:
         assert self.trigger_activity_factory is not None
         return self.trigger_activity_factory.terminate_embargo(
             embargo_id=embargo_id,
             case_id=self._case_id,
             actor=actor_id,
-            to=self._to,
+            to=[case_manager_id],
+        )
+
+    def _on_queued(self, activity_id: str) -> None:
+        assert self.actor_id is not None
+        record_pending_assertion(
+            self.actor_id,
+            self._case_id,
+            EMBARGO_TEARDOWN_EVENT_TYPE,
+            activity_id,
+            subject_id=self.embargo_id,
         )
 
     def _on_outbox_write_failure(
@@ -139,3 +189,25 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
         )
         self.logger.warning("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE
+
+
+def ask_case_manager_to_terminate_once(
+    case_id: str,
+) -> py_trees.behaviour.Behaviour:
+    """The cascades' ask: queue ``Remove(EmbargoEvent)`` unless already asked.
+
+    The non-manager arm of ``terminate_embargo_bt`` when no trigger use case
+    builds the activity (the CS.P/X/A cascade in
+    ``ThreatTerminationBranchNode``).  There is no use case to record the ask
+    or suppress a repeat, so this subtree does both (EP-09-008, SYNC-11-002):
+    SUCCESS without sending when the ask is still pending, else the send
+    node's result, whose FAILURE still fails the tree (BT-14-001).
+    """
+    return py_trees.composites.Selector(
+        name="AskCaseManagerToTerminateOnce",
+        memory=False,
+        children=[
+            TeardownAskPendingNode(case_id=case_id),
+            SendTerminateEmbargoActivityNode(case_id=case_id),
+        ],
+    )
