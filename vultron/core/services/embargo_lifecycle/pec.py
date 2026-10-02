@@ -294,6 +294,18 @@ class _PecEffectsMixin(_ActivationArmMixin):
         """Apply *trigger* to every participant of *case* that *select* picks.
 
         Each moved participant is persisted and reported.
+
+        Every *select* keys on the participant's own record, so an inert
+        participant's consent moves only as its own replies or an embargo
+        termination cause (CM-10-007, #4046 AC-5): the one promotion
+        (:meth:`_advance_holders_of`) needs the activated id on the
+        participant's own ``accepted_embargo_ids``, which only its own
+        acceptance puts there; the lapse demotes a ``SIGNATORY`` that never
+        accepted the longer terms; and the reset is the termination.  Whether
+        the participant has joined, or has recorded RM ``CLOSED``, does not
+        enter into it — a closed signatory that never accepted longer terms
+        lapses like any other, so it is not left ``SIGNATORY`` to terms it
+        never agreed to.
         """
         changes: list[ParticipantPECChange] = []
         for participant_id, participant in self._each_participant(case):
@@ -312,6 +324,8 @@ class _PecEffectsMixin(_ActivationArmMixin):
 
         Called when an embargo is terminated.  Returns a list of
         :class:`ParticipantPECChange` for every participant that was updated.
+        Inert participants are reset too: with no embargo there is nothing
+        left for any record to consent to (CM-18-001).
         """
         return self._cascade_pec(
             case,
@@ -352,6 +366,8 @@ class _PecEffectsMixin(_ActivationArmMixin):
         embargo it replaces asks nothing new of an existing signatory
         (agreeing to N days is agreeing to every shorter period), so its
         consent carries over by containment (CM-10-001) with no state change.
+        Only a ``SIGNATORY`` is carried over, so the containment argument is
+        always about consent the participant itself gave.
         """
         for _participant_id, participant in self._each_participant(case):
             if participant.embargo_consent_state != PEC.SIGNATORY.value:

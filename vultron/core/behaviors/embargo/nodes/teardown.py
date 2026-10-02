@@ -28,8 +28,8 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.behaviors.narrative_log import log_em_transition
 from vultron.core.behaviors.sync.nodes import _require_log_entry
 from vultron.core.models._helpers import _as_id
-from vultron.core.models.case import case_addressees
 from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.participants.recipients import case_content_recipients
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
@@ -323,7 +323,11 @@ class SendAnnounceEmbargoEventNode(_SendEmbargoActivityBase):
         # teardown reached nobody.  The Case Manager is still resolved above,
         # because "the case has a manager" remains the precondition for
         # announcing canonical case state at all.
-        self._recipients = case_addressees(case, self.actor_id or "")
+        # Only active participants receive the announce (CM-10-004); the shared
+        # selection decides who those are (CM-10-007).
+        self._recipients = case_content_recipients(
+            case, self.datalayer, excluding={self.actor_id or ""}
+        )
         if not self._recipients:
             self.feedback_message = (
                 f"No other participants on case '{self._case_id}'"

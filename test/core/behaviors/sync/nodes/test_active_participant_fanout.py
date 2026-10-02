@@ -10,12 +10,12 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Planned: ledger fan-out reaches active participants only (CM-10-004).
+"""Ledger fan-out reaches active participants only (CM-10-004).
 
 A ``CaseLedgerEntry`` announcement is case content, so the CASE_MANAGER sends
 it only to *active* participants: seated directly or having accepted its stub
 Invite, and — while an embargo is active — ``SIGNATORY`` (ADR-0114).
-Strict ``xfail`` until #4046; see ``notes/case-joining.md``.
+See ``notes/case-joining.md`` and #4046.
 """
 
 import py_trees
@@ -50,8 +50,11 @@ def _participant(
     role: CVDRole,
     rm_state: RM,
     consent: PEC,
+    *,
+    joined: bool = True,
 ) -> CaseParticipant:
     return CaseParticipant(
+        joined=joined,
         attributed_to=actor_id,
         context=case_id,
         case_roles=[role],
@@ -67,14 +70,6 @@ def _participant(
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "CM-10-004: ledger fan-out skips inert participants — an unanswered"
-        " invitee, and a non-SIGNATORY while an embargo is active."
-        " Tracked by #4046."
-    ),
-)
 @pytest.mark.spec("CM-10-004")
 def test_ledger_fanout_reaches_only_active_participants() -> None:
     """Of three non-manager participants under an active embargo, one is active.
@@ -84,7 +79,7 @@ def test_ledger_fanout_reaches_only_active_participants() -> None:
       while the embargo is active;
     - a vendor with an outstanding stub Invite it never answered — inert.
 
-    Today the fan-out sends to the whole roster.
+    The invitee is also ``INVITED``, so either fact alone excludes it.
     """
     scenario = BTTestScenario(actor_id=MANAGER_ID)
     case = VulnerabilityCase(name="Active fan-out", attributed_to=MANAGER_ID)
@@ -110,7 +105,12 @@ def test_ledger_fanout_reaches_only_active_participants() -> None:
             PEC.INVITED,
         ),
         INVITEE_ID: _participant(
-            case.id_, INVITEE_ID, CVDRole.VENDOR, RM.RECEIVED, PEC.INVITED
+            case.id_,
+            INVITEE_ID,
+            CVDRole.VENDOR,
+            RM.RECEIVED,
+            PEC.INVITED,
+            joined=False,
         ),
     }
     for actor_id, participant in participants.items():

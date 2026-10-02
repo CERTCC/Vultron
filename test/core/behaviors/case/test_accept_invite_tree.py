@@ -32,6 +32,7 @@ from vultron.core.behaviors.case.nodes import (
     CreateInviteeParticipantNode,
 )
 from vultron.core.behaviors.case.nodes.invite_embargo_consent import (
+    _CheckEmbargoActiveStateNode,
     _SignEmbargoConsentLeafNode,
 )
 from vultron.core.models.activity import VultronActivity
@@ -210,6 +211,91 @@ class TestSignEmbargoConsentLeafNode:
             new_invite_participant=participant,
         )
         assert result.status == Status.FAILURE
+
+
+_REVISION_ID = "https://example.org/embargoes/embargo-002"
+
+
+def _case_at(em_state: str, embargo: bool) -> VulnerabilityCase:
+    from vultron.core.models.case_status import CaseStatus
+    from vultron.core.models.dimensions import EmDimension
+    from vultron.core.states.em import EM
+
+    case_id = "https://example.org/cases/joiner"
+    return VulnerabilityCase(
+        id_=case_id,
+        case_statuses=[
+            CaseStatus(context=case_id, em=EmDimension(state=EM[em_state]))
+        ],
+        active_embargo=_EMBARGO_ID if embargo else None,
+    )
+
+
+@pytest.mark.spec("CM-10-004")
+@pytest.mark.spec("CM-10-001")
+def test_joiner_during_revise_signs_the_terms_in_force_not_the_revision(
+    bt_scenario: BTTestScenario,
+) -> None:
+    """At REVISE the whole consent step signs the active embargo only.
+
+    The open revision is not the joiner's to accept: it records the active
+    embargo's id, reaches SIGNATORY through ``apply_pec_transition``, and
+    the revision id stays out of ``accepted_embargo_ids`` (EP-05-001 then
+    lapses it if the owner activates longer terms).
+    """
+    from vultron.core.behaviors.case.accept_invite_tree import (
+        MaybeSignEmbargoConsentNode,
+    )
+
+    case = _case_at("REVISE", embargo=True)
+    case.proposed_embargoes.append(_REVISION_ID)
+    participant = CaseParticipant(
+        id_=_ACTOR_ID,
+        attributed_to=_ACTOR_ID,
+        embargo_consent_state=PEC.UNBOUND,
+    )
+    node = MaybeSignEmbargoConsentNode(case_id=case.id_, invitee_id=_ACTOR_ID)
+
+    result = bt_scenario.run(
+        node,
+        actor_id=_ACTOR_ID,
+        invitee_case=case,
+        new_invite_participant=participant,
+    )
+
+    assert result.status == Status.SUCCESS
+    assert participant.embargo_consent_state == PEC.SIGNATORY
+    assert participant.accepted_embargo_ids == [_EMBARGO_ID]
+    assert case.is_active_participant(participant)
+
+
+@pytest.mark.spec("CM-10-004")
+@pytest.mark.parametrize(
+    ("em_state", "embargo", "signs"),
+    [
+        ("ACTIVE", True, True),
+        ("REVISE", True, True),
+        ("NONE", False, False),
+    ],
+)
+def test_joiner_signs_the_embargo_in_force(
+    bt_scenario: BTTestScenario, em_state: str, embargo: bool, signs: bool
+) -> None:
+    """A joiner signs the terms in force at ACTIVE *and* during REVISE.
+
+    Signing only at ACTIVE left a joiner that accepted during a revision
+    UNBOUND under an active embargo — inert (CM-10-004), and never asked:
+    the revision Invite was relayed before it joined (#4046).
+    """
+    case = _case_at(em_state, embargo)
+    node = _CheckEmbargoActiveStateNode(case_id=case.id_)
+
+    result = bt_scenario.run(node, actor_id=_ACTOR_ID, invitee_case=case)
+
+    expected = Status.SUCCESS if signs else Status.FAILURE
+    assert result.status == expected
+    stored = py_trees.blackboard.Blackboard.storage.get("/active_embargo_id")
+    assert stored == (_EMBARGO_ID if signs else None)
 
 
 _CM17_CASE_ID = "https://example.org/cases/case-cm17"

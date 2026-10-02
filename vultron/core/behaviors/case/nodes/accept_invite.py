@@ -27,7 +27,9 @@ from vultron.core.behaviors.sync.commit_tree import (
     commit_emitted_activity,
 )
 from vultron.core.models._helpers import _as_id
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.participants.recipients import case_content_recipients
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 
 logger = logging.getLogger(__name__)
@@ -43,8 +45,8 @@ class EmitAddCaseParticipantNode(_EmitSingleActivityBase):
     participants so they can update their local replica, and commits the
     corresponding canonical ``CaseLedgerEntry`` to the hash chain.
 
-    The commit's own fan-out (``CollectLogEntryRecipientsNode``) reads
-    ``actor_participant_index`` and therefore *does* include the invitee.  That
+    The commit's own fan-out (``CollectLogEntryRecipientsNode``) selects the
+    active participants and therefore *does* include the invitee.  That
     is why this node runs last in the effects: earlier, the invitee would
     receive this entry before its case seed (SYNC-15 pre-genesis) or before the
     backfilled entries it extends (SYNC-14 forward gap) — #2898.
@@ -55,10 +57,8 @@ class EmitAddCaseParticipantNode(_EmitSingleActivityBase):
     ``_validate_canonical_entry`` can verify the ``("Add", "CaseParticipant")``
     signature without core patching anything (CLP-07-005, VM-08-003).
 
-    Fan-out recipients are resolved from ``case.actor_participant_index`` (HTTP
-    actor URLs), excluding the newly added invitee.  The index keys are always
-    proper HTTP URIs, unlike ``case.case_participants`` which may contain bare
-    UUID participant IDs that cannot serve as inbox delivery targets.
+    Recipients are the case's active participants, chosen by the shared
+    selection (CM-10-004, CM-10-007), excluding the newly added invitee.
     """
 
     def __init__(
@@ -106,19 +106,19 @@ class EmitAddCaseParticipantNode(_EmitSingleActivityBase):
         """Return True if invitee was already a participant (idempotency skip)."""
         return bool(self._invitee_already_participant_bb)
 
-    def _resolve_actor_recipients(self, case) -> list[str]:
-        """Return HTTP actor URLs for all existing participants, excluding the new invitee.
+    def _resolve_actor_recipients(self, case: VulnerabilityCase) -> list[str]:
+        """Return the active participants to announce the new invitee to.
 
-        Uses ``case.actor_participant_index`` (keys are actor HTTP URLs) rather
-        than ``case.case_participants`` (which may contain bare UUID strings that
-        are not valid delivery addresses). The case is resolved (and its absence
-        hard-failed) by ``update()`` via ``_require_case`` — Regime 1, ADR-0087.
+        Case content, so the shared selection picks them (CM-10-004,
+        CM-10-007), less the invitee: it learns of its own record from the
+        commit's fan-out, after its case seed and backfill.  The case is
+        resolved (and its absence hard-failed) by ``update()`` via
+        ``_require_case`` — Regime 1, ADR-0087.
         """
-        return [
-            actor_url
-            for actor_url in case.actor_participant_index
-            if actor_url != self.invitee_id
-        ]
+        assert self.datalayer is not None
+        return case_content_recipients(
+            case, self.datalayer, excluding={self.invitee_id}
+        )
 
     def _call_factory(self) -> tuple[str, str]:
         """Build Add(CaseParticipant) activity and commit the canonical ledger entry."""

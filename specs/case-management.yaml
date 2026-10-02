@@ -886,7 +886,7 @@ groups:
       stream, replay included, rather than filtering entries.
     verification: >-
       Unit tests on the fan-out recipient collectors confirm that, under an active embargo, a participant
-      whose `accepted_embargo_ids` lacks the active embargo is excluded from the recipients while a
+      that is not `SIGNATORY` to the active embargo is excluded from the recipients while a
       signatory is included, and that with no active embargo both are included. A unit test on the
       replay sender confirms that a replay to such a participant sends no entry.
     relationships:
@@ -932,9 +932,10 @@ groups:
       Invite) or consent (an embargo Invite, EP-09) are not case content and
       MUST reach an inert participant.
     rationale: >-
-      Nearly every case-content send selects its recipients from the roster
-      through one helper (`case_addressees`). A per-site check would be missed
-      by the next send site written; one shared check cannot be.
+      Nearly every case-content send selected its recipients from the roster
+      through one helper (`case_addressees`, retired by #4046). A per-site
+      check would be missed by the next send site written; one shared check
+      (`vultron/core/participants/recipients.py`) cannot be.
     verification: >-
       An architecture test asserts every case-content send selects recipients
       through the shared active-participant selection.

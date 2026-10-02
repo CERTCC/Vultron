@@ -34,12 +34,12 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.models.activity import VultronCreateCaseActivity
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.pending_create_case_activity import (
     PendingCreateCaseActivity,
 )
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.wire_keys import wire_key
+from vultron.core.participants.recipients import case_content_participants
 from vultron.core.services.embargo_ordering import read_embargo_event
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronNotFoundError, VultronValidationError
@@ -136,7 +136,7 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
             self._accept_activity_id_bb = None
 
     def _collect_reporter_uris(self, raw_case: VulnerabilityCase) -> list[str]:
-        """Return URIs of REPORTER/FINDER participants in *raw_case*, excluding vendor.
+        """Return URIs of active REPORTER/FINDER participants, excluding vendor.
 
         CaseActor bootstraps non-vendor participants (ADR-0041 AC-5) by including
         them as direct ``to`` recipients of ``Create(VulnerabilityCase)`` so their
@@ -145,20 +145,15 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
         ``Offer(CaseManagerRole)`` round-trip (which ADR-0041 removes).
         """
         assert self.datalayer is not None
-        uris: list[str] = []
-        for p_id in raw_case.actor_participant_index.values():
-            p = self.datalayer.read(p_id)
-            if not isinstance(p, CaseParticipant):
-                continue
-            if (
-                CVDRole.REPORTER not in p.roles
-                and CVDRole.FINDER not in p.roles
-            ):
-                continue
-            uri = getattr(p, "attributed_to", None)
-            if isinstance(uri, str) and uri and uri != self._vendor_uri:
-                uris.append(uri)
-        return uris
+        # Only active participants are sent case content (CM-10-004); the
+        # reporter is seeded SIGNATORY before this node runs (CM-14-005).
+        return [
+            uri
+            for uri, p in case_content_participants(
+                raw_case, self.datalayer, excluding={self._vendor_uri}
+            )
+            if CVDRole.REPORTER in p.roles or CVDRole.FINDER in p.roles
+        ]
 
     def _build_case_object(
         self, raw_case: VulnerabilityCase

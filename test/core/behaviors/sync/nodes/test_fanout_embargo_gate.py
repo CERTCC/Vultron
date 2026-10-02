@@ -12,10 +12,11 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Ledger fan-out and replay apply the CM-10-004 embargo content gate (CM-10-005).
 
-The gate markers are strict ``xfail`` until the gate lands. Today the fan-out
-collectors filter on RM-closed only, and the replay path filters nothing, so a
-participant that has not accepted the active embargo receives every committed
-entry. The no-embargo control passes today and must keep passing.
+The fan-out collectors apply the gate through the shared active-participant
+selection (#4046).  The replay marker stays strict ``xfail``: the replay path
+still filters nothing, so a participant that has not accepted the active
+embargo can ask for and receive every committed entry (#4042).  The
+no-embargo control must keep passing.
 """
 
 from unittest.mock import MagicMock
@@ -41,6 +42,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.states.participant_embargo_consent import PEC
 from vultron.enums.roles import CVDRole
 
 MANAGER_ID = OWNER_ACTOR_ID
@@ -51,7 +53,7 @@ EMBARGO_ID = f"{CASE_ID}/embargoes/fanout-gate"
 _GATE_XFAIL = pytest.mark.xfail(
     strict=True,
     reason=(
-        "CM-10-005: ledger fan-out and replay do not yet apply the CM-10-004"
+        "CM-10-005: ledger replay does not yet apply the CM-10-004"
         " embargo content gate. Tracked in #4042; source #3917."
     ),
 )
@@ -83,16 +85,17 @@ def _seed_case(datalayer, *, embargo_active: bool) -> None:
     case = VulnerabilityCase(id_=CASE_ID, attributed_to=MANAGER_ID)
     if embargo_active:
         case.set_embargo(embargo)
-    for actor_id, accepted, roles in (
-        (MANAGER_ID, [EMBARGO_ID], [CVDRole.CASE_MANAGER]),
-        (SIGNATORY_ID, [EMBARGO_ID], []),
-        (NON_SIGNATORY_ID, [], []),
+    for actor_id, consent, accepted, roles in (
+        (MANAGER_ID, PEC.SIGNATORY, [EMBARGO_ID], [CVDRole.CASE_MANAGER]),
+        (SIGNATORY_ID, PEC.SIGNATORY, [EMBARGO_ID], []),
+        (NON_SIGNATORY_ID, PEC.INVITED, [], []),
     ):
         participant = CaseParticipant(
             id_=f"{actor_id}/participant",
             attributed_to=actor_id,
             context=CASE_ID,
             case_roles=roles,
+            embargo_consent_state=consent,
             accepted_embargo_ids=accepted,
         )
         datalayer.create(participant)
@@ -124,7 +127,6 @@ def test_fanout_includes_non_signatory_without_active_embargo(
     assert NON_SIGNATORY_ID in recipients
 
 
-@_GATE_XFAIL
 @pytest.mark.spec("CM-10-005")
 @_COLLECTORS
 def test_fanout_withholds_entries_from_non_signatory(
