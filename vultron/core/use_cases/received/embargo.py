@@ -114,7 +114,7 @@ def resolve_invitee_id(
     participant per relayed Invite (EP-09-002) — so an Invite naming none or
     several is a misrouting, refused rather than guessed at (EP-09-010).  The
     recipient is returned in its canonical spelling, so a trailing slash still
-    names the actor (HP-09-001).
+    names the actor (#2667).
 
     Raises:
         VultronProtocolViolationError: ``to`` names no recipient or more

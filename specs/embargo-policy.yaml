@@ -1462,10 +1462,11 @@ groups:
       no `to` recipient or more than one as a misrouting (OX-08-001), and MUST NOT infer the
       invitee from the receiving actor.
     note: >-
-      Scope: the relayed Invite a participant receives (EP-09-002). A proposal addressed to
-      the CASE_MANAGER is adjudicated under EP-09-001 and relayed under EP-09-002; the
-      CASE_MANAGER is that Invite's adjudicator, not its invitee, and has no invitee to
-      resolve until it relays.
+      Scope: the invitee is resolved for the relayed Invite a participant receives
+      (EP-09-002). A proposal is addressed to the CASE_MANAGER alone (PCR-08-001), so it
+      too names exactly one `to` recipient and is refused when it names none or several;
+      that recipient is its adjudicator under EP-09-001, not its invitee, so the
+      CASE_MANAGER's own record takes no RSVP deadline from it (CM-28-003).
     rationale: >-
       Every emitter sends a single-recipient Invite — a participant to the CASE_MANAGER, the
       CASE_MANAGER to one participant per relayed Invite (EP-09-002) — so the multi-recipient
@@ -1475,8 +1476,10 @@ groups:
     verification: >-
       Tests deliver an Invite with two `to` recipients and with none and assert `REFUSED`
       with the recipient count in the reason; a single-recipient Invite resolves that
-      recipient. Until the implementation lands the refusal tests are strict `xfail`s naming
-      their tracking issue.
+      recipient (`test_invite_with_several_recipients_is_refused` and
+      `test_invite_with_no_recipient_is_refused` in `test_embargo_revision_relay.py`;
+      `TestInviteeIsTheAddressee` and `TestInviteeIdProperty` in
+      `test_embargo_invite_lapse.py`).
     relationships:
     - rel_type: depends_on
       spec_id: EP-09-002

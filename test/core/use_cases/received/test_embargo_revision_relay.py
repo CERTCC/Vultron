@@ -23,9 +23,9 @@ The manager-side relay (EP-09-001, EP-09-002, EP-09-004) landed with #3913;
 the participant side and the replay of every relay entry (EP-09-003,
 EP-09-007) with #3915 (``test_embargo_relay_replay.py``, beside this file,
 pins the replay across per-actor stores); the sole-recipient invitee
-(EP-09-010) with #3963.  The remaining strict ``xfail`` markers pin behaviour
-#3961 (RSVP deadline) will deliver.  Each fails today for the reason its docstring names; when the
-feature lands the ``xfail`` auto-promotes.
+(EP-09-010) with #3963.  The remaining strict ``xfail`` markers pin what
+#3961 (RSVP deadline) will deliver.  Each fails today for the reason its
+docstring names; when the feature lands the ``xfail`` auto-promotes.
 """
 
 from typing import cast
@@ -432,8 +432,7 @@ def test_invite_with_several_recipients_is_refused(make_payload):
 
     assert result.disposition is HandlerDisposition.REFUSED
     reason = (result.reason or "").lower()
-    assert "recipient" in reason
-    assert "2" in reason, "the refusal names the recipient count"
+    assert "names 2 'to' recipients" in reason, "the refusal names the count"
 
 
 @pytest.mark.spec("EP-09-010")
@@ -456,8 +455,7 @@ def test_invite_with_no_recipient_is_refused(make_payload):
 
     assert result.disposition is HandlerDisposition.REFUSED
     reason = (result.reason or "").lower()
-    assert "recipient" in reason
-    assert "0" in reason, "the refusal names the recipient count"
+    assert "names 0 'to' recipients" in reason, "the refusal names the count"
 
 
 @pytest.mark.spec("EP-09-009")

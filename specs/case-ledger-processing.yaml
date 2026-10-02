@@ -1081,9 +1081,10 @@ groups:
       Where a message names its subject as its sole `to:` recipient (the
       invitee of an `Invite(EmbargoEvent)`, EP-09-010), the resolver MUST take
       that recipient and refuse a message naming none or several. Where the
-      protocol addresses a message to several recipients (`Offer(Report)`),
-      the receiver MUST test its own membership with a trailing-slash-tolerant
-      comparison (HP-09-001), not an exact match.
+      protocol addresses a message to several recipients (`Offer(Report)`,
+      whose eligibility is read from `to:` per HP-09-001), the receiver MUST
+      test its own membership with a trailing-slash-tolerant comparison
+      (`is_addressed_to()`, ISSUE-2667), not an exact match.
     rationale: >-
       Selecting `to[0]` positionally makes a multi-recipient message resolve to
       the same subject in every replica. Falling back to the receiving actor

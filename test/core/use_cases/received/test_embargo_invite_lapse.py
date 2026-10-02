@@ -637,8 +637,7 @@ class TestInviteeIsTheAddressee:
     def test_trailing_slash_recipient_is_this_replica(self, make_payload):
         """A recipient spelled with a trailing slash still names this replica.
 
-        The sole recipient resolves in its canonical spelling (HP-09-001,
-        #2667), so the participant lookup hits ``actor_participant_index``
+        The sole recipient resolves in its canonical spelling (#2667), so the participant lookup hits ``actor_participant_index``
         rather than missing on the slash.
         """
         dl = _make_dl(actor_id=_INVITEE)
@@ -670,6 +669,7 @@ class TestInviteeIsTheAddressee:
         assert _answers_in_outbox(dl, _INVITEE) == ["Accept"]
 
     @pytest.mark.spec("EP-09-010")
+    @pytest.mark.spec("PCR-08-001")
     @pytest.mark.spec("HP-01-005")
     def test_multi_recipient_invite_is_refused_at_the_case_manager(
         self, make_payload
