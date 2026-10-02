@@ -33,8 +33,10 @@ from vultron.core.behaviors.case.embargo_tree import (
     InitializeDefaultEmbargoNode,
 )
 from vultron.core.behaviors.case.nodes.embargo_resolution import (
+    CaseEmbargoAlreadyInitializedNode,
     CaseNotEmbargoEligibleNode,
 )
+from vultron.core.behaviors.embargo.nodes import em_state as em_state_module
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.case import VulnerabilityCase
@@ -44,7 +46,7 @@ from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
-from vultron.errors import BtNodePreconditionError
+from vultron.errors import BtNodePreconditionError, VultronValidationError
 
 ACTOR_ID = "https://example.org/actors/vendor"
 CASE_ID = "https://example.org/cases/case-resolution"
@@ -572,15 +574,6 @@ def test_creation_time_revision_is_indexed_for_the_owners_default_selection(
     assert loser_id in case.pending_embargo_proposal_index
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "EP-04-012: the once-per-case guard reads the active-embargo "
-        "reference, which termination clears, so a redelivered proposal "
-        "after EM.EXITED re-runs the creation arm — an orphan EmbargoEvent "
-        "and a failed tree. Tracked by #4019 (Concern #3986)."
-    ),
-)
 @pytest.mark.spec("EP-04-012")
 def test_a_rerun_after_the_embargo_exited_initializes_nothing(
     bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
@@ -610,3 +603,183 @@ def test_a_rerun_after_the_embargo_exited_initializes_nothing(
     assert _active_embargo(bt_scenario) is None
     events_after = len(list(bt_scenario.dl.list_objects("EmbargoEvent")))
     assert events_after == events_before
+
+
+def _set_em(bt_scenario: BTTestScenario, em_state: EM) -> None:
+    case = cast(Any, bt_scenario.dl.read(CASE_ID))
+    case.append_case_status(em_state=em_state)
+    bt_scenario.dl.save(case)
+
+
+def _event_ids(bt_scenario: BTTestScenario) -> set[str]:
+    return {e.id_ for e in bt_scenario.dl.list_objects("EmbargoEvent")}
+
+
+@pytest.mark.spec("EP-04-012")
+class TestCaseEmbargoAlreadyInitializedNode:
+    """The once-per-case guard keys on the EM state, never the reference."""
+
+    def _guard(self, bt_scenario: BTTestScenario) -> Status:
+        return bt_scenario.run(
+            CaseEmbargoAlreadyInitializedNode(),
+            actor_id=ACTOR_ID,
+            case_id=CASE_ID,
+        ).status
+
+    @pytest.mark.parametrize(
+        "em_state", [state for state in EM if state != EM.NONE]
+    )
+    def test_every_state_but_none_is_already_initialized(
+        self,
+        bt_scenario: BTTestScenario,
+        case_obj: VulnerabilityCase,
+        em_state: EM,
+    ) -> None:
+        """No active embargo is attached here: the state alone decides."""
+        _set_em(bt_scenario, em_state)
+        assert _active_embargo(bt_scenario) is None
+
+        assert self._guard(bt_scenario) == Status.SUCCESS
+
+    def test_none_is_not_initialized(
+        self, bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
+    ) -> None:
+        assert _em_state(bt_scenario) == EM.NONE
+        assert self._guard(bt_scenario) == Status.FAILURE
+
+    def test_a_half_built_case_at_none_completes_initialization(
+        self, bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
+    ) -> None:
+        """A redelivery finishing a case whose first attempt died before the
+        embargo was set up must still initialize it (EP-04-012)."""
+        assert _em_state(bt_scenario) == EM.NONE
+        assert _active_embargo(bt_scenario) is None
+
+        status, before, after = _run(bt_scenario)
+
+        assert status == Status.SUCCESS
+        assert _em_state(bt_scenario) == EM.ACTIVE
+        _assert_duration(
+            _active_embargo(bt_scenario), PROTOCOL_DEFAULT, before, after
+        )
+
+    @pytest.mark.parametrize(
+        ("owner_policy", "sender_proposal", "expected"),
+        [
+            pytest.param(None, None, EM.ACTIVE, id="active"),
+            pytest.param(
+                ACTOR_DEFAULT, SENDER_PROPOSAL, EM.REVISE, id="revise"
+            ),
+        ],
+    )
+    def test_a_rerun_on_an_initialized_case_changes_nothing(
+        self,
+        bt_scenario: BTTestScenario,
+        case_obj: VulnerabilityCase,
+        owner_policy: timedelta | None,
+        sender_proposal: timedelta | None,
+        expected: EM,
+    ) -> None:
+        """A rerun with different terms neither stores an event nor registers
+        a revision: the proposal's terms are not reconciled (EP-04-012)."""
+        status, _, _ = _run(
+            bt_scenario,
+            owner_policy=owner_policy,
+            sender_proposal=sender_proposal,
+        )
+        assert status == Status.SUCCESS
+        assert _em_state(bt_scenario) == expected
+        first = cast(Any, bt_scenario.dl.read(CASE_ID))
+        events_before = _event_ids(bt_scenario)
+
+        status, _, _ = _run(
+            bt_scenario,
+            owner_policy=ACTOR_DEFAULT + timedelta(days=7),
+            sender_proposal=timedelta(days=3),
+        )
+
+        assert status == Status.SUCCESS
+        again = cast(Any, bt_scenario.dl.read(CASE_ID))
+        assert again.current_status.em.state == expected
+        assert again.active_embargo_id == first.active_embargo_id
+        assert again.proposed_embargoes == first.proposed_embargoes
+        assert _event_ids(bt_scenario) == events_before
+
+    def test_skip_is_logged_with_the_case_and_state(
+        self,
+        bt_scenario: BTTestScenario,
+        case_obj: VulnerabilityCase,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        _set_em(bt_scenario, EM.EXITED)
+
+        with caplog.at_level(logging.INFO):
+            assert self._guard(bt_scenario) == Status.SUCCESS
+
+        assert any(
+            record.levelno == logging.INFO
+            and CASE_ID in record.getMessage()
+            and "EXITED" in record.getMessage()
+            and "EP-04-012" in record.getMessage()
+            for record in caplog.records
+        )
+
+    def test_missing_case_raises_rather_than_admitting(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """The real ``ReadEmStateNode`` returns FAILURE for an absent case;
+        the guard turns it into a raise, which ``BTBridge`` reports."""
+        absent = "https://example.org/cases/absent"
+        result = bt_scenario.run(
+            CaseEmbargoAlreadyInitializedNode(),
+            actor_id=ACTOR_ID,
+            case_id=absent,
+        )
+
+        assert result.status == Status.FAILURE
+        assert "BtNodePreconditionError" in result.feedback_message
+        assert "cannot read the EM state" in result.feedback_message
+        assert absent in result.feedback_message
+
+    def test_missing_datalayer_raises_rather_than_admitting(self) -> None:
+        node = CaseEmbargoAlreadyInitializedNode()
+        assert node.datalayer is None
+        with pytest.raises(BtNodePreconditionError, match="DataLayer"):
+            node.update()
+
+    def test_unreadable_em_state_raises_and_creates_nothing(
+        self,
+        bt_scenario: BTTestScenario,
+        case_obj: VulnerabilityCase,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """``ReadEmStateNode`` only returns FAILURE; the guard must turn that
+        into a raise, or the Selector would run the creation arm."""
+
+        class _UnreadableEmState:
+            def __init__(
+                self, case_id: str, result_out: dict[str, object]
+            ) -> None:
+                self._result_out = result_out
+                self.datalayer: object = None
+                self.feedback_message = "invalid em_state value"
+
+            def update(self) -> Status:
+                self._result_out["error"] = VultronValidationError(
+                    self.feedback_message
+                )
+                return Status.FAILURE
+
+        monkeypatch.setattr(
+            em_state_module, "ReadEmStateNode", _UnreadableEmState
+        )
+
+        result = bt_scenario.run(
+            InitializeDefaultEmbargoNode(), actor_id=ACTOR_ID, case_id=CASE_ID
+        )
+
+        assert result.status == Status.FAILURE
+        assert "BtNodePreconditionError" in result.feedback_message
+        assert "invalid em_state value" in result.feedback_message
+        assert list(bt_scenario.dl.list_objects("EmbargoEvent")) == []
+        assert _em_state(bt_scenario) == EM.NONE

@@ -31,7 +31,10 @@ from vultron.core.behaviors.embargo.nodes.conditions import (
     OptionalLookupParticipantNode,
     ValidateCaseExistsNode,
 )
-from vultron.core.behaviors.embargo.nodes.em_state import ReadEmStateNode
+from vultron.core.behaviors.embargo.nodes.em_state import (
+    ReadEmStateNode,
+    read_case_em_state,
+)
 from vultron.core.behaviors.embargo.nodes.lifecycle import (
     AcceptEmbargoLifecycleNode,
     ProposeEmbargoLifecycleNode,
@@ -82,6 +85,7 @@ __all__ = [
     "OptionalLookupParticipantNode",
     # EM state read
     "ReadEmStateNode",
+    "read_case_em_state",
     # Teardown
     "HasEmbargoActiveNode",
     "ClearActiveEmbargoNode",
