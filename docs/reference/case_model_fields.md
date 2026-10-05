@@ -33,6 +33,7 @@ Defined in `vultron/core/models/case.py`.
 | `recommendation_recommender_index` | Map: actor-recommendation URI → the participant who made it |
 | `case_activity` | Activity IDs recorded against this case (not the case ledger — see `genesis_hash`) |
 | `genesis_hash` | SHA-256 hash binding the ledger to this case's origin identity: the case id, creation time and owner (`attributed_to`), computed when the case is created; a replica keeps the hash it receives, or derives the same value from the carried case when none arrives ([CLP-08-002](specs/protocol.md#clp-08-002)) |
+| `stub_summary` | Owner-chosen, human-readable description of the case used as the `summary` of the `VulnerabilityCaseStub` carried in a stub Invite. Must be set before emitting an `Invite(Actor, target=VulnerabilityCaseStub)` — the factory raises if absent ([CM-17-010](specs/protocol.md#cm-17-010), [MV-10-001](specs/protocol.md#mv-10-001)) |
 | `parent_cases`, `child_cases`, `sibling_cases` | URIs of related cases, held as IDs only (ADR-0017); no protocol flow sets them yet |
 
 ## `CaseActor`
