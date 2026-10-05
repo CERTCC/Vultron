@@ -129,7 +129,15 @@ participant.
 A participant can become inert again. An active participant that has not
 accepted a newly activated embargo — one whose consent lapses under ADR-0093 —
 is no longer entitled to case content until it consents. A participant whose RM
-is `CLOSED` receives nothing further either way (CM-23-004).
+is `CLOSED` has declared it has stopped paying attention, and receives nothing
+further either way (CM-23-004). The exception is the ledger entries that record its own closure (the `close_case`
+entry and the status entries that follow it, CM-23-001), which are the last things it
+receives: it waits for them rather than writing `CLOSED` itself, and its replica never
+learns of later closures, `case_fully_closed` included. The exception never widens
+entitlement: a participant that is inert or removed when it leaves is not sent them.
+The CM-31-009 embargo notice to a closed `SIGNATORY` is the only other message it
+can receive, and it carries no case content. Every participant's closure is verified in the
+CASE_MANAGER's store.
 
 ### Replies to the stub Invite
 
@@ -252,7 +260,9 @@ leaves. A `Leave` from `VALID` is therefore recorded as two ordinary
 transitions, `V → D → C`, not as an override. With `R → C` in the table and
 `Leave` from `VALID` routed through *Deferred*, a `Leave` from any rung and the
 report hard-reject are ordinary transitions, and no closure path needs the
-`force_rm_state` override.
+`force_rm_state` override. The Case Actor commits each of those transitions as
+its own participant-status ledger entry, so a replica applies the steps the
+ledger records and never derives the path itself (CM-23-001, #4091).
 
 ### Consequences
 

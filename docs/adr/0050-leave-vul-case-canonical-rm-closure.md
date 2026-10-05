@@ -17,9 +17,13 @@ the same path as CS transitions (fix-ready, fix-deployed, published).
 
 PR #1909 (issue #1858) changed RM case closure to flow through
 `Leave(VulnerabilityCase)` → Case Actor commits a `close_case`
-`CaseLedgerEntry` → broadcast → each replica advances the leaving participant's
-RM state to `RM.CLOSED` on receipt. The three CS transitions were left
-unchanged.
+`CaseLedgerEntry` recording the received Leave → broadcast.
+The RM transitions the Case Actor then writes for the leaving participant
+follow as ordinary participant-status entries, one per transition.
+Each replica advances the leaving participant to `RM.CLOSED` only by applying
+those entries in ledger order, and never works out a closure path from its own
+stored state (CM-23-001, #4091).
+The three CS transitions were left unchanged.
 
 This created a contradiction: `DEMOMA-07-001` said closure must use
 `Add(ParticipantStatus)`, but the implementation used `Leave`. The question is:
@@ -32,9 +36,10 @@ which mechanism is canonical?
 - A lost `Add(ParticipantStatus, rm_state=RM.CLOSED)` message would allow a
   participant to ghost a case: their local state becomes `RM.CLOSED` but peers
   never learn about it.
-- The `Leave` round-trip makes closure observable to all replicas via the
-  canonical ledger rather than as a direct state assertion from the departing
-  participant.
+- The `Leave` round-trip makes closure observable to every replica that still
+  receives case content, via the canonical ledger rather than as a direct state
+  assertion from the departing participant (a replica at `RM.CLOSED` receives
+  only its own closure entry, CM-23-004).
 - The existing `CloseCaseReceivedUseCase` and `create_close_case_received_tree`
   already implement the `Leave` path as of #1909.
 
@@ -62,8 +67,8 @@ Chosen option: **`Leave(VulnerabilityCase)` only**, because:
 
 ### Consequences
 
-- Good, because RM closure is observable on all replicas via the canonical
-  ledger chain, not inferred from direct status assertions.
+- Good, because RM closure is observable on every replica that still receives
+  case content (CM-23-004) via the canonical ledger chain, not inferred from direct status assertions.
 - Good, because the Case Actor can enforce closure sequencing (e.g., embargo
   teardown must precede closure) via the `Leave` receive path.
 - Good, because `AutoCloseSequence` in `add_participant_status_tree` becomes

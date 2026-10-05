@@ -46,6 +46,7 @@ from pydantic import Field, model_validator
 
 from vultron.core.models.base import (
     UriString,
+    with_record_id,
 )
 from vultron.core.models.retired_stored_fields import (
     RetiredFieldsRecord,
@@ -100,8 +101,7 @@ class CaseProposalAdmissionRecord(RetiredFieldsRecord):
         if isinstance(data, dict):
             proposal_id = data.get("proposal_id")
             if proposal_id is not None:
-                data = dict(data)
-                data["id"] = cls.build_id(proposal_id)
+                data = with_record_id(data, cls.build_id(proposal_id))
         return data
 
 
