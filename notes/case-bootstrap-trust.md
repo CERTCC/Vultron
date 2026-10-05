@@ -7,6 +7,7 @@ description: >
   late joiners, and CASE_MANAGER authority after trust establishment.
 related_specs:
   - specs/case-bootstrap-trust.yaml
+  - specs/architecture.yaml (ARCH-12-003)
   - specs/participant-case-replica.yaml
   - specs/actor-knowledge-model.yaml
   - specs/case-management.yaml
@@ -122,8 +123,9 @@ Name an actor-id field for the role it records, not for the trust relation.
 A row still carrying an old key is refused on load, with a reason naming the
 store reset (`RetiredFieldsRecord`, #4128); it is never aliased onto the
 new name. The refusal is load-bearing: `VultronReportCaseLink` is a
-`CoreRecord`, which ignores unknown keys rather than refusing them, so a plain
-rename would read every old row back with both trust anchors silently `None`.
+`CoreRecord`, which refuses unknown keys (`extra="forbid"`, #4186) but only with
+a bare "extra inputs are not permitted"; the declaration is what names the
+rename and the store reset to the operator.
 See [datalayer-design](datalayer-design.md) § "Renaming a Stored Field".
 
 ---

@@ -50,6 +50,7 @@ from vultron.core.models.participant_status import (
 )
 from vultron.core.models.registry import CORE_VOCABULARY
 from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.vulnerability_record import VulnerabilityRecord
 from vultron.core.states import RM
 from vultron.enums.roles import CVDRole
@@ -291,6 +292,40 @@ def test_service_row_that_fails_validation_reads_absent_and_says_why(
     assert "'Service'" in message
     assert "embargoPolicy" in message
     assert "must be reset" in message
+
+
+@pytest.mark.spec("ARCH-12-003")
+def test_record_row_with_an_unknown_key_reads_absent_and_says_why(dl, caplog):
+    """A stored record carrying a key the model no longer declares is refused.
+
+    ``CoreRecord`` once dropped it and read the row back with the field
+    silently missing (#4186); now the row reads absent and the reason, naming
+    the key, is logged (#4108).
+    """
+    report_id = "https://example.org/reports/r-4186"
+    row_id = VultronReportCaseLink.build_id(report_id)
+    dl.create(
+        Record(
+            id_=row_id,
+            type_="ReportCaseLink",
+            data_={
+                "id": row_id,
+                "type": "ReportCaseLink",
+                "report_id": report_id,
+                "renamed_away": "https://example.org/actors/x",
+            },
+        )
+    )
+
+    with caplog.at_level("WARNING"):
+        assert dl.read(row_id) is None
+
+    messages = [
+        r.getMessage() for r in caplog.records if r.levelname == "WARNING"
+    ]
+    assert len(messages) == 1
+    assert repr(row_id) in messages[0]
+    assert "renamed_away" in messages[0]
 
 
 @pytest.mark.spec("DL-05-006")

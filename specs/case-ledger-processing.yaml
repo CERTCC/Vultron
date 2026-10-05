@@ -366,7 +366,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: A `CaseLedgerEntry` committed to the canonical case ledger MUST correspond
-      to exactly one CASE_MANAGER-accepted protocol-significant assertion.
+      to exactly one CASE_MANAGER-accepted protocol-significant assertion. A state
+      change the CASE_MANAGER itself writes, such as the RM transitions it records
+      for a leaving participant (CM-23-001), is such an assertion, with the CASE_MANAGER
+      as asserter.
     verification: Integration tests in `test/demo/` confirm that each protocol-significant
       assertion accepted by the CASE_MANAGER produces exactly one new `CaseLedgerEntry`
       in the canonical ledger, with no duplicate entries for the same protocol event.
@@ -399,7 +402,11 @@ groups:
     kind: protocol
     statement: Each logical state change MUST produce at most one canonical `CaseLedgerEntry`;
       the CASE_MANAGER MUST NOT commit both an accepted-participant-assertion entry and
-      a separately-synthesized CASE_MANAGER entry for the same state change
+      a separately-synthesized CASE_MANAGER entry for the same state change.
+      An act and the state transitions the CASE_MANAGER records as its
+      consequence are different facts, not the same state change. The
+      `close_case` entry records a received Leave, and the status entries that
+      follow it record the RM transitions the Leave caused (CM-23-001).
     verification: Integration tests in `test/demo/` confirm that each logical state
       change produces at most one `CaseLedgerEntry`; no test scenario produces both
       an accepted-participant-assertion entry and a separately-synthesized CASE_MANAGER
@@ -422,7 +429,11 @@ groups:
       envelope and in recording metadata; it MUST NOT be substituted for a participant-asserter's
       identity. When the CASE_MANAGER also holds a participant role in the case, their
       identity in `payloadSnapshot.actor` is the correct asserter identity and is not
-      a substitution.
+      a substitution. A state change the CASE_MANAGER writes itself has no inbound
+      activity to compare against. Its `payloadSnapshot.actor` is the CASE_MANAGER,
+      the true asserter, and the comparison does not apply. The RM status entries
+      that follow a `close_case` entry (CM-23-001) are of this kind, and the leaving
+      participant's own act stays attributed to them in the `close_case` entry.
     rationale: ADR-0088 makes authority role-based rather than identity-based, so a
       `CVDRole.CASE_MANAGER` holder may simultaneously hold a participant role and
       legitimately assert any participant-role activity. Enforcing this at the receive-pipeline
@@ -432,7 +443,10 @@ groups:
       `lifecycle.CommitCaseLedgerEntryNode` raises `VultronCanonicalEntryError` when
       `payloadSnapshot.actor` does not match the inbound activity's `actor_id`. A
       companion test confirms that a CASE_MANAGER who also participates in a case can
-      add entries (e.g. `Add(Note)`) without error.
+      add entries (e.g. `Add(Note)`) without error. A further test confirms that the
+      status entries committed after a `close_case` entry carry the CASE_MANAGER as
+      `payloadSnapshot.actor` and commit without error, while the `close_case` entry
+      itself names the leaving participant.
     stories:
     - story_2022_045
     - story_2022_089

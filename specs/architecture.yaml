@@ -296,7 +296,9 @@ groups:
       `CORE_VOCABULARY` entry; `test_all_vocabulary_are_as_base_subclasses` in
       `test/architecture/test_hierarchy_invariants.py` keeps core types out of `VOCABULARY`;
       `test/architecture/test_core_extra_forbid.py` asserts every `CoreObject` subclass
-      resolves `extra="forbid"`, with no exemption list; and
+      resolves `extra="forbid"`, with no exemption list;
+      `test/architecture/test_core_record_refuses_unknown_keys.py` asserts the same, and that
+      an unknown key is refused and a dump round-trips, for every stored `CoreRecord`; and
       `test_context_is_supplied_once_and_not_as_a_core_field` in
       `test/adapters/driven/test_wire_render_adapter.py` pins the `@context` rule. None of
       these may be marked `xfail`.
