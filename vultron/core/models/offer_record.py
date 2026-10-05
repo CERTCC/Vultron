@@ -37,7 +37,12 @@ from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
-from vultron.core.models.base import CoreRecord, NonEmptyString, UriString
+from vultron.core.models.base import (
+    CoreRecord,
+    NonEmptyString,
+    UriString,
+    with_record_id,
+)
 from vultron.core.models.wire_keys import wire_key
 
 
@@ -79,8 +84,7 @@ class VultronOfferRecord(CoreRecord):
         if isinstance(data, dict):
             offer_id = data.get("offer_id")
             if offer_id is not None:
-                data = dict(data)
-                data["id"] = cls.build_id(offer_id)
+                data = with_record_id(data, cls.build_id(offer_id))
         return data
 
 
