@@ -42,6 +42,9 @@ grep -rn "<root-cause signature>" vultron/ test/
 
 When analysis surfaces additional related issues beyond the confirmed scope,
 file each as a new Bug-type GitHub issue. Do not pursue them in the current run.
+This is for genuinely separate defects. A sibling of *this* bug that the fix
+leaves undone is not separate: fix it here, or hold the PR (unattended DEFER is
+unavailable, `completeness-doctrine.md` Gate 1).
 
 ```bash
 BUG_TYPE_ID=$(bash .agents/skills/shared/board-id.sh issue-type Bug)

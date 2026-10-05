@@ -152,8 +152,9 @@ Otherwise: invoke the `pr-execute` skill with the PR number.
 
 If execute pauses for a `defer-ask` or `inversion-halt` decision: wait for the
 user's response, then continue. On silence, execute applies its own rule
-(fix-now for a defer-ask; halt the PR for an inversion-halt). These are the only
-interactive pauses in the pipeline.
+(fix-now for a defer-ask, or hold the PR if it cannot be finished; halt the PR
+for an inversion-halt). These are the only interactive pauses in the pipeline.
+An unsupervised `pr-ship` never files a deferral issue as a way to proceed.
 
 If execute stops due to a blocking test failure (pre-existing with linked Bug
 issue): report the blocked status and stop pr-ship. The user must resolve the
@@ -183,6 +184,14 @@ CI status:       passing / failing / pending
 
 PR URL: https://github.com/CERTCC/Vultron/pull/N
 ```
+
+**Never merge on red; never skip a hook.** `pr-ship` does not merge a PR with any
+failing check, and no step runs `git commit --no-verify` or `SKIP=<hook>` (the
+spec-lint hook included). Only verify's `READY-TO-MERGE` permits a merge, and
+verify emits it only on green CI. The sole exception is one re-run of a check
+already tracked by an open `flaky-test` issue with a reproduction, named in the
+verdict; "it passed on re-run" without that issue is never evidence
+(`completeness-doctrine.md` § "Never Merge on Red").
 
 **Report verify's verdict verbatim — never upgrade it.** In particular, never
 print `READY-TO-MERGE` unless verify itself emitted it. Confirmed findings and

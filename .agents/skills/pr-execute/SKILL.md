@@ -105,9 +105,11 @@ Deferring" and "The Two Gates".
    what concretely remains, the ratio) — not an attempt count.
 3. **On explicit approval**: record `outcome: deferred-ask` with `issue_number`
    and leave the work for the filed issue.
-4. **On silence or no approval**: fix it now (fold into the Phase 2 batch),
-   `- Closes #N`, and record `outcome: fixed`. Silence is never consent to
-   defer.
+4. **On silence or no approval**: DEFER is unavailable. Fix it now (fold into
+   the Phase 2 batch), `- Closes #N`, and record `outcome: fixed`. If it cannot
+   be finished, hold the PR: record `outcome: halted`, mark the PR draft/blocked
+   with the unfinished item stated, and stop. Never leave the work on the filed
+   issue and let the PR proceed. Silence is never consent to defer.
 
 Only *second-order* findings are eligible for `defer-ask`. A first-order
 finding is never deferred — fix it.
@@ -209,7 +211,17 @@ iterations:
    context is in hand. If yes, fix it now — a pre-existing failure you can
    resolve is still a failure worth resolving.
 3. Only file a bug issue and record `outcome: skipped` if the fix is genuinely
-   non-trivial or requires design work outside this PR's scope.
+   non-trivial or requires design work outside this PR's scope. `skipped` does
+   not clear the check: the CI stays red, `final_ci_status` is `"failing"`, and
+   `pr-verify` returns `GAPS-FOUND`. "Pre-existing" never makes a red check
+   mergeable (`completeness-doctrine.md` § "Never Merge on Red").
+4. **Rerun exception.** A failed check may be re-run once only if it is already
+   tracked by an open `flaky-test` issue with a reproduction (see
+   [REFERENCE.md](REFERENCE.md) § "Flaky Test Dedup"); cite that issue in
+   `skip_reason`. A rerun that passes with no such issue is not evidence —
+   file the issue with the reproduction and leave the PR held.
+5. **Never bypass a pre-commit hook** (`--no-verify`, `SKIP=`), including the
+   spec-lint hook. Fix what the hook reports and re-stage.
 
 Commit CI fixes separately from Phase 2 fixes:
 
@@ -354,8 +366,9 @@ always fix-now; a gate is the exception, not the reflex.
 > (If no response, I'll fix it now rather than defer.)"
 
 Wait for a response. **On silence: fix it now** — fold the work in, `- Closes #N`,
-record `outcome: fixed`. Silence is never approval to defer. Do not present an
-attempt count in place of a measured remainder.
+record `outcome: fixed`. If it cannot be finished, hold the PR (`outcome: halted`,
+draft/blocked). Silence is never approval to defer, and an unsupervised run has
+no DEFER. Do not present an attempt count in place of a measured remainder.
 
 **Gate 2 — `inversion-halt`**: do not file or act autonomously. Post the
 inversion-ask:

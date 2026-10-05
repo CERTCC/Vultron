@@ -244,7 +244,9 @@ Once the plan is confirmed:
      and have this PR **close** it: add `- Closes #NNN` to the PR body with a
      one-line "why". Filing the record does not mean leaving the work.
    - Defer a sibling hit only through Gate 1 (measured remainder + approval).
-     See [REFERENCE.md](REFERENCE.md) § "Escalation".
+     See [REFERENCE.md](REFERENCE.md) § "Escalation". With no human to approve
+     (unattended), DEFER is unavailable: fix the hit in this PR or hold the PR.
+     Filing an issue for it is not a way to merge.
 
 4. **Spec backstop (blocking)**: resolve the Spec manifest from 2g against
    the diff per `deepen-context` § "Backstop" until
@@ -255,7 +257,8 @@ Once the plan is confirmed:
 
 5. **Iterate**: run `format-code`, `run-linters`, `run-tests`; refine until
    all relevant tests pass. Apply branch-ownership and pre-existing-failure
-   rules from `completeness-doctrine.md`.
+   rules from `completeness-doctrine.md`. A failing check holds the PR whatever
+   its cause (§ "Never Merge on Red"); never bypass a pre-commit hook.
 
 6. **Finalize** — in this order. `archive-history` comes *after* `create-pr`
    because its entry body carries the PR URL, which does not exist until the PR

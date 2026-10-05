@@ -124,6 +124,15 @@ cannot be ready to merge no matter what those checks find.
    `UNVERIFIED-CI-FAILING` and set overall verdict to `GAPS-FOUND` — the code
    changes may be correct but CI must be green before the PR can be considered
    ready.
+
+   **Never merge on red.** This gate has no override: a check that failed stays
+   failed whether it is labelled "pre-existing", "unrelated" or "flaky", and
+   `skipped` findings do not clear it (`completeness-doctrine.md` § "Never Merge
+   on Red"). A check that is red on `main` too is fixed by the single fix PR
+   for `main`; this PR waits for it or rebases onto it. The only exception is one
+   re-run of a check already tracked by an open `flaky-test` issue holding a
+   reproduction: name that issue in the verdict comment. A pass on re-run with no
+   such issue is not evidence — the verdict stays `GAPS-FOUND`.
 4. If CI is pending: wait for completion before proceeding:
 
    ```bash
@@ -168,6 +177,19 @@ not stale relative to execute's fix commits (PD-03-008):
 
 `STALE-DOCS-LINE` blocks `READY-TO-MERGE`. Verify does not fix it — re-run
 `/pr-execute`.
+
+### Phase 3c — Spec Amendment Section
+
+```bash
+bash .agents/skills/shared/spec-amendments.sh origin/<base_ref>
+```
+
+Exit `1` lists requirements whose `statement:` or `priority:` the PR changed or
+removed. The live PR body must then carry a `## Spec amended` section naming each
+listed ID (`.agents/skills/shared/pr-body-guide.md` § "Spec amended"). A missing
+section, a listed ID the section omits, or a change that obliges something
+different with no recorded user approval → flag `MISSING-SPEC-AMENDED`, which
+blocks `READY-TO-MERGE`. Exit `0` needs nothing.
 
 ### Phase 4 — Spot-Verify FAIL Findings
 
@@ -214,10 +236,10 @@ For findings with `outcome: deferred-ask`, `halted`, or `skipped`: assign
    | # | Condition | Verdict |
    |---|---|---|
    | 1 | `MERGE-CONFLICT` flagged | `CONFLICTS-FOUND` |
-   | 2 | Any FAIL `UNRESOLVED`/`MISSING-COMMIT`, or `INCOMPLETE-EXECUTE`, `UNVERIFIED-CI-FAILING`, or `STALE-DOCS-LINE` | `GAPS-FOUND` |
+   | 2 | Any FAIL `UNRESOLVED`/`MISSING-COMMIT`, or `INCOMPLETE-EXECUTE`, `UNVERIFIED-CI-FAILING`, `STALE-DOCS-LINE`, or `MISSING-SPEC-AMENDED` | `GAPS-FOUND` |
    | 3 | `MERGE-STATE-UNKNOWN` flagged | `PENDING-MERGE-CHECK` |
    | 4 | CI still pending | `PENDING-CI` |
-   | 5 | All FAIL findings `CONFIRMED`, CI green, `mergeable == MERGEABLE`, and no `STALE-DOCS-LINE` / `UNSYNCED-EXECUTE` / `BRANCH-BEHIND` / `PR-IS-DRAFT` flag | `READY-TO-MERGE` |
+   | 5 | All FAIL findings `CONFIRMED`, CI green, `mergeable == MERGEABLE`, and no `STALE-DOCS-LINE` / `MISSING-SPEC-AMENDED` / `UNSYNCED-EXECUTE` / `BRANCH-BEHIND` / `PR-IS-DRAFT` flag | `READY-TO-MERGE` |
    | 6 | Otherwise | `GAPS-FOUND` (name the flag that blocked it) |
 
    `READY-TO-MERGE` requires a live `MERGEABLE`. There is no path to it via
