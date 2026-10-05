@@ -144,8 +144,8 @@ not the default. Recommend one course and ask for confirmation:
 
 If the user accepts, invoke `write-docs` with `mode: inline` and skip the rest
 of this step. With no user to answer (unattended), deferral is unavailable
-(`completeness-doctrine.md` Gate 1): invoke `write-docs` inline, or hold the PR. If the user declines, or the scope genuinely exceeds this PR,
-invoke the `new-item` skill to file a `type:Concern` issue. Provide these
+(`completeness-doctrine.md` Gate 1): invoke `write-docs` inline, or hold the
+PR. If the user declines, or the scope genuinely exceeds this PR, invoke the `new-item` skill to file a `type:Concern` issue. Provide these
 details as context:
 
 - **Type**: Concern
