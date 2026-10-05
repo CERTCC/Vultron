@@ -83,46 +83,38 @@ def test_handle_inbox_item_dispatches(monkeypatch):
     )
 
 
-def test_inbox_handler_retries_and_aborts_after_too_many_errors(monkeypatch):
-    """inbox_handler retries up to 3 errors then aborts, re-appending the item."""
+def test_inbox_handler_failing_item_dead_lettered_on_exhaustion(monkeypatch):
+    """An inbox item that always fails is dead-lettered after max_attempts.
+
+    Replaces the old abort-after-3-errors test: the new mechanism (IE-06-004)
+    tracks per-item attempts via the RetryStore.  When ``get_inbox_attempt_count``
+    returns ``max_attempts - 1``, the next failure is the last — the item is
+    dead-lettered and NOT re-appended to the queue.
+    """
     item_id = "https://example.org/activities/itm-001"
-    item = as_Activity(
-        id_=item_id,
-        type_="irrelevant",
-        actor="https://example.org/actors/test",
-        name="itm",
-    )
 
     mock_dl = MagicMock()
     mock_dl.read.return_value = None
-    # Inbox contains one item; after abort it should still be there
     _queue = [item_id]
     mock_dl.inbox_list.side_effect = lambda: list(_queue)
     mock_dl.inbox_pop.side_effect = lambda: _queue.pop(0) if _queue else None
     mock_dl.inbox_append.side_effect = _queue.append
-    # Prevent outbox_handler (called at end of inbox_handler) from looping
     mock_dl.outbox_list.return_value = []
+    # Simulate attempt count at max_attempts - 1 so the next failure exhausts
+    # the budget and triggers dead-lettering instead of requeue.
+    mock_dl.get_inbox_attempt_count.return_value = 11  # default max = 12
 
-    monkeypatch.setattr(ih, "rehydrate", lambda x, dl=None: item)
-
-    def fail_and_requeue(
-        actor_id,
-        canonical_actor_id,
-        item_id,
-        item,
-        dl,
-        queue_dl,
-        dispatcher=None,
-    ):
-        queue_dl.inbox_append(item_id)
-        return False
-
-    monkeypatch.setattr(ih, "_process_inbox_item", fail_and_requeue)
+    monkeypatch.setattr(
+        ih,
+        "rehydrate",
+        lambda x, dl=None: (_ for _ in ()).throw(RuntimeError("always fails")),
+    )
 
     asyncio.run(ih.inbox_handler("actor-xyz", mock_dl))
 
-    # Item should have been re-appended after each error
-    assert item_id in _queue
+    # Item exhausted its budget: dead-lettered, not re-queued.
+    mock_dl.inbox_dead_letter_append.assert_called_once()
+    assert item_id not in _queue
 
 
 def test_inbox_handler_rehydrate_protocol_violation_does_not_propagate(
@@ -158,16 +150,28 @@ def test_inbox_handler_rehydrate_protocol_violation_does_not_propagate(
 
 def test_inbox_handler_rehydrate_transient_error_requeues_item(monkeypatch):
     """AC-2 (#3044): A generic exception from rehydrate() inside inbox_handler()
-    must not propagate — transient failure, item must be re-queued for retry.
+    must not propagate — transient failure, item must be re-queued for retry
+    (when below the attempt limit, IE-06-004).
+
+    The test uses separate lists for the active queue (what inbox_list sees)
+    and the retry buffer (what inbox_append writes to) so that a single
+    loop pass is enough to confirm requeue without an infinite loop.
     """
     item_id = "https://example.org/activities/transient-fail-001"
     mock_dl = MagicMock()
     mock_dl.read.return_value = None
-    _queue = [item_id]
-    mock_dl.inbox_list.side_effect = lambda: list(_queue)
-    mock_dl.inbox_pop.side_effect = lambda: _queue.pop(0) if _queue else None
-    mock_dl.inbox_append.side_effect = _queue.append
+
+    # Active queue: only one item; after pop it is empty (ends the loop).
+    _active = [item_id]
+    # Retry buffer: collects requeued IDs without feeding the active loop.
+    _retried: list[str] = []
+
+    mock_dl.inbox_list.side_effect = lambda: list(_active)
+    mock_dl.inbox_pop.side_effect = lambda: _active.pop(0) if _active else None
+    mock_dl.inbox_append.side_effect = _retried.append
     mock_dl.outbox_list.return_value = []
+    # Attempt 0 → total 1 < max_attempts(12): item is requeued, not dead-lettered.
+    mock_dl.get_inbox_attempt_count.return_value = 0
 
     monkeypatch.setattr(
         ih,
@@ -179,9 +183,9 @@ def test_inbox_handler_rehydrate_transient_error_requeues_item(monkeypatch):
 
     asyncio.run(ih.inbox_handler("actor-xyz", mock_dl))
 
-    assert item_id in _queue, (
+    assert item_id in _retried, (
         "A transient rehydrate() failure must re-queue the item for retry"
-        " (#3044)"
+        " (#3044, IE-06-004)"
     )
 
 

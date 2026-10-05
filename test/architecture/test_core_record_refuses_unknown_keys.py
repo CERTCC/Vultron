@@ -51,6 +51,12 @@ _SAMPLES: dict[str, dict[str, Any]] = {
         "actor_id": _URI,
         "activity_id": _URI,
     },
+    "InboxDeadLetterEntry": {
+        "activity_id": _URI,
+        "actor_id": _URI,
+        "reason": "processing_error",
+        "total_attempts": 1,
+    },
     "OutboxDeadLetterEntry": {
         "activity_id": _URI,
         "actor_id": _URI,

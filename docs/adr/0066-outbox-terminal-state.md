@@ -171,6 +171,26 @@ pool growth.
 - Deferred — protocol-level NACK on exhaustion, and the inbound terminal-state
   model (#1880), are not decided here.
 
+## Inbox Unification (IE-06-004, #4168)
+
+The original decision text at line 40 and § "More Information" above noted that
+the analogous inbound question "SHOULD be unified with this model in a future ADR."
+That future ADR was superseded by spec requirement IE-06-004, which mandates the
+same persisted attempt counter and dead-letter store for inbox processing.
+The implementation landed in CERTCC/Vultron#4168:
+
+- A shared `QueueAttemptEntry` SQLModel table (composite PK: `queue`, `activity_id`)
+  backs both inbox and outbox attempt counters.
+  The existing `OutboxAttemptEntry` table is kept for backward compatibility
+  (deprecated) and all outbox methods delegate to the shared table with
+  `queue="outbox"`.
+- `InboxDeadLetterEntry(CoreRecord)` mirrors `OutboxDeadLetterEntry` and is
+  stored via `dl.save()` / `dl.by_type()`.
+- `RetryStore` extends `OutboxRetryStore` with the inbox-specific methods;
+  `SqliteDataLayer` satisfies both protocols structurally.
+- `AppConfig.max_inbox_retry_attempts` (default 12, matching the outbox default)
+  makes the inbox retry budget configurable.
+
 ## Generated Requirements
 
 - `specs/outbox.yaml` OX-13-001 through OX-13-006

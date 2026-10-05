@@ -10,7 +10,7 @@ stakeholder_type: [project-contributor]
 
 | System | Type | Purpose | Auth model | Criticality | Evidence |
 |--------|------|---------|------------|-------------|----------|
-| SQLite (via SQLModel/SQLAlchemy) | Database | Persistent storage for domain objects, received-activity archive, inbox/outbox queues and the outbox dead-letter store | None (local file or `:memory:`) | High | `vultron/adapters/driven/datalayer_sqlite/` |
+| SQLite (via SQLModel/SQLAlchemy) | Database | Persistent storage for domain objects, received-activity archive, inbox/outbox queues, and inbox/outbox dead-letter stores | None (local file or `:memory:`) | High | `vultron/adapters/driven/datalayer_sqlite/` |
 | Peer Vultron actors (HTTP/AS2) | Outbound HTTP API | ActivityStreams 2.0 message delivery to other actors' inboxes | HTTP Signatures (intended) — the production adapter docstring specifies signing with the local actor's private key (OX-10-004); that adapter is a `NotImplementedError` stub, so the demo path is unauthenticated | High | `vultron/adapters/driven/prod_http_delivery.py`, `vultron/adapters/driven/demo_http_delivery.py` |
 | ActivityPub / AS2 (inbound) | Inbound HTTP | Receive CVD coordination activities at `POST /actors/{actor_id}/inbox` | None implemented. Signature validation is planned for the shared-inbox adapter, which is a `NotImplementedError` stub (OX-11-001 to OX-11-004) | High | `vultron/adapters/driving/fastapi/routers/actors/_routes.py`, `vultron/adapters/driving/shared_inbox.py` |
 | Third-party trackers (Jira, VINCE) | Connector adapter | Translate external tracker events to/from Vultron domain; plugins are meant to be discovered via the `vultron.connectors` entry-point group | [ASK USER] — examples only; the plugin loader is a stub | Low | `vultron/adapters/connectors/example/`, `vultron/adapters/connectors/loader.py` |
@@ -35,7 +35,8 @@ stakeholder_type: [project-contributor]
 
 - **Per-recipient retry**: `HttpDeliveryAdapter` in `vultron/adapters/driven/http_delivery.py` retries 5xx and network errors with exponential backoff (`DEFAULT_MAX_RETRIES`, `DEFAULT_INITIAL_DELAY`, `DEFAULT_BACKOFF_MULTIPLIER`, `DEFAULT_MAX_DELAY`; SYNC-05-001, SYNC-05-002).
   A 4xx response is terminal and raises `DeliveryError` at once without consuming retries (OX-13-005).
-- **Total-attempt bound**: `outbox_handler.py` counts cumulative attempts per activity across drain passes and moves an activity to the dead-letter store at `MAX_TOTAL_ATTEMPTS` (ADR-0066, OX-13-002; `vultron/adapters/outbox_dead_letter.py`).
+- **Total-attempt bound (outbox)**: `outbox_handler.py` counts cumulative attempts per activity across drain passes and moves an activity to the outbox dead-letter store at `MAX_TOTAL_ATTEMPTS` (ADR-0066, OX-13-002; `vultron/adapters/outbox_dead_letter.py`).
+- **Total-attempt bound (inbox)**: `inbox_handler.py` counts cumulative processing attempts per inbox activity using the same `QueueAttemptEntry` table and moves an exhausted item to the inbox dead-letter store after `AppConfig.max_inbox_retry_attempts` attempts (IE-06-004; `InboxDeadLetterEntry` in `vultron/adapters/outbox_dead_letter.py`).
 - **Ordering**: delivery is per recipient in enqueue order, with one drain per actor (ADR-0112, `outbox_lanes.py`); the outbound body is the sealed JSON stored at emission (`vultron/adapters/outbox_sealed_body.py`).
 - **Timeout policy**: outbound HTTP requests use `DEFAULT_DELIVERY_TIMEOUT` (30 s) unless the adapter is constructed with another value
 - **Circuit-breaker or fallback**: not observed
