@@ -255,6 +255,132 @@ def test_outbox_handler_resolves_actor_by_short_id(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# Per-pass cap regression tests (OX-13-011) — #3770
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("OX-13-011")
+def test_capped_activity_is_not_attempted_again_in_same_pass(monkeypatch):
+    """A capped activity is not attempted after it hits the per-pass cap.
+
+    AC-2 (#3770): after an activity exceeds MAX_PER_PASS_ATTEMPTS in a pass,
+    any subsequent pop of that activity ID within the same pass MUST NOT
+    trigger a delivery call, MUST NOT increment the attempt counter, and
+    MUST NOT cause a backoff sleep.
+
+    Scenario: bad-1 fails MAX_PER_PASS_ATTEMPTS+1 times and is stalled; when
+    it re-appears in the queue while good-2 is still there, bad-1 is held
+    (no delivery) and good-2 is delivered.
+    """
+    bad_id = "urn:test:ox13011-bad"
+    good_id = "urn:test:ox13011-good"
+    queue = _make_queue(bad_id, good_id)
+    mock_dl = _mock_dl_with_queue(queue)
+    mock_dl.get_outbox_attempt_count.return_value = 0
+
+    delivery_calls: list[str] = []
+
+    async def track_and_raise(actor_id, activity_id, dl, emitter):
+        delivery_calls.append(activity_id)
+        if activity_id == bad_id:
+            raise RuntimeError("bad activity always fails")
+
+    async def no_sleep(_s):
+        return None
+
+    monkeypatch.setattr(oh, "handle_outbox_item", track_and_raise)
+    monkeypatch.setattr(oh.asyncio, "sleep", no_sleep)
+
+    asyncio.run(oh.outbox_handler("actor-xyz", mock_dl))
+
+    # bad_id should have been attempted exactly MAX_PER_PASS_ATTEMPTS + 1
+    # times and then stalled — not attempted again when re-popped.
+    bad_calls = delivery_calls.count(bad_id)
+    assert bad_calls == oh.MAX_PER_PASS_ATTEMPTS + 1, (
+        f"Expected {oh.MAX_PER_PASS_ATTEMPTS + 1} delivery attempts for bad_id,"
+        f" got {bad_calls}"
+    )
+    # good_id must be delivered
+    assert good_id in delivery_calls
+
+
+@pytest.mark.spec("OX-13-011")
+def test_capped_activity_remains_in_queue_after_pass(monkeypatch):
+    """A capped activity is still in the queue after the drain pass ends.
+
+    AC-4 (#3770): when all remaining items are stalled, the drain loop exits
+    leaving those items enqueued for the next pass, not discarded.
+    """
+    bad_id = "urn:test:ox13011-capped-in-queue"
+    queue = _make_queue(bad_id)
+    mock_dl = _mock_dl_with_queue(queue)
+    mock_dl.get_outbox_attempt_count.return_value = 0
+
+    async def always_raise(actor_id, activity_id, dl, emitter):
+        raise RuntimeError("permanent delivery failure")
+
+    async def no_sleep(_s):
+        return None
+
+    monkeypatch.setattr(oh, "handle_outbox_item", always_raise)
+    monkeypatch.setattr(oh.asyncio, "sleep", no_sleep)
+
+    asyncio.run(oh.outbox_handler("actor-xyz", mock_dl))
+
+    assert bad_id in queue, (
+        "A stalled (capped) activity must remain in the outbox queue "
+        "after the drain pass ends (OX-13-011)"
+    )
+
+
+@pytest.mark.spec("OX-13-006", "OX-13-011")
+def test_second_bad_activity_does_not_cause_extra_attempts_for_first(
+    monkeypatch,
+):
+    """Out-of-step scenario: first bad activity gets exactly MAX+1 attempts.
+
+    AC-3 (#3770): bad-1 starts failing; bad-2 is added to the queue partway
+    through (simulated by being in the queue at start).  bad-1 gets exactly
+    MAX_PER_PASS_ATTEMPTS+1 delivery attempts and its stored attempt count
+    increases by exactly MAX_PER_PASS_ATTEMPTS+1.  After being stalled, bad-1
+    is NOT attempted again in the same pass even when popped alongside bad-2.
+    """
+    bad1_id = "urn:test:ox13011-bad1"
+    bad2_id = "urn:test:ox13011-bad2"
+    queue = _make_queue(bad1_id, bad2_id)
+    mock_dl = _mock_dl_with_queue(queue)
+    mock_dl.get_outbox_attempt_count.return_value = 0
+
+    # Track set_outbox_attempt_count calls to count stored attempts.
+    stored_counts: dict[str, list[int]] = {bad1_id: [], bad2_id: []}
+
+    def track_set(activity_id, count):
+        if activity_id in stored_counts:
+            stored_counts[activity_id].append(count)
+
+    mock_dl.set_outbox_attempt_count.side_effect = track_set
+
+    async def always_raise(actor_id, activity_id, dl, emitter):
+        raise RuntimeError("delivery failure")
+
+    async def no_sleep(_s):
+        return None
+
+    monkeypatch.setattr(oh, "handle_outbox_item", always_raise)
+    monkeypatch.setattr(oh.asyncio, "sleep", no_sleep)
+
+    asyncio.run(oh.outbox_handler("actor-xyz", mock_dl))
+
+    # bad-1's stored attempt count must increase by exactly MAX_PER_PASS_ATTEMPTS+1
+    # (every in-pass attempt increments the persistent counter, then the row stalls).
+    expected = oh.MAX_PER_PASS_ATTEMPTS + 1
+    actual_bad1 = len(stored_counts[bad1_id])
+    assert actual_bad1 == expected, (
+        f"bad-1 should have {expected} stored-count increments, got {actual_bad1}"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Per-activity attempt counter + dead-letter (OX-13-001/002/003)
 # ---------------------------------------------------------------------------
 

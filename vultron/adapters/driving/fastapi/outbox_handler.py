@@ -91,9 +91,16 @@ logger = logging.getLogger(__name__)
 
 #: Maximum cumulative delivery attempts across all drain passes before an
 #: activity is moved to the dead-letter store (OX-13-002).  Chosen as
-#: (DEFAULT_MAX_RETRIES + 1) × ~3 drain passes — survives transient failures
+#: (MAX_PER_PASS_ATTEMPTS + 1) × ~3 drain passes — survives transient failures
 #: without running indefinitely.  See ADR-0066.
 MAX_TOTAL_ATTEMPTS: int = 12
+
+#: Maximum in-pass delivery attempts before a row is stalled for this pass
+#: (OX-13-006, OX-13-010, OX-13-011).  A fourth failure stalls the row;
+#: the row is deferred to the next drain pass without losing the item.
+#: Keeping this below MAX_TOTAL_ATTEMPTS / ~3 drain passes guarantees the
+#: total budget is not exhausted in a single pass.  See ADR-0066.
+MAX_PER_PASS_ATTEMPTS: int = 3
 
 # ---------------------------------------------------------------------------
 # Default emitter singleton
@@ -453,7 +460,7 @@ def _bookkeep_failure(
         e,
     )
     per_err = err_counts[activity_id] = err_counts.get(activity_id, 0) + 1
-    if per_err > 3:
+    if per_err > MAX_PER_PASS_ATTEMPTS:
         logger.error(
             "Too many errors for outbox item '%s',"
             " skipping for this pass (OX-13-006).",
