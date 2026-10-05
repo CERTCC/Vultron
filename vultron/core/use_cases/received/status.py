@@ -1,7 +1,7 @@
 """Use cases for case and participant status activities."""
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 import py_trees
 from py_trees.common import Status
@@ -52,6 +52,12 @@ if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
     from vultron.core.ports.wire_render import WireRenderPort
 
+from vultron.core.behaviors.sender_entitlement import (
+    SenderEntitlement,
+    SenderEntitlementKind,
+    exempt,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -74,6 +80,10 @@ def _adoption_gate_blocked(tree: py_trees.behaviour.Behaviour) -> bool:
 
 
 class CreateCaseStatusReceivedUseCase:
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4070", "no sender check defined for case status creation"
+    )
+
     def __init__(
         self,
         dl: CasePersistence,
@@ -99,6 +109,10 @@ class CreateCaseStatusReceivedUseCase:
 
 
 class AddCaseStatusToCaseReceivedUseCase:
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4070", "no sender check defined for case status update"
+    )
+
     def __init__(
         self,
         dl: CasePersistence,
@@ -182,6 +196,10 @@ class AddCaseStatusToCaseReceivedUseCase:
 
 
 class CreateParticipantStatusReceivedUseCase:
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4069", "no sender check defined for participant status creation"
+    )
+
     def __init__(
         self,
         dl: CasePersistence,
@@ -226,6 +244,10 @@ class AddParticipantStatusToParticipantReceivedUseCase:
     Per specs/multi-actor-demo.yaml DEMOMA-07-003,
         specs/behavior-tree-integration.yaml BT-06-001.
     """
+
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.ACTIVE_PARTICIPANT
+    )
 
     def __init__(
         self,

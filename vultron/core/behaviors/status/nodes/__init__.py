@@ -63,7 +63,6 @@ from vultron.core.behaviors.status.nodes.case_status import (
 from vultron.core.behaviors.status.nodes.conditions import (
     AllParticipantsRMClosedConditionNode,
     CloseNotYetEmittedConditionNode,
-    VerifySenderIsParticipantNode,
 )
 from vultron.core.behaviors.status.nodes.cs_dimension_filter import (
     BB_CASE_STATUS_DIM_FILTER,
@@ -97,7 +96,6 @@ __all__ = [
     # conditions
     "AllParticipantsRMClosedConditionNode",
     "CloseNotYetEmittedConditionNode",
-    "VerifySenderIsParticipantNode",
     # dimension_filter
     "BB_DIMENSION_FILTER",
     "FilterParticipantStatusDimensionsNode",

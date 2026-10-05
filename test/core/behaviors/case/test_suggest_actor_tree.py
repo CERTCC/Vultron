@@ -35,9 +35,6 @@ from vultron.core.behaviors.case.nodes.actor import (
     EmitInviteActorToCaseNode,
     EvaluateDefaultRolesNode,
 )
-from vultron.core.behaviors.case.nodes.vfd_role_guards import (
-    CheckIsCaseOwnerNode,
-)
 from vultron.core.behaviors.case.suggest_actor_tree import (
     ActorAlreadyParticipantNode,
     EmitAcceptActorRecommendationNode,
@@ -49,6 +46,9 @@ from vultron.core.behaviors.case.suggest_actor_tree import (
     create_accept_actor_recommendation_received_tree,
     create_recommend_actor_to_case_received_tree,
     create_reject_actor_recommendation_received_tree,
+)
+from vultron.core.behaviors.sender_entitlement import (
+    SenderIsCaseOwnerNode,
 )
 from vultron.core.models.protocol_pair import (
     INVITE_ACTOR_TO_CASE_REPLY_TYPES,
@@ -812,12 +812,12 @@ class TestDuplicateDetectionTreeStructure:
         assert isinstance(owner, py_trees.composites.Sequence)
         assert owner.name == "OwnerDirectInvite"
         assert [type(c) for c in owner.children] == [
-            CheckIsCaseOwnerNode,
+            SenderIsCaseOwnerNode,
             EvaluateDefaultRolesNode,
             EmitInviteActorToCaseNode,
         ]
         check = owner.children[0]
-        assert isinstance(check, CheckIsCaseOwnerNode)
+        assert isinstance(check, SenderIsCaseOwnerNode)
         assert check._sender_actor_id == _RECOMMENDER
         emit = owner.children[2]
         assert isinstance(emit, EmitInviteActorToCaseNode)
@@ -831,7 +831,7 @@ class TestDuplicateDetectionTreeStructure:
         child_types = [type(c) for c in fresh.children]
         guard = fresh.children[0]
         assert isinstance(guard, py_trees.decorators.Inverter)
-        assert isinstance(guard.decorated, CheckIsCaseOwnerNode)
+        assert isinstance(guard.decorated, SenderIsCaseOwnerNode)
         assert EvaluateDefaultRolesNode in child_types
         assert EmitOfferCaseParticipantToOwnerNode in child_types
 

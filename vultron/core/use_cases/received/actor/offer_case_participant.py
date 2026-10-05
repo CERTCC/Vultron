@@ -29,7 +29,7 @@ of a copy refuses (#3752).
 """
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.suggest_actor_tree import (
@@ -63,6 +63,11 @@ if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
     from vultron.core.ports.wire_render import WireRenderPort
 
+from vultron.core.behaviors.sender_entitlement import (
+    SenderEntitlement,
+    exempt,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -82,6 +87,10 @@ class OfferCaseParticipantReceivedUseCase:
     CASE_MANAGER nor an addressee holds a misaddressed copy and refuses
     (HP-01-005, #3752).
     """
+
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4070", "no sender check for case participant offer"
+    )
 
     def __init__(
         self,
@@ -233,6 +242,10 @@ class AcceptOfferCaseParticipantReceivedUseCase:
     receiver refuses (HP-01-005, #3752).
     """
 
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4070", "no sender check for accept case participant offer"
+    )
+
     def __init__(
         self,
         dl: CasePersistence,
@@ -340,6 +353,10 @@ class RejectOfferCaseParticipantReceivedUseCase:
     holding ``CVDRole.CASE_MANAGER`` (BT-17-001); any other receiver refuses
     (HP-01-005, #3752).
     """
+
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4070", "no sender check for reject case participant offer"
+    )
 
     def __init__(
         self,

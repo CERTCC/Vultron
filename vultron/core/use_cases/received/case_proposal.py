@@ -31,7 +31,7 @@ Three use cases covering the full CP message flow (ADR-0023):
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.bridge import BTBridge
@@ -64,6 +64,10 @@ from vultron.core.behaviors.case.nodes.proposal_retry_marker import (
 from vultron.core.behaviors.case.reject_case_proposal_received_tree import (
     RecordCaseProposalRejectionNode,
     create_reject_case_proposal_received_tree,
+)
+from vultron.core.behaviors.sender_entitlement import (
+    SenderEntitlement,
+    exempt,
 )
 from vultron.core.models.events.case_proposal import (
     AcceptCaseProposalReceivedEvent,
@@ -125,6 +129,10 @@ class CreateCaseProposalReceivedUseCase:
 
     Spec: CP-05-001 through CP-05-004.
     """
+
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4072", "no sender check for case proposals"
+    )
 
     def __init__(
         self,
@@ -331,6 +339,10 @@ class AcceptCaseProposalReceivedUseCase:
     Spec: CP-06-001, CP-06-003.
     """
 
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4072", "pending sender check for accept case proposal"
+    )
+
     def __init__(
         self,
         dl: CasePersistence,
@@ -410,6 +422,10 @@ class RejectCaseProposalReceivedUseCase:
 
     Spec: CP-06-002, CP-06-004.
     """
+
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4072", "pending sender check for reject case proposal"
+    )
 
     def __init__(
         self,

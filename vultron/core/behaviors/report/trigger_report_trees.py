@@ -44,9 +44,6 @@ import py_trees
 from vultron.core.behaviors.call_out.bundles.close_report import (
     CLOSE_REPORT_DETERMINISTIC,
 )
-from vultron.core.behaviors.case.nodes.vfd_role_guards import (
-    CheckIsCaseOwnerNode,
-)
 from vultron.core.behaviors.report.nodes.close_conditions import (
     CheckReportClosable,
 )
@@ -61,6 +58,9 @@ from vultron.core.behaviors.report.nodes.emit import (
 from vultron.core.behaviors.report.nodes.rm_transitions import (
     TransitionRMtoClosed,
     TransitionRMtoInvalid,
+)
+from vultron.core.behaviors.sender_entitlement import (
+    SenderIsCaseOwnerNode,
 )
 
 if TYPE_CHECKING:
@@ -247,7 +247,7 @@ def create_close_case_trigger_tree(
         name="CloseCaseTriggerBT",
         memory=False,
         children=[
-            CheckIsCaseOwnerNode(
+            SenderIsCaseOwnerNode(
                 sender_actor_id=actor_id,
                 case_id=case_id,
                 name="CheckCaseOwner",
