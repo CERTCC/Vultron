@@ -258,7 +258,8 @@ Once the plan is confirmed:
 5. **Iterate**: run `format-code`, `run-linters`, `run-tests`; refine until
    all relevant tests pass. Apply branch-ownership and pre-existing-failure
    rules from `completeness-doctrine.md`. A failing check holds the PR whatever
-   its cause (§ "Never Merge on Red"); never bypass a pre-commit hook (sole exception: the devcontainer `actionlint` hang, `notes/devcontainer-tooling.md`).
+   its cause (§ "Never Merge on Red"); never bypass a pre-commit hook (sole exception: the devcontainer
+   `actionlint` hang, `notes/devcontainer-tooling.md`).
 
 6. **Finalize** — in this order. `archive-history` comes *after* `create-pr`
    because its entry body carries the PR URL, which does not exist until the PR

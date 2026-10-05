@@ -187,8 +187,9 @@ bash .agents/skills/shared/spec-amendments.sh origin/<base_ref>
 Exit `1` lists requirements whose `statement:` or `priority:` the PR changed or
 removed. The live PR body must then carry a `## Spec amended` section naming each
 listed ID (`.agents/skills/shared/pr-body-guide.md` § "Spec amended"). A missing
-section, a listed ID the section omits, or a change that obliges something
-different with no recorded user approval → flag `MISSING-SPEC-AMENDED`, which
+section, a listed ID the section omits, a leftover `<TODO>` in it, or a change
+that obliges something different with no recorded user approval → flag
+`MISSING-SPEC-AMENDED`, which
 blocks `READY-TO-MERGE`. Exit `0` needs nothing.
 
 ### Phase 4 — Spot-Verify FAIL Findings

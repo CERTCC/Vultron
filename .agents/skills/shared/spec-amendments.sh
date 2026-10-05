@@ -37,43 +37,56 @@ def load(ref: str, path: str) -> dict[str, dict[str, str]]:
         ["git", "show", f"{ref}:{path}"], capture_output=True, text=True
     )
     if shown.returncode != 0:
-        return {}
+        if ref == base:
+            # Changed/deleted files exist on base; a miss is a load error.
+            raise RuntimeError(f"cannot read {ref}:{path}: {shown.stderr.strip()}")
+        return {}  # absent on head: the file was deleted
     doc = yaml.safe_load(shown.stdout) or {}
     found: dict[str, dict[str, str]] = {}
-    for group in doc.get("groups", []):
-        for spec in group.get("specs", []):
-            found[spec["id"]] = {
-                "statement": " ".join(str(spec.get("statement", "")).split()),
-                "priority": str(spec.get("priority", "")),
+    for group in doc.get("groups") or []:
+        for spec in group.get("specs") or []:
+            found[str(spec["id"])] = {
+                "statement": " ".join((spec.get("statement") or "").split()),
+                "priority": str(spec.get("priority") or ""),
             }
     return found
 
 
-# A requirement moved to another spec file is looked up in every head spec file.
-head_specs: dict[str, dict[str, str]] = {}
-listing = subprocess.run(
-    ["git", "ls-tree", "-r", "--name-only", head, "specs/"],
-    capture_output=True,
-    text=True,
-    check=True,
-)
-for name in listing.stdout.split():
-    if name.endswith(".yaml"):
-        head_specs.update(load(head, name))
+def main() -> int:
+    # A requirement moved to another spec file is looked up in every head spec file.
+    head_specs: dict[str, dict[str, str]] = {}
+    listing = subprocess.run(
+        ["git", "ls-tree", "-r", "--name-only", head, "specs/"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    for name in listing.stdout.split():
+        if name.endswith(".yaml"):
+            head_specs.update(load(head, name))
 
-amended = []
-for path in os.environ["FILES"].split():
-    old = load(base, path)
-    for spec_id, before in old.items():
-        after = head_specs.get(spec_id)
-        if after is None:
-            amended.append((spec_id, "removed", "statement,priority"))
-            continue
-        fields = [k for k in ("statement", "priority") if before[k] != after[k]]
-        if fields:
-            amended.append((spec_id, "changed", ",".join(fields)))
+    amended = []
+    for path in os.environ["FILES"].split():
+        old = load(base, path)
+        for spec_id, before in old.items():
+            after = head_specs.get(spec_id)
+            if after is None:
+                amended.append((spec_id, "removed", "statement,priority"))
+                continue
+            fields = [k for k in ("statement", "priority") if before[k] != after[k]]
+            if fields:
+                amended.append((spec_id, "changed", ",".join(fields)))
 
-for row in sorted(amended):
-    print("\t".join(row))
-sys.exit(1 if amended else 0)
+    for row in sorted(amended):
+        print("\t".join(row))
+    return 1 if amended else 0
+
+
+try:
+    sys.exit(main())
+except SystemExit:
+    raise
+except Exception as exc:  # load error, not an amendment
+    print(f"spec-amendments: {exc!r}", file=sys.stderr)
+    sys.exit(2)
 PY

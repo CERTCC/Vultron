@@ -129,3 +129,53 @@ def test_deleted_spec_file_flags_its_requirements(repo: Path) -> None:
     assert result.returncode == 1, result.stderr
     assert "req-a\tremoved" in result.stdout
     assert "req-b\tremoved" in result.stdout
+
+
+def test_malformed_yaml_is_a_load_error_not_an_amendment(repo: Path) -> None:
+    _commit_spec(repo, "groups: [unclosed\n")
+    result = _run(repo)
+    assert result.returncode == 2, result.stdout
+    assert result.stdout == ""
+
+
+def test_unknown_base_ref_is_a_load_error(repo: Path) -> None:
+    result = subprocess.run(
+        ["bash", str(SCRIPT), "no-such-ref", "HEAD"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 2
+
+
+def test_null_groups_key_does_not_crash(repo: Path) -> None:
+    _commit_spec(repo, "id: demo\ngroups:\n")
+    result = _run(repo)
+    assert result.returncode == 1, result.stderr
+    assert "req-a\tremoved" in result.stdout
+
+
+def test_moved_requirement_with_edited_statement_is_changed(
+    repo: Path,
+) -> None:
+    (repo / "specs" / "xx.yaml").rename(repo / "specs" / "yy.yaml")
+    (repo / "specs" / "yy.yaml").write_text(
+        _SPEC.replace("Another requirement.", "Another, stricter requirement.")
+    )
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "move and edit")
+    result = _run(repo)
+    assert result.returncode == 1, result.stderr
+    assert result.stdout.strip() == "req-b\tchanged\tstatement"
+
+
+def test_id_removed_from_one_file_but_present_in_another_is_not_removed(
+    repo: Path,
+) -> None:
+    (repo / "specs" / "yy.yaml").write_text(
+        _SPEC.replace("id: demo", "id: other")
+    )
+    _git(repo, "add", "-A")
+    _commit_spec(repo, _SPEC.split("      - id: req-b", maxsplit=1)[0])
+    assert _run(repo).returncode == 0

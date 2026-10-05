@@ -220,8 +220,10 @@ iterations:
    [REFERENCE.md](REFERENCE.md) § "Flaky Test Dedup"); cite that issue in
    `skip_reason`. A rerun that passes with no such issue is not evidence —
    file the issue with the reproduction and leave the PR held.
-5. **Never bypass a pre-commit hook** (`--no-verify`, `SKIP=`) (sole exception: the devcontainer `actionlint` hang, `notes/devcontainer-tooling.md`),
-   including the spec-lint hook. Fix what the hook reports and re-stage.
+5. **Never bypass a pre-commit hook** (`--no-verify`, `SKIP=`),
+   including the spec-lint hook. Fix what the hook reports and re-stage. The
+   sole exception is the devcontainer `actionlint` hang
+   (`notes/devcontainer-tooling.md`).
 
 Commit CI fixes separately from Phase 2 fixes:
 

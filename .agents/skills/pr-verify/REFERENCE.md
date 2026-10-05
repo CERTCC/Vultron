@@ -72,7 +72,7 @@ this PR. Please decide whether to fold them in before merge:
 | ⚠️ UNSYNCED-EXECUTE | `execute.merge_state` missing or `synced: false` — execute never confirmed mergeability |
 | 📝 PR-IS-DRAFT | PR is still a draft (check for a lingering `needs-rebase` label) |
 | 📄 STALE-DOCS-LINE | PR body's `Docs:` line is missing, still the placeholder, does not cover a fix commit that changed described behavior, or names a page the diff does not change (Phase 3b) |
-| 📑 MISSING-SPEC-AMENDED | `spec-amendments.sh` lists an amended `statement:`/`priority:` and the PR body lacks a `## Spec amended` section naming it (Phase 3c) |
+| 📑 MISSING-SPEC-AMENDED | `spec-amendments.sh` lists an amended `statement:`/`priority:` and the PR body lacks a `## Spec amended` section naming it, or that section still holds a `<TODO>` (Phase 3c) |
 | 🔒 BLOCKED-BY-POLICY | `mergeStateStatus: BLOCKED` — missing required review/check; reported, not verdict-blocking |
 
 ### Overall Verdict Rules

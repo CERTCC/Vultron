@@ -166,7 +166,9 @@ Bug issue carries no `Docs:` line.
 bash .agents/skills/shared/spec-amendments.sh origin/main
 ```
 
-Exit `0`: add nothing. Exit `1`: the diff changed or removed a `statement:` or
+Exit `2` is a load error (bad ref, unreadable spec file): stop and report it;
+it is not "no amendment". Exit `0`: add nothing. Exit `1`: the diff changed or
+removed a `statement:` or
 `priority:` in `specs/`, so the body MUST carry a `## Spec amended` section
 (`.agents/skills/shared/pr-body-guide.md` § "Spec amended"). If the body has
 none, insert this placeholder immediately after `## Specs` (after `## Changes`
