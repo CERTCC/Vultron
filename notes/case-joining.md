@@ -89,7 +89,10 @@ exception is the ledger entry that records its own closure: it is the last thing
 the participant receives, and the participant waits for it rather than writing
 `CLOSED` to its own replica. Later entries, including `case_fully_closed`, reach
 only participants not yet closed, and a closed replica does not learn of later
-closures. The CASE_MANAGER's store is where every participant's closure is
+closures. The exception never widens entitlement (a participant that is inert
+or removed when it leaves is not sent its closure entry), and the CM-31-009
+embargo notice to a closed `SIGNATORY` is the only other message a closed
+participant gets. The CASE_MANAGER's store is where every participant's closure is
 verified, so the demos' "all participants closed" check reads that store. The
 recipient selection therefore drops a closed participant from every content send
 except the entry about its own closure, and the `skip_closed` variant stops

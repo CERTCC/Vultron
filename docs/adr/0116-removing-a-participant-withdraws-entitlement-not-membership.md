@@ -59,7 +59,7 @@ A participant record carries a stored removal fact.
 The record, its status history and the ledger entries it authored all stay.
 Whether a participant is active is computed by **one case-level check** from stored facts: joined (seated by case initialization, or accepted its stub Invite), not removed, and `SIGNATORY` when an embargo is active.
 The answer is never stored.
-RM `CLOSED` is not part of the check: the `case_fully_closed` fan-out must still reach a closed replica, and whether a closed participant receives other case content is #4100's question, which this decision leaves open.
+RM `CLOSED` is not part of the check, but it ends content delivery all the same: a closed participant receives only the entry that records its own closure, and `case_fully_closed` reaches only participants not yet closed (CM-23-004, ADR-0114).
 
 The check is a case method, not a participant property.
 "Is an embargo active" is case state that a participant record cannot see, and a participant-level property covering only part of the answer would read as "active" at a send site and leak embargoed content to a non-signatory.

@@ -32,9 +32,10 @@ which mechanism is canonical?
 - A lost `Add(ParticipantStatus, rm_state=RM.CLOSED)` message would allow a
   participant to ghost a case: their local state becomes `RM.CLOSED` but peers
   never learn about it.
-- The `Leave` round-trip makes closure observable to all replicas via the
-  canonical ledger rather than as a direct state assertion from the departing
-  participant.
+- The `Leave` round-trip makes closure observable to every replica that still
+  receives case content, via the canonical ledger rather than as a direct state
+  assertion from the departing participant (a replica at `RM.CLOSED` receives
+  only its own closure entry, CM-23-004).
 - The existing `CloseCaseReceivedUseCase` and `create_close_case_received_tree`
   already implement the `Leave` path as of #1909.
 
@@ -62,8 +63,8 @@ Chosen option: **`Leave(VulnerabilityCase)` only**, because:
 
 ### Consequences
 
-- Good, because RM closure is observable on all replicas via the canonical
-  ledger chain, not inferred from direct status assertions.
+- Good, because RM closure is observable on every replica that still receives
+  case content (CM-23-004) via the canonical ledger chain, not inferred from direct status assertions.
 - Good, because the Case Actor can enforce closure sequencing (e.g., embargo
   teardown must precede closure) via the `Leave` receive path.
 - Good, because `AutoCloseSequence` in `add_participant_status_tree` becomes

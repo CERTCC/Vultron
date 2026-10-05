@@ -133,7 +133,11 @@ is `CLOSED` has declared it has stopped paying attention, and receives nothing
 further either way (CM-23-004). The one exception is the ledger entry that
 records its own closure, which is the last thing it receives: it waits for that
 entry rather than writing `CLOSED` itself, and its replica never learns of later
-closures. Every participant's closure is verified in the CASE_MANAGER's store.
+closures. The exception never widens entitlement: a participant that is inert or
+removed when it leaves is not sent its closure entry. The CM-31-009 embargo
+notice to a closed `SIGNATORY` is the only other message it can receive, and it
+carries no case content. Every participant's closure is verified in the
+CASE_MANAGER's store.
 
 ### Replies to the stub Invite
 
