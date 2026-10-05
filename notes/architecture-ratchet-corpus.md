@@ -144,7 +144,7 @@ Two checks, split by what they need:
   issue when one is closed. It does not fail the build. A hard failure would turn
   `main` red when an unrelated issue closes — the same race as a two-directional
   count pin, where two pull requests that are each green land together and
-  `main` goes red (`plan/incoming/learnings/20260930-3828-*`).
+  `main` goes red (`plan/history/2609/learning/ISSUE-3828.md`).
 
 MS-10-006 is the precedent: the spec-corpus ceiling table in
 `vultron/metadata/specs/verification.py` already requires an owner per non-zero
