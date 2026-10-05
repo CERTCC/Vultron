@@ -34,7 +34,10 @@ if TYPE_CHECKING:
 
 from sqlmodel import Session, SQLModel
 
-from vultron.adapters.outbox_dead_letter import OutboxDeadLetterEntry
+from vultron.adapters.outbox_dead_letter import (
+    InboxDeadLetterEntry,
+    OutboxDeadLetterEntry,
+)
 from vultron.core.models.case import VulnerabilityCase as _VC
 from vultron.core.models.protocol_pair import ProtocolPair
 from vultron.core.models.protocols import PersistableModel
@@ -407,3 +410,43 @@ class SqliteDataLayer:
     def dead_letter_list(self) -> list[OutboxDeadLetterEntry]:
         """Return this actor's dead-letter entries (OX-13-004)."""
         return queues.dead_letter_list(self)
+
+    # ------------------------------------------------------------------
+    # Per-activity inbox attempt counter (IE-06-004)
+    # ------------------------------------------------------------------
+
+    def get_inbox_attempt_count(self, activity_id: str) -> int:
+        """Return this actor's cumulative processing attempt count for inbox *activity_id*."""
+        return queues.get_inbox_attempt_count(self, activity_id)
+
+    def set_inbox_attempt_count(self, activity_id: str, count: int) -> None:
+        """Upsert this actor's processing attempt count for inbox *activity_id*."""
+        queues.set_inbox_attempt_count(self, activity_id, count)
+
+    def clear_inbox_attempt_count(self, activity_id: str) -> None:
+        """Remove this actor's attempt count entry for inbox *activity_id*."""
+        queues.clear_inbox_attempt_count(self, activity_id)
+
+    # ------------------------------------------------------------------
+    # Inbox dead-letter store (IE-06-004)
+    # ------------------------------------------------------------------
+
+    def inbox_dead_letter_append(
+        self,
+        activity_id: str,
+        reason: str,
+        total_attempts: int,
+        last_error: str = "",
+    ) -> None:
+        """Write an exhausted inbox activity to this actor's dead-letter store."""
+        queues.inbox_dead_letter_append(
+            self,
+            activity_id,
+            reason,
+            total_attempts,
+            last_error,
+        )
+
+    def inbox_dead_letter_list(self) -> list[InboxDeadLetterEntry]:
+        """Return this actor's inbox dead-letter entries (IE-06-004)."""
+        return queues.inbox_dead_letter_list(self)
