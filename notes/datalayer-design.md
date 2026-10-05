@@ -579,10 +579,11 @@ retired key the row carries is reported, not only the first (EH-07-001), and a
 retirement table whose replacement the model does not declare, or whose old key
 it still declares, fails at class definition.
 
-The declaration is what makes the refusal legible. `CoreRecord` ignores unknown
-keys, so an undeclared rename reads an old row back either with the new field
-silently `None` (when it is optional) or as a bare "field required" for a name
-the operator never wrote. The SQLite read path logs the validation reason at
+The declaration is what makes the refusal legible. `CoreRecord` refuses unknown
+keys (`extra="forbid"`, #4186), so an undeclared rename never loses a field
+silently, but the row fails with a bare "extra inputs are not permitted" plus a
+"field required" for a name the operator never wrote, and nothing says a rename
+happened. The SQLite read path logs the validation reason at
 WARNING when it reads such a row as absent, for core-registered and
 bookkeeping row types alike, so `dl.read()` returning `None` always has a
 logged cause. Because no row survives the rename, every PR that renames a

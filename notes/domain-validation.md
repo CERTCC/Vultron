@@ -227,7 +227,7 @@ regressed.
 The mirror-image concern is a core type validated against a wire-spelled
 payload. Pydantic v2 ignores unknown keys by default, so every snake-only key
 was dropped in silence. Since #2940 that is handled by `extra="forbid"` on
-`CoreObject` (ARCH-12-003) rather than by the per-class
+`CoreRecord`, so `CoreObject` and every stored record (ARCH-12-003, #4186) rather than by the per-class
 `reject_wire_spelled_keys()` guard, which is deleted. Note the narrower scope of
 what `forbid` actually rejects: *unknown* keys. A flat `rm_state`/`rmState` on
 `ParticipantStatus` or `CaseStatus` is still accepted, because those spellings

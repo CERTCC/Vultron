@@ -36,7 +36,7 @@ from typing import Any, Literal
 from pydantic import Field, model_validator
 
 from vultron.core.models.activity import VultronActivity
-from vultron.core.models.base import CoreRecord, NonEmptyString
+from vultron.core.models.base import CoreRecord, NonEmptyString, with_record_id
 
 
 class ReceivedActivityRecord(CoreRecord):
@@ -80,8 +80,7 @@ class ReceivedActivityRecord(CoreRecord):
         if isinstance(data, dict):
             activity_id = data.get("activity_id")
             if activity_id is not None:
-                data = dict(data)
-                data["id"] = cls.build_id(activity_id)
+                data = with_record_id(data, cls.build_id(activity_id))
         return data
 
 
