@@ -206,6 +206,7 @@ groups:
   - id: MSM-02-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: Protocol shorthand `EV` (Embargo Revision Proposed) MUST dispatch as `MessageSemantics.INVITE_TO_EMBARGO_ON_CASE`;
       its AS2 wire form is `Invite(Event)[context=VulnerabilityCase]` per VAM-05-005 — identical to `EP`. The revision context
       is inferred from the presence of an active embargo.

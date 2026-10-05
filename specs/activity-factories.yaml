@@ -22,6 +22,7 @@ groups:
   - id: AF-01-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: Factory functions MUST return plain AS2 base types (e.g. `as_Offer`, `as_Accept`, `as_Create`) rather than
       Vultron activity subclasses
   - id: AF-01-003
@@ -67,19 +68,23 @@ groups:
   - id: AF-02-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: All factory functions MUST live in the `vultron/wire/as2/factories/` package — a sibling of `vultron/wire/as2/vocab/`
   - id: AF-02-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: 'The `factories/` package MUST be organized into one module per protocol domain, with one factory module for each module present in `vocab/activities/` (e.g. `embargo.py`, `report_management.py`, `case_management.py`). New `vocab/activities/` modules MUST have a corresponding `factories/` module added at the same time.'
   - id: AF-02-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: '`factories/__init__.py` MUST re-export every factory function from all domain modules so callers can use a
       single `from vultron.wire.as2.factories import ...` import'
   - id: AF-02-004
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: '`VultronActivityConstructionError` MUST be defined in `vultron/wire/as2/factories/errors.py` and imported
       into `factories/__init__.py`'
 - id: AF-03
@@ -97,10 +102,12 @@ groups:
   - id: AF-04-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: Every factory function MUST wrap Pydantic `ValidationError` in `VultronActivityConstructionError`
   - id: AF-04-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: '`VultronActivityConstructionError` MUST be defined in `vultron/wire/as2/factories/errors.py` and re-exported
       from `vultron/wire/as2/factories/__init__.py`'
   - id: AF-04-003
@@ -114,6 +121,7 @@ groups:
   - id: AF-05-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: Vultron activity subclasses in `vultron/wire/as2/vocab/activities/` MUST NOT be imported by any module outside
       that package or `vultron/wire/as2/factories/`
   - id: AF-05-002
@@ -134,11 +142,13 @@ groups:
   - id: AF-06-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: A pytest test in `test/architecture/` MUST verify that no Python source file outside `vultron/wire/as2/vocab/activities/`
       and `vultron/wire/as2/factories/` contains an import from `vultron.wire.as2.vocab.activities`
   - id: AF-06-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The `test/architecture/` package MUST be a proper pytest package (`__init__.py` present) so that future architectural
       enforcement tests can be added alongside it
 - id: AF-07
@@ -155,6 +165,7 @@ groups:
   - id: AF-08-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: All call sites outside `vultron/wire/as2/vocab/activities/` and `vultron/wire/as2/factories/` that directly
       instantiate a Vultron activity subclass MUST be migrated to use the corresponding factory function
   - id: AF-08-002
@@ -167,6 +178,7 @@ groups:
   - id: AF-09-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: 'The correct replacement for `from_core()` calls in `vultron/core/use_cases/` is a driven-adapter port: a `Protocol`
       interface defined in `vultron/core/` that accepts domain objects and returns wire activities, implemented by an adapter
       in the wire layer. Core use-cases MUST NOT import from `vultron/wire/` directly; they MUST call through the port.'
@@ -181,6 +193,7 @@ groups:
   - id: AF-09-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The Activity Translator port MUST be injected into use-cases via dependency injection (constructor parameter
       or factory argument). Use-cases MUST NOT instantiate the wire-layer translator directly.
     relationships:

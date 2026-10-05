@@ -14,6 +14,7 @@ groups:
   - id: DL-01-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: '`dl.read(id)` MUST return a fully rehydrated, typed domain object: a Pydantic model instance with all dehydrated
       ID-string fields expanded to their full typed objects; if the object does not exist, `VultronNotFoundError` MUST be
       raised.'
@@ -23,6 +24,7 @@ groups:
   - id: DL-01-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: '`dl.list(type_key)` MUST return an iterable of fully rehydrated, typed domain objects; an empty result MUST
       be returned (not an error) when no objects of the given type exist.'
     rationale: Consistent with DL-01-001 rehydration guarantee.
@@ -31,6 +33,7 @@ groups:
   - id: DL-01-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: Rehydration MUST cover all fields the adapter dehydrates on write (including `object_`, `target`, `origin`);
       if a dehydrated field references a missing ID, the adapter MUST log a WARNING and return the ID string as-is.
     rationale: Preserves partial readability when nested objects are deleted.
@@ -39,6 +42,7 @@ groups:
   - id: DL-01-004
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: Core use cases MUST NOT contain manual coercion of `dl.read()` results; specifically, `model_validate` on a
       `dl.read()` result, `record_to_object()` calls, and `isinstance(result, Document)` checks are prohibited in `vultron/core/`.
     rationale: These patterns indicate the adapter is not satisfying its rehydration contract and MUST be fixed in the adapter,
@@ -51,6 +55,7 @@ groups:
   - id: DL-02-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: '`dl.save(obj)` MUST accept a typed Pydantic domain object directly and handle all serialisation and dehydration
       internally; core MUST NOT call `object_to_record()` before passing an object to `dl.save()`.'
     rationale: Keeps serialisation concerns inside the adapter layer.
@@ -59,6 +64,7 @@ groups:
   - id: DL-02-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: '`dl.save(obj)` MUST be idempotent with respect to the object''s `id_`: saving the same object twice with the
       same ID MUST produce the same stored state as saving it once (upsert semantics).'
     rationale: Idempotent writes prevent duplicate-key errors in retry scenarios.
@@ -85,6 +91,7 @@ groups:
   - id: DL-03-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The `DataLayer` port (`vultron/core/ports/datalayer.py`) MUST be defined entirely in terms of core domain types
       and MUST NOT import from `vultron/wire/`, `vultron/adapters/`, or any storage-specific library (SQLModel, TinyDB, etc.).
     rationale: Enforces hexagonal architecture layer separation (ARCH-01-001).
@@ -94,6 +101,7 @@ groups:
   - id: DL-03-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The DataLayer adapter MUST NOT expose vocabulary registry lookups or AS2 type-name resolution to core; the
       vocabulary registry is a wire-layer concern and the adapter must maintain its own internal mapping.
     rationale: Prevents wire-layer types from leaking into the core domain through the persistence port.
@@ -103,6 +111,7 @@ groups:
   - id: DL-04-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The `DataLayer` port MUST remain the full adapter-level persistence contract, while core use cases and BT
       nodes MUST depend on `CasePersistence` or `CaseOutboxPersistence` instead of the full `DataLayer` port unless a
       documented exception requires the broader interface.
@@ -114,6 +123,7 @@ groups:
   - id: DL-04-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The current required minimum `CasePersistence` surface is `actor_id`, `clone_for_actor`, `create`, `read`,
       `read_case`, `save`, `save_many`, `list_objects`, `find_case_by_report_id`, `find_actor_by_short_id`,
       `find_case_by_short_id`, `find_protocol_pair`, and `delete`; future additions MAY be made only when they preserve
@@ -134,6 +144,7 @@ groups:
     - rationale_too_long
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: '`CasePersistence` MUST NOT include inbox queue methods, outbox inspection or drain methods, `ping`,
       `clear_*`, `update`, `get_all`, `all`, `count_all`, or other infrastructure, admin, or diagnostic
       operations that belong to the full `DataLayer` adapter contract.'
@@ -147,6 +158,7 @@ groups:
   - id: DL-04-004
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: '`CaseOutboxPersistence` MUST extend `CasePersistence` only with the outbound enqueue method
       `outbox_append`; if a `ReceivedUseCase` depends on `CaseOutboxPersistence`, that dependency MUST be treated as a
       documented architectural smell rather than normal design.'
@@ -161,6 +173,7 @@ groups:
   - id: DL-04-005
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: '`get()` and `by_type()` MUST NOT be declared on `CasePersistence`; core code MUST use typed `read()`,
       `list_objects()`, or dedicated typed helper methods. Any reintroduction of a raw-record escape hatch on the narrow
       port MUST be recorded as a deliberate decision rather than added incidentally.'
@@ -177,6 +190,7 @@ groups:
   - id: DL-05-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: '`dl.read(id)` and `dl.list_objects(type_key)` MUST reconstruct persisted domain entities using the core
       vocabulary registry (`vultron.core.models.registry.CORE_VOCABULARY`) so that the returned instance is a
       `vultron.core.models` type (e.g. core `VulnerabilityCase`), never a `vultron.wire.as2.vocab` type
@@ -196,6 +210,7 @@ groups:
   - id: DL-05-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The DataLayer adapter MUST own the wire↔core translation for persistence.
     rationale: >-
       The wire registry is a wire-layer concern (DL-03-002). Making the adapter own translation
@@ -210,6 +225,7 @@ groups:
   - id: DL-05-003
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: >-
       Core code (`vultron/core/`) MUST NOT use structural duck-typing Protocols to accept
       DataLayer results without importing concrete core types. Core MUST depend on concrete
@@ -228,6 +244,7 @@ groups:
   - id: DL-05-004
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: An architecture ratchet test MUST assert that no `vultron.wire.as2` vocabulary type is returned from
       `dl.read()` / `dl.list_objects()` into `vultron/core/`; the test MAY exempt persisted AS2 Activity types that have no
       registered core counterpart, and any such exemption MUST be enumerated explicitly so the exemption set can only shrink.
@@ -278,6 +295,7 @@ groups:
   - id: DL-05-006
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       The DataLayer adapter MUST maintain its own `type_`→core-class mapping (via
       `CORE_VOCABULARY`) that is independent of the wire `VOCABULARY` registry.
@@ -290,6 +308,7 @@ groups:
   - id: DL-05-007
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: >-
       The wire vocabulary registry MUST NOT be the mechanism by which core objects are
       reconstructed on the DataLayer read path.
@@ -365,6 +384,7 @@ groups:
   - id: DL-06-001
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: >-
       Core code (`vultron/core/`) MUST NOT call `dl.read(activity_id)` or `dl.list_objects(<activity_type>)` to recover
       the semantic content of a persisted wire AS2 Activity (e.g. reading a stored `Offer` to obtain the embedded report,
@@ -387,6 +407,7 @@ groups:
   - id: DL-06-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       Every domain fact an actor must remember from a received protocol message MUST be recorded as core state — either a
       state transition on an existing core entity or a purpose-built core record — at the point the semantic extractor
@@ -408,6 +429,7 @@ groups:
   - id: DL-06-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       When an inbound protocol message references a prior message (e.g. an Accept answering an Invite, a counter-offer
       answering an Offer), core MUST correlate them through a core-entity relationship (e.g. "the pending embargo proposal
@@ -425,6 +447,7 @@ groups:
   - id: DL-06-004
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       Reconstituting the verbatim original activity for an outbound reply's inline `object_` / `in_reply_to` field (as the
       Actor Knowledge Model requires) MAY read a stored activity payload back, but this retrieval MUST be owned by the
@@ -448,6 +471,7 @@ groups:
   - id: DL-06-005
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       As each core semantic read is migrated off activity read-back (per DL-06-001 through DL-06-003), the corresponding
       AS2 Activity type MUST be removed from the DL-05-004 ratchet exemption set. The exemption set MUST reach zero once
@@ -521,6 +545,7 @@ groups:
   - id: DL-07-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       The configured `db_url` MUST be treated as a template rather than a location: each actor's store
       MUST be derived from it per actor. An already-derived URL MUST NOT be passed back through the
@@ -542,6 +567,7 @@ groups:
     - rationale_too_long
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       An in-memory store MUST be named such that its identity is carried entirely by its URL, not by
       the identity of an engine object held in a cache.
@@ -563,6 +589,7 @@ groups:
   - id: DL-07-005
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       Cross-actor access MUST be named at the call site. `clone_for_actor` MUST be the only route to
       another actor's store, and any node-wide view MUST be assembled by enumerating hosted actors and
@@ -580,6 +607,7 @@ groups:
   - id: DL-07-006
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       A URL path segment naming an actor MUST be resolved to a canonical actor URI by computation from
       the node's own base URL, without a registry lookup or a scan over stored actor records.
@@ -599,6 +627,7 @@ groups:
   - id: DL-07-007
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       A peer actor's record MUST live in the address book of each hosted actor that knows it, not in a
       node-global store. `GET /actors/` MUST return only the actors the node hosts.
@@ -619,6 +648,7 @@ groups:
   - id: DL-07-008
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       Retry and dead-letter bookkeeping for an actor's outbox MUST live in that actor's own store and
       MUST NOT be keyed by an actor column in a shared table.
@@ -716,6 +746,7 @@ groups:
   - id: DL-08-002
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: >-
       A type annotation MUST NOT be relied on as the record of an inline-only requirement when that
       annotation also admits a URI string.

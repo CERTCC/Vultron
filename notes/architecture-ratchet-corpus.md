@@ -7,13 +7,17 @@ related_specs:
 related_notes:
   - notes/wire-core-boundary.md
   - notes/spec-authoring-rules.md
+  - notes/testing-pitfalls.md
 ---
 
 # Architecture Ratchet Corpus
 
 Design decisions and measurements for the shared corpus pattern in
 `test/architecture/`. Normative requirements are in
-`specs/testability.yaml` TB-13.
+`specs/testability.yaml` TB-13. Why a new baseline should be a named set or a
+per-item marker, never a bare count pinned to its live value, is in
+[testing-pitfalls](testing-pitfalls.md) § "A Two-Sided Count Pin Races Every
+Concurrent PR".
 
 ---
 

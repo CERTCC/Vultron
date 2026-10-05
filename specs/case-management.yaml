@@ -464,6 +464,7 @@ groups:
   - id: CM-04-006
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: 'A state transition handler for a participant-specific transition (RM or VFD) MUST NOT update any case-level (participant-agnostic) state field (em_state, pxa_state). A state transition handler for a case-level transition (PXA or EM) MUST NOT update any participant-specific state field (rm_state, vfd_state).'
     relationships:
     - rel_type: implements
@@ -532,6 +533,7 @@ groups:
   - id: CM-05-002
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: A `VulnerabilityCase` MUST reference at least one `VulnerabilityReport`; a case with zero reports MUST NOT
       exist
     relationships:
@@ -573,6 +575,7 @@ groups:
   - id: CM-05-008
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: '`VulnerabilityRecord` identifiers MUST be treated as opaque strings; the system MUST NOT restrict identifier
       values to CVE ID format or any other specific namespace'
     rationale: Different organizations use different identifier namespaces (CVE, CERT/CC VU#, vendor-assigned IDs, etc.);
@@ -734,6 +737,7 @@ groups:
   - id: CM-08-002
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: Domain objects MUST NOT directly inherit from ActivityStreams base types, and wire classes MUST NOT carry
       translation methods; AS2 serialization MUST be performed by the rendering port (ARCH-20-001)
       (see `notes/domain-model-separation.md` and ADR-0099)
@@ -1783,6 +1787,7 @@ groups:
   - id: CM-15-003
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       When a receiver's `auto_create_case` is `False`, processing an inbound
       `Offer(Report)` MUST NOT create a `VulnerabilityCase`.
@@ -2001,6 +2006,7 @@ groups:
   - id: CM-16-015
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: >-
       The downstream consumer node of the Evaluator BT node MUST NOT silently substitute a
       default for an empty list written by the Evaluator (ADR-0032 BT-HELPER-01).
@@ -2025,6 +2031,7 @@ groups:
   - id: CM-16-017
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       When a second `Offer(Actor X, Case)` arrives while a pending decision for Actor X is
       still outstanding, the CASE_MANAGER MUST NOT send a second transformed
@@ -2170,6 +2177,7 @@ groups:
   - id: CM-17-005
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       Presence in the case participant list MUST NOT be treated as acceptance of the
       invitation or as entitlement to case content. An invitee is in the list from the
@@ -2471,6 +2479,7 @@ groups:
   - id: CM-18-004
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       A participant's PEC state MUST NOT move from `SIGNATORY` to `INVITED` directly (bypassing
       `LAPSED`). The only paths back to `INVITED` from resolved states are `LAPSED → INVITED` (after
@@ -2638,6 +2647,7 @@ groups:
   - id: CM-18-013
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: >-
       The case initialization sequence MUST NOT commit a `UNBOUND` placeholder ledger
       entry for a participant followed by a corrective consent entry for the same
@@ -2654,6 +2664,7 @@ groups:
   - id: CM-18-014
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: '`ParticipantStatus.embargo_adherence` MUST NOT be declared as a stored field.'
     rationale: >-
       A stored field can drift from the PEC state it projects and its fail-open default
@@ -2802,6 +2813,7 @@ groups:
   - id: CM-20-004
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       A Coordinator invited to a case as a regular participant MUST NOT hold
       `CVDRole.CASE_MANAGER` in their `case_roles` list.
@@ -2814,6 +2826,7 @@ groups:
   - id: CM-20-005
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       `CVDRole.CASE_MANAGER` MUST NOT be assigned to any organizational or human participant
       joining a case as a facilitation actor rather than as the actor enacting the
@@ -4058,6 +4071,7 @@ groups:
   - id: CM-25-005
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       A participant whose `case_roles` list contains ONLY `CVDRole.OBSERVER`
       MUST NOT emit VFD state-transition messages (CV, CF, or CD). An Observer
@@ -4103,6 +4117,7 @@ groups:
   - id: CM-25-007
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       An empty `case_roles` list MUST NOT be used for Observer invitations; `[]` is
       indistinguishable from the `caseRoles=[]` admission defect (issue #1288) and
@@ -4363,6 +4378,7 @@ groups:
   - id: CM-28-008
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       Implementations MUST NOT require a scheduler or Sentinel runtime for embargo invite
       expiry correctness.
@@ -4400,6 +4416,7 @@ groups:
   - id: CM-28-010
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       The expiry-versus-refusal provenance MUST NOT be duplicated onto `PecDimension` as
       a reason field.

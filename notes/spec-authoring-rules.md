@@ -8,9 +8,10 @@ description: >
   and `rel_type`; keys that are silently dropped; the protocol-coverage
   ratchet and its xfail pattern; the audit passes required when retiring a
   name or splitting a compound requirement; priority tiers (MS-02-003/004); and
-  the owner-and-terminal-state rules for ceiling ratchets (MS-10-006..008); the
-  rule that a verification clause names a check that inspects its property
-  (MS-10-009); and the CASE_MANAGER-versus-CaseActor naming discriminator.
+  the per-requirement `verification_debt` marker and its owner and
+  terminal-state rules (MS-10-006..008); the rule that a verification clause
+  names a check that inspects its property (MS-10-009); and the
+  CASE_MANAGER-versus-CaseActor naming discriminator.
 related_specs:
   - specs/meta-specifications.yaml
   - specs/spec-registry.yaml
@@ -155,8 +156,9 @@ consequences, each with a tool:
   leaves. Run `uv run python scripts/relink_requirement_anchors.py` after the
   relabel; it repoints each link at the page its anchor now renders on.
 - **Verification travels with the spec (MS-10-008).** An unverified MUST or
-  MUST_NOT that changes kind gains its `verification:` in the same change, or the
-  destination kind's ceiling would have to rise.
+  MUST_NOT that changes kind gains its `verification:` in the same change; its
+  `verification_debt` marker names the old kind's owner, so spec-lint fails it
+  until the clause replaces the marker.
 - **The suppression goes with the old kind.** `scripts/relabel_spec_kinds.py`
   applies a `{spec_id: kind}` mapping and strips `missing_story_reference` from
   each item in one pass, preserving every other line byte for byte. The
@@ -267,25 +269,25 @@ inventing a sequence.
 
 ### An Advisory Warning Is Not Enforcement Once the Corpus Outgrows It
 
-`spec-lint`'s `must_without_verification` names exactly the "MUST with nothing
-checking it" defect — and fired on MS-13-001 and MS-13-002 themselves for as long
-as they went unenforced. As a per-item `[WARN]` it did not help, because well
+`spec-lint`'s per-item `must_without_verification` warning named exactly the
+"MUST with nothing checking it" defect — and fired on MS-13-001 and MS-13-002
+themselves for as long as they went unenforced. As a per-item `[WARN]` it did not help, because well
 over half the corpus's MUST items had no `verification:` field, so that one
 warning produced the large majority of the run's `[WARN]` lines. A defect class
 at that volume is indistinguishable from background noise, and a newly-introduced
 instance is invisible.
 
-It is now a count. `spec-lint` prints one line per kind — the live number of
-unverified MUST-tier requirements beside that kind's ceiling and owner — and
-lists the IDs only under `--list-unverified` (MS-10-005). The ceilings live in
-`vultron/metadata/specs/verification.py` and
-`test/metadata/specs/test_must_verification_ratchet.py` pins each to the live
-count in both directions (MS-10-006). The number a kind shows is also what its
-backfill issue is working down, so progress is legible in the same line.
+It is now a per-item rule with a per-kind summary. Every unverified MUST-tier
+requirement carries `verification_debt: '#N'`, naming the open issue that owns
+verifying it, and `spec-lint` fails any item with neither field (MS-10-006). The
+default output is one line per kind — the number of marked requirements,
+tallied by owner — with the IDs only under `--list-unverified` (MS-10-005). The
+number is computed from the markers, so a backfill lowers it without editing
+anything else, and the line still shows each backfill issue's progress.
 
 When you add a per-item advisory, decide up front what happens when it is
-routinely true: collapse it to a count plus an opt-in listing, pin the count to
-a ceiling that equals the live count and has an owner and a terminal state (see
+routinely true: collapse it to a count plus an opt-in listing, mark each
+remaining hit with its owning issue, with a terminal state (see
 [A Ratchet Needs an Owner and a Terminal State](#a-ratchet-needs-an-owner-and-a-terminal-state)),
 or make it a hard error and
 dispose of every existing hit. Do not ship a rule at partial adoption: per the
@@ -333,25 +335,29 @@ you trust it.
 
 ### A Ratchet Needs an Owner and a Terminal State
 
-The MS-10 verification ratchet (MS-10-006 through MS-10-008) is built so that it can
+The MS-10 verification rule (MS-10-006 through MS-10-008) is built so that it can
 only end at zero:
 
-1. **The ceiling equals the live count.** It is not an upper bound with slack,
-   so every backfill has to lower it, and a new unverified MUST fails at once.
-   This is MS-12-007's two-sided assertion. Suppressed items still count, so a
-   kind cannot reach zero by suppression.
-2. **Each non-zero ceiling names its owning issue.** A tier's backlog
-   cannot exist without a tracked path to zero. If you close the owning issue
-   early, the ratchet names a closed issue, which is a visible defect.
-3. **Zero is terminal.** The change that reaches zero turns that kind's check
-   into a hard error that `lint_suppress` cannot silence, and deletes the
-   ceiling entry, so there is nothing left to raise.
-4. **A relabel carries its verification with it.** Moving an unverified spec
-   between kinds (the MS-12 passes in #3600 and #3601) would otherwise force an
-   upward edit to the destination ceiling. Add the `verification:` clause in the
-   same change instead (MS-10-008).
+1. **The record is per requirement, not a count.** Each unverified MUST or
+   MUST_NOT carries its own `verification_debt` marker, so verifying one edits
+   only that requirement and two PRs conflict only when they edit the same one.
+   The earlier design pinned a per-kind count to its live value, which raced
+   every PR in flight (see `notes/testing-pitfalls.md`, "A Two-Sided Count Pin
+   Races Every Concurrent PR"). A requirement with both a marker and a
+   `verification:` clause fails as stale.
+2. **Each marker names an open owning issue.** The marker must name an owner of
+   its kind in `VERIFICATION_DEBT_OWNERS`, and the `spec-check.yml` job
+   `verification-debt-owners` fails when a marker or table entry names a
+   closed issue. If you close an owner early, CI says so.
+3. **Zero is terminal.** Once no requirement of a kind carries a marker, delete
+   that kind's owner entry; any marker of that kind is then a hard error, so the
+   kind cannot regrow debt. The growth guard (#4200) keeps new markers out
+   while an entry still exists.
+4. **A relabel carries its verification with it.** A relabelled requirement's
+   marker names the old kind's owner and fails; replace it with a
+   `verification:` clause in the same change (MS-10-008).
 
-Any new ceiling-style ratchet should follow the same four rules unless it states
+Any new backlog-style ratchet should follow the same four rules unless it states
 why it cannot.
 
 ---

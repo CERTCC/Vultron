@@ -238,6 +238,7 @@ groups:
   - id: CP-04-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The BT node responsible for sending `Create(as_CaseProposal)` MUST be a distinct node (`ProposeCaseToActorNode`)
       separate from `CreateCaseActorNode`. `CreateCaseActorNode` is responsible only for registering the case-actor service
       resource; it MUST NOT send a `CaseProposal` activity.
@@ -273,6 +274,7 @@ groups:
   - id: CP-04-004
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       Whatever provisions the case-actor's record MUST write it into the *case-actor's own* store, since
       the inbox route resolves an actor from the store its URI names. A copy in the sending actor's store
@@ -504,6 +506,7 @@ groups:
   - id: CP-08-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       Every actor that may trigger the `engage-case` BT path (i.e., any actor that
       creates a `VulnerabilityCase` on behalf of another actor) MUST supply a
@@ -525,6 +528,7 @@ groups:
   - id: CP-08-004
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The `case_actor_service_url` field in `ActorConfig` MUST be a valid `HttpUrl`.
     rationale: >-
       A non-URL value cannot be used to construct a valid inbox endpoint address, so
@@ -535,6 +539,7 @@ groups:
   - id: CP-08-005
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       Absence of `case_actor_service_url` in `ActorConfig` MUST produce a runtime
       `FAILURE` at `ResolveCaseActorUrlsNode` with a clear error message identifying
@@ -548,6 +553,7 @@ groups:
   - id: CP-08-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       `ResolveCaseActorUrlsNode` MUST read `case_actor_service_url` from
       `ActorConfig` (via `get_config().actor.case_actor_service_url`) to derive the
@@ -558,6 +564,7 @@ groups:
   - id: CP-08-006
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: >-
       `ResolveCaseActorUrlsNode` MUST NOT use `server_base_url` from the blackboard
       or from the server configuration to construct `case_actor_id`.
@@ -570,6 +577,7 @@ groups:
   - id: CP-08-007
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: >-
       The `server_base_url` blackboard key MUST NOT be registered or read in
       `ResolveCaseActorUrlsNode.setup()`.
@@ -582,6 +590,7 @@ groups:
   - id: CP-08-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       In all multi-container demo scenarios, every actor whose BT may run the
       `engage-case` path MUST have `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL` set
@@ -597,6 +606,7 @@ groups:
   - id: CP-08-008
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       The `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL` value MUST be the full base URL of
       the dedicated CaseActor container (e.g., `http://case-actor:7999/api/v2`).
@@ -609,6 +619,7 @@ groups:
   - id: CP-08-009
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: Demo scripts MUST NOT rely on `server_base_url` derivation for the CaseActor identity.
     rationale: >-
       `server_base_url` is the running container's own base URL and does not identify a
@@ -715,6 +726,7 @@ groups:
   - id: CP-09-008
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: Additional CVD roles for the report receiver MUST NOT be inferred.
     rationale: >-
       Inferring roles (e.g. hard-coding `CVDRole.VENDOR`) mislabels coordinators
@@ -766,6 +778,7 @@ groups:
   - id: CP-09-005
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       The report receiver MUST NOT create a `VulnerabilityCase` object in its
       own DataLayer before receiving `Create(VulnerabilityCase)` from the

@@ -53,7 +53,8 @@ stakeholder_type: [project-contributor]
   - `spec-dump` / `spec-dump-llm-json` → `vultron.metadata.specs.render:main_llm_json`
   - `spec-lint` → `vultron.metadata.specs.lint:main`.
     Hard errors exit 1, and that includes the MS-12 kind tree (`vultron/metadata/specs/kind_classification.py`).
-    Unverified `MUST`/`MUST_NOT` requirements are printed as one count-versus-ceiling line per kind, and `--list-unverified` names the IDs.
+    An unverified `MUST`/`MUST_NOT` requirement without its own `verification_debt` marker is a hard error.
+    The marked ones are printed as one line per kind, `--list-unverified` names the IDs, and `--check-debt-owners` checks that each owner issue is open.
   - `spec-coverage` → `vultron.metadata.specs.coverage:main`
   - `spec-backstop` → `vultron.metadata.specs.backstop:main` (spec groups governing the changed code, checked against a Spec manifest)
   - `glossary-index` → `vultron.metadata.docs.glossary_index:main` (term index of `docs/reference/glossary.md`)

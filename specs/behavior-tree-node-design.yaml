@@ -15,6 +15,7 @@ groups:
   - id: BTND-01-001
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2574'
     statement: BT nodes MUST NOT hard-code actor identities, CVD roles, case IDs, or any context that varies by usage site;
       these values MUST be constructor parameters.
     rationale: Hard-coded context values prevent reuse across actors or scenarios and couple the node to a single workflow.
@@ -24,12 +25,14 @@ groups:
   - id: BTND-01-002
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2574'
     statement: BT nodes MUST NOT read actor identity, case ID, or CVD role from environment variables, module-level globals,
       or any implicit ambient context. All variable inputs MUST arrive via constructor parameters or the documented blackboard
       interface.
   - id: BTND-01-003
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: When a BT node name is derived from a parameterized value (e.g., role or actor ID), the name MUST be constructed
       from that parameter at instantiation time, not hard-coded as a string literal.
     relationships:
@@ -41,6 +44,7 @@ groups:
   - id: BTND-02-001
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Logic that appears in two or more BT nodes or subtrees MUST be extracted into a shared, parameterized node
       or factory function in a neutral shared module (see `BTND-04-001`).
     relationships:
@@ -76,6 +80,7 @@ groups:
   - id: BTND-03-001
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Each BT node that reads from or writes to the py_trees blackboard MUST declare all blackboard keys it uses
       in its `setup()` method via `register_key()`.
     rationale: Undeclared blackboard reads create hidden dependencies that break composability and make tests fragile.
@@ -85,6 +90,7 @@ groups:
   - id: BTND-03-002
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2574'
     statement: A BT node MUST NOT read a blackboard key that was not registered with at least `READ` access in `setup()`.
     relationships:
     - rel_type: refines
@@ -97,6 +103,7 @@ groups:
   - id: BTND-03-004
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: A BT node that writes an inter-node handoff key (a blackboard key written by one node and consumed by a downstream
       sibling within the same tree) MUST namespace the key by the execution-scoped correlation ID of the tree instance, using
       the `{noun}_{id_segment}` convention (`id_segment` = `recommendation_id.split('/')[-1]` for HTTP URIs, or the last colon-delimited
@@ -114,6 +121,7 @@ groups:
   - id: BTND-03-005
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2574'
     statement: Blackboard keys MUST NOT contain forward-slash characters.
     rationale: py_trees parses forward-slashes as namespacing separators; a key containing `/` silently creates a sub-namespace
       and will not be found by flat-key readers.
@@ -123,6 +131,7 @@ groups:
   - id: BTND-03-008
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Blackboard keys MUST follow the `{noun}_{id_segment}` naming convention where the noun names the value and
       `id_segment` is the execution-scoped correlation ID (last path or colon-delimited segment). Flat, unscoped keys (e.g.,
       `result`, `status`) are only permitted for top-level handoff keys that are consumed in the same tick cycle and cannot
@@ -134,6 +143,7 @@ groups:
   - id: BTND-03-006
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: A decomposed BT leaf node that encounters a domain-layer error MUST write the error to the `result_out["error"]`
       blackboard key before returning `FAILURE`, and MUST re-raise the original exception in `execute()` after the write so
       that the bridge layer can map it to the corresponding HTTP error response.
@@ -146,6 +156,7 @@ groups:
   - id: BTND-03-007
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: A decomposed BT leaf node MUST convert `KeyError` (missing blackboard key) to a `FAILURE` status and MUST NOT
       allow the `KeyError` to propagate uncaught to the bridge layer. The leaf is responsible for catching `KeyError` in its
       `update()` method and returning `FAILURE` with a diagnostic message naming the missing key.
@@ -158,6 +169,7 @@ groups:
   - id: BTND-03-009
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: New BT nodes in `vultron/core/behaviors/` MUST subclass `DataLayerConditionWithPorts` or
       `DataLayerActionWithPorts` (from `helpers.py`) rather than `DataLayerCondition` / `DataLayerAction`. The typed
       `INPUT_PORTS` / `OUTPUT_PORTS` class attributes constitute the node's formal blackboard contract and MUST declare
@@ -175,6 +187,7 @@ groups:
   - id: BTND-03-010
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: >
       A `DataLayerConditionWithPorts` or `DataLayerActionWithPorts` subclass MUST call `setup_ports()` in its
       `setup()` method with port remappings `{"datalayer": "/datalayer", "actor_id": "/actor_id"}` (plus
@@ -192,6 +205,7 @@ groups:
   - id: BTND-03-011
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: A `DataLayerConditionWithPorts` or `DataLayerActionWithPorts` subclass MUST read injected values via
       `get_input(port_name)` in `initialise()` (not via direct `self.blackboard.<key>` attribute access). A missing
       required port raises `NoDataAvailable` when `get_input()` is first called in `initialise()` — at the start of
@@ -204,6 +218,7 @@ groups:
   - id: BTND-03-012
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: >
       A `DataLayerActionWithPorts` subclass that writes an inter-node handoff key MUST declare that key as an
       output port in `OUTPUT_PORTS` and write values via `self._set_output(port_name, value)` rather than via
@@ -219,6 +234,7 @@ groups:
   - id: BTND-03-013
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: >
       Where the physical blackboard key for an output port is execution-scoped (computed from constructor
       parameters per BTND-03-004, e.g. `suggested_roles_abc123`), the node MUST declare a stable logical port
@@ -242,6 +258,7 @@ groups:
   - id: BTND-04-001
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2574'
     statement: BT nodes or subtrees that are used by more than one domain module (e.g., by both `case/` and `report/`) MUST
       be defined in the shared `vultron/core/behaviors/helpers.py` module or a purpose-built shared module within `vultron/core/behaviors/`.
       Domain-specific modules MUST NOT import BT nodes from sibling domain modules.
@@ -253,11 +270,13 @@ groups:
   - id: BTND-04-002
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2574'
     statement: BT nodes MUST NOT import from `vultron/demo/` or any other demo-layer module. Demo-specific context (step descriptions,
       demo loggers, demo flags) belongs in demo scripts, not in BT nodes.
   - id: BTND-04-003
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2574'
     statement: '`behaviors/` modules MUST NOT import from `use_cases/` modules. BT nodes MUST NOT import use-case classes
       or functions.'
     rationale: Importing use-cases from behaviors inverts the composition hierarchy (behaviors are the implementation layer
@@ -270,6 +289,7 @@ groups:
   - id: BTND-04-004
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Logic shared between `behaviors/` and `use_cases/` MUST be extracted to a common helper in `vultron/core/`
       or `vultron/core/behaviors/helpers.py`.
     relationships:
@@ -293,6 +313,7 @@ groups:
   - id: BTND-05-002
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: >-
       The BT node for creating the initial case participant MUST be role-agnostic; the correct
       node for this purpose is `CreateCaseOwnerParticipant`.
@@ -317,6 +338,7 @@ groups:
   - id: BTND-05-004
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: The `CVDRole` enum MUST include a `CVE_NUMBERING_AUTHORITY` value representing a participant that holds CVE
       Numbering Authority (CNA) status.
     rationale: Multiple participants in an MPCVD case may independently be CNAs (e.g., a vendor CNA and a coordinator CNA).
@@ -331,6 +353,7 @@ groups:
   - id: BTND-05-005
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2574'
     statement: >-
       The BT node for creating the initial case participant MUST NOT assume any specific CVD role
       (e.g., Vendor).
@@ -340,6 +363,7 @@ groups:
   - id: BTND-05-006
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: >-
       The BT node for creating the initial case participant MUST treat the actor as the case
       owner regardless of their CVD role(s).
@@ -435,6 +459,7 @@ groups:
   - id: BTND-06-005
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: 'Before any irreversible or protocol-significant action, a safety guard condition MUST be the first child of the enclosing Sequence, so that the action is skipped when the guard fails.'
     rationale: Prevents unsafe state transitions when the world changes between ticks. In a multi-party protocol, another
       actor may change shared state at any time.
@@ -466,6 +491,7 @@ groups:
   - id: BTND-06-008
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: 'Code that writes to a `memory=False` py_trees Sequence MUST be written assuming that any child''s writes to
       the blackboard are immediately visible to subsequent children but are NOT rolled back if a later child returns `FAILURE`.
       A `memory=False` Sequence is non-transactional: partial side-effects from earlier children survive the composite''s
@@ -516,6 +542,7 @@ groups:
   - id: BTND-07-006
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Within a `nodes/` subpackage, submodules MUST be grouped by semantic concern (e.g., `conditions.py`, `case_setup.py`,
       `participant.py`, `embargo.py`, `communication.py`, `lifecycle.py`).
     rationale: Grouping by semantic concern reduces diff scope, improves discoverability, and lets reviewers focus on the
@@ -526,6 +553,7 @@ groups:
   - id: BTND-07-007
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: The `nodes/` subpackage `__init__.py` MUST re-export all public node names to preserve import compatibility
       with callers.
     relationships:
@@ -601,6 +629,7 @@ groups:
   - id: BTND-07-008
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2574'
     statement: >-
       A new BT leaf node MUST NOT re-implement `self.datalayer`, `self.actor_id`, or
       `self.trigger_activity_factory` resolution inline; `DataLayerAction` already provides these
@@ -611,6 +640,7 @@ groups:
   - id: BTND-07-009
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: >-
       A new BT leaf node that follows the standard guard + factory-dispatch + outbox-write pattern
       MUST subclass an existing emit-node base class (e.g., `_EmitCaseActorReportActivityBase`)
@@ -621,6 +651,7 @@ groups:
   - id: BTND-07-010
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: >-
       If no suitable base class exists for the boilerplate pattern needed by a new BT leaf node,
       the implementer MUST extract the shared pattern into a new base class and document it for
@@ -661,6 +692,7 @@ groups:
   - id: BTND-09-001
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: 'BT helper functions MUST raise exceptions on error — they MUST NOT catch exceptions and return a sentinel
       value. The `update()` method of the owning leaf node is the sole try/except boundary: it calls helpers, catches any
       exceptions they raise, writes to the error result channel (BTND-03-006), and returns `FAILURE`.'

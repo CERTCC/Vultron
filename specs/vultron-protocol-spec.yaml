@@ -44,6 +44,7 @@ groups:
   - id: VP-01-003
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       Correct operation of the protocol MUST NOT depend on perfect information across all
       Participants
@@ -96,6 +97,7 @@ groups:
   - id: VP-02-004
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: Participants MUST NOT close cases or reports from the Valid state
   - id: VP-02-005
     priority: SHOULD
@@ -664,6 +666,7 @@ groups:
   - id: VP-06-001
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       CVD Participants MUST NOT propose or accept a new embargo negotiation when information
       about the vulnerability is already known to the public ($q^{cs} \in \cdots P \cdots$),
@@ -1718,6 +1721,7 @@ groups:
   - id: VP-16-001
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       Vulnerability details MUST NOT appear in embargo representation data (e.g., embargo
       scheduling or notification messages)
@@ -1766,6 +1770,7 @@ groups:
   - id: VP-17-002
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: Participant-local case replicas MUST NOT be updated by direct mutation from inbound protocol messages; replicas
       MUST be updated exclusively via ledger replay from `Announce(CaseLedgerEntry)` fan-out.
     rationale: >-
@@ -1806,6 +1811,7 @@ groups:
   - id: VP-18-002
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       A participant MUST NOT deliver messages directly to another participant's inbox.
     rationale: >-

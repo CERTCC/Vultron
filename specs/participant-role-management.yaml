@@ -45,6 +45,7 @@ groups:
   - id: PRM-01-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: 'Core code in `vultron/core/` MUST use `participant.roles` (the property) or `participant.has_role(role)` for
       role-presence checks and role iteration; direct reads of `participant.case_roles` MUST NOT appear in core code outside
       of the `CaseParticipant` class itself.'
@@ -148,6 +149,7 @@ groups:
   - id: PRM-03-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: 'Core code in `vultron/core/` MUST NOT mutate `case_roles` directly on a CaseParticipant instance after
       construction (e.g. `participant.case_roles.append(...)` or `participant.case_roles = [...]` post-init). `add_role()`
       and `remove_role()` MUST be used for all post-construction role changes.'
@@ -205,6 +207,7 @@ groups:
   - id: PRM-04-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: 'The wire-layer participant `as_CaseParticipant` (`vultron/wire/as2/vocab/objects/case_participant.py`) MUST
       expose `add_role()`, `remove_role()`, and `has_role()` methods with behavioral contracts equivalent to those on the
       core `CaseParticipant`: idempotent add/remove with optional raise-on-duplicate/missing flags, and a boolean presence
@@ -278,6 +281,7 @@ groups:
   - id: PRM-06-001
     priority: MUST
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       Participant status is self-declaratory by default: each participant
       asserts its own RM and VFD state without external approval.  This is why

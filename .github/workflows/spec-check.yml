@@ -22,6 +22,10 @@ on:
       - "vultron/metadata/specs/**"
       - "docs/reference/codebase/**"
       - ".github/workflows/spec-check.yml"
+  # Weekly, so a verification_debt owner issue that closes with markers still
+  # citing it turns this red without waiting for the next specs/ change.
+  schedule:
+    - cron: "0 9 * * 1"  # Every Monday at 09:00 UTC
   workflow_dispatch:
 
 permissions:
@@ -45,6 +49,36 @@ jobs:
         # PYTHONPATH='' (quoted) is identical in effect to PYTHONPATH= but
         # distinguishable by shellcheck, which flags the bare form as SC1007.
         run: PYTHONPATH='' uv run spec-lint specs/
+      - name: Notify CI failure
+        if: failure() && (github.event_name == 'push' || github.event_name == 'schedule')
+        uses: ./.github/actions/notify-failure
+        with:
+          mode: notify
+          workflow-label: ci:workflow-spec-check
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Close CI failure issue
+        if: success() && (github.event_name == 'push' || github.event_name == 'schedule')
+        uses: ./.github/actions/notify-failure
+        with:
+          mode: close
+          workflow-label: ci:workflow-spec-check
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  # Every verification_debt marker, and every owner-table entry, must name an
+  # open issue (MS-10-006). Needs the GitHub API, so it runs here and not in
+  # the offline pre-commit hook.
+  verification-debt-owners:
+    name: Verification Debt Owners Open
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/debounce-main-push
+      - name: Set up Python and uv
+        uses: ./.github/actions/setup-python-uv
+      - name: Check verification_debt owners are open
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: PYTHONPATH='' uv run spec-lint specs/ --check-debt-owners
       - name: Notify CI failure
         if: failure() && (github.event_name == 'push' || github.event_name == 'schedule')
         uses: ./.github/actions/notify-failure

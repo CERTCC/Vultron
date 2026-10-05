@@ -16,10 +16,12 @@ groups:
   - id: TB-01-001
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: The system MUST use pytest as the testing framework
   - id: TB-01-002
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Test configuration MUST be defined in `pyproject.toml`
 - id: TB-02
   title: Test Coverage
@@ -27,10 +29,12 @@ groups:
   - id: TB-02-001
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Unit tests MUST achieve 80%+ line coverage
   - id: TB-02-002
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Critical paths MUST achieve 100% line coverage
 - id: TB-03
   title: Integration Test Coverage
@@ -67,14 +71,17 @@ groups:
   - id: TB-04-001
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Test structure MUST mirror source code structure
   - id: TB-04-002
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Test files MUST use descriptive names starting with `test_`
   - id: TB-04-003
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: >-
       Unit and integration tests MUST be in separate directories or marked with pytest markers
 - id: TB-05
@@ -83,18 +90,22 @@ groups:
   - id: TB-05-001
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: The system MUST provide reusable test fixtures
   - id: TB-05-002
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Test data MUST be generated via factories, not hardcoded
   - id: TB-05-003
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Test fixtures MUST be defined in `conftest.py` files
   - id: TB-05-004
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Tests MUST use proper domain objects, not simplified mock data
     rationale: >-
       Tests with string IDs can pass while production code fails; proper objects exercise
@@ -102,6 +113,7 @@ groups:
   - id: TB-05-005
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Test semantic types MUST match the activity structure being tested
     rationale: >-
       Semantic type validation is enforced by the `use_case_map()` key lookup at dispatch time;
@@ -112,23 +124,28 @@ groups:
   - id: TB-06-001
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Tests MUST be independent and runnable in any order
   - id: TB-06-002
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Tests MUST use test database or mocked database
   - id: TB-06-003
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Test state MUST be reset between tests
   - id: TB-06-004
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Test fixtures MUST clean up created data after test completion
     rationale: Prevents test database bloat and ensures isolation
   - id: TB-06-005
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Behavior Tree tests MUST clear the py_trees blackboard between tests
     rationale: >-
       py_trees blackboard is a global singleton; without clearing, state from one test leaks
@@ -136,6 +153,7 @@ groups:
   - id: TB-06-006
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: All tests MUST be deterministic and produce the same result on every run
     rationale: >-
       Flaky tests erode confidence in the test suite, mask real failures, and slow development.
@@ -143,6 +161,7 @@ groups:
   - id: TB-06-007
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: >-
       Integration tests that exercise multi-actor message flows MUST give each simulated
       actor its own isolated `DataLayer` instance. Tests that share a single `DataLayer`
@@ -159,6 +178,7 @@ groups:
   - id: TB-06-008
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: >-
       BT factories that have probabilistic defaults (e.g., always-succeed or always-fail
       stubs for nodes backed by configurable policies) MUST expose a module-level
@@ -178,10 +198,12 @@ groups:
   - id: TB-07-001
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: External services MUST be mocked in unit tests
   - id: TB-07-002
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Database access MUST be stubbed in unit tests
   - id: TB-07-003
     priority: MAY
@@ -193,6 +215,7 @@ groups:
   - id: TB-08-001
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Tests MUST use descriptive names explaining what is tested
   - id: TB-08-002
     priority: SHOULD
@@ -208,6 +231,7 @@ groups:
   - id: TB-09-001
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: >-
       Each test function MUST exercise a single scenario. Test bodies MUST NOT contain
       conditional branching logic (if/else). Exception-assertion patterns using
@@ -220,6 +244,7 @@ groups:
   - id: TB-09-003
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Tests MUST be refactored along with production code
 - id: TB-11
   title: Test Infrastructure Consistency
@@ -268,6 +293,7 @@ groups:
   - id: TB-10-002
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Architecture ratchet tests MUST use bidirectional equality: `assert actual_violations
       == KNOWN_VIOLATIONS`. A subset check (`assert actual ⊆ KNOWN`) is prohibited because
@@ -285,6 +311,7 @@ groups:
   - id: TB-12-001
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: >-
       BT leaf and composite node tests MUST use the `BTTestScenario` deep-module test
       harness. The `setup_node_blackboard()` helper is an anti-pattern for integration
@@ -301,6 +328,7 @@ groups:
   - id: TB-12-002
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: >-
       Each BT scenario test MUST run the BT tree exactly once per test case. Running the
       same tree instance multiple times in a single test produces accumulated blackboard
@@ -311,6 +339,7 @@ groups:
   - id: TB-12-003
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: BT integration tests MUST complete within 5 seconds per test case.
     relationships:
     - rel_type: refines
@@ -329,6 +358,7 @@ groups:
   - id: TB-12-005
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: >-
       Tests that exceed the 5-second limit MUST be redesigned (e.g., reducing dataset
       size, mocking external I/O) rather than raising the timeout.
@@ -341,6 +371,7 @@ groups:
   - id: TB-12-006
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: >-
       The `pytest-timeout` `timeout = 5` configuration MUST apply to all BT tests.
     rationale: >-
@@ -355,6 +386,7 @@ groups:
   - id: TB-13-001
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     lint_suppress:
     - phantom_path_ref
     statement: >-
@@ -371,6 +403,7 @@ groups:
   - id: TB-13-002
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: >-
       Architecture ratchet tests MUST apply a substring prefilter before calling
       `ast.parse()`.
@@ -387,6 +420,7 @@ groups:
   - id: TB-13-003
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     lint_suppress:
     - phantom_path_ref
     statement: >-
@@ -433,6 +467,7 @@ groups:
   - id: TB-13-006
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: >-
       Tests that rely on shared global state (e.g., `py_trees` blackboard,
       module-level singletons) MUST be identified and either isolated or marked
@@ -446,6 +481,7 @@ groups:
   - id: TB-13-007
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: >-
       A file that does not contain the target fragment string as a plain substring
       MUST be skipped entirely by architecture ratchet tests.
@@ -458,6 +494,7 @@ groups:
   - id: TB-13-008
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2574'
     statement: >-
       Architecture ratchet tests MUST NOT call `ast.parse()` on files that do not
       contain the target fragment string as a plain substring.
