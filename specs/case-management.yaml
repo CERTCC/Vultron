@@ -3365,10 +3365,13 @@ groups:
       left stops at the entries that record its departure: it does not receive later
       entries, case_fully_closed included.
     rationale: >-
-      Once a participant reaches RM.CLOSED they have departed the case and no
-      longer need (or should receive) case updates.  Continuing to send them
-      entries wastes bandwidth and may trigger erroneous processing on stale
-      replicas.
+      Once a participant reaches RM.CLOSED they have departed the case, and its
+      case replication process is assumed to have exited, so nothing is there to
+      receive a later entry.  Continuing to send them entries wastes bandwidth and
+      may trigger erroneous processing on stale replicas.  The same assumption
+      governs the CASE_MANAGER after case_fully_closed (CM-23-013).  The entries
+      that record the participant's own closure come before it exits, so it still
+      receives them.
     verification: Integration tests in `test/demo/` confirm that `Announce(CaseLedgerEntry)`
       fan-out skips a participant once a ledger entry has recorded its `rm_state=RM.CLOSED`,
       and that the leaving participant's replica still receives the `close_case` entry and

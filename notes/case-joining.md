@@ -88,8 +88,9 @@ closure the ledger already records stops at the entries that record its
 departure, and `case_fully_closed` is not sent to it. A departing participant
 learns its own `CLOSED` from the status entry that records it, which CM-23-004
 does not withhold (CM-23-001; the sender side does not write it). The closed
-replica does not see how the case ended, and that is intended: it left before
-the end. The fan-out code (`FanOutLogEntryExcludingClosedNode`, `skip_closed=True`)
+replica does not see how the case ended, and that is intended: closing means its
+replication process is assumed to have exited, so nothing is there to receive
+more (the same assumption as CM-23-013). The fan-out code (`FanOutLogEntryExcludingClosedNode`, `skip_closed=True`)
 is not yet composed into the `case_fully_closed` tree, which still reaches every
 replica; #4210 brings the code to the rule. The Invites also leave a closed
 participant out.
