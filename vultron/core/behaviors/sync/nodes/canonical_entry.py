@@ -34,7 +34,10 @@ from typing import Any
 
 from vultron.core.models._helpers import as_utc, parse_published
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-from vultron.core.models.rsvp_deadline import INVITE_EXPIRED_SNAPSHOT_TYPE
+from vultron.core.models.rsvp_deadline import (
+    INVITE_EXPIRED_NOOP_SNAPSHOT_TYPE,
+    INVITE_EXPIRED_SNAPSHOT_TYPE,
+)
 from vultron.core.models.wire_keys import wire_key
 from vultron.errors import VultronCanonicalEntryError
 
@@ -86,6 +89,9 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     # CASE_MANAGER-authored synthetic invite-expiry event (CM-28-009,
     # ADR-0118).  Distinct from ("Reject", "Invite"), an explicit refusal.
     (INVITE_EXPIRED_SNAPSHOT_TYPE, "Invite"),
+    # CASE_MANAGER-authored no-op acknowledgement of a late Accept when the
+    # embargo is no longer active (EMB-17-004, ADR-0118).
+    (INVITE_EXPIRED_NOOP_SNAPSHOT_TYPE, "Invite"),
 )
 # Signatures the CaseActor itself is authorized to author (CLP-07-003).  Per
 # CLP-12-002 this MUST be a superset of every pair the CaseActor emits during
@@ -109,6 +115,8 @@ _CASE_AUTHORED_SIGNATURES: frozenset[tuple[str, str]] = frozenset(
         # CASE_MANAGER-authored synthetic invite-expiry event (CM-28-009,
         # ADR-0118)
         (INVITE_EXPIRED_SNAPSHOT_TYPE, "Invite"),
+        # CASE_MANAGER-authored no-op acknowledgement (EMB-17-004, ADR-0118)
+        (INVITE_EXPIRED_NOOP_SNAPSHOT_TYPE, "Invite"),
         # native case-initialization entries (ADR-0041, CM-22-003)
         ("Create", "VulnerabilityCase"),
         ("Add", "VulnerabilityReport"),
