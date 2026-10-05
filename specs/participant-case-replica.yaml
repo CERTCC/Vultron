@@ -202,6 +202,13 @@ groups:
       CASE_MANAGER identity, or (b) the actor has completed an `InviteActorToCase`/`AcceptInviteToCase`
       exchange that records a pending-expectation for that case. Accepting any `Announce(VulnerabilityCase)`
       from an unauthenticated or unexpected sender as a bootstrap signal is not permitted.
+      For path (b), the pending-expectation record MUST be created only when the Invite's
+      `object` is the receiving actor; the record MUST bind to the Invite's `actor` id (the
+      named CaseActor), not to the transport-level delivering sender; and a second Invite for
+      the same case naming a different CaseActor MUST be refused — the existing anchor is
+      unchanged. Whether the named CaseActor is genuine cannot be verified without actor
+      identity and signatures (#2841); this requirement records the structural rules that
+      apply before that verification is available.
     rationale: >-
       An `Announce(VulnerabilityCase)` roster is supplied by the sender; a fabricated case
       naming the sender as its own CASE_MANAGER passes a roster-only check. Permitting a
@@ -209,6 +216,9 @@ groups:
       a fake replica, blocking the real CASE_MANAGER on the seeded path (PCR-03-001 fails
       closed). No legitimate protocol sequence delivers an unsolicited first-contact Announce
       without a preceding `Create(VulnerabilityCase)` or `InviteActorToCase`.
+      The path (b) sub-rules prevent a misaddressed Invite from anchoring trust on behalf of
+      a different actor and prevent a second Invite from silently replacing or shadowing the
+      first-established anchor.
     verification: >-
       A unit test confirms that `Announce(VulnerabilityCase)` from an actor with no prior
       local trust record — no matching `VultronReportCaseLink` and no invite trust anchor for
@@ -216,6 +226,11 @@ groups:
       the receiver's DataLayer (PCR-07-010).  A separate unit test confirms that once the
       receiver has processed an `InviteActorToCase` from the CASE_MANAGER, a subsequent
       `Announce(VulnerabilityCase)` from that same actor IS admitted (CBT-05-004).
+      Unit tests for `RecordInviteTrustAnchorNode` confirm: (path b, rule 1) a node whose
+      `invitee_id` differs from the receiving actor returns FAILURE and writes no record;
+      (path b, rule 2) the anchor records the Invite's `actor` id, not the transport sender;
+      (path b, rule 3) a second invocation naming a different CaseActor returns FAILURE at
+      WARNING level and leaves the original anchor unchanged.
     relationships:
     - rel_type: refines
       spec_id: PCR-03-001
