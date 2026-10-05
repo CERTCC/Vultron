@@ -83,12 +83,13 @@ and removed participants excluded once #4084 lands). A roster entry whose
 record cannot be read gets nothing (CM-10-007).
 
 RM `CLOSED` is not part of "active". ADR-0114 says a closed participant
-"receives nothing further", and CM-23-004 says ledger fan-out skips it, but the
-`case_fully_closed` fan-out deliberately reaches every replica whatever its RM
-state, and a departing participant learns its own `CLOSED` only from the
-ledger entry that records it (the sender side does not write it). Applying the
-exclusion to every case-content send would leave a closed replica unable to
-see how the case ended. Only `skip_closed=True` (CM-23-004's own fan-out
+"receives nothing further", and CM-23-004 says ledger fan-out skips it once an
+entry has recorded its closure, but the `case_fully_closed` fan-out deliberately
+reaches every replica whatever its RM state, and a departing participant learns
+its own `CLOSED` only from the status entry that records it, which CM-23-004
+does not withhold from it (CM-23-001; the sender side does not write it).
+Applying the exclusion to every case-content send would leave a closed replica
+unable to see how the case ended. Only `skip_closed=True` (CM-23-004's own fan-out
 variant) and the Invites leave a closed participant out. #4100 tracks
 reconciling the two rules.
 

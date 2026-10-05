@@ -383,6 +383,13 @@ that order. Replicas apply the status entries and never derive a closure path
 from their own stored state, so a replica cannot record a step the ledger lacks.
 See `notes/domain-validation.md` for the write-up and CM-23-001.
 
+The status entries are the CASE_MANAGER's own RM writes, so their
+`payloadSnapshot.actor` is the CASE_MANAGER; the leaver's own act stays
+attributed to them in the `close_case` entry (CLP-07-003). A replica applies a
+status entry through the ordinary participant-status effect, which can still
+refuse a step with a WARNING (its monotonic RM ratchet, or a composite-state
+violation, RSH-05-021). Such a replica writes nothing of its own in its place.
+
 ### Commit-Boundary Enforcement
 
 CLP-07-005 recommends a runtime guard at the CASE_MANAGER commit boundary
