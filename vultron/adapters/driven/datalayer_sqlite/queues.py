@@ -40,9 +40,12 @@ from typing import TYPE_CHECKING
 
 from sqlmodel import col, select
 
-from vultron.adapters.outbox_dead_letter import OutboxDeadLetterEntry
+from vultron.adapters.outbox_dead_letter import (
+    InboxDeadLetterEntry,
+    OutboxDeadLetterEntry,
+)
 
-from .schema import OutboxAttemptEntry, QueueEntry
+from .schema import QueueAttemptEntry, QueueEntry
 
 if TYPE_CHECKING:  # pragma: no cover - import cycle broken for typing only
     # ``datalayer`` imports this module to build its own methods, so the name
@@ -174,51 +177,42 @@ def outbox_pop(dl: "SqliteDataLayer") -> str | None:
 
 
 # ---------------------------------------------------------------------------
-# Per-activity outbox attempt counter (OX-13-001)
+# Generic per-queue attempt counter (shared inbox/outbox mechanism, #4168)
 # ---------------------------------------------------------------------------
 
 
-def get_outbox_attempt_count(
+def _get_queue_attempt_count(
     dl: "SqliteDataLayer",
+    queue: str,
     activity_id: str,
 ) -> int:
-    """Return this actor's delivery attempt count for *activity_id* (0 if unseen).
-
-    Args:
-        dl: The SqliteDataLayer instance.
-        activity_id: ID of the outbox activity to query.
-
-    Returns:
-        Current attempt count, or ``0`` when no record exists.
-    """
+    """Return the attempt count for *activity_id* in *queue* (0 if unseen)."""
     with dl._session() as session:
-        stmt = select(OutboxAttemptEntry).where(
-            OutboxAttemptEntry.activity_id == activity_id
+        stmt = select(QueueAttemptEntry).where(
+            QueueAttemptEntry.queue == queue,
+            QueueAttemptEntry.activity_id == activity_id,
         )
         row = session.exec(stmt).first()
     return row.attempt_count if row is not None else 0
 
 
-def set_outbox_attempt_count(
+def _set_queue_attempt_count(
     dl: "SqliteDataLayer",
+    queue: str,
     activity_id: str,
     count: int,
 ) -> None:
-    """Upsert this actor's delivery attempt count for *activity_id*.
-
-    Args:
-        dl: The SqliteDataLayer instance.
-        activity_id: ID of the outbox activity.
-        count: New attempt count to persist.
-    """
+    """Upsert the attempt count for *activity_id* in *queue*."""
     with dl._session() as session:
-        stmt = select(OutboxAttemptEntry).where(
-            OutboxAttemptEntry.activity_id == activity_id
+        stmt = select(QueueAttemptEntry).where(
+            QueueAttemptEntry.queue == queue,
+            QueueAttemptEntry.activity_id == activity_id,
         )
         row = session.exec(stmt).first()
         if row is None:
             session.add(
-                OutboxAttemptEntry(
+                QueueAttemptEntry(
+                    queue=queue,
                     activity_id=activity_id,
                     attempt_count=count,
                 )
@@ -229,6 +223,67 @@ def set_outbox_attempt_count(
         session.commit()
 
 
+def _clear_queue_attempt_count(
+    dl: "SqliteDataLayer",
+    queue: str,
+    activity_id: str,
+) -> None:
+    """Remove the attempt count entry for *activity_id* in *queue*."""
+    with dl._session() as session:
+        stmt = select(QueueAttemptEntry).where(
+            QueueAttemptEntry.queue == queue,
+            QueueAttemptEntry.activity_id == activity_id,
+        )
+        row = session.exec(stmt).first()
+        if row is not None:
+            session.delete(row)
+            session.commit()
+
+
+# ---------------------------------------------------------------------------
+# Per-activity outbox attempt counter (OX-13-001)
+# ---------------------------------------------------------------------------
+
+
+def get_outbox_attempt_count(
+    dl: "SqliteDataLayer",
+    activity_id: str,
+) -> int:
+    """Return this actor's delivery attempt count for *activity_id* (0 if unseen).
+
+    Delegates to the shared :func:`_get_queue_attempt_count` with
+    ``queue="outbox"`` so inbox and outbox counters use the same backing table
+    (``vultron_queue_attempts``) while keeping backward-compatible method names
+    on the DataLayer.
+
+    Args:
+        dl: The SqliteDataLayer instance.
+        activity_id: ID of the outbox activity to query.
+
+    Returns:
+        Current attempt count, or ``0`` when no record exists.
+    """
+    return _get_queue_attempt_count(dl, "outbox", activity_id)
+
+
+def set_outbox_attempt_count(
+    dl: "SqliteDataLayer",
+    activity_id: str,
+    count: int,
+) -> None:
+    """Upsert this actor's delivery attempt count for *activity_id*.
+
+    Delegates to the shared :func:`_set_queue_attempt_count` with
+    ``queue="outbox"``.
+
+    Args:
+        dl: The SqliteDataLayer instance.
+        activity_id: ID of the outbox activity.
+        count: New attempt count to persist.
+    """
+    _set_queue_attempt_count(dl, "outbox", activity_id, count)
+
+
 def clear_outbox_attempt_count(
     dl: "SqliteDataLayer",
     activity_id: str,
@@ -236,20 +291,66 @@ def clear_outbox_attempt_count(
     """Remove this actor's attempt count entry for *activity_id*.
 
     Called after an activity is dead-lettered so the side-table does not
-    accumulate stale rows (OX-13-002).
+    accumulate stale rows (OX-13-002).  Delegates to the shared
+    :func:`_clear_queue_attempt_count` with ``queue="outbox"``.
 
     Args:
         dl: The SqliteDataLayer instance.
         activity_id: ID of the outbox activity whose counter to remove.
     """
-    with dl._session() as session:
-        stmt = select(OutboxAttemptEntry).where(
-            OutboxAttemptEntry.activity_id == activity_id
-        )
-        row = session.exec(stmt).first()
-        if row is not None:
-            session.delete(row)
-            session.commit()
+    _clear_queue_attempt_count(dl, "outbox", activity_id)
+
+
+# ---------------------------------------------------------------------------
+# Per-activity inbox attempt counter (IE-06-004)
+# ---------------------------------------------------------------------------
+
+
+def get_inbox_attempt_count(
+    dl: "SqliteDataLayer",
+    activity_id: str,
+) -> int:
+    """Return this actor's processing attempt count for inbox *activity_id*.
+
+    Args:
+        dl: The SqliteDataLayer instance.
+        activity_id: ID of the inbox activity to query.
+
+    Returns:
+        Current attempt count, or ``0`` when no record exists.
+    """
+    return _get_queue_attempt_count(dl, "inbox", activity_id)
+
+
+def set_inbox_attempt_count(
+    dl: "SqliteDataLayer",
+    activity_id: str,
+    count: int,
+) -> None:
+    """Upsert this actor's processing attempt count for inbox *activity_id*.
+
+    Args:
+        dl: The SqliteDataLayer instance.
+        activity_id: ID of the inbox activity.
+        count: New attempt count to persist.
+    """
+    _set_queue_attempt_count(dl, "inbox", activity_id, count)
+
+
+def clear_inbox_attempt_count(
+    dl: "SqliteDataLayer",
+    activity_id: str,
+) -> None:
+    """Remove this actor's attempt count entry for inbox *activity_id*.
+
+    Called after an inbox item is dead-lettered so the side-table does not
+    accumulate stale rows (IE-06-004).
+
+    Args:
+        dl: The SqliteDataLayer instance.
+        activity_id: ID of the inbox activity whose counter to remove.
+    """
+    _clear_queue_attempt_count(dl, "inbox", activity_id)
 
 
 # ---------------------------------------------------------------------------
@@ -331,6 +432,78 @@ def dead_letter_list(
             logger.warning(
                 "dead_letter_list: could not reconstruct OutboxDeadLetterEntry"
                 " from stored data: %r",
+                data,
+            )
+    return entries
+
+
+# ---------------------------------------------------------------------------
+# Inbox dead-letter store (IE-06-004)
+# ---------------------------------------------------------------------------
+
+
+def inbox_dead_letter_append(
+    dl: "SqliteDataLayer",
+    activity_id: str,
+    reason: str,
+    total_attempts: int,
+    last_error: str = "",
+) -> None:
+    """Write an exhausted inbox activity to this actor's dead-letter store.
+
+    Constructs an :class:`InboxDeadLetterEntry` and persists it via
+    ``dl.save()`` so that operators can inspect it without log access
+    (IE-06-004).  ``entry.actor_id`` is taken from ``dl.actor_id``.
+
+    Args:
+        dl: The SqliteDataLayer instance.
+        activity_id: ID of the activity that exhausted its retry budget.
+        reason: Short machine-readable reason code.
+        total_attempts: Total cumulative attempt count at exhaustion.
+        last_error: String representation of the last exception raised.
+    """
+    actor = dl.actor_id
+    entry = InboxDeadLetterEntry(
+        activity_id=activity_id,
+        actor_id=actor,
+        reason=reason,
+        total_attempts=total_attempts,
+        last_error=last_error,
+        recorded_at=datetime.now(UTC),
+    )
+    dl.save(entry)
+    logger.debug(
+        "inbox_dead_letter_append: stored InboxDeadLetterEntry for activity '%s'"
+        " (actor '%s', attempts=%d)",
+        activity_id,
+        actor,
+        total_attempts,
+    )
+
+
+def inbox_dead_letter_list(
+    dl: "SqliteDataLayer",
+) -> list[InboxDeadLetterEntry]:
+    """Return this actor's inbox dead-letter entries (IE-06-004).
+
+    Reconstructs :class:`InboxDeadLetterEntry` objects from the raw dicts
+    stored in ``vultron_objects``.
+
+    Args:
+        dl: The SqliteDataLayer instance.
+
+    Returns:
+        List of :class:`InboxDeadLetterEntry` objects in no guaranteed order.
+    """
+    raw = dl.by_type("InboxDeadLetterEntry")
+    entries: list[InboxDeadLetterEntry] = []
+    for data in raw.values():
+        try:
+            entries.append(InboxDeadLetterEntry.model_validate(data))
+        except Exception:  # noqa: BLE001  # ruff-baseline #3326
+            logger.warning(
+                "inbox_dead_letter_list: could not reconstruct"
+                " InboxDeadLetterEntry from stored data: %r",
                 data,
             )
     return entries

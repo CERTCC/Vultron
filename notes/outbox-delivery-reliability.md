@@ -13,6 +13,7 @@ related_issues:
   - https://github.com/CERTCC/Vultron/issues/2962
   - https://github.com/CERTCC/Vultron/issues/3602
   - https://github.com/CERTCC/Vultron/issues/3878
+  - https://github.com/CERTCC/Vultron/issues/4168
 related_notes:
   - notes/outbox.md
   - notes/sync-ledger-replication.md
@@ -191,8 +192,15 @@ CONCERN-2302).
 - **#2202 AC-7**: that issue consolidates demo-side timeout constants. Once
   `HttpDeliveryAdapter.timeout` is configurable (Task C), #2202 can set it from
   a single config source rather than the hardcoded 5 s.
-- **#1880**: inbound unprocessable activities — the analogous inbound terminal-state
-  question. ADR-0066 defers the protocol-level NACK to that issue; the dead-letter
-  store model should be unified when #1880 is planned.
+- **#1880 / #4168 (IE-06-004)**: the "analogous inbound terminal-state question"
+  ADR-0066 deferred has landed for bounded inbox retry in #4168.
+  The mechanism is now shared: a single `QueueAttemptEntry` SQLModel table
+  (composite PK: `queue` + `activity_id`) backs both inbox and outbox attempt
+  counters.
+  `RetryStore` (extending `OutboxRetryStore`) is the unified adapter protocol.
+  `InboxDeadLetterEntry(CoreRecord)` mirrors `OutboxDeadLetterEntry`.
+  `AppConfig.max_inbox_retry_attempts` (default 12) makes the inbox budget
+  configurable via `VULTRON_MAX_INBOX_RETRY_ATTEMPTS`.
+  Protocol-level NACK on exhaustion is still deferred to #1880.
 - **OX-12-001**: HTTP-only delivery (ADR-0042) is not in question. All changes here
   are about the reliability envelope, not the delivery mechanism.

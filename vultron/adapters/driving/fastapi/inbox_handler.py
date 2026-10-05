@@ -54,6 +54,8 @@ from vultron.adapters.driving.fastapi.inbox_port_factories import (
 )
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.adapters.driving.fastapi.startup_slot import StartupSlot
+from vultron.adapters.outbox_dead_letter import RetryStore
+from vultron.config import get_config
 from vultron.core.dispatcher import get_dispatcher
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events import VultronEvent, is_case_bootstrap
@@ -333,17 +335,77 @@ def _log_rehydrated_item(item: as_Activity) -> None:
     logger.debug("Item has transitive object of type: %s", obj_type_label)
 
 
+def _inbox_retry_or_dead_letter(
+    item_id: str,
+    actor_id: str,
+    reason: str,
+    last_error: str,
+    queue_dl: DataLayer,
+    retry: RetryStore,
+    max_attempts: int,
+) -> None:
+    """Increment the attempt counter; dead-letter on exhaustion, requeue otherwise.
+
+    Called from ``_rehydrate_inbox_item`` and ``_process_inbox_item`` for any
+    transient failure (non-``VultronProtocolViolationError``).  Protocol
+    violations are dropped before reaching this helper.
+
+    Args:
+        item_id: Activity ID of the failing inbox item.
+        actor_id: Canonical URI of the receiving actor (for log context).
+        reason: Short machine-readable failure reason code.
+        last_error: String representation of the last exception.
+        queue_dl: Actor-scoped DataLayer for queue management.
+        retry: ``RetryStore`` port used to persist attempt counts and dead letters.
+        max_attempts: Maximum cumulative attempts before dead-lettering
+            (``AppConfig.max_inbox_retry_attempts``).
+    """
+    total = retry.get_inbox_attempt_count(item_id) + 1
+    if total >= max_attempts:
+        retry.inbox_dead_letter_append(
+            item_id,
+            reason=reason,
+            total_attempts=total,
+            last_error=last_error,
+        )
+        retry.clear_inbox_attempt_count(item_id)
+        logger.error(
+            "Inbox item '%s' exhausted %d processing attempts for actor '%s';"
+            " moved to dead letter (IE-06-004).",
+            item_id,
+            total,
+            actor_id,
+        )
+    else:
+        retry.set_inbox_attempt_count(item_id, total)
+        queue_dl.inbox_append(item_id)
+        logger.error(
+            "Error processing inbox item '%s' for actor '%s' (attempt %d/%d);"
+            " re-queuing for retry.",
+            item_id,
+            actor_id,
+            total,
+            max_attempts,
+        )
+
+
 def _rehydrate_inbox_item(
     item_id: str,
     dl: DataLayer,
     queue_dl: DataLayer,
+    retry: RetryStore | None = None,
+    max_attempts: int = 12,
+    actor_id: str = "",
 ) -> as_Activity | None:
     """Rehydrate one inbox item, routing errors through the permanent/transient
-    classification instead of letting them escape (AC-1 of #3044).
+    classification instead of letting them escape (AC-1 of #3044, IE-06-004).
 
     Returns the rehydrated ``as_Activity`` or ``None`` on any error.
-    On a permanent failure (``VultronProtocolViolationError``) the item is not
-    re-queued; on any other exception it is re-queued for retry.
+    On a permanent failure (``VultronProtocolViolationError``) the item is
+    dropped (not re-queued).  On any other exception:
+    - When *retry* is provided, increments the persistent attempt count and
+      either re-queues or dead-letters the item (IE-06-004).
+    - When *retry* is ``None`` (legacy callers), re-queues unconditionally.
     """
     try:
         obj = rehydrate(item_id, dl=dl)
@@ -354,12 +416,23 @@ def _rehydrate_inbox_item(
             item_id,
         )
         return None
-    except Exception:
+    except Exception as exc:
         logger.exception(
             "Error rehydrating inbox item %s — re-queuing for retry",
             item_id,
         )
-        queue_dl.inbox_append(item_id)
+        if retry is not None:
+            _inbox_retry_or_dead_letter(
+                item_id,
+                actor_id,
+                "rehydration_error",
+                str(exc),
+                queue_dl,
+                retry,
+                max_attempts,
+            )
+        else:
+            queue_dl.inbox_append(item_id)
         return None
     if not isinstance(obj, as_Activity):
         logger.error(
@@ -379,11 +452,16 @@ def _process_inbox_item(
     dl: DataLayer,
     queue_dl: DataLayer,
     dispatcher: ActivityDispatcher | None = None,
+    retry: RetryStore | None = None,
+    max_attempts: int = 12,
 ) -> bool:
     """Dispatch one inbox activity and return ``True`` on success.
 
     On a permanent failure (``VultronProtocolViolationError``) the item is not
-    re-queued; on any other exception it is re-queued for retry (#2865).
+    re-queued.  On any other exception, when *retry* is provided the item is
+    tracked via the persisted retry store and dead-lettered on exhaustion
+    (IE-06-004); when *retry* is ``None`` (legacy callers) it is re-queued
+    unconditionally (#2865).
     """
     _log_rehydrated_item(item)
 
@@ -422,7 +500,18 @@ def _process_inbox_item(
             "Item causing error: %s",
             item.model_dump_json(indent=2, exclude_none=True),
         )
-        queue_dl.inbox_append(item_id)
+        if retry is not None:
+            _inbox_retry_or_dead_letter(
+                item_id,
+                actor_id,
+                "processing_error",
+                str(e),
+                queue_dl,
+                retry,
+                max_attempts,
+            )
+        else:
+            queue_dl.inbox_append(item_id)
         return False
 
 
@@ -478,25 +567,30 @@ async def inbox_handler(
 
     logger.info("Processing inbox for actor %s", actor_id)
 
-    err_count = 0
+    # Cast to RetryStore for bounded retry tracking (IE-06-004).  SqliteDataLayer
+    # satisfies RetryStore structurally; when a test double or non-SQLite DL is
+    # passed, the cast is still valid because RetryStore is checked structurally
+    # at type-check time only — the runtime call succeeds if the method exists.
+    retry: RetryStore = cast(RetryStore, queue_dl)
+    max_attempts = get_config().max_inbox_retry_attempts
 
     while queue_dl.inbox_list():
         item_id = queue_dl.inbox_pop()
         if item_id is None:
             break
 
-        item = _rehydrate_inbox_item(item_id, dl=dl, queue_dl=queue_dl)
+        item = _rehydrate_inbox_item(
+            item_id,
+            dl=dl,
+            queue_dl=queue_dl,
+            retry=retry,
+            max_attempts=max_attempts,
+            actor_id=canonical_actor_id,
+        )
         if item is None:
-            err_count += 1
-            if err_count > 3:
-                logger.error(
-                    "Too many errors processing inbox for actor %s, aborting.",
-                    actor_id,
-                )
-                break
             continue
 
-        if not _process_inbox_item(
+        _process_inbox_item(
             actor_id=actor_id,
             canonical_actor_id=canonical_actor_id,
             item_id=item_id,
@@ -504,14 +598,9 @@ async def inbox_handler(
             dl=dl,
             queue_dl=queue_dl,
             dispatcher=dispatcher,
-        ):
-            err_count += 1
-            if err_count > 3:
-                logger.error(
-                    "Too many errors processing inbox for actor %s, aborting.",
-                    actor_id,
-                )
-                break
+            retry=retry,
+            max_attempts=max_attempts,
+        )
 
     # OX-1.2 / OX-03-002: trigger outbox delivery after inbox processing completes
     await outbox_handler(actor_id, queue_dl, emitter=emitter)
