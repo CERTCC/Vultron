@@ -3246,9 +3246,10 @@ groups:
       writes for the leaving participant (CM-23-012; V → D → C is two entries).
       These status entries are the Leave's recorded consequence, written by the
       CASE_MANAGER as its own RM writes for the leaving participant (CLP-07-001,
-      CLP-07-002, CLP-07-003).  Each replica advances the leaving
-      participant's RM state to RM.CLOSED only by applying those status entries,
-      in ledger order, from the Announce(CaseLedgerEntry) fan-out.  A replica
+      CLP-07-002, CLP-07-003).  Each replica still receiving case content
+      (CM-23-004) advances the leaving participant's RM state to RM.CLOSED only by
+      applying those status entries, in ledger order, from the Announce(CaseLedgerEntry)
+      fan-out.  A replica
       MUST NOT work out a closure path from its own stored state, and applying the
       close_case entry MUST NOT change any participant's RM state.  A status entry
       that cannot be committed is logged at WARNING and does not abort the
@@ -3307,8 +3308,9 @@ groups:
       `Leave(VulnerabilityCase)` triggers the closure sequence: the `close_case`
       entry, the Case Owner's status entries, the CASE_MANAGER's own status entries,
       then the `case_fully_closed` entry, in that order, fanned out to every active
-      participant whose closure the ledger does not already record. Unit tests confirm that the ledger holds no entry for the Case
-      Owner or the CASE_MANAGER after `case_fully_closed`.
+      participant whose closure the ledger does not already record.  Unit tests
+      confirm that the ledger holds no entry for the Case Owner or the CASE_MANAGER
+      after `case_fully_closed`.
     relationships:
     - rel_type: refines
       spec_id: CM-23-001
@@ -3356,30 +3358,55 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      CASE_MANAGER fan-out of CaseLedgerEntry MUST NOT send an entry to a participant
-      whose closure an earlier ledger entry already records (its status entry with
-      rm_state=RM.CLOSED).  The entries that record a participant's own closure, the
-      close_case entry and the status entries that follow it (CM-23-001), are not
-      withheld from that participant, so the leaving participant's replica receives
-      every step, the one that reaches RM.CLOSED included.  A participant that has
-      left stops at the entries that record its departure: it does not receive later
-      entries, case_fully_closed included.
+      The CASE_MANAGER MUST NOT send a participant whose closure an earlier ledger
+      entry already records (its status entry with rm_state=RM.CLOSED) any case
+      content: no CaseLedgerEntry announcements, no Announce(VulnerabilityCase), no
+      status broadcasts and no embargo announcements.  The entries that record a
+      participant's own closure, the close_case entry and the status entries that
+      follow it (CM-23-001), are not withheld from that participant, so the leaving
+      participant's replica receives every step, the one that reaches RM.CLOSED
+      included.  Those entries are identified by their subject being the recipient,
+      not by the recipient's status, which is already RM.CLOSED when the last of
+      them is fanned out.  They never widen entitlement (CM-10-004): a participant
+      that is inert or removed when it leaves is not sent them.  The only other
+      message a closed participant receives is the direct embargo notice to a
+      SIGNATORY that CM-31-009 requires, which carries no other case content.  A
+      participant that has left stops at the entries that record its departure: it
+      does not receive later entries, case_fully_closed included.  A closing
+      participant waits for those entries and MUST NOT write its own RM.CLOSED to
+      its replica in place of them.  The CASE_MANAGER's own store, not any
+      participant's replica, is where every participant's closure is verified.
     rationale: >-
-      Once a participant reaches RM.CLOSED they have departed the case, and its
-      case replication process is assumed to have exited, so nothing is there to
-      receive a later entry.  Continuing to send them entries wastes bandwidth and
-      may trigger erroneous processing on stale replicas.  The same assumption
-      governs the CASE_MANAGER after case_fully_closed (CM-23-013).  The entries
-      that record the participant's own closure come before it exits, so it still
-      receives them.
-    verification: Integration tests in `test/demo/` confirm that `Announce(CaseLedgerEntry)`
-      fan-out skips a participant once a ledger entry has recorded its `rm_state=RM.CLOSED`,
-      and that the leaving participant's replica still receives the `close_case` entry and
-      every status entry up to and including the one that reaches `RM.CLOSED`, but not
-      the later `case_fully_closed` entry.
+      RM.CLOSED is the participant's own declaration that it has stopped paying
+      attention to the case, made while the case may still be open, and its case
+      replication process is assumed to have exited, so nothing is there to receive
+      a later entry (the same assumption governs the CASE_MANAGER after
+      case_fully_closed, CM-23-013).  It receives no further content, so it does not
+      go on seeing embargoed material after it has left, and continuing to send it
+      entries wastes bandwidth and may trigger erroneous processing on stale
+      replicas.  The entries that record its own closure come before it exits, so it
+      still receives them (a replica is advanced only by the ledger, CM-23-001).  A
+      closed replica therefore does not converge on later closures; that is
+      intended.  Resolves CONCERN-4100.
+    verification: >-
+      Unit tests on the shared recipient selection assert a participant whose
+      closure the ledger records is left out of every case-content send except the
+      entries recording its own closure.  Integration tests in `test/demo/` confirm
+      that `Announce(CaseLedgerEntry)` fan-out skips a participant once a ledger
+      entry has recorded its `rm_state=RM.CLOSED`, that the leaving participant's
+      replica still receives the `close_case` entry and every status entry up to and
+      including the one that reaches `RM.CLOSED`, but not the later
+      `case_fully_closed` entry, and that the CASE_MANAGER's store holds every
+      participant at RM.CLOSED.
     relationships:
     - rel_type: refines
       spec_id: CM-23-001
+    - rel_type: refines
+      spec_id: CM-10-004
+    - rel_type: refines
+      spec_id: CM-31-009
+    adr:
+    - ADR-0114
     stories:
     - story_2022_068
   - id: CM-23-005
@@ -3711,8 +3738,8 @@ groups:
     rationale: >-
       The owner's Leave closes the case for everyone (CM-23-002), and nothing a
       participant sends afterwards reaches the ledger. A participant that has
-      not left by then keeps its last RM state on every replica, which is
-      harmless but leaves the ledger without a record of its departure.
+      not left by then keeps its last RM state on every replica that receives it,
+      which is harmless but leaves the ledger without a record of its departure.
       Leaving last is the owner's normal course, not a hard ordering: a
       participant that never leaves cannot hold a case open. #4163 owns
       reordering the demo scenarios, which today close the owner first.
