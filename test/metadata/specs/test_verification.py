@@ -13,17 +13,21 @@ marked IDs::
 from __future__ import annotations
 
 import json
-import re
 import subprocess
 
 import pytest
 import yaml
-from pydantic import ValidationError
+from pydantic import TypeAdapter, ValidationError
 
 import vultron.metadata.specs.verification as verification_module
 from test.metadata.specs.conftest import spec_file_data
 from vultron.metadata.specs.registry import SpecRegistry
-from vultron.metadata.specs.schema import SpecFile, SpecKind, StatementSpec
+from vultron.metadata.specs.schema import (
+    IssueRefStr,
+    SpecFile,
+    SpecKind,
+    StatementSpec,
+)
 from vultron.metadata.specs.verification import (
     VERIFICATION_DEBT_OWNERS,
     check_verification_coverage,
@@ -31,8 +35,12 @@ from vultron.metadata.specs.verification import (
     debt_by_kind,
     debt_owner_refs,
     gh_issue_state,
+    idle_owners,
+    issue_number,
     verification_problems,
 )
+
+_ISSUE_REF: TypeAdapter[str] = TypeAdapter(IssueRefStr)
 
 # ---------------------------------------------------------------------------
 # The live corpus against the live table
@@ -51,10 +59,11 @@ def test_live_corpus_has_no_per_item_verification_failure(real_registry):
 
 
 def test_owner_table_entries_are_non_empty_issue_references():
+    """Validated with the same type the schema uses for a marker."""
     for kind, owners in VERIFICATION_DEBT_OWNERS.items():
         assert owners, f"kind={kind.value}: delete an empty entry (MS-10-007)"
         for owner in owners:
-            assert re.fullmatch(r"#[1-9]\d*", owner), owner
+            _ISSUE_REF.validate_python(owner)
 
 
 # ---------------------------------------------------------------------------
@@ -269,6 +278,33 @@ def test_summary_does_not_depend_on_any_committed_count():
     assert errors == []
     assert any("kind=protocol: 2 MUST-tier" in ln for ln in before)
     assert any("kind=protocol: 1 MUST-tier" in ln for ln in after)
+
+
+@pytest.mark.spec("MS-10-007")
+def test_owner_no_marker_names_is_reported_not_failed():
+    """#2 owns process but no marker names it: a warning, never an error, so
+    two PRs finishing one owner's backlog cannot turn main red merged."""
+    errors, lines = check_verification_coverage(
+        _registry(_CLEAN_ITEMS), _OWNERS
+    )
+    assert errors == []
+    warnings = [ln for ln in lines if ln.startswith("[WARN]")]
+    assert len(warnings) == 1
+    assert "no marker names owner #2" in warnings[0]
+    assert "MS-10-007" in warnings[0]
+
+
+def test_idle_owners_lists_every_unnamed_owner_in_issue_order():
+    reports = debt_by_kind(_registry(_CLEAN_ITEMS))
+    owners = {SpecKind.PROJECT: frozenset({"#10", "#9"})}
+    lines = idle_owners(reports, owners)
+    assert len(lines) == 2
+    assert "owner #9;" in lines[0]
+    assert "owner #10;" in lines[1]
+
+
+def test_issue_number_reads_the_reference():
+    assert issue_number("#3612") == 3612
 
 
 # ---------------------------------------------------------------------------

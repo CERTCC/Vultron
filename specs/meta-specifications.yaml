@@ -391,8 +391,8 @@ groups:
       per-item failure fires (neither field, both fields, a below-tier marker, a
       wrong-kind owner) and that the open-owner check fails on a closed issue and on a
       failed lookup; a spec-corpus test there asserts the live corpus has no per-item
-      failure. The `spec-lint` job in `.github/workflows/spec-check.yml` runs the
-      open-owner check with `--check-debt-owners`.
+      failure. The `verification-debt-owners` job in `.github/workflows/spec-check.yml`
+      runs the open-owner check with `--check-debt-owners`.
     relationships:
     - rel_type: implements
       spec_id: MS-10-003
@@ -405,22 +405,26 @@ groups:
     priority: MUST
     kind: process
     statement: >-
-      When no requirement of a kind carries a `verification_debt:` marker, that kind's
-      owner entry MUST be removed, and spec-lint MUST thereafter treat a marker on any
-      requirement of that kind as a hard error, so that an unverified MUST or MUST_NOT of
-      that kind can only pass by gaining a `verification:` field.
+      When no `verification_debt:` marker names an owner issue, that issue MUST be removed
+      from the MS-10-006 owner table, and a kind's entry MUST be removed with its last
+      owner. spec-lint MUST report an owner that no marker names, and MUST treat a marker
+      on any requirement of a kind with no owner entry as a hard error, so that an
+      unverified MUST or MUST_NOT of that kind can only pass by gaining a `verification:`
+      field.
     rationale: >-
       Zero is the only state a backlog cannot drift from, and only if nothing can raise it
-      back. Removing the owner entry makes the end state permanent for that kind: no marker
+      back. Removing a kind's entry makes the end state permanent: no marker of that kind
       is accepted, and an unmarked unverified requirement already fails under MS-10-006.
-      The growth guard (#4200) keeps markers from being added while a kind still has an
-      owner. The `protocol` tier is expected to finish first (#3612); the other kinds
-      finish when their backfill Tasks do.
+      An owner no marker names is reported rather than failed, because two PRs that each
+      verify some of its last requirements are green alone and would turn `main` red
+      merged (#3984); the open-owner check fails on the entry once its issue closes,
+      which forces the removal. The growth guard (#4200) keeps markers from being added
+      while an owner remains. The `protocol` tier is expected to finish first (#3612).
     verification: >-
       Unit tests in `test/metadata/specs/test_lint.py` and
       `test/metadata/specs/test_verification.py` assert that, for a kind with no owner
-      entry, a marked MUST and a marked MUST_NOT each make lint exit 1, and that verified
-      items of that kind pass.
+      entry, a marked MUST and a marked MUST_NOT each make lint exit 1, that verified
+      items of that kind pass, and that an owner no marker names is reported.
     tracking_issue: '#3612'
     relationships:
     - rel_type: depends_on
@@ -444,7 +448,9 @@ groups:
     verification: >-
       spec-lint fails on a marker naming an issue that does not own its requirement's
       kind, so a relabel that keeps its old marker fails; a fixture test in
-      `test/metadata/specs/test_verification.py` proves it.
+      `test/metadata/specs/test_verification.py` proves it. A relabel that re-points the
+      marker at the destination kind's owner is a new marker for that owner, which the
+      growth guard (#4200) rejects.
     relationships:
     - rel_type: refines
       spec_id: MS-10-006

@@ -17,8 +17,8 @@ per file group (#2573 demo files, #2574 BT and spec tooling, #2575 the rest).
 
 Text-manipulation approach: items are sliced by the shared helpers in
 ``vultron.metadata.specs.yaml_items``. No YAML dump, so every other line of
-every file is preserved byte for byte; ``yaml.safe_load`` is used only to read
-each item's fields.
+every file is preserved byte for byte; the file is parsed only to read each
+item's fields.
 
 Usage:
     uv run python scripts/mark_verification_debt.py [--dry-run] [--specs-dir DIR]
@@ -32,10 +32,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import yaml
-
+from vultron.metadata.file_loading import load_yaml
 from vultron.metadata.specs.schema import RFC2119Priority, SpecKind
-from vultron.metadata.specs.verification import VERIFICATION_DEBT_OWNERS
+from vultron.metadata.specs.verification import (
+    VERIFICATION_DEBT_OWNERS,
+    owes_verification,
+    owns_kind,
+)
 from vultron.metadata.specs.yaml_items import (
     SpecItem,
     iter_blocks,
@@ -91,9 +94,14 @@ class Tally:
     kind_not_found: list[str] = field(default_factory=list)
 
 
-def _items_by_id(text: str) -> dict[str, dict[str, Any]]:
+# Raw parsed YAML is untyped by nature; ``Any`` here is the YAML boundary. The
+# items are not validated as ``StatementSpec`` because a retired suppression
+# code — one of the things this script removes — fails that validation.
+def _items_by_id(yaml_path: Path) -> dict[str, dict[str, Any]]:
     """Every spec item's raw fields, keyed by ID."""
-    data = yaml.safe_load(text) or {}
+    data = load_yaml(yaml_path, root=_REPO_ROOT)
+    if not isinstance(data, dict):
+        return {}
     return {
         spec["id"]: spec
         for group in data.get("groups", [])
@@ -109,12 +117,13 @@ def _sync_item(
     if stripped:
         tally.suppressions_removed += 1
 
-    must_tier = RFC2119Priority(fields["priority"]).is_must_tier
-    verified = bool(fields.get("verification"))
+    owes = owes_verification(
+        RFC2119Priority(fields["priority"]), fields.get("verification")
+    )
     marker = fields.get("verification_debt")
     kind = SpecKind(fields["kind"])
 
-    if marker and (verified or not must_tier):
+    if marker and not owes:
         tally.removed_stale.append(item.spec_id)
         return [
             ln
@@ -124,10 +133,10 @@ def _sync_item(
             )
         ]
     if marker:
-        if marker not in VERIFICATION_DEBT_OWNERS.get(kind, frozenset()):
+        if not owns_kind(VERIFICATION_DEBT_OWNERS, kind, marker):
             tally.wrong_owner.append(item.spec_id)
         return lines
-    if not must_tier or verified:
+    if not owes:
         return lines
 
     owner = owner_for(kind, file_stem)
@@ -147,7 +156,7 @@ def _sync_item(
 def sync_file(yaml_path: Path, tally: Tally, dry_run: bool) -> bool:
     """Rewrite one spec file. Returns True when the file changed."""
     text = yaml_path.read_text(encoding="utf-8")
-    fields_by_id = _items_by_id(text)
+    fields_by_id = _items_by_id(yaml_path)
     lines = text.splitlines(keepends=True)
     result: list[str] = []
     for block in iter_blocks(lines):

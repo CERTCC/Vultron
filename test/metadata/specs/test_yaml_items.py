@@ -137,7 +137,7 @@ def test_items_in_a_corpus_shaped_file_carry_their_own_fields():
     assert found[1].lines[-1] == "      across two lines.\n"
 
 
-def _item(text: str):
+def _item(text: str) -> SpecItem:
     (only,) = _items(text)
     return only
 

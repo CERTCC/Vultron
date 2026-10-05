@@ -14,7 +14,7 @@ import vultron.metadata.specs.verification as verification_module
 from test.metadata.specs._helpers import write_yaml
 from test.metadata.specs.conftest import spec_file_data
 from vultron.metadata.specs.lint import lint
-from vultron.metadata.specs.schema import SpecKind
+from vultron.metadata.specs.schema import RFC2119Priority, SpecKind
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -36,7 +36,7 @@ def _minimal_spec(spec_id="TST-01-001", priority="MUST", extra=None):
         "tags": ["testing"],
         "stories": ["story_2022_001"],
     }
-    if priority in ("MUST", "MUST_NOT"):
+    if RFC2119Priority(priority).is_must_tier:
         # MS-10-003: keep the per-item verification check out of the way.
         spec["verification"] = _VERIFIED
     if extra:
@@ -1712,7 +1712,7 @@ def _minimal_spec_no_stories(priority="MUST", kind="protocol"):
         "rationale": "Because testing",
         "tags": ["testing"],
     }
-    if priority in ("MUST", "MUST_NOT"):
+    if RFC2119Priority(priority).is_must_tier:
         spec["verification"] = _VERIFIED
     return {
         "id": "TST",

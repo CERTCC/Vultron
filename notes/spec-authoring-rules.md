@@ -271,9 +271,10 @@ inventing a sequence.
 
 `spec-lint`'s per-item `must_without_verification` warning named exactly the
 "MUST with nothing checking it" defect — and fired on MS-13-001 and MS-13-002
-themselves for as long as they went unenforced. As a per-item `[WARN]` it did not help, because well
-over half the corpus's MUST items had no `verification:` field, so that one
-warning produced the large majority of the run's `[WARN]` lines. A defect class
+themselves for as long as they went unenforced. As a per-item `[WARN]` it did
+not help, because well over half the corpus's MUST items had no `verification:`
+field, so that one warning produced the large majority of the run's `[WARN]`
+lines. A defect class
 at that volume is indistinguishable from background noise, and a newly-introduced
 instance is invisible.
 

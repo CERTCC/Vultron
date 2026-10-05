@@ -10,6 +10,8 @@ run.
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from test.ci._workflows import WORKFLOWS_DIR, load_workflow, steps, triggers
@@ -18,7 +20,7 @@ _WORKFLOW = WORKFLOWS_DIR / "spec-check.yml"
 _COMMAND = "spec-lint specs/ --check-debt-owners"
 
 
-def _owner_check_step() -> dict:
+def _owner_check_step() -> dict[str, Any]:
     found = [
         s
         for s in steps(load_workflow(_WORKFLOW))

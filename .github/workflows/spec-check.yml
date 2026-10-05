@@ -84,14 +84,14 @@ jobs:
         uses: ./.github/actions/notify-failure
         with:
           mode: notify
-          workflow-label: ci:workflow-spec-check
+          workflow-label: ci:workflow-spec-check-debt-owners
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Close CI failure issue
         if: success() && (github.event_name == 'push' || github.event_name == 'schedule')
         uses: ./.github/actions/notify-failure
         with:
           mode: close
-          workflow-label: ci:workflow-spec-check
+          workflow-label: ci:workflow-spec-check-debt-owners
           token: ${{ secrets.GITHUB_TOKEN }}
 
   # Run pytest tests that read the actual specs/ corpus.  Triggered alongside

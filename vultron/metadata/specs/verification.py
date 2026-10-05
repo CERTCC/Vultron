@@ -55,13 +55,18 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 
 from vultron.metadata.specs.registry import SpecRegistry
-from vultron.metadata.specs.schema import SpecKind
+from vultron.metadata.specs.schema import (
+    RFC2119Priority,
+    SpecKind,
+    StatementSpec,
+)
 
 #: The issues that own each kind's verification backlog. A marker must name an
-#: owner of its item's kind. Delete a kind's entry once no item of that kind
-#: carries a marker; from then on any marker of that kind is a hard error
-#: (MS-10-007). Never add an owner to admit new debt — the growth guard (#4200)
-#: rejects a PR that adds a marker.
+#: owner of its item's kind. Remove an owner once no marker names it (spec-lint
+#: warns; the CI open-owner check fails once the issue closes), and the kind's
+#: entry with its last owner; from then on any marker of that kind is a hard
+#: error (MS-10-007). Never add an owner to admit new debt — the growth guard
+#: (#4200) rejects a PR that adds a marker.
 VERIFICATION_DEBT_OWNERS: Mapping[SpecKind, frozenset[str]] = MappingProxyType(
     {
         SpecKind.PROTOCOL: frozenset({"#3612"}),
@@ -70,6 +75,25 @@ VERIFICATION_DEBT_OWNERS: Mapping[SpecKind, frozenset[str]] = MappingProxyType(
         SpecKind.PROJECT: frozenset({"#2573", "#2574", "#2575"}),
     }
 )
+
+
+def issue_number(ref: str) -> int:
+    """The number in an ``#N`` issue reference."""
+    return int(ref.removeprefix("#"))
+
+
+def owes_verification(
+    priority: RFC2119Priority, verification: str | None
+) -> bool:
+    """A MUST-tier requirement with no ``verification:`` field (MS-10-003)."""
+    return priority.is_must_tier and not verification
+
+
+def owns_kind(
+    owners: Mapping[SpecKind, frozenset[str]], kind: SpecKind, marker: str
+) -> bool:
+    """Whether *marker* names an owner of *kind* (MS-10-006..008)."""
+    return marker in owners.get(kind, frozenset())
 
 
 @dataclass
@@ -122,26 +146,16 @@ def verification_problems(
         spec = registry.all_specs[spec_id]
         marker = spec.verification_debt
         kind = spec.kind.value
-        if spec.priority.is_must_tier:
-            if not spec.verification and not marker:
-                problems.append(
-                    f"{spec_id}: priority {spec.priority.value} has no "
-                    f"verification: field (MS-10-003); add a verification: "
-                    f"criterion"
-                )
-            elif spec.verification and marker:
-                problems.append(
-                    f"{spec_id}: has a verification: field and a stale "
-                    f"verification_debt: '{marker}' marker; delete the marker "
-                    f"(MS-10-006)"
-                )
-        elif marker:
+        owes = owes_verification(spec.priority, spec.verification)
+        if owes and not marker:
             problems.append(
-                f"{spec_id}: priority {spec.priority.value} is below the MUST "
-                f"tier, so it owes no verification: field; delete its "
-                f"verification_debt: '{marker}' marker (MS-10-006)"
+                f"{spec_id}: priority {spec.priority.value} has no "
+                f"verification: field (MS-10-003); add a verification: "
+                f"criterion"
             )
-        if not marker or marker in owners.get(spec.kind, frozenset()):
+        elif marker and not owes:
+            problems.append(_stale_marker_problem(spec_id, spec, marker))
+        if not marker or owns_kind(owners, spec.kind, marker):
             continue
         kind_owners = owners.get(spec.kind)
         if kind_owners:
@@ -157,6 +171,44 @@ def verification_problems(
                 f"add a verification: criterion"
             )
     return problems
+
+
+def _stale_marker_problem(
+    spec_id: str, spec: StatementSpec, marker: str
+) -> str:
+    if spec.priority.is_must_tier:
+        return (
+            f"{spec_id}: has a verification: field and a stale "
+            f"verification_debt: '{marker}' marker; delete the marker "
+            f"(MS-10-006)"
+        )
+    return (
+        f"{spec_id}: priority {spec.priority.value} is below the MUST tier, "
+        f"so it owes no verification: field; delete its "
+        f"verification_debt: '{marker}' marker (MS-10-006)"
+    )
+
+
+def idle_owners(
+    reports: Mapping[SpecKind, DebtReport],
+    owners: Mapping[SpecKind, frozenset[str]],
+) -> list[str]:
+    """Advisory lines for owner-table entries no marker names (MS-10-007).
+
+    Advisory, not a hard error: two PRs that each verify some of an owner's
+    last markers are green alone and would be red merged — the race the
+    per-item rule exists to avoid (#3984). The CI open-owner check fails on the
+    entry once its issue closes, which forces the removal.
+    """
+    return [
+        f"[WARN] verification_debt kind={kind.value}: no marker names owner "
+        f"{owner}; remove it from VERIFICATION_DEBT_OWNERS (and the kind's "
+        f"entry with its last owner) so the kind accepts no new debt "
+        f"(MS-10-007)"
+        for kind, kind_owners in owners.items()
+        for owner in sorted(kind_owners, key=issue_number)
+        if not reports[kind].by_owner.get(owner)
+    ]
 
 
 def summary_line(report: DebtReport, kind_owners: Iterable[str] = ()) -> str:
@@ -192,18 +244,20 @@ def check_verification_coverage(
     """The ``spec-lint`` check for unverified MUST-tier requirements.
 
     Returns ``(hard_errors, status_lines)``: every per-requirement violation
-    from :func:`verification_problems`, and one summary line for each kind
-    that has an owner entry or a marker — with that kind's marked IDs beneath
-    it when *list_unverified* is set.
+    from :func:`verification_problems`, one summary line for each kind that
+    has an owner entry or a marker — with that kind's marked IDs beneath it
+    when *list_unverified* is set — and a warning per idle owner.
     """
     lines: list[str] = []
-    for kind, report in debt_by_kind(registry).items():
+    reports = debt_by_kind(registry)
+    for kind, report in reports.items():
         kind_owners = owners.get(kind, frozenset())
         if not report.count and not kind_owners:
             continue
         lines.append(summary_line(report, kind_owners))
         if list_unverified:
             lines.extend(listing_lines(report))
+    lines.extend(idle_owners(reports, owners))
     return verification_problems(registry, owners), lines
 
 
@@ -230,7 +284,7 @@ def gh_issue_state(ref: str) -> str:
     the lookup cannot be made.
     """
     result = subprocess.run(
-        ["gh", "issue", "view", ref.lstrip("#"), "--json", "state"],
+        ["gh", "issue", "view", str(issue_number(ref)), "--json", "state"],
         capture_output=True,
         text=True,
         check=True,
@@ -251,7 +305,7 @@ def closed_debt_owners(
     if issue_state is None:
         issue_state = gh_issue_state
     errors: list[str] = []
-    for ref in sorted(refs, key=lambda r: int(r.lstrip("#"))):
+    for ref in sorted(refs, key=issue_number):
         try:
             state = issue_state(ref)
         except (

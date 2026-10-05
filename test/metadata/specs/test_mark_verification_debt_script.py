@@ -10,6 +10,7 @@ from __future__ import annotations
 import importlib.util
 import sys
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
@@ -23,7 +24,7 @@ from vultron.metadata.specs.verification import (
 _SCRIPTS = Path(__file__).parents[3] / "scripts"
 
 
-def _load(name: str):
+def _load(name: str) -> ModuleType:
     spec = importlib.util.spec_from_file_location(
         name, _SCRIPTS / f"{name}.py"
     )
