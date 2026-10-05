@@ -3288,7 +3288,8 @@ groups:
           one status entry per RM transition it writes, in order (CM-23-005),
       (3) emit a case_fully_closed CaseLedgerEntry marking the owner-close write
           boundary (ADR-0085),
-      (4) fan-out that entry to every active participant (CM-10-004).
+      (4) fan-out that entry to every active participant whose closure the ledger
+          does not already record (CM-10-004, CM-23-004).
       Every entry of steps (0) to (2) MUST precede case_fully_closed, because no
       later entry records an external participant's act (CM-23-013).
       The case_fully_closed entry is NOT a log-complete marker: it records that
@@ -3306,7 +3307,7 @@ groups:
       `Leave(VulnerabilityCase)` triggers the closure sequence: the `close_case`
       entry, the Case Owner's status entries, the CASE_MANAGER's own status entries,
       then the `case_fully_closed` entry, in that order, fanned out to every active
-      participant. Unit tests confirm that the ledger holds no entry for the Case
+      participant whose closure the ledger does not already record. Unit tests confirm that the ledger holds no entry for the Case
       Owner or the CASE_MANAGER after `case_fully_closed`.
     relationships:
     - rel_type: refines
@@ -3360,8 +3361,9 @@ groups:
       rm_state=RM.CLOSED).  The entries that record a participant's own closure, the
       close_case entry and the status entries that follow it (CM-23-001), are not
       withheld from that participant, so the leaving participant's replica receives
-      every step, the one that reaches RM.CLOSED included.  The recipients of
-      case_fully_closed are named by CM-23-002 step 4.
+      every step, the one that reaches RM.CLOSED included.  A participant that has
+      left stops at the entries that record its departure: it does not receive later
+      entries, case_fully_closed included.
     rationale: >-
       Once a participant reaches RM.CLOSED they have departed the case and no
       longer need (or should receive) case updates.  Continuing to send them
@@ -3370,7 +3372,8 @@ groups:
     verification: Integration tests in `test/demo/` confirm that `Announce(CaseLedgerEntry)`
       fan-out skips a participant once a ledger entry has recorded its `rm_state=RM.CLOSED`,
       and that the leaving participant's replica still receives the `close_case` entry and
-      every status entry up to and including the one that reaches `RM.CLOSED`.
+      every status entry up to and including the one that reaches `RM.CLOSED`, but not
+      the later `case_fully_closed` entry.
     relationships:
     - rel_type: refines
       spec_id: CM-23-001
