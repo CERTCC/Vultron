@@ -84,19 +84,25 @@ record cannot be read gets nothing (CM-10-007).
 
 RM `CLOSED` is not part of "active", but it ends content delivery all the same
 (CM-23-004, ADR-0114; resolved from #4100). A participant at `CLOSED` has
-declared it has stopped paying attention, so it is sent no case content. The one
-exception is the ledger entry that records its own closure: it is the last thing
-the participant receives, and the participant waits for it rather than writing
-`CLOSED` to its own replica. Later entries, including `case_fully_closed`, reach
-only participants not yet closed, and a closed replica does not learn of later
-closures. The exception never widens entitlement (a participant that is inert
-or removed when it leaves is not sent its closure entry), and the CM-31-009
-embargo notice to a closed `SIGNATORY` is the only other message a closed
-participant gets. The CASE_MANAGER's store is where every participant's closure is
-verified, so the demos' "all participants closed" check reads that store. The
-recipient selection therefore drops a closed participant from every content send
-except the entry about its own closure, and the `skip_closed` variant stops
-being a variant.
+declared it has stopped paying attention, and its replication process is assumed
+to have exited, so it is sent no case content (ledger entries, case snapshots,
+status broadcasts, embargo announcements). The exception is the entries that
+record its own closure, the `close_case` entry and the status entries that follow
+it (CM-23-001): it receives every step up to and including the one that reaches
+`CLOSED`, and waits for them rather than writing `CLOSED` to its own replica.
+Later entries, including `case_fully_closed`, reach only participants whose
+closure the ledger does not already record, and a closed replica does not see how
+the case ended; that is intended (the same assumption as CM-23-013). The
+exception never widens entitlement (a participant that is inert or removed when
+it leaves is not sent those entries), and the CM-31-009 embargo notice to a
+closed `SIGNATORY` is the only other message a closed participant gets. The
+CASE_MANAGER's store is where every participant's closure is verified, so the
+demos' "all participants closed" check reads that store. The fan-out code
+(`FanOutLogEntryExcludingClosedNode`, `skip_closed=True`) is not yet composed
+into the `case_fully_closed` tree, which still reaches every replica; the
+implementation issues (#4210, #4212) bring the code to the rule, and
+`skip_closed` stops being a variant. The Invites also leave a closed participant
+out.
 
 ## Authority to act
 
