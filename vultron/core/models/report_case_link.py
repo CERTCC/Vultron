@@ -17,29 +17,20 @@
 from __future__ import annotations
 
 import urllib.parse
-from typing import Any, Literal
+from collections.abc import Mapping
+from typing import Any, ClassVar, Literal
 
-from pydantic import AliasChoices, Field, model_validator
+from pydantic import Field, model_validator
 
-from vultron.core.models.base import CoreRecord, NonEmptyString, UriString
+from vultron.core.models.base import NonEmptyString, UriString
+from vultron.core.models.retired_stored_fields import (
+    RetiredFieldsRecord,
+    RetiredStoredField,
+)
 from vultron.core.states.rm import RM
 
-# Keys a link was stored under before #4020 renamed the two actor-id fields.
-# CodeQL's ``py/clear-text-logging-sensitive-data`` heuristic reads any name
-# containing "trusted" as a secret, so every log line printing an actor id
-# resolved through those attributes was flagged.  The old keys stay readable
-# as validation aliases so a link persisted before the rename still loads;
-# a dump writes only the new field names, so a re-saved row migrates itself.
-# The aliases are load-bearing: ``CoreRecord`` does not forbid extras, so
-# without them an old key would be ignored and the CBT-01-006 trust anchors
-# would silently read back as ``None``.  If a row somehow carries both
-# spellings, the new name wins (it is listed first) — the old key can only
-# be stale, since nothing writes it after the rename.
-_LEGACY_CASE_CREATOR_FIELD = "trusted_case_creator_id"
-_LEGACY_CASE_MANAGER_FIELD = "trusted_case_actor_id"
 
-
-class VultronReportCaseLink(CoreRecord):
+class VultronReportCaseLink(RetiredFieldsRecord):
     """Track the case associated with a submitted vulnerability report.
 
     The DataLayer id is derived from ``report_id`` alone (:meth:`build_id`), so
@@ -58,6 +49,9 @@ class VultronReportCaseLink(CoreRecord):
     would block the other's (issue #3266).  Coordinators that must both handle a
     report run as separate actors with separate stores and exchange state only
     through protocol messages (PCR-01-003), never a shared link.
+
+    A row stored with the pre-#4020 ``trusted_case_creator_id`` or
+    ``trusted_case_actor_id`` key is refused on load; the store must be reset.
     """
 
     type_: Literal["ReportCaseLink"] = Field(  # type: ignore[assignment]
@@ -65,6 +59,20 @@ class VultronReportCaseLink(CoreRecord):
         validation_alias="type",
         serialization_alias="type",
     )
+    # #4020 renamed the two actor-id fields away from ``trusted_*`` names,
+    # which CodeQL's ``py/clear-text-logging-sensitive-data`` heuristic reads
+    # as secrets.  A row still carrying the old keys is refused, not aliased:
+    # ``CoreRecord`` ignores unknown keys, so an unrefused old row would read
+    # back with both CBT-01-006 trust anchors silently ``None``.
+    retired_stored_fields: ClassVar[Mapping[str, RetiredStoredField]] = {
+        "trusted_case_creator_id": RetiredStoredField(
+            "case_creator_id", "#4020"
+        ),
+        "trusted_case_actor_id": RetiredStoredField(
+            "case_manager_id", "#4020"
+        ),
+    }
+
     report_id: UriString = Field(..., description="URI of the linked report")
     case_id: UriString | None = Field(
         default=None,
@@ -72,9 +80,6 @@ class VultronReportCaseLink(CoreRecord):
     )
     case_creator_id: UriString | None = Field(
         default=None,
-        validation_alias=AliasChoices(
-            "case_creator_id", _LEGACY_CASE_CREATOR_FIELD
-        ),
         description=(
             "URI of the actor that the reporter sent the original report offer "
             "to.  Set at submission time; validated against the bootstrap "
@@ -83,9 +88,6 @@ class VultronReportCaseLink(CoreRecord):
     )
     case_manager_id: UriString | None = Field(
         default=None,
-        validation_alias=AliasChoices(
-            "case_manager_id", _LEGACY_CASE_MANAGER_FIELD
-        ),
         description=(
             "URI of the case's CASE_MANAGER, recorded after bootstrap "
             "validation (ADR-0088).  Extracted from the CASE_MANAGER "

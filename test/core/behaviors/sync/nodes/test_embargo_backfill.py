@@ -116,10 +116,12 @@ def test_admission_backfill_does_nothing_for_a_non_case_manager(
 
 
 @pytest.mark.spec("CM-10-006")
-def test_admission_backfill_without_a_sync_port_keeps_the_pause(
+@pytest.mark.spec("SYNC-02-003")
+@pytest.mark.spec("BT-14-001")
+def test_admission_backfill_without_a_sync_port_is_a_wiring_fault(
     bridge, datalayer
 ) -> None:
-    """With nothing to send through, the pause waits for a later admission point."""
+    """No port fails loudly and keeps the pause, never a silent SUCCESS (#4126)."""
     _admitted_paused_finder(datalayer)
 
     result = bridge.execute_with_setup(
@@ -127,7 +129,9 @@ def test_admission_backfill_without_a_sync_port_keeps_the_pause(
         actor_id=MANAGER_ID,
     )
 
-    assert result.status == Status.SUCCESS
+    assert result.status == Status.FAILURE
+    assert result.internal_error is True
+    assert "sync_port" in result.feedback_message
     assert paused_from(datalayer) == 1
 
 

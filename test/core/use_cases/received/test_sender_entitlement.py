@@ -29,7 +29,6 @@ check removes that test's ``xfail`` marker (tracked by #3733).
 from typing import Any, cast
 from unittest.mock import MagicMock
 
-import py_trees
 import pytest
 
 from test.core.use_cases.received.actor.test_offer_case_participant import (
@@ -116,13 +115,6 @@ _CASE_MANAGER_ID = "https://example.org/actors/case-manager"
 _OWNER_ID = "https://example.org/actors/case-owner"
 #: An actor with no standing for any of the assertions below.
 _IMPOSTOR_ID = "https://example.org/actors/impostor"
-
-
-@pytest.fixture(autouse=True)
-def _clear_blackboard():
-    py_trees.blackboard.Blackboard.storage.clear()
-    yield
-    py_trees.blackboard.Blackboard.storage.clear()
 
 
 @pytest.fixture

@@ -54,6 +54,7 @@ from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.case import CloseCaseReceivedEvent
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.models.rsvp_deadline import INVITE_EXPIRED_EVENT_TYPE
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
@@ -90,13 +91,6 @@ _ZERO_HASH = "0" * 64
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
-
-
-@pytest.fixture(autouse=True)
-def _clear_blackboard():
-    py_trees.blackboard.Blackboard.storage.clear()
-    yield
-    py_trees.blackboard.Blackboard.storage.clear()
 
 
 def _make_dl(actor_id: str = CASE_ACTOR_ID) -> SqliteDataLayer:
@@ -622,12 +616,12 @@ class TestPostCloseBoundary:
 
     @pytest.mark.xfail(
         strict=True,
-        reason="CM-23-014: owner close does not yet lapse pending Invites"
+        reason="CM-23-014: owner close does not yet expire pending Invites"
         " before case_fully_closed. Tracked by #4066.",
     )
     @pytest.mark.spec("CM-23-014")
-    def test_owner_close_lapses_pending_invite_before_boundary(self):
-        """An unanswered Invite is lapsed at close, not left waiting on its deadline."""
+    def test_owner_close_expires_pending_invite_before_boundary(self):
+        """An unanswered Invite is expired at close, not left waiting on its deadline."""
         from datetime import UTC, datetime, timedelta
 
         from vultron.core.states.participant_embargo_consent import PEC
@@ -659,8 +653,8 @@ class TestPostCloseBoundary:
 
         vendor = dl.read(case.actor_participant_index[VENDOR_ID])
         assert isinstance(vendor, CaseParticipant)
-        assert vendor.embargo_consent_state == PEC.DECLINED, (
-            "owner close must lapse a pending Invite immediately (CM-23-014)"
+        assert vendor.embargo_consent_state == PEC.EXPIRED, (
+            "owner close must expire a pending Invite immediately (CM-23-014)"
         )
         ledger = _case_ledger(dl)
         types = [e.event_type for e in ledger]
@@ -669,17 +663,15 @@ class TestPostCloseBoundary:
             i for i, e in enumerate(ledger) if e.id_ in rm_closed_ids
         ]
         lapse_idx = [
-            i
-            for i, t in enumerate(types)
-            if t == "invite_to_embargo_on_case_lapsed"
+            i for i, t in enumerate(types) if t == INVITE_EXPIRED_EVENT_TYPE
         ]
         assert types[-1] == "case_fully_closed", types
         assert rm_closed_idx and lapse_idx, (
             "owner close must commit the CASE_MANAGER's RM.CLOSED entry and"
-            f" a lapsed-invitation entry (CM-23-014); got {types}"
+            f" an expired-invitation entry (CM-23-014); got {types}"
         )
         assert max(rm_closed_idx) < min(lapse_idx), (
-            "the lapsed-invitation entry must follow the CASE_MANAGER's"
+            "the expired-invitation entry must follow the CASE_MANAGER's"
             f" RM.CLOSED entry (CM-23-014); got {types}"
         )
 

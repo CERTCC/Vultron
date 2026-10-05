@@ -100,7 +100,7 @@ class _GateScenario:
 
     def receive_accept(self, actor_id: str) -> None:
         accept = em_accept_embargo_activity(
-            self.invite, context=CASE_ID, actor=actor_id
+            self.invite, context=CASE_ID, actor=actor_id, to=[MANAGER_ID]
         )
         AcceptInviteToEmbargoOnCaseReceivedUseCase(
             self.dl,

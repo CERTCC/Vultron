@@ -219,13 +219,6 @@ def _receipt_entries(dl: SqliteDataLayer) -> list[CaseLedgerEntry]:
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture(autouse=True)
-def clear_blackboard():
-    py_trees.blackboard.Blackboard.storage.clear()
-    yield
-    py_trees.blackboard.Blackboard.storage.clear()
-
-
 @pytest.fixture
 def store_for():
     """Factory: the store belonging to a given actor.

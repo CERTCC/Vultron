@@ -133,8 +133,8 @@ for implementers:
 - **One comparator, not two.** `earliest_ending` in
   `vultron/core/services/embargo_ordering.py` (#3470) is the comparator:
   `resolve_initial_embargo_duration` uses it for EP-04-003's shortest-wins and
-  `find_embargo_proposal_id` / `ReadProposedEmbargoIdNode` use it for EP-08's
-  earliest-expiring selection. #3392 extends the case-creation input; it MUST NOT
+  `find_embargo_proposal_id` uses it for EP-08's earliest-expiring
+  selection. #3392 extends the case-creation input; it MUST NOT
   grow a second comparator.
 - There is **no multi-candidate poll** to reach for when more than two sets of
   terms are on the table — ADR-0100 retired `ChoosePreferredEmbargo` (#3469).
@@ -615,7 +615,7 @@ with no upper bound at all. So:
 > on day 7. The embargo ended at hour 24.
 
 The participant is asked to consent to an embargo that is already over, and their
-inaction is recorded as a decline six days after it stopped mattering. The same
+inaction is recorded as an expiry six days after it stopped mattering. The same
 thing happened on day 28 of a 30-day embargo with an ordinary published actor
 default — without any protocol default in the picture.
 

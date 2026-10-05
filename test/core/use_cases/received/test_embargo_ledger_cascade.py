@@ -84,7 +84,6 @@ class TestEmbargoLogEntryCascade:
         import py_trees
 
         py_trees.blackboard.Blackboard.enable_activity_stream()
-        py_trees.blackboard.Blackboard.storage.clear()
 
         author_id = "https://example.org/users/coord"
         case_id = "https://example.org/cases/em_cas_rem"
@@ -133,7 +132,6 @@ class TestEmbargoLogEntryCascade:
         import py_trees
 
         py_trees.blackboard.Blackboard.enable_activity_stream()
-        py_trees.blackboard.Blackboard.storage.clear()
 
         author_id = "https://example.org/users/coord"
         case_id = "https://example.org/cases/em_cas_rem_fail"
@@ -251,6 +249,7 @@ class TestEmbargoLogEntryCascade:
             proposal,
             context=case.id_,
             actor=vendor_id,
+            to=[coordinator_id],
         )
         # Per ADR-0022 / CLP-10-005: the guarded commit fires when
         # receiving_actor_id holds CVDRole.CASE_MANAGER.  coordinator_id is
@@ -305,6 +304,7 @@ class TestEmbargoLogEntryCascade:
             proposal,
             context=case_id,
             actor=vendor_id,
+            to=[coordinator_id],
         )
         # coordinator_id holds CASE_MANAGER in this fixture, and the ledger
         # commit is gated on that role, so it is the receiving actor.

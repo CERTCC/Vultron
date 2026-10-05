@@ -69,7 +69,7 @@ from vultron.errors import VultronCanonicalEntryError
 CASE_ID = "https://example.org/cases/test-clp-14-15"
 OBJ_ID = "https://example.org/activities/a1"
 ACTOR_ID = "https://example.org/actors/participant"
-CASE_ACTOR_ID = "https://example.org/actors/case-actor"
+OWNER_ID = "https://example.org/actors/owner"
 
 T0 = datetime(2026, 1, 1, tzinfo=UTC)
 T1 = T0 + timedelta(seconds=1)
@@ -77,7 +77,7 @@ T2 = T0 + timedelta(seconds=2)
 
 
 def _make_ledger() -> CaseLedger:
-    genesis = compute_genesis_hash(CASE_ID, T0, CASE_ACTOR_ID)
+    genesis = compute_genesis_hash(CASE_ID, T0, OWNER_ID)
     return CaseLedger(case_id=CASE_ID, genesis_hash=genesis)
 
 

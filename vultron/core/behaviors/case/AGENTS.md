@@ -91,7 +91,7 @@ factory may be shared across trigger-side and received-side paths.
 
 (ISSUE-1325, 2026-07-13)
 
-> **Under review.** Proposed ADR-0117 (epic #4158) reverses this order: a
+> **Under review.** Proposed ADR-0119 (epic #4158) reverses this order: a
 > ledger entry records a completed act, so a sent activity is committed after
 > it is delivered to the outbox, and duplicate sends are prevented by an
 > outbox-id check instead. New code SHOULD NOT add a commit-before-send

@@ -12,6 +12,8 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import random
+from datetime import UTC, datetime
+from typing import TypedDict
 from uuid import uuid4
 
 from pydantic import BaseModel
@@ -30,6 +32,37 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 )
 
 _EXAMPLE_BASE_URL = "https://demo.vultron.local/"
+
+#: The fixed moment the pinned example objects are stamped with.
+#:
+#: Tests compare an activity's embedded object against a second call to the
+#: same builder, and two clock reads that straddle a tick differ — at second
+#: precision for the ``published`` and ``updated`` default stamps, at minute
+#: precision for an embargo ``start_time`` (#4095).  So every object a test
+#: compares that way (the embargo, note, participant, participant and case
+#: status, invite and vendor-profile builders) is pinned to this moment.
+#: Outer activities still take their ``published`` stamp from the clock;
+#: tests compare those by ``id_`` only.  The date is fixed, so it is in the
+#: past.
+EXAMPLE_TIMESTAMP: datetime = datetime(2026, 6, 1, 19, 12, tzinfo=UTC)
+
+
+class _ExampleStamp(TypedDict):
+    """The ``published``/``updated`` keyword pair, typed for ``**`` unpacking."""
+
+    published: datetime
+    updated: datetime
+
+
+def _example_stamp() -> _ExampleStamp:
+    """``published`` and ``updated`` pinned to :data:`EXAMPLE_TIMESTAMP`.
+
+    Pass as ``**_example_stamp()`` to an object that would otherwise stamp the
+    clock through its ``published``/``updated`` default factories.
+    """
+    return _ExampleStamp(
+        published=EXAMPLE_TIMESTAMP, updated=EXAMPLE_TIMESTAMP
+    )
 
 
 def _make_id(object_type: str) -> str:

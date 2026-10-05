@@ -15,7 +15,6 @@
 
 """Shared fixtures for append subpackage tests."""
 
-import py_trees
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -34,11 +33,6 @@ CASE_ID = "https://example.org/cases/case-01"
 PARTICIPANT_ID = "https://example.org/cases/case-01/participants/vendor"
 CM_PARTICIPANT_ID = "https://example.org/cases/case-01/participants/case-actor"
 STATUS_ID = "https://example.org/cases/case-01/statuses/s1"
-
-
-@pytest.fixture(autouse=True)
-def clear_blackboard():
-    py_trees.blackboard.Blackboard.storage.clear()
 
 
 @pytest.fixture

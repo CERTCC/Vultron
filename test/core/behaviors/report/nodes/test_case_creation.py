@@ -47,6 +47,30 @@ def test_create_case_node(
     assert case.attributed_to == actor.id_
 
 
+@pytest.mark.spec("CLP-08-002")
+def test_create_case_node_anchors_the_genesis_hash_to_the_owner(
+    bt_scenario: BTTestScenario,
+    actor: CaseActor,
+    report: VulnerabilityReport,
+) -> None:
+    """A case its owner creates hashes on the owner (ADR-0117)."""
+    from vultron.core.models.case_ledger import compute_genesis_hash
+
+    bt_scenario.assert_success(
+        bt_scenario.run(
+            CreateCaseNode(report_id=report.id_), actor_id=actor.id_
+        )
+    )
+
+    case = bt_scenario.assert_case_exists()
+    assert case.published is not None
+    assert case.genesis_hash == compute_genesis_hash(
+        case_id=case.id_,
+        created_at=case.published,
+        owner_actor_id=actor.id_,
+    )
+
+
 def test_create_case_node_idempotency(
     bt_scenario: BTTestScenario,
     actor: CaseActor,

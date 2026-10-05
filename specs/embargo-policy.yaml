@@ -715,7 +715,7 @@ groups:
       leaving them `SIGNATORY` once `T2` is in force would imply consent they never gave.
       Shorter terms ask nothing new: agreeing to N days is agreeing to every shorter
       period, the same containment that makes shortest-wins (EP-04-003) and the
-      termination reset (MSM-07-006) safe without asking anyone. The cascade fires at
+      termination exit cascade (MSM-07-006) safe without asking anyone. The cascade fires at
       activation rather than at proposal because the participant remains bound by `T1`
       for as long as `T1` is the active embargo (ADR-0093).
     verification: >-
@@ -910,7 +910,7 @@ groups:
       The failure is concrete. Invite a participant to a 24-hour embargo with no explicit
       `Invite.end_time` and the CM-18-002 policy window applies: 7 days. The pocket veto
       fires on day 7; the embargo ended at hour 24. The participant is asked to consent to
-      an embargo that is already over, and their inaction is recorded as a decline six days
+      an embargo that is already over, and their inaction is recorded as an expiry six days
       after it stopped mattering.
 
       This is independent of the protocol default of EP-04-005 — the same thing happens on
@@ -1295,11 +1295,11 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      A revision `Invite(EmbargoEvent)` MUST NOT change the consent state of a participant
-      that is already `SIGNATORY` to the active embargo. The PEC `INVITE` trigger applies only
-      to a participant in `UNBOUND`, `LAPSED` or `DECLINED` (CM-18-003); a signatory's answer
-      to a revision is recorded in `accepted_embargo_ids` and leaves its state unchanged until
-      the owner activates the revision (EP-05-001, EP-05-002).
+      A revision `Invite(EmbargoEvent)` MUST NOT change the consent state of a participant that is
+      already `SIGNATORY` to the active embargo. The PEC `INVITE` trigger applies only to a
+      participant in `UNBOUND`, `LAPSED`, `DECLINED` or `EXPIRED` (CM-18-003); a signatory's answer
+      to a revision is recorded in `accepted_embargo_ids` and leaves its state unchanged until the
+      owner activates the revision (EP-05-001, EP-05-002).
     rationale: >-
       A signatory is bound by the active embargo for as long as it is active; a proposal to
       revise it asks nothing of them yet (ADR-0093). Applying `INVITE` to a `SIGNATORY` is an

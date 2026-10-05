@@ -18,6 +18,14 @@
 Re-exports all public node classes from submodules for backward compatibility.
 """
 
+from vultron.core.behaviors.embargo.nodes.abandon import (
+    ABANDONED_PROPOSALS_KEY,
+    AbandonEmbargoProposalsLifecycleNode,
+    ApplyEmbargoAbandonmentFromLedgerNode,
+    CommitEmbargoAbandonmentNode,
+    LeaveAbandonmentToCaseManagerNode,
+    ReadOpenEmbargoProposalsNode,
+)
 from vultron.core.behaviors.embargo.nodes.cascade import (
     PersistEmbargoEventNode,
 )
@@ -66,9 +74,6 @@ from vultron.core.behaviors.embargo.nodes.proposal import (
 from vultron.core.behaviors.embargo.nodes.reject_proposed import (
     DecideRejectedEmbargoProposalNode,
     OwnerRejectsRevisionAfterDisclosureNode,
-    ReadProposedEmbargoIdNode,
-    RejectProposedEmbargoLifecycleNode,
-    SendRejectEmbargoActivityNode,
 )
 from vultron.core.behaviors.embargo.nodes.relay import (
     EMBARGO_INVITE_EVENT_TYPE,
@@ -87,10 +92,14 @@ from vultron.core.behaviors.embargo.nodes.relay_effect import (
 from vultron.core.behaviors.embargo.nodes.teardown import (
     ApplyEmbargoTeardownNode,
     ClearActiveEmbargoNode,
+    ExitParticipantConsentNode,
     HasEmbargoActiveNode,
     RemoveFromProposedEmbargoesNode,
-    ResetParticipantConsentNode,
     SendAnnounceEmbargoEventNode,
+)
+from vultron.core.behaviors.embargo.nodes.terminate import (
+    TeardownAskPendingNode,
+    ask_case_manager_to_terminate_once,
 )
 
 __all__ = [
@@ -113,7 +122,7 @@ __all__ = [
     # Teardown
     "HasEmbargoActiveNode",
     "ClearActiveEmbargoNode",
-    "ResetParticipantConsentNode",
+    "ExitParticipantConsentNode",
     "ApplyEmbargoTeardownNode",
     "RemoveFromProposedEmbargoesNode",
     "SendAnnounceEmbargoEventNode",
@@ -135,6 +144,13 @@ __all__ = [
     "ApplyEmbargoInviteFromLedgerNode",
     "ApplyEmbargoAcceptanceFromLedgerNode",
     "ApplyEmbargoRejectionFromLedgerNode",
+    # P/X/A abandonment of open proposals (EMB-16-001, #4131)
+    "ABANDONED_PROPOSALS_KEY",
+    "ReadOpenEmbargoProposalsNode",
+    "AbandonEmbargoProposalsLifecycleNode",
+    "CommitEmbargoAbandonmentNode",
+    "LeaveAbandonmentToCaseManagerNode",
+    "ApplyEmbargoAbandonmentFromLedgerNode",
     "case_manager_admits_proposal_guard",
     # Proposal
     "CreateAndStoreInviteNode",
@@ -150,9 +166,8 @@ __all__ = [
     "TerminateEmbargoLifecycleNode",
     "ReadEmbargoIdNode",
     "DecideRejectedEmbargoProposalNode",
-    "ReadProposedEmbargoIdNode",
-    "RejectProposedEmbargoLifecycleNode",
     "SendTerminateEmbargoActivityNode",
-    "SendRejectEmbargoActivityNode",
     "SetEmbargoActiveNode",
+    "TeardownAskPendingNode",
+    "ask_case_manager_to_terminate_once",
 ]

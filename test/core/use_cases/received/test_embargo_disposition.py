@@ -30,7 +30,6 @@ from vultron.core.states.em import EM
 from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
     AddEmbargoEventToCaseReceivedUseCase,
-    InviteToEmbargoOnCaseReceivedUseCase,
     RejectInviteToEmbargoOnCaseReceivedUseCase,
     RemoveEmbargoEventFromCaseReceivedUseCase,
 )
@@ -55,6 +54,10 @@ def _request(**attrs) -> MagicMock:
     request = MagicMock()
     request.receiving_actor_id = _COORD
     request.activity_id = "https://example.org/activities/a1"
+    # Addressed to the receiver, so the door check (HP-01-005) admits it
+    # and each test reaches the shape fault it pins.
+    request.activity.to = [_COORD]
+    request.activity.cc = []
     for name, value in attrs.items():
         setattr(request, name, value)
     return request
@@ -86,16 +89,6 @@ class TestMalformedEmbargoMessagesAreRefused:
     def test_remove_missing_ids(self, embargo_id, case_id):
         request = _request(embargo_id=embargo_id, case_id=case_id)
         result = RemoveEmbargoEventFromCaseReceivedUseCase(
-            _make_dl(), request
-        ).execute()
-        _assert_refused(result, "missing")
-
-    @pytest.mark.spec("HP-01-003")
-    def test_invite_missing_activity_id(self):
-        request = _request(
-            activity_id=None, context_id="https://example.org/cases/c1"
-        )
-        result = InviteToEmbargoOnCaseReceivedUseCase(
             _make_dl(), request
         ).execute()
         _assert_refused(result, "missing")
@@ -147,6 +140,7 @@ class TestEmbargoMessagesForUnknownCaseAreRefused:
             embargo,
             target=as_VulnerabilityCase(id_="https://example.org/cases/nope"),
             actor=_VENDOR,
+            to=[_COORD],
         )
         event = make_payload(activity, receiving_actor_id=_COORD)
 
@@ -203,6 +197,7 @@ class TestFailedTeardownIsRefused:
             embargo,
             origin=as_VulnerabilityCase(id_=case.id_),
             actor=_VENDOR,
+            to=[_COORD],
         )
         event = make_payload(activity, receiving_actor_id=_COORD)
 

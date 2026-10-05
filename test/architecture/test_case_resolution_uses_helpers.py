@@ -213,19 +213,10 @@ KNOWN_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
             f"{_NODES}/suggest_actor/emit.py",
             "RecordRecommendationRecommenderNode.update",
         ),
-        # R3 — teardown addressing enrichment; upstream nodes fail on absence.
-        (
-            "vultron/core/behaviors/embargo/nodes/terminate.py",
-            "SendTerminateEmbargoActivityNode._recipients",
-        ),
         # LEN — lenient guards / diagnostics; never fail the tree on absence.
         (
             "vultron/core/behaviors/status/nodes/cs_invariant_diagnostic.py",
             "PxaEmInvariantDiagnosticNode.update",
-        ),
-        (
-            "vultron/core/behaviors/status/nodes/lifecycle.py",
-            "_PublicDisclosureSkipConditionNode.update",
         ),
         (
             "vultron/core/behaviors/status/nodes/threat_termination.py",

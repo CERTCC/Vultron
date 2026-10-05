@@ -29,10 +29,7 @@ from vultron.core.behaviors.status.nodes.case_status import (
 from vultron.core.behaviors.status.nodes.conditions import (
     AllParticipantsRMClosedConditionNode,
 )
-from vultron.core.behaviors.status.nodes.lifecycle import (
-    EmitCloseCaseNode,
-    _PublicDisclosureSkipConditionNode,
-)
+from vultron.core.behaviors.status.nodes.lifecycle import EmitCloseCaseNode
 from vultron.core.behaviors.status.nodes.rm_anomaly import EmitRMGapNoteNode
 from vultron.core.behaviors.status.nodes.threat_termination import (
     _ThreatTerminationSkipConditionNode,
@@ -102,37 +99,6 @@ class TestAllParticipantsRMClosedConditionNodePorts:
             actor_id=ACTOR_ID,
         )
         bt_scenario.assert_failure(result)
-
-
-# ---------------------------------------------------------------------------
-# lifecycle.py — _PublicDisclosureSkipConditionNode
-# ---------------------------------------------------------------------------
-
-
-class TestPublicDisclosureSkipConditionNodePorts:
-    def test_missing_datalayer_raises_no_data_available(self) -> None:
-        node = _PublicDisclosureSkipConditionNode(
-            status_obj=None,
-            sender_actor_id=ACTOR_ID,
-            case_id=CASE_ID,
-        )
-        node.setup_ports()
-        with pytest.raises(NoDataAvailable):
-            node.get_input("datalayer")
-
-    def test_success_skip_when_no_public_aware_status(
-        self, bt_scenario: BTTestScenario
-    ) -> None:
-        """Non-public-aware status -> skip condition returns SUCCESS."""
-        result = bt_scenario.run(
-            _PublicDisclosureSkipConditionNode(
-                status_obj=None,
-                sender_actor_id=ACTOR_ID,
-                case_id=CASE_ID,
-            ),
-            actor_id=ACTOR_ID,
-        )
-        bt_scenario.assert_success(result)
 
 
 # ---------------------------------------------------------------------------

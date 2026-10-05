@@ -456,7 +456,7 @@ def _paused_replica_receives_ending_notice(
     route_received(
         dl,
         remove_embargo_from_case_activity(
-            embargo, origin=CASE_ID, actor=sender
+            embargo, origin=CASE_ID, actor=sender, to=[VENDOR]
         ),
         receiving_actor_id=VENDOR,
     )

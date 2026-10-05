@@ -8,7 +8,8 @@ description: >
 related_specs:
   - specs/architecture.yaml (ARCH-10-001, ARCH-12-001, ARCH-12-002,
     ARCH-15-001 through ARCH-15-004, ARCH-21-001 through ARCH-21-005)
-  - specs/case-management.yaml (CM-23-012, CM-27-001 through CM-27-003)
+  - specs/case-management.yaml (CM-18-005, CM-23-012, CM-27-001 through
+    CM-27-003)
   - specs/rm-behavior.yaml (RMB-14-004, RMB-14-005)
   - specs/participant-role-management.yaml (PRM-03-003)
   - specs/error-handling.yaml (EH-05-002, EH-07-001 through EH-07-003)
@@ -22,6 +23,7 @@ related_notes:
   - notes/wire-core-boundary.md
   - notes/bt-pitfalls.md
   - notes/case-state-model.md
+  - notes/participant-embargo-consent.md
 ---
 
 # Domain Object Validation — Strict vs. Loose Boundaries
@@ -463,6 +465,14 @@ in `leave.py` without passing through the guard, and for those paths its
 checks are the only validation. This does not double-report on the trigger
 path — the guard fails first and the enclosing `Sequence` aborts before the
 write node ticks.
+
+The composed evaluator covers the four `ParticipantStatus` dimensions (RM, VF,
+D and the case-level P/X/A) and nothing else. Embargo consent (PEC) is not one
+of them: `ParticipantStatus.consent` is a copy of the participant's
+`embargo_consent_state`, taken when the status is built, and the consent state
+itself moves only through `CaseParticipant.apply_pec_transition()` and
+`PecDimension.transition` (CM-18-005), which refuse an illegal trigger on
+their own. A PEC arm in the evaluator would check a value no write produces.
 
 The composed evaluator is `participant_transition_violations()` in
 `vultron/core/states/participant_transitions.py`; both nodes reach it through

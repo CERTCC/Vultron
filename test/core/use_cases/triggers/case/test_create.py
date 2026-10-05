@@ -85,6 +85,39 @@ class TestSvcCreateCaseUseCase:
         self.dl.clear_all()
         reset_datalayer(self.actor.id_)
 
+    @pytest.mark.spec("CLP-08-002")
+    def test_create_case_trigger_anchors_the_genesis_hash_to_the_owner(self):
+        """The owner's own creation path hashes on the owner (ADR-0117).
+
+        The proposal path is pinned to the same formula in
+        ``TestCLP08002GenesisHashAnchoredToTheOwner``; this is the other half,
+        run through the real trigger rather than a hand-built case.
+        """
+        from vultron.core.models.case import VulnerabilityCase
+        from vultron.core.models.case_ledger import compute_genesis_hash
+
+        request = CreateCaseTriggerRequest(
+            actor_id=self.actor.id_, name="Genesis Case", content="c"
+        )
+        SvcCreateCaseUseCase(
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+        ).execute()
+
+        (case,) = [
+            obj
+            for obj in self.dl.list_objects("VulnerabilityCase")
+            if getattr(obj, "name", "") == "Genesis Case"
+        ]
+        assert isinstance(case, VulnerabilityCase)
+        assert case.published is not None
+        assert case.genesis_hash == compute_genesis_hash(
+            case_id=case.id_,
+            created_at=case.published,
+            owner_actor_id=self.actor.id_,
+        )
+
     def test_create_case_happy_path_without_report(self):
         """SvcCreateCaseUseCase creates a case and queues CreateCaseActivity."""
         request = CreateCaseTriggerRequest(

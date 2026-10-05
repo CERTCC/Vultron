@@ -27,7 +27,7 @@ Two of them, the vendor fix path (VFD) and the public state (PXA), together make
 | --- | --- | --- | --- | --- |
 | **RM** — Report Management | Per Participant | Start (`S`), Received (`R`), Invalid (`I`), Valid (`V`), Deferred (`D`), Accepted (`A`), Closed (`C`) | `S` (Start) | `C` (Closed) |
 | **EM** — Embargo Management | Per case | None (`N`), Proposed (`P`), Active (`A`), Revise (`R`), eXited (`X`) | `N` (None) | `X` (eXited) |
-| **PEC** — Participant Embargo Consent | Per Participant | Unbound, Invited, Signatory, Lapsed, Declined | Unbound | — (resets to Unbound when the embargo ends) |
+| **PEC** — Participant Embargo Consent | Per Participant | Unbound, Invited, Signatory, Lapsed, Declined, Expired, Unbound (exited) | Unbound | Unbound (exited), when the embargo ends |
 | **VFD** — Vendor fix path (CS) | Per Participant | Three one-way binary substates in order `vfd`: Vendor aware (`v→V`), Fix ready (`f→F`), Fix deployed (`d→D`) | `vfd` | `VFD` |
 | **PXA** — Public state (CS) | Per case | Three one-way binary substates in order `pxa`: Public aware (`p→P`), eXploit public (`x→X`), Attacks observed (`a→A`) | `pxa` | `PXA` |
 

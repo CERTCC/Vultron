@@ -48,12 +48,14 @@ from vultron.core.behaviors.sync.announce_tree import (
     create_announce_log_entry_tree,
 )
 from vultron.core.behaviors.sync.nodes.event_conditions import (
+    EMBARGO_ABANDONMENT_EVENT_TYPE,
     _ActivityEventNode,
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.base import MessageSemantics
+from vultron.core.models.rsvp_deadline import INVITE_EXPIRED_EVENT_TYPE
 from vultron.enums.roles import CVDRole
 
 MANAGER = "https://example.org/actors/case-manager"
@@ -108,6 +110,10 @@ REPLAYED: dict[str, tuple[str, dict[str, Any]]] = {
         MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE.value,
         {"type": "Reject", "actor": REPLICA, "object": {"object": EMBARGO}},
     ),
+    "the manager's abandonment of an Invite": (
+        EMBARGO_ABANDONMENT_EVENT_TYPE,
+        {"type": "Reject", "actor": MANAGER, "object": {"object": EMBARGO}},
+    ),
     "teardown": (
         MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE.value,
         {"type": "Remove", "actor": MANAGER, "object": EMBARGO},
@@ -120,22 +126,15 @@ OUTSIDE_THE_RELAY: dict[str, str] = {
         "committed, not yet replayed — #3814 (ledger replay for every"
         " committed event type)"
     ),
-    "invite_to_embargo_on_case_lapsed": (
+    INVITE_EXPIRED_EVENT_TYPE: (
         "committed on a late Accept, replay owned by #3961 (RSVP deadline"
-        " and lapse)"
+        " and invite expiry)"
     ),
     MessageSemantics.CREATE_EMBARGO_EVENT.value: "stores an object; commits nothing",
     MessageSemantics.ANNOUNCE_EMBARGO_EVENT_TO_CASE.value: (
         "no receiver-side state change; commits nothing"
     ),
 }
-
-
-@pytest.fixture(autouse=True)
-def clear_blackboard():
-    py_trees.blackboard.Blackboard.storage.clear()
-    yield
-    py_trees.blackboard.Blackboard.storage.clear()
 
 
 def _effect_slot_conditions() -> list[_ActivityEventNode]:

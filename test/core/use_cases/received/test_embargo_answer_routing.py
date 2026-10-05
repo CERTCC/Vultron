@@ -144,7 +144,11 @@ def test_the_owner_rejecting_a_revision_after_disclosure_ends_the_embargo():
 @pytest.mark.spec("HP-01-005")
 @pytest.mark.parametrize("answer", ["Accept", "Reject"])
 def test_a_participant_handed_an_answer_refuses_it_and_writes_nothing(answer):
-    """Only the CASE_MANAGER records an answer; a replica replays it."""
+    """Only the CASE_MANAGER records an answer; a replica replays it.
+
+    The answer is addressed to the CASE_MANAGER, so the bystander's copy is
+    refused at the door before any tree runs (HP-01-005, ADR-0118).
+    """
     net = _Network(f"https://example.org/cases/answer-misrouted-{answer}")
     revision = _propose(net, "misrouted", 90)
     _replay_to_bystander(net)
@@ -166,7 +170,8 @@ def test_a_participant_handed_an_answer_refuses_it_and_writes_nothing(answer):
     verdict = net.receive(BYSTANDER, body)
 
     assert verdict.disposition is HandlerDisposition.REFUSED
-    assert "not the CASE_MANAGER" in (verdict.reason or "")
+    assert "neither the sender nor a recipient" in (verdict.reason or "")
+    assert BYSTANDER in (verdict.reason or "")
     case = net.case(BYSTANDER)
     assert case.current_status.em.state == EM.REVISE
     assert case.proposed_embargo_ids == [revision]

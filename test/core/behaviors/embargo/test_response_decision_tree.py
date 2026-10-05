@@ -445,12 +445,6 @@ class TestBTBridgeIntegration:
     verifies routing decisions (EMB-15-001 through EMB-15-004).
     """
 
-    @pytest.fixture(autouse=True)
-    def _clear_blackboard(self):
-        py_trees.blackboard.Blackboard.storage.clear()
-        yield
-        py_trees.blackboard.Blackboard.storage.clear()
-
     # ------------------------------------------------------------------
     # CASE_OWNER gospel bypass (EMB-15-002)
     # ------------------------------------------------------------------

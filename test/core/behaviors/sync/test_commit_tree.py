@@ -3,7 +3,6 @@
 
 from unittest.mock import MagicMock
 
-import py_trees
 import pytest
 from py_trees.common import Status
 
@@ -45,13 +44,6 @@ def _canonical_note_snapshot(actor_id: str, note_id: str) -> dict[str, object]:
         },
         "context": CASE_ID,
     }
-
-
-@pytest.fixture(autouse=True)
-def clear_blackboard():
-    py_trees.blackboard.Blackboard.storage.clear()
-    yield
-    py_trees.blackboard.Blackboard.storage.clear()
 
 
 @pytest.fixture

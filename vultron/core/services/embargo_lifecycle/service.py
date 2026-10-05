@@ -58,12 +58,14 @@ class EmbargoLifecycle(
         - :meth:`propose_embargo`
         - :meth:`accept_embargo_invite`
         - :meth:`reject_embargo_invite`
+        - :meth:`abandon_embargo_proposals`
         - :meth:`terminate_active_embargo`
         - :meth:`activate_embargo`
         - :meth:`initialize_creation_embargo` (STRICT only; one write, EP-04-002)
         - :meth:`record_participant_consent` (no EM transition; no mode param)
         - :meth:`record_embargo_rejection` (no EM transition; no mode param)
         - :meth:`record_embargo_invite` (no EM transition; no mode param)
-        - :meth:`detect_and_apply_lapse` (no EM transition; no mode param)
+        - :meth:`detect_and_apply_expiry` (no EM transition; no mode param)
+        - :meth:`exit_participant_consent` (no EM transition; no mode param)
         - :meth:`assert_embargo_eligible` (guard only; no mode param)
     """

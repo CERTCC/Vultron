@@ -25,7 +25,6 @@ Covers, against a real in-memory store (``notes/triggers-test-coverage.md``):
   ``VultronCanonicalEntryError`` instead of pretending it committed.
 """
 
-import py_trees
 import pytest
 
 from test.support.trigger_results import recipient_ids
@@ -53,13 +52,6 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 
 _PEER_ID = "https://example.org/actors/reporter"
 _FOREIGN_CM_ID = "https://elsewhere.example/actors/other-cm"
-
-
-@pytest.fixture(autouse=True)
-def _clear_blackboard():
-    py_trees.blackboard.Blackboard.storage.clear()
-    yield
-    py_trees.blackboard.Blackboard.storage.clear()
 
 
 @pytest.fixture

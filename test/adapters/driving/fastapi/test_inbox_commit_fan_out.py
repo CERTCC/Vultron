@@ -27,7 +27,6 @@ semantic whose factory drops the sync port fails here.
 import json
 from typing import Any
 
-import py_trees
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -49,13 +48,6 @@ _OWNER_ID = "https://example.org/actors/case-owner"
 _FINDER_ID = "https://example.org/actors/finder"
 _INVITEE_ID = "https://example.org/actors/invitee"
 _CASE_ID = "https://example.org/cases/fan-out-wiring-case"
-
-
-@pytest.fixture(autouse=True)
-def _clear_blackboard():
-    py_trees.blackboard.Blackboard.storage.clear()
-    yield
-    py_trees.blackboard.Blackboard.storage.clear()
 
 
 def _seat(

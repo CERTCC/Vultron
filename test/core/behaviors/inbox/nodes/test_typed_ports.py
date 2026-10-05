@@ -43,10 +43,13 @@ from vultron.core.behaviors.inbox.nodes.pipeline import (
 
 
 @pytest.fixture(autouse=True)
-def _clear_blackboard():
+def _reset_blackboard_clients():
+    """Re-enable the activity stream and drop clients after each test.
+
+    The root ``clear_py_trees_blackboard`` fixture clears the storage.
+    """
     yield
     py_trees.blackboard.Blackboard.enable_activity_stream()
-    py_trees.blackboard.Blackboard.storage.clear()
     py_trees.blackboard.Blackboard.clients.clear()
 
 

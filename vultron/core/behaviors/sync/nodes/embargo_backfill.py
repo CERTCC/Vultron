@@ -43,7 +43,7 @@ from vultron.core.behaviors.sync.nodes.embargo_pause import (
 )
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
-from vultron.errors import VultronError
+from vultron.errors import VultronError, VultronWiringError
 
 logger = logging.getLogger(__name__)
 
@@ -51,9 +51,10 @@ logger = logging.getLogger(__name__)
 class BackfillAdmittedParticipantsNode(DataLayerActionWithPorts):
     """Send each newly admitted, paused participant what it was not sent.
 
-    Reads ``sync_port``. Without one nothing is replicated at all — the fan-out
-    skips the same way — so the node logs at DEBUG and succeeds, leaving every
-    pause on record for a later admission point to backfill.
+    Reads ``sync_port``. A missing port is a wiring fault and raises
+    ``VultronWiringError``, as the fan-out does (SYNC-02-003, BT-14-001,
+    #4126): a silent skip left an admitted peer with no backfill and nothing
+    to report it.
     """
 
     def __init__(self, case_id: str, name: str | None = None) -> None:
@@ -90,13 +91,10 @@ class BackfillAdmittedParticipantsNode(DataLayerActionWithPorts):
             return failure
 
         if self._sync_port is None:
-            self.logger.debug(
-                "%s: sync_port not injected; no admission backfill for case"
-                " '%s'",
-                self.name,
-                self.case_id,
+            raise VultronWiringError(
+                f"{self.name}: sync_port must be injected to backfill the"
+                f" peers admitted on case '{self.case_id}' (SYNC-02-003)"
             )
-            return Status.SUCCESS
 
         try:
             backfilled = backfill_admitted_peers(

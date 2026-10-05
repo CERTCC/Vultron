@@ -170,12 +170,12 @@ Full write-ups in [`notes/testing-pitfalls.md`](../notes/testing-pitfalls.md):
   "failure when X absent" for either is unreachable; assert the reason
   (`assert_failure(result, reason=...)`), not just the status, and note that
   `allow_internal=True` requires a `reason`.
-- **Process-global state** — the `py_trees` blackboard *and* its class registry
-  (define test BT subclasses at module level); test-local `CoreObject`/`CoreRecord`
-  subclasses pollute `CORE_VOCABULARY` and `CORE_TYPE_MAP` (use
-  `isolated_core_registries` from root `test/conftest.py`); `SUBFAILED` in
-  `unittest` subtests does not fail pytest; `caplog.set_level()` in a fixture
-  captures other fixtures' setup.
+- **Process-global state** — reset only in root `test/conftest.py` (blackboard,
+  per-actor registries; no per-directory copy, #3996); define test BT subclasses
+  at module level; test-local `CoreObject`/`CoreRecord` subclasses pollute
+  `CORE_VOCABULARY`/`CORE_TYPE_MAP` (use `isolated_core_registries`);
+  `SUBFAILED` in `unittest` subtests does not fail pytest; `caplog.set_level()`
+  in a fixture captures other fixtures' setup.
 - **BT test patterns** — pass a deterministic factory when the default is
   probabilistic; contract-test wrappers inherit the *production* node class; stub
   every probabilistic node *except* the one under test;

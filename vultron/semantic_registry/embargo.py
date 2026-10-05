@@ -58,6 +58,8 @@ ENTRIES: list[SemanticEntry] = [
         event_class=CreateEmbargoEventReceivedEvent,
         use_case_class=CreateEmbargoEventReceivedUseCase,
         phrase="{actor} created an embargo event",
+        # The use case's door check reads to/cc (HP-01-005, ADR-0118).
+        include_activity=True,
     ),
     SemanticEntry(
         semantics=MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE,
@@ -84,6 +86,8 @@ ENTRIES: list[SemanticEntry] = [
         use_case_class=AnnounceEmbargoEventToCaseReceivedUseCase,
         phrase="{actor} announced an embargo change",
         wire_activity_class=_AnnounceEmbargoActivity,
+        # The use case's door check reads to/cc (HP-01-005, ADR-0118).
+        include_activity=True,
     ),
     SemanticEntry(
         semantics=MessageSemantics.INVITE_TO_EMBARGO_ON_CASE,

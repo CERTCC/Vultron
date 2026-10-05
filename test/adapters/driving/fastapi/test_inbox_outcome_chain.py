@@ -29,7 +29,6 @@ import logging
 from typing import Any
 from unittest.mock import AsyncMock
 
-import py_trees
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -55,13 +54,6 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 _SENDER_ID = "https://example.org/actors/sender-chain"
 _RECEIVER_ID = "https://example.org/actors/receiver-chain"
 _ORCHESTRATION_LOGGER = "vultron.adapters.driving.fastapi.inbox_orchestration"
-
-
-@pytest.fixture(autouse=True)
-def clear_blackboard():
-    py_trees.blackboard.Blackboard.storage.clear()
-    yield
-    py_trees.blackboard.Blackboard.storage.clear()
 
 
 @pytest.fixture(autouse=True)

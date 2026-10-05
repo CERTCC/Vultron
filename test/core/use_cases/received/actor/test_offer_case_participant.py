@@ -167,12 +167,6 @@ def _build_offer_activity(
 
 
 class TestOfferCaseParticipantReceivedUseCase:
-    @pytest.fixture(autouse=True)
-    def clear_blackboard(self):
-        py_trees.blackboard.Blackboard.storage.clear()
-        yield
-        py_trees.blackboard.Blackboard.storage.clear()
-
     def _event(self) -> OfferCaseParticipantReceivedEvent:
         activity = _build_offer_activity()
         return cast(OfferCaseParticipantReceivedEvent, extract_event(activity))
@@ -297,12 +291,6 @@ class TestOfferCaseParticipantReceivedUseCase:
 
 
 class TestAcceptOfferCaseParticipantReceivedUseCase:
-    @pytest.fixture(autouse=True)
-    def clear_blackboard(self):
-        py_trees.blackboard.Blackboard.storage.clear()
-        yield
-        py_trees.blackboard.Blackboard.storage.clear()
-
     def _event(
         self, origin: str | None = RECOMMENDATION_ID
     ) -> AcceptOfferCaseParticipantReceivedEvent:
@@ -499,12 +487,6 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
 
 
 class TestRejectOfferCaseParticipantReceivedUseCase:
-    @pytest.fixture(autouse=True)
-    def clear_blackboard(self):
-        py_trees.blackboard.Blackboard.storage.clear()
-        yield
-        py_trees.blackboard.Blackboard.storage.clear()
-
     def _event(
         self, origin: str | None = RECOMMENDATION_ID
     ) -> RejectOfferCaseParticipantReceivedEvent:
@@ -746,12 +728,6 @@ class TestRolesFromStoredOffer:
     empty in the second execution.
     """
 
-    @pytest.fixture(autouse=True)
-    def clear_blackboard(self):
-        py_trees.blackboard.Blackboard.storage.clear()
-        yield
-        py_trees.blackboard.Blackboard.storage.clear()
-
     def _seed_and_store_offer(
         self, roles: list
     ) -> tuple[SqliteDataLayer, "AcceptOfferCaseParticipantReceivedEvent"]:
@@ -912,12 +888,6 @@ class TestAcceptOfferCaseParticipantRolesThreading:
           no silent default substitution (ADR-0032 BT-HELPER-01).
     """
 
-    @pytest.fixture(autouse=True)
-    def clear_blackboard(self):
-        py_trees.blackboard.Blackboard.storage.clear()
-        yield
-        py_trees.blackboard.Blackboard.storage.clear()
-
     def _build_accept_offer_event(
         self,
     ) -> AcceptOfferCaseParticipantReceivedEvent:
@@ -1067,12 +1037,6 @@ class TestOfferCaseParticipantDecisionsAtNonCaseManager:
     """
 
     OTHER_MANAGER_ID = "https://example.org/actors/other-case-manager"
-
-    @pytest.fixture(autouse=True)
-    def clear_blackboard(self):
-        py_trees.blackboard.Blackboard.storage.clear()
-        yield
-        py_trees.blackboard.Blackboard.storage.clear()
 
     def _seed(self) -> SqliteDataLayer:
         from vultron.core.models.case import VulnerabilityCase

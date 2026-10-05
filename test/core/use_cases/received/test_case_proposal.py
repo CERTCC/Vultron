@@ -228,38 +228,33 @@ class TestCreateCaseProposalReceivedUseCase:
         self, make_payload
     ):
         """When receiving_actor_id is absent, the store owner processes the proposal."""
-        import py_trees
 
-        py_trees.blackboard.Blackboard.storage.clear()
-        try:
-            dl = SqliteDataLayer(
-                "sqlite:///:memory:",
-                actor_id=_CASE_ACTOR_URI,
-            )
-            proposal = _make_proposal()
-            activity = as_Create(
-                actor=VultronOrganization(id_=_VENDOR_URI),
-                object_=proposal,
-                to=[_CASE_ACTOR_URI],
-            )
-            event = make_payload(activity)
-            event = event.model_copy(update={"receiving_actor_id": None})
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=_CASE_ACTOR_URI,
+        )
+        proposal = _make_proposal()
+        activity = as_Create(
+            actor=VultronOrganization(id_=_VENDOR_URI),
+            object_=proposal,
+            to=[_CASE_ACTOR_URI],
+        )
+        event = make_payload(activity)
+        event = event.model_copy(update={"receiving_actor_id": None})
 
-            CreateCaseProposalReceivedUseCase(
-                dl,
-                event,
-                wire_render_port=As2WireRenderAdapter(),
-                trigger_activity=TriggerActivityAdapter(dl),
-                sync_port=SyncActivityAdapter(dl),
-            ).execute()
+        CreateCaseProposalReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
 
-            # The BT runs under the store owner's identity; case creation fires.
-            cases = dl.list_objects("VulnerabilityCase")
-            assert len(cases) == 1, (
-                "Store-owner fallback should have created a case"
-            )
-        finally:
-            py_trees.blackboard.Blackboard.storage.clear()
+        # The BT runs under the store owner's identity; case creation fires.
+        cases = dl.list_objects("VulnerabilityCase")
+        assert len(cases) == 1, (
+            "Store-owner fallback should have created a case"
+        )
 
     def test_create_activity_fields_adhere_to_adr_0045(self, make_payload):
         """Create(VulnerabilityCase) must use context=case_uri, in_reply_to=accept_uri (ADR-0045 / CP-05-003).
@@ -418,7 +413,7 @@ class TestCreateCaseProposalIdempotency:
         marker = PendingCreateCaseActivity(
             proposal_id=proposal.id_,
             case_actor_id=_CASE_ACTOR_URI,
-            vendor_uri=_VENDOR_URI,
+            owner_uri=_VENDOR_URI,
             create_activity_payload={},
         )
         dl.save(marker)
@@ -852,7 +847,7 @@ class TestCaseProposalDisposition:
             PendingCreateCaseActivity(
                 proposal_id=proposal.id_,
                 case_actor_id=_CASE_ACTOR_URI,
-                vendor_uri=_VENDOR_URI,
+                owner_uri=_VENDOR_URI,
                 create_activity_payload={},
             )
         )

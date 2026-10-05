@@ -17,7 +17,7 @@ Both operate on ``case.active_embargo`` directly rather than answering an
 invite — activation is a replica's sync of an announced activation (the
 creation-time accept is ``initialize_creation_embargo`` in ``creation.py``,
 one write per EP-04-002), termination is
-the ``ET`` teardown that also resets every participant's consent and decides
+the ``ET`` teardown that also exits every participant's consent and decides
 every open proposal (EP-08-004).
 """
 
@@ -25,8 +25,8 @@ import logging
 
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.dimensions import EmDimension
-from vultron.core.services.embargo_lifecycle.pec import (
-    _PecEffectsMixin,
+from vultron.core.services.embargo_lifecycle.pec_activation import (
+    _PecActivationMixin,
 )
 from vultron.core.services.embargo_lifecycle.results import (
     EmbargoLifecycleResult,
@@ -38,7 +38,7 @@ from vultron.errors import VultronInvalidStateTransitionError
 logger = logging.getLogger(__name__)
 
 
-class _ActivationOperationsMixin(_PecEffectsMixin):
+class _ActivationOperationsMixin(_PecActivationMixin):
     """``terminate_active_embargo`` and ``activate_embargo``."""
 
     def terminate_active_embargo(
@@ -55,8 +55,9 @@ class _ActivationOperationsMixin(_PecEffectsMixin):
         ``case.active_embargo``, forgets **every** open proposal in both
         records (EP-08-004, ADR-0113: one active embargo makes every open
         proposal a revision of it, and a revision of an embargo that no
-        longer exists cannot be accepted), and resets all participants' PEC
-        state to ``UNBOUND`` via :meth:`_cascade_pec_reset`.  The teardown
+        longer exists cannot be accepted), and exits all participants' PEC
+        state to the terminal ``UNBOUND_EXITED`` via :meth:`_cascade_pec_exit`
+        (ADR-0118).  The teardown
         replay node runs this in ``OBSERVED`` mode, so the rule holds on
         every replica.
 
@@ -69,7 +70,7 @@ class _ActivationOperationsMixin(_PecEffectsMixin):
 
         Returns:
             :class:`EmbargoLifecycleResult` describing what changed.
-            ``pec_reset`` is always ``True`` when this method succeeds.
+            ``pec_exited`` is always ``True`` when this method succeeds.
 
         Raises:
             VultronNotFoundError: If *case_id* does not resolve to a case.
@@ -105,7 +106,7 @@ class _ActivationOperationsMixin(_PecEffectsMixin):
         # embargo's own entry (EP-08-004).
         case.discard_all_proposed_embargoes()
 
-        participant_changes = self._cascade_pec_reset(case)
+        participant_changes = self._cascade_pec_exit(case)
 
         self._persistence.save(case)
 
@@ -123,7 +124,7 @@ class _ActivationOperationsMixin(_PecEffectsMixin):
             em_after=em_after,
             case_changed=True,
             case_embargo_changed=True,
-            pec_reset=True,
+            pec_exited=True,
             participant_changes=participant_changes,
         )
 
