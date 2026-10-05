@@ -250,7 +250,8 @@ For findings with `outcome: deferred-ask`, `halted`, or `skipped`: assign
    A verdict that does not state its merge state is the bug this gate exists to
    prevent.
 4. If `deferred-ask` or `halted` items exist: list them explicitly for user
-   decision (a `halted` inversion means the PR is blocked, not mergeable).
+   decision (a `halted` item, an unresolved inversion or an unfinished item, means the PR is
+   blocked, not mergeable).
 5. Post comment: `gh pr review <number> --comment --body "<verdict>"`
 
 See [REFERENCE.md](REFERENCE.md) § "Verify Comment Format" for the template.

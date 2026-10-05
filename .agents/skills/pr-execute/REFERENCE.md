@@ -351,7 +351,7 @@ File: `.claude/pr-{number}-execute.json`
 |---|---|
 | `fixed` | Applied inline; commit_ref recorded. `issue_number` is `null` for a plain `fix-now`, or set for a `fix-now-file` excursion the PR closes |
 | `deferred-ask` | Gate 1: issue filed, a measured remainder presented, and the user **explicitly approved** deferral. Silence does not produce this outcome — silence produces `fixed` |
-| `halted` | Gate 2: an inversion the user did not resolve; PR set to draft/blocked; pipeline stopped |
+| `halted` | PR held: a Gate 2 inversion the user did not resolve, or a Gate 1 item that could not be finished and has no approval to defer; PR set to draft/blocked; pipeline stopped |
 | `skipped` | Could not address (e.g., unresolved conflict, pre-existing failure filed with evidence); skip_reason explains why |
 
 `fix_kind` is `"code"` (the default when absent) or `"pr-body"`. A

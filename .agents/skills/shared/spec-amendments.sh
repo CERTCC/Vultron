@@ -19,7 +19,7 @@ project="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 base="${1:-origin/main}"
 head="${2:-HEAD}"
 
-files="$(git diff --name-only --diff-filter=MD "${base}...${head}" -- 'specs/*.yaml')" || exit 2
+files="$(git diff --no-renames --name-only --diff-filter=MD "${base}...${head}" -- 'specs/*.yaml')" || exit 2
 [ -z "${files}" ] && exit 0
 
 FILES="${files}" BASE="${base}" HEAD_REF="${head}" PYTHONPATH= uv run --project "${project}" python - <<'PY'
@@ -49,11 +49,23 @@ def load(ref: str, path: str) -> dict[str, dict[str, str]]:
     return found
 
 
+# A requirement moved to another spec file is looked up in every head spec file.
+head_specs: dict[str, dict[str, str]] = {}
+listing = subprocess.run(
+    ["git", "ls-tree", "-r", "--name-only", head, "specs/"],
+    capture_output=True,
+    text=True,
+    check=True,
+)
+for name in listing.stdout.split():
+    if name.endswith(".yaml"):
+        head_specs.update(load(head, name))
+
 amended = []
 for path in os.environ["FILES"].split():
-    old, new = load(base, path), load(head, path)
+    old = load(base, path)
     for spec_id, before in old.items():
-        after = new.get(spec_id)
+        after = head_specs.get(spec_id)
         if after is None:
             amended.append((spec_id, "removed", "statement,priority"))
             continue

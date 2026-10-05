@@ -324,7 +324,7 @@ later) are separate decisions. Apply
    the `no deterministic signal` and `no Python source in the diff` notes as
    "this part rests on your judgment".
 3. Do not skip or delegate validation. Never bypass a pre-commit hook
-   (`--no-verify`, `SKIP=`); fix what it reports.
+   (`--no-verify`, `SKIP=`) (sole exception: the devcontainer `actionlint` hang, `notes/devcontainer-tooling.md`); fix what it reports.
 4. Apply branch-ownership and pre-existing-failure rules from
    `completeness-doctrine.md` § "Finding Severity".
 5. If pre-existing is proven, the PR is still held: a failing check blocks the

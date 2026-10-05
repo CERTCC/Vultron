@@ -249,7 +249,8 @@ Full doctrine: `.claude/skills/shared/completeness-doctrine.md` (loaded by
   linters clean.
 - **FAIL** → fix before PR. **IMPROVE** → fix this session.
   **DEFER** → create follow-up issue + user ack; unattended runs have no DEFER
-  (fix in the PR or hold it). Never merge on red; never skip a hook.
+  (fix in the PR or hold it). Never merge on red; never skip a hook
+  (only the documented `actionlint` hang).
   No WARN-and-defer.
 
 ---

@@ -110,3 +110,22 @@ def test_added_requirement_is_not_an_amendment(repo: Path) -> None:
         + "        statement: Brand new.\n",
     )
     assert _run(repo).returncode == 0
+
+
+def test_requirement_moved_unchanged_to_another_file_is_not_flagged(
+    repo: Path,
+) -> None:
+    (repo / "specs" / "xx.yaml").rename(repo / "specs" / "yy.yaml")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "move")
+    assert _run(repo).returncode == 0
+
+
+def test_deleted_spec_file_flags_its_requirements(repo: Path) -> None:
+    (repo / "specs" / "xx.yaml").unlink()
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "delete")
+    result = _run(repo)
+    assert result.returncode == 1, result.stderr
+    assert "req-a\tremoved" in result.stdout
+    assert "req-b\tremoved" in result.stdout

@@ -186,8 +186,8 @@ PR URL: https://github.com/CERTCC/Vultron/pull/N
 ```
 
 **Never merge on red; never skip a hook.** `pr-ship` does not merge a PR with any
-failing check, and no step runs `git commit --no-verify` or `SKIP=<hook>` (the
-spec-lint hook included). Only verify's `READY-TO-MERGE` permits a merge, and
+failing check, and no step runs `git commit --no-verify` or `SKIP=<hook>` (sole exception: the devcontainer `actionlint` hang, `notes/devcontainer-tooling.md`)
+(the spec-lint hook never). Only verify's `READY-TO-MERGE` permits a merge, and
 verify emits it only on green CI. The sole exception is one re-run of a check
 already tracked by an open `flaky-test` issue with a reproduction, named in the
 verdict; "it passed on re-run" without that issue is never evidence
