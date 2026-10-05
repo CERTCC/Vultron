@@ -19,7 +19,11 @@ Covers SqliteDataLayer methods added for OX-13-001 through OX-13-004:
 - get_outbox_attempt_count / set_outbox_attempt_count / clear_outbox_attempt_count
 - dead_letter_append / dead_letter_list
 
-Fixtures ``dl`` and ``scoped_dl`` come from conftest.py.
+Also covers the inbox counterparts added for IE-06-004 (#4168):
+- get_inbox_attempt_count / set_inbox_attempt_count / clear_inbox_attempt_count
+- inbox_dead_letter_append / inbox_dead_letter_list
+
+Fixtures ``dl``, ``file_dl``, and ``tmp_db_url`` come from conftest.py.
 
 Retry bookkeeping is *per actor* (ADR-0073): an attempt counter and a
 dead-letter entry both describe one actor's own failed delivery, so they live in
@@ -30,6 +34,8 @@ clone is a *different actor's store*.
 """
 
 import pytest
+
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
 _ALICE = "https://example.org/actors/alice"
 _BOB = "https://example.org/actors/bob"
@@ -299,3 +305,142 @@ def test_resolve_ledger_entry_id_reads_inline_object_from_sqlite(alice_dl):
     result = _resolve_ledger_entry_id(announce.id_, alice_dl)
 
     assert result == ledger_entry_id
+
+
+# ---------------------------------------------------------------------------
+# Inbox attempt counter (IE-06-004, #4168 AC-3)
+# ---------------------------------------------------------------------------
+
+
+def test_get_inbox_attempt_count_default_zero(alice_dl):
+    """Inbox attempt count starts at 0 for an unseen activity."""
+    assert alice_dl.get_inbox_attempt_count(_ACT_ID) == 0
+
+
+def test_set_and_get_inbox_attempt_count(alice_dl):
+    """set_inbox_attempt_count persists the value returned by get."""
+    alice_dl.set_inbox_attempt_count(_ACT_ID, 4)
+    assert alice_dl.get_inbox_attempt_count(_ACT_ID) == 4
+
+
+def test_set_inbox_attempt_count_upsert(alice_dl):
+    """Setting the inbox count twice keeps only the latest value."""
+    alice_dl.set_inbox_attempt_count(_ACT_ID, 2)
+    alice_dl.set_inbox_attempt_count(_ACT_ID, 9)
+    assert alice_dl.get_inbox_attempt_count(_ACT_ID) == 9
+
+
+def test_clear_inbox_attempt_count_resets_to_zero(alice_dl):
+    """clear_inbox_attempt_count makes the count return 0 again."""
+    alice_dl.set_inbox_attempt_count(_ACT_ID, 4)
+    alice_dl.clear_inbox_attempt_count(_ACT_ID)
+    assert alice_dl.get_inbox_attempt_count(_ACT_ID) == 0
+
+
+def test_clear_inbox_attempt_count_noop_if_absent(alice_dl):
+    """clear_inbox_attempt_count is safe to call when no count is recorded."""
+    alice_dl.clear_inbox_attempt_count(_ACT_ID)  # should not raise
+    assert alice_dl.get_inbox_attempt_count(_ACT_ID) == 0
+
+
+def test_inbox_and_outbox_attempt_counts_are_independent(alice_dl):
+    """Inbox and outbox counters for the same activity ID are independent."""
+    alice_dl.set_inbox_attempt_count(_ACT_ID, 3)
+    alice_dl.set_outbox_attempt_count(_ACT_ID, 7)
+    assert alice_dl.get_inbox_attempt_count(_ACT_ID) == 3
+    assert alice_dl.get_outbox_attempt_count(_ACT_ID) == 7
+
+
+@pytest.mark.spec("IE-06-004")
+def test_inbox_attempt_count_survives_store_restart(tmp_db_url):
+    """Inbox attempt count persists after closing and re-opening the store.
+
+    AC-3 of #4168 and the IE-06-004 verification clause: "the attempt count
+    survives a restart of the store".  Uses a file-backed store (not
+    :memory:) so the SQLite file outlives the first DataLayer instance.
+    """
+    actor_id = _ALICE
+
+    dl_first = SqliteDataLayer(tmp_db_url, actor_id=actor_id)
+    dl_first.set_inbox_attempt_count(_ACT_ID, 5)
+    dl_first.close()
+
+    # Simulate a process restart by creating a new DataLayer instance
+    # against the same file.
+    dl_second = SqliteDataLayer(tmp_db_url, actor_id=actor_id)
+    count_after_restart = dl_second.get_inbox_attempt_count(_ACT_ID)
+    dl_second.close()
+
+    assert count_after_restart == 5, (
+        "Inbox attempt count must survive closing and re-opening the store"
+        " (IE-06-004, #4168 AC-3)"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Inbox dead-letter store (IE-06-004, #4168)
+# ---------------------------------------------------------------------------
+
+
+def test_inbox_dead_letter_list_initially_empty(alice_dl):
+    """inbox_dead_letter_list returns [] before any entries are appended."""
+    assert alice_dl.inbox_dead_letter_list() == []
+
+
+def test_inbox_dead_letter_append_and_list(alice_dl):
+    """inbox_dead_letter_append writes a record readable via inbox_dead_letter_list."""
+    alice_dl.inbox_dead_letter_append(
+        _ACT_ID,
+        reason="processing_error",
+        total_attempts=12,
+        last_error="RuntimeError: handler bug",
+    )
+    entries = alice_dl.inbox_dead_letter_list()
+    assert len(entries) == 1
+    entry = entries[0]
+    assert entry.activity_id == _ACT_ID
+    assert entry.reason == "processing_error"
+    assert entry.total_attempts == 12
+    assert entry.last_error == "RuntimeError: handler bug"
+
+
+def test_inbox_dead_letter_entry_carries_actor_id(alice_dl):
+    """inbox_dead_letter_append records the actor that owned the failing inbox."""
+    alice_dl.inbox_dead_letter_append(
+        _ACT_ID,
+        reason="processing_error",
+        total_attempts=1,
+    )
+    entries = alice_dl.inbox_dead_letter_list()
+    assert len(entries) == 1
+    assert entries[0].actor_id == _ALICE
+
+
+@pytest.mark.spec("IE-06-004")
+def test_inbox_dead_letter_survives_store_restart(tmp_db_url):
+    """Inbox dead-letter entries persist after closing and re-opening the store.
+
+    Companion to test_inbox_attempt_count_survives_store_restart: verifies
+    the dead-letter record itself also survives (IE-06-004, #4168 AC-3).
+    """
+    actor_id = _ALICE
+
+    dl_first = SqliteDataLayer(tmp_db_url, actor_id=actor_id)
+    dl_first.inbox_dead_letter_append(
+        _ACT_ID,
+        reason="processing_error",
+        total_attempts=12,
+        last_error="RuntimeError: deterministic bug",
+    )
+    dl_first.close()
+
+    dl_second = SqliteDataLayer(tmp_db_url, actor_id=actor_id)
+    entries = dl_second.inbox_dead_letter_list()
+    dl_second.close()
+
+    assert len(entries) == 1, (
+        "Dead-letter entries must survive closing and re-opening the store"
+        " (IE-06-004, #4168 AC-3)"
+    )
+    assert entries[0].activity_id == _ACT_ID
+    assert entries[0].total_attempts == 12
