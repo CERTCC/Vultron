@@ -433,6 +433,32 @@ def test_dispatch_rejects_a_use_case_that_returns_no_handler_result(
         dispatcher.dispatch(_create_report_event(), MagicMock())
 
 
+@pytest.mark.spec("DR-03-002")
+def test_dispatch_lets_a_handler_exception_propagate():
+    """An exception raised inside ``execute()`` escapes ``dispatch()`` unchanged.
+
+    The dispatcher converts only ``UnroutableActivityError`` into a verdict;
+    every other handler failure belongs to the adapter boundary (IE-06-004).
+    """
+
+    class HandlerFailure(RuntimeError):
+        pass
+
+    class RaisingUseCase:
+        def __init__(self, dl, request) -> None:
+            pass
+
+        def execute(self) -> HandlerResult:
+            raise HandlerFailure("handler blew up")
+
+    dispatcher = DirectActivityDispatcher(
+        use_case_map={MessageSemantics.CREATE_REPORT: RaisingUseCase}
+    )
+
+    with pytest.raises(HandlerFailure, match="handler blew up"):
+        dispatcher.dispatch(_create_report_event(), MagicMock())
+
+
 @pytest.mark.spec("HP-02-001")
 @pytest.mark.spec("HP-02-002")
 @pytest.mark.spec("HP-05-001")

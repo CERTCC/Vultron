@@ -432,22 +432,35 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A Participant that is neither the case owner nor the CASE_MANAGER, in EM Active or Revise
-      (q^em ∈ {A, R}) with CS in a public/exploit/attack state (q^cs ∉ ···pxa), receiving EV MUST
-      answer it with ER to the CASE_MANAGER, as EMB-01-002 requires for a proposal, and MUST NOT
-      emit ET or change its own EM state. Termination is initiated only by the case owner, or by the
-      CASE_MANAGER when delegated (EP-09-003, EP-09-008, CM-24, ADR-0113, ADR-0118).
+      A Participant that is neither the case owner nor the CASE_MANAGER, in EM
+      Active or Revise (q^em ∈ {A, R}) with CS in a public/exploit/attack state
+      (q^cs ∉ ···pxa), receiving EV MUST answer it with ER to the CASE_MANAGER, as
+      EMB-01-002 requires for a proposal, and MUST NOT adopt the proposal, emit ET
+      or change its own EM state. Termination is initiated only by the case owner,
+      or by the CASE_MANAGER when delegated (EP-09-003, EP-09-008, CM-24, ADR-0113,
+      ADR-0118), and it is the public, exploit or attack fact that causes it, never
+      a revision proposal.
     rationale: >-
-      Revision negotiation is not viable once public disclosure has occurred, so the participant
-      refuses the revision. Ending the embargo is the case owner's decision (or the delegated
-      CASE_MANAGER's), and only the CASE_MANAGER writes shared EM state (EP-09-008, ADR-0113); a
-      participant answers only the Invite addressed to it (EP-09-003). VP-11-001 and VP-11-002 are
-      met by the owner's or CASE_MANAGER's termination, not by each participant emitting ET
-      (ADR-0118).
+      Revision negotiation is not viable once public disclosure has occurred, so
+      the participant refuses the revision. A proposal is at most the occasion on
+      which a participant notices the case is public; making it the cause would tie
+      termination to someone proposing terms. Ending the embargo is the case
+      owner's decision (or the delegated CASE_MANAGER's), and only the
+      CASE_MANAGER writes shared EM state (EP-09-008, ADR-0113); a participant
+      answers only the Invite addressed to it (EP-09-003). VP-11-001 and VP-11-002
+      are met by the owner's or CASE_MANAGER's termination, which in the
+      CASE_MANAGER topology is the CS public-event cascade, not by each
+      participant emitting ET (ADR-0118).
     verification: >-
-      A per-actor-store test in `test/core/use_cases/received/test_embargo_relay_replay.py` delivers
-      a relayed revision Invite to a participant whose case is P/X/A and asserts one ER to the
-      CASE_MANAGER, no ET, and no EM state change on the participant.
+      A per-actor-store test in
+      `test/core/use_cases/received/test_embargo_relay_replay.py` delivers a relayed
+      revision Invite to a participant whose case is P/X/A and asserts one ER to the
+      CASE_MANAGER, no ET, and no EM state change on the participant. On the
+      CASE_MANAGER side,
+      `test/core/behaviors/status/test_add_case_status_bt.py::TestThreatTerminationBranchNode::test_triggers_teardown_on_threat_pxa_states`
+      shows a recorded P, X or A state tearing down the active embargo, and
+      `test/core/use_cases/received/test_embargo_revision_relay.py::test_a_revision_of_a_public_case_is_refused_with_er`
+      shows a revision proposal on a public case refused with ER and not adopted.
     testable: true
     preconditions:
     - em_state:
@@ -471,7 +484,9 @@ groups:
       action: Emit ER to the CASE_MANAGER to reject the revision
       expected: ER queued for the CASE_MANAGER; no ET is emitted; the receiver's EM state is unchanged
     postconditions:
-    - description: ET emitted; EM state is EXITED
+    - description: >-
+        ER queued for the CASE_MANAGER; no revision proposal adopted; the receiver
+        emits no ET and its EM state is unchanged
     relationships:
     - rel_type: satisfies
       spec_id: VP-11-002

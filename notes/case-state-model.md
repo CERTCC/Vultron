@@ -170,49 +170,10 @@ As of PR #2479, `cs_invariants.py` is wired into the BT write paths:
 `is_valid_cs_transition` (AC-3 / SM-09-002) is enforced in
 `CreateParticipantStatusNode`, and pX→PX / vP→VP promotion (AC-1 / SM-09-001)
 is enforced in `CreateParticipantStatusNode`, `AppendCaseStatusToCaseNode`, and
-`EmitCaseStatusUpdateNode`. Receive-path history validation
-(`is_valid_cs_history`) remains unwired — see #2524.
-
----
-
-## Case Object: Documentation vs. Implementation Gap
-
-### Original Design (`docs/howto/case_object.md`)
-
-The how-to doc describes a UML class diagram for a `Case` object with:
-
-- `em_state: EMStateEnum` (embargo management state)
-- `pxa_state: PXAStateEnum` (public/exploit/attack state)
-- `Participant` with `rm_state: RMStateEnum` and `vfd_state: VFDStateEnum`
-- `VendorParticipant` and `DeployerParticipant` subclasses
-- `Message`, `LogEvent`, `Report` associations
-
-This design was written before the ActivityStreams vocabulary was adopted.
-
-### Current Implementation (`vultron/core/models/case.py`)
-
-`VulnerabilityCase` is a Pydantic model extending `CoreObject`, the one AS2
-object root of the core model (ADR-0099 detail 4, ARCH-12-002). There is no
-separate wire class: `as_VulnerabilityCase` in
-`vultron/wire/as2/vocab/objects/vulnerability_case.py` is an alias of the core
-class (ADR-0099 detail 3). It incorporates:
-
-- `case_participants` — `CaseParticipant` objects or their IDs
-- `case_statuses` — `CaseStatus` objects or their IDs (append-only history)
-- `active_embargo` — an inline `EmbargoEvent` (or its ID), plus
-  `proposed_embargoes` as IDs
-- `vulnerability_reports` — `VulnerabilityReport` objects or their IDs
-- `case_activity` and `notes` — activity and note IDs
-
-The VFD/PXA state tracking is embedded in `CaseStatus` and `CaseParticipant`
-objects, not directly on the case. This reflects the ActivityStreams-first
-design.
-
-**Documentation debt**: `docs/howto/case_object.md` needs updating to reflect
-the ActivityStreams-based implementation. Not high priority, but should be
-addressed before the prototype is considered stable. When updating, preserve
-the UML diagram concept while replacing the class names with their
-ActivityStreams equivalents.
+`EmitCaseStatusUpdateNode`. Receive-path history validation is wired too
+(#2524): `CheckCsHistoryPrefixNode`
+(`core/behaviors/status/nodes/cs_invariant_guards.py`) checks each received CS
+event with `is_valid_cs_history_prefix` against the current state.
 
 ---
 
@@ -434,18 +395,6 @@ Implemented in PR #3197 (closes #3109):
 The gate is generic — "some vendor at VF" — because per-deployer/per-vendor
 dependency tracking is intentionally out of scope (Concern #2665).
 
-### OPP-06 — Future VFD/PXA transition handling
-
-When vendor-fix or public/exploit/attack transitions are implemented beyond
-object creation, reuse the authoritative VFD/PXA transition definitions rather
-than encoding bespoke conditionals in individual use cases or BT nodes. That
-keeps participant-specific VFD logic and shared PXA logic aligned with the
-formal state model and ensures future persistence guards stay consistent across
-code paths.
-
-See `archived_notes/state-machine-findings.md` OPP-06 and
-`specs/case-management.yaml` `CM-04-005`.
-
 ### Key Reference Documents
 
 The following documents explain this distinction in depth and MUST be
@@ -455,8 +404,8 @@ consulted when implementing state-related handlers or BT nodes:
   explanation of the participant-agnostic vs. participant-specific split
 - `docs/reference/activitypub/objects.md` — how objects are structured in the
   ActivityStreams vocabulary
-- `docs/howto/case_object.md` — case object design (note: predates
-  ActivityStreams; see "Documentation vs. Implementation Gap" section above)
+- `docs/topics/case_lifecycle/case_model.md` — the case model as implemented
+  (`docs/howto/case_object.md` is now a moved stub pointing here)
 - `docs/topics/behavior_logic/msg_cs_bt.md` — behavior tree logic for CS
   message handling
 - `docs/topics/process_models/cs/index.md` — CS model overview

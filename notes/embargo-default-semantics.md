@@ -6,8 +6,8 @@ description: >
   versus protocol-default distinction and why the protocol default never
   competes under shortest-wins; default embargo duration and expiry semantics;
   the published-default / tacit-acceptance model that explains why the
-  happy-path embargo requires no explicit negotiation exchange; why there is no
-  pre-case embargo phase; why an RSVP deadline may not outlive its embargo; and
+  happy-path embargo requires no explicit negotiation exchange; why an RSVP
+  deadline may not outlive its embargo; and
   how EP-04-003's two-party shortest-wins relates to EP-08's general
   earliest-expiration ordering for N open proposals; why the creation-time
   revision's registration order no longer touches consent (ADR-0093); how
@@ -601,35 +601,6 @@ ownership on acceptance. **Do not build this.** ADR-0041 supersedes ADR-0015 for
 precisely this window, and ADR-0089 re-rejected the proto-case when deciding where
 pre-case RM state lives. The path was recorded here before either decision landed,
 which is why it read as a live option for so long.
-
-## No Pre-Case Embargo Phase
-
-CONCERN-2215 asked whether Vultron gets a protocol phase before a case exists, on
-the strength of `model_interactions/rm_em.md` stating that the EM process MAY begin
-before the report is sent. **ADR-0096 answered no**, and the reason is stronger
-than "not implemented":
-
-| Fact | Where |
-|---|---|
-| EM is defined as a global **per-case** state machine | `docs/reference/glossary.md` |
-| EM state exists only as `CaseStatus.em` (an `EmDimension`) | `vultron/core/models/dimensions.py` |
-| `EmbargoEvent.context` is required, and every core construction site set it to `case_id` | `case/nodes/embargo.py`, `triggers/embargo/{propose,revise}.py` |
-| `propose_embargo(case_id=…)` raises `VultronNotFoundError` when the case does not resolve | `vultron/core/services/embargo_lifecycle/proposals.py` |
-
-So the documented $q^{em} \in N \xrightarrow{p} P$ before any case exists named a
-machine instance that could not exist. `rm_em.md` has been corrected: its
-*motivation* survives (a sender may want terms fixed before disclosing), its
-*mechanism claim* is withdrawn.
-
-What replaces the phase is two rules, both above: the protocol default means a
-reporter never faces "no embargo at all", and the embedded proposal means they can
-always state the terms they want. Shortest-wins settles any disagreement at case
-creation.
-
-Note that EP-04-009's context widening does give pre-case embargo terms a
-legitimate home. What ADR-0096 declines is the *phase*, not the *representation* —
-so if a genuine pre-submission negotiation is ever wanted, the object it would
-negotiate over already exists.
 
 ## An RSVP Deadline May Not Outlive Its Embargo
 

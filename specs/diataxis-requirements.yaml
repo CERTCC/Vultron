@@ -168,6 +168,44 @@ groups:
       provide a short "Prerequisites" or "Starting points" section (or link to one) that handles
       different starting states and messy real-world setups instead of embedding multiple
       alternative flows.
+  - id: DF-04-009
+    priority: SHOULD
+    kind: process
+    statement: >-
+      A how-to guide MAY cover the same demonstration as a tutorial. When it does, it
+      SHOULD lead with the task — what the reader's actor sends, in order, with its
+      branches, and how to verify the result — and place the demonstration's invocation
+      last, as confirmation. A how-to guide with nothing to place before the
+      demonstration's invocation SHOULD be a tutorial instead.
+    rationale: >-
+      Overlap across quadrants is not duplication when each page answers its own
+      reader's question: "I need my actor to propose an embargo" is work, answered by
+      the activities to send; "I want to see an embargo negotiation happen" is study,
+      answered by the demo. Leading a how-to with the command the tutorial opens with
+      writes it to the tutorial's question. DF-01-003 forbids mixing quadrants within a
+      page and says nothing about two pages; this item covers the pair.
+    relationships:
+    - rel_type: refines
+      spec_id: DF-01-003
+  - id: DF-04-010
+    priority: SHOULD
+    kind: process
+    statement: >-
+      When a how-to guide and a tutorial show the same demonstration, the section both
+      pages show SHOULD be one `{% include-markdown %}` fragment that both include, and
+      the how-to guide's `level` SHOULD be higher than the tutorial's.
+    rationale: >-
+      Two copies of a demo invocation and its expected result drift apart; one fragment
+      cannot (DF-10-002), and placement stays with each host page, so DF-04-009's
+      ordering survives. A fragment with two hosts satisfies both hosts' quadrant rules
+      (DF-09-008). A how-to assumes a competent reader (DF-04-002), and the tutorial is
+      where that competence comes from, so the how-to sits above it and may link down to
+      it (DF-11-002).
+    relationships:
+    - rel_type: refines
+      spec_id: DF-04-009
+    - rel_type: depends_on
+      spec_id: DF-11-002
 - id: DF-05
   title: Reference
   specs:
@@ -314,18 +352,24 @@ groups:
     adr:
       - ADR-0092
     statement: >-
-      Acronyms MUST be expanded on first use on each rendered `docs/` page, where "page" means
-      the page as published rather than the source file it was authored in.
+      Acronyms MUST be expanded on first use on each rendered `docs/` page, where "page"
+      means the page as published rather than the source file it was authored in. Site
+      navigation rendered by the theme (the sidebar and tabs) is not page content and is
+      exempt. In a generated listing of child pages, each entry is one unit: an acronym
+      in an entry's link label is expanded on first use when that entry's own
+      description expands it.
     rationale: >-
-      First use resets per page because readers arrive from search results and deep links rather
-      than by reading in nav order. Site-wide `abbr` tooltips do not survive print output and are
-      invisible in raw Markdown. "Page" names the rendered artifact because an assembled page has
-      one first use, not one per fragment: applied to the Protocol Specification's fragments
-      standalone, the rule would demand twelve expansions of "VFD" and ten of "RM" on one rendered
-      page. See DF-09-007.
+      First use resets per page because readers arrive from search results and deep
+      links rather than by reading in nav order. Site-wide `abbr` tooltips do not
+      survive print output and are invisible in raw Markdown. "Page" names the rendered
+      artifact because an assembled page has one first use, not one per fragment
+      (DF-09-007). A generated listing reuses navigation labels as link text, so each
+      entry's description carries the expansion.
     verification: >-
-      Inspection of a page assembled from `{% include-markdown %}` fragments confirms each
-      acronym is expanded once in the rendered output.
+      Inspection of a page assembled from `{% include-markdown %}` fragments confirms
+      each acronym is expanded once in the rendered output, and inspection of a
+      generated landing page confirms each entry whose label carries an acronym expands
+      it in its description.
   - id: DF-09-004
     priority: MUST
     kind: process

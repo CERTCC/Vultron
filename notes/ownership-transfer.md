@@ -31,24 +31,6 @@ Normative requirements: CM-21-005, CM-21-006, CM-21-007.
 
 ---
 
-## The Problem (Pre-ADR-0053)
-
-Before ADR-0053 the ownership-transfer protocol had two routing gaps:
-
-1. **Offer sent directly to transferee** — `EmitOfferCaseOwnershipTransferNode`
-   addressed the Offer to the transferee's inbox, bypassing the CASE_MANAGER.
-   No CaseLedgerEntry was written for the offer-in-flight; participants not
-   involved in the negotiation received no notification.
-
-2. **Accept sent directly to offerer** — `EmitAcceptCaseOwnershipTransferNode`
-   addressed the Accept to the offerer's inbox, bypassing the CASE_MANAGER.
-   `AcceptCaseOwnershipTransferReceivedUseCase` only ran when the Accept was
-   manually self-delivered (the `post_to_inbox_and_wait` workaround in
-   `fvcv_handoff_demo.py`).  No CaseLedgerEntry was written after the role
-   change; the Announce broadcast never fired.
-
----
-
 ## Correct Routing Model (ADR-0053)
 
 Both activities MUST flow through the CASE_MANAGER.
@@ -102,11 +84,16 @@ CASE_MANAGER inbox receives Accept
 
 ## Implementation Checklist
 
+Every item below is built (verified against the code 2026-10-02) except the
+retirement of the no-CASE_MANAGER fallback, which #3964 tracks. Keep the list as
+the statement of what each component must preserve, not as open work.
+
 ### SvcOfferCaseOwnershipTransferUseCase._prepare()
 
-- MUST call `_find_case_actor_id()` and set `self._actor_id = case_actor_id`
-  (CM-24-001).
-- MUST set `self._attributed_to = offering_actor_id` (CM-24-002).
+- MUST set `self._actor_id` to the CASE_MANAGER's ID (CM-24-001) and
+  `self._attributed_to` to the offering actor (CM-24-002), through the shared
+  delegated-authorship helper (`_prepare_delegated_context()` today; #4160 moves
+  it below the use-case layer, CM-24-005).
 - A case always has a CASE_MANAGER holder (CM-24-006); when the resolver finds
   none the helper fails rather than falling back to the offering actor (the
   CM-24-003 fallback is retired by #3964).

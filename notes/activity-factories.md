@@ -49,7 +49,7 @@ Spec: `specs/activity-factories.yaml` (AF-01 through AF-08).
 from pydantic import ValidationError
 
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
-from vultron.wire.as2.vocab.activities.report import RmSubmitReportActivity
+from vultron.wire.as2.vocab.activities.report import _RmSubmitReportActivity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.vulnerability_report import VulnerabilityReport
@@ -62,7 +62,7 @@ def rm_submit_report_activity(
 ) -> as_Offer:
     """Build an Offer(VulnerabilityReport) — the RS message."""
     try:
-        return RmSubmitReportActivity(object_=report, to=[to], **kwargs)
+        return _RmSubmitReportActivity(object_=report, to=[to], **kwargs)
     except ValidationError as exc:
         raise VultronActivityConstructionError(
             "rm_submit_report_activity: invalid arguments"
@@ -115,70 +115,93 @@ __all__ = [
 
 | Factory function | Return type | Internal class |
 |---|---|---|
-| `rm_create_report_activity` | `as_Create` | `RmCreateReportActivity` |
-| `rm_submit_report_activity` | `as_Offer` | `RmSubmitReportActivity` |
-| `rm_read_report_activity` | `as_Read` | `RmReadReportActivity` |
-| `rm_validate_report_activity` | `as_Accept` | `RmValidateReportActivity` |
-| `rm_invalidate_report_activity` | `as_TentativeReject` | `RmInvalidateReportActivity` |
-| `rm_close_report_activity` | `as_Reject` | `RmCloseReportActivity` |
+| `rm_create_report_activity` | `as_Create` | `_RmCreateReportActivity` |
+| `rm_submit_report_activity` | `as_Offer` | `_RmSubmitReportActivity` |
+| `rm_read_report_activity` | `as_Read` | `_RmReadReportActivity` |
+| `rm_validate_report_activity` | `as_Accept` | `_RmValidateReportActivity` |
+| `rm_invalidate_report_activity` | `as_TentativeReject` | `_RmInvalidateReportActivity` |
+| `rm_close_report_activity` | `as_Reject` | `_RmCloseReportActivity` |
+| `parse_submit_report_offer` | `tuple[as_VulnerabilityReport, as_Offer]` (parser, not a builder) | — |
 
 ### `factories/case.py`
 
 | Factory function | Return type | Internal class |
 |---|---|---|
-| `add_report_to_case_activity` | `as_Add` | `AddReportToCaseActivity` |
-| `add_status_to_case_activity` | `as_Add` | `AddStatusToCaseActivity` |
-| `create_case_activity` | `as_Create` | `CreateCaseActivity` |
-| `create_case_status_activity` | `as_Create` | `CreateCaseStatusActivity` |
-| `add_note_to_case_activity` | `as_Add` | `AddNoteToCaseActivity` |
-| `update_case_activity` | `as_Update` | `UpdateCaseActivity` |
-| `rm_engage_case_activity` | `as_Join` | `RmEngageCaseActivity` |
-| `rm_defer_case_activity` | `as_Ignore` | `RmDeferCaseActivity` |
-| `rm_close_case_activity` | `as_Leave` | `RmCloseCaseActivity` |
-| `offer_case_ownership_transfer_activity` | `as_Offer` | `OfferCaseOwnershipTransferActivity` |
-| `accept_case_ownership_transfer_activity` | `as_Accept` | `AcceptCaseOwnershipTransferActivity` |
-| `reject_case_ownership_transfer_activity` | `as_Reject` | `RejectCaseOwnershipTransferActivity` |
-| `rm_invite_to_case_activity` | `as_Invite` | `RmInviteToCaseActivity` |
-| `rm_accept_invite_to_case_activity` | `as_Accept` | `RmAcceptInviteToCaseActivity` |
-| `rm_reject_invite_to_case_activity` | `as_Reject` | `RmRejectInviteToCaseActivity` |
-| `announce_vulnerability_case_activity` | `as_Announce` | `AnnounceVulnerabilityCaseActivity` |
+| `add_report_to_case_activity` | `as_Add` | `_AddReportToCaseActivity` |
+| `add_status_to_case_activity` | `as_Add` | `_AddStatusToCaseActivity` |
+| `create_case_activity` | `as_Create` | `_CreateCaseActivity` |
+| `create_case_status_activity` | `as_Create` | `_CreateCaseStatusActivity` |
+| `add_note_to_case_activity` | `as_Add` | `_AddNoteToCaseActivity` |
+| `update_case_activity` | `as_Update` | `_UpdateCaseActivity` |
+| `rm_engage_case_activity` | `as_Join` | `_RmEngageCaseActivity` |
+| `rm_defer_case_activity` | `as_Ignore` | `_RmDeferCaseActivity` |
+| `rm_close_case_activity` | `as_Leave` | `_RmCloseCaseActivity` |
+| `offer_case_ownership_transfer_activity` | `as_Offer` | `_OfferCaseOwnershipTransferActivity` |
+| `accept_case_ownership_transfer_activity` | `as_Accept` | `_AcceptCaseOwnershipTransferActivity` |
+| `reject_case_ownership_transfer_activity` | `as_Reject` | `_RejectCaseOwnershipTransferActivity` |
+| `rm_invite_to_case_activity` | `as_Invite` | `_RmInviteToCaseActivity` |
+| `rm_accept_invite_to_case_activity` | `as_Accept` | `_RmAcceptInviteToCaseActivity` |
+| `rm_reject_invite_to_case_activity` | `as_Reject` | `_RmRejectInviteToCaseActivity` |
+| `announce_vulnerability_case_activity` | `as_Announce` | `_AnnounceVulnerabilityCaseActivity` |
+| `offer_case_participant_role_activity` | `as_Offer` | `_OfferCaseParticipantRoleActivity` |
+| `accept_case_participant_role_activity` | `as_Accept` | `_AcceptCaseParticipantRoleActivity` |
+| `reject_case_participant_role_activity` | `as_Reject` | `_RejectCaseParticipantRoleActivity` |
+| `reject_close_case_activity` | `as_Reject` | `_RmRejectCloseCaseActivity` |
+| `bootstrap_replay_question_activity` | `as_Question` | — |
+| `create_case_proposal_activity` | `as_Create` | — |
+| `accept_case_proposal_activity` | `as_Accept` | — |
+| `reject_case_proposal_activity` | `as_Reject` | — |
+| `validate_held_case_invite` | `as_Invite` (validates a held Invite, not a builder) | — |
 
 ### `factories/embargo.py`
 
 | Factory function | Return type | Internal class |
 |---|---|---|
-| `em_propose_embargo_activity` | `as_Invite` | `EmProposeEmbargoActivity` |
-| `em_accept_embargo_activity` | `as_Accept` | `EmAcceptEmbargoActivity` |
-| `em_reject_embargo_activity` | `as_Reject` | `EmRejectEmbargoActivity` |
-| `activate_embargo_activity` | `as_Add` | `ActivateEmbargoActivity` |
-| `add_embargo_to_case_activity` | `as_Add` | `AddEmbargoToCaseActivity` |
-| `announce_embargo_activity` | `as_Announce` | `AnnounceEmbargoActivity` |
-| `remove_embargo_from_case_activity` | `as_Remove` | `RemoveEmbargoFromCaseActivity` |
+| `em_propose_embargo_activity` | `as_Invite` | `_EmProposeEmbargoActivity` |
+| `em_accept_embargo_activity` | `as_Accept` | `_EmAcceptEmbargoActivity` |
+| `em_reject_embargo_activity` | `as_Reject` | `_EmRejectEmbargoActivity` |
+| `activate_embargo_activity` | `as_Add` | `_ActivateEmbargoActivity` |
+| `add_embargo_to_case_activity` | `as_Add` | `_AddEmbargoToCaseActivity` |
+| `announce_embargo_activity` | `as_Announce` | `_AnnounceEmbargoActivity` |
+| `remove_embargo_from_case_activity` | `as_Remove` | `_RemoveEmbargoFromCaseActivity` |
 
 ### `factories/case_participant.py`
 
 | Factory function | Return type | Internal class |
 |---|---|---|
-| `create_participant_activity` | `as_Create` | `CreateParticipantActivity` |
-| `create_status_for_participant_activity` | `as_Create` | `CreateStatusForParticipantActivity` |
-| `add_status_to_participant_activity` | `as_Add` | `AddStatusToParticipantActivity` |
-| `add_participant_to_case_activity` | `as_Add` | `AddParticipantToCaseActivity` |
-| `remove_participant_from_case_activity` | `as_Remove` | `RemoveParticipantFromCaseActivity` |
+| `create_participant_activity` | `as_Create` | `_CreateParticipantActivity` |
+| `create_status_for_participant_activity` | `as_Create` | `_CreateStatusForParticipantActivity` |
+| `add_status_to_participant_activity` | `as_Add` | `_AddStatusToParticipantActivity` |
+| `add_participant_to_case_activity` | `as_Add` | `_AddParticipantToCaseActivity` |
+| `remove_participant_from_case_activity` | `as_Remove` | `_RemoveParticipantFromCaseActivity` |
 
 ### `factories/actor.py`
 
 | Factory function | Return type | Internal class |
 |---|---|---|
-| `recommend_actor_activity` | `as_Offer` | `RecommendActorActivity` |
-| `accept_actor_recommendation_activity` | `as_Accept` | `AcceptActorRecommendationActivity` |
-| `reject_actor_recommendation_activity` | `as_Reject` | `RejectActorRecommendationActivity` |
+| `recommend_actor_activity` | `as_Offer` | `_RecommendActorActivity` |
+| `accept_actor_recommendation_activity` | `as_Accept` | `_AcceptActorRecommendationActivity` |
+| `reject_actor_recommendation_activity` | `as_Reject` | `_RejectActorRecommendationActivity` |
+| `offer_case_participant_activity` | `as_Offer` | `_OfferCaseParticipantActivity` |
+| `accept_case_participant_offer_activity` | `as_Accept` | `_AcceptCaseParticipantOfferActivity` |
+| `reject_case_participant_offer_activity` | `as_Reject` | `_RejectCaseParticipantOfferActivity` |
 
 ### `factories/sync.py`
 
 | Factory function | Return type | Internal class |
 |---|---|---|
-| `announce_log_entry_activity` | `as_Announce` | `AnnounceLogEntryActivity` |
-| `reject_log_entry_activity` | `as_Reject` | `RejectLogEntryActivity` |
+| `announce_log_entry_activity` | `as_Announce` | `_AnnounceLogEntryActivity` |
+| `reject_log_entry_activity` | `as_Reject` | `_RejectLogEntryActivity` |
+
+### `factories/fault.py`
+
+| Factory function | Return type | Internal class |
+|---|---|---|
+| `create_processing_fault_activity` | `as_Create` | — |
+
+Internal classes are module-private (leading underscore) and live in
+`vultron/wire/as2/vocab/activities/`; only factory modules import them. A `—`
+means the factory builds the AS2 base type directly, with no internal class.
 
 ## Anti-Pattern: `model_dump` + `model_validate` Instead of a Declared Field Map
 

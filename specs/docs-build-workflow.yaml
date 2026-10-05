@@ -1,12 +1,17 @@
 id: DOCBW
-title: Docs Build and Link Check Workflow
+title: Docs Site Build and Publication Workflows
 description: >-
-  Requirements for the GitHub Actions workflow that verifies the MkDocs site
-  builds cleanly and that all links in the published documentation are valid.
-  The workflow lives at `.github/workflows/docs-build-check.yml`.
-  It is distinct from `python-app.yml` (Python unit tests and linting) and
-  `.github/workflows/demo-integration.yml` (demo container integration tests,
-  specified in `specs/demo-ci.yaml`).
+  Requirements for the GitHub Actions workflows that build the MkDocs site and
+  publish it: the review workflow `.github/workflows/docs-build-check.yml`, which
+  runs on pull requests and verifies the site builds cleanly and that its links
+  and URLs resolve, and the publication workflow
+  `.github/workflows/deploy_site.yml`, which builds the site and uploads it to
+  GitHub Pages. DOCBW-01, DOCBW-02 and DOCBW-05 name and configure the review
+  workflow; DOCBW-03 states the build and gate obligations every site-building
+  workflow carries; DOCBW-06 states what is specific to publication.
+  The workflows are distinct from `python-app.yml` (Python unit tests and
+  linting) and `.github/workflows/demo-integration.yml` (demo container
+  integration tests, specified in `specs/demo-ci.yaml`).
 scope:
   - prototype
   - production
@@ -15,7 +20,7 @@ tags:
 - documentation
 groups:
   - id: DOCBW-01
-    title: Workflow File Name and Display Name
+    title: Review Workflow File Name and Display Name
     specs:
       - id: DOCBW-01-001
         priority: MUST
@@ -269,3 +274,89 @@ groups:
         statement: >-
           The workflow MUST declare `permissions: contents: read` at the
           workflow level and no additional permissions, per CISEC-02-002.
+
+  - id: DOCBW-06
+    title: Site Publication
+    description: >-
+      Obligations of the publication workflow, `.github/workflows/deploy_site.yml`,
+      beyond the build and gate obligations DOCBW-03 places on every site-building
+      workflow. What triggers publication (a push to a release branch, a cadence on
+      `main`, or both) is an open decision, tracked as Concern #3560, and is
+      deliberately not specified here.
+    specs:
+      - id: DOCBW-06-001
+        priority: MUST
+        kind: project
+        statement: >-
+          The publication workflow MUST be the only workflow that uploads the site
+          to GitHub Pages.
+        rationale: >-
+          A gate is a property of the paths on which it runs. With one uploader,
+          every requirement placed on the publication workflow binds every path by
+          which the site reaches readers; a second uploader would be a path no
+          DOCBW-06 obligation covers.
+        verification: >-
+          A test under `test/ci/` that fails when any workflow other than
+          `deploy_site.yml` uses `actions/upload-pages-artifact` or
+          `actions/deploy-pages`. Not yet written; owned by #4167.
+        tracking_issue: '#4167'
+      - id: DOCBW-06-002
+        priority: MUST
+        kind: project
+        statement: >-
+          In the publication workflow, the publication gates (DOCBW-03-005,
+          DOCBW-03-007 and DOCBW-03-008, run through the
+          `.github/actions/check-site-publication` composite action) MUST run after
+          the site build and before the Pages artifact upload.
+        rationale: >-
+          After the upload the artifact is already out, so a gate placed later
+          checks a site that has shipped; before the build, `site/` does not exist.
+          The ordering is the gate.
+        verification: >-
+          `test_gate_runs_after_the_build` and `test_gate_precedes_the_pages_upload`
+          in `test/ci/test_publication_gates_in_workflows.py`.
+        relationships:
+          - rel_type: refines
+            spec_id: DOCBW-03-006
+      - id: DOCBW-06-003
+        priority: MUST
+        kind: project
+        statement: >-
+          The publication workflow MUST notify on failure and close the failure
+          notice on a later success, through the `notify-failure` composite action
+          (CISEC-05-001).
+        rationale: >-
+          A failed publish leaves the live site stale with no failing pull request
+          to notice it, so the failure has to be reported by the run itself.
+        verification: >-
+          `test/ci/test_workflow_failure_notification.py` asserts the notify and
+          close steps for workflows that trigger on a push to `main` or on a
+          schedule, which does not include `deploy_site.yml`'s push to `publish`;
+          extending its qualifying set to the publication workflow is owned by
+          #4167.
+        tracking_issue: '#4167'
+        relationships:
+          - rel_type: implements
+            spec_id: CISEC-05-001
+      - id: DOCBW-06-004
+        priority: MUST
+        kind: project
+        statement: >-
+          Every workflow that builds the site MUST build it through one shared
+          composite action that fixes the checkout (history depth and tags), the
+          dependency set and the `mkdocs build` command. A workflow MAY add steps
+          after the shared build, and MUST NOT run a `mkdocs build` of its own.
+        rationale: >-
+          A review build is evidence about the published site only when it builds
+          the same thing. The review and publication workflows have diverged on
+          the installed dependency group, on whether git tags are fetched, and on
+          the build flags, so a green review did not prove the published site.
+        verification: >-
+          A test under `test/ci/`, sibling to
+          `test/ci/test_publication_gates_in_workflows.py`, that fails when any
+          workflow runs `mkdocs build` outside the shared action. Not yet written;
+          owned by #4167.
+        tracking_issue: '#4167'
+        relationships:
+          - rel_type: refines
+            spec_id: DOCBW-03-009

@@ -233,14 +233,16 @@ directly.
 The DataLayer uses surrogate keys (short ID segments) for routing alongside
 canonical full-URI IDs. Two invariants MUST be enforced:
 
-### Ambiguous matches are errors, not first-match wins
+### Ambiguous matches are never first-match wins
 
-When `dl.resolve_surrogate_key(key)` finds more than one canonical ID
-matching a short-key tail segment, it MUST raise an error (e.g.,
-`VultronAmbiguousKeyError`), not silently return the first result. Returning
-the first match makes actor/case lookups non-deterministic when multiple
-canonical IDs share the same tail segment — a bug that is extremely hard to
-reproduce in tests.
+When `find_actor_by_short_id()` or `find_case_by_short_id()`
+(`vultron/adapters/driven/datalayer_sqlite/queries.py`) finds more than one
+canonical ID matching a short-key tail segment, it logs a WARNING and returns
+`None` — the route then answers as for a miss — rather than returning the first
+result. Returning the first match makes actor/case lookups non-deterministic
+when multiple canonical IDs share the same tail segment, a bug that is extremely
+hard to reproduce in tests. (The original design called for a dedicated
+ambiguous-key error; what was built treats ambiguity as not-found.)
 
 ### Case-key resolution continues to short-key fallback after non-case hits
 
@@ -252,8 +254,11 @@ failures.
 
 ### Evidence
 
-- `vultron/adapters/driven/datalayer_sqlite.py` — `resolve_surrogate_key()`
-- `vultron/adapters/driven/datalayer.py` — `DataLayer` protocol
+- `vultron/adapters/driven/datalayer_sqlite/queries.py` — `find_actor_by_short_id()`,
+  `find_case_by_short_id()`
+- `vultron/core/ports/datalayer.py` — `DataLayer` protocol
+- `vultron/adapters/driving/fastapi/routers/actors/_routes.py` — case-key fallback
+  to `find_case_by_short_id()`
 
 ### AC-3a Asymmetric Test Pattern
 

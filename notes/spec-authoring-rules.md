@@ -8,12 +8,16 @@ description: >
   and `rel_type`; keys that are silently dropped; the protocol-coverage
   ratchet and its xfail pattern; the audit passes required when retiring a
   name or splitting a compound requirement; priority tiers (MS-02-003/004); and
-  the owner-and-terminal-state rules for ceiling ratchets (MS-10-006..008).
+  the owner-and-terminal-state rules for ceiling ratchets (MS-10-006..008); the
+  rule that a verification clause names a check that inspects its property
+  (MS-10-009); and the CASE_MANAGER-versus-CaseActor naming discriminator.
 related_specs:
   - specs/meta-specifications.yaml
   - specs/spec-registry.yaml
   - specs/triggerable-behaviors.yaml
   - specs/testability.yaml
+  - specs/docs-build-workflow.yaml
+  - specs/demo-ci.yaml
 related_notes:
   - notes/specs-vs-adrs.md
   - notes/behavioral-conformance-specs.md
@@ -423,6 +427,32 @@ or describe the one that does.
 
 Source: ISSUE-2982
 
+## A Verification Clause Is a Claim About the Suite
+
+A `verification:` clause tells every later reader how the requirement is known
+to hold, and an unbacked clause reads exactly like a backed one. MS-10-009
+requires the clause to name a check that exists and that inspects the property
+the statement asserts. Five sessions found clauses that did not:
+
+| Requirement | What the clause named | Why it verified nothing |
+|---|---|---|
+| DEMOCI-11-009 | `mkdocs build --strict` renders the scenario table | Strict mode never sees a link a build-time block prints; the page shipped with nine `.md` links that 404 on the built site, on a green build (#3450) |
+| VM-01-004 | A test asserting the actor dual key | The test did not exist, and the stale wording licensed six bogus registry keys (#2982) |
+| DR-03-002 | Nothing | No clause, so nobody noticed it named the wrong component (#3827) |
+| MS-13-003 | Nothing | No check, half adoption, and the corpus read as having no rule; planning nearly invented a duplicate (#3480) |
+| ADR-0099 details 7–8 | The epic's closed children | Graduated to `accepted` with two details unbuilt; a `lint_suppress` in the same commit hid the prose/status mismatch (#3888) |
+
+**How to apply:** for each clause you write or review, ask one question — *if
+this requirement were violated, would the named check fail?* A build, lint or
+type-check that never examines the constrained artifact fails the question, and
+so does a test whose name you have not opened. For a build-time-rendered page,
+assert on the built `site/` (`docs-links`, DOCBW-03-007) or on the rendered string
+in a unit test. MS-15-001 makes a named path resolve; a named test function is
+not yet checked (#4170), so open it. The question is part of `pr-triage`'s spec
+conformance phase.
+
+Source: ISSUE-3450, ISSUE-2982, ISSUE-3827, ISSUE-3480, ISSUE-3888
+
 ## Audit Passes
 
 ### A Resolving Citation Is Not a Correct Citation — Scope `Implements:` by Topic
@@ -549,7 +579,41 @@ compare `actor_id` against a computed `case_actor_id` — will be faithfully
 implemented and faithfully wrong. Grep the spec corpus for MUST requirements
 whose subject is `CaseActor` to catch these before they hide defects.
 
-Source: ISSUE-1872, ISSUE-3260
+**Applied naively, the rewrite over-reaches.** The same actor is both the
+authority (a role) and a concrete node with a URI, an inbox, an outbox, a
+DataLayer and a container. A role has no URI or inbox, so renaming an
+*infrastructure* reference to `CASE_MANAGER` is the same category error as leaving
+an *authority* reference as `CaseActor`. The discriminator:
+
+- **Write "the CASE_MANAGER"** when the subject performs a single-writer authority
+  action or holds an authority property: commits or authors canonical ledger
+  entries, writes shared EM/CS state, sets participant state at bootstrap, is the
+  sole authorized writer, authorizes a commit.
+- **Keep "CaseActor"** for infrastructure and identity: its URI or
+  `case_actor_id`, its inbox and outbox, HTTP-loopback self-delivery to its own
+  inbox, its DataLayer, its container or co-location, delegated-emit store
+  scoping (ADR-0073), a code identifier (`CheckIsOwnCaseActorNode`,
+  `VultronCaseActor`), the `CaseActor` domain type, or the `case-actor` URL-shape
+  anti-pattern a ratchet forbids.
+- **Write "the actor enacting `CVDRole.CASE_MANAGER`"** when the text needs an
+  actor grounded in the role — for example one that can fail a hosting test,
+  which a bare role cannot.
+
+The trap is a requirement that reads like authority but is delivery. The
+canonical-ledger self-delivery requirements in `outbox.yaml` sound like an
+authority obligation, yet every noun in them (own URI, own inbox, HTTP loopback)
+is the concrete actor's plumbing: the commit *authorization* is the role, the
+*delivery* of the self-copy is the actor. When in doubt on an
+infrastructure-flavoured line, keep `CaseActor`.
+
+A naming sweep is also a cheap way to surface stale premises, because it forces
+you to read the rationale the term sits in. Check a rewrite candidate's
+`refines:` and `adr:` parents for agreement, not only its wording: CM-20-001/004/
+005 claimed to refine CBT-01-003 while their rationale asserted its opposite.
+When two entries describe the same fact, make the laggard match the one that
+already applied the decision.
+
+Source: ISSUE-1872, ISSUE-3260, ISSUE-3342
 
 ### Name Which Member of a Population a Requirement Constrains
 
