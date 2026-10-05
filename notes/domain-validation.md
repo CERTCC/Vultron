@@ -8,8 +8,9 @@ description: >
 related_specs:
   - specs/architecture.yaml (ARCH-10-001, ARCH-12-001, ARCH-12-002,
     ARCH-15-001 through ARCH-15-004, ARCH-21-001 through ARCH-21-005)
-  - specs/case-management.yaml (CM-18-005, CM-23-012, CM-27-001 through
-    CM-27-003)
+  - specs/case-management.yaml (CM-18-005, CM-23-001, CM-23-012, CM-27-001
+    through CM-27-003)
+  - specs/case-ledger-processing.yaml (CLP-07-002)
   - specs/rm-behavior.yaml (RMB-14-004, RMB-14-005)
   - specs/participant-role-management.yaml (PRM-03-003)
   - specs/error-handling.yaml (EH-05-002, EH-07-001 through EH-07-003)
@@ -24,6 +25,7 @@ related_notes:
   - notes/bt-pitfalls.md
   - notes/case-state-model.md
   - notes/participant-embargo-consent.md
+  - notes/case-ledger-authority.md
 ---
 
 # Domain Object Validation — Strict vs. Loose Boundaries
@@ -617,16 +619,31 @@ self-declaration (CM-23-012, #3106).
 **Resolved by changing the table, not the override (ADR-0114, RMB-14-004/005,
 [#4044](https://github.com/CERTCC/Vultron/issues/4044)):** the RM transition
 function now closes from *Received* (`R → C`), and a closure from *Valid*, which
-has no close edge (VP-02-004), is written as `V → D → C`. All three sites go
-through `RMClosureWriter` (`case/nodes/participant/rm_closure.py`), which walks
-`rm_closure_path()` with RM adjacency validation in force, so no closure write
-carries `force_rm_state`. `test/architecture/test_rm_closure_no_force.py` pins
+has no close edge (VP-02-004), is written as `V → D → C`. The CASE_MANAGER's
+closure sites go through `RMClosureWriter` (`case/nodes/participant/rm_closure.py`),
+which walks `rm_closure_path()` with RM adjacency validation in force, so no
+closure write carries `force_rm_state`. The replica site that once made a third
+(`close_case_effect.py`) no longer writes RM state (see below). `test/architecture/test_rm_closure_no_force.py` pins
 that; the remaining `_RM_FORCE_QUARANTINE` entries are bootstrap writes only.
 If a new closure path seems to need the override, the RM table is wrong or the
 path is — do not add an exemption.
 
-The scope rule is unchanged: each site advances exactly one named actor (the
-leaver, or the CASE_MANAGER closing its own lifecycle on owner Leave, ADR-0051).
+**The path is the Case Actor's to walk, never a replica's.** `RMClosureWriter`
+walks `rm_closure_path()` from the *writer's own stored* RM state for the actor,
+which is right for the CASE_MANAGER and wrong for a replica: one holding an older
+status for the actor would write a step (say `DEFERRED`) that no ledger entry
+backs ([#4091](https://github.com/CERTCC/Vultron/issues/4091)). The ledger
+communicates each move as the Case Actor makes it: a `close_case` entry for the
+received `Leave`, then one `add_participant_status_to_participant` entry per
+transition it wrote, in order (CM-23-001). A replica applies those status entries
+through the ordinary participant-status effect, and `ApplyCloseCaseFromLedgerNode`
+changes no RM state. `close_case` (the act) and the status entries (its
+consequences) are different facts, so CLP-07-002 is not violated. If you add a
+replica-side writer that calls `rm_closure_path()`, you have rebuilt the defect.
+
+The scope rule is unchanged: each writing site advances exactly one named actor
+(the leaver, or the CASE_MANAGER closing its own lifecycle on owner Leave,
+ADR-0051).
 Closure **never** advances a non-leaving ("bystander") participant — a
 participant that never sent `Leave` has made no closure declaration, so it
 retains its last RM state when the case closes around it. The demo scenarios'
