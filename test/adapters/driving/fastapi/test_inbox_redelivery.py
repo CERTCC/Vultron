@@ -55,6 +55,7 @@ from vultron.adapters.driving.fastapi.inbox_orchestration import (
 )
 from vultron.core.behaviors.inbox import (
     InboxOutcome,
+    InboxOutcomeStatus,
     process_payload,
 )
 from vultron.core.models.actor import CoreActor
@@ -124,9 +125,22 @@ def _run_pipeline_once(
         dl=dl, actor_id=_ACTOR_ID, dispatcher=dispatcher
     )
     outcome = process_payload(body, ingress, dispatch_adp)
-    # IO-04-002: assert on both status and failure_reason.
-    assert hasattr(outcome, "status")
-    assert hasattr(outcome, "failure_reason")
+    # IO-04-002: assert on both status and failure_reason field *values*.
+    # isinstance guards that process_payload returned the correct type;
+    # the InboxOutcomeStatus membership check verifies status is a real enum
+    # member rather than None or an arbitrary string.
+    assert isinstance(outcome, InboxOutcome), (
+        f"process_payload returned {type(outcome).__name__}, expected InboxOutcome"
+    )
+    assert outcome.status in InboxOutcomeStatus, (
+        f"outcome.status={outcome.status!r} is not a valid InboxOutcomeStatus"
+    )
+    # failure_reason is Optional[str]; assert its type contract holds.
+    assert outcome.failure_reason is None or isinstance(
+        outcome.failure_reason, str
+    ), (
+        f"outcome.failure_reason has unexpected type: {type(outcome.failure_reason)}"
+    )
     return outcome
 
 
@@ -245,17 +259,21 @@ def test_second_delivery_logged_at_info_no_warning(
     with caplog.at_level(logging.DEBUG, logger=_ORCHESTRATION_LOGGER):
         client.post(f"{_API_PREFIX}/actors/{_ACTOR_SLUG}/inbox/", json=body)
 
-    # The INFO redelivery notice names the activity id and "already stored".
+    # The INFO redelivery notice names the activity id, the sender actor id,
+    # and "already stored" (IE-10-001, AC-4 of issue #3867).
+    # Log format: "activity <activity_id> (actor <sender_id>) was already stored..."
     redelivery_records = [
         r
         for r in caplog.records
         if r.levelno == logging.INFO
         and activity_id in r.getMessage()
+        and _SENDER_ID in r.getMessage()
         and "already stored" in r.getMessage()
     ]
     assert redelivery_records, (
-        "Expected at least one INFO record naming the activity id and "
-        "'already stored' to signal that the redelivered body was not re-stored."
+        "Expected at least one INFO record naming the activity id, the sender "
+        f"actor id ({_SENDER_ID!r}), and 'already stored' to confirm the "
+        "redelivered body was not re-stored (IE-10-001)."
     )
 
     # No new WARNING+ for this activity id introduced by the second post.
@@ -371,4 +389,9 @@ def test_redelivery_sweep_idempotent(name: str, sweep_dl: SqliteDataLayer):
     assert not new_outbox, (
         f"Second run for '{name}' added new outbox items: {new_outbox} "
         f"(first outcome={outcome1.status}, second outcome={outcome2.status})"
+    )
+    # AC-3 (issue #3867): second run must not change InboxOutcome.status.
+    assert outcome2.status == outcome1.status, (
+        f"Second run for '{name}' returned a different status: "
+        f"first={outcome1.status}, second={outcome2.status}"
     )
