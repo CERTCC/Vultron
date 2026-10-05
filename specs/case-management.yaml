@@ -3241,15 +3241,30 @@ groups:
       ledger commit → broadcast → each replica advances the leaving participant's
       RM state to RM.CLOSED on receipt of the Announce(CaseLedgerEntry).
       Add(ParticipantStatus, rm_state=RM.CLOSED) MUST NOT be used as a closure
-      trigger.
+      trigger.  The CASE_MANAGER MUST commit a close_case entry recording the
+      received Leave, and then, in the order it writes them, one
+      add_participant_status_to_participant entry for each RM transition it
+      writes for the leaving participant (CM-23-012; V → D → C is two entries).
+      A replica MUST advance the leaving participant's RM state only by applying
+      those status entries in ledger order.  It MUST NOT work out a closure path
+      from its own stored state, and applying the close_case entry MUST NOT change
+      any participant's RM state.  A status entry that cannot be committed is
+      logged at WARNING and does not abort the closure, as for the CASE_MANAGER's
+      own closure (CM-23-005).
     rationale: >-
       The Leave round-trip makes the CASE_MANAGER the authority for closure and
       prevents ghost-departures from lost messages: a participant cannot
       silently reach RM.CLOSED on peers without the CASE_MANAGER having committed
-      and broadcast a ledger entry.  See ADR-0050.
+      and broadcast a ledger entry.  The ledger records each move as the
+      CASE_MANAGER makes it, so a replica applies moves and cannot invent a step
+      no entry backs (#4091).  See ADR-0050.
     verification: Integration tests in `test/demo/` confirm that RM closure flows through
       `Leave(VulnerabilityCase)` -> CASE_MANAGER ledger commit -> broadcast, and that
       `Add(ParticipantStatus, rm_state=RM.CLOSED)` is not used as a closure trigger.
+      Unit tests confirm that a Leave from RM.VALID commits the close_case entry and
+      then a VALID -> DEFERRED and a DEFERRED -> CLOSED status entry, in that order,
+      and that a replica applying them ends with the same per-actor status history as
+      the CASE_MANAGER and writes no step the ledger lacks.
     adr:
     - ADR-0050
     stories:
@@ -3298,7 +3313,8 @@ groups:
     statement: >-
       When the CASE_MANAGER receives Leave(VulnerabilityCase) from a non-owner
       participant, it MUST advance only that participant's RM state to RM.CLOSED
-      and commit a CaseLedgerEntry recording the departure.  The case MUST remain
+      and commit a CaseLedgerEntry recording the departure, followed by the
+      status entries for each RM transition (CM-23-001).  The case MUST remain
       open for the remaining participants.  This applies only while the case is
       open; a non-owner Leave that arrives after owner close is governed by
       CM-23-013.
@@ -3483,12 +3499,13 @@ groups:
       emitted). The decline MUST suppress the receipt commit itself: a declined
       owner-close records NO `close_case` `CaseLedgerEntry` at all. Gating the
       receive-and-commit path behind the decline is required, not optional,
-      because that receipt commit IS the closure mechanism — it is committed
-      before any role-specific effect (CLP-10-006) and then fans out, and each
-      replica's replica-apply advances the departing participant to `RM.CLOSED`
-      (CLP-10-001, CM-23-003). Skipping only the local CM-23-002 steps while still
-      committing the receipt would therefore close the case everywhere via
-      fan-out, contradicting "no participant advances to `RM.CLOSED`" (ISSUE-3137).
+      because that receipt commit opens the closure — it is committed
+      before any role-specific effect (CLP-10-006), and the status entries
+      that follow it (CM-23-001) are what advance the departing participant to
+      `RM.CLOSED` on each replica (CLP-10-001, CM-23-003). Skipping only the local
+      CM-23-002 steps while still committing the receipt would leave a recorded
+      departure the case then declined, contradicting "no participant advances
+      to `RM.CLOSED`" (ISSUE-3137).
       The Case Owner MUST terminate the active embargo first, then
       re-issue the close. Declining the close does NOT itself terminate the
       embargo — the embargo remains active until terminated through the normal EM
@@ -3592,8 +3609,9 @@ groups:
       In a deployment the process managing a closed case can exit once closure has
       fanned out, leaving nothing to receive a late message. This rule makes the
       prototype's CASE_MANAGER behave the same way: nothing reaches the ledger, and a
-      reply is a courtesy. The receipt commit is suppressed because its fan-out would
-      close the sender on the replicas (CLP-10-006). A participant that wants its
+      reply is a courtesy. The receipt commit is suppressed because it opens the closure
+      whose status entries would close the sender on the replicas (CLP-10-006,
+      CM-23-001). A participant that wants its
       departure recorded leaves first (CM-23-015). #4162 owns this.
     verification: >-
       A test confirms that after an owner Leave(VulnerabilityCase) has committed

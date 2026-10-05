@@ -252,7 +252,9 @@ leaves. A `Leave` from `VALID` is therefore recorded as two ordinary
 transitions, `V → D → C`, not as an override. With `R → C` in the table and
 `Leave` from `VALID` routed through *Deferred*, a `Leave` from any rung and the
 report hard-reject are ordinary transitions, and no closure path needs the
-`force_rm_state` override.
+`force_rm_state` override. The Case Actor commits each of those transitions as
+its own participant-status ledger entry, so a replica applies the steps the
+ledger records and never derives the path itself (CM-23-001, #4091).
 
 ### Consequences
 

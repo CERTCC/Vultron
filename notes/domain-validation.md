@@ -24,6 +24,7 @@ related_notes:
   - notes/bt-pitfalls.md
   - notes/case-state-model.md
   - notes/participant-embargo-consent.md
+  - notes/case-ledger-authority.md
 ---
 
 # Domain Object Validation — Strict vs. Loose Boundaries
@@ -624,6 +625,19 @@ carries `force_rm_state`. `test/architecture/test_rm_closure_no_force.py` pins
 that; the remaining `_RM_FORCE_QUARANTINE` entries are bootstrap writes only.
 If a new closure path seems to need the override, the RM table is wrong or the
 path is — do not add an exemption.
+
+**The path is the Case Actor's to walk, never a replica's.** `RMClosureWriter`
+walks `rm_closure_path()` from the *writer's own stored* RM state for the actor,
+which is right for the CASE_MANAGER and wrong for a replica: one holding an older
+status for the actor would write a step (say `DEFERRED`) that no ledger entry
+backs ([#4091](https://github.com/CERTCC/Vultron/issues/4091)). The ledger
+communicates each move as the Case Actor makes it: a `close_case` entry for the
+received `Leave`, then one `add_participant_status_to_participant` entry per
+transition it wrote, in order (CM-23-001). A replica applies those status entries
+through the ordinary participant-status effect, and `ApplyCloseCaseFromLedgerNode`
+changes no RM state. `close_case` (the act) and the status entries (its
+consequences) are different facts, so CLP-07-002 is not violated. If you add a
+replica-side writer that calls `rm_closure_path()`, you have rebuilt the defect.
 
 The scope rule is unchanged: each site advances exactly one named actor (the
 leaver, or the CASE_MANAGER closing its own lifecycle on owner Leave, ADR-0051).

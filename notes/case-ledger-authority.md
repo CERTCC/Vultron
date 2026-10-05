@@ -16,6 +16,7 @@ related_notes:
   - notes/case-communication-model.md
   - notes/case-state-model.md
   - notes/configuration.md
+  - notes/domain-validation.md
   - notes/ownership-transfer.md
   - notes/sync-ledger-replication.md
   - notes/wire-artifact-immutability.md
@@ -370,6 +371,17 @@ asserter (`vendor` in the example). Replicas receiving the broadcast
 update their state based on the snapshot's asserter, not the envelope's
 actor. Rewriting `payloadSnapshot.actor` to the CASE_MANAGER would erase
 the assertion's provenance and is forbidden by CLP-07-003.
+
+### An Act and Its Consequences Are Separate Entries (Leave Closure, #4091)
+
+CLP-07-002 bars two entries for the *same* state change. A `Leave` is an act, and
+the RM transitions the CASE_MANAGER writes because of it are its consequences, so
+they are different facts and each gets its own entry. The CASE_MANAGER commits a
+`close_case` entry for the received `Leave`, then one participant-status entry per
+RM transition it writes for the leaving actor (`V → D → C` is two entries), in
+that order. Replicas apply the status entries and never derive a closure path
+from their own stored state, so a replica cannot record a step the ledger lacks.
+See `notes/domain-validation.md` for the write-up and CM-23-001.
 
 ### Commit-Boundary Enforcement
 

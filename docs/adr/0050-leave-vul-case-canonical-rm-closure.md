@@ -21,6 +21,12 @@ PR #1909 (issue #1858) changed RM case closure to flow through
 RM state to `RM.CLOSED` on receipt. The three CS transitions were left
 unchanged.
 
+The `close_case` entry records that the Leave was received. The RM transitions
+the Case Actor writes for the leaving participant follow it as ordinary
+participant-status entries, one per transition, and a replica advances the
+participant only by applying those entries in ledger order. A replica never
+works out a closure path from its own stored state (CM-23-001, #4091).
+
 This created a contradiction: `DEMOMA-07-001` said closure must use
 `Add(ParticipantStatus)`, but the implementation used `Leave`. The question is:
 which mechanism is canonical?

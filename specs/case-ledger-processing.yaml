@@ -399,7 +399,11 @@ groups:
     kind: protocol
     statement: Each logical state change MUST produce at most one canonical `CaseLedgerEntry`;
       the CASE_MANAGER MUST NOT commit both an accepted-participant-assertion entry and
-      a separately-synthesized CASE_MANAGER entry for the same state change
+      a separately-synthesized CASE_MANAGER entry for the same state change.
+      An act and the state transitions the CASE_MANAGER records as its
+      consequence are different facts, not the same state change. The
+      `close_case` entry records a received Leave, and the status entries that
+      follow it record the RM transitions the Leave caused (CM-23-001).
     verification: Integration tests in `test/demo/` confirm that each logical state
       change produces at most one `CaseLedgerEntry`; no test scenario produces both
       an accepted-participant-assertion entry and a separately-synthesized CASE_MANAGER
