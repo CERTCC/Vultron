@@ -41,7 +41,6 @@ from vultron.core.behaviors.case.nodes.embargo_revision import (
     CreationTimeRevisionCandidate,
     creation_revision_parties,
 )
-from vultron.core.behaviors.embargo.nodes.em_state import read_case_em_state
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
@@ -57,9 +56,7 @@ from vultron.core.services.embargo_duration import (
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.services.embargo_lifecycle.creation import (
     CreationRevision,
-    persist_creation_time_embargo,
 )
-from vultron.core.states.em import EM
 from vultron.errors import VultronError
 
 logger = logging.getLogger(__name__)
@@ -80,7 +77,7 @@ def creation_time_embargo_id(case_id: str) -> str:
 
 
 class CreateEmbargoEventNode(DataLayerActionWithPorts):
-    """Create the initial embargo event and publish embargo_id to blackboard.
+    """Build the creation-time embargo event and publish it to the blackboard.
 
     Its duration is the ``InitialEmbargoDuration`` that
     ``ResolveEmbargoDurationNode`` resolved (EP-04-005 through EP-04-007).
@@ -88,9 +85,12 @@ class CreateEmbargoEventNode(DataLayerActionWithPorts):
     ``EmbargoEvent`` with its ``context`` rewritten from the report to the
     case — the same terms and identity the Reporter stated, now about the case
     (EP-04-004, EP-04-009).  Otherwise an event is minted for the resolved
-    duration under ``creation_time_embargo_id(case_id)``, so a rerun on a
-    half-built case reuses the first attempt's event instead of storing a
-    second one beside it (EP-04-012, #4117).
+    duration under ``creation_time_embargo_id(case_id)``.
+
+    The node writes nothing.  ``InitializeCreationEmbargoNode`` stores the
+    event in the commit that activates it (EP-04-002), so an attempt that
+    stops first leaves no event behind, and a redelivery that resolves to the
+    other branch cannot orphan it (EP-04-012, #4182).
     """
 
     def __init__(self, name: str | None = None) -> None:
@@ -108,7 +108,9 @@ class CreateEmbargoEventNode(DataLayerActionWithPorts):
     }
 
     OUTPUT_PORTS: dict[str, PortInformation] = {
-        "default_embargo_id": PortInformation(data_type=str, required=True),
+        "default_embargo": PortInformation(
+            data_type=EmbargoEvent, required=True
+        ),
     }
 
     @classmethod
@@ -117,7 +119,7 @@ class CreateEmbargoEventNode(DataLayerActionWithPorts):
             "case_id": "/case_id",
             "initial_embargo_duration": "/initial_embargo_duration",
             "sender_proposed_embargo": "/sender_proposed_embargo",
-            "default_embargo_id": "/default_embargo_id",
+            "default_embargo": "/default_embargo",
         }
 
     def initialise(self) -> None:
@@ -128,9 +130,6 @@ class CreateEmbargoEventNode(DataLayerActionWithPorts):
         )
 
     def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
         case_id = self.case_id_bb
         if not isinstance(case_id, str):
             self.logger.error("%s: case_id not found in blackboard", self.name)
@@ -146,99 +145,24 @@ class CreateEmbargoEventNode(DataLayerActionWithPorts):
             # The Reporter's terms carry over whole; only the subject changes
             # from the report to the case (EP-04-004).
             embargo = sender_event.with_subject(case_id)
-            end_time = embargo.end_time
-            minted = False
         else:
-            minted = True
-            end_time = from_now_utc(duration)
             embargo = EmbargoEvent(
                 id_=creation_time_embargo_id(case_id),
-                end_time=end_time,
+                end_time=from_now_utc(duration),
                 context=case_id,
             )
-        try:
-            # Only a minted event is ours to re-stamp: a stored twin of the
-            # sender's event must still match it (persist_*, EP-04-004).
-            if not (
-                minted and self._restamp_half_built_attempt(embargo, case_id)
-            ):
-                persist_creation_time_embargo(self.datalayer, embargo, case_id)
-        except VultronError as exc:
-            self.feedback_message = f"{self.name}: {exc}"
-            self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
-            return Status.FAILURE
 
-        self._set_output("default_embargo_id", embargo.id_)
+        self._set_output("default_embargo", embargo)
         self.logger.info(
-            "Initialized embargo '%s' for case '%s'"
+            "Built embargo '%s' for case '%s'"
             " (end_time: %s, duration: %s, source: %s)",
             embargo.id_,
             case_id,
-            end_time.isoformat(),
+            embargo.end_time.isoformat(),
             isodate.duration_isoformat(duration),
             resolved.source.value,
         )
         return Status.SUCCESS
-
-    def _restamp_half_built_attempt(
-        self, embargo: EmbargoEvent, case_id: str
-    ) -> bool:
-        """Overwrite an earlier attempt's minted event with *embargo*.
-
-        A minted event carries ``creation_time_embargo_id(case_id)``, so a
-        rerun on a half-built case (left at ``EM.NONE`` with the event
-        stored — EP-04-012 admits it) finds the first attempt's event under
-        the same id.  Nothing references it: the case is still at ``NONE``,
-        so no proposal, consent record or ledger entry names it.  It is
-        replaced in place with the terms this run resolved, so its window is
-        measured from the run that activates it and no second, orphan event is
-        stored beside it (#4117).  Returns ``False`` when no such event is
-        stored; an object under the id that is not this case's embargo is left
-        to ``persist_creation_time_embargo``, which refuses it.
-
-        "Nothing references it" is checked here, not inherited from the
-        upstream guard (CSB-16): the case must be at ``EM.NONE`` with no
-        active embargo and must not list the id as a proposal.  Otherwise
-        ``False`` is returned and ``persist_creation_time_embargo`` refuses
-        the changed terms rather than rewriting an event already in use
-        (#4123).
-        """
-        assert self.datalayer is not None  # update() checked it
-        stored = self.datalayer.read(embargo.id_)
-        if not isinstance(stored, EmbargoEvent) or stored.context != case_id:
-            return False
-        if not self._unreferenced_by_case(embargo.id_, case_id):
-            return False
-        self.datalayer.save(embargo)
-        self.logger.info(
-            "Actor '%s' re-stamped creation-time embargo '%s' for case '%s',"
-            " left at EM.NONE by an earlier attempt (end_time %s -> %s;"
-            " EP-04-012)",
-            self.actor_id,
-            embargo.id_,
-            case_id,
-            stored.end_time.isoformat(),
-            embargo.end_time.isoformat(),
-        )
-        return True
-
-    def _unreferenced_by_case(self, embargo_id: str, case_id: str) -> bool:
-        """Return whether case *case_id* is half-built and names no embargo.
-
-        Raises:
-            BtNodePreconditionError: when the case or its EM state cannot be
-                read; ``update()`` turns it into FAILURE.
-        """
-        assert self.datalayer is not None  # update() checked it
-        if read_case_em_state(self.datalayer, case_id) is not EM.NONE:
-            return False
-        case = self.datalayer.read(case_id)
-        if not isinstance(case, VulnerabilityCase):
-            return False
-        return (
-            _as_id(case.active_embargo) is None
-            and embargo_id not in case.proposed_embargo_ids
-        )
 
 
 class InitializeCreationEmbargoNode(DataLayerActionWithPorts):
@@ -247,8 +171,10 @@ class InitializeCreationEmbargoNode(DataLayerActionWithPorts):
     One commit: ``EmbargoLifecycle.initialize_creation_embargo`` applies the
     PROPOSE and ACCEPT triggers together, attaches the embargo as
     ``active_embargo``, records consent, seeds the case owner ``SIGNATORY``
-    (CM-14-003) and registers the revision ``ResolveCreationTimeRevisionNode``
-    selected (``ACTIVE → REVISE``, EP-04-003), all in one ``save_many``, so
+    (CM-14-003), stores the ``EmbargoEvent`` ``CreateEmbargoEventNode`` built
+    (no earlier node writes it, #4182) and registers the revision
+    ``ResolveCreationTimeRevisionNode`` selected (``ACTIVE → REVISE``,
+    EP-04-003), all in one ``save_many``, so
     ``EM.PROPOSED`` is never persisted (EP-04-002).  Any failure leaves the
     case at ``EM.NONE`` with nothing written, which the once-per-case guard
     lets a redelivered proposal finish (EP-04-012).  Proposing and then
@@ -291,7 +217,9 @@ class InitializeCreationEmbargoNode(DataLayerActionWithPorts):
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
         "case_id": PortInformation(data_type=str, required=True),
-        "default_embargo_id": PortInformation(data_type=str, required=True),
+        "default_embargo": PortInformation(
+            data_type=EmbargoEvent, required=True
+        ),
         CANDIDATE_KEY: PortInformation(
             data_type=CreationTimeRevisionCandidate | None, required=False
         ),
@@ -309,7 +237,7 @@ class InitializeCreationEmbargoNode(DataLayerActionWithPorts):
             key: f"/{key}"
             for key in (
                 "case_id",
-                "default_embargo_id",
+                "default_embargo",
                 "default_embargo_initialized",
                 CANDIDATE_KEY,
             )
@@ -318,7 +246,9 @@ class InitializeCreationEmbargoNode(DataLayerActionWithPorts):
     def initialise(self) -> None:
         super().initialise()
         self.case_id_bb: str = self.get_input("case_id")
-        self.default_embargo_id_bb: str = self.get_input("default_embargo_id")
+        self.default_embargo_bb: EmbargoEvent = self.get_input(
+            "default_embargo"
+        )
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -327,10 +257,12 @@ class InitializeCreationEmbargoNode(DataLayerActionWithPorts):
         assert self.actor_id is not None
 
         case_id = self.case_id_bb
-        embargo_id = self.default_embargo_id_bb
-        if not isinstance(case_id, str) or not isinstance(embargo_id, str):
+        embargo = self.default_embargo_bb
+        if not isinstance(case_id, str) or not isinstance(
+            embargo, EmbargoEvent
+        ):
             self.logger.error(
-                "%s: case_id/default_embargo_id not found in blackboard",
+                "%s: case_id/default_embargo not found in blackboard",
                 self.name,
             )
             return Status.FAILURE
@@ -375,13 +307,13 @@ class InitializeCreationEmbargoNode(DataLayerActionWithPorts):
                 persistence=self.datalayer
             ).initialize_creation_embargo(
                 case_id=case_id,
-                embargo_id=embargo_id,
+                embargo=embargo,
                 actor_id=self.actor_id,
                 revision=revision,
             )
         except VultronError as exc:
             self.feedback_message = (
-                f"{self.name}: failed to initialize embargo '{embargo_id}'"
+                f"{self.name}: failed to initialize embargo '{embargo.id_}'"
                 f" for case '{case_id}': {exc}"
             )
             self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353

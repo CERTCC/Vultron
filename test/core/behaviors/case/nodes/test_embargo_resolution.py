@@ -36,7 +36,6 @@ from vultron.core.behaviors.case.embargo_tree import (
 )
 from vultron.core.behaviors.case.nodes import embargo as embargo_nodes_module
 from vultron.core.behaviors.case.nodes.embargo import (
-    CreateEmbargoEventNode,
     creation_time_embargo_id,
 )
 from vultron.core.behaviors.case.nodes.embargo_resolution import (
@@ -55,10 +54,6 @@ from vultron.core.models.pending_creation_time_revision_relay import (
     PendingCreationTimeRevisionRelay,
 )
 from vultron.core.models.report import VulnerabilityReport
-from vultron.core.services.embargo_duration import (
-    EmbargoDurationSource,
-    InitialEmbargoDuration,
-)
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM, EM_Trigger
@@ -864,12 +859,12 @@ class TestCaseEmbargoAlreadyInitializedNode:
         bt_scenario: BTTestScenario,
         monkeypatch: pytest.MonkeyPatch,
         **run_args: Any,
-    ) -> list[EmbargoEvent]:
-        """Run the creation arm until its event is stored, then stop it.
+    ) -> None:
+        """Run the creation arm until its activating commit, then stop it.
 
-        ``InitializeCreationEmbargoNode`` fails, as a crash or a failure after the
-        event was written would: the case is left at ``EM.NONE`` with the
-        creation-time event already stored and nothing referencing it.
+        ``InitializeCreationEmbargoNode`` fails, as a crash or a failure
+        before the commit would: the case is left at ``EM.NONE`` and, because
+        the event is written by that commit, with no event stored (#4182).
         """
         with monkeypatch.context() as patch:
             patch.setattr(
@@ -881,27 +876,23 @@ class TestCaseEmbargoAlreadyInitializedNode:
         assert status == Status.FAILURE
         assert _em_state(bt_scenario) == EM.NONE
         assert _active_embargo(bt_scenario) is None
-        stored = _case_events(bt_scenario)
-        assert len(stored) == 1
-        return stored
+        assert _case_events(bt_scenario) == []
 
     @pytest.mark.parametrize(
         "owner_policy",
         [None, ACTOR_DEFAULT],
         ids=["protocol-default", "actor-default"],
     )
-    def test_a_rerun_on_a_half_built_case_mints_no_second_event(
+    def test_a_rerun_on_a_half_built_case_stores_one_event(
         self,
         bt_scenario: BTTestScenario,
         case_obj: VulnerabilityCase,
         monkeypatch: pytest.MonkeyPatch,
         owner_policy: timedelta | None,
     ) -> None:
-        """The rerun EP-04-012 admits at ``NONE`` reuses the event the first
-        attempt stored, rather than minting a fresh one beside it (#4117)."""
-        (first,) = self._half_build(
-            bt_scenario, monkeypatch, owner_policy=owner_policy
-        )
+        """The rerun EP-04-012 admits at ``NONE`` stores exactly one event:
+        the first attempt wrote none (#4117, #4182)."""
+        self._half_build(bt_scenario, monkeypatch, owner_policy=owner_policy)
 
         status, before, after = _run(bt_scenario, owner_policy=owner_policy)
 
@@ -910,7 +901,7 @@ class TestCaseEmbargoAlreadyInitializedNode:
         (only,) = _case_events(bt_scenario)
         active = _active_embargo(bt_scenario)
         assert active is not None
-        assert only.id_ == active.id_ == first.id_
+        assert only.id_ == active.id_ == creation_time_embargo_id(CASE_ID)
         # The terms are the ones resolved by the run that activates them.
         _assert_duration(
             active, owner_policy or PROTOCOL_DEFAULT, before, after
@@ -923,8 +914,8 @@ class TestCaseEmbargoAlreadyInitializedNode:
         case_obj: VulnerabilityCase,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """The sender branch was already idempotent under the Reporter's own
-        id (``persist_creation_time_embargo``); the fix leaves it so."""
+        """A rerun of the sender branch adopts the Reporter's own event,
+        under the Reporter's id (``persist_creation_time_embargo``)."""
         sender_event = EmbargoEvent(
             context=REPORT_ID, end_time=from_now_utc(SENDER_PROPOSAL)
         )
@@ -932,8 +923,7 @@ class TestCaseEmbargoAlreadyInitializedNode:
             "sender_proposal": SENDER_PROPOSAL,
             "sender_proposed_embargo": sender_event,
         }
-        (first,) = self._half_build(bt_scenario, monkeypatch, **run_args)
-        assert first.id_ == sender_event.id_
+        self._half_build(bt_scenario, monkeypatch, **run_args)
 
         status, _, _ = _run(bt_scenario, **run_args)
 
@@ -943,6 +933,59 @@ class TestCaseEmbargoAlreadyInitializedNode:
         assert active is not None
         assert only.id_ == active.id_ == sender_event.id_
         assert active.end_time == sender_event.end_time
+
+    @pytest.mark.parametrize(
+        ("first", "second"),
+        [
+            pytest.param({}, {}, id="default-then-default"),
+            pytest.param(
+                {},
+                {"sender_proposal": SENDER_PROPOSAL},
+                id="default-then-sender",
+            ),
+            pytest.param(
+                {"sender_proposal": SENDER_PROPOSAL},
+                {},
+                id="sender-then-default",
+            ),
+            pytest.param(
+                {"sender_proposal": SENDER_PROPOSAL},
+                {"sender_proposal": SENDER_PROPOSAL},
+                id="sender-then-another-sender-event",
+            ),
+        ],
+    )
+    @pytest.mark.spec("CP-05-006")
+    def test_a_rerun_on_any_branch_leaves_exactly_one_event(
+        self,
+        bt_scenario: BTTestScenario,
+        case_obj: VulnerabilityCase,
+        monkeypatch: pytest.MonkeyPatch,
+        first: dict[str, Any],
+        second: dict[str, Any],
+    ) -> None:
+        """A redelivery that resolves to a different branch than the attempt
+        that died before activation leaves no orphan ``EmbargoEvent``: the
+        event is written in the activating commit, so the first attempt wrote
+        none (#4182)."""
+        with monkeypatch.context() as patch:
+            patch.setattr(
+                embargo_nodes_module.InitializeCreationEmbargoNode,
+                "update",
+                lambda self: Status.FAILURE,
+            )
+            status, _, _ = _run(bt_scenario, **first)
+        assert status == Status.FAILURE
+        assert _em_state(bt_scenario) == EM.NONE
+
+        status, _, _ = _run(bt_scenario, **second)
+
+        assert status == Status.SUCCESS
+        assert _em_state(bt_scenario) == EM.ACTIVE
+        (only,) = _case_events(bt_scenario)
+        active = _active_embargo(bt_scenario)
+        assert active is not None
+        assert only.id_ == active.id_
 
     @pytest.mark.spec("EP-04-004")
     def test_a_sender_twin_with_other_terms_is_refused_not_restamped(
@@ -996,38 +1039,6 @@ class TestCaseEmbargoAlreadyInitializedNode:
         stored = bt_scenario.dl.read(embargo_id)
         assert isinstance(stored, EmbargoEvent)
         assert stored.context == other_case
-
-    def test_an_event_the_case_already_proposes_is_not_restamped(
-        self, bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
-    ) -> None:
-        """Re-stamping checks for itself that nothing references the event
-        (CSB-16), rather than trusting the upstream guard: a case that has
-        moved to ``PROPOSED`` and lists the event as a proposal keeps the
-        terms it proposed, and the changed terms are refused (#4123)."""
-        embargo_id = creation_time_embargo_id(CASE_ID)
-        stored_end = datetime(2099, 1, 1, tzinfo=UTC)
-        bt_scenario.dl.create(
-            EmbargoEvent(id_=embargo_id, context=CASE_ID, end_time=stored_end)
-        )
-        _set_em(bt_scenario, EM.PROPOSED)
-        case = cast(Any, bt_scenario.dl.read(CASE_ID))
-        case.proposed_embargoes = [embargo_id]
-        bt_scenario.dl.save(case)
-
-        status = bt_scenario.run(
-            CreateEmbargoEventNode(),
-            actor_id=ACTOR_ID,
-            case_id=CASE_ID,
-            initial_embargo_duration=InitialEmbargoDuration(
-                duration=PROTOCOL_DEFAULT,
-                source=EmbargoDurationSource.PROTOCOL_DEFAULT,
-            ),
-        ).status
-
-        assert status == Status.FAILURE
-        stored = bt_scenario.dl.read(embargo_id)
-        assert isinstance(stored, EmbargoEvent)
-        assert stored.end_time == stored_end
 
     @pytest.mark.parametrize(
         ("owner_policy", "sender_proposal", "expected"),
@@ -1403,8 +1414,8 @@ class TestCreationTimeEmbargoCommitsItsEffectsWithIt:
         case_obj: VulnerabilityCase,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Past the event creation, nothing but one ``save_many`` writes —
-        the relay obligation included (EP-04-011, #4156)."""
+        """Nothing but one ``save_many`` writes — the winning and the losing
+        event and the relay obligation included (EP-04-011, #4156, #4182)."""
         dl = bt_scenario.dl
         save, save_many = dl.save, dl.save_many
         writes: list[list[str]] = []
@@ -1428,6 +1439,7 @@ class TestCreationTimeEmbargoCommitsItsEffectsWithIt:
                 [
                     "VulnerabilityCase",
                     participant,
+                    "EmbargoEvent",
                     "EmbargoEvent",
                     "PendingCreationTimeRevisionRelay",
                 ]
@@ -1482,9 +1494,8 @@ class TestTheRevisionIsConsentedToByItsProposer:
     ) -> None:
         """No report, no reporter: the revision has no proposer to name.
 
-        The winning ``EmbargoEvent`` is already stored by then
-        (``CreateEmbargoEventNode``), which EP-04-012 allows; nothing of the
-        initialization commit is written, so the case stays at ``EM.NONE``.
+        Nothing of the initialization commit is written, the winning
+        ``EmbargoEvent`` included (#4182), so the case stays at ``EM.NONE``.
         """
         result = bt_scenario.run(
             InitializeDefaultEmbargoNode(),
@@ -1504,6 +1515,6 @@ class TestTheRevisionIsConsentedToByItsProposer:
         assert isinstance(case, VulnerabilityCase)
         assert case.proposed_embargoes == []
         assert case.active_embargo_id is None
-        assert len(bt_scenario.dl.list_objects("EmbargoEvent")) == 1, (
-            "only the winner CreateEmbargoEventNode stored; no revision"
+        assert list(bt_scenario.dl.list_objects("EmbargoEvent")) == [], (
+            "neither the winner nor the revision is stored before the commit"
         )

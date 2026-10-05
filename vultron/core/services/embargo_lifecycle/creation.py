@@ -57,6 +57,7 @@ from vultron.errors import (
     VultronError,
     VultronInvalidStateTransitionError,
     VultronNotFoundError,
+    VultronValidationError,
 )
 from vultron.primitives import NonEmptyString
 
@@ -129,19 +130,28 @@ class _CreationOperationsMixin(_ProposalOperationsMixin):
         self,
         *,
         case_id: str,
-        embargo_id: str,
+        embargo: EmbargoEvent,
         actor_id: str | None = None,
         revision: CreationRevision | None = None,
     ) -> EmbargoLifecycleResult:
         """Initialize a case's creation-time embargo in one commit.
 
         Drives ``NONE → PROPOSED → ACTIVE`` (PROPOSE then ACCEPT) in memory
-        and sets ``case.active_embargo`` to *embargo_id*, so the intermediate
+        and sets ``case.active_embargo`` to *embargo*, so the intermediate
         ``EM.PROPOSED`` is never persisted (EP-04-002).  Every check runs
         before anything is written: the P/X/A eligibility guard (EMB-01-002),
-        the case owner's participant record (CM-14-002), the read of the
+        the case owner's participant record (CM-14-002), the twin check on
+        *embargo* (:func:`persist_creation_time_embargo`), the read of the
         ``EmbargoEvent`` being activated (EMB-18-003) and both STRICT
         transitions.
+
+        *embargo* is stored in the same commit as the activation, never
+        before it.  A run that stops before the commit therefore leaves no
+        event behind, and a redelivery that resolves to a different branch
+        (the owner's default, or the sender's own event) cannot orphan the
+        first attempt's (EP-04-012, #4182).  An event the store already holds
+        under its id is accepted only if it is this embargo (same case, same
+        ``end_time``).
 
         The consent effects are those of ``propose_embargo`` followed by
         ``activate_embargo``: a proposing *actor_id* that is a participant
@@ -169,7 +179,8 @@ class _CreationOperationsMixin(_ProposalOperationsMixin):
 
         Args:
             case_id: ID of the ``VulnerabilityCase`` to initialize.
-            embargo_id: ID of the stored ``EmbargoEvent`` to activate.
+            embargo: The ``EmbargoEvent`` to store and activate, about
+                *case_id* (EP-04-009).
             actor_id: Optional ID of the proposing actor, for logging and the
                 proposer's consent record.
             revision: The losing creation-time proposal and its proposer, to
@@ -181,15 +192,14 @@ class _CreationOperationsMixin(_ProposalOperationsMixin):
             case was committed at: ``ACTIVE``, or ``REVISE`` with a revision.
 
         Raises:
-            VultronNotFoundError: If the case or the embargo does not
-                resolve, or the case owner has no participant record.
-            VultronValidationError: If the embargo record is not an
-                ``EmbargoEvent``.
+            VultronNotFoundError: If the case does not resolve, or the case
+                owner has no participant record.
+            VultronValidationError: If *embargo* is not about *case_id*.
             VultronInvalidStateTransitionError: If the case is not at
                 ``EM.NONE``, already has an active embargo, or any of P/X/A
                 is set.
-            VultronError: If *revision*'s id is held by a different object
-                (``persist_creation_time_embargo``).
+            VultronError: If *embargo*'s or *revision*'s id is held by a
+                different object (``persist_creation_time_embargo``).
         """
         case = self._read_case(case_id)
         em_before = case.current_status.em.state
@@ -209,7 +219,22 @@ class _CreationOperationsMixin(_ProposalOperationsMixin):
                 " (EP-04-012)."
             )
         owner_id = self._owner_with_participant(case)
-        self._activation_arm(
+        if embargo.context != case_id:
+            raise VultronValidationError(
+                f"Cannot initialize case '{case_id}' with embargo"
+                f" '{embargo.id_}': its context is {embargo.context!r}, not"
+                " the case (EP-04-009)."
+            )
+        # The shared helpers below save as they go and re-read what an
+        # earlier one saved, so they run against a staging store whose
+        # writes reach ``self._persistence`` together, at the flush.  The
+        # embargo is staged first, so the fail-closed read of the record
+        # being activated (EMB-18-003) sees it.
+        staged = StagedCasePersistence(self._persistence)
+        work = type(self)(persistence=staged)
+        embargo_id = embargo.id_
+        persist_creation_time_embargo(staged, embargo, case_id)
+        work._activation_arm(
             previous_embargo_id=None, activated_embargo_id=embargo_id
         )
         em_proposed = self._drive_em_transition(
@@ -229,11 +254,6 @@ class _CreationOperationsMixin(_ProposalOperationsMixin):
             actor_id=actor_id,
         )
 
-        # The shared helpers below save as they go and re-read what an
-        # earlier one saved, so they run against a staging store whose
-        # writes reach ``self._persistence`` together, at the flush.
-        staged = StagedCasePersistence(self._persistence)
-        work = type(self)(persistence=staged)
         work._save_activation(case, em_after=em_after, embargo_id=embargo_id)
         participant_changes: list[ParticipantPECChange] = (
             work._record_proposer_consent(case, actor_id, embargo_id)

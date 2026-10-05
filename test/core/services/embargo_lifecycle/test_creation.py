@@ -43,12 +43,12 @@ from vultron.errors import (
     VultronError,
     VultronInvalidStateTransitionError,
     VultronNotFoundError,
+    VultronValidationError,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 from .conftest import (
-    UNHELD_EMBARGO_ID,
     _accepted_ids_of,
     _force_pec,
     _make_actor,
@@ -70,6 +70,11 @@ def _assert_untouched(dl: SqliteDataLayer, case_id: str) -> None:
     assert case.current_status.em.state == EM.NONE
     assert case.active_embargo_id is None
     assert case.proposed_embargoes == []
+
+
+def _unstored_embargo(context: str, days: int = 45) -> as_EmbargoEvent:
+    """An ``EmbargoEvent`` the store does not hold yet."""
+    return as_EmbargoEvent(context=context, end_time=days_from_now_utc(days))
 
 
 def test_none_to_active_in_one_commit(
@@ -100,7 +105,7 @@ def test_none_to_active_in_one_commit(
     monkeypatch.setattr(dl, "save_many", recording_save_many)
 
     result = EmbargoLifecycle(persistence=dl).initialize_creation_embargo(
-        case_id=case.id_, embargo_id=embargo.id_, actor_id=owner.id_
+        case_id=case.id_, embargo=embargo, actor_id=owner.id_
     )
 
     # EM.PROPOSED is never handed to the store (EP-04-002), and the owner's
@@ -131,7 +136,7 @@ def test_consent_matches_propose_then_activate(
     embargo = _make_embargo(dl, case.id_)
 
     EmbargoLifecycle(persistence=dl).initialize_creation_embargo(
-        case_id=case.id_, embargo_id=embargo.id_, actor_id=owner.id_
+        case_id=case.id_, embargo=embargo, actor_id=owner.id_
     )
 
     assert _accepted_ids_of(dl, owner_p.id_) == [embargo.id_]
@@ -155,7 +160,7 @@ def test_a_non_participant_proposer_still_has_the_owner_seeded(
 
     result = EmbargoLifecycle(persistence=dl).initialize_creation_embargo(
         case_id=case.id_,
-        embargo_id=embargo.id_,
+        embargo=embargo,
         actor_id="https://example.org/actors/not-a-participant",
     )
 
@@ -180,7 +185,7 @@ def test_an_owner_already_signatory_stays_signatory(
     embargo = _make_embargo(dl, case.id_)
 
     EmbargoLifecycle(persistence=dl).initialize_creation_embargo(
-        case_id=case.id_, embargo_id=embargo.id_, actor_id=owner.id_
+        case_id=case.id_, embargo=embargo, actor_id=owner.id_
     )
 
     assert _pec_of(dl, owner_p.id_) == PEC.SIGNATORY.value
@@ -202,7 +207,7 @@ def test_a_declined_owner_records_nothing_until_re_invited(
 
     result = EmbargoLifecycle(persistence=dl).initialize_creation_embargo(
         case_id=case.id_,
-        embargo_id=embargo.id_,
+        embargo=embargo,
         actor_id="https://example.org/actors/not-a-participant",
     )
 
@@ -231,7 +236,7 @@ def test_an_owner_without_a_participant_record_is_refused_unchanged(
 
     with pytest.raises(VultronNotFoundError, match="for owner"):
         EmbargoLifecycle(persistence=dl).initialize_creation_embargo(
-            case_id=case.id_, embargo_id=embargo.id_, actor_id=owner.id_
+            case_id=case.id_, embargo=embargo, actor_id=owner.id_
         )
 
     _assert_untouched(dl, case.id_)
@@ -252,7 +257,7 @@ def test_a_case_that_has_left_none_is_refused_unchanged(
 
     with pytest.raises(VultronInvalidStateTransitionError, match="not NONE"):
         EmbargoLifecycle(persistence=dl).initialize_creation_embargo(
-            case_id=case.id_, embargo_id=embargo.id_, actor_id=owner.id_
+            case_id=case.id_, embargo=embargo, actor_id=owner.id_
         )
 
     stored = _stored_case(dl, case.id_)
@@ -275,7 +280,7 @@ def test_a_none_case_with_an_attached_embargo_is_refused_unchanged(
         VultronInvalidStateTransitionError, match="already attached"
     ):
         EmbargoLifecycle(persistence=dl).initialize_creation_embargo(
-            case_id=case.id_, embargo_id=embargo.id_, actor_id=owner.id_
+            case_id=case.id_, embargo=embargo, actor_id=owner.id_
         )
 
     stored = _stored_case(dl, case.id_)
@@ -294,7 +299,7 @@ def test_a_stale_proposed_listing_is_discarded_in_the_same_write(
     dl.save(case)
 
     EmbargoLifecycle(persistence=dl).initialize_creation_embargo(
-        case_id=case.id_, embargo_id=embargo.id_, actor_id=owner.id_
+        case_id=case.id_, embargo=embargo, actor_id=owner.id_
     )
 
     stored = _stored_case(dl, case.id_)
@@ -314,22 +319,85 @@ def test_pxa_set_is_refused_before_any_write(
 
     with pytest.raises(VultronInvalidStateTransitionError):
         EmbargoLifecycle(persistence=dl).initialize_creation_embargo(
-            case_id=case.id_, embargo_id=embargo.id_, actor_id=owner.id_
+            case_id=case.id_, embargo=embargo, actor_id=owner.id_
         )
 
     _assert_untouched(dl, case.id_)
 
 
 @pytest.mark.spec("EMB-18-003")
-def test_an_unheld_embargo_is_refused_before_any_write(
+def test_an_unstored_embargo_is_stored_in_the_activating_commit(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The event is written by the commit that activates it, with the case
+    (#4182): the record being activated is held when the case names it."""
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_)
+    embargo = _unstored_embargo(case.id_)
+    batches = _record_save_many(dl, monkeypatch)
+
+    EmbargoLifecycle(persistence=dl).initialize_creation_embargo(
+        case_id=case.id_, embargo=embargo, actor_id=owner.id_
+    )
+
+    (batch,) = batches
+    assert embargo.id_ in [obj.id_ for obj in batch]
+    assert case.id_ in [obj.id_ for obj in batch]
+    assert dl.read(embargo.id_) is not None
+    assert _stored_case(dl, case.id_).active_embargo_id == embargo.id_
+
+
+def test_a_failed_commit_leaves_no_embargo_event_behind(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Nothing is stored before the commit, so a run that stops first leaves
+    no event for a redelivery that resolves otherwise to orphan (#4182)."""
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_)
+    embargo = _unstored_embargo(case.id_)
+
+    with monkeypatch.context() as patch:
+        _fail_save_many(dl, patch)
+        with pytest.raises(VultronError, match="forced store fault"):
+            EmbargoLifecycle(persistence=dl).initialize_creation_embargo(
+                case_id=case.id_, embargo=embargo, actor_id=owner.id_
+            )
+
+    _assert_untouched(dl, case.id_)
+    assert dl.read(embargo.id_) is None
+
+
+def test_an_embargo_about_another_subject_is_refused_before_any_write(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_)
+    embargo = _unstored_embargo("https://example.org/reports/not-the-case")
+
+    with pytest.raises(VultronValidationError):
+        EmbargoLifecycle(persistence=dl).initialize_creation_embargo(
+            case_id=case.id_, embargo=embargo, actor_id=owner.id_
+        )
+
+    _assert_untouched(dl, case.id_)
+    assert dl.read(embargo.id_) is None
+
+
+def test_a_different_object_at_the_embargo_id_is_refused_before_any_write(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
     owner, dl = owner_and_dl
     case, (owner_p,) = _make_case(dl, owner.id_)
+    held = _make_embargo(dl, "https://example.org/cases/some-other-case")
+    clash = as_EmbargoEvent(
+        id_=held.id_, context=case.id_, end_time=held.end_time
+    )
 
-    with pytest.raises(VultronNotFoundError):
+    with pytest.raises(VultronError, match="already held"):
         EmbargoLifecycle(persistence=dl).initialize_creation_embargo(
-            case_id=case.id_, embargo_id=UNHELD_EMBARGO_ID, actor_id=owner.id_
+            case_id=case.id_, embargo=clash, actor_id=owner.id_
         )
 
     _assert_untouched(dl, case.id_)
@@ -362,14 +430,14 @@ def test_a_failed_commit_writes_nothing_and_a_rerun_completes(
         _fail_save_many(dl, patch)
         with pytest.raises(VultronError, match="forced store fault"):
             EmbargoLifecycle(persistence=dl).initialize_creation_embargo(
-                case_id=case.id_, embargo_id=embargo.id_, actor_id=owner.id_
+                case_id=case.id_, embargo=embargo, actor_id=owner.id_
             )
 
     _assert_untouched(dl, case.id_)
     assert _accepted_ids_of(dl, owner_p.id_) == []
 
     EmbargoLifecycle(persistence=dl).initialize_creation_embargo(
-        case_id=case.id_, embargo_id=embargo.id_, actor_id=owner.id_
+        case_id=case.id_, embargo=embargo, actor_id=owner.id_
     )
 
     assert _stored_case(dl, case.id_).active_embargo_id == embargo.id_
@@ -378,7 +446,7 @@ def test_a_failed_commit_writes_nothing_and_a_rerun_completes(
 
 def _revision(case_id: str, days: int = 90) -> as_EmbargoEvent:
     """A losing creation-time proposal, not yet stored."""
-    return as_EmbargoEvent(context=case_id, end_time=days_from_now_utc(days))
+    return _unstored_embargo(case_id, days)
 
 
 def _creation_revision(
@@ -412,7 +480,7 @@ def test_a_revision_is_stored_and_proposed_in_the_same_commit(
 
     result = EmbargoLifecycle(persistence=dl).initialize_creation_embargo(
         case_id=case.id_,
-        embargo_id=embargo.id_,
+        embargo=embargo,
         actor_id=owner.id_,
         revision=_creation_revision(case.id_, revision, owner.id_),
     )
@@ -457,7 +525,7 @@ def test_the_revision_is_consented_to_by_its_proposer_not_the_executor(
 
     EmbargoLifecycle(persistence=dl).initialize_creation_embargo(
         case_id=case.id_,
-        embargo_id=embargo.id_,
+        embargo=embargo,
         actor_id=executor_id,
         revision=_creation_revision(case.id_, revision, reporter_id),
     )
@@ -483,7 +551,7 @@ def test_a_failed_revision_commit_leaves_the_revision_unstored(
         with pytest.raises(VultronError, match="forced store fault"):
             EmbargoLifecycle(persistence=dl).initialize_creation_embargo(
                 case_id=case.id_,
-                embargo_id=embargo.id_,
+                embargo=embargo,
                 actor_id=owner.id_,
                 revision=_creation_revision(case.id_, revision, owner.id_),
             )
@@ -510,7 +578,7 @@ def test_a_revision_id_held_by_other_terms_is_refused_unchanged(
     with pytest.raises(VultronError, match="already held"):
         EmbargoLifecycle(persistence=dl).initialize_creation_embargo(
             case_id=case.id_,
-            embargo_id=embargo.id_,
+            embargo=embargo,
             actor_id=owner.id_,
             revision=_creation_revision(case.id_, revision, owner.id_),
         )

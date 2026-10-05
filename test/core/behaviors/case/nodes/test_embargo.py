@@ -377,7 +377,7 @@ class TestInitializeDefaultEmbargoNode:
                     (
                         "initialize",
                         kwargs["case_id"],
-                        kwargs["embargo_id"],
+                        kwargs["embargo"].id_,
                         kwargs["actor_id"],
                     )
                 )
@@ -392,7 +392,7 @@ class TestInitializeDefaultEmbargoNode:
             InitializeCreationEmbargoNode(),
             actor_id=actor_id,
             case_id=case_obj.id_,
-            default_embargo_id=embargo.id_,
+            default_embargo=embargo,
         )
 
         assert result.status == Status.SUCCESS
@@ -444,7 +444,7 @@ class TestInitializeCreationEmbargoNodeAC1:
                 InitializeCreationEmbargoNode(),
                 actor_id=actor_id,
                 case_id=case_obj.id_,
-                default_embargo_id=embargo.id_,
+                default_embargo=embargo,
             )
 
         assert result.status == Status.FAILURE
@@ -488,7 +488,7 @@ class TestInitializeCreationEmbargoNodeAC1:
             InitializeCreationEmbargoNode(),
             actor_id=actor_id,
             case_id=case_obj.id_,
-            default_embargo_id=default.id_,
+            default_embargo=default,
         )
 
         assert result.status == Status.FAILURE
@@ -570,7 +570,7 @@ class TestCaseManagerInitializesTheOwnersEmbargo:
         result = scenario.run(
             InitializeCreationEmbargoNode(),
             case_id=case.id_,
-            default_embargo_id=embargo.id_,
+            default_embargo=embargo,
         )
 
         assert result.status == Status.FAILURE
