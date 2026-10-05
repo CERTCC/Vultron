@@ -82,18 +82,27 @@ stub and embargo Invites (inert participants included, RM `CLOSED` excluded,
 and removed participants excluded once #4084 lands). A roster entry whose
 record cannot be read gets nothing (CM-10-007).
 
-RM `CLOSED` is not part of "active". ADR-0114 says a closed participant
-"receives nothing further", and CM-23-004 makes that the rule: a participant whose
-closure the ledger already records stops at the entries that record its
-departure, and `case_fully_closed` is not sent to it. A departing participant
-learns its own `CLOSED` from the status entry that records it, which CM-23-004
-does not withhold (CM-23-001; the sender side does not write it). The closed
-replica does not see how the case ended, and that is intended: closing means its
-replication process is assumed to have exited, so nothing is there to receive
-more (the same assumption as CM-23-013). The fan-out code (`FanOutLogEntryExcludingClosedNode`, `skip_closed=True`)
-is not yet composed into the `case_fully_closed` tree, which still reaches every
-replica; #4210 brings the code to the rule. The Invites also leave a closed
-participant out.
+RM `CLOSED` is not part of "active", but it ends content delivery all the same
+(CM-23-004, ADR-0114; resolved from #4100). A participant at `CLOSED` has
+declared it has stopped paying attention, and its replication process is assumed
+to have exited, so it is sent no case content (ledger entries, case snapshots,
+status broadcasts, embargo announcements). The exception is the entries that
+record its own closure, the `close_case` entry and the status entries that follow
+it (CM-23-001): it receives every step up to and including the one that reaches
+`CLOSED`, and waits for them rather than writing `CLOSED` to its own replica.
+Later entries, including `case_fully_closed`, reach only participants whose
+closure the ledger does not already record, and a closed replica does not see how
+the case ended; that is intended (the same assumption as CM-23-013). The
+exception never widens entitlement (a participant that is inert or removed when
+it leaves is not sent those entries), and the CM-31-009 embargo notice to a
+closed `SIGNATORY` is the only other message a closed participant gets. The
+CASE_MANAGER's store is where every participant's closure is verified, so the
+demos' "all participants closed" check reads that store. The fan-out code
+(`FanOutLogEntryExcludingClosedNode`, `skip_closed=True`) is not yet composed
+into the `case_fully_closed` tree, which still reaches every replica; the
+implementation issues (#4210, #4212) bring the code to the rule, and
+`skip_closed` stops being a variant. The Invites also leave a closed participant
+out.
 
 ## Authority to act
 
@@ -102,8 +111,8 @@ entry, change the roster — requires an *active* participant. An inert
 participant may only reply to the Invites addressed to it: accept or reject the
 stub, accept or reject an embargo Invite. A participant at RM `CLOSED` keeps
 none of it: it is sent no further Invites and may act on nothing further,
-because `CLOSED` is terminal (CM-11-015). It may still *receive* the entries
-that close out its replica (see above). The rule is that no actor acts on
+because `CLOSED` is terminal (CM-11-015). It receives only the entry that
+records its own closure (see above). The rule is that no actor acts on
 a case whose content it may not see; an actor that cannot read the ledger
 cannot know what it is acting on, and a CASE_MANAGER that admitted its acts
 would commit entries an inert participant could only have guessed at. This
