@@ -34,11 +34,9 @@ the mail means the outbox→delivery→inbox path is never exercised and demo CI
 proves nothing end-to-end. Poll the effect instead
 (`wait_for_case_on_container`, `find_case_invite_for_actor`,
 `wait_for_object_stored`). A reliably-timing-out poll is a delivery bug to
-investigate, not a workaround to write. Scope: `vultron/demo/scenario/` — exchange
-demos under `vultron/demo/exchange/` drive one backend directly and use
-`post_to_inbox_and_wait` as their normal mechanism. The rule also binds
-`vultron/demo/helpers/` code a scenario calls: a helper that carries mail is the
-same violation (#3980).
+investigate, not a workaround to write. Scope: `vultron/demo/scenario/` plus the
+`vultron/demo/helpers/` code it calls (#3980); `vultron/demo/exchange/` demos drive
+one backend directly and use `post_to_inbox_and_wait` as their normal mechanism.
 
 There is **no self-delivery exception**: an actor does not POST to its own inbox to
 update its own replica either. Activities route through the CaseActor, whose
