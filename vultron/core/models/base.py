@@ -91,7 +91,11 @@ class CoreRecord(ValidatedAssignmentMixin):
     here has to guard against them (#2416).
     """
 
-    model_config = ConfigDict(populate_by_name=True)
+    # A stored record refuses any key it does not declare: a row written before
+    # a field rename fails loudly at read time instead of silently losing the
+    # renamed field (#4186, ARCH-12-003).  ``id`` and ``type`` are the stored
+    # spelling (``_rekey_wire_identity``); ``id_`` and ``type_`` the Python one.
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
     id_: NonEmptyString = Field(
         default_factory=_new_urn,
@@ -142,6 +146,24 @@ class CoreRecord(ValidatedAssignmentMixin):
             and isinstance(literal_args[0], str)
         ):
             CORE_TYPE_MAP[literal_args[0]] = cls
+
+
+def with_record_id(data: dict[str, Any], record_id: str) -> dict[str, Any]:
+    """Return a copy of *data* whose record id is *record_id*.
+
+    For a record that derives its id from its other fields.  The id is stated
+    under the one spelling *data* already uses: ``id_`` for a dump or an
+    assignment check (which validates by field name), ``id`` otherwise.  Stating
+    the other spelling beside it would leave one of the two an unrecognised key,
+    which ``extra="forbid"`` refuses.
+    """
+    out = dict(data)
+    if "id_" in out and "id" not in out:
+        out["id_"] = record_id
+    else:
+        out.pop("id_", None)
+        out["id"] = record_id
+    return out
 
 
 class CoreObject(CoreRecord):
