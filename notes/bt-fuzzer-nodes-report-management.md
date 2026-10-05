@@ -82,10 +82,10 @@ Each RM sub-workflow's fuzzer-node catalog is in a focused file:
 
 The sections below document how groups of simulator fuzzer nodes are expected
 to **collapse** in the production BT architecture. Each group of simulator
-leaves maps to a smaller set of production call-out points. These designs are
-**provisional** — they represent the best understanding at planning time
-(issue #1200) and are subject to revision when the corresponding
-implementation issues are worked.
+leaves maps to a smaller set of production call-out points. These designs were
+planned under issue #1200 and are now built under `vultron/core/behaviors/report/`;
+ADR-0027 to ADR-0030 record the decisions, and each section names the issue and
+PR that implemented it.
 
 Cross-references: each affected simulator-node entry above has a
 "see Production Collapse" note pointing here. The implementation issues listed

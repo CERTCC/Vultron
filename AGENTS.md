@@ -302,7 +302,7 @@ linked file before touching that area. New pitfalls MUST be routed per
   [notes/architecture-adapters.md](notes/architecture-adapters.md); idempotency chain
   [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md); no `BaseModel` in ports
   [`vultron/core/ports/AGENTS.md`](vultron/core/ports/AGENTS.md); ledger commit before
-  outbox write [`vultron/core/behaviors/case/AGENTS.md`](vultron/core/behaviors/case/AGENTS.md).
+  outbox write (under review, ADR-0119) [`case/AGENTS.md`](vultron/core/behaviors/case/AGENTS.md).
 - **Logging**: bulk level refactors need a consistency grep; self-healing paths never
   log at ERROR — [notes/structured-logging.md](notes/structured-logging.md).
 - **Agent workflow**: archive superseded notes sections with `append-history note`

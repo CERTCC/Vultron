@@ -408,10 +408,10 @@ Source: CONCERN-2829.
 **`received-status-authorization.md`**
 Two-gate design for received-side CaseStatus canonicalization: StatusAdoptionGate
 (in `add_participant_status_tree`) for status adoption authorization,
-EmbargoTeardownAuthorizationGate + ThreatTerminationBranchNode (in `add_case_status_tree`)
-for embargo teardown. Documents CASE_OWNER gospel-bypass rationale, the direct
-`EmitCaseStatusUpdateNode` write between the gates, migration from
-the deleted PublicDisclosureBranchNode, and (ADR-0108) the per-machine
+EmbargoTeardownAuthorizationGate + ThreatTerminationBranchNode (in both
+`add_case_status_tree` and `add_participant_status_tree`) for embargo teardown.
+Documents CASE_OWNER gospel-bypass rationale, the direct
+`EmitCaseStatusUpdateNode` write between the gates, and (ADR-0108) the per-machine
 act / declaration / ledger inventory: the pipeline, not the message, is the authority.
 Derived from IDEA-1836 / ADR-0046; extended by CONCERN-3473 / ADR-0108.
 **Load when**: implementing #1836 or any changes to received-side status handling,
@@ -734,8 +734,7 @@ logic.
 
 **`triggerable-behaviors-resolved.md`**
 Resolved trigger implementation design decisions and audit results: P30-1
-(outbox diff strategy), P30-2 (report triggers procedural), P30-3 (case
-triggers procedural), BT requirement for trigger use cases, general-purpose
+(outbox diff strategy), BT requirement for trigger use cases, general-purpose
 vs demo-only trigger classification, trigger audit results, wrapper pattern,
 sync-log-entry context field, and testing patterns.
 **Load when**: verifying whether a trigger use case requires a BT, looking up
@@ -982,9 +981,9 @@ or editing a section landing page, or planning any documentation reorganization.
 Source: CONCERN-3512.
 
 **`reader-facing-docs-audit.md`**
-The dated audit (#3526) of every reader-facing `docs/` page against ADR-0102:
-the routing ledger (level, stakeholder type, verdict, and owning remediation
-task for each page), the ten pages reclassified as working record, the finding
+The dated audit (#3526) of every reader-facing `docs/` page against ADR-0102
+(its per-page routing ledger is archived now that every remediation task has
+closed): the ten pages reclassified as working record, the finding
 that no page narrows `cvd-practitioner`, and the cross-page rulings a page-local
 fixer cannot make — which of four concept registries wins, where the Background
 essay goes, which Case State, PEC, case-proposal and discovery page owns each
@@ -1083,7 +1082,7 @@ check after a review round.
 **`notes-frontmatter.md`**
 Design decisions for YAML frontmatter schema in `notes/*.md` files: required
 fields (`title`, `status`), valid `status` values, `superseded_by` rule, schema
-Pydantic model, loader, pre-commit hook, and migration checklist.
+Pydantic model, loader, and pre-commit hook.
 **Load when**: adding frontmatter to a new notes file, modifying the frontmatter
 schema, or debugging `validate-notes-frontmatter` pre-commit failures.
 

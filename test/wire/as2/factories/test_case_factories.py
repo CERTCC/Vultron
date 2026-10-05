@@ -24,6 +24,7 @@ Spec coverage:
 """
 
 import json
+from typing import Any
 
 import pytest
 from pydantic import BaseModel
@@ -506,9 +507,8 @@ def test_rm_invite_to_case_wraps_a_case_uri_in_a_stub(sample_actor):
     assert wire["context"] == _CASE_URI
 
 
-@pytest.mark.spec("CM-17-010")
-def test_rm_invite_stub_carries_no_case_content(sample_actor):
-    """The stub names the case and nothing about it (CM-17-010)."""
+def _invite_stub_wire(sample_actor) -> dict:
+    """The serialised stub an Invite carries for a case with no embargo."""
     case = as_VulnerabilityCase(
         id_=_CASE_URI,
         name="CVE-2025-0001 in widget",
@@ -519,7 +519,35 @@ def test_rm_invite_stub_carries_no_case_content(sample_actor):
         invitee=sample_actor, target=case, actor=_ACTOR_URI
     )
     wire = json.loads(result.model_dump_json(by_alias=True, exclude_none=True))
-    assert set(wire["target"]) == {"@context", "type", "id", "caseId"}
+    stub: dict[str, Any] = wire["target"]
+    return stub
+
+
+def test_rm_invite_stub_carries_no_case_content(sample_actor):
+    """The stub names the case and carries no other case content.
+
+    Only the stub summary #4165 adds may join the identifying keys; the
+    case's own ``summary`` and its ``attributedTo`` never travel.
+    """
+    stub = _invite_stub_wire(sample_actor)
+    assert set(stub) <= {"@context", "type", "id", "caseId", "summary"}
+    assert stub.get("summary") != "A summary of the case"
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "CM-17-010: the stub does not yet carry an owner-chosen summary."
+        " Tracked by #4165."
+    ),
+)
+@pytest.mark.spec("CM-17-010")
+def test_rm_invite_stub_carries_a_non_empty_summary(sample_actor):
+    """The stub carries a non-empty ``summary`` beside its identity (CM-17-010)."""
+    stub = _invite_stub_wire(sample_actor)
+    assert set(stub) == {"@context", "type", "id", "caseId", "summary"}
+    assert isinstance(stub["summary"], str)
+    assert stub["summary"].strip()
 
 
 @pytest.mark.spec("AF-04-001")
@@ -814,11 +842,10 @@ def test_rm_invite_stub_is_enriched_from_an_inline_active_embargo(
     assert stub.case_status.em.state == EM.ACTIVE
 
 
-@pytest.mark.spec("CM-17-010")
 @pytest.mark.spec("CM-17-002")
 def test_enriched_stub_carries_only_the_embargo_terms(sample_actor):
     """An embargo-active stub adds only ``activeEmbargo`` and ``caseStatus``,
-    and its ``caseStatus`` states only the EM state (CM-17-010).
+    and its ``caseStatus`` states only the EM state.
 
     The case here is public with an exploit (``PXa``).  The stub's status is
     built for the stub, not read from the case, so a ``pxaState`` on the wire
@@ -862,7 +889,8 @@ def test_enriched_stub_carries_only_the_embargo_terms(sample_actor):
     )
 
     stub = wire["target"]
-    assert set(stub) == {
+    # "summary" is the stub summary #4165 adds (CM-17-010), not case content.
+    assert set(stub) - {"summary"} == {
         "@context",
         "type",
         "id",

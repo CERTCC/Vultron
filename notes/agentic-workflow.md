@@ -10,6 +10,7 @@ related_notes:
   - notes/agents-md-structure.md
   - notes/git-workflow-pitfalls.md
   - notes/parallel-development.md
+  - notes/bt-pitfalls.md
 related_specs:
   - specs/build-workflow.yaml
   - specs/history-management.yaml
@@ -194,3 +195,74 @@ the end state (uncommitted files, remaining occurrences, `pyright`) rather than
 trusting the fork's completion report — a turn-capped stop looks like a finish.
 
 Source: ISSUE-2490
+
+---
+
+## Enumerate the Affected Set From Its Consumers, Not From the Site the Report Names
+
+A finding names one site: the node that failed, the workflow the issue mentions,
+the trees that share the pattern the author had open. The defect belongs to the
+*set* that site is a member of, and the named site is only the member someone
+happened to look at. Three independent sessions fixed or counted the named site
+and missed the rest:
+
+- **A refusal arm in a Selector** (ISSUE-3399). The fix installed its barrier on
+  the child the review named; a second review broke the same arm one child
+  earlier, because every node between the arm's entry and its point of no return
+  shared the fall-through (`notes/bt-pitfalls.md` § "A Refusal Arm in a Selector
+  Fails Toward 'Admit'").
+- **A CI gate** (ISSUE-3549). The withheld-artifact check went into the workflow
+  that reviews the site, while the workflow that publishes it ran without the
+  check. The gate is a property of every path by which the artifact reaches a
+  user, not of the check.
+- **A site count in an AC** (ISSUE-3870). "The two receive trees that compose the
+  gate directly" came from grepping the shared pattern; thirteen more trees
+  bypassed the factory another way. The first ratchet repeated the miss by
+  selecting trees by name.
+
+**How to apply.** Derive the set from whoever *uses* the thing, by a corpus
+query, before the number or the fix goes in:
+
+- *At planning*, an AC that says "the N handlers that …" takes N from the
+  consumer side (e.g. "every module under `use_cases/received/` that calls a tree
+  factory"), never from the producer pattern.
+- *At fix time*, ask of every member — every node on the path, every workflow
+  that builds the artifact — what its failure does, and test each answer.
+- *At ratchet authoring*, a `KNOWN_*` set or a name regex is a count of the sites
+  that resemble the one you had open; define membership by use instead.
+
+Source: ISSUE-3399, ISSUE-3549, ISSUE-3870
+
+---
+
+## A Passing Check Is Not Evidence It Examined What You Think
+
+A green guard, predicate or test reads as "this was checked". Three independent
+findings show the check can pass without ever examining its subject:
+
+- **A guard that never ran** (ISSUE-3192). Two call sites branched on a resolver's
+  `None` (`if case_actor_id and …`). When the resolver began answering, one guard
+  ran for the first time and refused legitimate entries; the other had been
+  silently permissive in exactly the window it policed. Its test *passed* by
+  accepting an imposter.
+- **An exemption that survived its retirement** (ISSUE-2505). ADR-0051 retired the
+  CASE_MANAGER's RM-closure exemption in one place; two other copies kept it, with
+  docstrings asserting it as design, and every demo's "all participants closed"
+  milestone passed while the manager never closed.
+- **Guards with no production caller** (#3156) pass their own unit tests, which
+  exercise the guard directly and never the path that should reach it.
+
+**How to apply.**
+
+- When a resolver, lookup or predicate starts returning a value where it used to
+  return `None`/`False`/empty, read every guard that branches on the empty answer
+  and ask which branch was taken before.
+- When an ADR removes an exemption, grep the *shape* of the exemption
+  (`CVDRole.CASE_MANAGER in`, `continue`, `skip`), not the ADR number — the
+  copies that never cited the ADR are the whole risk. A docstring that states the
+  exemption is a suspect, not settled design.
+- Before trusting a passing check, ask whether it could fail if its subject were
+  wrong. If it short-circuits, exempts, or is never reached from production, it
+  is not evidence.
+
+Source: ISSUE-3192, ISSUE-2505, CONCERN-3156

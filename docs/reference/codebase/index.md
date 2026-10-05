@@ -4,13 +4,10 @@ stakeholder_type: [project-contributor]
 
 # Codebase Reference
 
-This section contains structured reference documentation about the Vultron
-codebase — its technology stack, module structure, architectural patterns,
-coding conventions, integration points, testing approach, and known concerns.
+This section contains structured reference documentation about the Vultron codebase — its technology stack, module structure, architectural patterns, coding conventions, integration points, testing approach, and known concerns.
 
-These files are generated from codebase scans and maintained as living
-reference material. They are intended for both human developers and AI agents
-orienting themselves to the project.
+These files are generated from codebase scans and maintained as living reference material.
+They are intended for both human developers and AI agents orienting themselves to the project.
 
 ## Contents
 
@@ -26,7 +23,5 @@ orienting themselves to the project.
 
 ## For AI Agents
 
-When orienting to this codebase, read **Architecture**, **Structure**, and
-**Conventions** first — they cover the most cross-cutting constraints.
-Consult **Stack**, **Testing**, **Concerns**, and **Integrations** as needed
-based on your task.
+When orienting to this codebase, read **Architecture**, **Structure**, and **Conventions** first — they cover the most cross-cutting constraints.
+Consult **Stack**, **Testing**, **Concerns**, and **Integrations** as needed based on your task.

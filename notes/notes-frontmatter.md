@@ -3,7 +3,7 @@ title: Notes Frontmatter Design
 status: active
 description: >
   Design decisions for YAML frontmatter schema in notes/*.md files; schema,
-  loader, migration checklist, and pre-commit hook.
+  loader, and pre-commit hook.
 related_specs:
   - specs/notes-frontmatter.yaml
 relevant_packages:
@@ -255,23 +255,6 @@ Add to `.pre-commit-config.yaml`:
 
 This re-validates the full registry on any notes change, ensuring no file
 is accidentally broken by a related edit.
-
----
-
-## Migration Checklist for Existing Files
-
-For each `notes/*.md` file (except `README.md`), add a frontmatter block with:
-
-1. `title`: copy from the `# H1` heading
-2. `status`: choose from `active | draft | superseded | archived` based on
-   the file's current relevance
-3. `description`: paste or paraphrase the first paragraph or "Load when" line
-4. `related_specs`: list any `specs/*.md` files explicitly cross-referenced
-5. `related_notes`: list any other `notes/*.md` files cross-referenced
-6. `relevant_packages`: list any Python packages central to the topic
-
-Most files warrant `status: active`. Files that have been explicitly replaced
-should use `status: superseded` with `superseded_by` pointing to the replacement.
 
 ---
 

@@ -52,7 +52,8 @@ It carries exactly these fields ([CM-17-010](../specs/protocol.md#cm-17-010)):
 - `caseId`: the identifier of the case the stub stands for.
 - `activeEmbargo` and `caseStatus`: present only when an embargo is active.
   They state the embargo terms the invitee would agree to by accepting: the embargo's identifier and end time, and the case's embargo state ([CM-17-002](../specs/protocol.md#cm-17-002)).
-- `summary`: optional human-readable context ([MV-10-001](../specs/protocol.md#mv-10-001)).
+- `summary`: required human-readable context saying what the invitee is being asked to join ([MV-10-001](../specs/protocol.md#mv-10-001)).
+  The sender chooses it: it may be the case name, or a deliberately less revealing string, because the case name itself can be sensitive to share with an actor not yet bound by the embargo.
 
 The stub does not name the case's coordinator or Case Owner.
 The `Invite` that carries the stub already identifies who is asking: its `actor` is the CASE_MANAGER, and its `attributedTo` can name the Case Owner.

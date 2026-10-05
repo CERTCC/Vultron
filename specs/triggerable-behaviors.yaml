@@ -54,7 +54,20 @@ groups:
   - id: TRIG-02-003
     priority: SHOULD
     kind: protocol
-    statement: 'The following CS state-notification behaviors SHOULD be individually triggerable via the trigger API: notify-fix-ready, notify-fix-deployed, notify-published, notify-public-exploit, notify-attacks-observed'
+    statement: >-
+      The following CS state-notification behaviors SHOULD be individually
+      triggerable via the general-purpose trigger API (TRIG-08-003):
+      notify-fix-ready, notify-fix-deployed, notify-published,
+      notify-public-exploit, notify-attacks-observed. notify-published records
+      that the actor has become Public Aware (it has learned the vul is public,
+      by whatever means); it does not assert that the actor published anything.
+    rationale: >-
+      An actor learns each of these facts either because an outside party tells it (a
+      person or tool invokes the trigger) or because its own behavior tree asks an
+      outside source through a call-out point (e.g.
+      `DevelopFixCallOutBundle.create_fix_factory`). Both are legitimate in production,
+      so these are general-purpose triggers (TRIG-08-002). Only three exist today, under
+      `/demo/`; #4159 owns exposing all five.
   - id: TRIG-02-004
     priority: SHOULD
     kind: protocol
