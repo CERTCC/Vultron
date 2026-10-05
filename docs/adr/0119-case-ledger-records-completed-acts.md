@@ -6,6 +6,7 @@ consulted: >-
   Claude Opus 5.5; specs/sync-ledger-replication.yaml SYNC-09-002;
   specs/sync-behavior-trees.yaml SBT-04-004; specs/embargo-policy.yaml EP-09-002;
   specs/case-management.yaml CM-14-011; specs/case-ledger-processing.yaml CLP-10-006;
+  specs/outbox.yaml OX-14-002; docs/adr/0066-outbox-terminal-state.md;
   vultron/core/behaviors/case/AGENTS.md (ISSUE-1325); ISSUE-3033, ISSUE-2898
 informed: []
 stakeholder_type: [project-contributor]
@@ -19,12 +20,14 @@ A case message is an act: "I asked you something", "I told you something", or "y
 A case ledger entry is a record of such an act: "I hereby record that I told you X".
 A record of an act that has not happened yet records an intention, not an act, and the ledger then claims something that may never become true.
 
-Four places in the project currently require the opposite order for messages this node sends, committing the entry first and sending afterwards:
+Six places in the project currently require the opposite order for messages this node sends, committing the entry first and sending afterwards:
 
 - SYNC-09-002 says external Vultron messages "MUST only be emitted after the associated `CaseLedgerEntry` is committed".
 - SBT-04-004 implements it: "External activities MUST NOT be emitted before the associated CaseLedgerEntry is committed".
 - `vultron/core/behaviors/case/AGENTS.md` § "Ledger Commit Must Precede Outbox Write" (ISSUE-1325) requires the commit before the outbox write, so that a failed commit cannot leave a queued activity with no record, which a retry would then send twice.
 - EP-09-002's embargo-revision relay emits each Invite and commits each emission, and the implementation commits before it queues.
+- OX-14-002 forbids deferring a commit until delivery is confirmed, and its verification requires the committed entry to be present in the canonical ledger before any delivery attempt for its activity.
+- [ADR-0066](0066-outbox-terminal-state.md) states an emit-after-commit invariant: the `CaseLedgerEntry` is always committed before its fan-out activity is queued, so a dead-lettered activity can always be resolved to its entry.
 
 The case-setup sequence already contradicts the rule.
 CM-14-011 sends `Create(VulnerabilityCase)` to the reporter before the first ledger commit, and CM-14-001 forbids reordering its steps.
@@ -67,12 +70,16 @@ It is not an act the ledger records; it is the record itself, replicated to the 
 - Good, because the pre-genesis race behind ISSUE-3033 cannot recur: the case reaches its recipients before any entry that refers to it.
 - Bad, because the duplicate-send protection ISSUE-1325 relied on goes away and has to be replaced: on a retry after a send whose commit failed, the node must find the activity already in its outbox, by activity id, and must not send it again.
 - Bad, because every emitting tree that commits first has to be reordered, and SYNC-09-002, SBT-04-004 and EP-09-002's ordering must be rewritten.
+- Neutral, because OX-14-002's statement still holds: the commit waits for the outbox write, not for delivery to the peer.
+  Its verification must be rewritten, because the outbox write, and so the first delivery attempt, can now come before the commit.
+- Neutral, because ADR-0066's emit-after-commit invariant must be rewritten for sent messages.
+  `Announce(CaseLedgerEntry)` fan-out still follows its commit, so dead-letter correlation for ledger replication is unchanged, but the activity a ledger entry records is queued before that entry exists.
 - Neutral, because a crash between the outbox write and the commit leaves a sent activity with no ledger entry until the retry records it, which is the honest state: the act happened and its record is pending.
 
 ## Validation
 
 Epic #4158 carries the work.
-Once this ADR is accepted, SYNC-09-002, SBT-04-004 and EP-09-002 state the order this ADR sets, and a test of each emitting tree asserts that the outbox write precedes the commit that records it and that a retry after a failed commit sends nothing twice.
+Once this ADR is accepted, SYNC-09-002, SBT-04-004, EP-09-002, OX-14-002's verification and ADR-0066's emit-after-commit invariant state the order this ADR sets, and a test of each emitting tree asserts that the outbox write precedes the commit that records it and that a retry after a failed commit sends nothing twice.
 
 ## Pros and Cons of the Options
 
@@ -97,4 +104,4 @@ Once this ADR is accepted, SYNC-09-002, SBT-04-004 and EP-09-002 state the order
 ## More Information
 
 Decided with the maintainer in the 2026-10-02 `learn` session, which considered narrowing SYNC-09-002 and rejected it in favour of this principle.
-Until this ADR is accepted, new code SHOULD NOT add a commit-before-send ordering.
+Until this ADR is accepted, new code follows the current specs, which still require the commit before the send; this ordering is under review.

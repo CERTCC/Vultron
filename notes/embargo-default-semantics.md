@@ -6,8 +6,8 @@ description: >
   versus protocol-default distinction and why the protocol default never
   competes under shortest-wins; default embargo duration and expiry semantics;
   the published-default / tacit-acceptance model that explains why the
-  happy-path embargo requires no explicit negotiation exchange; why there is no
-  pre-case embargo phase; why an RSVP deadline may not outlive its embargo; and
+  happy-path embargo requires no explicit negotiation exchange; why an RSVP
+  deadline may not outlive its embargo; and
   how EP-04-003's two-party shortest-wins relates to EP-08's general
   earliest-expiration ordering for N open proposals; why the creation-time
   revision's registration order no longer touches consent (ADR-0093); how

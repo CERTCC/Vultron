@@ -6,6 +6,7 @@ description: >
   public-key infrastructure.
 related_specs:
   - specs/encryption.yaml
+  - specs/message-validation.yaml
 related_notes:
   - archived_notes/federation_ideas.md
 ---

@@ -743,7 +743,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: BT-17-001
-      note: BT-17-001 requires the gate for CASE_MANAGER-only subtrees; this entry says every received-side emit is gated by role or by sender
+      note: >-
+        BT-17-001 requires the gate for CASE_MANAGER-only subtrees; this entry says
+        every received-side emit is gated by role or by sender
 - id: BT-16
   title: Simulation Fuzzer Node Layout
   specs:

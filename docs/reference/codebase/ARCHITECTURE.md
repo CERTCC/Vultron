@@ -103,7 +103,7 @@ The `OutboxMonitor` in `vultron/adapters/driving/fastapi/outbox_monitor.py` also
 - **State machine coupling via the transitions library**: `vultron/core/states/` and `vultron/core/services/embargo_lifecycle/base.py` import `transitions` directly, so a third-party state machine library sits in core.
 - **Process-global py_trees blackboard**: BT executions share `py_trees.blackboard.Blackboard.storage`.
   `BTBridge` serializes executions with a module-level `RLock`, and `blackboard_scope.py` snapshots and restores execution-scoped keys, but any key outside those managed sets can leak between trees.
-- **Core modules over the CS-18 size cap**: several core files (for example `vultron/core/behaviors/helpers.py`, `vultron/core/use_cases/received/embargo.py`, `vultron/core/behaviors/bridge.py`) exceed the 500-line threshold of CS-18-001 (see `CONCERNS.md`).
+- **Core modules over the CS-18 size cap**: several core files (for example `vultron/core/behaviors/helpers.py`, `vultron/core/behaviors/bridge.py`) exceed the 500-line threshold of CS-18-001 (see `CONCERNS.md`).
 - **Demo layer mixed into `vultron/demo/`**: demo code imports from adapters, which is appropriate, but the boundary between "demo" and "production use case" is not always clear.
 
 ### 6) Evidence

@@ -453,10 +453,10 @@ groups:
       participant emitting ET (ADR-0118).
     verification: >-
       A per-actor-store test in
-      `test/core/use_cases/received/test_embargo_relay_replay.py` delivers a
-      relayed revision Invite to a participant whose case is P/X/A and asserts one
-      ER to the CASE_MANAGER, no ET, and no EM state change on the participant.
-      On the CASE_MANAGER side,
+      `test/core/use_cases/received/test_embargo_relay_replay.py` delivers a relayed
+      revision Invite to a participant whose case is P/X/A and asserts one ER to the
+      CASE_MANAGER, no ET, and no EM state change on the participant. On the
+      CASE_MANAGER side,
       `test/core/behaviors/status/test_add_case_status_bt.py::TestThreatTerminationBranchNode::test_triggers_teardown_on_threat_pxa_states`
       shows a recorded P, X or A state tearing down the active embargo, and
       `test/core/use_cases/received/test_embargo_revision_relay.py::test_a_revision_of_a_public_case_is_refused_with_er`

@@ -3,7 +3,7 @@ title: Notes Frontmatter Design
 status: active
 description: >
   Design decisions for YAML frontmatter schema in notes/*.md files; schema,
-  loader, migration checklist, and pre-commit hook.
+  loader, and pre-commit hook.
 related_specs:
   - specs/notes-frontmatter.yaml
 relevant_packages:

@@ -152,8 +152,8 @@ groups:
     rationale: >-
       Deprecated-but-present requirements create confusion for agents and future
       implementers. The spec schema's `deprecated` and `superseded_by` fields are not a
-      sanctioned lifecycle state; they are being retired, with the entries that use them,
-      by #4166.
+      sanctioned lifecycle state; they are being retired, with the entries that use
+      them, by #4166.
     tags:
     - documentation
     relationships:
@@ -255,8 +255,8 @@ groups:
       Deprecated-but-present requirements are agent noise and may cause incorrect
       behaviour. A spec states current understanding; git and the implementation history
       (MS-09-002) carry what it used to say. The spec schema's `deprecated` and
-      `superseded_by` fields are not a sanctioned lifecycle state; they are being retired,
-      with the entries that use them, by #4166.
+      `superseded_by` fields are not a sanctioned lifecycle state; they are being
+      retired, with the entries that use them, by #4166.
     tags:
     - documentation
   - id: MS-09-002
@@ -423,23 +423,24 @@ groups:
     kind: process
     statement: >-
       A `verification:` clause MUST name a check that exists and that inspects the
-      property its requirement's statement asserts. Naming a tool or test that merely runs
-      near the property does not satisfy this requirement: a build, lint or type-check
-      that never examines the artifact the statement constrains, or a test that does not
-      exist, is not verification.
+      property its requirement's statement asserts. Naming a tool or test that merely
+      runs near the property does not satisfy this requirement: a build, lint or
+      type-check that never examines the artifact the statement constrains, or a test
+      that does not exist, is not verification.
     rationale: >-
-      A verification clause is a claim about the suite, and an unbacked one reads exactly
-      like a backed one. DEMOCI-11-009 named `mkdocs build --strict` for links strict mode
-      never sees; VM-01-004 described a test that did not exist (#2982); DR-03-002 had no
-      clause and named the wrong component; MS-13-003 had no check and sat at half
-      adoption (#3480); ADR-0099 graduated with two details unbuilt (#3888). MS-15-001
-      makes a path resolve, not a check examine. See `notes/spec-authoring-rules.md`.
+      A verification clause is a claim about the suite, and an unbacked one reads
+      exactly like a backed one. DEMOCI-11-009 named `mkdocs build --strict` for links
+      strict mode never sees; VM-01-004 described a test that did not exist (#2982);
+      DR-03-002 had no clause and named the wrong component; MS-13-003 had no check and
+      sat at half adoption (#3480); ADR-0099 graduated with two details unbuilt (#3888).
+      MS-15-001 makes a path resolve, not a check examine. See
+      `notes/spec-authoring-rules.md`.
     verification: >-
-      Checked at spec review: for each new or changed `verification:` clause the reviewer
-      asks whether the named check would fail if the requirement were violated, and
-      reports a FAIL when it would not (`.agents/skills/pr-triage`). The existence of a
-      named path is enforced by MS-15-001; the existence of a named test function is
-      tracked by #4170.
+      Checked at spec review: for each new or changed `verification:` clause the
+      reviewer asks whether the named check would fail if the requirement were violated,
+      and reports a FAIL when it would not (`.agents/skills/pr-triage`). The existence
+      of a named path is enforced by MS-15-001; the existence of a named test function
+      is tracked by #4170.
     tracking_issue: '#4170'
     relationships:
     - rel_type: refines

@@ -309,9 +309,11 @@ groups:
       resolves to the stub class, that a sparse inline object with `type:
       VulnerabilityCase` is validated as a case rather than read as a stub, and that a
       partial inline object of any other recognised wire type is refused under MV-04-003
-      rather than degraded; and that a stub with an absent or blank `summary` is
-      refused at message validation. Bare URI references and `Link` objects remain accepted in
-      all four positions named by MV-10-002.
+      rather than degraded.
+      `test/wire/as2/test_unknown_key_disposition.py::test_a_stub_without_a_summary_is_refused`
+      asserts a stub with an empty or blank `summary` is refused at message validation;
+      its absent-`summary` case is a strict xfail naming #4165. Bare URI references and
+      `Link` objects remain accepted in all four positions named by MV-10-002.
     relationships:
     - rel_type: constrains
       spec_id: MV-04-003

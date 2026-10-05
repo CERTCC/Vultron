@@ -448,7 +448,10 @@ in `_RECOGNIZED_OVERRIDE_PRODUCERS` per RSH-05-014.
 
 ## EmbargoTeardownAuthorizationGate + ThreatTerminationBranchNode
 
-**Location**: `add_case_status_tree`, after `AppendCaseStatusToCaseNode`
+**Location**: both received-status trees, inside a `TeardownEffectsOrSkip`
+sequence after the canonical write — `add_case_status_tree` (after
+`AppendCaseStatusToCaseNode`, shown below) and `add_participant_status_tree` (after
+`EmitCaseStatusUpdateNode`, on the adoption path)
 
 **Purpose**: decide whether to execute side-effects after a canonical write
 

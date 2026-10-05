@@ -408,10 +408,10 @@ Source: CONCERN-2829.
 **`received-status-authorization.md`**
 Two-gate design for received-side CaseStatus canonicalization: StatusAdoptionGate
 (in `add_participant_status_tree`) for status adoption authorization,
-EmbargoTeardownAuthorizationGate + ThreatTerminationBranchNode (in `add_case_status_tree`)
-for embargo teardown. Documents CASE_OWNER gospel-bypass rationale, the direct
-`EmitCaseStatusUpdateNode` write between the gates, migration from
-the deleted PublicDisclosureBranchNode, and (ADR-0108) the per-machine
+EmbargoTeardownAuthorizationGate + ThreatTerminationBranchNode (in both
+`add_case_status_tree` and `add_participant_status_tree`) for embargo teardown.
+Documents CASE_OWNER gospel-bypass rationale, the direct
+`EmitCaseStatusUpdateNode` write between the gates, and (ADR-0108) the per-machine
 act / declaration / ledger inventory: the pipeline, not the message, is the authority.
 Derived from IDEA-1836 / ADR-0046; extended by CONCERN-3473 / ADR-0108.
 **Load when**: implementing #1836 or any changes to received-side status handling,
@@ -1082,7 +1082,7 @@ check after a review round.
 **`notes-frontmatter.md`**
 Design decisions for YAML frontmatter schema in `notes/*.md` files: required
 fields (`title`, `status`), valid `status` values, `superseded_by` rule, schema
-Pydantic model, loader, pre-commit hook, and migration checklist.
+Pydantic model, loader, and pre-commit hook.
 **Load when**: adding frontmatter to a new notes file, modifying the frontmatter
 schema, or debugging `validate-notes-frontmatter` pre-commit failures.
 

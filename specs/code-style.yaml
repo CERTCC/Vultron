@@ -295,10 +295,12 @@ groups:
       replicas, so converting `+05:00` to `Z` would keep the instant and break the
       record. #4164 owns pinning both halves (resolves CONCERN-3808).
     verification: >-
-      A unit test confirms that wire-layer model serialization of a value this node
-      mints produces an explicit `Z` or `+00:00` offset, that an inbound aware non-UTC
-      value round-trips through parse, storage and serialization with its offset
-      unchanged, and that no naive or offset-free datetime string is emitted.
+      `test_carried_non_utc_offset_round_trips_through_storage` asserts that an
+      inbound `+05:00` `endTime` round-trips through parse, storage and
+      serialization unchanged, `test_minted_timestamp_serialises_with_a_utc_offset`
+      asserts a time this node mints serializes with `Z` or `+00:00`, and the
+      CS-13-001 tests assert a naive value is normalized to UTC before it can reach
+      the wire.
     relationships:
     - rel_type: depends_on
       spec_id: CLP-15-007

@@ -236,12 +236,13 @@ groups:
       mechanism shared with the outbox (OX-13) keeps attempt counts across restarts.
       #4168 owns it.
     verification: >-
-      A test confirms that an inbox item whose handler raises a non-protocol-violation
-      exception is re-queued until the configured attempt limit and then appears in the
-      dead-letter store with its last error, that the attempt count survives a restart
-      of the store, and that an item raising `VultronProtocolViolationError` is dropped
-      on the first attempt; each failure is logged at ERROR with `activity_id` and
-      `actor_id`. Until #4168 lands the test is a strict `xfail` naming it.
+      A test that an inbox item whose handler raises a non-protocol-violation
+      exception is re-queued until the configured attempt limit and then appears in
+      the dead-letter store with its last error, that the attempt count survives a
+      restart of the store, and that an item raising `VultronProtocolViolationError`
+      is dropped on the first attempt; each failure is logged at ERROR with
+      `activity_id` and `actor_id`. Not yet written; owned by #4168.
+    tracking_issue: '#4168'
     relationships:
     - rel_type: depends_on
       spec_id: DR-03-002

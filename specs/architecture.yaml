@@ -406,11 +406,14 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      Actor `inbox` and `outbox` fields MUST be typed `str` on the core actor types,
-      carrying only the URI of the inbox or outbox endpoint, and MUST never be `None` or
-      empty: an absent, `None` or blank endpoint MUST be derived from the actor's `id_`.
-      AS2 `OrderedCollection` wrapping is a wire-only serialization concern and MUST NOT
-      appear in core-branch actor types.
+      Actor `inbox` and `outbox` fields MUST be typed `str` on `CoreActor` and its
+      subclasses, carrying only the URI of the inbox or outbox endpoint, and MUST
+      never be `None` or empty: an absent, `None` or blank endpoint MUST be derived
+      from the actor's `id_`. AS2 `OrderedCollection` wrapping is a wire-only
+      serialization concern and MUST NOT appear in core-branch actor types. The
+      core `CaseActor` is the one exception: it stores no `inbox`, and its local
+      `outbox` is a `VultronOutbox` tracking list; on the AS2 path both endpoint
+      URIs are derived from its id.
     rationale: >-
       Domain logic only ever needs to route to the inbox URI; the full collection shape
       is an AS2 protocol concern, not a domain concern. ActivityPub requires every actor
@@ -1350,22 +1353,23 @@ groups:
     statement: >-
       A derived actor endpoint collection — an actor's `inbox` or `outbox`
       `OrderedCollection` built from a bare URI or from the actor's `id` — MUST carry no
-      `published` or `updated` timestamp. A timestamp that arrives on an inbound endpoint
-      collection MUST be carried as received.
+      `published` or `updated` timestamp. A timestamp that arrives on an inbound
+      endpoint collection MUST be carried as received.
     rationale: >-
       A derived endpoint is an address, not an object this process authored, so it has
       no creation time to state (ADR-0103 stamps what this process authors and leaves an
       inbound omission absent; a derived address is neither). Stamping it from the clock
-      made a stored actor read back unequal to itself whenever a wall-clock second passed
-      between write and read, because the core actor keeps only the URI (ARCH-12-006) and
-      each read minted a new stamp (#3732).
+      made a stored actor read back unequal to itself whenever a wall-clock second
+      passed between write and read, because the core actor keeps only the URI
+      (ARCH-12-006) and each read minted a new stamp (#3732).
     verification: >-
       In `test/wire/as2/vocab/base/test_actor_endpoints.py`,
       `test_endpoint_without_arrived_stamp_carries_no_clock_stamp` and
       `test_constructed_actor_endpoints_carry_no_clock_stamp` assert a derived endpoint
-      carries no stamp, `test_endpoint_collection_keeps_the_time_it_arrived_with` asserts
-      an arrived stamp is carried, and `test_actor_round_trips_across_a_clock_tick`
-      asserts a stored actor round-trips across a clock tick.
+      carries no stamp, `test_endpoint_collection_keeps_the_time_it_arrived_with`
+      asserts an arrived stamp is carried, and
+      `test_actor_round_trips_across_a_clock_tick` asserts a stored actor round-trips
+      across a clock tick.
     relationships:
     - rel_type: refines
       spec_id: ARCH-23-003

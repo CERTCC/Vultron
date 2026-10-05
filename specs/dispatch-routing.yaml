@@ -74,8 +74,9 @@ groups:
     verification: >-
       `test/core/test_fail_fast_silent_sites.py::TestExtractCaseIdRaisesUnroutableActivityError`
       asserts an unroutable event yields a `REFUSED` verdict and is logged at ERROR, and
-      `test/test_behavior_dispatcher.py::test_dispatch_rejects_a_use_case_that_returns_no_handler_result`
-      asserts a handler's `TypeError` escapes `dispatch()`.
+      `test/test_behavior_dispatcher.py::test_dispatch_lets_a_handler_exception_propagate`
+      asserts a `RuntimeError` raised inside a use case's `execute()` escapes
+      `dispatch()` unchanged.
     relationships:
     - rel_type: depends_on
       spec_id: CS-23-001

@@ -2316,10 +2316,13 @@ groups:
       The case name can itself be an opsec concern, so the summary is chosen for the
       invitee, not copied from the case. #4165 owns emitting it.
     verification: >-
-      A stub projected from a full case serialises with only `id`, `type`, `caseId`
-      and a non-empty `summary` when no embargo is active, and adds only
-      `activeEmbargo` and `caseStatus` when one is; the `summary` is the stub summary
-      chosen for the case, not its `name` by default.
+      `test/wire/as2/factories/test_case_factories.py::test_rm_invite_stub_carries_a_non_empty_summary`
+      is a strict xfail naming #4165 that asserts a stub projected from a full case
+      serialises with only `id`, `type`, `caseId` and a non-empty `summary`.
+      `test_rm_invite_stub_carries_no_case_content` and
+      `test_enriched_stub_carries_only_the_embargo_terms` in the same file assert the
+      stub carries no other case content, and that an embargo-active stub adds only
+      `activeEmbargo` and `caseStatus`.
     relationships:
     - rel_type: refines
       spec_id: CM-11-013
@@ -3268,11 +3271,11 @@ groups:
       consumers MUST NOT treat it as the highest logIndex of the case or as proof
       that a replica holds the complete ledger.
     rationale: >-
-      The Case Owner's departure is the authoritative termination event for a
-      case.  ADR-0085's boundary refuses external participants' appends, not
-      the CASE_MANAGER's own housekeeping, so a consumer that stopped reading
-      at case_fully_closed could miss an entry the CASE_MANAGER writes later.
-      The guarantee is the boundary, not chain finality.  See ADR-0050, ADR-0051, ADR-0085.
+      The Case Owner's departure is the authoritative termination event for a case.
+      ADR-0085's boundary refuses external participants' appends, not the CASE_MANAGER's
+      own housekeeping, so a consumer that stopped reading at case_fully_closed could
+      miss an entry the CASE_MANAGER writes later. The guarantee is the boundary, not
+      chain finality. See ADR-0050, ADR-0051, ADR-0085.
     verification: >-
       Integration tests in `test/demo/` confirm that a Case Owner's
       `Leave(VulnerabilityCase)` triggers the 4-step closure sequence: advance Case
@@ -3595,9 +3598,11 @@ groups:
     verification: >-
       A test confirms that after an owner Leave(VulnerabilityCase) has committed
       `case_fully_closed`, a later inbound activity for the case — a bystander's
-      Leave(VulnerabilityCase) among them — commits no CaseLedgerEntry and changes
-      no RM or case state, and that the CASE_MANAGER either sends an `as:Reject`
-      or sends nothing. Until #4162 lands the test is a strict `xfail` naming it.
+      Leave(VulnerabilityCase) among them — commits no CaseLedgerEntry and changes no RM
+      or case state, and that the CASE_MANAGER either sends an `as:Reject` or sends
+      nothing:
+      `test/core/use_cases/received/test_close_case_role_semantics.py::TestPostCloseBoundary::test_bystander_leave_after_owner_close_is_refused`,
+      a strict `xfail` naming #4162 and #4065 until they land.
     relationships:
     - rel_type: refines
       spec_id: CM-23-003
@@ -3660,6 +3665,10 @@ groups:
       Leaving last is the owner's normal course, not a hard ordering: a
       participant that never leaves cannot hold a case open. #4163 owns
       reordering the demo scenarios, which today close the owner first.
+    verification: >-
+      `test/demo/test_fv_demo.py::TestFvMilestoneAssertions::test_phase_case_closure_closes_the_case_owner_last`
+      asserts the FV closure phase closes the Finder before the Vendor, the Case Owner;
+      it is a strict `xfail` naming #4163 until the demos are reordered.
     relationships:
     - rel_type: refines
       spec_id: CM-23-002
@@ -3796,7 +3805,7 @@ groups:
     - ADR-0109
   - id: CM-24-005
     priority: MUST
-    kind: architecture
+    kind: project
     statement: >-
       Every path that emits an Activity on another participant's behalf — a
       trigger use case, or a received-side tree performing the CM-24-004

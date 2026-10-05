@@ -575,14 +575,15 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The pending revision that EP-04-003 registers at case creation MUST follow the same
-      relay as any other revision proposal (EP-09). The CASE_MANAGER MUST propose it on behalf
-      of the party whose terms lost the shortest-wins comparison, with that party in
-      `attributedTo`, MUST commit it as a proposal entry — the committed relayed Invite is that
-      entry, and no separate proposal entry is committed — MUST record it in the open-proposal
-      record so that the owner's default selection (EP-08-002) can reach it, and MUST relay it
-      as an `Invite(EmbargoEvent)` to the other party. The party whose terms lost is the
-      proposer and is not invited (EP-09-002).
+      The pending revision that EP-04-003 registers at case creation MUST follow the
+      same relay as any other revision proposal (EP-09). The CASE_MANAGER MUST propose
+      it on behalf of the party whose terms lost the shortest-wins comparison, with that
+      party in `attributedTo`, MUST commit it as a proposal entry — the committed
+      relayed Invite is that entry, and no separate proposal entry is committed — MUST
+      record it in the open-proposal record so that the owner's default selection
+      (EP-08-002) can reach it, and MUST relay it as an `Invite(EmbargoEvent)` to the
+      other party. The party whose terms lost is the proposer and is not invited
+      (EP-09-002).
     rationale: >-
       A revision registered in the CASE_MANAGER's store alone is invisible to the party whose
       terms won and unreachable by the owner: it was never indexed, so the default selection
@@ -1236,11 +1237,13 @@ groups:
       accepts them (EP-09-004).
     verification: >-
       `test/core/behaviors/embargo/nodes/test_relay.py::TestCollectEmbargoInviteRecipientsNode::test_excludes_the_proposer_and_the_manager_itself`
-      and `test/core/use_cases/received/test_embargo_revision_relay.py::test_case_manager_invites_every_participant_except_the_proposer`
-      run the relay as the CASE_MANAGER and assert one Invite per participant other than the
-      proposer and the manager, each with `actor` the CASE_MANAGER and `attributedTo` the
-      proposer; `TestRelayEmbargoInviteToEachNode::test_each_emission_is_committed_as_a_canonical_entry` in the same node test file asserts each emission
-      is committed.
+      and
+      `test/core/use_cases/received/test_embargo_revision_relay.py::test_case_manager_invites_every_participant_except_the_proposer`
+      run the relay as the CASE_MANAGER and assert one Invite per participant other than
+      the proposer and the manager, each with `actor` the CASE_MANAGER and
+      `attributedTo` the proposer;
+      `TestRelayEmbargoInviteToEachNode::test_each_emission_is_committed_as_a_canonical_entry`
+      in the same node test file asserts each emission is committed.
     relationships:
     - rel_type: refines
       spec_id: CM-24-001

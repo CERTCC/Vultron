@@ -567,7 +567,8 @@ class TestPostCloseBoundary:
     @pytest.mark.xfail(
         strict=True,
         reason="CM-23-013: a bystander Leave after owner close is still"
-        " committed as close_case. Tracked by #4065.",
+        " committed as close_case. Tracked by #4162 (record nothing, reply"
+        " optional) and #4065 (refusal and demo closure order).",
     )
     @pytest.mark.spec("CM-23-013")
     def test_bystander_leave_after_owner_close_is_refused(self):
@@ -575,7 +576,9 @@ class TestPostCloseBoundary:
 
         Regression for CONCERN-3400: every demo closed the owner first, so a
         bystander's ``close_case`` landed after ``case_fully_closed``, an
-        external append past the ADR-0085 write boundary.
+        external append past the ADR-0085 write boundary.  The CASE_MANAGER
+        MAY decline with one ``as:Reject`` or MAY drop the Leave with no
+        reply (CM-23-013); either is accepted, but nothing is recorded.
         """
         dl = _make_full_dl()
         _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
@@ -592,15 +595,22 @@ class TestPostCloseBoundary:
             dl, VENDOR_ID, "https://example.org/activities/leave-vendor"
         )
 
-        assert result.disposition == HandlerDisposition.REFUSED
-        queued = [i for i in dl.outbox_list() if i not in outbox_before]
-        assert len(queued) == 1, (
-            "exactly one activity (the as:Reject) must be queued for a"
-            f" post-close bystander Leave (CM-23-013); queued={queued}"
+        assert len(_case_ledger(dl)) == entries_at_close, (
+            "a post-close bystander Leave must commit no ledger entry"
+            f" (CM-23-013); tail={[e.event_type for e in _case_ledger(dl)]}"
         )
+        assert _participant_rm_states(dl, VENDOR_ID) == rm_before
+        assert result.disposition != HandlerDisposition.APPLIED
+        queued = [i for i in dl.outbox_list() if i not in outbox_before]
+        assert len(queued) <= 1, (
+            "a post-close bystander Leave gets at most one reply, the"
+            f" optional as:Reject (CM-23-013); queued={queued}"
+        )
+        if not queued:
+            return
         reject = dl.read(queued[0])
         assert getattr(reject, "type_", None) == "Reject", (
-            "a declined post-close Leave must be an as:Reject (MSM-05-001);"
+            "a reply to a post-close Leave must be an as:Reject (MSM-05-001);"
             f" got type_={getattr(reject, 'type_', None)}"
         )
         assert VENDOR_ID in (getattr(reject, "to", None) or [])
@@ -608,11 +618,6 @@ class TestPostCloseBoundary:
         assert getattr(inner, "type_", None) == "Leave", (
             "the as:Reject must decline the Leave activity itself"
         )
-        assert len(_case_ledger(dl)) == entries_at_close, (
-            "a post-close bystander Leave must commit no ledger entry"
-            f" (CM-23-013); tail={[e.event_type for e in _case_ledger(dl)]}"
-        )
-        assert _participant_rm_states(dl, VENDOR_ID) == rm_before
 
     @pytest.mark.xfail(
         strict=True,
