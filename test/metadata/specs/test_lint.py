@@ -482,6 +482,35 @@ def test_main_default_does_not_list_ids(tmp_path, capsys, monkeypatch):
     assert "TST-01-001" not in out
 
 
+@pytest.mark.spec("MS-10-006")
+def test_lint_check_closing_pr_fails_a_pr_closing_an_owner_in_use(
+    tmp_path, capsys, monkeypatch
+):
+    write_yaml(tmp_path, _verification_corpus(_MIXED_ITEMS))
+    monkeypatch.setattr(
+        verification_module, "gh_pr_closing_issues", lambda pr: {"#2"}
+    )
+    result = lint(tmp_path, debt_owners=_MIXED_OWNERS, closing_pr=7)
+    assert result == 1
+    assert "this PR closes #2" in capsys.readouterr().err
+
+
+def test_main_check_closing_pr_flag_reaches_lint(monkeypatch, tmp_path):
+    seen: dict[str, object] = {}
+
+    def fake_lint(spec_dir, **kwargs):
+        seen.update(kwargs)
+        return 0
+
+    monkeypatch.setattr(lint_module, "lint", fake_lint)
+    monkeypatch.setattr(
+        sys, "argv", ["spec-lint", str(tmp_path), "--check-closing-pr", "7"]
+    )
+    with pytest.raises(SystemExit):
+        lint_module.main()
+    assert seen["closing_pr"] == 7
+
+
 def test_main_check_debt_owners_flag_reaches_lint(monkeypatch, tmp_path):
     """`--check-debt-owners` is what CI passes; without it lint stays offline."""
     seen: dict[str, object] = {}

@@ -31,18 +31,28 @@ Per requirement, ``spec-lint`` fails when:
 
 The owner table holds issue references only, never counts, so nothing in it
 moves when a requirement is verified. ``spec-lint`` prints one summary line
-per kind computed from the markers (MS-10-005), and
-``spec-lint --check-debt-owners`` (CI only — it needs the GitHub API) fails
-when any marker or table entry names a closed issue.
+per kind computed from the markers (MS-10-005).
+
+An owner is checked against GitHub at two points, both in
+``.github/workflows/verification-debt-owners.yml`` (MS-10-006):
+
+- ``spec-lint --check-closing-pr N`` fails pull request *N* when it closes an
+  owner issue that a marker or the owner table still names. Closing the owner
+  is that PR's own act, so failing it races no other PR.
+- ``spec-lint --check-debt-owners`` reports every marker or table entry naming
+  a closed issue. CI runs it hourly and on each push to ``main`` and files one
+  tracking issue rather than failing the build: an issue closed by hand is
+  caused by no PR, so failing would turn every PR in flight red (ARCH-18-004).
 
 Runnable locally::
 
-    spec-lint                      # one summary line per kind
-    spec-lint --list-unverified    # plus the marked IDs
-    spec-lint --check-debt-owners  # plus the open-owner check (needs gh)
+    spec-lint                         # one summary line per kind
+    spec-lint --list-unverified       # plus the marked IDs
+    spec-lint --check-debt-owners     # plus the open-owner check (needs gh)
+    spec-lint --check-closing-pr 123  # plus the closing-PR check (needs gh)
 
 Requirements: specs/meta-specifications.yaml MS-10-003, MS-10-005 through
-MS-10-008.
+MS-10-008; specs/architecture.yaml ARCH-18-004.
 """
 
 from __future__ import annotations
@@ -63,8 +73,8 @@ from vultron.metadata.specs.schema import (
 
 #: The issues that own each kind's verification backlog. A marker must name an
 #: owner of its item's kind. Remove an owner once no marker names it (spec-lint
-#: warns; the CI open-owner check fails once the issue closes), and the kind's
-#: entry with its last owner; from then on any marker of that kind is a hard
+#: warns; the PR that closes the owner issue fails until it is removed), and
+#: the kind's entry with its last owner; from then on any marker of that kind is a hard
 #: error (MS-10-007). Never add an owner to admit new debt — the growth guard
 #: (#4200) rejects a PR that adds a marker.
 VERIFICATION_DEBT_OWNERS: Mapping[SpecKind, frozenset[str]] = MappingProxyType(
@@ -197,8 +207,8 @@ def idle_owners(
 
     Advisory, not a hard error: two PRs that each verify some of an owner's
     last markers are green alone and would be red merged — the race the
-    per-item rule exists to avoid (#3984). The CI open-owner check fails on the
-    entry once its issue closes, which forces the removal.
+    per-item rule exists to avoid (#3984). The PR that closes the owner issue
+    fails until the entry is removed (:func:`closing_pr_problems`).
     """
     return [
         f"[WARN] verification_debt kind={kind.value}: no marker names owner "
@@ -327,3 +337,92 @@ def closed_debt_owners(
                 f"them and the owner table at the issue that took the work over"
             )
     return errors
+
+
+def gh_pr_closing_issues(pr_number: int) -> set[str]:
+    """The issues pull request *pr_number* closes on merge, as ``#N`` refs.
+
+    Read from GitHub's ``closingIssuesReferences`` (the ``Closes #N`` keywords
+    in the PR body, plus manually linked issues). Needs ``gh`` and a token;
+    raises :class:`subprocess.CalledProcessError` or
+    :class:`FileNotFoundError` when the lookup cannot be made.
+    """
+    result = subprocess.run(
+        [
+            "gh",
+            "pr",
+            "view",
+            str(pr_number),
+            "--json",
+            "closingIssuesReferences",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    refs = json.loads(result.stdout)["closingIssuesReferences"]
+    return {f"#{ref['number']}" for ref in refs}
+
+
+def closing_pr_problems(
+    registry: SpecRegistry,
+    owners: Mapping[SpecKind, frozenset[str]],
+    closing: Iterable[str],
+) -> list[str]:
+    """Hard errors for a PR that closes an owner issue still in use (MS-10-006).
+
+    *closing* is the set of issues the PR closes. An owner may close only once
+    no marker names it and it is gone from the owner table — so the backfill
+    PR that finishes an owner's work also removes the entry (MS-10-007).
+    """
+    marked = Counter(
+        spec.verification_debt
+        for spec in registry.all_specs.values()
+        if spec.verification_debt
+    )
+    tabled = {ref for kind_owners in owners.values() for ref in kind_owners}
+    errors: list[str] = []
+    for ref in sorted(set(closing), key=issue_number):
+        if marked.get(ref):
+            errors.append(
+                f"this PR closes {ref}, but {marked[ref]} requirement(s) still "
+                f"carry verification_debt: '{ref}' (MS-10-006); verify them, "
+                f"or drop the closing reference — `spec-lint "
+                f"--list-unverified` names them"
+            )
+        elif ref in tabled:
+            errors.append(
+                f"this PR closes {ref}, which no marker names any more; remove "
+                f"it from VERIFICATION_DEBT_OWNERS in this PR (MS-10-007)"
+            )
+    return errors
+
+
+def check_closing_pr(
+    registry: SpecRegistry,
+    owners: Mapping[SpecKind, frozenset[str]],
+    pr_number: int,
+    closing_issues: Callable[[int], set[str]] | None = None,
+) -> list[str]:
+    """The ``--check-closing-pr`` hard errors for pull request *pr_number*.
+
+    A lookup failure is an error: a check that cannot see what the PR closes
+    has not shown it closes no owner. *closing_issues* defaults to
+    :func:`gh_pr_closing_issues`.
+    """
+    if closing_issues is None:
+        closing_issues = gh_pr_closing_issues
+    try:
+        closing = closing_issues(pr_number)
+    except (
+        OSError,
+        subprocess.CalledProcessError,
+        KeyError,
+        TypeError,
+        ValueError,
+    ) as exc:
+        return [
+            f"could not read the issues PR #{pr_number} closes ({exc}); the "
+            f"closing-PR check needs gh and a token"
+        ]
+    return closing_pr_problems(registry, owners, closing)

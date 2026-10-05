@@ -38,6 +38,7 @@ from vultron.metadata.specs.schema import (
 )
 from vultron.metadata.specs.verification import (
     VERIFICATION_DEBT_OWNERS,
+    check_closing_pr,
     check_verification_coverage,
     closed_debt_owners,
     debt_owner_refs,
@@ -855,6 +856,7 @@ def lint(
     list_unverified: bool = False,
     debt_owners: Mapping[SpecKind, frozenset[str]] | None = None,
     check_debt_owners: bool = False,
+    closing_pr: int | None = None,
 ) -> int:
     """Validate the spec registry in ``spec_dir``.
 
@@ -883,6 +885,9 @@ def lint(
             owner entry naming a closed issue (MS-10-006;
             ``--check-debt-owners`` on the CLI). Needs the ``gh`` CLI and a
             token, so CI runs it and the pre-commit hook does not.
+        closing_pr: Also fail when this pull request closes an owner issue
+            that a marker or owner entry still names (MS-10-006;
+            ``--check-closing-pr N`` on the CLI). Needs ``gh`` and a token.
 
     Returns:
         ``0`` if no hard errors, ``1`` if any hard errors found.
@@ -924,6 +929,8 @@ def lint(
         hard_errors.extend(
             closed_debt_owners(debt_owner_refs(registry, debt_owners))
         )
+    if closing_pr is not None:
+        hard_errors.extend(check_closing_pr(registry, debt_owners, closing_pr))
 
     adr_ref_errors, adr_ref_warnings = _check_adr_references(registry, adr_dir)
     hard_errors.extend(adr_ref_errors)
@@ -977,6 +984,16 @@ def main() -> None:
             "closed issue (MS-10-006); needs the gh CLI and a token"
         ),
     )
+    parser.add_argument(
+        "--check-closing-pr",
+        type=int,
+        metavar="N",
+        help=(
+            "Fail when pull request N closes an owner issue that a "
+            "verification_debt marker or owner entry still names "
+            "(MS-10-006); needs the gh CLI and a token"
+        ),
+    )
     args = parser.parse_args()
     spec_dir = Path(args.spec_dir)
     if not spec_dir.is_dir():
@@ -990,6 +1007,7 @@ def main() -> None:
             spec_dir,
             list_unverified=args.list_unverified,
             check_debt_owners=args.check_debt_owners,
+            closing_pr=args.check_closing_pr,
         )
     )
 

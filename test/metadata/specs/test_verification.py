@@ -30,11 +30,14 @@ from vultron.metadata.specs.schema import (
 )
 from vultron.metadata.specs.verification import (
     VERIFICATION_DEBT_OWNERS,
+    check_closing_pr,
     check_verification_coverage,
     closed_debt_owners,
+    closing_pr_problems,
     debt_by_kind,
     debt_owner_refs,
     gh_issue_state,
+    gh_pr_closing_issues,
     idle_owners,
     issue_number,
     verification_problems,
@@ -372,3 +375,73 @@ def test_gh_issue_state_asks_gh_for_the_issue_number(monkeypatch):
     monkeypatch.setattr(verification_module.subprocess, "run", fake_run)
     assert gh_issue_state("#3612") == "OPEN"
     assert calls == [["gh", "issue", "view", "3612", "--json", "state"]]
+
+
+# ---------------------------------------------------------------------------
+# Closing-PR check (MS-10-006, MS-10-007)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("MS-10-006")
+def test_pr_closing_an_owner_that_markers_still_name_fails():
+    errors = closing_pr_problems(_registry(_CLEAN_ITEMS), _OWNERS, {"#1"})
+    assert len(errors) == 1
+    assert errors[0].startswith("this PR closes #1, but 2 requirement(s)")
+
+
+@pytest.mark.spec("MS-10-007")
+def test_pr_closing_an_idle_owner_must_also_remove_it_from_the_table():
+    """#2 owns process but no marker names it: closing it is fine only once
+    the table entry goes in the same PR."""
+    errors = closing_pr_problems(_registry(_CLEAN_ITEMS), _OWNERS, {"#2"})
+    assert errors == [
+        "this PR closes #2, which no marker names any more; remove it from "
+        "VERIFICATION_DEBT_OWNERS in this PR (MS-10-007)"
+    ]
+    finished = {**_OWNERS, SpecKind.PROCESS: frozenset({"#3"})}
+    assert closing_pr_problems(_registry(_CLEAN_ITEMS), finished, {"#2"}) == []
+
+
+def test_pr_closing_unrelated_issues_passes():
+    registry = _registry(_CLEAN_ITEMS)
+    assert closing_pr_problems(registry, _OWNERS, {"#99", "#100"}) == []
+    assert closing_pr_problems(registry, _OWNERS, set()) == []
+
+
+@pytest.mark.spec("MS-10-006")
+@pytest.mark.parametrize(
+    "exc",
+    [FileNotFoundError("gh"), subprocess.CalledProcessError(1, ["gh"])],
+)
+def test_closing_pr_lookup_failure_is_an_error(exc):
+    def broken(pr: int) -> set[str]:
+        raise exc
+
+    errors = check_closing_pr(_registry(_CLEAN_ITEMS), _OWNERS, 42, broken)
+    assert len(errors) == 1
+    assert errors[0].startswith("could not read the issues PR #42 closes")
+
+
+def test_check_closing_pr_defaults_to_the_gh_lookup(monkeypatch):
+    monkeypatch.setattr(
+        verification_module, "gh_pr_closing_issues", lambda pr: {"#1"}
+    )
+    errors = check_closing_pr(_registry(_CLEAN_ITEMS), _OWNERS, 42)
+    assert "this PR closes #1" in errors[0]
+
+
+def test_gh_pr_closing_issues_reads_closing_references(monkeypatch):
+    calls: list[list[str]] = []
+
+    def fake_run(argv, **kwargs):
+        calls.append(argv)
+        payload = {"closingIssuesReferences": [{"number": 7}, {"number": 12}]}
+        return subprocess.CompletedProcess(
+            argv, 0, stdout=json.dumps(payload), stderr=""
+        )
+
+    monkeypatch.setattr(verification_module.subprocess, "run", fake_run)
+    assert gh_pr_closing_issues(42) == {"#7", "#12"}
+    assert calls == [
+        ["gh", "pr", "view", "42", "--json", "closingIssuesReferences"]
+    ]

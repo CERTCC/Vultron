@@ -347,9 +347,12 @@ only end at zero:
    Races Every Concurrent PR"). A requirement with both a marker and a
    `verification:` clause fails as stale.
 2. **Each marker names an open owning issue.** The marker must name an owner of
-   its kind in `VERIFICATION_DEBT_OWNERS`, and the `spec-check.yml` job
-   `verification-debt-owners` fails when a marker or table entry names a
-   closed issue. If you close an owner early, CI says so.
+   its kind in `VERIFICATION_DEBT_OWNERS`. A PR that closes an owner issue
+   (`Closes #N`) while a marker or the table still names it fails, so the
+   backfill that finishes an owner also removes its table entry. An owner closed
+   by hand is reported within the hour by one tracking issue and never fails
+   the build, since no PR caused it (ARCH-18-004;
+   `.github/workflows/verification-debt-owners.yml`).
 3. **Zero is terminal.** Once no requirement of a kind carries a marker, delete
    that kind's owner entry; any marker of that kind is then a hard error, so the
    kind cannot regrow debt. The growth guard (#4200) keeps new markers out

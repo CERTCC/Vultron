@@ -376,23 +376,32 @@ groups:
       `vultron/metadata/specs/`. spec-lint MUST fail, one requirement at a time, on a
       MUST-tier requirement with neither field, on a requirement with both (a stale
       marker), on a marker below the MUST tier, and on a marker naming an issue that
-      does not own its kind. A CI check MUST fail when a marker or an owner entry names a
-      closed issue.
+      does not own its kind. A pull-request check MUST fail a pull request that closes
+      an owner issue a marker or the owner table still names, and a scheduled check
+      running at least hourly MUST report any marker or owner entry naming a closed
+      issue through one tracking issue, without failing the build.
     rationale: >-
       A count pinned to the live value in both directions is correct on the PR that sets
       it and wrong on every other PR in flight: a sibling that moves the count by one is
       green alone and red once merged (#3984). A per-item rule has no shared number to
       race, and two PRs conflict only when they edit the same requirement. The marker
-      gives every unverified requirement a tracked path to verification; a closed owner
-      on a live marker is a defect for review. The owner table holds issue references,
-      never counts, so verifying a requirement never edits it.
+      gives every unverified requirement a tracked path to verification. An owner
+      usually closes through the backfill PR that says `Closes #N`; failing that PR
+      alone races nothing, and catches a backfill that claims to finish while leaving
+      requirements unverified. An owner closed by hand is caused by no PR, so failing
+      the build on it would turn every PR in flight red; it is reported instead
+      (ARCH-18-004). The owner table holds issue references, never counts, so verifying
+      a requirement never edits it.
     verification: >-
       Fixture-corpus tests in `test/metadata/specs/test_verification.py` prove each
       per-item failure fires (neither field, both fields, a below-tier marker, a
-      wrong-kind owner) and that the open-owner check fails on a closed issue and on a
-      failed lookup; a spec-corpus test there asserts the live corpus has no per-item
-      failure. The `verification-debt-owners` job in `.github/workflows/spec-check.yml`
-      runs the open-owner check with `--check-debt-owners`.
+      wrong-kind owner), that a PR closing an owner still in use fails, and that a
+      closed owner or a failed lookup is reported; a spec-corpus test there asserts the
+      live corpus has no per-item failure.
+      `test/ci/test_verification_debt_owner_check.py` asserts that
+      `.github/workflows/verification-debt-owners.yml` fails a pull request through
+      `--check-closing-pr`, and runs `--check-debt-owners` hourly and on push to `main`
+      without failing the build.
     relationships:
     - rel_type: implements
       spec_id: MS-10-003
@@ -417,8 +426,8 @@ groups:
       is accepted, and an unmarked unverified requirement already fails under MS-10-006.
       An owner no marker names is reported rather than failed, because two PRs that each
       verify some of its last requirements are green alone and would turn `main` red
-      merged (#3984); the open-owner check fails on the entry once its issue closes,
-      which forces the removal. The growth guard (#4200) keeps markers from being added
+      merged (#3984); the PR that closes the owner issue fails until the entry is
+      removed, which forces the removal. The growth guard (#4200) keeps markers from being added
       while an owner remains. The `protocol` tier is expected to finish first (#3612).
     verification: >-
       Unit tests in `test/metadata/specs/test_lint.py` and
