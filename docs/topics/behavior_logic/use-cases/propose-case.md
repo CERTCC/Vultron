@@ -50,7 +50,7 @@ The accepting service does eleven things, and the order is not interchangeable.
 
 | Step | What it establishes |
 |---|---|
-| Resolve or create the case | A duplicate proposal reuses the existing case rather than creating a second (CP-05-006) |
+| Resolve or create the case | A redelivered proposal (same proposal identifier) reuses its case rather than creating a second (CP-05-006); a new proposal identifier is a new request, and the case is reused only for the proposer that owns it (CP-05-008) |
 | Store the inline report | Everything downstream derives from it — the reporter Participant, its ledger entry, the consent seed |
 | Add itself as Participant | COORDINATOR and CASE_MANAGER, so the authority is in the roster |
 | Add the proposing actor | CASE_OWNER at `RM.RECEIVED`, plus whatever roles its configuration declares |
@@ -163,7 +163,8 @@ Bringing in a vendor or a coordinator is a separate flow.
 | [CP-05-003](../../../reference/specs/protocol.md#cp-05-003) | On acceptance it MUST send `Accept` and then `Create(VulnerabilityCase)`, in that order |
 | [CP-05-004](../../../reference/specs/protocol.md#cp-05-004) | On refusal it MUST send `Reject(as_CaseProposal)` with the proposal inline |
 | [CP-05-005](../../../reference/specs/project.md#cp-05-005) | A failed `Create` MUST be retried without resending the `Accept` |
-| [CP-05-006](../../../reference/specs/protocol.md#cp-05-006) | A duplicate proposal MUST re-send the stored `Accept` unchanged, with its original identifier, and MUST NOT create a second case |
+| [CP-05-006](../../../reference/specs/protocol.md#cp-05-006) | A duplicate proposal (the same proposal identifier) MUST re-send the stored `Accept` unchanged, with its original identifier, and MUST NOT create a second case |
+| [CP-05-008](../../../reference/specs/protocol.md#cp-05-008) | A proposal under a new identifier MUST be admitted and answered on its own; the case is reused only for its owner, and any other proposer gets a separate case |
 | [CP-05-007](../../../reference/specs/protocol.md#cp-05-007) | A proposer MUST treat an unanswered proposal as expired at its deadline |
 | [CP-06-003](../../../reference/specs/protocol.md#cp-06-003) | The proposer MUST record the acceptance and await the replica |
 | [CP-06-004](../../../reference/specs/protocol.md#cp-06-004) | The proposer MUST record a refusal and surface its reason where one is given |

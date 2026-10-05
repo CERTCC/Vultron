@@ -569,9 +569,9 @@ state other than `NONE` means initialization already ran (EP-04-012, #4019;
 the active-embargo reference it first read is cleared by termination). The
 receiver stops feeding the duplicate too — `CheckProposalAlreadySentForReport`
 treats an answered `ReportCaseLink` (case linked) as "already proposed", so a
-re-delivered Offer does not re-propose. Which of the
-two the case-actor answers with is settled above: the stored `Accept` for the
-same proposal, a fresh one for a new proposal id.
+re-delivered Offer does not re-propose. What the case-actor answers with is
+settled above: the stored `Accept` for the same proposal, a fresh one for a new
+proposal id.
 
 **What "duplicate" means here.** An exact redelivery of the same proposal id —
 at-least-once delivery, or the receiver asking again because the `Accept` was lost
