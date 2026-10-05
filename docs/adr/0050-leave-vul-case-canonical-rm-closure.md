@@ -17,9 +17,13 @@ the same path as CS transitions (fix-ready, fix-deployed, published).
 
 PR #1909 (issue #1858) changed RM case closure to flow through
 `Leave(VulnerabilityCase)` → Case Actor commits a `close_case`
-`CaseLedgerEntry` → broadcast → each replica advances the leaving participant's
-RM state to `RM.CLOSED` on receipt. The three CS transitions were left
-unchanged.
+`CaseLedgerEntry` recording the received Leave → broadcast.
+The RM transitions the Case Actor then writes for the leaving participant
+follow as ordinary participant-status entries, one per transition.
+Each replica advances the leaving participant to `RM.CLOSED` only by applying
+those entries in ledger order, and never works out a closure path from its own
+stored state (CM-23-001, #4091).
+The three CS transitions were left unchanged.
 
 This created a contradiction: `DEMOMA-07-001` said closure must use
 `Add(ParticipantStatus)`, but the implementation used `Leave`. The question is:

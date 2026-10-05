@@ -38,7 +38,7 @@ from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
-from vultron.core.models.base import CoreRecord, UriString
+from vultron.core.models.base import CoreRecord, UriString, with_record_id
 
 #: Whose terms lost shortest-wins: the values of
 #: ``EmbargoDurationSource.SENDER_PROPOSAL`` (the reporter's) and
@@ -111,8 +111,7 @@ class PendingCreationTimeRevisionRelay(CoreRecord):
         if isinstance(data, dict):
             case_id = data.get("case_id")
             if case_id is not None:
-                data = dict(data)
-                data["id"] = cls.build_id(case_id)
+                data = with_record_id(data, cls.build_id(case_id))
         return data
 
 

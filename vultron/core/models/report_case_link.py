@@ -22,7 +22,7 @@ from typing import Any, ClassVar, Literal
 
 from pydantic import Field, model_validator
 
-from vultron.core.models.base import NonEmptyString, UriString
+from vultron.core.models.base import NonEmptyString, UriString, with_record_id
 from vultron.core.models.retired_stored_fields import (
     RetiredFieldsRecord,
     RetiredStoredField,
@@ -61,9 +61,10 @@ class VultronReportCaseLink(RetiredFieldsRecord):
     )
     # #4020 renamed the two actor-id fields away from ``trusted_*`` names,
     # which CodeQL's ``py/clear-text-logging-sensitive-data`` heuristic reads
-    # as secrets.  A row still carrying the old keys is refused, not aliased:
-    # ``CoreRecord`` ignores unknown keys, so an unrefused old row would read
-    # back with both CBT-01-006 trust anchors silently ``None``.
+    # as secrets.  A row still carrying the old keys is refused, not aliased, and
+    # the refusal names the rename and the store reset instead of leaving the
+    # operator a bare "extra inputs are not permitted" for both CBT-01-006 trust
+    # anchors.
     retired_stored_fields: ClassVar[Mapping[str, RetiredStoredField]] = {
         "trusted_case_creator_id": RetiredStoredField(
             "case_creator_id", "#4020"
@@ -132,6 +133,5 @@ class VultronReportCaseLink(RetiredFieldsRecord):
         if isinstance(data, dict):
             report_id = data.get("report_id")
             if report_id is not None:
-                data = dict(data)
-                data["id"] = cls.build_id(report_id)
+                data = with_record_id(data, cls.build_id(report_id))
         return data
