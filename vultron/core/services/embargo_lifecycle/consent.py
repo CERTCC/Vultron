@@ -285,6 +285,206 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
 
         return _unchanged(em_state, participant_changes=participant_changes)
 
+    def assess_invite_expiry(
+        self,
+        *,
+        case_id: str,
+        actor_id: str,
+        now: datetime,
+    ) -> tuple[bool, bool]:
+        """Read-only check: has the RSVP deadline passed and does EXPIRE need applying?
+
+        Returns a ``(is_expired, needs_apply)`` pair where:
+
+        * ``is_expired`` — ``True`` when the deadline has passed **and** the
+          participant is not ``SIGNATORY``.  Used by :func:`EMB-17` routing.
+        * ``needs_apply`` — ``True`` when the participant is still ``INVITED``
+          **and** the deadline has passed.  When ``True``, the caller MUST
+          call :meth:`record_invite_expiry` after committing the ledger entry
+          (CLP-10-006).
+
+        This method makes **no writes**.  The pair mirrors what
+        :meth:`detect_and_apply_expiry` computes but without the side-effect,
+        so a BT node can assess the situation, the commit node can persist the
+        ledger entry, and only then the effect node calls
+        :meth:`record_invite_expiry` (guard → commit → effect, CLP-10-006,
+        BT-06-006).
+
+        Args:
+            case_id: ID of the ``VulnerabilityCase``.
+            actor_id: ID of the actor whose participant record to check.
+            now: Current UTC datetime used for deadline comparison.
+
+        Returns:
+            ``(is_expired, needs_apply)`` — both ``False`` when the actor has
+            no participant record, the record has no deadline, or the deadline
+            has not yet passed.
+        """
+        case = self._read_case(case_id)
+        participant_id = case.actor_participant_index.get(actor_id)
+        if not participant_id:
+            return False, False
+        participant = self._persistence.read(participant_id)
+        if not isinstance(participant, CaseParticipant):
+            return False, False
+        deadline = participant.invite_rsvp_deadline
+        if deadline is None or now < deadline:
+            return False, False
+        # Deadline passed.
+        needs_apply = participant.embargo_consent_state == PEC.INVITED.value
+        is_expired = participant.embargo_consent_state != PEC.SIGNATORY.value
+        return is_expired, needs_apply
+
+    def record_invite_expiry(
+        self,
+        *,
+        case_id: str,
+        actor_id: str,
+    ) -> EmbargoLifecycleResult:
+        """Apply PEC ``EXPIRE`` (``INVITED → EXPIRED``) after the commit.
+
+        This is the **effect** half of the guard → commit → effect trio
+        (CLP-10-006, BT-06-006).  The CASE_MANAGER calls it only after its
+        expiry entry has been committed by
+        :func:`~vultron.core.behaviors.sync.commit_tree.create_commit_log_entry_tree`.
+
+        Idempotent: if the participant is no longer ``INVITED`` (already
+        ``EXPIRED``, or any other state), the call is a no-op.  An actor with
+        no participant record is logged and skipped.
+
+        Args:
+            case_id: ID of the ``VulnerabilityCase``.
+            actor_id: ID of the actor whose invite expired.
+
+        Returns:
+            :class:`EmbargoLifecycleResult` with ``is_expired=True`` when
+            ``EXPIRE`` was applied, ``is_expired=False`` when the invitee was
+            already ``EXPIRED`` (idempotent call).
+        """
+        case = self._read_case(case_id)
+        em_state = case.current_status.em.state
+        participant_id = case.actor_participant_index.get(actor_id)
+        if not participant_id:
+            logger.debug(
+                "record_invite_expiry: actor '%s' has no participant"
+                " record in case '%s' — skipping",
+                actor_id,
+                case_id,
+            )
+            return _unchanged(em_state)
+        participant = self._persistence.read(participant_id)
+        if not isinstance(participant, CaseParticipant):
+            return _unchanged(em_state)
+        participant_changes: list[ParticipantPECChange] = []
+        if participant.embargo_consent_state == PEC.INVITED.value:
+            pec_before = participant.embargo_consent_state
+            participant.apply_pec_transition(PEC_Trigger.EXPIRE)
+            self._persistence.save(participant)
+            participant_changes.append(
+                ParticipantPECChange(
+                    participant_id=participant_id,
+                    pec_before=pec_before,
+                    pec_after=participant.embargo_consent_state,
+                )
+            )
+            logger.info(
+                "Invite expired for actor '%s' on case '%s'"
+                " (PEC INVITED → EXPIRED — recorded after commit)",
+                actor_id,
+                case_id,
+            )
+        is_expired = bool(participant_changes)
+        return _unchanged(
+            em_state,
+            participant_changes=participant_changes,
+            is_expired=is_expired,
+        )
+
+    def honour_late_accept(
+        self,
+        *,
+        case_id: str,
+        actor_id: str,
+        embargo_id: str,
+    ) -> EmbargoLifecycleResult:
+        """Apply the honour decision: ``EXPIRED → SIGNATORY`` (or ``DECLINED → INVITED → SIGNATORY``).
+
+        This is the **effect** of :data:`HONOUR_LATE_ACCEPT_EVENT_TYPE`
+        (EMB-17-001, ADR-0118).  Called by the replica replay node
+        :class:`~vultron.core.behaviors.embargo.nodes.expiry.ApplyHonourLateAcceptFromLedgerNode`
+        **and** by the CASE_MANAGER's
+        :class:`~vultron.core.behaviors.embargo.nodes.expiry.HonourLateAcceptNode`
+        **after** the entry is committed (CLP-10-006).
+
+        A ``DECLINED`` participant is first moved ``DECLINED → INVITED`` (since
+        ``ACCEPT`` is not legal from ``DECLINED``, CM-18-003), then the shared
+        :meth:`~vultron.core.services.embargo_lifecycle.pec._PecEffectsMixin._record_actor_pec_acceptance`
+        applies ``ACCEPT`` and records *embargo_id* in ``accepted_embargo_ids``.
+
+        Idempotent: a participant already ``SIGNATORY`` is not changed.
+
+        Args:
+            case_id: ID of the ``VulnerabilityCase``.
+            actor_id: ID of the honouring actor.
+            embargo_id: ID of the active ``EmbargoEvent`` to accept.
+
+        Returns:
+            :class:`EmbargoLifecycleResult` describing the PEC transitions.
+
+        Raises:
+            VultronNotFoundError: If *case_id* does not resolve to a case or
+                *actor_id* has no participant record on it.
+        """
+        case = self._read_case(case_id)
+        em_state = case.current_status.em.state
+        participant_id = case.actor_participant_index.get(actor_id)
+        participant = (
+            self._persistence.read(participant_id) if participant_id else None
+        )
+        if not isinstance(participant, CaseParticipant) or not participant_id:
+            raise VultronNotFoundError(
+                "CaseParticipant", f"{actor_id} on case {case_id}"
+            )
+
+        participant_changes: list[ParticipantPECChange] = []
+
+        # DECLINED is not a legal ACCEPT source (CM-18-003); re-invite first.
+        if participant.embargo_consent_state == PEC.DECLINED.value:
+            pec_before = participant.embargo_consent_state
+            participant.apply_pec_transition(PEC_Trigger.INVITE)
+            self._persistence.save(participant)
+            participant_changes.append(
+                ParticipantPECChange(
+                    participant_id=participant_id,
+                    pec_before=pec_before,
+                    pec_after=participant.embargo_consent_state,
+                )
+            )
+            logger.info(
+                "honour_late_accept: re-invited DECLINED actor '%s'"
+                " on case '%s' before ACCEPT (DECLINED → INVITED)",
+                actor_id,
+                case_id,
+            )
+
+        # Re-read case after the INVITE write so the fresh participant record
+        # is used by _record_actor_pec_acceptance (participant may have changed).
+        case = self._read_case(case_id)
+        accept_changes = self._record_actor_pec_acceptance(
+            case, actor_id, embargo_id, advance=True
+        )
+        all_changes = participant_changes + accept_changes
+        logger.info(
+            "honour_late_accept: honoured late Accept for actor '%s'"
+            " on case '%s' (embargo '%s', EMB-17-001;"
+            " %d PEC state change(s))",
+            actor_id,
+            case_id,
+            embargo_id,
+            len(all_changes),
+        )
+        return _unchanged(em_state, participant_changes=all_changes)
+
     def detect_and_apply_expiry(
         self,
         *,

@@ -168,3 +168,129 @@ class TestApplyInviteExpiryFromLedgerNode:
             activity=_expiry_event(INVITEE),
         )
         bt_scenario.assert_success(result)
+
+
+EMBARGO_ID = f"{CASE_ID}/embargos/e1"
+
+
+def _honour_late_accept_event(
+    actor: str | None, embargo_id: str = EMBARGO_ID
+) -> Any:
+    """Build an AnnounceLogEntry event wrapping a HONOUR_LATE_ACCEPT_EVENT_TYPE entry."""
+    from vultron.core.models.rsvp_deadline import (
+        HONOUR_LATE_ACCEPT_EVENT_TYPE,
+        HONOUR_LATE_ACCEPT_SNAPSHOT_TYPE,
+    )
+
+    snapshot: dict[str, Any] = {
+        "type": HONOUR_LATE_ACCEPT_SNAPSHOT_TYPE,
+        "context": CASE_ID,
+        "object": {
+            "type": "Invite",
+            "id": f"{CASE_ID}/invites/i1",
+            "object": {"type": "EmbargoEvent", "id": embargo_id},
+        },
+    }
+    if actor is not None:
+        snapshot["actor"] = actor
+    entry = _to_persistable_entry(
+        HashChainLedgerRecord(
+            case_id=CASE_ID,
+            log_index=0,
+            object_id=f"{CASE_ID}/invites/i1",
+            event_type=HONOUR_LATE_ACCEPT_EVENT_TYPE,
+            payload_snapshot=snapshot,
+            prev_log_hash="0" * 64,
+        )
+    )
+    return _make_event(entry, actor_id=MANAGER)
+
+
+class TestApplyHonourLateAcceptFromLedgerNode:
+    """Replica replay of the CASE_MANAGER's honour decision (EMB-17-001, RSH-08-004)."""
+
+    @pytest.mark.executes_as(INVITEE)
+    @pytest.mark.spec("EMB-17-001", "RSH-08-004", "ADR-0118")
+    def test_expired_participant_becomes_signatory_on_replica(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """A replica applies EXPIRED → SIGNATORY from the honour entry."""
+        from vultron.core.behaviors.embargo.nodes.expiry import (
+            ApplyHonourLateAcceptFromLedgerNode,
+        )
+
+        participant_id = _seed(bt_scenario, pec=PEC.EXPIRED)
+        result = bt_scenario.run(
+            ApplyHonourLateAcceptFromLedgerNode(name="ApplyHonour"),
+            activity=_honour_late_accept_event(INVITEE),
+        )
+        bt_scenario.assert_success(result)
+        assert _pec(bt_scenario, participant_id) is PEC.SIGNATORY
+
+    @pytest.mark.executes_as(INVITEE)
+    @pytest.mark.spec("EMB-17-001", "CM-18-003", "ADR-0118")
+    def test_declined_participant_becomes_signatory_on_replica(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """A replica applies DECLINED → INVITED → SIGNATORY from the honour entry."""
+        from vultron.core.behaviors.embargo.nodes.expiry import (
+            ApplyHonourLateAcceptFromLedgerNode,
+        )
+
+        participant_id = _seed(bt_scenario, pec=PEC.DECLINED)
+        result = bt_scenario.run(
+            ApplyHonourLateAcceptFromLedgerNode(name="ApplyHonour"),
+            activity=_honour_late_accept_event(INVITEE),
+        )
+        bt_scenario.assert_success(result)
+        assert _pec(bt_scenario, participant_id) is PEC.SIGNATORY
+
+    @pytest.mark.executes_as(INVITEE)
+    @pytest.mark.spec("ADR-0118")
+    def test_already_signatory_is_idempotent(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """A SIGNATORY participant is not changed by replay (idempotent)."""
+        from vultron.core.behaviors.embargo.nodes.expiry import (
+            ApplyHonourLateAcceptFromLedgerNode,
+        )
+
+        participant_id = _seed(bt_scenario, pec=PEC.SIGNATORY)
+        result = bt_scenario.run(
+            ApplyHonourLateAcceptFromLedgerNode(name="ApplyHonour"),
+            activity=_honour_late_accept_event(INVITEE),
+        )
+        bt_scenario.assert_success(result)
+        assert _pec(bt_scenario, participant_id) is PEC.SIGNATORY
+
+    @pytest.mark.executes_as(INVITEE)
+    def test_entry_naming_no_actor_fails(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """An entry without an actor field → FAILURE (SYNC-12-001)."""
+        from vultron.core.behaviors.embargo.nodes.expiry import (
+            ApplyHonourLateAcceptFromLedgerNode,
+        )
+
+        _seed(bt_scenario, pec=PEC.EXPIRED)
+        result = bt_scenario.run(
+            ApplyHonourLateAcceptFromLedgerNode(name="ApplyHonour"),
+            activity=_honour_late_accept_event(None),
+        )
+        assert result.status == Status.FAILURE
+
+    @pytest.mark.executes_as(INVITEE)
+    def test_replica_without_case_skips(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """A replica without the case skips with SUCCESS (Regime 2, ADR-0087)."""
+        from vultron.core.behaviors.embargo.nodes.expiry import (
+            ApplyHonourLateAcceptFromLedgerNode,
+        )
+
+        # Do NOT seed a case — partial replica (ADR-0087).
+        result = bt_scenario.run(
+            ApplyHonourLateAcceptFromLedgerNode(name="ApplyHonour"),
+            activity=_honour_late_accept_event(INVITEE),
+        )
+        bt_scenario.assert_success(result)

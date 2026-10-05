@@ -401,10 +401,16 @@ Do not introduce a second timeout notion — they will drift.
   (CM-28-014): expiry is derived from `(end_time, now)` when an inbound `Accept`
   is processed at the manager. No scheduler is required for correctness.
   The `EmbargoTimerExpired` Sentinel (#1893) is an optional proactive accelerator
-- When an expiry is detected, the CASE_MANAGER applies `EXPIRE` (`INVITED →
-  EXPIRED`, ADR-0118) via `detect_and_apply_expiry()` and authors an
-  `invite_to_embargo_on_case_expired` ledger entry (CM-28-005, CM-28-009)
-  distinguishing it from an explicit refusal.
+- When an expiry is detected, the CASE_MANAGER authors an
+  `invite_to_embargo_on_case_expired` ledger entry (CM-28-005, CM-28-009,
+  `INVITE_EXPIRED_EVENT_TYPE`) distinguishing it from an explicit refusal,
+  then applies `EXPIRE` (`INVITED → EXPIRED`, ADR-0118).
+  The evaluation follows the guard→commit→effect order (CLP-10-006):
+  `assess_invite_expiry()` is read-only (no writes); a separate commit node
+  persists the entry; `record_invite_expiry()` applies the `EXPIRE` trigger
+  after a successful commit.
+  A failed commit leaves the invitee in `INVITED` — no consent change is
+  persisted without a ledger record.
   The entry is role-gated: a non-manager that processes a late `Accept` writes
   nothing and returns a refusal; the invitee's consent is left as it was.
   Replicas replay the entry through `ApplyInviteExpiryFromLedgerNode` in
@@ -543,6 +549,33 @@ The third row follows the EMB-07-003 precedent for post-terminal messages
 (acknowledge without transitioning). EMB-13-002 already forbade accepting new
 embargoes when CS is P/X/A; EMB-17-004 closes the remaining gap where EM has
 `EXITED` but CS is not yet P/X/A.
+
+### Synthesised Ledger Entries for Expiry and Late-Accept Routing
+
+Three CASE_MANAGER-authored entries record the outcomes of the lazy expiry
+evaluation (all in `vultron/core/models/rsvp_deadline.py`, all CASE_MANAGER-gated,
+RSH-08-004, ADR-0118):
+
+| `event_type` constant | `snapshot_type` | When committed | Replayed by |
+|---|---|---|---|
+| `INVITE_EXPIRED_EVENT_TYPE` | `InviteExpired` | `INVITED` past deadline → `EXPIRED` | `ApplyInviteExpiryFromLedgerNode` |
+| `HONOUR_LATE_ACCEPT_EVENT_TYPE` | `HonourLateAccept` | EMB-17-001: active/matching embargo still current | `ApplyHonourLateAcceptFromLedgerNode` |
+| `INVITE_EXPIRED_NOOP_EVENT_TYPE` | `InviteExpiredNoop` | EMB-17-004: EM `EXITED`/`NONE` — no consent change | no effect node needed (state is already terminal) |
+
+Each entry uses the guard→commit→effect order (CLP-10-006).
+`create_invite_expiry_tree`, `create_honour_late_accept_tree`, and
+`create_noop_ledger_entry_tree` (all in
+`vultron/core/behaviors/embargo/expiry_tree.py`) are CASE_MANAGER-gated
+factories; a non-manager processing a late `Accept` gets `REFUSED` from the
+gate and applies no consent change.
+
+The `honour_late_accept()` service method (`consent.py`) handles both the
+`EXPIRED → SIGNATORY` direct path and the `DECLINED → INVITED → SIGNATORY`
+two-step (CM-18-003: `ACCEPT` is not legal from `DECLINED`).
+The replay node `ApplyHonourLateAcceptFromLedgerNode` extracts
+`actor_id` from `entry.payload_snapshot["actor"]` and `embargo_id` from
+`entry.payload_snapshot["object"]["object"]["id"]`, then calls the same
+`honour_late_accept()` so the manager and replica always apply the same logic.
 
 ### Why `EXPIRED` Is a State, Not Provenance
 

@@ -32,6 +32,7 @@ from vultron.core.behaviors.sync.nodes.conditions import _require_log_entry
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.rsvp_deadline import (
+    HONOUR_LATE_ACCEPT_EVENT_TYPE,
     INVITE_EXPIRED_EVENT_TYPE,
     INVITE_EXPIRED_NOOP_EVENT_TYPE,
 )
@@ -442,5 +443,24 @@ class IsInviteExpiryNoopEventNode(_ActivityEventNode):
     def update(self) -> Status:
         entry = _require_log_entry(self.activity, self.name)
         if entry.event_type == INVITE_EXPIRED_NOOP_EVENT_TYPE:
+            return Status.SUCCESS
+        return Status.FAILURE
+
+
+class IsHonourLateAcceptEventNode(_ActivityEventNode):
+    """Precondition: this entry is the CASE_MANAGER's honour-late-accept decision.
+
+    Matches :data:`~vultron.core.models.rsvp_deadline.HONOUR_LATE_ACCEPT_EVENT_TYPE`.
+    Committed when a late ``Accept(Invite(EmbargoEvent))`` arrives and the
+    embargo is still active and matching (EMB-17-001, ADR-0118).  Used in
+    the ``InviteHonourLateAcceptEffects`` slot of
+    ``AnnounceLogEntryReceivedBT``.
+
+    Per EMB-17-001, ADR-0118, BTND-08-001, SYNC-12-001.
+    """
+
+    def update(self) -> Status:
+        entry = _require_log_entry(self.activity, self.name)
+        if entry.event_type == HONOUR_LATE_ACCEPT_EVENT_TYPE:
             return Status.SUCCESS
         return Status.FAILURE

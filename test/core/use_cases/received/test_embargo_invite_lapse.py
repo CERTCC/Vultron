@@ -1433,45 +1433,247 @@ class TestAcceptWhenTheReplacedEmbargoIsUnreadable:
         assert fresh.proposed_embargoes == [revision.id_]
 
 
-class TestNeedsReinviteToAccept:
-    """``_needs_reinvite_to_accept`` is True only where ACCEPT needs INVITE."""
+class TestAssessAndRecordInviteExpiry:
+    """``assess_invite_expiry`` is read-only; ``record_invite_expiry`` is the effect.
 
-    @pytest.mark.spec("CM-18-003", "EMB-17-002")
-    @pytest.mark.parametrize("state", list(PEC))
-    def test_only_a_declined_participant_is_reinvited(self, state):
-        from vultron.core.use_cases.received.embargo.accept import (
-            _needs_reinvite_to_accept,
-        )
+    The guard → commit → effect pattern (CLP-10-006) requires that the assess
+    step make no writes and the record step only run after a successful commit.
+    """
 
-        dl = _make_dl(actor_id=_COORD)
-        case_id = f"https://example.org/cases/reinvite-{state.value.lower()}"
+    @pytest.mark.spec("CLP-10-006", "BT-06-006")
+    def test_assess_returns_is_expired_needs_apply_for_invited_past_deadline(
+        self,
+    ):
+        """assess_invite_expiry returns (True, True) for an INVITED invitee past deadline."""
+        dl = _make_dl()
+        case_id = "https://example.org/cases/assess1"
+        embargo_id = f"{case_id}/embargos/e1"
         _make_active_embargo_case(
-            dl, case_id, f"{case_id}/embargos/e1", invitee_pec=state
+            dl,
+            case_id,
+            embargo_id,
+            invitee_pec=PEC.INVITED,
+            invitee_deadline=_PAST,
         )
-        fresh = dl.read(case_id)
-        assert isinstance(fresh, CoreCase)
-        assert _needs_reinvite_to_accept(dl, fresh, _INVITEE) is (
-            state is PEC.DECLINED
-        )
+        is_expired, needs_apply = EmbargoLifecycle(
+            persistence=dl
+        ).assess_invite_expiry(case_id=case_id, actor_id=_INVITEE, now=_NOW)
+        assert is_expired is True
+        assert needs_apply is True
+        # No participant write happened
+        case = dl.read(case_id)
+        assert isinstance(case, CoreCase)
+        p = dl.read(case.actor_participant_index[_INVITEE])
+        assert isinstance(p, CaseParticipant)
+        assert p.embargo_consent_state == PEC.INVITED  # unchanged
 
-    def test_an_actor_with_no_record_needs_nothing(self):
-        from vultron.core.use_cases.received.embargo.accept import (
-            _needs_reinvite_to_accept,
-        )
-
-        dl = _make_dl(actor_id=_COORD)
-        case_id = "https://example.org/cases/reinvite-none"
+    @pytest.mark.spec("CLP-10-006", "BT-06-006")
+    def test_assess_returns_is_expired_false_for_invited_future_deadline(self):
+        """assess_invite_expiry returns (False, False) when deadline is in the future."""
+        dl = _make_dl()
+        case_id = "https://example.org/cases/assess2"
+        embargo_id = f"{case_id}/embargos/e1"
         _make_active_embargo_case(
-            dl, case_id, f"{case_id}/embargos/e1", invitee_pec=PEC.DECLINED
+            dl,
+            case_id,
+            embargo_id,
+            invitee_pec=PEC.INVITED,
+            invitee_deadline=_FUTURE,
         )
-        fresh = dl.read(case_id)
-        assert isinstance(fresh, CoreCase)
-        assert (
-            _needs_reinvite_to_accept(
-                dl, fresh, "https://example.org/actors/stranger"
+        is_expired, needs_apply = EmbargoLifecycle(
+            persistence=dl
+        ).assess_invite_expiry(case_id=case_id, actor_id=_INVITEE, now=_NOW)
+        assert is_expired is False
+        assert needs_apply is False
+
+    @pytest.mark.spec("CLP-10-006", "BT-06-006", "ADR-0118")
+    def test_assess_is_expired_true_but_needs_apply_false_for_already_expired(
+        self,
+    ):
+        """assess_invite_expiry returns (True, False) for a participant already EXPIRED."""
+        dl = _make_dl()
+        case_id = "https://example.org/cases/assess3"
+        embargo_id = f"{case_id}/embargos/e1"
+        _make_active_embargo_case(
+            dl,
+            case_id,
+            embargo_id,
+            invitee_pec=PEC.EXPIRED,
+            invitee_deadline=_PAST,
+        )
+        is_expired, needs_apply = EmbargoLifecycle(
+            persistence=dl
+        ).assess_invite_expiry(case_id=case_id, actor_id=_INVITEE, now=_NOW)
+        assert is_expired is True
+        assert needs_apply is False  # already expired, nothing to apply
+
+    @pytest.mark.spec("CLP-10-006", "BT-06-006")
+    def test_record_invite_expiry_applies_after_assess(self):
+        """record_invite_expiry moves INVITED → EXPIRED (the effect step)."""
+        dl = _make_dl()
+        case_id = "https://example.org/cases/record1"
+        embargo_id = f"{case_id}/embargos/e1"
+        _make_active_embargo_case(
+            dl,
+            case_id,
+            embargo_id,
+            invitee_pec=PEC.INVITED,
+            invitee_deadline=_PAST,
+        )
+        svc = EmbargoLifecycle(persistence=dl)
+        result = svc.record_invite_expiry(case_id=case_id, actor_id=_INVITEE)
+        assert result.is_expired is True
+        assert len(result.participant_changes) == 1
+        assert result.participant_changes[0].pec_before == PEC.INVITED.value
+        assert result.participant_changes[0].pec_after == PEC.EXPIRED.value
+        # Persisted
+        case = dl.read(case_id)
+        assert isinstance(case, CoreCase)
+        p = dl.read(case.actor_participant_index[_INVITEE])
+        assert isinstance(p, CaseParticipant)
+        assert p.embargo_consent_state == PEC.EXPIRED
+
+    @pytest.mark.spec("CLP-10-006", "BT-06-006")
+    def test_failed_commit_leaves_invitee_invited(self, monkeypatch):
+        """A failed commit in create_invite_expiry_tree leaves the invitee INVITED.
+
+        The tree uses guard → commit → effect.  If the commit node fails, the
+        effect node (RecordInviteExpiryNode) must not run, so the invitee stays
+        in INVITED state rather than EXPIRED (CLP-10-006, BT-06-006).
+        """
+        from unittest.mock import patch
+
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.behaviors.embargo.expiry_tree import (
+            create_invite_expiry_tree,
+        )
+
+        dl = _make_dl()
+        case_id = "https://example.org/cases/fail-commit"
+        embargo_id = f"{case_id}/embargos/e1"
+        _make_active_embargo_case(
+            dl,
+            case_id,
+            embargo_id,
+            invitee_pec=PEC.INVITED,
+            invitee_deadline=_PAST,
+        )
+
+        # Simulate a commit failure by making the ledger write raise.
+        from vultron.core.behaviors.sync import commit_tree as _ct_module
+
+        def _failing_commit(*args, **kwargs):
+            """Return a tree whose only node always fails."""
+            import py_trees
+
+            class _Fail(py_trees.behaviour.Behaviour):
+                def update(self):
+                    return py_trees.common.Status.FAILURE
+
+            return _Fail(name="FailingCommitSim")
+
+        with patch.object(
+            _ct_module, "create_commit_log_entry_tree", _failing_commit
+        ):
+            # Rebuild tree with patched commit
+            result_out2: dict = {}
+            tree2 = create_invite_expiry_tree(
+                case_id=case_id,
+                invitee_id=_INVITEE,
+                invite_id=f"{case_id}/invites/i1",
+                embargo_id=embargo_id,
+                published="2026-01-01T00:00:00Z",
+                now=_NOW,
+                result_out=result_out2,
             )
-            is False
+            BTBridge(datalayer=dl).execute_with_setup(
+                tree=tree2, actor_id=_COORD
+            )
+
+        # The invitee must still be INVITED — no effect was applied.
+        case2 = dl.read(case_id)
+        assert isinstance(case2, CoreCase)
+        p = dl.read(case2.actor_participant_index[_INVITEE])
+        assert isinstance(p, CaseParticipant)
+        assert p.embargo_consent_state == PEC.INVITED, (
+            "Failed commit must leave invitee INVITED, not EXPIRED (CLP-10-006)"
         )
+
+
+class TestHonourLateAcceptService:
+    """``honour_late_accept`` applies EXPIRED/DECLINED → SIGNATORY via the service."""
+
+    @pytest.mark.spec("EMB-17-001", "ADR-0118")
+    def test_expired_participant_becomes_signatory(self):
+        """EXPIRED → SIGNATORY in a single step (ADR-0118)."""
+        dl = _make_dl()
+        case_id = "https://example.org/cases/honour-expired"
+        embargo_id = f"{case_id}/embargos/e1"
+        _make_active_embargo_case(
+            dl,
+            case_id,
+            embargo_id,
+            invitee_pec=PEC.EXPIRED,
+            invitee_deadline=_PAST,
+        )
+        result = EmbargoLifecycle(persistence=dl).honour_late_accept(
+            case_id=case_id, actor_id=_INVITEE, embargo_id=embargo_id
+        )
+        assert any(
+            c.pec_after == PEC.SIGNATORY.value
+            for c in result.participant_changes
+        )
+        case = dl.read(case_id)
+        assert isinstance(case, CoreCase)
+        p = dl.read(case.actor_participant_index[_INVITEE])
+        assert isinstance(p, CaseParticipant)
+        assert p.embargo_consent_state == PEC.SIGNATORY
+
+    @pytest.mark.spec("EMB-17-001", "CM-18-003", "ADR-0118")
+    def test_declined_participant_becomes_signatory_via_invite(self):
+        """DECLINED → INVITED → SIGNATORY (CM-18-003: ACCEPT not legal from DECLINED)."""
+        dl = _make_dl()
+        case_id = "https://example.org/cases/honour-declined"
+        embargo_id = f"{case_id}/embargos/e1"
+        _make_active_embargo_case(
+            dl,
+            case_id,
+            embargo_id,
+            invitee_pec=PEC.DECLINED,
+            invitee_deadline=_PAST,
+        )
+        result = EmbargoLifecycle(persistence=dl).honour_late_accept(
+            case_id=case_id, actor_id=_INVITEE, embargo_id=embargo_id
+        )
+        pec_states = [c.pec_before for c in result.participant_changes] + [
+            c.pec_after for c in result.participant_changes
+        ]
+        assert PEC.DECLINED.value in pec_states
+        case = dl.read(case_id)
+        assert isinstance(case, CoreCase)
+        p = dl.read(case.actor_participant_index[_INVITEE])
+        assert isinstance(p, CaseParticipant)
+        assert p.embargo_consent_state == PEC.SIGNATORY
+
+    @pytest.mark.spec("EMB-17-001", "ADR-0118")
+    def test_signatory_is_unchanged_idempotent(self):
+        """A participant already SIGNATORY is not changed by honour_late_accept."""
+        dl = _make_dl()
+        case_id = "https://example.org/cases/honour-signatory"
+        embargo_id = f"{case_id}/embargos/e1"
+        _make_active_embargo_case(
+            dl, case_id, embargo_id, invitee_pec=PEC.SIGNATORY
+        )
+        result = EmbargoLifecycle(persistence=dl).honour_late_accept(
+            case_id=case_id, actor_id=_INVITEE, embargo_id=embargo_id
+        )
+        # No state change — already SIGNATORY
+        assert result.participant_changes == []
+        case = dl.read(case_id)
+        assert isinstance(case, CoreCase)
+        p = dl.read(case.actor_participant_index[_INVITEE])
+        assert isinstance(p, CaseParticipant)
+        assert p.embargo_consent_state == PEC.SIGNATORY
 
 
 class TestLateAcceptHandling:

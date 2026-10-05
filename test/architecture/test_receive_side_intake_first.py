@@ -228,10 +228,17 @@ KNOWN_FACTORIES_BYPASSING_INTAKE: frozenset[str] = frozenset(
         # expiry entry without processing the received activity itself
         # (CM-28-009, CM-28-014, BT-17-001, ADR-0118).
         "create_invite_expiry_tree",
-        # commit tree — called from _commit_noop_ledger_entry in
+        # honour-late-accept tree — the CASE_MANAGER-gated honour decision
+        # called from AcceptInviteToEmbargoOnCaseReceivedUseCase for the
+        # EMB-17-001 branch; commits a synthesised honour entry, not a received
+        # one, then applies EXPIRED/DECLINED → SIGNATORY (ADR-0118, RSH-08-004).
+        "create_honour_late_accept_tree",
+        # noop-ledger-entry tree — called from _commit_noop_ledger_entry in
         # AcceptInviteToEmbargoOnCaseReceivedUseCase for the EMB-17-004 no-op
         # branch; commits a synthesised entry, not a received one (ADR-0118).
-        "create_commit_log_entry_tree",
+        # create_commit_log_entry_tree is no longer called directly from
+        # received use case files (ARCH-18-002).
+        "create_noop_ledger_entry_tree",
     }
 )
 
