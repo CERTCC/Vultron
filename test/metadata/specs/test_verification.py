@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+from typing import NoReturn
 
 import pytest
 import yaml
@@ -435,7 +436,13 @@ def test_gh_pr_closing_issues_reads_closing_references(monkeypatch):
 
     def fake_run(argv, **kwargs):
         calls.append(argv)
-        payload = {"closingIssuesReferences": [{"number": 7}, {"number": 12}]}
+        payload = {
+            "url": "https://github.com/O/R/pull/42",
+            "closingIssuesReferences": [
+                {"number": 7, "url": "https://github.com/O/R/issues/7"},
+                {"number": 12, "url": "https://github.com/O/R/issues/12"},
+            ],
+        }
         return subprocess.CompletedProcess(
             argv, 0, stdout=json.dumps(payload), stderr=""
         )
@@ -443,5 +450,38 @@ def test_gh_pr_closing_issues_reads_closing_references(monkeypatch):
     monkeypatch.setattr(verification_module.subprocess, "run", fake_run)
     assert gh_pr_closing_issues(42) == {"#7", "#12"}
     assert calls == [
-        ["gh", "pr", "view", "42", "--json", "closingIssuesReferences"]
+        ["gh", "pr", "view", "42", "--json", "closingIssuesReferences,url"]
     ]
+
+
+def test_gh_pr_closing_issues_ignores_other_repositories(monkeypatch):
+    """`Fixes Other/Repo#2575` must not read as closing local owner #2575."""
+    payload = {
+        "url": "https://github.com/O/R/pull/42",
+        "closingIssuesReferences": [
+            {"number": 2575, "url": "https://github.com/O/Other/issues/2575"},
+            {"number": 9, "url": "https://github.com/O/R/issues/9"},
+        ],
+    }
+
+    def fake_run(argv, **kwargs):
+        return subprocess.CompletedProcess(
+            argv, 0, stdout=json.dumps(payload), stderr=""
+        )
+
+    monkeypatch.setattr(verification_module.subprocess, "run", fake_run)
+    assert gh_pr_closing_issues(42) == {"#9"}
+
+
+def test_lookup_failure_names_gh_stderr():
+    exc = subprocess.CalledProcessError(
+        1, ["gh"], stderr="HTTP 403: Resource not accessible by integration\n"
+    )
+
+    def broken(_: object) -> NoReturn:
+        raise exc
+
+    (error,) = check_closing_pr(_registry(_CLEAN_ITEMS), _OWNERS, 42, broken)
+    assert "HTTP 403: Resource not accessible by integration" in error
+    (error,) = closed_debt_owners({"#1"}, broken)
+    assert "HTTP 403: Resource not accessible by integration" in error

@@ -29,7 +29,6 @@ on:
 
 permissions:
   contents: read
-  issues: write
   pull-requests: read
 
 concurrency:
@@ -55,6 +54,9 @@ jobs:
     name: Owner Issues Open (reports, never fails)
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/debounce-main-push
@@ -67,7 +69,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: PYTHONPATH='' uv run spec-lint specs/ --check-debt-owners
       - name: File or update the tracking issue
-        if: steps.owners.outcome == 'failure'
+        # failure() also catches checkout or setup failing first (CISEC-05).
+        if: failure() || steps.owners.outcome == 'failure'
         uses: ./.github/actions/notify-failure
         with:
           mode: notify

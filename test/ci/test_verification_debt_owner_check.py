@@ -47,6 +47,16 @@ def test_closing_pr_check_fails_the_pr_on_every_pull_request():
     assert "github.event.pull_request.number" in step["env"]["PR_NUMBER"]
 
 
+def test_only_the_reporting_job_can_write_issues():
+    """The closing-PR job runs PR-checkout code, so it gets no write scope."""
+    workflow = load_workflow(_WORKFLOW)
+    assert "issues" not in workflow["permissions"]
+    closing_job, _ = _job_running(_CLOSING)
+    owners_job, _ = _job_running(_OWNERS)
+    assert "issues" not in closing_job.get("permissions", {})
+    assert owners_job["permissions"]["issues"] == "write"
+
+
 def test_closing_pr_check_reruns_when_the_body_is_edited():
     """`Closes #N` lives in the PR body, which can change with no push."""
     pull_request = triggers(load_workflow(_WORKFLOW))["pull_request"]
@@ -66,7 +76,7 @@ def test_open_owner_check_reports_and_never_fails_the_build():
         if s.get("uses") == "./.github/actions/notify-failure"
     }
     assert modes == {
-        "notify": f"steps.{step['id']}.outcome == 'failure'",
+        "notify": f"failure() || steps.{step['id']}.outcome == 'failure'",
         "close": f"steps.{step['id']}.outcome == 'success'",
     }
 

@@ -302,6 +302,18 @@ def gh_issue_state(ref: str) -> str:
     return str(json.loads(result.stdout)["state"])
 
 
+def _lookup_failure(exc: Exception) -> str:
+    """*exc* as text, with ``gh``'s stderr when it is the reason.
+
+    ``str(CalledProcessError)`` names only the exit status; the cause (a
+    missing token scope, an unresolvable repository) is in its stderr.
+    """
+    stderr = getattr(exc, "stderr", None)
+    if isinstance(stderr, str) and stderr.strip():
+        return f"{exc}: {stderr.strip()}"
+    return str(exc)
+
+
 def closed_debt_owners(
     refs: Iterable[str],
     issue_state: Callable[[str], str] | None = None,
@@ -326,7 +338,8 @@ def closed_debt_owners(
         ) as exc:
             errors.append(
                 f"verification_debt owner {ref}: could not read its state "
-                f"({exc}); the open-owner check needs gh and a token"
+                f"({_lookup_failure(exc)}); the open-owner check needs gh and "
+                f"a token"
             )
             continue
         if state.upper() != "OPEN":
@@ -343,9 +356,13 @@ def gh_pr_closing_issues(pr_number: int) -> set[str]:
     """The issues pull request *pr_number* closes on merge, as ``#N`` refs.
 
     Read from GitHub's ``closingIssuesReferences`` (the ``Closes #N`` keywords
-    in the PR body, plus manually linked issues). Needs ``gh`` and a token;
-    raises :class:`subprocess.CalledProcessError` or
-    :class:`FileNotFoundError` when the lookup cannot be made.
+    in the PR body, plus manually linked issues). Only issues in the PR's own
+    repository count: ``Fixes Other/Repo#N`` closes no owner here. A closing
+    keyword in a commit message is not in that list, so a PR that closes an
+    owner only that way passes; the scheduled ``--check-debt-owners`` run
+    reports the closed owner after merge. Needs ``gh`` and a token; raises
+    :class:`subprocess.CalledProcessError` or :class:`FileNotFoundError` when
+    the lookup cannot be made.
     """
     result = subprocess.run(
         [
@@ -354,14 +371,19 @@ def gh_pr_closing_issues(pr_number: int) -> set[str]:
             "view",
             str(pr_number),
             "--json",
-            "closingIssuesReferences",
+            "closingIssuesReferences,url",
         ],
         capture_output=True,
         text=True,
         check=True,
     )
-    refs = json.loads(result.stdout)["closingIssuesReferences"]
-    return {f"#{ref['number']}" for ref in refs}
+    payload = json.loads(result.stdout)
+    repo_prefix = payload["url"].split("/pull/")[0] + "/issues/"
+    return {
+        f"#{ref['number']}"
+        for ref in payload["closingIssuesReferences"]
+        if ref["url"].startswith(repo_prefix)
+    }
 
 
 def closing_pr_problems(
@@ -422,7 +444,8 @@ def check_closing_pr(
         ValueError,
     ) as exc:
         return [
-            f"could not read the issues PR #{pr_number} closes ({exc}); the "
-            f"closing-PR check needs gh and a token"
+            f"could not read the issues PR #{pr_number} closes "
+            f"({_lookup_failure(exc)}); the closing-PR check needs gh and a "
+            f"token"
         ]
     return closing_pr_problems(registry, owners, closing)
