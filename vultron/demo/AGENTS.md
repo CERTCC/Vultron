@@ -36,8 +36,9 @@ proves nothing end-to-end. Poll the effect instead
 `wait_for_object_stored`). A reliably-timing-out poll is a delivery bug to
 investigate, not a workaround to write. Scope: `vultron/demo/scenario/` — exchange
 demos under `vultron/demo/exchange/` drive one backend directly and use
-`post_to_inbox_and_wait` as their normal mechanism. The rule also binds `vultron/demo/helpers/`
-code a scenario calls: a helper that carries mail is the same violation (#3980).
+`post_to_inbox_and_wait` as their normal mechanism. The rule also binds
+`vultron/demo/helpers/` code a scenario calls: a helper that carries mail is the
+same violation (#3980).
 
 There is **no self-delivery exception**: an actor does not POST to its own inbox to
 update its own replica either. Activities route through the CaseActor, whose
