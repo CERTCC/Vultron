@@ -2041,6 +2041,77 @@ groups:
       spec_id: EMB-17-004
     adr:
     - ADR-0065
+  - id: EMB-17-009
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the CASE_MANAGER honours a late Accept (EMB-17-002), it MUST commit
+      a distinct ledger entry of event type
+      `honour_late_accept_invite_to_embargo_on_case` so that replicas can
+      replay the accepting participant's transition to SIGNATORY without
+      re-evaluating the deadline (RSH-08-004).
+    rationale: >-
+      Without a committed entry the replica has no signal to apply
+      `EXPIRED → SIGNATORY`; the replica's participant record would silently
+      stay EXPIRED while the CASE_MANAGER's record shows SIGNATORY, breaking
+      ledger-driven convergence (ADR-0108, ADR-0118).
+    verification: >-
+      `test_the_managers_honour_decision_is_committed_and_replayed_by_a_replica`
+      drives the full path across per-actor stores: the late Accept reaches the
+      CASE_MANAGER, the honour entry is committed and broadcast, and the replica
+      asserts the accepting participant reads SIGNATORY (EMB-17-001,
+      RSH-08-004).
+    testable: true
+    postconditions:
+    - description: >-
+        A ledger entry with event type
+        `honour_late_accept_invite_to_embargo_on_case` is committed in the
+        CASE_MANAGER's store and replayed in every replica's store
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-17-001
+    - rel_type: depends_on
+      spec_id: RSH-08-004
+    adr:
+    - ADR-0118
+    stories:
+    - story_2022_013
+    - story_2022_014
+  - id: EMB-17-010
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the CASE_MANAGER acknowledges a no-op late Accept (EMB-17-004), it
+      MUST commit a distinct ledger entry of event type
+      `invite_to_embargo_on_case_expired_noop` so that replicas can record the
+      acknowledgement without applying any PEC transition (RSH-08-004).
+    rationale: >-
+      Without a committed entry the replica has no record that the late Accept
+      was received and acknowledged; its chain position would be missing,
+      silently blocking replay of all subsequent entries (SYNC-12-001,
+      ADR-0118).
+    verification: >-
+      `test_the_managers_noop_decision_is_committed_and_replayed_by_a_replica`
+      drives the full path across per-actor stores: the late Accept reaches the
+      CASE_MANAGER with EM EXITED, the noop entry is committed and broadcast,
+      the replica's participant PEC is unchanged, and the replica's ledger
+      contains the noop entry (EMB-17-004, RSH-08-004).
+    testable: true
+    postconditions:
+    - description: >-
+        A ledger entry with event type `invite_to_embargo_on_case_expired_noop`
+        is committed in the CASE_MANAGER's store and replayed in every
+        replica's store; no PEC transition is applied on any store
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-17-004
+    - rel_type: depends_on
+      spec_id: RSH-08-004
+    adr:
+    - ADR-0118
+    stories:
+    - story_2022_013
+    - story_2022_088
 
 - id: EMB-18
   title: EM Write-Boundary Consolidation

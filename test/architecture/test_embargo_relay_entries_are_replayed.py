@@ -55,7 +55,14 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.base import MessageSemantics
-from vultron.core.models.rsvp_deadline import INVITE_EXPIRED_EVENT_TYPE
+from vultron.core.models.rsvp_deadline import (
+    HONOUR_LATE_ACCEPT_EVENT_TYPE,
+    HONOUR_LATE_ACCEPT_SNAPSHOT_TYPE,
+    INVITE_EXPIRED_EVENT_TYPE,
+    INVITE_EXPIRED_NOOP_EVENT_TYPE,
+    INVITE_EXPIRED_NOOP_SNAPSHOT_TYPE,
+    INVITE_EXPIRED_SNAPSHOT_TYPE,
+)
 from vultron.enums.roles import CVDRole
 
 MANAGER = "https://example.org/actors/case-manager"
@@ -121,7 +128,23 @@ REPLAYED: dict[str, tuple[str, dict[str, Any]]] = {
     "invite expiry": (
         INVITE_EXPIRED_EVENT_TYPE,
         {
-            "type": "Expire",
+            "type": INVITE_EXPIRED_SNAPSHOT_TYPE,
+            "actor": REPLICA,
+            "object": {"type": "Invite", "object": EMBARGO},
+        },
+    ),
+    "honour late accept": (
+        HONOUR_LATE_ACCEPT_EVENT_TYPE,
+        {
+            "type": HONOUR_LATE_ACCEPT_SNAPSHOT_TYPE,
+            "actor": REPLICA,
+            "object": {"type": "Invite", "object": EMBARGO},
+        },
+    ),
+    "noop late accept": (
+        INVITE_EXPIRED_NOOP_EVENT_TYPE,
+        {
+            "type": INVITE_EXPIRED_NOOP_SNAPSHOT_TYPE,
             "actor": REPLICA,
             "object": {"type": "Invite", "object": EMBARGO},
         },

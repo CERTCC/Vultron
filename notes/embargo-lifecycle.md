@@ -237,7 +237,7 @@ Each branch commits a synthesised entry so replicas learn the outcome
   `EmbargoLifecycle.record_embargo_invite()` records the fresh Invite on the
   manager; the relay path handles replica propagation.
 - **EMB-17-004** (EM `EXITED`/`NONE` — no-op): `create_noop_ledger_entry_tree`
-  commits an `invite_to_embargo_on_case_noop` entry; no PEC transition is
+  commits an `invite_to_embargo_on_case_expired_noop` entry; no PEC transition is
   applied (the terminal `UNBOUND_EXITED` stays as it is, or `EXPIRED` remains
   EXPIRED).
 

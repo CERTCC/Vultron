@@ -182,10 +182,7 @@ exposes `rsvp_deadline` with UTC normalisation; sub-floor values are clamped
 on receipt; `ActorConfig` carries `min_rsvp_window` (72h) and
 `default_rsvp_window` (7d). CaseActor lazy-evaluation enforcement (Part 3) and
 late-`Accept` compatibility (Part 4) landed in issues #2212/#2213:
-`EmbargoLifecycle.detect_and_apply_lapse()` applies `PEC_Trigger.DECLINE` on
-read when `invite_rsvp_deadline` is set and passed; the three EMB-17 branches
-(honor, re-invite, no-op) are implemented in
-`AcceptInviteToEmbargoOnCaseReceivedUseCase`.
+`EmbargoLifecycle.assess_invite_expiry()` and `record_invite_expiry()` apply `PEC_Trigger.EXPIRE` on read when `invite_rsvp_deadline` is set and passed (ADR-0118 renamed `detect_and_apply_lapse()` / `PEC_Trigger.DECLINE` to these names and the `EXPIRED` state); the three EMB-17 branches (honour, re-invite, no-op) are implemented in `AcceptInviteToEmbargoOnCaseReceivedUseCase`.
 
 [ADR-0113](0113-embargo-revision-negotiation-relays-through-the-case-manager.md) has since moved who computes and enforces the deadline, and issue #3961 implemented that.
 The CASE_MANAGER now stamps `Invite.end_time` on every Invite it relays, using the window, floor and ceiling defined here, and records it when it commits the Invite (CM-28-012, CM-28-013).
