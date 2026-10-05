@@ -40,8 +40,6 @@ groups:
       `test/adapters/driving/fastapi/test_inbox_redelivery.py` posts the same activity twice to a
       real `CoreActor` over the FastAPI route and asserts a single stored record
       under that id after the second post.
-    lint_suppress:
-    - phantom_path_ref
   - id: ID-02-002
     priority: SHOULD
     kind: architecture
@@ -60,8 +58,6 @@ groups:
       state-changing activity leaves the actor's store and outbox unchanged, and
       that a second pipeline run over every dispatchable example activity on a
       fresh store changes nothing.
-    lint_suppress:
-    - phantom_path_ref
 - id: ID-03
   title: Idempotent Response
   specs:
@@ -72,8 +68,6 @@ groups:
     verification: >-
       `test/adapters/driving/fastapi/test_inbox_redelivery.py` asserts that the second post of an
       already-delivered activity is answered with the same HTTP 202 as the first.
-    lint_suppress:
-    - phantom_path_ref
   - id: ID-03-002
     priority: MUST_NOT
     kind: architecture
