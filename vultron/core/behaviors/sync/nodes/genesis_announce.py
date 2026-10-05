@@ -28,10 +28,10 @@ from py_trees.common import Status
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
+    _EmitSingleActivityBase,
 )
 from vultron.core.behaviors.sync.nodes.embargo_pause import peer_is_withheld
 from vultron.core.behaviors.sync.nodes.replay import require_rejected_entry
-from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.errors import VultronError, VultronValidationError
@@ -39,7 +39,7 @@ from vultron.errors import VultronError, VultronValidationError
 logger = logging.getLogger(__name__)
 
 
-class AnnounceCaseOnGenesisRejectNode(DataLayerActionWithPorts):
+class AnnounceCaseOnGenesisRejectNode(_EmitSingleActivityBase):
     """Queue Announce(VulnerabilityCase) to a peer that rejected from genesis.
 
     When a peer sends ``Reject(last_accepted_hash="")`` it has no copy of
@@ -132,9 +132,10 @@ class AnnounceCaseOnGenesisRejectNode(DataLayerActionWithPorts):
                 context_id=entry.case_id,
                 to=[peer_id],
             )
-            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
-                activity_id
-            )
+            # Route through the shared emit seam (OX-14-001, ASK-04-008).
+            # factory.announce_vulnerability_case returns str only;
+            # pass an empty blob since no captured dict is present.
+            self._emit_through_seam(activity_id, "")
             self.logger.info(
                 "%s: queued AnnounceVulnerabilityCase '%s' to peer '%s'"
                 " before entry replay (SYNC-15-002)",

@@ -25,7 +25,6 @@ re-exported from here for backward-compatible import paths.
 """
 
 import logging
-from typing import cast
 
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable
@@ -33,6 +32,7 @@ from py_trees.ports import NoDataAvailable
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
+    _EmitSingleActivityBase,
 )
 from vultron.core.behaviors.status.nodes.threat_termination import (  # noqa: F401
     ThreatTerminationBranchNode,
@@ -40,12 +40,11 @@ from vultron.core.behaviors.status.nodes.threat_termination import (  # noqa: F4
     pxa_embargo_teardown_bt,
     read_pxa_state,
 )
-from vultron.core.ports.case_outbox import CaseOutboxPersistence
 
 logger = logging.getLogger(__name__)
 
 
-class EmitCloseCaseNode(DataLayerActionWithPorts):
+class EmitCloseCaseNode(_EmitSingleActivityBase):
     """Step 5 emit: Queue a ``Leave(VulnerabilityCase)`` to the Case Manager.
 
     Reads ``case_manager_id`` from the blackboard (written by the preceding
@@ -114,9 +113,8 @@ class EmitCloseCaseNode(DataLayerActionWithPorts):
                 actor=self.actor_id or "",
                 to=[case_manager_id],
             )
-            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
-                activity_id
-            )
+            # Route through the shared emit seam (OX-14-001, ASK-04-008).
+            self._emit_through_seam(activity_id, "")
             self.logger.info(
                 "EmitCloseCase: queued Leave(VulnerabilityCase) '%s'"
                 " to CaseActor '%s' (DEMOMA-07-003 step 5)",

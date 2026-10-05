@@ -35,7 +35,6 @@ References
 """
 
 import logging
-from typing import cast
 
 from py_trees.common import Status
 
@@ -46,13 +45,15 @@ from vultron.core.behaviors.case.nodes.participant.common import (
 from vultron.core.behaviors.case.nodes.participant.status import (
     CreateParticipantStatusNode,
 )
-from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    _EmitSingleActivityBase,
+)
 from vultron.core.behaviors.report.nodes.develop_fix_conditions import (
     CheckCSFixNotYetReady,
     CheckIsVendorRoleNode,
 )
 from vultron.core.participants.authority import resolve_case_manager_id
-from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.states.cs import CS_vf
 
 logger = logging.getLogger(__name__)
@@ -160,7 +161,7 @@ class TransitionCStoFixReady(DataLayerActionWithPorts):
             return Status.FAILURE
 
 
-class _EmitParticipantStatusActivityBase(DataLayerActionWithPorts):
+class _EmitParticipantStatusActivityBase(_EmitSingleActivityBase):
     """Shared guard+factory-dispatch+outbox-write skeleton for
     ``Add(ParticipantStatus)`` trigger activities (BTND-07-005).
 
@@ -238,9 +239,10 @@ class _EmitParticipantStatusActivityBase(DataLayerActionWithPorts):
                 actor=self._actor_id,
                 to=to,
             )
-            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
-                activity_id
-            )
+            # Route through the shared emit seam (OX-14-001, ASK-04-008).
+            # factory.add_participant_status_to_participant returns str only;
+            # pass an empty blob since no captured dict is present.
+            self._emit_through_seam(activity_id, "")
             self.logger.info(
                 "Actor '%s' emitted %s for case '%s'",
                 self._actor_id,
