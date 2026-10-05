@@ -19,8 +19,8 @@ The project has no backwards-compatibility requirement for stored data, so a
 renamed persisted field gets no read alias and no conversion.  Left alone, a
 row written before the rename would not say what happened: ``CoreRecord``
 refuses unknown keys, but only as a bare "extra inputs are not permitted" (and
-a "field required" for the new name) that never says a rename happened.  A model that renames a stored field derives from
-:class:`RetiredFieldsRecord` and declares the old key in
+a "field required" for the new name) that never says a rename happened.  A
+model that renames a stored field derives from :class:`RetiredFieldsRecord` and declares the old key in
 ``retired_stored_fields``; loading a row that still holds it fails with a
 message naming the old shape and saying the store must be reset.  The
 datalayer logs that reason when it reads the row back as absent.

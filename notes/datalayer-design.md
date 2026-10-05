@@ -9,7 +9,7 @@ description: >
   vultron/core/ports/AGENTS.md.
 related_specs:
   - specs/datalayer.yaml
-  - specs/architecture.yaml (ARCH-12-006, ARCH-23-003, ARCH-23-005)
+  - specs/architecture.yaml (ARCH-12-003, ARCH-12-006, ARCH-23-003, ARCH-23-005)
   - specs/embargo-policy.yaml (EP-02-004)
   - specs/case-proposal.yaml (CP-05-005)
 related_notes:

@@ -29,9 +29,8 @@ import vultron.adapters.outbox_dead_letter
 import vultron.adapters.outbox_sealed_body  # noqa: F401
 from test.support.core_vocab import import_all_core_models
 from vultron.core.models.activity import VultronActivity
-from vultron.core.models.base import CoreObject, CoreRecord
+from vultron.core.models.base import CoreObject, CoreRecord, with_record_id
 from vultron.core.models.retired_stored_fields import RetiredFieldsRecord
-from vultron.errors import VultronValidationError
 
 import_all_core_models()
 
@@ -120,13 +119,12 @@ def test_every_record_has_a_sample() -> None:
 @pytest.mark.parametrize("cls", _RECORDS, ids=_IDS)
 def test_record_refuses_an_unknown_key(cls: type[CoreRecord]) -> None:
     assert cls.model_config.get("extra") == "forbid"
-    with pytest.raises((ValidationError, VultronValidationError)) as exc:
+    with pytest.raises(ValidationError) as exc:
         cls.model_validate({**_SAMPLES[cls.__name__], "retiredKey": "x"})
-    if isinstance(exc.value, ValidationError):
-        assert any(
-            e["type"] == "extra_forbidden" and e["loc"] == ("retiredKey",)
-            for e in exc.value.errors()
-        )
+    assert any(
+        e["type"] == "extra_forbidden" and e["loc"] == ("retiredKey",)
+        for e in exc.value.errors()
+    )
 
 
 @pytest.mark.spec("ARCH-12-003")
@@ -135,3 +133,20 @@ def test_record_dump_round_trips(cls: type[CoreRecord]) -> None:
     """One spelling of ``id_``: a dump validates back to an equal record."""
     record = cls.model_validate(_SAMPLES[cls.__name__])
     assert cls.model_validate(record.model_dump()) == record
+
+
+@pytest.mark.spec("ARCH-12-003")
+@pytest.mark.parametrize("cls", _RECORDS, ids=_IDS)
+def test_record_assignment_revalidates_without_an_unknown_key(
+    cls: type[CoreRecord],
+) -> None:
+    """Assignment validates by field name: ``id_`` must not read as extra."""
+    record = cls.model_validate(_SAMPLES[cls.__name__])
+    record.id_ = record.id_
+    assert cls.model_validate(record.model_dump()) == record
+
+
+def test_with_record_id_states_one_spelling() -> None:
+    assert with_record_id({"id_": "a", "x": 1}, "b") == {"id_": "b", "x": 1}
+    assert with_record_id({"id_": "a", "id": "c"}, "b") == {"id": "b"}
+    assert with_record_id({"x": 1}, "b") == {"x": 1, "id": "b"}

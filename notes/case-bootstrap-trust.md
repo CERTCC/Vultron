@@ -7,6 +7,7 @@ description: >
   late joiners, and CASE_MANAGER authority after trust establishment.
 related_specs:
   - specs/case-bootstrap-trust.yaml
+  - specs/architecture.yaml (ARCH-12-003)
   - specs/participant-case-replica.yaml
   - specs/actor-knowledge-model.yaml
   - specs/case-management.yaml

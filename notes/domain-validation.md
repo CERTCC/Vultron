@@ -6,7 +6,7 @@ description: >
   None/unresolved fields) to "strict" (all required fields guaranteed),
   and how helpers must fail fast when strict guarantees are violated.
 related_specs:
-  - specs/architecture.yaml (ARCH-10-001, ARCH-12-001, ARCH-12-002,
+  - specs/architecture.yaml (ARCH-10-001, ARCH-12-001, ARCH-12-002, ARCH-12-003,
     ARCH-15-001 through ARCH-15-004, ARCH-21-001 through ARCH-21-005)
   - specs/case-management.yaml (CM-18-005, CM-23-012, CM-27-001 through
     CM-27-003)
@@ -227,8 +227,9 @@ regressed.
 The mirror-image concern is a core type validated against a wire-spelled
 payload. Pydantic v2 ignores unknown keys by default, so every snake-only key
 was dropped in silence. Since #2940 that is handled by `extra="forbid"` on
-`CoreRecord`, so `CoreObject` and every stored record (ARCH-12-003, #4186) rather than by the per-class
-`reject_wire_spelled_keys()` guard, which is deleted. Note the narrower scope of
+`CoreRecord`, so `CoreObject` and every stored record alike (ARCH-12-003, #4186),
+rather than by the per-class `reject_wire_spelled_keys()` guard, which is
+deleted. Note the narrower scope of
 what `forbid` actually rejects: *unknown* keys. A flat `rm_state`/`rmState` on
 `ParticipantStatus` or `CaseStatus` is still accepted, because those spellings
 are declared `AliasChoices` and are interpreted rather than dropped — removing
