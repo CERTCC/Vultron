@@ -13,9 +13,11 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Invite-expiry replica replay leaf (``nodes/expiry.py``, CM-28-014, ADR-0118).
+"""Invite-expiry BT nodes (``nodes/expiry.py``, CM-28-014, ADR-0118).
 
-The replay leaf is exercised as a replica applying a committed expiry entry.
+Covers the evaluation nodes (EvaluateInviteExpiryNode,
+InviteExpiryChangedConsentNode) and both replay nodes
+(ApplyInviteExpiryFromLedgerNode, ApplyInviteExpiryNoopFromLedgerNode).
 """
 
 from typing import Any
@@ -34,7 +36,9 @@ from vultron.core.behaviors.embargo.nodes.expiry import (
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.rsvp_deadline import INVITE_EXPIRED_EVENT_TYPE
+from vultron.core.models.rsvp_deadline import (
+    INVITE_EXPIRED_EVENT_TYPE,
+)
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.enums.roles import CVDRole
