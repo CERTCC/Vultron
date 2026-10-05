@@ -741,6 +741,49 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: ARCH-18-001
+  - id: ARCH-18-003
+    priority: MUST
+    kind: process
+    statement: >-
+      Every non-empty ratchet baseline under `test/` (an allowlist, exclusion set, or numeric ceiling that is not
+      at its terminal value) MUST carry an `# owner: #N` comment naming the GitHub issue that owns driving it to its terminal
+      value. A baseline that is permanent by design MUST instead carry a `# permanent: <reference>` comment citing the issue,
+      ADR, or spec requirement that made it permanent.
+    rationale: >-
+      A ratchet records what is exempt but not who retires it. When the issue that created a baseline closes with
+      entries left, the debt becomes invisible and the test stays green. MS-10-006 already imposes this rule on the spec-corpus
+      ceilings; this extends it to every baseline. The permanent marker keeps a pinned exemption set from needing an invented
+      owner, while requiring the decision behind it to be citable.
+    verification: >-
+      An offline test in `test/architecture/` scans `test/` for ratchet-named constants (`KNOWN_*`, `*_BASELINE`,
+      `MAX_*`, `*_EXEMPTIONS`) and fails when one is non-empty and carries neither marker, or carries a `# permanent:` marker
+      that cites nothing. It makes no network call.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-18-002
+    lint_suppress:
+    - phantom_path_ref
+  - id: ARCH-18-004
+    priority: SHOULD
+    kind: process
+    statement: >-
+      A CI job outside the merge path SHOULD query GitHub for the state of every issue cited by an `# owner: #N`
+      comment, and when a cited issue is closed it SHOULD file or update a single tracking issue listing the affected baselines.
+      The job MUST NOT fail the build on a closed owner.
+    rationale: >-
+      Only GitHub knows whether an owner is still open, so this check cannot
+      run in the unit suite. Failing the build on it would turn `main` red when
+      an unrelated issue closes, which no pull request caused. This is the same
+      race a two-directional count pin produces when two pull requests land
+      together.
+    verification: >-
+      Inspection of the scheduled workflow confirms it reads issue state through the GitHub API, files or updates
+      one tracking issue per run, and exits zero when owners are closed.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-18-003
+    lint_suppress:
+    - phantom_path_ref
 - id: ARCH-19
   title: Outbound Delivery Pipeline
   specs:
