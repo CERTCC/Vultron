@@ -172,8 +172,9 @@ class InitializeCreationEmbargoNode(DataLayerActionWithPorts):
     PROPOSE and ACCEPT triggers together, attaches the embargo as
     ``active_embargo``, records consent, seeds the case owner ``SIGNATORY``
     (CM-14-003), stores the ``EmbargoEvent`` ``CreateEmbargoEventNode`` built
-    (no earlier node writes it, #4182) and registers the revision ``ResolveCreationTimeRevisionNode``
-    selected (``ACTIVE → REVISE``, EP-04-003), all in one ``save_many``, so
+    (no earlier node writes it, #4182) and registers the revision
+    ``ResolveCreationTimeRevisionNode`` selected (``ACTIVE → REVISE``,
+    EP-04-003), all in one ``save_many``, so
     ``EM.PROPOSED`` is never persisted (EP-04-002).  Any failure leaves the
     case at ``EM.NONE`` with nothing written, which the once-per-case guard
     lets a redelivered proposal finish (EP-04-012).  Proposing and then
