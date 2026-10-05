@@ -35,6 +35,7 @@ from vultron.core.models.case_participant import (
     FinderParticipant,
     VendorParticipant,
 )
+from vultron.core.models.protocols import PersistableModel
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
@@ -121,6 +122,21 @@ def _make_embargo(
     )
     dl.create(embargo)
     return embargo
+
+
+def _record_save_many(
+    dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch
+) -> list[list[PersistableModel]]:
+    """Record every ``save_many`` batch *dl* is handed, then pass it on."""
+    calls: list[list[PersistableModel]] = []
+    save_many = dl.save_many
+
+    def recording_save_many(objs: list[PersistableModel]) -> None:
+        calls.append(list(objs))
+        save_many(objs)
+
+    monkeypatch.setattr(dl, "save_many", recording_save_many)
+    return calls
 
 
 def _force_pec(dl: SqliteDataLayer, participant_id: str, state: PEC) -> None:

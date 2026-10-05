@@ -35,18 +35,15 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.fixture(autouse=True)
-def clear_blackboard():
-    """Reset the process-global blackboard before every test.
+def enable_blackboard_activity_stream():
+    """Enable the blackboard activity stream before every test.
 
     setup_tree() writes /is_leader (and other keys) to Blackboard.storage.
-    Tests that call setup_tree() directly — without going through
-    execute_with_setup()'s managed_keys cleanup — would otherwise leave
-    /is_leader permanently on the blackboard, contaminating later tests.
+    Tests that call setup_tree() directly bypass execute_with_setup()'s
+    managed_keys cleanup; the root ``clear_py_trees_blackboard`` fixture
+    clears that storage around every test (TB-06-005).
     """
     py_trees.blackboard.Blackboard.enable_activity_stream()
-    py_trees.blackboard.Blackboard.storage.clear()
-    yield
-    py_trees.blackboard.Blackboard.storage.clear()
 
 
 # Test behavior nodes for verifying bridge functionality

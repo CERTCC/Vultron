@@ -392,6 +392,7 @@ class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
         )
         self._commit_emission(activity_id, blob)
         dl.outbox_append(activity_id)
+        self._record_queued(activity_id)
         self._invite_where_legal(
             dl, recipient_id, invite_rsvp_deadline(json.loads(blob))
         )
@@ -402,6 +403,14 @@ class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
             recipient_id,
             self._proposer_id,
         )
+
+    def _record_queued(self, activity_id: str) -> None:
+        """Note that *activity_id* reached the outbox; the base records nothing.
+
+        A subclass whose retry must tell a queued Invite from a lost one
+        overrides this to write a durable receipt (EP-04-011), since delivery
+        empties the outbox and leaves nothing there to read.
+        """
 
     def _commit_emission(self, activity_id: str, blob: str) -> None:
         """Commit the emitted Invite as a canonical entry (ADR-0109, VM-08-003)."""

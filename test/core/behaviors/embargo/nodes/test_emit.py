@@ -18,7 +18,6 @@
 from unittest.mock import MagicMock, patch
 
 import py_trees
-import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.embargo.nodes.conftest import (
@@ -34,11 +33,6 @@ ACTOR_ID = "https://example.org/actors/vendor"
 CASE_ID = "https://example.org/cases/case_emit1"
 EMBARGO_ID = "https://example.org/cases/case_emit1/embargo_events/e1"
 ACTIVITY_ID = "https://example.org/activities/act1"
-
-
-@pytest.fixture(autouse=True)
-def clear_blackboard():
-    py_trees.blackboard.Blackboard.storage.clear()
 
 
 def _make_concrete(

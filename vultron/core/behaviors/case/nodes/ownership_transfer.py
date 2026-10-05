@@ -245,7 +245,7 @@ class AcceptCaseOwnershipTransferNode(DataLayerActionWithPorts):
       (CM-21-002).
 
     The previous owner retains all other roles and remains a case participant.
-    Role-gated nodes (e.g. :class:`PublicDisclosureBranchNode`) read
+    Role-gated nodes (e.g. ``create_case_manager_gated_tree``) read
     ``CaseParticipant.case_roles`` — not ``attributed_to`` — so both fields
     must be kept in sync (CM-21-002).
 

@@ -38,6 +38,7 @@ from vultron.adapters.driving.fastapi.outbox_monitor import (
 )
 from vultron.adapters.driving.fastapi.pending_retry import (
     retry_pending_create_case_activities,
+    retry_pending_creation_time_revision_relays,
 )
 from vultron.adapters.driving.fastapi.routers import demo_triggers, router
 from vultron.config import RunMode, get_config
@@ -206,6 +207,10 @@ def _make_lifespan(*, configure_globals: bool = True):
             # The OutboxMonitor is started first so it can drain the
             # re-queued activities immediately after startup.
             retry_pending_create_case_activities()
+            # Complete any creation-time embargo revision relay a previous
+            # run left owed (EP-04-011, #4121): creation-time initialization
+            # runs once per case, so nothing else would re-send it.
+            retry_pending_creation_time_revision_relays()
 
         yield
 

@@ -305,6 +305,19 @@ groups:
       The implementation MUST apply both the PROPOSE and ACCEPT state machine triggers atomically
       within `InitializeDefaultEmbargoNode`. The intermediate `EM.PROPOSED` state MUST NOT
       be persisted or observable externally.
+    verification: >-
+      The `initialize_creation_embargo` service tests confirm that the creation-time operation
+      hands the store one commit (`save_many`) holding the case at `EM.ACTIVE` with the embargo
+      attached, the participant consent records, the case owner's SIGNATORY seed and, for a
+      contested creation, the revision's `EmbargoEvent` with the case at `EM.REVISE`; that a
+      refused P/X/A check, an unheld embargo, a missing owner record or a case that has left
+      `EM.NONE` writes nothing; and that a failed commit writes nothing and a rerun completes.
+      `TestCreationTimeEmbargoIsOneWrite` refuses the ACCEPT step after PROPOSE has been applied
+      and asserts the stored case stays at `EM.NONE`, and that a rerun then reaches `EM.ACTIVE`
+      with an attached embargo (EP-04-012, #4123).
+      `TestCreationTimeEmbargoCommitsItsEffectsWithIt` faults the owner-seed write and the
+      revision write in turn and asserts the case stays at `EM.NONE` and that a rerun seeds
+      the owner and registers the revision (#4142).
   - id: EP-04-003
     priority: MUST
     kind: protocol
@@ -587,17 +600,32 @@ groups:
       proposal entry; no second entry is committed. The open-proposal record is written once
       the Invite is sent, not at registration: the case reaches every participant whole in
       the bootstrap `Create`, and a record already naming the Invite would read to the winner
-      as an Invite it had already answered.
+      as an Invite it had already answered. The relay is owed durably: a
+      `PendingCreationTimeRevisionRelay` record, committed together with the revision
+      and deleted once the relay is discharged, survives a failed relay — including one
+      whose committed Invite never reached the outbox — so a redelivered
+      proposal or the startup retry runner completes it (the CP-05-005 retry-marker
+      pattern). A retry outside the case tree sends nothing until the case's genesis
+      ledger entry is committed (CM-14-007, CM-14-011).
     verification: >-
-      A marker test of `RegisterLongerProposalAsRevisionNode` asserts that a contested
+      A marker test of `InitializeDefaultEmbargoNode` asserts that a contested
       creation registers the loser as an open proposal without indexing it. Tree tests of
       the case-proposal received tree assert the relayed `Invite(EmbargoEvent)` for both
       directions — `actor` the CASE_MANAGER, `attributedTo` the losing party, queued to the
       winning party, committed, then indexed in `pending_embargo_proposal_index` for the
       owner's default selection, with the bootstrap `Create` carrying no index entry — and
-      that a tie or a redelivered proposal relays nothing. Node tests assert that an owner
-      who reported to itself has nothing relayed or indexed, and that the proposer's replica
-      indexes the replayed Invite while the invitee's does not.
+      that a tie or a redelivered proposal relays no second Invite, while a redelivery after
+      a failed relay sends the owed one. Node tests assert that an owner who reported to
+      itself has nothing relayed or indexed, that a failed relay keeps its obligation and a
+      retry completes it once, that an Invite already committed is not sent again, that no
+      relay precedes the case's genesis entry, and that the proposer's replica indexes the
+      replayed Invite while the invitee's does not. Startup-runner tests assert the retry,
+      its CASE_MANAGER gate, and that a failure never stops the server starting. Node and
+      service tests (`TestTheRevisionIsConsentedToByItsProposer`) assert that the losing
+      party's record, not the executing actor's, gains the revision id, that a failed
+      registration leaves neither the revision nor its relay record, and that a contest with
+      no report to name the reporter fails before the initialization commit, leaving the
+      case at `EM.NONE` (MSM-07-005, #4152, #4156).
     relationships:
     - rel_type: refines
       spec_id: EP-04-003
@@ -687,7 +715,7 @@ groups:
       leaving them `SIGNATORY` once `T2` is in force would imply consent they never gave.
       Shorter terms ask nothing new: agreeing to N days is agreeing to every shorter
       period, the same containment that makes shortest-wins (EP-04-003) and the
-      termination reset (MSM-07-006) safe without asking anyone. The cascade fires at
+      termination exit cascade (MSM-07-006) safe without asking anyone. The cascade fires at
       activation rather than at proposal because the participant remains bound by `T1`
       for as long as `T1` is the active embargo (ADR-0093).
     verification: >-
@@ -882,7 +910,7 @@ groups:
       The failure is concrete. Invite a participant to a 24-hour embargo with no explicit
       `Invite.end_time` and the CM-18-002 policy window applies: 7 days. The pocket veto
       fires on day 7; the embargo ended at hour 24. The participant is asked to consent to
-      an embargo that is already over, and their inaction is recorded as a decline six days
+      an embargo that is already over, and their inaction is recorded as an expiry six days
       after it stopped mattering.
 
       This is independent of the protocol default of EP-04-005 — the same thing happens on
@@ -1263,11 +1291,11 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      A revision `Invite(EmbargoEvent)` MUST NOT change the consent state of a participant
-      that is already `SIGNATORY` to the active embargo. The PEC `INVITE` trigger applies only
-      to a participant in `UNBOUND`, `LAPSED` or `DECLINED` (CM-18-003); a signatory's answer
-      to a revision is recorded in `accepted_embargo_ids` and leaves its state unchanged until
-      the owner activates the revision (EP-05-001, EP-05-002).
+      A revision `Invite(EmbargoEvent)` MUST NOT change the consent state of a participant that is
+      already `SIGNATORY` to the active embargo. The PEC `INVITE` trigger applies only to a
+      participant in `UNBOUND`, `LAPSED`, `DECLINED` or `EXPIRED` (CM-18-003); a signatory's answer
+      to a revision is recorded in `accepted_embargo_ids` and leaves its state unchanged until the
+      owner activates the revision (EP-05-001, EP-05-002).
     rationale: >-
       A signatory is bound by the active embargo for as long as it is active; a proposal to
       revise it asks nothing of them yet (ADR-0093). Applying `INVITE` to a `SIGNATORY` is an

@@ -53,13 +53,6 @@ EMBARGO_ID = f"{CASE_ID}/embargo_events/e1"
 INVITE_ID = f"{CASE_ID}/invites/i1"
 
 
-@pytest.fixture(autouse=True)
-def clear_blackboard():
-    py_trees.blackboard.Blackboard.storage.clear()
-    yield
-    py_trees.blackboard.Blackboard.storage.clear()
-
-
 def _store(
     *,
     with_case: bool = True,

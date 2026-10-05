@@ -39,8 +39,8 @@ A participant can therefore be a signatory to the active embargo and have alread
 
 ### 9.2 Transitions and Guards
 
-Five triggers drive the machine.
-**Invite** extends an invitation, **accept** and **decline** record the participant's answer, **revise** fires when the case owner activates revised terms that end later than the terms a signatory accepted, and **reset** fires when the embargo enters Exited.
+Six triggers drive the machine.
+**Invite** extends an invitation, **accept** and **decline** record the participant's answer, **revise** fires when the case owner activates revised terms that end later than the terms a signatory accepted, **expire** fires when an invitation's deadline passes unanswered, and **exit** fires when the embargo enters Exited.
 
 | From | Trigger | To |
 |---|---|---|
@@ -49,22 +49,23 @@ Five triggers drive the machine.
 | Unbound | decline | Declined |
 | Invited | accept | Signatory |
 | Invited | decline | Declined |
-| Invited | deadline passes | Declined |
+| Invited | expire (deadline passes) | Expired |
 | Signatory | revise | Lapsed |
 | Signatory | decline | Declined |
 | Lapsed | invite | Invited |
 | Lapsed | accept | Signatory |
 | Lapsed | decline | Declined |
 | Declined | invite | Invited |
-| any state | reset | Unbound |
+| Expired | invite | Invited |
+| Expired | accept | Signatory |
+| Expired | decline | Declined |
+| any state but Unbound (exited) | exit | Unbound (exited) |
 
-Equivalently, by trigger: invite is valid from Unbound, Lapsed and Declined;
-accept is valid from Unbound, Invited and Lapsed; decline is valid from
-Unbound, Invited, Lapsed and Signatory; revise is valid only from Signatory;
-reset is valid from any state.
+Equivalently, by trigger: invite is valid from Unbound, Lapsed, Declined and Expired; accept is valid from Unbound, Invited, Lapsed and Expired; decline is valid from Unbound, Invited, Lapsed, Signatory and Expired; revise is valid only from Signatory; expire is valid only from Invited; exit is valid from every state except Unbound (exited).
 
-Neither Lapsed nor Declined is terminal. A participant in either can be invited
-again, which is what makes renegotiation possible.
+None of Lapsed, Declined and Expired is terminal.
+A participant in any of them can be invited again, which is what makes renegotiation possible.
+Unbound (exited) is terminal and accepts no trigger: an embargo that has entered Exited has no outgoing transition, so a participant whose embargo was terminated cannot be invited back into it.
 
 A revision does not move a signatory until it takes effect.
 While a revision is only proposed, the prior embargo is still in force and every signatory to it remains Signatory; the proposer is recorded as having accepted the terms it proposed.
@@ -84,7 +85,7 @@ If the owner rejects the revision instead, the old terms stand and nobody's cons
     That trigger fires when the case owner *activates* longer terms the participant has not accepted, never when a revision is merely proposed and never when the revision ends no later than the accepted terms.
     It means the participant did agree, and the embargo in force has since become something it did not agree to.
 
-    A participant that lets an invitation deadline pass reaches **Declined**, not Lapsed.
+    A participant that lets an invitation deadline pass reaches **Expired**, not Lapsed.
     A Lapsed participant has no deadline until it is invited again.
 
 ### 9.3 What Unbound Means
@@ -105,17 +106,15 @@ Two consequences follow:
 - The transition from Signatory to Invited MUST be rejected.
   Consent already given cannot be withdrawn by re-inviting the participant; if longer terms the participant has not accepted take effect, the revise trigger lapses the consent instead.
 
-Unbound is also the state every participant returns to when an embargo ends,
-which is independent evidence for the absence reading: reset fires when the
-embargo goes away, not when an answer is pending.
+Unbound is the initial state only.
+When an embargo ends, every participant moves to the terminal Unbound (exited) instead: Unbound can be invited and a terminated embargo cannot be renegotiated, so the two must be different states.
 
 ### 9.4 Deadlines and the Pocket Veto
 
-An embargo invitation does not stay open indefinitely. A participant that neither
-accepts nor declines before the deadline is recorded as having declined — the
-**pocket veto**. Silence is treated as refusal rather than assent, because
-proceeding on an unanswered invitation would mean asserting agreement the
-participant never gave.
+An embargo invitation does not stay open indefinitely.
+A participant that neither accepts nor declines before the deadline is recorded as Expired — the **pocket veto**.
+Silence is not treated as assent, because proceeding on an unanswered invitation would mean asserting agreement the participant never gave.
+Nor is it recorded as a refusal: Declined is reached only by an explicit decline.
 
 The deadline may be explicit or defaulted:
 
@@ -159,34 +158,26 @@ deadline would — whether it came from the invitation's explicit `endTime` or f
 the policy window — the CASE_MANAGER MUST clamp it down to the embargo's end.
 
 An invitee must be able to answer while there is still something to answer about.
-Invite a participant to a 24-hour embargo with no explicit `endTime` and a 7-day
-policy window records their inaction as a refusal on day 7 — six days after the
-embargo ended. This is why the minimum window above is relative rather than
-absolute: a 12-hour embargo grants a 12-hour answer window, and that is not an
-unreasonably short deadline when 12 hours is the whole embargo.
+Invite a participant to a 24-hour embargo with no explicit `endTime` and a 7-day policy window records their inaction as an expiry on day 7 — six days after the embargo ended.
+This is why the minimum window above is relative rather than absolute: a 12-hour embargo grants a 12-hour answer window, and that is not an unreasonably short deadline when 12 hours is the whole embargo.
 
-**A late acceptance is not refused.** The CASE_MANAGER MUST NOT refuse a late
-accept on deadline grounds. Three cases apply. If the terms it accepts are still
-current, the CASE_MANAGER records the consent. If the terms are stale, the
-CASE_MANAGER sends a fresh invitation carrying the current terms. If no embargo
-remains, the CASE_MANAGER records the accept as a no-op; the participant keeps its
-place in the case either way.
+**A late acceptance is not refused.** The CASE_MANAGER MUST NOT refuse a late accept on deadline grounds.
+Three cases apply.
+If the terms it accepts are still current, the CASE_MANAGER records the consent: an Expired participant becomes Signatory directly, and a Declined one is invited again first, because accept is not valid from Declined.
+If the terms are stale, the CASE_MANAGER sends a fresh invitation carrying the current terms.
+If no embargo remains, the CASE_MANAGER records the accept as a no-op; the participant keeps its place in the case either way.
 
-**A lapse and a refusal reach the same state.** Both record Declined. The case
-history distinguishes them — it holds the decline that was sent, or the absence of
-any answer — but the consent machine does not, because nothing in the protocol
-treats the two differently. Both can be invited again.
+**An expiry and a refusal reach different states.** Silence records Expired; an explicit decline records Declined.
+The case history distinguishes them too — it holds the decline that was sent, or the CASE_MANAGER's record of the expiry — but every reader of the consent state can tell them apart without consulting it.
+Both can be invited again; only Expired accepts a late accept directly.
 
 ### 9.5 Embargo Traffic Reaches Non-Signatories
 
 Embargo consent gates case **content**. It does not gate the negotiation about the
 embargo itself.
 
-The CASE_MANAGER MUST deliver embargo meta-protocol messages — invitations, the
-accepts and rejects answering them, and terminations — to every participant,
-including those at Declined and Lapsed. A participant cannot agree to revised
-terms it was never told about, and one that declined the original terms may well
-accept the revision.
+The CASE_MANAGER MUST deliver embargo meta-protocol messages — invitations, the accepts and rejects answering them, and terminations — to every participant, including those at Declined, Expired and Lapsed.
+A participant cannot agree to revised terms it was never told about, and one that declined the original terms may well accept the revision.
 
 Only case content — report details, fix status, sensitive notes — is gated on
 Signatory status ([§9.7 Gating Full Case Delivery](tracking-models.md#97-gating-full-case-delivery)).

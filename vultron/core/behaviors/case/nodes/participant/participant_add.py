@@ -35,7 +35,6 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import (
     ParticipantStatus,
 )
-from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 from vultron.core.states.rm import RM as _RM
 from vultron.enums.roles import CVDRole
 
@@ -459,12 +458,9 @@ class SeedParticipantAsSignatoryNode(DataLayerActionWithPorts):
             )
             return Status.FAILURE
 
-        if participant.embargo_consent_state not in (
-            PEC.SIGNATORY,
-            PEC.DECLINED,
-        ):
-            participant.apply_pec_transition(PEC_Trigger.ACCEPT)
-        participant.add_accepted_embargo(active_embargo_id)
+        # A SIGNATORY stays; a DECLINED or terminal UNBOUND_EXITED
+        # participant is not signed and gains no id (ADR-0118).
+        participant.sign_embargo(active_embargo_id)
         self.datalayer.save(participant)
         self.logger.info(
             "Seeded participant '%s' (actor '%s') as SIGNATORY"

@@ -12,6 +12,7 @@ from vultron.core.models._helpers import _as_id
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.events.base import VultronEvent
 from vultron.core.models.participant_status import (
     participant_status_rm_state,
 )
@@ -24,11 +25,11 @@ from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.predicates.addressing import is_addressed_to
-from vultron.core.states.participant_embargo_consent import (
-    PEC,
-    PEC_Trigger,
+from vultron.core.predicates.addressing import (
+    is_addressed_to,
+    same_actor_id,
 )
+from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.states.rm import RM
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
@@ -169,6 +170,40 @@ def is_recipient(
         return False
     recipients = [*(activity.to or []), *(activity.cc or [])]
     return is_addressed_to(receiving_actor_id, recipients)
+
+
+def unaddressed_copy_refusal(
+    receiving_actor_id: str, request: VultronEvent, *, label: str
+) -> HandlerResult | None:
+    """REFUSED for a copy the receiver was never addressed; else ``None``.
+
+    The door check of every received embargo use case (HP-01-005, ADR-0118,
+    #4132): a receiver acts on an activity only when it sent it or is named
+    in its ``to`` or ``cc``.  Any other store holds a misaddressed copy — it
+    runs no tree, writes nothing and answers nothing (EMB-01-002's ER duty
+    binds only the addressee) — and its refusal names the receiver and the
+    recipients the sender actually chose, so the misrouting can be traced.
+    """
+    if same_actor_id(receiving_actor_id, request.actor_id) or is_recipient(
+        receiving_actor_id, request.activity
+    ):
+        return None
+    activity = request.activity
+    to = list(activity.to or []) if activity is not None else []
+    cc = list(activity.cc or []) if activity is not None else []
+    verdict = HandlerResult.refused(
+        f"'{receiving_actor_id}' is neither the sender nor a recipient of"
+        f" {label} '{request.activity_id}' (to={to}, cc={cc}); an"
+        " unaddressed copy is refused (HP-01-005)"
+    )
+    logger.warning(
+        "%s: refused '%s' (actor '%s'): %s",
+        label,
+        request.activity_id,
+        request.actor_id,
+        verdict.reason,
+    )
+    return verdict
 
 
 def _idempotent_create(
@@ -372,32 +407,23 @@ def resolve_case_participant_id_for_actor(
     return canonical_id
 
 
-def reset_case_participant_embargo_consent(
+def exit_case_participant_embargo_consent(
     dl: CasePersistence, case: VulnerabilityCase
 ) -> None:
-    """Reset all participants' embargo consent state to UNBOUND.
+    """Move every participant's embargo consent to the terminal UNBOUND_EXITED.
 
-    Called when an embargo is terminated or removed.  Iterates over all
-    participants in *case* and applies ``PEC_Trigger.RESET`` to any
-    participant whose embargo_consent_state is not already ``UNBOUND``.
-    Tolerates both string IDs and inline ``CaseParticipant`` objects in
-    ``case.case_participants`` (regression #609).
+    Called when an embargo is terminated (EM ``EXITED``, MSM-07-006).  Applies
+    ``PEC_Trigger.EXIT`` to every participant of *case* not already
+    ``UNBOUND_EXITED`` (ADR-0118).  Tolerates both string IDs and inline
+    ``CaseParticipant`` objects in ``case.case_participants`` (regression
+    #609).
 
-    This is the single authoritative implementation; the former duplicates
-    ``_reset_case_participant_embargo_consent`` (received layer) and
-    ``_cascade_pec_reset`` (triggers layer) have been removed in favour of
-    this shared helper.
+    The cascade itself is
+    :meth:`~vultron.core.services.embargo_lifecycle.EmbargoLifecycle.exit_participant_consent`,
+    the loop ``terminate_active_embargo`` also runs; this helper is its entry
+    point for the teardown nodes, so the two paths share one loop (CS-22-001).
     """
-    for entry in case.case_participants:
-        participant_id = _as_id(entry)
-        if participant_id is None:
-            continue
-        participant = dl.read(participant_id)
-        if not isinstance(participant, CaseParticipant):
-            continue
-        if participant.embargo_consent_state != PEC.UNBOUND.value:
-            participant.apply_pec_transition(PEC_Trigger.RESET)
-            dl.save(participant)
+    EmbargoLifecycle(persistence=dl).exit_participant_consent(case)
 
 
 def _log_label(uri: str) -> str:

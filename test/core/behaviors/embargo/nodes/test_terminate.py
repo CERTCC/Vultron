@@ -13,23 +13,134 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Typed-Ports isolation tests for SendTerminateEmbargoActivityNode (AC-4, #1885).
+"""Tests for the cascades' embargo teardown ask (``terminate.py``).
 
-Covers BTND-03-011: required port reads raise NoDataAvailable when the
-blackboard key is absent.
+Covers BTND-03-011 (required port reads raise NoDataAvailable when the
+blackboard key is absent, AC-4 #1885), the ask's addressing (PCR-08-001), and
+its pending assertion (EP-09-008, SYNC-11-002, SYNC-11-004; #4147).
 """
 
+from unittest.mock import MagicMock
+
+import py_trees
 import pytest
+from py_trees.common import Status
 from py_trees.ports import NoDataAvailable
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
+from vultron.core.behaviors.embargo.nodes.manager_commit import (
+    EMBARGO_TEARDOWN_EVENT_TYPE,
+)
 from vultron.core.behaviors.embargo.nodes.terminate import (
     SendTerminateEmbargoActivityNode,
+    TeardownAskPendingNode,
+    ask_case_manager_to_terminate_once,
 )
 from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models.pending_assertion import (
+    _STORES,
+    PendingAssertion,
+    PendingAssertionStore,
+    get_pending_assertion_store,
+    record_pending_assertion,
+)
+from vultron.errors import VultronWiringError
 
 ACTOR_ID = "https://example.org/actors/vendor"
 CASE_ID = "https://example.org/cases/case-001"
+
+_MANAGER_ID = "https://example.org/actors/case-actor-emb19"
+_VENDOR_ID = "https://example.org/actors/vendor-emb19"
+_FINDER_ID = "https://example.org/actors/finder-emb19"
+_EMBARGO_ID = "https://example.org/embargoes/emb-19-001"
+_ASK_ID = "https://example.org/activities/remove-emb-19"
+_EARLIER_ASK_ID = "https://example.org/activities/earlier-ask"
+
+
+def _seed_case_with_manager(dl: SqliteDataLayer) -> None:
+    """Seed a case whose CASE_MANAGER is *_MANAGER_ID*, plus two participants."""
+    from vultron.core.models.case import VulnerabilityCase
+    from vultron.core.models.case_participant import CaseParticipant
+    from vultron.core.models.embargo_event import EmbargoEvent
+    from vultron.core.states.participant_embargo_consent import PEC
+    from vultron.enums.roles import CVDRole
+
+    parts = []
+    for actor_id, roles in (
+        (_MANAGER_ID, [CVDRole.CASE_MANAGER]),
+        (_VENDOR_ID, [CVDRole.CASE_OWNER, CVDRole.VENDOR]),
+        (_FINDER_ID, [CVDRole.REPORTER]),
+    ):
+        p = CaseParticipant(
+            id_=f"{CASE_ID}/participants/{actor_id.rsplit('/', 1)[-1]}",
+            # `attributed_to` is what `add_participant` keys the
+            # actor→participant index on.
+            attributed_to=actor_id,
+            context=CASE_ID,
+            case_roles=roles,
+            embargo_consent_state=PEC.SIGNATORY,
+        )
+        dl.create(p)
+        parts.append(p)
+
+    dl.create(
+        EmbargoEvent(
+            id_=_EMBARGO_ID, context=CASE_ID, end_time=days_from_now_utc(45)
+        )
+    )
+    case = VulnerabilityCase(
+        id_=CASE_ID,
+        name="Teardown ask",
+        attributed_to=_VENDOR_ID,
+        active_embargo=_EMBARGO_ID,
+    )
+    for p in parts:
+        case.add_participant(p)
+    dl.create(case)
+
+
+def _seed_ask_blackboard() -> None:
+    py_trees.blackboard.Blackboard.storage.clear()
+    py_trees.blackboard.Blackboard.storage["/embargo_id"] = _EMBARGO_ID
+    py_trees.blackboard.Blackboard.storage["/case_manager_id"] = _MANAGER_ID
+
+
+def _factory() -> MagicMock:
+    factory = MagicMock()
+    factory.terminate_embargo.return_value = (_ASK_ID, {})
+    return factory
+
+
+def _pending_ask(actor_id: str) -> PendingAssertion | None:
+    return get_pending_assertion_store(actor_id).pending_for_subject(
+        CASE_ID, EMBARGO_TEARDOWN_EVENT_TYPE, _EMBARGO_ID
+    )
+
+
+def _record_earlier_ask(subject_id: str = _EMBARGO_ID) -> None:
+    record_pending_assertion(
+        _VENDOR_ID,
+        CASE_ID,
+        EMBARGO_TEARDOWN_EVENT_TYPE,
+        _EARLIER_ASK_ID,
+        subject_id=subject_id,
+    )
+
+
+def _run(
+    tree: py_trees.behaviour.Behaviour,
+    actor_id: str,
+    factory: MagicMock | None,
+) -> tuple[SqliteDataLayer, BTExecutionResult]:
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
+    _seed_case_with_manager(dl)
+    _seed_ask_blackboard()
+    result = BTBridge(
+        datalayer=dl, trigger_activity=factory
+    ).execute_with_setup(tree=tree, actor_id=actor_id)
+    return dl, result
 
 
 class TestSendTerminateEmbargoActivityNodePorts:
@@ -59,230 +170,208 @@ class TestSendTerminateEmbargoActivityNodePorts:
         Formerly named ``test_failure_when_factory_unavailable``, which it never
         tested: ``BTTestScenario`` always wires
         ``trigger_activity=TriggerActivityAdapter(dl)``, so
-        ``_on_factory_unavailable()`` is unreachable from this harness — the
-        same trap as the ``_require_datalayer()`` guards. Before the required
-        ports were supplied it did not even reach the factory, dying on a
-        missing ``embargo_id`` instead (CONCERN-3019).
-
-        The factory-unavailable branch of BT-14-001 therefore still has no
-        coverage; it needs a scenario built without a trigger-activity adapter.
+        ``_on_factory_unavailable()`` is unreachable from this harness; that
+        branch is covered by ``test_failure_when_factory_unavailable`` below,
+        which builds its own bridge (CONCERN-3019).
         """
         result = bt_scenario.run(
             SendTerminateEmbargoActivityNode(case_id=CASE_ID),
             actor_id=ACTOR_ID,
             embargo_id="https://example.org/embargoes/emb-001",
-            case_manager_id=ACTOR_ID,
+            case_manager_id=_MANAGER_ID,
         )
-        # Name the embargo lookup, not a bare "not found": the node already
-        # tolerates a missing *case* (terminate.py `_recipients`), so a loose
-        # substring would still match if case absence became fatal first and
-        # the embargo lookup were never reached (CONCERN-3019).
         bt_scenario.assert_failure(result, reason="EmbargoEvent")
 
-
-# ---------------------------------------------------------------------------
-# EMB-19-001: whom the teardown is addressed to
-# ---------------------------------------------------------------------------
-
-_MANAGER_ID = "https://example.org/actors/case-actor-emb19"
-_VENDOR_ID = "https://example.org/actors/vendor-emb19"
-_FINDER_ID = "https://example.org/actors/finder-emb19"
-_EMBARGO_ID = "https://example.org/embargoes/emb-19-001"
-
-
-def _seed_case_with_manager(dl, executing_actor_id: str):
-    """Seed a case whose CASE_MANAGER is *_MANAGER_ID*, plus two participants."""
-    from vultron.core.models.case import VulnerabilityCase
-    from vultron.core.models.case_participant import CaseParticipant
-    from vultron.core.models.embargo_event import EmbargoEvent
-    from vultron.core.states.participant_embargo_consent import PEC
-    from vultron.enums.roles import CVDRole
-
-    parts = []
-    for actor_id, roles in (
-        (_MANAGER_ID, [CVDRole.CASE_MANAGER]),
-        (_VENDOR_ID, [CVDRole.CASE_OWNER, CVDRole.VENDOR]),
-        (_FINDER_ID, [CVDRole.REPORTER]),
-    ):
-        p = CaseParticipant(
-            id_=f"{CASE_ID}/participants/{actor_id.rsplit('/', 1)[-1]}",
-            # `attributed_to` is what `add_participant` keys the
-            # actor→participant index on.
-            attributed_to=actor_id,
-            context=CASE_ID,
-            case_roles=roles,
-            # Party to the active embargo, so active (CM-10-004).
-            embargo_consent_state=PEC.SIGNATORY,
-        )
-        dl.create(p)
-        parts.append(p)
-
-    embargo = EmbargoEvent(
-        id_=_EMBARGO_ID, context=CASE_ID, end_time=days_from_now_utc(45)
-    )
-    dl.create(embargo)
-
-    case = VulnerabilityCase(
-        id_=CASE_ID,
-        name="EMB-19-001",
-        attributed_to=_VENDOR_ID,
-        active_embargo=_EMBARGO_ID,
-    )
-    for p in parts:
-        case.add_participant(p)
-    dl.create(case)
-    return case
-
-
-def _seed_manager_only_case(dl):
-    """Seed a case whose only participant is the CASE_MANAGER."""
-    from vultron.core.models.case import VulnerabilityCase
-    from vultron.core.models.case_participant import CaseParticipant
-    from vultron.core.models.embargo_event import EmbargoEvent
-    from vultron.enums.roles import CVDRole
-
-    participant = CaseParticipant(
-        id_=f"{CASE_ID}/participants/manager",
-        attributed_to=_MANAGER_ID,
-        context=CASE_ID,
-        case_roles=[CVDRole.CASE_MANAGER],
-    )
-    dl.create(participant)
-    dl.create(
-        EmbargoEvent(
-            id_=_EMBARGO_ID, context=CASE_ID, end_time=days_from_now_utc(45)
-        )
-    )
-
-    case = VulnerabilityCase(
-        id_=CASE_ID,
-        name="EMB-19-002",
-        attributed_to=_MANAGER_ID,
-        active_embargo=_EMBARGO_ID,
-    )
-    case.add_participant(participant)
-    dl.create(case)
-    return case
-
-
-@pytest.mark.spec("EMB-19-001")
-@pytest.mark.spec("EMB-19-002")
-class TestTeardownRecipients:
-    """EMB-19-001: the teardown must not be addressed to its own author.
-
-    The cascade path (``PublicDisclosureBranchNode`` → ``terminate_embargo_bt``)
-    runs as the CASE_MANAGER, because that is who the received tree's ledger
-    commit is gated on. Addressing the resulting ``Remove(EmbargoEvent, Case)``
-    to ``case_manager_id`` therefore addressed it to the sender, delivery
-    discarded it, and every other participant's replica kept an embargo the
-    manager had already torn down — EM stayed ACTIVE for everyone but the
-    manager, with nothing raised anywhere.
-    """
-
-    def test_manager_addresses_the_other_participants(self) -> None:
-        from unittest.mock import MagicMock
-
-        import py_trees
-
-        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.core.behaviors.bridge import BTBridge
-
-        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_MANAGER_ID)
-        _seed_case_with_manager(dl, _MANAGER_ID)
-
-        factory = MagicMock()
-        factory.terminate_embargo.return_value = (
-            "https://example.org/activities/remove-emb-19",
-            {},
-        )
-        py_trees.blackboard.Blackboard.storage.clear()
-        py_trees.blackboard.Blackboard.storage["/embargo_id"] = _EMBARGO_ID
-        py_trees.blackboard.Blackboard.storage["/case_manager_id"] = (
-            _MANAGER_ID
+    @pytest.mark.spec("BT-14-001")
+    def test_failure_when_factory_unavailable(self) -> None:
+        """No trigger-activity port: FAILURE, nothing queued or recorded."""
+        dl, result = _run(
+            SendTerminateEmbargoActivityNode(case_id=CASE_ID),
+            _VENDOR_ID,
+            factory=None,
         )
 
-        BTBridge(datalayer=dl, trigger_activity=factory).execute_with_setup(
-            tree=SendTerminateEmbargoActivityNode(case_id=CASE_ID),
-            actor_id=_MANAGER_ID,
-        )
+        assert result.status == Status.FAILURE
+        assert dl.outbox_list() == []
+        assert _pending_ask(_VENDOR_ID) is None
 
-        factory.terminate_embargo.assert_called_once()
-        to = factory.terminate_embargo.call_args.kwargs["to"]
-        assert _MANAGER_ID not in to, (
-            "the manager must not address its own teardown to itself"
-            f" (EMB-19-001); got to={to!r}"
-        )
-        assert set(to) == {_VENDOR_ID, _FINDER_ID}, (
-            "every other participant holds a replica carrying the embargo and"
-            f" must be told it is gone; got to={to!r}"
-        )
 
-    def test_non_manager_still_asks_the_manager(self) -> None:
-        from unittest.mock import MagicMock
+class TestTeardownAsk:
+    """A participant that is not the CASE_MANAGER *requests* the teardown."""
 
-        import py_trees
+    @pytest.mark.spec("EP-09-008")
+    def test_non_manager_asks_the_manager(self) -> None:
+        factory = _factory()
 
-        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.core.behaviors.bridge import BTBridge
-
-        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_VENDOR_ID)
-        _seed_case_with_manager(dl, _VENDOR_ID)
-
-        factory = MagicMock()
-        factory.terminate_embargo.return_value = (
-            "https://example.org/activities/remove-emb-19b",
-            {},
-        )
-        py_trees.blackboard.Blackboard.storage.clear()
-        py_trees.blackboard.Blackboard.storage["/embargo_id"] = _EMBARGO_ID
-        py_trees.blackboard.Blackboard.storage["/case_manager_id"] = (
-            _MANAGER_ID
-        )
-
-        BTBridge(datalayer=dl, trigger_activity=factory).execute_with_setup(
-            tree=SendTerminateEmbargoActivityNode(case_id=CASE_ID),
-            actor_id=_VENDOR_ID,
+        _run(
+            SendTerminateEmbargoActivityNode(case_id=CASE_ID),
+            _VENDOR_ID,
+            factory,
         )
 
         to = factory.terminate_embargo.call_args.kwargs["to"]
         assert to == [_MANAGER_ID], (
             "a participant that is not the manager is *requesting* the"
-            f" teardown, so the manager is the right addressee; got to={to!r}"
+            f" teardown, so the manager is the only addressee; got to={to!r}"
         )
 
-    def test_a_manager_with_no_audience_emits_nothing(self) -> None:
-        """EMB-19-002: skipped, not emitted with an empty ``to``.
-
-        The node used to log "nothing to tell" and then build the activity
-        anyway. An activity addressed to nobody is undeliverable and delivery
-        discards it, so the only lasting effect was an outbox entry that could
-        never resolve. SUCCESS because the teardown itself already happened —
-        there is simply no one to tell.
-        """
-        from unittest.mock import MagicMock
-
-        import py_trees
-
-        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.core.behaviors.bridge import BTBridge
-
-        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_MANAGER_ID)
-        _seed_manager_only_case(dl)
-
-        factory = MagicMock()
-        py_trees.blackboard.Blackboard.storage.clear()
-        py_trees.blackboard.Blackboard.storage["/embargo_id"] = _EMBARGO_ID
-        py_trees.blackboard.Blackboard.storage["/case_manager_id"] = (
-            _MANAGER_ID
+    @pytest.mark.spec("EP-09-008")
+    @pytest.mark.spec("SYNC-11-002")
+    def test_queued_ask_is_recorded_keyed_by_the_ended_embargo(self) -> None:
+        dl, result = _run(
+            SendTerminateEmbargoActivityNode(case_id=CASE_ID),
+            _VENDOR_ID,
+            _factory(),
         )
 
-        result = BTBridge(
-            datalayer=dl, trigger_activity=factory
-        ).execute_with_setup(
-            tree=SendTerminateEmbargoActivityNode(case_id=CASE_ID),
-            actor_id=_MANAGER_ID,
+        assert result.status == Status.SUCCESS
+        assert dl.outbox_list() == [_ASK_ID]
+        pending = _pending_ask(_VENDOR_ID)
+        assert pending is not None
+        assert pending.object_id == _ASK_ID
+        assert pending.subject_id == _EMBARGO_ID
+
+    @pytest.mark.spec("SYNC-11-002")
+    def test_failed_outbox_write_records_nothing(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Only a *successfully enqueued* ask is recorded (SYNC-11-002)."""
+
+        def _boom(*_args: object, **_kwargs: object) -> None:
+            raise RuntimeError("outbox down")
+
+        monkeypatch.setattr(
+            "vultron.core.behaviors.embargo.nodes.emit.add_activity_to_outbox",
+            _boom,
+        )
+        _, result = _run(
+            SendTerminateEmbargoActivityNode(case_id=CASE_ID),
+            _VENDOR_ID,
+            _factory(),
         )
 
-        assert result.status == py_trees.common.Status.SUCCESS
+        assert result.status == Status.FAILURE
+        assert _pending_ask(_VENDOR_ID) is None
+
+    @pytest.mark.spec("SYNC-11-002")
+    def test_a_failed_record_after_the_queued_ask_escapes(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The ask is already queued, but an unrecorded ask would not
+        suppress the next repeat, so the node does not report SUCCESS: the
+        error escapes ``update()`` and the bridge flags it (BT-HELPER-01)."""
+
+        def _boom(*_args: object, **_kwargs: object) -> None:
+            raise RuntimeError("store down")
+
+        monkeypatch.setattr(
+            "vultron.core.behaviors.embargo.nodes.terminate"
+            ".record_pending_assertion",
+            _boom,
+        )
+        dl, result = _run(
+            SendTerminateEmbargoActivityNode(case_id=CASE_ID),
+            _VENDOR_ID,
+            _factory(),
+        )
+
+        assert dl.outbox_list() == [_ASK_ID]
+        assert result.status == Status.FAILURE
+        assert result.internal_error
+        assert _pending_ask(_VENDOR_ID) is None
+
+    @pytest.mark.spec("SYNC-11-004")
+    def test_the_manager_reaching_the_ask_is_a_wiring_fault(self) -> None:
+        """The manager's arm commits the teardown itself: it never asks
+        itself, and it keeps no pending assertion."""
+        factory = _factory()
+
+        dl, result = _run(
+            SendTerminateEmbargoActivityNode(case_id=CASE_ID),
+            _MANAGER_ID,
+            factory,
+        )
+
+        assert result.status == Status.FAILURE
+        assert "VultronWiringError" in result.feedback_message
         factory.terminate_embargo.assert_not_called()
         assert dl.outbox_list() == []
+        assert _pending_ask(_MANAGER_ID) is None
+
+
+class TestAskCaseManagerToTerminateOnce:
+    """A repeat inside the pending window queues no second ask (#4147)."""
+
+    @pytest.mark.spec("SYNC-11-002")
+    def test_a_pending_ask_suppresses_the_repeat(self) -> None:
+        _record_earlier_ask()
+        factory = _factory()
+
+        dl, result = _run(
+            ask_case_manager_to_terminate_once(CASE_ID), _VENDOR_ID, factory
+        )
+
+        assert result.status == Status.SUCCESS
+        factory.terminate_embargo.assert_not_called()
+        assert dl.outbox_list() == []
+
+    @pytest.mark.spec("SYNC-11-002")
+    def test_an_ask_about_another_embargo_does_not_suppress(self) -> None:
+        _record_earlier_ask(subject_id="https://example.org/embargoes/other")
+
+        dl, _ = _run(
+            ask_case_manager_to_terminate_once(CASE_ID),
+            _VENDOR_ID,
+            _factory(),
+        )
+
+        assert dl.outbox_list() == [_ASK_ID]
+
+    @pytest.mark.spec("SYNC-11-003")
+    def test_a_cleared_ask_no_longer_suppresses(self) -> None:
+        _record_earlier_ask()
+        get_pending_assertion_store(_VENDOR_ID).clear(
+            CASE_ID, EMBARGO_TEARDOWN_EVENT_TYPE, _EARLIER_ASK_ID
+        )
+
+        dl, _ = _run(
+            ask_case_manager_to_terminate_once(CASE_ID),
+            _VENDOR_ID,
+            _factory(),
+        )
+
+        assert dl.outbox_list() == [_ASK_ID]
+
+    @pytest.mark.spec("SYNC-11-001")
+    def test_zero_window_disables_suppression(self) -> None:
+        _STORES[_VENDOR_ID] = PendingAssertionStore(timeout_seconds=0)
+        _record_earlier_ask()
+
+        dl, _ = _run(
+            ask_case_manager_to_terminate_once(CASE_ID),
+            _VENDOR_ID,
+            _factory(),
+        )
+
+        assert dl.outbox_list() == [_ASK_ID]
+
+    @pytest.mark.spec("BT-14-001")
+    def test_a_failed_send_still_fails_the_ask(self) -> None:
+        factory = MagicMock()
+        factory.terminate_embargo.side_effect = RuntimeError("factory down")
+
+        _, result = _run(
+            ask_case_manager_to_terminate_once(CASE_ID), _VENDOR_ID, factory
+        )
+
+        assert result.status == Status.FAILURE
+        assert _pending_ask(_VENDOR_ID) is None
+
+    def test_pending_guard_without_an_actor_is_a_wiring_fault(self) -> None:
+        """A FAILURE here would read as "not pending" and send the ask."""
+        node = TeardownAskPendingNode(case_id=CASE_ID)
+        node.actor_id = None
+        node.embargo_id = _EMBARGO_ID
+
+        with pytest.raises(VultronWiringError):
+            node.update()

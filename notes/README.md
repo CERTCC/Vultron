@@ -411,8 +411,8 @@ Two-gate design for received-side CaseStatus canonicalization: StatusAdoptionGat
 EmbargoTeardownAuthorizationGate + ThreatTerminationBranchNode (in `add_case_status_tree`)
 for embargo teardown. Documents CASE_OWNER gospel-bypass rationale, the direct
 `EmitCaseStatusUpdateNode` write between the gates, migration from
-PublicDisclosureBranchNode, and (ADR-0108) the per-machine act / declaration /
-ledger inventory: the pipeline, not the message, is the authority.
+the deleted PublicDisclosureBranchNode, and (ADR-0108) the per-machine
+act / declaration / ledger inventory: the pipeline, not the message, is the authority.
 Derived from IDEA-1836 / ADR-0046; extended by CONCERN-3473 / ADR-0108.
 **Load when**: implementing #1836 or any changes to received-side status handling,
 StatusAdoptionGate, EmbargoTeardownAuthorizationGate, or ThreatTerminationBranchNode;
@@ -583,9 +583,12 @@ inert participant record, `Accept`/`Reject` of the stub decides whether it
 joins, and a joined participant judges the case by replying to a full-case
 Invite that carries a ledger-position floor. Defines *active* versus *inert*,
 the `Offer` ("take this") versus `Invite` ("take part in this") distinction,
-and records what the earlier join model got wrong.
+records what the earlier join model got wrong, and how removal and
+reinstatement withdraw and restore entitlement without deleting the record
+(ADR-0116).
 **Load when**: touching invitations, participant creation, recipient
-selection for case content, the accept-invite trees, or invitee RM triage.
+selection for case content, the accept-invite trees, invitee RM triage, or
+`Add`/`Remove(CaseParticipant)`.
 
 **`case-ledger-authority.md`**
 Assertion recording model for report / proto-case / case flows: implicit
@@ -623,8 +626,9 @@ relationship to AppendOnlyLedger/LedgerFanout implementation phases.
 `Announce(CaseLedgerEntry)` inbound handler.
 
 **`participant-embargo-consent.md`**
-Design decisions for per-participant embargo acceptance tracking: a 5-state
-consent machine (`UNBOUND`, `INVITED`, `SIGNATORY`, `LAPSED`, `DECLINED`),
+Design decisions for per-participant embargo acceptance tracking: a 7-state
+consent machine (`UNBOUND`, `INVITED`, `SIGNATORY`, `LAPSED`, `DECLINED`,
+`EXPIRED`, terminal `UNBOUND_EXITED`; ADR-0118),
 embargo meta-protocol delivery to `DECLINED`/`LAPSED` participants, and the
 `Accept(Invite(case))` → implicit consent rule. Records why `UNBOUND` means
 *not bound by any embargo terms* rather than pre-consent (ADR-0048, ADR-0091),

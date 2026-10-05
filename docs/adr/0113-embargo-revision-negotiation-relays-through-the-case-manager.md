@@ -171,7 +171,7 @@ It does not replace it.
 - A test asserts no embargo-acknowledgement semantic or pattern exists (EP-09-009); tests deliver an Invite with two recipients and with none and assert refusal (EP-09-010).
 - A test runs the late-`Accept` path as a non-manager and asserts no lapse entry is committed; a test replays a lapse entry into a replica (CM-28-014).
 - Tests of both creation trees assert a `CASE_MANAGER` holder exists after creation, and tests of the close-case emit and teardown announce assert FAILURE when none is found (CM-24-006).
-- A marker test of `RegisterLongerProposalAsRevisionNode` asserts the creation-time revision is indexed; the implementation's tests assert an Invite is queued for the party whose terms won (EP-04-011).
+- A marker test of `InitializeDefaultEmbargoNode` asserts the creation-time revision is indexed; the implementation's tests assert an Invite is queued for the party whose terms won (EP-04-011).
 - The RSH-08-004 ratchet covers the proposal, Invite, consent, lapse and decision event types once their replay nodes land.
 - Until the implementation issues land, the `kind: protocol` requirements this decision generates are carried by strict `xfail` marker tests naming the tracking issue.
 

@@ -39,24 +39,31 @@ Spec: ``specs/case-proposal.yaml`` CP-05-002, CP-05-005, CP-05-006.
 """
 
 import urllib.parse
-from typing import Any, Literal
+from collections.abc import Mapping
+from typing import Any, ClassVar, Literal
 
 from pydantic import Field, model_validator
 
 from vultron.core.models.base import (
-    CoreRecord,
     UriString,
+)
+from vultron.core.models.retired_stored_fields import (
+    RetiredFieldsRecord,
+    RetiredStoredField,
 )
 
 
-class CaseProposalAdmissionRecord(CoreRecord):
+class CaseProposalAdmissionRecord(RetiredFieldsRecord):
     """Durable record that this service admitted a ``CaseProposal``.
 
     Attributes:
         proposal_id: URI of the ``as_CaseProposal`` that was admitted. Used as
             the stable key component for ``build_id()``.
         case_actor_id: URI of the case actor service that made the decision.
-        vendor_uri: URI of the proposing actor owed the ``Accept``.
+        proposer_uri: URI of the proposing actor owed the ``Accept``.
+
+    A stored record that still carries the retired ``vendor_uri`` key is
+    refused on load (#4128); the store must be reset.
 
     Spec: CP-05-002, CP-05-005, CP-05-006.
     """
@@ -72,9 +79,13 @@ class CaseProposalAdmissionRecord(CoreRecord):
     case_actor_id: UriString = Field(
         ..., description="URI of the case actor service that admitted it"
     )
-    vendor_uri: UriString = Field(
+    proposer_uri: UriString = Field(
         ..., description="URI of the proposing actor owed the Accept"
     )
+
+    retired_stored_fields: ClassVar[Mapping[str, RetiredStoredField]] = {
+        "vendor_uri": RetiredStoredField("proposer_uri", "#4128"),
+    }
 
     @classmethod
     def build_id(cls, proposal_id: str) -> str:

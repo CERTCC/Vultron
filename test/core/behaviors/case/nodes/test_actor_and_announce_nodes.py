@@ -568,12 +568,6 @@ class TestEmitInviteActorToCaseNodeCommitsBeforeQueuing:
     def dl(self, store_for):
         return store_for(ACTOR_ID)
 
-    @pytest.fixture(autouse=True)
-    def clear_blackboard(self):
-        py_trees.blackboard.Blackboard.storage.clear()
-        yield
-        py_trees.blackboard.Blackboard.storage.clear()
-
     @pytest.mark.spec("CM-17-006")
     def test_invite_has_no_cc_and_is_committed_before_the_outbox_append(
         self, dl, monkeypatch
@@ -649,12 +643,6 @@ class TestEmitInviteActorToCaseNodePassesRolesNoneToFactory:
     def dl(self, store_for):
         """This class executes as ACTOR_ID, so that is its store."""
         return store_for(ACTOR_ID)
-
-    @pytest.fixture(autouse=True)
-    def clear_blackboard(self):
-        py_trees.blackboard.Blackboard.storage.clear()
-        yield
-        py_trees.blackboard.Blackboard.storage.clear()
 
     def test_invite_actor_to_case_called_with_roles_none(self, dl):
         """AC-2: roles=None passed to factory when suggested_roles absent."""

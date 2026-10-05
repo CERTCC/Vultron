@@ -26,14 +26,20 @@ Spec: ``specs/case-proposal.yaml`` CP-05-005.
 """
 
 import urllib.parse
-from typing import Any, Literal
+import uuid
+from collections.abc import Mapping
+from typing import Any, ClassVar, Literal
 
 from pydantic import Field, model_validator
 
-from vultron.core.models.base import CoreRecord, NonEmptyString, UriString
+from vultron.core.models.base import NonEmptyString, UriString
+from vultron.core.models.retired_stored_fields import (
+    RetiredFieldsRecord,
+    RetiredStoredField,
+)
 
 
-class PendingCreateCaseActivity(CoreRecord):
+class PendingCreateCaseActivity(RetiredFieldsRecord):
     """Durable marker recording a pending ``Create(VulnerabilityCase)`` obligation.
 
     The marker stores the minimum information needed to reconstruct and
@@ -46,13 +52,16 @@ class PendingCreateCaseActivity(CoreRecord):
         case_actor_id: URI of the case-actor service that issued the
             ``Accept(CaseProposal)`` and owns the ``Create(VulnerabilityCase)``
             obligation.
-        vendor_uri: URI of the report receiver (the CASE_OWNER) to whom
+        owner_uri: URI of the report receiver (the CASE_OWNER) to whom
             ``Create(VulnerabilityCase)`` must be delivered.
         create_activity_payload: Pre-constructed
             ``Create(VulnerabilityCase)`` payload as a plain dict
             (the ``WireRenderPort`` rendering).  The retry runner (#1139)
             reconstructs the activity from this dict rather than rebuilding
             it from scratch.
+
+    A stored marker that still carries the retired ``vendor_uri`` key is
+    refused on load (#4128); the store must be reset.
 
     Spec: CP-05-005.
     """
@@ -68,9 +77,9 @@ class PendingCreateCaseActivity(CoreRecord):
     case_actor_id: UriString = Field(
         ..., description="URI of the case-actor service sending the Create"
     )
-    vendor_uri: UriString = Field(
+    owner_uri: UriString = Field(
         ...,
-        description="URI of the report receiver owed Create(VulnerabilityCase)",
+        description="URI of the case owner owed Create(VulnerabilityCase)",
     )
     create_activity_payload: dict[NonEmptyString, Any] = Field(
         default_factory=dict,
@@ -80,11 +89,28 @@ class PendingCreateCaseActivity(CoreRecord):
         ),
     )
 
+    retired_stored_fields: ClassVar[Mapping[str, RetiredStoredField]] = {
+        "vendor_uri": RetiredStoredField("owner_uri", "#4128"),
+    }
+
     @classmethod
     def build_id(cls, proposal_id: str) -> str:
         """Return the stable DataLayer ID for *proposal_id*."""
         slug = urllib.parse.quote(proposal_id, safe="")
         return f"pending-create-case/{slug}"
+
+    @classmethod
+    def create_activity_id(cls, proposal_id: str) -> str:
+        """Return the id of the ``Create(VulnerabilityCase)`` answering
+        *proposal_id*.
+
+        Derived from the proposal rather than minted, so a redelivered
+        proposal names the activity its first delivery announced.  The marker
+        is deleted once that Create is queued, so this id is how a later
+        delivery tells the case was already announced (CP-05-005, #4146).
+        """
+        name = f"{proposal_id}#create-case"
+        return f"urn:uuid:{uuid.uuid5(uuid.NAMESPACE_URL, name)}"
 
     @model_validator(mode="before")
     @classmethod

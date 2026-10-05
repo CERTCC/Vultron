@@ -234,7 +234,7 @@ Read a subject **from the message**, never from the receiving actor. For an
 CASE_MANAGER; the CASE_MANAGER to one participant per relayed Invite), so an
 Invite naming several recipients or none is refused as a misrouting, never
 resolved by membership or guessed at. `resolve_invitee_id()`
-(`vultron/core/use_cases/received/embargo.py`) returns the sole recipient in its
+(`vultron/core/use_cases/received/embargo/invite.py`) returns the sole recipient in its
 canonical spelling and raises `VultronProtocolViolationError` naming the
 recipient count, which the use case reports as `REFUSED`. A proposal addressed
 to the CASE_MANAGER names the manager as that sole recipient, but the manager
@@ -406,6 +406,9 @@ stages in a fixed order (CLP-10-006, CLP-10-010):
    assertion from processed state.
 4. **Effects** — apply the accepted assertion to the local replica and enqueue
    any cascades.
+
+Every ledger commit goes through `CommitCaseLedgerEntryNode` inside the tree; a
+received `execute()` never commits one itself (BT-06-006).
 
 Intake is the only path that stores the received activity (CLP-10-019). Do not
 add a per-tree store node or a handler-local store helper; the factory

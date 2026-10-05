@@ -20,7 +20,7 @@ entries) is what every operation returns.
 
 from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
 from vultron.core.states.em import EM
 
@@ -69,8 +69,9 @@ class EmbargoLifecycleResult(BaseModel):
         case_changed: True if the case object was mutated and persisted.
         case_embargo_changed: True if ``case.active_embargo`` was modified
             (e.g. an embargo was activated or cleared).
-        pec_reset: True if a full PEC reset was performed across all
-            participants (e.g. on embargo termination).
+        pec_exited: True if every participant's PEC was exited to the
+            terminal ``UNBOUND_EXITED`` by the ``EXIT`` trigger (embargo
+            termination, ADR-0118).
         participant_changes: Per-participant PEC *state* changes that occurred
             during the operation (e.g. signatories lapsed when the owner
             activated longer terms they had not accepted, EP-05-001).  A write
@@ -81,30 +82,8 @@ class EmbargoLifecycleResult(BaseModel):
     em_after: EM
     case_changed: bool
     case_embargo_changed: bool
-    pec_reset: bool
+    pec_exited: bool
     participant_changes: list[ParticipantPECChange] = Field(
         default_factory=list
     )
-    is_lapsed: bool = False
-
-
-class InviteLapseAssessment(BaseModel):
-    """What the RSVP deadline says about one invitee's answer, read only.
-
-    Returned by :meth:`EmbargoLifecycle.assess_invite_lapse`, which writes
-    nothing, so the CASE_MANAGER can commit the lapse entry *before* applying
-    it (CLP-10-006): a commit that fails leaves nothing applied for a retry to
-    mistake for an already-recorded lapse.
-
-    Attributes:
-        is_lapsed: The deadline has passed and the invitee is not
-            ``SIGNATORY`` — the late answer routes through EMB-17.
-        declines: The invitee is still ``INVITED``, so the lapse applies
-            ``DECLINE`` and is recorded as a ledger entry (CM-28-009).
-            Implies *is_lapsed*.
-    """
-
-    model_config = ConfigDict(frozen=True)
-
-    is_lapsed: bool
-    declines: bool
+    is_expired: bool = False

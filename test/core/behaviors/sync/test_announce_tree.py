@@ -20,6 +20,10 @@ from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
+from vultron.core.models.rsvp_deadline import (
+    INVITE_EXPIRED_EVENT_TYPE,
+    INVITE_EXPIRED_SNAPSHOT_TYPE,
+)
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
@@ -42,13 +46,6 @@ PARTICIPANT_ACTOR_ID = "https://example.org/actors/reporter"
 CASE_ID = "https://example.org/cases/case-sync"
 
 _ZERO_HASH: str = "0" * 64  # arbitrary prev_log_hash for test chains
-
-
-@pytest.fixture(autouse=True)
-def clear_blackboard():
-    py_trees.blackboard.Blackboard.storage.clear()
-    yield
-    py_trees.blackboard.Blackboard.storage.clear()
 
 
 @pytest.fixture
@@ -458,19 +455,19 @@ def _make_relayed_invite_entry(
     )
 
 
-def _make_invite_lapsed_entry(
+def _make_invite_expired_entry(
     log_index: int, prev_hash: str = _ZERO_HASH
 ) -> CaseLedgerEntry:
-    """Entry the CASE_MANAGER commits when an invitation lapses (CM-28-009)."""
+    """Entry the CASE_MANAGER commits when an invitation expires (CM-28-009)."""
     invite_id = f"https://example.org/activities/invite-{log_index}"
     return _to_persistable_entry(
         HashChainLedgerRecord(
             case_id=CASE_ID,
             log_index=log_index,
             object_id=invite_id,
-            event_type="invite_to_embargo_on_case_lapsed",
+            event_type=INVITE_EXPIRED_EVENT_TYPE,
             payload_snapshot={
-                "type": "Lapse",
+                "type": INVITE_EXPIRED_SNAPSHOT_TYPE,
                 "actor": PARTICIPANT_ACTOR_ID,
                 "context": CASE_ID,
                 "published": "2026-10-08T12:00:00+00:00",
@@ -502,7 +499,7 @@ def _seed_invited_participant(datalayer, case_obj, pec: PEC) -> str:
 
 
 class TestAnnounceLogEntryAppliesEmbargoInviteRelay:
-    """Replicas learn the RSVP deadline and a lapse from the ledger, never
+    """Replicas learn the RSVP deadline and an expiry from the ledger, never
     by computing either themselves (CM-28-013, CM-28-014; ADR-0113)."""
 
     @pytest.mark.spec("CM-28-013")
@@ -532,14 +529,14 @@ class TestAnnounceLogEntryAppliesEmbargoInviteRelay:
         assert updated.embargo_consent_state == PEC.INVITED
 
     @pytest.mark.spec("CM-28-014")
-    def test_replica_reads_declined_from_lapse_entry(
+    def test_replica_reads_expired_from_expiry_entry(
         self, bridge, datalayer, case_actor, case_obj
     ):
-        """A replica learns a lapse from the entry and never computes one."""
+        """A replica learns an expiry from the entry and never computes one."""
         participant_id = _seed_invited_participant(
             datalayer, case_obj, PEC.INVITED
         )
-        entry = _make_invite_lapsed_entry(0, case_obj.genesis_hash)
+        entry = _make_invite_expired_entry(0, case_obj.genesis_hash)
         event = _make_event(entry, actor_id=case_actor.id_)
 
         result = bridge.execute_with_setup(
@@ -552,7 +549,7 @@ class TestAnnounceLogEntryAppliesEmbargoInviteRelay:
         assert result.status == Status.SUCCESS
         updated = datalayer.read(participant_id)
         assert isinstance(updated, CaseParticipant)
-        assert updated.embargo_consent_state is PEC.DECLINED
+        assert updated.embargo_consent_state is PEC.EXPIRED
 
 
 def _make_add_note_entry(

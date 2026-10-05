@@ -512,24 +512,19 @@ class TestValidateReportReceivedGuardedCommit:
         The BT runs under the store owner's identity (CLP-10-005 fallback).
         The guarded commit fires because the store owner holds CASE_MANAGER.
         """
-        import py_trees
 
-        py_trees.blackboard.Blackboard.storage.clear()
-        try:
-            dl = SqliteDataLayer(
-                "sqlite:///:memory:",
-                actor_id=self.CASE_ACTOR_ID,
-            )
-            event = self._make_validate_event_with_receiving_actor(
-                receiving_actor_id=None
-            )
-            ValidateReportReceivedUseCase(
-                dl, event, wire_render_port=As2WireRenderAdapter()
-            ).execute()
-            # No assertion on ledger (case lookup returns None in this minimal
-            # fixture), but the use case must NOT raise VultronValidationError.
-        finally:
-            py_trees.blackboard.Blackboard.storage.clear()
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=self.CASE_ACTOR_ID,
+        )
+        event = self._make_validate_event_with_receiving_actor(
+            receiving_actor_id=None
+        )
+        ValidateReportReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
+        # No assertion on ledger (case lookup returns None in this minimal
+        # fixture), but the use case must NOT raise VultronValidationError.
 
     def test_skip_commit_when_no_case_found(self, caplog):
         """ValidateReportReceivedUseCase skips commit when no case for report.

@@ -59,9 +59,10 @@ def test_activate_embargo_prunes_the_proposal_from_both_records(
 ) -> None:
     """Activation decides the proposal that carried the embargo.
 
-    ``activate_embargo`` is the received-side ``Add(EmbargoEvent)`` and the
-    case-creation path; after it the embargo is active and no longer an open
-    proposal in either record (EP-08-003, #3470).
+    ``activate_embargo`` is the received-side ``Add(EmbargoEvent)`` path
+    (case creation uses ``initialize_creation_embargo``); after it the
+    embargo is active and no longer an open proposal in either record
+    (EP-08-003, #3470).
     """
     owner, dl = owner_and_dl
     case, _ = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
@@ -120,13 +121,14 @@ def test_terminate_active_embargo_strict_active_to_exited(
 
     assert result.em_before == EM.ACTIVE
     assert result.em_after == EM.EXITED
-    assert result.pec_reset is True
+    assert result.pec_exited is True
 
     refreshed_owner_participant = cast(
         CaseParticipant, dl.read(owner_participant_id)
     )
     assert (
-        refreshed_owner_participant.embargo_consent_state == PEC.UNBOUND.value
+        refreshed_owner_participant.embargo_consent_state
+        == PEC.UNBOUND_EXITED.value
     )
 
 

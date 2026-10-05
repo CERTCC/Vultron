@@ -50,6 +50,11 @@ from vultron.core.ports.case_outbox import CaseOutboxPersistence
 
 logger = logging.getLogger(__name__)
 
+#: ``event_type`` of a case's genesis ledger entry, the root of the
+#: CASE_MANAGER's hash chain.  Its presence is what "the case's creation
+#: entries are committed" means to a later step (CM-14-007, CM-14-011).
+CREATE_CASE_EVENT_TYPE = "create_case"
+
 
 class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
     """Commit canonical ledger entries natively for CaseActor initialization.
@@ -344,7 +349,7 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
         if not self._commit_one(
             case_id,
             case_id,
-            "create_case",
+            CREATE_CASE_EVENT_TYPE,
             build_create_case_snapshot(case, self.actor_id, case_id, port),
         ):
             self.feedback_message = (

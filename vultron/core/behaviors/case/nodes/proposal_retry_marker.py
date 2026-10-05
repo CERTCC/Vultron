@@ -32,6 +32,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerAction,
     DataLayerActionWithPorts,
 )
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.activity import VultronCreateCaseActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.pending_create_case_activity import (
@@ -40,11 +41,47 @@ from vultron.core.models.pending_create_case_activity import (
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.wire_keys import wire_key
 from vultron.core.participants.recipients import case_content_participants
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.embargo_ordering import read_embargo_event
 from vultron.enums.roles import CVDRole
-from vultron.errors import VultronNotFoundError, VultronValidationError
+from vultron.errors import (
+    VultronNotFoundError,
+    VultronProtocolViolationError,
+    VultronValidationError,
+)
 
 logger = logging.getLogger(__name__)
+
+
+def announced_case_id(
+    datalayer: CasePersistence, proposal_id: str
+) -> str | None:
+    """Return the case an earlier delivery of *proposal_id* announced.
+
+    The ``Create(VulnerabilityCase)`` answering a proposal is stored under an
+    id derived from the proposal (``PendingCreateCaseActivity.
+    create_activity_id``), so a redelivery finds it there once the marker is
+    gone (CP-05-005, #4146).  Returns ``None`` when nothing is stored under
+    that id, i.e. the case was not announced yet.
+
+    Raises:
+        VultronProtocolViolationError: something other than a ``Create``
+            naming a case is stored under the derived id.  The proposal id is
+            the sender's, so a sender that reused it for another proposal
+            would otherwise have its new case silently never announced.
+    """
+    create_id = PendingCreateCaseActivity.create_activity_id(proposal_id)
+    stored = datalayer.read(create_id)
+    if stored is None:
+        return None
+    case_id = _as_id(getattr(stored, "context", None))
+    if getattr(stored, "type_", None) != "Create" or not case_id:
+        raise VultronProtocolViolationError(
+            f"'{create_id}' (the Create(VulnerabilityCase) id derived from"
+            f" proposal '{proposal_id}') holds a"
+            f" {type(stored).__name__} that announces no case"
+        )
+    return case_id
 
 
 class CheckMarkerExistsNode(DataLayerAction):
@@ -209,6 +246,36 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
             )
         return case_dict
 
+    def _check_announced(self, case_id: str) -> Status | None:
+        """FAILURE when the derived id holds a Create for another case (or no
+        Create at all), SUCCESS when this case was already announced, and
+        ``None`` when it was not announced yet."""
+        assert self.datalayer is not None
+        violation: str | None = None
+        try:
+            announced = announced_case_id(self.datalayer, self._proposal_id)
+        except VultronProtocolViolationError as exc:
+            announced, violation = None, str(exc)
+        if announced is not None and announced != case_id:
+            violation = (
+                f"proposal '{self._proposal_id}' already announced case"
+                f" '{announced}', not '{case_id}': the sender reused the"
+                " proposal id, so this case cannot be announced (CP-05-005)"
+            )
+        if violation is not None:
+            self.feedback_message = violation
+            logger.error("%s: %s", self.name, violation)
+            return Status.FAILURE
+        if announced is None:
+            return None
+        logger.info(
+            "%s: Create(VulnerabilityCase) for proposal '%s' was"
+            " already queued — writing no marker (CP-05-005)",
+            self.name,
+            self._proposal_id,
+        )
+        return Status.SUCCESS
+
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
@@ -219,6 +286,12 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
         if not isinstance(case_id, str):
             self.feedback_message = "case_id not found in blackboard"
             return Status.FAILURE
+
+        # The marker is deleted once the Create is queued, so a redelivered
+        # proposal finds none; the stored activity under the proposal-derived
+        # id is what says the case was already announced (#4146).
+        if (announced := self._check_announced(case_id)) is not None:
+            return announced
 
         accept_activity_id = self._accept_activity_id_bb
         if not isinstance(accept_activity_id, str):
@@ -258,6 +331,9 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
         # in_reply_to = Accept URI (causal antecedent, AS2-correct field).
         reporter_uris = self._collect_reporter_uris(case)
         create_activity = VultronCreateCaseActivity(
+            id_=PendingCreateCaseActivity.create_activity_id(
+                self._proposal_id
+            ),
             actor=self.actor_id,
             object_=case_object,
             context=case_id,
@@ -272,8 +348,7 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
         marker = PendingCreateCaseActivity(
             proposal_id=self._proposal_id,
             case_actor_id=self.actor_id,
-            # Stored field keeps its pre-rename name (#4128).
-            vendor_uri=self._owner_uri,
+            owner_uri=self._owner_uri,
             create_activity_payload=payload,
         )
 
@@ -313,6 +388,18 @@ class ClearCreateCaseMarkerNode(DataLayerAction):
         super().__init__(name=name or self.__class__.__name__)
         self._proposal_id = proposal_id
 
+    def _announced_by_earlier_delivery(self) -> bool:
+        assert self.datalayer is not None
+        try:
+            return (
+                announced_case_id(self.datalayer, self._proposal_id)
+                is not None
+            )
+        except VultronProtocolViolationError:
+            # WriteCreateCaseMarkerNode already failed the tree on this; a
+            # cleanup node only chooses its log level here.
+            return False
+
     def update(self) -> Status:
         if self.datalayer is None:
             logger.warning(
@@ -327,6 +414,15 @@ class ClearCreateCaseMarkerNode(DataLayerAction):
         if deleted:
             logger.info(
                 "%s: Cleared PendingCreateCaseActivity marker for proposal '%s'",
+                self.name,
+                self._proposal_id,
+            )
+        elif self._announced_by_earlier_delivery():
+            # A redelivery whose Create was already queued wrote no marker
+            # (#4146): nothing to clear is the expected state.
+            logger.info(
+                "%s: No marker to clear for proposal '%s' — its Create was"
+                " queued by an earlier delivery",
                 self.name,
                 self._proposal_id,
             )

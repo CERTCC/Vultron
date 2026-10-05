@@ -615,6 +615,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: '`ADD_CASE_PARTICIPANT_TO_CASE` MUST be represented as `Add(CaseParticipant)[target=VulnerabilityCase]`'
+    rationale: >-
+      The message is the Case Owner's request to reinstate a removed participant into the case's
+      `activeParticipants` (CM-31-011, ADR-0116); it does not seat a new member, which joins by
+      accepting a stub Invite.
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
       `AddCaseParticipantToCasePattern` uses `TAtype.ADD`, `AOtype.CASE_PARTICIPANT`, and
       `target_=VULNERABILITY_CASE`; integration tests in `test/demo/test_manage_participants_demo.py` exercise
@@ -626,6 +630,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: '`REMOVE_CASE_PARTICIPANT_FROM_CASE` MUST be represented as `Remove(CaseParticipant)[target=VulnerabilityCase]`'
+    rationale: >-
+      The message removes a participant from the case's `activeParticipants`, not from
+      `caseParticipants`: the record stays and the participant stops receiving case content
+      (CM-31-001, CM-31-004, ADR-0116).
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
       `RemoveCaseParticipantFromCasePattern` uses `TAtype.REMOVE`, `AOtype.CASE_PARTICIPANT`, and
       `target_=VULNERABILITY_CASE`; integration tests in `test/demo/test_manage_participants_demo.py` exercise

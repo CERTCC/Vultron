@@ -105,6 +105,20 @@ Architectural placeholders exist (tracked in GitHub issue #650):
 Both stubs are transport-only concerns. The core layer must not reference them
 directly; they are driven/driving adapter responsibilities only.
 
+The rule generalizes: **any stub adapter raises `NotImplementedError` when
+instantiated** (OX-10-004, OX-11-004). A docstring-only placeholder imports and constructs cleanly, so a
+caller wired to it fails silently instead of at startup.
+
+### Transport-role naming stays explicit
+
+Delivery adapter module and class names state their transport role:
+`http_delivery.py` / `HttpDeliveryAdapter` is the sole delivery path (ADR-0042),
+and `prod_http_delivery.py` / `ProdHttpDeliveryAdapter` is the signed-remote stub.
+`demo_http_delivery.py` is a deprecated re-export shim left from the #1780 rename;
+import from `http_delivery` instead. A rename of a transport-role adapter changes
+the core ports docs, adapter notes, ADR references and
+`docs/reference/codebase/` pages in the same change.
+
 ### Architecture boundary ratchet test
 
 `test/architecture/test_core_no_adapter_imports.py` enforces core->adapters

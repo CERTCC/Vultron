@@ -162,8 +162,9 @@ groups:
     rationale: >-
       The case-level EM column shows only the shared embargo state (NONE,
       PROPOSED, ACTIVE, REVISE, EXITED).  Per-participant embargo consent
-      (UNBOUND, INVITED, SIGNATORY, LAPSED, DECLINED) is a distinct
-      five-state machine tracked on `ParticipantStatus`; without a dedicated
+      (UNBOUND, INVITED, SIGNATORY, LAPSED, DECLINED, EXPIRED, UNBOUND_EXITED)
+      is a distinct seven-state machine tracked on `ParticipantStatus`
+      (ADR-0118); without a dedicated
       PEC column, embargo acceptance and lapse events are invisible in the
       report.
     relationships:

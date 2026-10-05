@@ -845,11 +845,12 @@ groups:
       participant is active when it was seated by the case initialization
       sequence (CM-14-001: the Case Owner, the CASE_MANAGER and the reporter) or
       has accepted the stub Invite
-      (`Accept(Invite(Actor, VulnerabilityCaseStub))`), and, only when an embargo
-      is active, its embargo consent is `SIGNATORY`. Every other participant is
-      inert and MUST NOT receive case content: no `CaseLedgerEntry`
-      announcements, no `Announce(VulnerabilityCase)`, no status broadcasts, no
-      embargo announcements (ADR-0114).
+      (`Accept(Invite(Actor, VulnerabilityCaseStub))`), has not been removed
+      (CM-31-001), and, only when an embargo is active, its embargo consent is
+      `SIGNATORY`. Every other participant is inert and MUST NOT receive case
+      content: no `CaseLedgerEntry` announcements, no
+      `Announce(VulnerabilityCase)`, no status broadcasts, no embargo
+      announcements (ADR-0114).
     rationale: >-
       Many cases have no active embargo — one not yet established, or one
       already exited — so "is SIGNATORY" alone cannot be the entitlement test.
@@ -860,9 +861,11 @@ groups:
       Tests confirm that an invitee that has not accepted the stub Invite, and a
       joined participant that is not SIGNATORY to an active embargo, receive no
       case content, and that an active participant does, including one seated by
-      case initialization that was never sent a stub.
+      case initialization that was never sent a stub. A test confirms a removed
+      participant receives no case content whatever its embargo consent.
     adr:
     - ADR-0114
+    - ADR-0116
     stories:
     - story_2022_023
     - story_2022_025
@@ -900,7 +903,8 @@ groups:
     kind: protocol
     statement: >-
       When the CM-10-004 content gate admits a participant whose ledger stream it had paused (CM-10-005)
-      — because the participant accepts the active embargo, or because the embargo ends — the
+      — whenever the active check turns from false to true for that participant, whether because it
+      accepts the active embargo, the embargo ends, or it is reinstated (CM-31-011) — the
       CASE_MANAGER MUST send that participant every canonical entry it was not sent, in log order
       starting with the first entry withheld from it, before or together with the entry that records
       the change admitting it.
@@ -908,7 +912,8 @@ groups:
       A paused participant's replica is a contiguous prefix of the ledger; backfilling the withheld suffix
       in order restores it to the leader's tip without a gap the catch-up gate (SYNC-10-004) would block
       on. Ending the embargo lifts the gate for everyone, so a participant that never accepted it is
-      caught up at that point too.
+      caught up at that point too. The trigger is the active check itself, not any one message
+      (ADR-0116).
     verification: >-
       A received-side test confirms that when a participant accepts the active embargo, the
       CASE_MANAGER's outbox holds an `Announce(CaseLedgerEntry)` addressed to it for each entry committed
@@ -930,7 +935,9 @@ groups:
       selection that every case-content send uses, not at individual send
       sites. Invites addressed to a participant so that it can join (the stub
       Invite) or consent (an embargo Invite, EP-09) are not case content and
-      MUST reach an inert participant.
+      MUST reach an inert participant that has not been removed (CM-31-013).
+      The embargo-ending notices owed to a bound participant that is not active
+      (CM-31-009) are likewise not case content.
     rationale: >-
       Nearly every case-content send selected its recipients from the roster
       through one helper (`case_addressees`, retired by #4046). A per-site
@@ -1221,7 +1228,7 @@ groups:
       unanswered, the CASE_MANAGER MUST close the Invite as an expired ask and
       MUST NOT change the invitee's participant state: the record stays inert at
       `RM.RECEIVED`, and its embargo consent stays `INVITED` — the CM-28-004
-      lapse-to-`DECLINED` rule applies to an `Invite(EmbargoEvent)`, not to the
+      expiry-to-`EXPIRED` rule applies to an `Invite(EmbargoEvent)`, not to the
       embargo terms a stub Invite carries. Case-wide closure checks ("all
       participants closed") MUST count only participants that have joined: those
       seated by the case initialization sequence (CM-14-001) and those that have
@@ -1292,6 +1299,33 @@ groups:
     stories:
     - story_2022_014
     - story_2022_023
+  - id: CM-11-017
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST act on a reply to a stub Invite only when the sender is the
+      invitee of a stub Invite it sent and recorded, and MUST take the participant's roles
+      from that recorded Invite, never from the copy of the Invite embedded in the reply.
+      A reply from any other sender MUST be refused with no participant created or changed.
+    rationale: >-
+      Today the Accept handler admits whichever actor the embedded Invite names, with the
+      roles that copy carries, without looking for an Invite in the store; any actor can
+      therefore admit itself or a third party as, say, a VENDOR and then receive the case
+      and its full ledger. See #3733.
+    verification: >-
+      A test marked `CM-11-017`
+      sends an Accept of a stub Invite the CASE_MANAGER never sent and asserts `REFUSED`
+      with no participant created.
+    stories:
+    - story_2022_035
+    - story_2022_054
+    relationships:
+    - rel_type: refines
+      spec_id: HP-01-006
+    - rel_type: refines
+      spec_id: CM-11-001
+    adr:
+    - ADR-0115
 - id: CM-12
   title: Case Creation Timing
   specs:
@@ -2023,6 +2057,34 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-16-006
+  - id: CM-16-019
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST act on `Accept(Offer(CaseParticipant))` or
+      `Reject(Offer(CaseParticipant))` only when the sender is the case's Case Owner, and
+      MUST take the actor to invite from the `Offer(CaseParticipant)` it recorded, never
+      from the reply. A reply from any other sender MUST be refused, and the CASE_MANAGER
+      MUST NOT invite anyone or notify the recommender.
+    rationale: >-
+      The Case Owner decides on a recommendation (CM-16-006), but the handler checks only
+      that the recommendation was recorded, and reads the invitee from the inbound message;
+      anyone who learns a recommendation id can accept it and choose who is invited. See
+      #3733.
+    verification: >-
+      A test marked `CM-16-019`
+      sends the Accept from a participant that is not the Case Owner and asserts `REFUSED`
+      with an empty outbox.
+    stories:
+    - story_2022_035
+    - story_2022_054
+    relationships:
+    - rel_type: refines
+      spec_id: HP-01-006
+    - rel_type: refines
+      spec_id: CM-16-006
+    adr:
+    - ADR-0115
 - id: CM-17
   title: Invitation Flow — Enrichment and Roles
   specs:
@@ -2272,34 +2334,43 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Each participant's embargo consent MUST be tracked as a `ParticipantEmbargoConsent` (PEC) value with five
-      possible states: `UNBOUND` (this participant is not bound by any embargo terms), `INVITED` (invite sent, awaiting response),
-      `SIGNATORY` (accepted the case's active embargo), `LAPSED` (was `SIGNATORY` to the previous active embargo; the case
-      owner replaced it with longer terms this participant has not accepted), and `DECLINED` (explicitly refused, or timed out
-      without responding). The scalar state answers one question — is this participant bound by the *active* embargo? — while
-      `CaseParticipant.accepted_embargo_ids` (CM-10-001) records which embargo terms, active or proposed, the participant has
-      accepted.
+      Each participant's embargo consent MUST be tracked as a `ParticipantEmbargoConsent` (PEC)
+      value with seven possible states: `UNBOUND` (initial; this participant is not bound by any
+      embargo terms), `INVITED` (invite sent, awaiting response), `SIGNATORY` (accepted the case's
+      active embargo), `LAPSED` (was `SIGNATORY` to the previous active embargo; the case owner
+      replaced it with longer terms this participant has not accepted), `DECLINED` (explicitly
+      refused), `EXPIRED` (invited, and the RSVP deadline passed with no answer), and
+      `UNBOUND_EXITED` (terminal; the embargo was terminated, EM `EXITED`). The scalar state answers
+      one question — is this participant bound by the *active* embargo? — while
+      `CaseParticipant.accepted_embargo_ids` (CM-10-001) records which embargo terms, active or
+      proposed, the participant has accepted.
     rationale: >-
-      The five-state PEC machine formalizes the "pocket veto" mechanism: a participant who is invited but never
-      responds is recorded as `DECLINED` when the timer fires, rather than blocking progress indefinitely.
-      Source: `notes/participant-embargo-consent.md`, ADR-0093.
-      `LAPSED` is NOT the timer path and NOT a proposal-time state. It is reached only from `SIGNATORY` via the `REVISE`
-      trigger, and that trigger fires only when the case owner activates a revised embargo that ends later than the one the
-      participant accepted (CM-18-002, MSM-07-005, EP-05-001). A participant cannot lapse while the embargo they agreed to is
-      still the one in force. Confusing `LAPSED` with the pocket-veto timeout is a known documentation pitfall; the only timer
-      path is `INVITED → DECLINED`.
-      Per ADR-0048 and ADR-0091, `UNBOUND` means the participant is not bound by any embargo terms — not a "not yet consented"
-      pre-consent state. It is correct for a participant in a case with `EM.NONE`, and it is the `RESET` destination when an
-      embargo is terminated. It MUST NOT be read as implying that consent is pending or that an invitation is owed.
+      The seven-state PEC machine (ADR-0118) keeps the "pocket veto" mechanism — a participant who
+      is invited but never responds stops blocking progress when the timer fires — but records the
+      outcome as `EXPIRED`, not `DECLINED`, so every reader of the scalar state can tell silence
+      from a refusal. Source: `notes/participant-embargo-consent.md`, ADR-0093, ADR-0118. `LAPSED`
+      is NOT the timer path and NOT a proposal-time state. It is reached only from `SIGNATORY` via
+      the `REVISE` trigger, and that trigger fires only when the case owner activates a revised
+      embargo that ends later than the one the participant accepted (CM-18-002, MSM-07-005,
+      EP-05-001). A participant cannot lapse while the embargo they agreed to is still the one in
+      force. Confusing `LAPSED` with the pocket-veto timeout is a known documentation pitfall; the
+      only timer path is `INVITED → EXPIRED`. Per ADR-0048 and ADR-0091, `UNBOUND` means the
+      participant is not bound by any embargo terms — not a "not yet consented" pre-consent state.
+      It is correct for a participant in a case with `EM.NONE`. It is no longer the destination when
+      an embargo is terminated: `EM.EXITED` has no outgoing transition, so termination moves every
+      record to the terminal `UNBOUND_EXITED`, which refuses every trigger (ADR-0118).
+      `UNBOUND` MUST NOT be read as implying that consent is pending or that an invitation is owed.
     verification: >-
-      Inspection of `vultron/core/states/participant_embargo_consent.py` confirms
-      that `ParticipantEmbargoConsent` declares exactly five states: `UNBOUND`, `INVITED`,
-      `SIGNATORY`, `LAPSED`, and `DECLINED`. Inspection of `vultron/core/models/case_participant.py`
-      confirms `accepted_embargo_ids` is the per-embargo consent record beside the scalar state.
+      Inspection of `vultron/core/states/participant_embargo_consent.py` confirms that
+      `ParticipantEmbargoConsent` declares exactly seven states: `UNBOUND`, `INVITED`, `SIGNATORY`,
+      `LAPSED`, `DECLINED`, `EXPIRED` and `UNBOUND_EXITED`, and that `PEC_TERMINAL_STATES` is
+      exactly `{UNBOUND_EXITED}`. Inspection of `vultron/core/models/case_participant.py` confirms
+      `accepted_embargo_ids` is the per-embargo consent record beside the scalar state.
     adr:
     - ADR-0048
     - ADR-0091
     - ADR-0093
+    - ADR-0118
     stories:
     - story_2022_023
     - story_2022_014
@@ -2307,14 +2378,15 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The `INVITED → DECLINED` transition MAY be driven by a timer expiry (pocket veto)
-      rather than requiring an explicit participant action. The timer period SHOULD be a configurable policy window (default:
-      7 days). The pocket veto materialises when the timer fires without a prior acceptance; the system records the transition
-      to `DECLINED` as if the participant had declined. The `SIGNATORY → LAPSED` transition is NOT timer-based and does NOT
-      fire when a revision is proposed: it fires when the case owner activates a revised embargo that ends later than the
-      one the participant accepted, and only for signatories who have not accepted the revised terms. `LAPSED` has no timer
-      path of its own — a lapsed participant is re-invited (`LAPSED → INVITED`), and the deadline attaches to that
-      invitation.
+      The `INVITED → EXPIRED` transition MAY be driven by a timer expiry (pocket veto) rather than
+      requiring an explicit participant action. The timer period SHOULD be a configurable policy
+      window (default: 7 days). The pocket veto materialises when the timer fires without a prior
+      answer; the system applies the `EXPIRE` trigger and records `EXPIRED`, never `DECLINED`, which
+      only an explicit refusal reaches. The `SIGNATORY → LAPSED` transition is NOT timer-based and
+      does NOT fire when a revision is proposed: it fires when the case owner activates a revised
+      embargo that ends later than the one the participant accepted, and only for signatories who
+      have not accepted the revised terms. `LAPSED` has no timer path of its own — a lapsed
+      participant is re-invited (`LAPSED → INVITED`), and the deadline attaches to that invitation.
     note: >-
       The policy window is the FALLBACK, not the primary mechanism. When the
       inviting `Invite(EmbargoEvent)` activity carries an explicit
@@ -2322,20 +2394,24 @@ groups:
       (CM-28-002). The pocket veto and the explicit RSVP deadline are ONE
       mechanism at two levels of explicitness, not two competing timeouts.
     rationale: >-
-      Per ADR-0093 and `notes/participant-embargo-consent.md`: `LAPSED` means "the active embargo was replaced by longer
-      terms I have not accepted." While a revision is merely proposed the prior embargo is still in force and every
-      signatory to it is still bound by it, so nothing about their consent has changed. `DECLINED` includes both explicit
-      refusals and timeout-based implicit refusals. A pocket veto exists so that an unanswered *invitation* cannot stall
-      coordination; nothing stalls on a lapsed participant, who is already excluded from embargoed content by the
-      CM-10-004 gate, and there is no invitation from which to derive a deadline. Confusing `LAPSED` with the timer path
-      is a known documentation pitfall.
+      Per ADR-0093 and `notes/participant-embargo-consent.md`: `LAPSED` means "the active embargo
+      was replaced by longer terms I have not accepted." While a revision is merely proposed the
+      prior embargo is still in force and every signatory to it is still bound by it, so nothing
+      about their consent has changed. Per ADR-0118, a participant that did not answer has made no
+      decision, so a timeout records `EXPIRED`, distinct from an explicit `DECLINED`; both are
+      re-invitable. A pocket veto exists so that an unanswered *invitation* cannot stall
+      coordination; nothing stalls on a lapsed participant, who is already excluded from embargoed
+      content by the CM-10-004 gate, and there is no invitation from which to derive a deadline.
+      Confusing `LAPSED` with the timer path is a known documentation pitfall.
     verification: >-
-      Inspection of `vultron/core/services/embargo_lifecycle/consent.py` confirms that `detect_and_apply_lapse()` applies
-      `DECLINE` only to a participant in `INVITED` whose `invite_rsvp_deadline` has passed. Inspection of
-      `vultron/core/services/embargo_lifecycle/` confirms that `propose_embargo()` applies no PEC cascade and that the
-      owner's revision acceptance is the only path that moves a signatory to `LAPSED`.
+      Inspection of `vultron/core/services/embargo_lifecycle/consent.py` confirms that
+      `detect_and_apply_expiry()` applies `EXPIRE` only to a participant in `INVITED` whose
+      `invite_rsvp_deadline` has passed. Inspection of `vultron/core/services/embargo_lifecycle/`
+      confirms that `propose_embargo()` applies no PEC cascade and that the owner's revision
+      acceptance is the only path that moves a signatory to `LAPSED`.
     adr:
     - ADR-0093
+    - ADR-0118
     stories:
     - story_2022_027
     - story_2022_014
@@ -2343,44 +2419,57 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The PEC state machine MUST implement exactly the following valid triggers:
-      INVITE (from UNBOUND, LAPSED, or DECLINED), ACCEPT (from UNBOUND,
-      INVITED, or LAPSED), DECLINE (from UNBOUND, INVITED, LAPSED, or SIGNATORY),
-      REVISE (from SIGNATORY only), and RESET (from any state).
-    rationale: 'The `LAPSED` and `DECLINED` states are not terminal: a participant who lapsed or declined can be re-invited
-      (e.g., when embargo terms change). `SIGNATORY → LAPSED` occurs when the case owner activates a revised embargo that
-      ends later than the one the participant accepted and the participant has not accepted the revised terms (ADR-0093,
-      MSM-07-005); a revision that is merely proposed, or one that ends no later than the accepted terms, moves nobody.
-      Per ADR-0048, `ACCEPT` and `DECLINE` are valid directly from
-      `UNBOUND`, because consent is not always mediated by an invitation: a Finder who sets the embargo on their own case
-      has no inviter; participants added during case initialization already have an embargo in scope (ADR-0041); and the
-      reporter''s consent is implicit in submitting the report (CM-14-005). Requiring a synthetic `INVITED` step for these
-      paths would record an invitation event that never occurred. `DECLINE` is valid from `UNBOUND` for symmetry, so a
-      participant added to an embargoed case can refuse without a formal invitation. Per ADR-0093, `DECLINE` is also valid
-      from `SIGNATORY`: a participant who is already bound by an embargo MAY explicitly withdraw consent by rejecting the
-      *active* embargo (VP-13-007, VP-13-008). `SIGNATORY → DECLINED` is a volitional, first-class PEC action distinct from
-      `SIGNATORY → LAPSED` (which is automatic when longer terms the participant has not accepted replace the active
-      embargo). A signatory''s rejection of a *proposed* revision is neither: it refuses those terms and leaves the
-      participant a signatory to the embargo in force (MSM-07-004). See
-      `vultron/core/states/participant_embargo_consent.py`.
-      Open question: whether `UNBOUND` and `DECLINED` should collapse into a single "not bound" state — see
-      `docs/reference/vultron-spec/_oq-pec-unbound-declined-collapse.md`.'
-    verification: Inspection of `vultron/core/states/participant_embargo_consent.py` confirms
-      that `PecDimension` implements exactly the triggers INVITE, ACCEPT, DECLINE, REVISE, and
-      RESET with the specified source-state constraints.
+      The PEC state machine MUST implement exactly the following valid triggers: INVITE (from
+      UNBOUND, LAPSED, DECLINED, or EXPIRED), ACCEPT (from UNBOUND, INVITED, LAPSED, or EXPIRED),
+      DECLINE (from UNBOUND, INVITED, LAPSED, SIGNATORY, or EXPIRED), REVISE (from SIGNATORY only),
+      EXPIRE (from INVITED only), and EXIT (from every state except UNBOUND_EXITED, to
+      UNBOUND_EXITED). No trigger is valid from UNBOUND_EXITED.
+    rationale: >-
+      The `LAPSED`, `DECLINED` and `EXPIRED` states are not terminal: a participant who lapsed,
+      declined or let an invitation expire can be re-invited (e.g., when embargo terms change).
+      `SIGNATORY → LAPSED` occurs when the case owner activates a revised embargo that ends later
+      than the one the participant accepted and the participant has not accepted the revised terms
+      (ADR-0093, MSM-07-005); a revision that is merely proposed, or one that ends no later than the
+      accepted terms, moves nobody. Per ADR-0048, `ACCEPT` and `DECLINE` are valid directly from
+      `UNBOUND`, because consent is not always mediated by an invitation: a Finder who sets the
+      embargo on their own case has no inviter; participants added during case initialization
+      already have an embargo in scope (ADR-0041); and the reporter's consent is implicit in
+      submitting the report (CM-14-005). Requiring a synthetic `INVITED` step for these paths would
+      record an invitation event that never occurred. `DECLINE` is valid from `UNBOUND` for
+      symmetry, so a participant added to an embargoed case can refuse without a formal invitation.
+      Per ADR-0093, `DECLINE` is also valid from `SIGNATORY`: a participant who is already bound by
+      an embargo MAY explicitly withdraw consent by rejecting the *active* embargo (VP-13-007,
+      VP-13-008). A signatory's rejection of a *proposed* revision is neither: it refuses those
+      terms and leaves the participant a signatory to the embargo in force (MSM-07-004). Per
+      ADR-0118, `EXPIRE` is the timer path only (CM-18-002); a late Accept the CASE_MANAGER honours
+      moves `EXPIRED → SIGNATORY` directly (EMB-17-002), and a late explicit Reject moves `EXPIRED →
+      DECLINED`. `EXIT` fires only in the termination cascade (MSM-07-006): `EM.EXITED` has no
+      outgoing transition, so its PEC counterpart `UNBOUND_EXITED` has none either, and a later
+      Invite is refused (CM-18-009). See `vultron/core/states/participant_embargo_consent.py`. Open
+      question: whether `UNBOUND` and `DECLINED` should collapse into a single "not bound" state —
+      see `docs/reference/vultron-spec/_oq-pec-unbound-declined-collapse.md`.
+    verification: >-
+      Inspection of `vultron/core/states/participant_embargo_consent.py` confirms that
+      `PecDimension` implements exactly the triggers INVITE, ACCEPT, DECLINE, REVISE, EXPIRE, and
+      EXIT with the specified source-state constraints, and that every trigger from `UNBOUND_EXITED`
+      raises.
     relationships:
     - rel_type: refines
       spec_id: CM-18-001
     adr:
     - ADR-0048
     - ADR-0093
+    - ADR-0118
   - id: CM-18-004
     priority: MUST_NOT
     kind: protocol
-    statement: A participant's PEC state MUST NOT move from `SIGNATORY` to `INVITED` directly (bypassing `LAPSED`). The only
-      path back to `INVITED` from resolved states is via `LAPSED → INVITED` (after the case owner has activated longer terms
-      the participant has not accepted) or `DECLINED → INVITED` (re-invite after explicit decline). `SIGNATORY → INVITED`
-      is not a valid transition.
+    statement: >-
+      A participant's PEC state MUST NOT move from `SIGNATORY` to `INVITED` directly (bypassing
+      `LAPSED`). The only paths back to `INVITED` from resolved states are `LAPSED → INVITED` (after
+      the case owner has activated longer terms the participant has not accepted), `DECLINED →
+      INVITED` (re-invite after explicit decline) and `EXPIRED → INVITED` (re-invite after an
+      unanswered invitation expired). `SIGNATORY → INVITED` is not a valid transition, and nothing
+      leaves the terminal `UNBOUND_EXITED`.
     rationale: >-
       Consent already given cannot be withdrawn by re-inviting the participant. A signatory to the active embargo is
       bound by it; only replacing that embargo with longer terms (the `REVISE` trigger, fired at activation — ADR-0093)
@@ -2390,6 +2479,7 @@ groups:
       spec_id: CM-18-003
     adr:
     - ADR-0093
+    - ADR-0118
   - id: CM-18-005
     priority: MUST
     kind: project
@@ -2764,7 +2854,7 @@ groups:
       actor's `CaseParticipant.case_roles` and MUST update
       `VulnerabilityCase.attributed_to` to the accepting actor's ID.
     rationale: >-
-      `PublicDisclosureBranchNode` (and any other role-gated protocol node)
+      A role-gated protocol node (for example `CheckIsCaseOwnerNode`)
       determines case-owner authority by reading `CaseParticipant.case_roles`,
       not by comparing actor IDs against `attributed_to`.  Updating only
       `attributed_to` without also updating the participant record leaves the
@@ -2990,6 +3080,33 @@ groups:
       spec_id: CM-21-006
     adr:
     - ADR-0053
+  - id: CM-21-011
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST act on `Accept(Offer(VulnerabilityCase))` only when the sender
+      is the transferee named in a pending ownership-transfer Offer it recorded for that
+      case and that has not been answered; a participant replica MUST apply the ownership
+      change only from the CASE_MANAGER (PCR-03-001). Any other sender MUST be refused, with
+      `VulnerabilityCase.attributed_to` and every participant's `CASE_OWNER` role unchanged.
+    rationale: >-
+      The handler takes the sender to be the new owner and never looks up the Offer, so any
+      actor that knows a case id can claim ownership on every receiver holding the case.
+      See #3733.
+    verification: >-
+      A test marked `CM-21-011`
+      sends the Accept with no pending Offer naming the sender and asserts `REFUSED` with
+      the case owner unchanged.
+    stories:
+    - story_2022_035
+    - story_2022_050
+    relationships:
+    - rel_type: refines
+      spec_id: HP-01-006
+    - rel_type: refines
+      spec_id: CM-21-002
+    adr:
+    - ADR-0115
 - id: CM-22
   title: CASE_MANAGER-Authoritative Case Creation
   description: >-
@@ -3490,27 +3607,24 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      As part of the CM-23-002 owner-close sequence, after the CASE_MANAGER
-      advances its own CaseParticipant to RM.CLOSED and before it commits
-      `case_fully_closed`, it MUST lapse every embargo Invite still awaiting a
-      reply on the case (every participant whose consent is `PEC.INVITED`),
-      without waiting for its RSVP deadline.  It MUST commit a lapsed-invitation
-      CaseLedgerEntry for each (CM-28-009, CM-28-014).  A pending case Invite
-      carries no RSVP deadline and so needs no settling: an answer to it after
-      close is an external append, refused at the ADR-0085 boundary.
+      As part of the CM-23-002 owner-close sequence, after the CASE_MANAGER advances its own
+      CaseParticipant to RM.CLOSED and before it commits `case_fully_closed`, it MUST expire every
+      embargo Invite still awaiting a reply on the case (every participant whose consent is
+      `PEC.INVITED` moves to `PEC.EXPIRED`), without waiting for its RSVP deadline. It MUST commit
+      an expired-invitation CaseLedgerEntry for each (CM-28-009, CM-28-014). A pending case Invite
+      carries no RSVP deadline and so needs no settling: an answer to it after close is an external
+      append, refused at the ADR-0085 boundary.
     rationale: >-
-      After close a pending Invite can only lapse.  Waiting for its RSVP deadline
-      would keep the CASE_MANAGER running for a closed case, possibly for years,
-      only to write one more entry after `case_fully_closed`.  Settling first
-      leaves no timer, so the CASE_MANAGER can stop once the closure has fanned
-      out.  This keeps the boundary clean in practice; it does not promise chain
+      After close a pending Invite can only expire. Waiting for its RSVP deadline would keep the
+      CASE_MANAGER running for a closed case, possibly for years, only to write one more entry after
+      `case_fully_closed`. Settling first leaves no timer, so the CASE_MANAGER can stop once the
+      closure has fanned out. This keeps the boundary clean in practice; it does not promise chain
       finality (CM-23-002).
     verification: >-
-      A test confirms that an owner Leave(VulnerabilityCase) on a case with an
-      unanswered Invite whose RSVP deadline is in the future lapses that
-      participant's consent, commits the lapsed-invitation entry, and orders that
-      entry after the CASE_MANAGER's RM.CLOSED entry and before
-      `case_fully_closed`.
+      A test confirms that an owner Leave(VulnerabilityCase) on a case with an unanswered Invite
+      whose RSVP deadline is in the future moves that participant's consent to `EXPIRED`, commits
+      the expired-invitation entry, and orders that entry after the CASE_MANAGER's RM.CLOSED entry
+      and before `case_fully_closed`.
     relationships:
     - rel_type: refines
       spec_id: CM-23-002
@@ -3519,6 +3633,7 @@ groups:
     - rel_type: depends_on
       spec_id: CM-28-014
     adr:
+    - ADR-0118
     - ADR-0085
     stories:
     - story_2022_066
@@ -3914,7 +4029,7 @@ groups:
   description: >-
     Requirements for the optional RSVP-by deadline carried on an embargo
     invitation, the authority relationship between that wire value and the
-    CM-18-002 pocket-veto policy window, and how a lapse is recorded.
+    CM-18-002 pocket-veto policy window, and how an expiry is recorded.
     Codified by ADR-0065. Source: IDEA-2066.
   specs:
   - id: CM-28-001
@@ -4012,30 +4127,31 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A lapsed invitation MUST be recorded as PEC `DECLINED` via the DECLINE
-      trigger, identically to an explicit refusal. Implementations MUST NOT
-      introduce an additional PEC state to distinguish "never responded" from
-      "explicitly declined".
+      An expired invitation MUST be recorded as PEC `EXPIRED` via the `EXPIRE` trigger (`INVITED →
+      EXPIRED`), never as `DECLINED`. `DECLINED` MUST be reached only by an explicit refusal, so the
+      scalar PEC state distinguishes "never responded" from "explicitly declined".
     rationale: >-
-      No protocol behaviour branches on the distinction: re-invitation
-      (`DECLINED → INVITED`, CM-18-003), embargo-protected content gating, and
-      embargo meta-protocol delivery all treat the two identically. The
-      difference is provenance, not state, and encoding it as state would put
-      path history into the machine and re-expand the table ADR-0048
-      deliberately simplified. See ADR-0065.
+      A participant that did not answer made no decision, and code, logs, demos and replicas read
+      the scalar state, not ledger provenance (ADR-0118). An expired participant is re-invitable
+      (CM-18-003), excluded from embargoed content like any non-signatory (CM-10-004), and made
+      `SIGNATORY` by a late Accept the CASE_MANAGER honours (EMB-17-002). ADR-0118 reverses ADR-0065
+      part 5, which chose `DECLINED`.
     note: >-
       "Invitation" here is an `Invite(EmbargoEvent)`. An expired stub Invite
       (`Invite(Actor, VulnerabilityCaseStub)`) carries embargo terms but changes
       no participant state, consent included (CM-11-014): an unanswered stub is
       not a refusal to join, and the CASE_MANAGER may re-invite on the same
       record (CM-11-015, ADR-0114).
-    verification: A unit test confirms that a lapsed invitation is recorded as PEC `DECLINED`
-      via the DECLINE trigger, using the same state-machine path as an explicit refusal.
+    verification: >-
+      A unit test confirms that the CASE_MANAGER's expiry evaluation moves an `INVITED` participant
+      past its deadline to `EXPIRED`, not `DECLINED`, and that `DECLINE` is not applied on the timer
+      path.
     relationships:
     - rel_type: refines
       spec_id: CM-18-003
     adr:
     - ADR-0065
+    - ADR-0118
     stories:
     - story_2022_027
     - story_2022_014
@@ -4043,15 +4159,18 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A lapsed embargo invitation MUST be distinguishable from an explicit refusal in the
-      canonical case ledger.
+      An expired embargo invitation MUST be distinguishable from an explicit refusal both in the
+      participant's PEC state (`EXPIRED` versus `DECLINED`, CM-28-004) and in the canonical case
+      ledger (CM-28-009).
     rationale: >-
-      The canonical ledger is the project's history mechanism (ADR-0019), so
-      lapse-versus-refusal is recoverable from it without a state or a parallel
-      field. See ADR-0065.
-    verification: Inspection of `vultron/core/` confirms that the lapsed-invitation ledger entry
-      type differs from the `Reject(Invite(EmbargoEvent))` entry type used for explicit
-      refusals.
+      The canonical ledger is the project's history mechanism (ADR-0019), so expiry-versus-refusal
+      is recoverable from it; since ADR-0118 the scalar state carries the distinction too, so a
+      reader that consults only the participant record also sees it. See ADR-0065, ADR-0118.
+    verification: >-
+      Inspection of `vultron/core/` confirms that the expired-invitation ledger entry type
+      (`invite_to_embargo_on_case_expired`) differs from the `Reject(Invite(EmbargoEvent))` entry
+      type used for explicit refusals, and that the participant records `EXPIRED` rather than
+      `DECLINED`.
     adr:
     - ADR-0065
     stories:
@@ -4094,9 +4213,9 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      Embargo invite expiry MUST be evaluated lazily: lapse is derived from
-      `(end_time, now)` whenever a participant's PEC state is read or an inbound
-      `Accept`/`Reject` for the invitation is processed.
+      Embargo invite expiry MUST be evaluated lazily: expiry is derived from `(end_time, now)`
+      whenever a participant's PEC state is read or an inbound `Accept`/`Reject` for the invitation
+      is processed.
     rationale: >-
       Lazy derivation from an explicit deadline is deterministic and requires no new
       infrastructure. No scheduler exists in production, and the Sentinel invocation
@@ -4107,6 +4226,7 @@ groups:
     - rel_type: refines
       spec_id: CM-28-003
     adr:
+    - ADR-0118
     - ADR-0065
   - id: CM-28-008
     priority: MUST_NOT
@@ -4127,16 +4247,16 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The CASE_MANAGER MUST author a distinct ledger entry to record a lapsed invitation,
-      different from the `Reject(Invite(EmbargoEvent))` entry used to record an explicit
-      refusal.
+      The CASE_MANAGER MUST author a distinct ledger entry to record an expired invitation,
+      different from the `Reject(Invite(EmbargoEvent))` entry used to record an explicit refusal.
     rationale: >-
-      The ledger entry is the mechanism that makes lapse-versus-refusal distinguishable
-      (CM-28-005); authoring a single entry type for both events would conflate them and
-      make the distinction unrecoverable from the ledger. See ADR-0065.
-    verification: Inspection of `vultron/core/` confirms that the lapsed-invitation ledger entry
-      is authored as a distinct entry type separate from the `Reject(Invite(EmbargoEvent))`
-      entry.
+      The ledger entry makes expiry-versus-refusal distinguishable in the ledger (CM-28-005), and it
+      is how a replica learns the `EXPIRED` state without computing it (CM-28-014); authoring a
+      single entry type for both events would conflate them. See ADR-0065, ADR-0118.
+    verification: >-
+      Inspection of `vultron/core/` confirms that the expired-invitation ledger entry
+      (`INVITE_EXPIRED_EVENT_TYPE`, snapshot type `Expire`) is authored as a distinct entry type
+      separate from the `Reject(Invite(EmbargoEvent))` entry.
     relationships:
     - rel_type: refines
       spec_id: CM-28-005
@@ -4149,7 +4269,7 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      The lapse-versus-refusal provenance MUST NOT be duplicated onto `PecDimension` as
+      The expiry-versus-refusal provenance MUST NOT be duplicated onto `PecDimension` as
       a reason field.
     rationale: >-
       A `reason` discriminator on `PecDimension` — which currently holds only `state` —
@@ -4171,7 +4291,7 @@ groups:
       The policy window is an absolute duration (default 7 days) measured from the
       invitation's `published` timestamp, with no reference to the embargo it concerns.
       Applied to a short embargo it produces a pocket veto that fires after the embargo has
-      already ended, recording a decline for a decision that no longer exists. EP-07-006
+      already ended, recording an expiry for a decision that no longer exists. EP-07-006
       states the general rule; this requirement binds the specific fallback path CM-18-002
       defines. See ADR-0096.
     verification: >-
@@ -4251,19 +4371,19 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Only the CASE_MANAGER evaluates invite lapse (CM-28-003). The lapsed-invitation ledger
-      entry (CM-28-009) MUST be committed behind the CASE_MANAGER role gate (BT-17-001) and
-      MUST have a replica apply node reachable from `create_announce_log_entry_tree`
-      (RSH-08-004); a replica learns a lapse from that entry and never computes one.
+      Only the CASE_MANAGER evaluates invite expiry (CM-28-003). The expired-invitation ledger entry
+      (CM-28-009) MUST be committed behind the CASE_MANAGER role gate (BT-17-001) and MUST have a
+      replica apply node reachable from `create_announce_log_entry_tree` (RSH-08-004); a replica
+      learns an expiry from that entry and never computes one.
     rationale: >-
-      The lapse commit ran unconditionally in whichever store processed a late `Accept`, so a
-      non-manager could author a ledger entry, and no replay node existed for the event type,
-      so a lapse recorded by the manager reached no replica (#3918).
+      The expiry commit ran unconditionally in whichever store processed a late `Accept`, so a
+      non-manager could author a ledger entry, and no replay node existed for the event type, so an
+      expiry recorded by the manager reached no replica (#3918).
     verification: >-
-      A test runs the late-`Accept` path as a non-manager and asserts no lapse entry is
-      committed; a test replays an `invite_to_embargo_on_case_lapsed` entry into a replica
-      and asserts the participant reads `DECLINED`. Until the implementation lands the tests
-      are strict `xfail`s naming their tracking issue.
+      A test runs the late-`Accept` path as a non-manager and asserts no expiry entry is committed;
+      a test replays an `invite_to_embargo_on_case_expired` entry into a replica and asserts the
+      participant reads `EXPIRED`. Until the implementation lands the tests are strict `xfail`s
+      naming their tracking issue.
     relationships:
     - rel_type: refines
       spec_id: CM-28-009
@@ -4272,6 +4392,7 @@ groups:
     - rel_type: depends_on
       spec_id: BT-17-001
     adr:
+    - ADR-0118
     - ADR-0113
     stories:
     - story_2022_014
@@ -4392,3 +4513,361 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-27-001
+- id: CM-30
+  title: Sender Entitlement for Case Content Changes
+  description: >-
+    Who may remove a note from a case or attach a report to it. Neither message has a
+    trigger today; these entries name the sender a receiver accepts (HP-01-006).
+  specs:
+  - id: CM-30-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST act on `Remove(Note)[target=VulnerabilityCase]` only when the
+      sender is the note's author and an active participant (CM-10-004), or the case's Case
+      Owner; a participant replica MUST apply the removal only from the CASE_MANAGER
+      (PCR-03-001). Any other sender MUST be refused with the note left in the case.
+    rationale: >-
+      The handler removes any note for any sender. An author may withdraw its own note, and
+      the Case Owner may remove anyone's; nobody else has a reason to. See #3733.
+    verification: >-
+      A test marked `CM-30-001`
+      sends the Remove from an actor that is neither the author nor the Case Owner and
+      asserts `REFUSED` with the note still in the case.
+    stories:
+    - story_2022_035
+    - story_2022_088
+    relationships:
+    - rel_type: refines
+      spec_id: HP-01-006
+    adr:
+    - ADR-0115
+  - id: CM-30-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST act on `Add(VulnerabilityReport)[target=VulnerabilityCase]`
+      only when the sender is the case's Case Owner; a participant replica MUST apply the
+      addition only from the CASE_MANAGER (PCR-03-001). Any other sender MUST be refused
+      with the case's reports unchanged.
+    rationale: >-
+      The handler appends any report id to any case for any sender. See #3733.
+    verification: >-
+      A test marked `CM-30-002`
+      sends the Add from a non-owner and asserts `REFUSED` with the report not attached.
+    stories:
+    - story_2022_035
+    - story_2022_088
+    relationships:
+    - rel_type: refines
+      spec_id: HP-01-006
+    adr:
+    - ADR-0115
+- id: CM-31
+  title: Participant Removal and Reinstatement
+  description: >-
+    Removing a participant withdraws its entitlement to case content and keeps its record. The Case
+    Owner requests removal and reinstatement; the CASE_MANAGER applies them, records each as one ledger
+    entry, and tells the affected participant directly (ADR-0116).
+  specs:
+  - id: CM-31-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Removing a participant MUST record a removal fact on its `CaseParticipant` and MUST NOT delete the
+      record from `case_participants`. The participant's status history and the ledger entries it
+      authored MUST remain, and a removed participant MUST be inert (CM-10-004).
+    rationale: >-
+      Deleting the record erases who took part in the case and leaves ledger entries naming an actor
+      the roster no longer holds. Removal is a decision about entitlement to case content, not about
+      membership, so it is a fact the active check reads (ADR-0116).
+    verification: >-
+      A received-side test applies a Case Owner's `Remove(CaseParticipant)` at the CASE_MANAGER and
+      asserts the participant is still in `case_participants` and `actor_participant_index` and is
+      not active.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-10-004
+    adr:
+    - ADR-0116
+    stories:
+    - story_2022_023
+  - id: CM-31-002
+    priority: MUST
+    kind: architecture
+    statement: >-
+      Whether a participant is active MUST be computed by one case-level check from stored facts —
+      the CM-10-004 definition: joined (seated by case initialization or accepted the stub Invite),
+      not removed, and `SIGNATORY` when an embargo is active — and MUST NOT be stored. RM `CLOSED`
+      is not an input (#4100). A participant-level
+      property MUST NOT compute a partial answer under a name that reads as "active".
+    rationale: >-
+      An inferred status that is stored goes stale whenever one of its inputs changes without
+      rewriting it; the precedent is `embargo_adherence` (CM-18-008, CM-18-014). Whether an embargo is
+      active is case state a participant record cannot see, so the full answer lives on the case. A
+      partial participant-level property would read as "active" at a send site and leak embargoed
+      content to a non-signatory.
+    verification: >-
+      Inspection confirms no stored field holds the active answer and that the shared recipient
+      selection (CM-10-007) calls the one case-level check.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-10-007
+    adr:
+    - ADR-0116
+  - id: CM-31-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      `VulnerabilityCase` MUST expose a computed `activeParticipants` collection on the wire holding
+      exactly the participants the CM-31-002 check finds active. It MUST NOT be stored, and reading a
+      serialized case back in MUST ignore or recompute it rather than refuse it.
+    rationale: >-
+      `case_participants` stays the full roster that role resolution and `actor_participant_index`
+      read (CM-19-001). Publishing the active set as its own collection makes
+      `Remove(CaseParticipant)` literally true: the participant leaves that collection. Core types
+      refuse unknown keys on input, so a computed field in the dump refuses the case's own serialized
+      form unless input handles it.
+    verification: >-
+      A unit test asserts `activeParticipants` lists active participants only, and that a case dumped
+      by alias validates back to an equal case.
+    adr:
+    - ADR-0116
+    stories:
+    - story_2022_023
+  - id: CM-31-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      `Remove(CaseParticipant, target=VulnerabilityCase)` is the Case Owner's request to the
+      CASE_MANAGER to remove a participant from active participation. The CASE_MANAGER MUST refuse it
+      (`HandlerResult.refused`) when the sender does not hold `CVDRole.CASE_OWNER`, when the named
+      participant holds `CVDRole.CASE_MANAGER` or `CVDRole.CASE_OWNER`, or when it names no participant
+      of the case, and MUST report a removal of an already-removed participant as skipped. The
+      CASE_MANAGER MUST NOT remove a participant on its own initiative.
+    rationale: >-
+      The Case Owner decides who takes part in the case; the CASE_MANAGER applies case changes and
+      decides none (ADR-0108). The CASE_MANAGER role is never unfilled (CM-24-006), and the Case Owner
+      leaves only by transferring ownership (CM-21). A participant that wants to stop taking part
+      sends `Leave(VulnerabilityCase)` (CM-23), not `Remove`.
+    verification: >-
+      Received-side tests assert a removal from a non-owner, of the CASE_MANAGER, and of the Case
+      Owner is refused, a repeat removal is skipped, and a removal from the Case Owner is applied.
+    relationships:
+    - rel_type: depends_on
+      spec_id: PCR-03-006
+    adr:
+    - ADR-0116
+    stories:
+    - story_2022_023
+  - id: CM-31-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An accepted removal MUST be recorded as exactly one ledger entry: the Case Owner's received
+      `Remove(CaseParticipant)`, committed by the receive pipeline (CLP-10-006).
+      `("Remove", "CaseParticipant")` MUST be a canonical ledger signature, and the CASE_MANAGER MUST
+      NOT commit a second entry of its own for the same removal.
+    rationale: >-
+      One move gets one entry, authored by the actor that made it, so the ledger shows the removal as
+      the Case Owner's decision rather than the CASE_MANAGER acting alone (ADR-0108). Without the
+      canonical signature a removal cannot be committed, so it never reaches a replica.
+    verification: >-
+      A test asserts `("Remove", "CaseParticipant")` is a canonical signature and that an accepted
+      removal grows the ledger by one entry whose snapshot is the Case Owner's activity.
+    relationships:
+    - rel_type: depends_on
+      spec_id: CLP-10-006
+    adr:
+    - ADR-0116
+    stories:
+    - story_2022_023
+    - story_2022_052
+  - id: CM-31-006
+    priority: MUST
+    kind: protocol
+    statement: >-
+      After committing a removal the CASE_MANAGER MUST send the removed participant a direct
+      `Remove(CaseParticipant)` naming it, with `actor` the CASE_MANAGER and `attributedTo` the Case
+      Owner (CM-24), and MUST NOT ledger that notice. The removal entry's fan-out MUST include the
+      removed participant, and MUST be the last canonical entry it is sent, by fan-out or by replay,
+      until it is reinstated.
+    rationale: >-
+      Learning of removal only from silence is indistinguishable from a network fault, and the removed
+      party needs to know it is still bound and how it will hear of the embargo's end. The notice is
+      delivery, not a second record of the move; the ledger entry keeps the removed party's replica
+      continuous up to the removal.
+    verification: >-
+      A received-side test asserts the CASE_MANAGER's outbox holds a `Remove(CaseParticipant)`
+      addressed to the removed participant and an `Announce(CaseLedgerEntry)` of the removal addressed
+      to it, and that an entry committed afterwards is not addressed to it.
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-31-005
+    adr:
+    - ADR-0116
+    stories:
+    - story_2022_023
+    - story_2022_052
+  - id: CM-31-007
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A replica MUST apply a removal from its ledger entry through a replica apply node, recording the
+      same removal fact the CASE_MANAGER recorded (RSH-08-004). A replica MUST NOT apply a removal from a directly received `Remove(CaseParticipant)`
+      (RSH-08-003).
+    rationale: >-
+      Replicas take case state from the ledger. The direct notice tells the removed party what
+      happened; the entry is what changes every replica, the removed party's included.
+    verification: >-
+      A test announces a removal entry to a replica and asserts the participant's record remains,
+      carries the removal fact, and is not active on the replica.
+    relationships:
+    - rel_type: depends_on
+      spec_id: RSH-08-004
+    adr:
+    - ADR-0116
+    stories:
+    - story_2022_023
+    - story_2022_052
+  - id: CM-31-008
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Removal MUST NOT change the participant's embargo consent or `accepted_embargo_ids`. A removed
+      `SIGNATORY` remains bound by the embargo it accepted.
+    rationale: >-
+      Releasing a removed participant from the embargo would reward the conduct that got it removed.
+      Consent is the participant's own statement (CM-18-005); removal is a separate fact.
+    verification: >-
+      A received-side test removes a `SIGNATORY` and asserts its consent state and
+      `accepted_embargo_ids` are unchanged.
+    relationships:
+    - rel_type: constrains
+      spec_id: CM-18-005
+    adr:
+    - ADR-0116
+    stories:
+    - story_2022_014
+    - story_2022_023
+  - id: CM-31-009
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the active embargo is terminated (including by the case becoming public) or replaced by a
+      shorter revision, the CASE_MANAGER MUST send every `SIGNATORY` participant the ledger fan-out
+      does not reach — removed (CM-31-001), or at RM `CLOSED` and skipped by the CM-23-004 fan-out —
+      a direct notice outside the ledger stream:
+      `Remove(EmbargoEvent)` for a termination, `Announce(EmbargoEvent)` with the new terms for a
+      shorter revision. The notice MUST carry no other case content. No notice is owed for a longer
+      revision or for expiry on the agreed date.
+    rationale: >-
+      A participant that stopped receiving case content while bound stays bound, and without this it
+      never learns that the obligation ended early or shortened. A longer revision does not bind a
+      participant that never agreed to it, and expiry on the agreed date is already known to it. A
+      past-dated `Announce(EmbargoEvent)` is not used: its meaning would depend on the receiver's
+      clock, and an early end is an event, not a date that passed.
+    verification: >-
+      Tests terminate the embargo and activate a shorter revision on a case with a removed signatory
+      and a departed signatory, and assert each is sent the matching notice and no ledger entry;
+      a declined or never-joined participant is sent nothing.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-10-007
+    adr:
+    - ADR-0116
+    - ADR-0093
+    stories:
+    - story_2022_014
+  - id: CM-31-010
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A participant whose ledger stream is paused — withheld under CM-10-005, removed (CM-31-001), or
+      skipped at RM `CLOSED` (CM-23-004) — MUST apply a CM-31-009 notice sent by the CASE_MANAGER
+      for the case, and MUST ignore one from any other sender. Replaying the corresponding ledger entry
+      after the participant becomes active again MUST change nothing further.
+    rationale: >-
+      A paused replica cannot take the change from the ledger, so the notice is its only channel. The
+      exception is to the channel, not the authority: the notice still originates from the
+      CASE_MANAGER (PCR-03-001).
+    verification: >-
+      A received-side test applies the notice at a removed participant's replica and asserts the
+      embargo ended; the same notice from a non-manager changes nothing; a later replay of the entry
+      leaves the replica unchanged.
+    relationships:
+    - rel_type: refines
+      spec_id: RSH-08-003
+    adr:
+    - ADR-0116
+    stories:
+    - story_2022_014
+  - id: CM-31-011
+    priority: MUST
+    kind: protocol
+    statement: >-
+      `Add(CaseParticipant, target=VulnerabilityCase)` is the Case Owner's request to the CASE_MANAGER
+      to reinstate a removed participant. It MUST follow the CM-31-004 through CM-31-007 pipeline
+      (Case Owner only, one ledger entry, a direct notice, a replica apply node), MUST clear the
+      removal fact, and MUST NOT require the participant to accept again. The CASE_MANAGER MUST refuse
+      an `Add` naming a participant that is not removed or that never joined.
+    rationale: >-
+      Owners make mistakes and disputes resolve, so removal is reversible. The participant never
+      withdrew, so it does not rejoin; `Leave` remains open to it. Joining requires accepting a stub
+      Invite (ADR-0114), and `Add` must not become a way around that. A participant reinstated into a
+      case whose embargo it has not accepted stays inert, and its CM-10-006 backfill waits for its
+      consent.
+    verification: >-
+      Received-side tests assert the Case Owner's `Add` reinstates a removed participant, and that an
+      `Add` naming a never-joined invitee or a participant that is not removed is refused.
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-31-004
+    adr:
+    - ADR-0116
+    stories:
+    - story_2022_052
+  - id: CM-31-012
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST NOT emit `Add(CaseParticipant)`, or commit an `add_case_participant` ledger
+      entry, as a consequence of an invitee accepting the stub Invite. Replicas learn of the new
+      member from the `Accept(Invite)` entry.
+    rationale: >-
+      CM-17-004 does not call for it, the `Accept(Invite)` entry already carries the change, and a
+      replica usually refuses the direct message for want of the participant record it names. It also
+      records one move twice, and `Add(CaseParticipant)` now means reinstatement only (CM-31-011).
+    verification: >-
+      A test drives an invitee's stub-Invite acceptance at the CASE_MANAGER and asserts no
+      `Add(CaseParticipant)` is enqueued and no `add_case_participant` entry is committed.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-17-004
+    adr:
+    - ADR-0116
+    stories:
+    - story_2022_052
+  - id: CM-31-013
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A removed participant MUST NOT be sent a stub Invite, a full-case Invite, or an embargo Invite;
+      the CM-31-009 notices are its only exception. When a participant is reinstated into a case with
+      an active embargo it has not accepted, the CASE_MANAGER MUST send it that embargo's Invite.
+    rationale: >-
+      Invites reach inert participants because they ask them to join or consent (CM-10-007). A removed
+      participant was taken out by the Case Owner's decision; inviting it to vote on embargo revisions
+      would undo that decision. A reinstated participant that is not `SIGNATORY` stays inert until it
+      consents, so it must be asked.
+    verification: >-
+      Tests assert the embargo-Invite recipient selection excludes a removed participant, and that
+      reinstating a participant that is not `SIGNATORY` to the active embargo enqueues that embargo's
+      Invite to it.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-10-007
+    adr:
+    - ADR-0116
+    stories:
+    - story_2022_023

@@ -223,11 +223,10 @@ KNOWN_FACTORIES_BYPASSING_INTAKE: frozenset[str] = frozenset(
         # tree-less path in AcceptInviteToEmbargoOnCaseReceivedUseCase whose
         # writes predate it. Leaves with that path's move onto a tree (#3871).
         "embargo_admission_backfill_tree",
-        # embargo — the CM-28-014 lapse evaluation: given no activity, it runs
-        # ahead of the Accept tree on the same tree-less EMB-17 path and
-        # commits its own entry (the lapse, not the Accept). Leaves with that
-        # path's move onto a tree (#3871).
-        "create_invite_lapse_tree",
+        # commit tree — a ledger-commit factory called from the expiry path of
+        # AcceptInviteToEmbargoOnCaseReceivedUseCase (CM-28-009, ADR-0118); it
+        # does not process a received activity, it commits a synthesised entry.
+        "create_commit_log_entry_tree",
     }
 )
 

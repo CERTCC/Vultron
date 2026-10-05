@@ -238,50 +238,45 @@ class TestSubmitReportCreatesCase:
         is persisted and a pending VultronReportCaseLink is written rather than
         the submission being dropped.
         """
-        import py_trees
 
-        py_trees.blackboard.Blackboard.storage.clear()
-        try:
-            report = VulnerabilityReport(
-                id_="https://example.org/reports/r-nostamp-1"
-            )
-            activity = VultronActivity(
-                id_="https://example.org/activities/offer-nostamp-1",
-                type_="Offer",
-                actor=self.FINDER_ID,
-                to=[self.VENDOR_ID],
-            )
-            event = SubmitReportReceivedEvent(
-                semantic_type=MessageSemantics.SUBMIT_REPORT,
-                activity_id="https://example.org/activities/offer-nostamp-1",
-                actor_id=self.FINDER_ID,
-                object_=report,
-                activity=activity,
-                receiving_actor_id=None,
-            )
-            from vultron.core.models.case_actor import CaseActor
+        report = VulnerabilityReport(
+            id_="https://example.org/reports/r-nostamp-1"
+        )
+        activity = VultronActivity(
+            id_="https://example.org/activities/offer-nostamp-1",
+            type_="Offer",
+            actor=self.FINDER_ID,
+            to=[self.VENDOR_ID],
+        )
+        event = SubmitReportReceivedEvent(
+            semantic_type=MessageSemantics.SUBMIT_REPORT,
+            activity_id="https://example.org/activities/offer-nostamp-1",
+            actor_id=self.FINDER_ID,
+            object_=report,
+            activity=activity,
+            receiving_actor_id=None,
+        )
+        from vultron.core.models.case_actor import CaseActor
 
-            dl = SqliteDataLayer("sqlite:///:memory:", actor_id=self.VENDOR_ID)
-            dl.save(report)
-            dl.save(CaseActor(id_=self.VENDOR_ID))
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=self.VENDOR_ID)
+        dl.save(report)
+        dl.save(CaseActor(id_=self.VENDOR_ID))
 
-            SubmitReportReceivedUseCase(
-                dl, event, trigger_activity=TriggerActivityAdapter(dl)
-            ).execute()
+        SubmitReportReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
 
-            stored = dl.read(report.id_)
-            assert stored is not None, (
-                "Report must be persisted even when receiving_actor_id is absent"
-                " (store-owner fallback, CLP-10-005)"
-            )
-            link_id = VultronReportCaseLink.build_id(report.id_)
-            link = dl.read(link_id)
-            assert isinstance(link, VultronReportCaseLink), (
-                "VultronReportCaseLink must be created when store owner is in"
-                " activity.to and receiving_actor_id is absent (CLP-10-005)"
-            )
-        finally:
-            py_trees.blackboard.Blackboard.storage.clear()
+        stored = dl.read(report.id_)
+        assert stored is not None, (
+            "Report must be persisted even when receiving_actor_id is absent"
+            " (store-owner fallback, CLP-10-005)"
+        )
+        link_id = VultronReportCaseLink.build_id(report.id_)
+        link = dl.read(link_id)
+        assert isinstance(link, VultronReportCaseLink), (
+            "VultronReportCaseLink must be created when store owner is in"
+            " activity.to and receiving_actor_id is absent (CLP-10-005)"
+        )
 
     def test_submit_report_skips_case_creation_when_not_in_to(self):
         """SubmitReportReceivedUseCase skips BT when receiving actor not in to.

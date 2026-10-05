@@ -324,23 +324,41 @@ Database".
 
 ## py_trees and BT Tests
 
-### `py_trees` Blackboard Is Process-Global — Clear Between Test BT Runs
+### `py_trees` Blackboard Is Process-Global — Cleared Once, at the Test Root
 
 `py_trees.blackboard.Blackboard.storage` is a module-level singleton.
-Constructing a fresh `BtNode` tree per test does **not** clear it; keys set by a
-previous `execute_with_setup` remain visible to the next run. Either use a scoped
-namespace per run or clear the blackboard explicitly between executions. In
-production, BT-17-003 already requires domain-specific output keys to be reset on
-every tick; tests must also prevent cross-test contamination.
+Constructing a fresh `BtNode` tree per test does **not** clear it.
+`BTBridge.execute_with_setup` restores only the keys on its `managed_keys` list,
+so any other key a node writes outlives the run and is visible to the next one.
+In production, BT-17-003 requires a node to write `None` to its output keys on a
+no-op path; tests must also prevent cross-test contamination (TB-06-005).
 
-Source: ISSUE-2232
+The autouse `clear_py_trees_blackboard` fixture in the root `test/conftest.py`
+clears the storage before **and** after every test in the suite. Do not add a
+per-directory or per-file copy: a copy covers only its own directory, and the
+gap between copies is where #3996 lived. The same root conftest resets the
+other per-actor registries (`_reset_buffers()` for the ledger gap buffer, the
+pending-assertion stores, the actor stores). A new process-global registry gets
+its reset there too.
+
+**#3996 diagnosis.** The received embargo Reject/Invite tests failed in some
+orders. The issue blamed the per-actor store cache, but the stores were already
+disposed after every test. The real cause was a stale `/participant` key: the
+since-deleted `OptionalLookupParticipantNode` wrote it only when it *found* a
+participant (a BT-17-003 breach), and the use-case tests outside
+`test/core/behaviors/` had no clearing fixture, so a later test transitioned
+the previous test's participant. Ratchet: the ordered pairs in
+`test/test_process_global_isolation.py`. The second test of each pair fails
+loudly if the first did not run.
+
+Source: ISSUE-2232, ISSUE-3996
 
 ### `SUBFAILED` in `unittest.TestCase` Subtests Does Not Fail pytest
 
 `test/bt/test_vultrabot.py::MyTestCase::test_main` may show `SUBFAILED` due to
 py_trees `Blackboard.storage` global-state ordering, but pytest exits 0. When
 investigating that test, run it targeted with `-v` and treat `SUBFAILED` as real.
-Clear `py_trees.blackboard.Blackboard.storage` in BT-using fixtures.
+The root `clear_py_trees_blackboard` fixture clears the storage between tests.
 
 ### `py_trees` BT Subclasses in Tests MUST Be Defined at Module Level
 
@@ -458,8 +476,8 @@ refactor that accidentally stubs the node under test fails loudly.
 
 The blackboard storage key carries a **leading slash**
 (`/publication_intent_decision`); assert against
-`py_trees.blackboard.Blackboard.storage` and rely on the `autouse
-clear_blackboard` fixture to keep the assertion non-vacuous.
+`py_trees.blackboard.Blackboard.storage` and rely on the root autouse
+`clear_py_trees_blackboard` fixture to keep the assertion non-vacuous.
 
 Source: ISSUE-1594
 

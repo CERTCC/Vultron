@@ -6,9 +6,11 @@ related_specs:
   - specs/architecture.yaml
   - specs/case-ledger-processing.yaml
   - specs/case-management.yaml
+  - specs/case-proposal.yaml
   - specs/sync-ledger-replication.yaml
 related_notes:
   - notes/bt-integration.md
+  - notes/case-proposal.md
   - notes/demo-interactive-ui.md
   - notes/activitystreams-semantics.md
   - notes/case-communication-model.md
@@ -618,9 +620,20 @@ done.
 *Spec: `specs/case-ledger-processing.yaml` CLP-08-001 through CLP-08-006.*
 
 The per-case genesis hash is derived as
-`SHA-256(case_id + "|" + created_at.isoformat() + "|" + case_actor_id)`.
-This anchors each case ledger to its origin identity and timestamp,
+`SHA-256(case_id + "|" + created_at.isoformat() + "|" + owner_actor_id)`,
+where `owner_actor_id` is the case owner, `VulnerabilityCase.attributed_to` at
+creation. This anchors each case ledger to its origin identity and timestamp,
 replacing the former global `GENESIS_HASH = "0" * 64` constant.
+
+The anchor is the owner, not the CaseActor, on every creation path
+(ADR-0117). The CaseActor is the owner's delegated proxy, so a case it creates
+from the owner's `CaseProposal` hashes exactly as one the owner created itself.
+There is one formula: `compute_genesis_hash`, called by the `VulnerabilityCase`
+construction validator when no hash is supplied. A creator sets
+`attributed_to` and passes no hash. A replica keeps the `genesisHash` it
+received; a received case that carries none derives it through the same
+validator from its carried `attributedTo` and `published` (ADR-0103), which
+the owner anchor makes agree with the sender.
 
 ### Current Threat Model
 
@@ -629,7 +642,7 @@ cryptographically random UUID path segment satisfy CLP-08-006. The domain
 prefix is public but irrelevant — an attacker must still brute-force the
 UUID component to predict the genesis hash.
 
-If case metadata (`case_id`, `created_at`, `case_actor_id`) is observable
+If case metadata (`case_id`, `created_at`, `owner_actor_id`) is observable
 by an attacker — which is possible in a federated protocol — the genesis
 hash becomes computable by anyone with that knowledge. This means:
 
@@ -648,7 +661,7 @@ close the targeted DoS vector even when case metadata leaks:
 
 ```python
 genesis_hash = sha256(
-    case_id + "|" + created_at.isoformat() + "|" + case_actor_id
+    case_id + "|" + created_at.isoformat() + "|" + owner_actor_id
     + "|" + secret_nonce
 )
 ```
@@ -671,6 +684,9 @@ genesis_hash = sha256(
 )
 # or: genesis_hash = sha256(case_actor.sign(case_id + created_at))
 ```
+
+Either form moves the anchor from the owner's actor id to a CASE_MANAGER key,
+so adopting it revisits ADR-0117 rather than extending it.
 
 This would:
 

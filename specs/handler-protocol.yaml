@@ -157,6 +157,61 @@ groups:
       acts.
     adr:
     - ADR-0095
+  - id: HP-01-006
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A handler MUST establish that the sender of a received activity is entitled to make
+      its assertion before any write, outbound activity or ledger commit, and MUST report
+      `REFUSED` with a reason naming the missing entitlement when it cannot. Entitlement is
+      the sender's standing, not the receiver's: the governing group's sender clause names
+      it per message (CM-11-017, CM-16-019, CM-21-011, CM-30-001, CM-30-002, CP-06-005,
+      SYNC-03-005), and a receiver role check such as the CASE_MANAGER gate (BT-17-001)
+      never satisfies it.
+    rationale: >-
+      A received activity is an assertion about the sender's state (HP-00-001), so the
+      first question is whether the sender may assert it. An audit found handlers that let
+      any actor claim ownership, admit itself, or obtain the full ledger, each behind a
+      CASE_MANAGER gate that checked only the receiver. See #3733 and ADR-0115.
+    verification: >-
+      A test marked `HP-01-006`
+      drives a received handler with a sender that holds no entitlement and asserts
+      `REFUSED` with no case-state write. Per-message coverage is under the sender clauses
+      this entry names.
+    stories:
+    - story_2022_035
+    - story_2022_036
+    relationships:
+    - rel_type: depends_on
+      spec_id: HP-00-001
+    - rel_type: refines
+      spec_id: HP-01-005
+    adr:
+    - ADR-0115
+  - id: HP-01-007
+    priority: MUST
+    kind: architecture
+    statement: >-
+      Every received use case MUST declare its sender entitlement exactly once, as either an
+      entitlement kind or an exemption carrying a reason, and the receive-tree factory MUST
+      compose the matching guard from the single sender-entitlement module into the tree's
+      guard stage. A handler MUST NOT implement its own sender predicate, and the module
+      MUST NOT have a twin.
+    rationale: >-
+      Sender checks already existed in seven near-duplicate forms across `behaviors/` and
+      `use_cases/` before this rule, and the handlers that lacked one were found only by a
+      manual audit. One declaration read by the factory and by a ratchet makes a missing
+      check a test failure and makes the remaining gaps a visible exemption list. See
+      ADR-0115.
+    verification: >-
+      An architecture test under `test/architecture/` walks `SEMANTIC_REGISTRY`, fails on a
+      received use case with no entitlement declaration, and fails on a sender predicate
+      defined outside the sender-entitlement module.
+    relationships:
+    - rel_type: refines
+      spec_id: HP-01-006
+    adr:
+    - ADR-0115
 - id: HP-02
   title: Semantic Verification
   specs:

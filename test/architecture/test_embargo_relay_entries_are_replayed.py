@@ -48,13 +48,14 @@ from vultron.core.behaviors.sync.announce_tree import (
     create_announce_log_entry_tree,
 )
 from vultron.core.behaviors.sync.nodes.event_conditions import (
-    INVITE_LAPSED_EVENT_TYPE,
+    EMBARGO_ABANDONMENT_EVENT_TYPE,
     _ActivityEventNode,
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.base import MessageSemantics
+from vultron.core.models.rsvp_deadline import INVITE_EXPIRED_EVENT_TYPE
 from vultron.enums.roles import CVDRole
 
 MANAGER = "https://example.org/actors/case-manager"
@@ -109,14 +110,18 @@ REPLAYED: dict[str, tuple[str, dict[str, Any]]] = {
         MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE.value,
         {"type": "Reject", "actor": REPLICA, "object": {"object": EMBARGO}},
     ),
+    "the manager's abandonment of an Invite": (
+        EMBARGO_ABANDONMENT_EVENT_TYPE,
+        {"type": "Reject", "actor": MANAGER, "object": {"object": EMBARGO}},
+    ),
     "teardown": (
         MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE.value,
         {"type": "Remove", "actor": MANAGER, "object": EMBARGO},
     ),
-    "invite lapse": (
-        INVITE_LAPSED_EVENT_TYPE,
+    "invite expiry": (
+        INVITE_EXPIRED_EVENT_TYPE,
         {
-            "type": "Lapse",
+            "type": "Expire",
             "actor": REPLICA,
             "object": {"type": "Invite", "object": EMBARGO},
         },
@@ -134,13 +139,6 @@ OUTSIDE_THE_RELAY: dict[str, str] = {
         "no receiver-side state change; commits nothing"
     ),
 }
-
-
-@pytest.fixture(autouse=True)
-def clear_blackboard():
-    py_trees.blackboard.Blackboard.storage.clear()
-    yield
-    py_trees.blackboard.Blackboard.storage.clear()
 
 
 def _effect_slot_conditions() -> list[_ActivityEventNode]:

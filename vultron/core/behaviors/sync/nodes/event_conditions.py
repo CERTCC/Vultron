@@ -31,6 +31,7 @@ from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
 from vultron.core.behaviors.sync.nodes.conditions import _require_log_entry
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.base import MessageSemantics
+from vultron.core.models.rsvp_deadline import INVITE_EXPIRED_EVENT_TYPE
 from vultron.core.models.wire_keys import wire_key
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_persistence import CasePersistence
@@ -54,9 +55,15 @@ _ACCEPT_EMBARGO_INVITE_EVENT = (
 _REJECT_EMBARGO_INVITE_EVENT = (
     MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE.value
 )
-# The CASE_MANAGER's lapse of an invitee's embargo Invite (CM-28-009,
-# CM-28-014): a synthesised entry with no wire semantic of its own.
-INVITE_LAPSED_EVENT_TYPE = "invite_to_embargo_on_case_lapsed"
+#: Ledger ``event_type`` of the CASE_MANAGER's abandonment of an open embargo
+#: proposal once P/X/A is set (EMB-16-001).  The snapshot is the ER the wire
+#: carries, ``Reject(Invite(EmbargoEvent))`` (MSM-02-006), but it is the
+#: manager's decision rather than its consent answer, so it has an event type
+#: of its own: replayed as a reject, a manager that is not the case owner
+#: would decide nothing (#4131).
+EMBARGO_ABANDONMENT_EVENT_TYPE = (
+    f"{MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE.value}_abandoned"
+)
 
 
 class _ActivityEventNode(DataLayerConditionWithPorts):
@@ -91,8 +98,8 @@ class IsRemoveEmbargoEventNode(_ActivityEventNode):
             ApplyEmbargoTeardownNode
           Inverter(IsRemoveEmbargoEventNode)  ← SUCCESS iff wrong event type
 
-    The four relay slots beside it (proposal, relayed Invite, Accept and
-    Reject of an Invite) follow the same shape.
+    The relay slots beside it (proposal, relayed Invite, Accept and Reject
+    of an Invite, and the abandonment of a proposal) follow the same shape.
 
     The Inverter fires SUCCESS only when the condition does NOT match (routing
     no-op for the wrong event type).  When the condition matches but
@@ -385,16 +392,33 @@ class IsRejectEmbargoInviteEventNode(_ActivityEventNode):
         return Status.FAILURE
 
 
-class IsInviteLapsedEventNode(_ActivityEventNode):
-    """Precondition: this entry is the CASE_MANAGER's lapse of an embargo Invite.
+class IsEmbargoAbandonmentEventNode(_ActivityEventNode):
+    """Precondition: this entry is the CASE_MANAGER's abandonment of a proposal.
 
-    Used in the ``InviteLapseEffects`` slot of ``AnnounceLogEntryReceivedBT``.
+    Matches :data:`EMBARGO_ABANDONMENT_EVENT_TYPE`.  Used in the
+    ``EmbargoAbandonmentEffects`` slot of ``AnnounceLogEntryReceivedBT``.
 
-    Per CM-28-009, CM-28-014, BTND-08-001, SYNC-12-001.
+    Per EMB-16-001, EP-09-007, RSH-08-004, BTND-08-001, SYNC-12-001.
     """
 
     def update(self) -> Status:
         entry = _require_log_entry(self.activity, self.name)
-        if entry.event_type == INVITE_LAPSED_EVENT_TYPE:
+        if entry.event_type == EMBARGO_ABANDONMENT_EVENT_TYPE:
+            return Status.SUCCESS
+        return Status.FAILURE
+
+
+class IsInviteExpiryEventNode(_ActivityEventNode):
+    """Precondition: this entry is the CASE_MANAGER's expiry of an embargo Invite.
+
+    Matches :data:`~vultron.core.models.rsvp_deadline.INVITE_EXPIRED_EVENT_TYPE`.
+    Used in the ``InviteExpiryEffects`` slot of ``AnnounceLogEntryReceivedBT``.
+
+    Per CM-28-009, CM-28-014, ADR-0118, BTND-08-001, SYNC-12-001.
+    """
+
+    def update(self) -> Status:
+        entry = _require_log_entry(self.activity, self.name)
+        if entry.event_type == INVITE_EXPIRED_EVENT_TYPE:
             return Status.SUCCESS
         return Status.FAILURE

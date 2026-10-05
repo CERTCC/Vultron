@@ -19,7 +19,6 @@ Verifies VerifySenderIsParticipantNode imported directly from the submodule.
 Per DEMOMA-07-003 step 1.
 """
 
-import py_trees
 import pytest
 from py_trees.common import Status
 
@@ -43,11 +42,6 @@ CASE_ID = "https://example.org/cases/case-01"
 PARTICIPANT_ID = "https://example.org/cases/case-01/participants/vendor"
 CM_PARTICIPANT_ID = "https://example.org/cases/case-01/participants/case-actor"
 STATUS_ID = "https://example.org/cases/case-01/statuses/s1"
-
-
-@pytest.fixture(autouse=True)
-def clear_blackboard():
-    py_trees.blackboard.Blackboard.storage.clear()
 
 
 @pytest.fixture

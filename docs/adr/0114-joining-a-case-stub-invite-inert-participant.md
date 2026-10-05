@@ -154,9 +154,10 @@ participant's state does not change. The record stays inert at `RECEIVED`,
 which records the truth: told, never answered. The CASE_MANAGER cannot close the
 invitee's RM for it — RM is the participant's own judgement (ADR-0084) — so a
 timeout never stands in for one. That includes embargo consent: it stays
-`INVITED`. An expired embargo Invite lapses to `DECLINED` (CM-28-004), but an
-unanswered stub is not a refusal to join, and the invitee may be re-invited on
-the same record.
+`INVITED`. An expired embargo Invite moves the participant's consent to
+`EXPIRED`, not `DECLINED` (CM-28-004, ADR-0118), because silence is not a
+refusal; an unanswered stub is not a refusal to join either, and the invitee
+may be re-invited on the same record.
 
 Case-wide closure checks ("have all participants closed?") count only
 participants that joined. An invitee that never answered does not block
@@ -343,5 +344,7 @@ outstanding, and rejected.
 - ADR-0089 — the single participant-status writer, through which the birth at
   Invite is written.
 - ADR-0093 — embargo consent and lapse.
+- ADR-0116 — refines this decision's definition of an active participant:
+  a participant the Case Owner removed is inert.
 - `notes/case-joining.md` — what was misunderstood and why, for readers of the
   old model.

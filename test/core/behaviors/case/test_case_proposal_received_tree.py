@@ -22,8 +22,8 @@ AC-4: Verifies that
     successfully (AC-3).
   - The marker remains when Create(as_VulnerabilityCase) delivery fails (AC-2
     partial-failure path).
-  - The marker stores at minimum: proposal_id, case_actor_id, vendor_uri
-    (the stored name of the owner URI, #4128), and the pre-constructed
+  - The marker stores at minimum: proposal_id, case_actor_id, owner_uri
+    (the case owner owed the Create), and the pre-constructed
     Create(as_VulnerabilityCase) payload (AC-1).
 """
 
@@ -41,11 +41,17 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.adapters.driving.fastapi.pending_retry import (
+    retry_pending_creation_time_revision_relays,
+)
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes import (
     ClearCreateCaseMarkerNode,
+    EmitAcceptCaseProposalNode,
     WriteCreateCaseMarkerNode,
+    embargo_revision_relay,
 )
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.pending_create_case_activity import (
@@ -56,6 +62,7 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.states.em import EM
+from vultron.errors import VultronBTInternalError
 from vultron.semantic_registry import extract_event
 
 # imported for vocabulary registration side-effect
@@ -127,7 +134,7 @@ class TestPendingCreateCaseActivityModel:
         marker = PendingCreateCaseActivity(
             proposal_id=_PROPOSAL_URI,
             case_actor_id=_CASE_ACTOR_URI,
-            vendor_uri=_VENDOR_URI,
+            owner_uri=_VENDOR_URI,
         )
         assert marker.id_ == PendingCreateCaseActivity.build_id(_PROPOSAL_URI)
 
@@ -137,12 +144,12 @@ class TestPendingCreateCaseActivityModel:
         marker = PendingCreateCaseActivity(
             proposal_id=_PROPOSAL_URI,
             case_actor_id=_CASE_ACTOR_URI,
-            vendor_uri=_VENDOR_URI,
+            owner_uri=_VENDOR_URI,
             create_activity_payload=payload,
         )
         assert marker.proposal_id == _PROPOSAL_URI
         assert marker.case_actor_id == _CASE_ACTOR_URI
-        assert marker.vendor_uri == _VENDOR_URI
+        assert marker.owner_uri == _VENDOR_URI
         assert marker.create_activity_payload == payload
 
     def test_roundtrip_through_datalayer(self):
@@ -154,7 +161,7 @@ class TestPendingCreateCaseActivityModel:
         marker = PendingCreateCaseActivity(
             proposal_id=_PROPOSAL_URI,
             case_actor_id=_CASE_ACTOR_URI,
-            vendor_uri=_VENDOR_URI,
+            owner_uri=_VENDOR_URI,
             create_activity_payload={"type": "Create"},
         )
         dl.save(marker)
@@ -162,10 +169,28 @@ class TestPendingCreateCaseActivityModel:
         assert isinstance(retrieved, PendingCreateCaseActivity)
         assert retrieved.proposal_id == _PROPOSAL_URI
         assert retrieved.case_actor_id == _CASE_ACTOR_URI
-        assert retrieved.vendor_uri == _VENDOR_URI
+        assert retrieved.owner_uri == _VENDOR_URI
 
 
 _CASE_URI = "https://example.org/cases/c-001"
+
+
+def _store_announced_create(
+    dl: SqliteDataLayer, case_id: str = _CASE_URI
+) -> None:
+    """Store the Create a first delivery of ``_PROPOSAL_URI`` announced."""
+    from vultron.core.models.activity import VultronCreateCaseActivity
+    from vultron.core.models.case import VulnerabilityCase
+
+    port = As2WireRenderAdapter()
+    case = VulnerabilityCase(id_=case_id, attributed_to=_VENDOR_URI)
+    create = VultronCreateCaseActivity(
+        id_=PendingCreateCaseActivity.create_activity_id(_PROPOSAL_URI),
+        actor=_CASE_ACTOR_URI,
+        object_=port.render(case),
+        context=case.id_,
+    )
+    TriggerActivityAdapter(dl).emit_prepared_create_case(port.render(create))
 
 
 @pytest.mark.spec("CP-05-005")
@@ -234,7 +259,88 @@ class TestWriteCreateCaseMarkerNode:
         )
         assert marker.proposal_id == _PROPOSAL_URI
         assert marker.case_actor_id == _CASE_ACTOR_URI
-        assert marker.vendor_uri == _VENDOR_URI
+        assert marker.owner_uri == _VENDOR_URI
+
+    @pytest.mark.spec("CP-05-005")
+    def test_the_create_is_named_for_the_proposal(self):
+        """The Create's id derives from the proposal, so a redelivery names
+        the activity the first delivery announced (#4146)."""
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        self._run_node(
+            dl,
+            actor_id=_CASE_ACTOR_URI,
+            case_id="https://example.org/cases/c-001",
+            accept_id="https://example.org/activities/a-001",
+        )
+        marker = dl.read(PendingCreateCaseActivity.build_id(_PROPOSAL_URI))
+        assert isinstance(marker, PendingCreateCaseActivity)
+        assert marker.create_activity_payload[
+            "id"
+        ] == PendingCreateCaseActivity.create_activity_id(_PROPOSAL_URI)
+
+    @pytest.mark.spec("CP-05-005")
+    def test_an_already_queued_create_writes_no_marker(self):
+        """A stored Create for this proposal means the case was announced:
+        the node succeeds and writes nothing (#4146)."""
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        _store_announced_create(dl)
+        status = self._run_node(
+            dl,
+            actor_id=_CASE_ACTOR_URI,
+            case_id="https://example.org/cases/c-001",
+            accept_id="https://example.org/activities/a-001",
+        )
+        assert status == py_trees.common.Status.SUCCESS
+        assert dl.read(PendingCreateCaseActivity.build_id(_PROPOSAL_URI)) is (
+            None
+        )
+
+    @pytest.mark.spec("CP-05-005")
+    def test_a_create_announcing_another_case_fails_loudly(self, caplog):
+        """A sender that reuses a proposal id for a new case finds the old
+        case's Create under the derived id.  Reporting SUCCESS would leave the
+        new case never announced, so the node fails and says why."""
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        _store_announced_create(dl, case_id="https://example.org/cases/c-old")
+        with caplog.at_level(logging.ERROR):
+            status = self._run_node(
+                dl,
+                actor_id=_CASE_ACTOR_URI,
+                case_id=_CASE_URI,
+                accept_id="https://example.org/activities/a-001",
+            )
+        assert status == py_trees.common.Status.FAILURE
+        assert dl.read(PendingCreateCaseActivity.build_id(_PROPOSAL_URI)) is (
+            None
+        )
+        assert any(
+            "https://example.org/cases/c-old" in r.getMessage()
+            and r.levelno == logging.ERROR
+            for r in caplog.records
+        )
+
+    @pytest.mark.spec("CP-05-005")
+    def test_a_non_create_under_the_derived_id_fails(self):
+        """Something other than a Create under the derived id announces no
+        case; the node fails rather than taking it as announced."""
+        from vultron.core.models.case import VulnerabilityCase
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        dl.save(
+            VulnerabilityCase(
+                id_=PendingCreateCaseActivity.create_activity_id(
+                    _PROPOSAL_URI
+                ),
+                attributed_to=_VENDOR_URI,
+            )
+        )
+        status = self._run_node(
+            dl,
+            actor_id=_CASE_ACTOR_URI,
+            case_id=_CASE_URI,
+            accept_id="https://example.org/activities/a-001",
+        )
+        assert status == py_trees.common.Status.FAILURE
 
     @pytest.mark.spec("EMB-18-003")
     def test_marker_payload_carries_the_active_embargo_inline(self):
@@ -541,7 +647,7 @@ class TestClearCreateCaseMarkerNode:
         marker = PendingCreateCaseActivity(
             proposal_id=_PROPOSAL_URI,
             case_actor_id=_CASE_ACTOR_URI,
-            vendor_uri=_VENDOR_URI,
+            owner_uri=_VENDOR_URI,
         )
         dl.save(marker)
         # Confirm it's there before clearing.
@@ -562,6 +668,17 @@ class TestClearCreateCaseMarkerNode:
         with caplog.at_level(logging.WARNING, logger="vultron"):
             status = self._run_clear_node(dl, actor_id=_CASE_ACTOR_URI)
         assert status == py_trees.common.Status.SUCCESS
+
+    def test_an_already_announced_case_is_not_warned_about(self, caplog):
+        """A redelivery whose Create was already queued wrote no marker, so
+        its absence is expected and logs no WARNING (#4146)."""
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        _store_announced_create(dl)
+        with caplog.at_level(logging.INFO, logger="vultron"):
+            status = self._run_clear_node(dl, actor_id=_CASE_ACTOR_URI)
+        assert status == py_trees.common.Status.SUCCESS
+        assert "earlier delivery" in caplog.text
+        assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
 
     def test_always_returns_success(self):
         """ClearCreateCaseMarkerNode always returns SUCCESS regardless of delete result."""
@@ -653,7 +770,7 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
             "Marker must be present when Create delivery fails (AC-2)"
         )
         assert marker.proposal_id == _PROPOSAL_URI
-        assert marker.vendor_uri == _VENDOR_URI
+        assert marker.owner_uri == _VENDOR_URI
         assert marker.case_actor_id == _CASE_ACTOR_URI
 
     def test_marker_payload_stored_on_partial_failure(self, make_payload):
@@ -1000,9 +1117,18 @@ class TestCP09001CaseAttributedToOwner:
         )
         assert attributed == _VENDOR_URI
 
-    @pytest.mark.spec("CLP-08-002")
-    def test_genesis_hash_stays_bound_to_the_case_actor(self, make_payload):
-        """Moving the owner field does not move the ledger's origin binding."""
+
+@pytest.mark.spec("CLP-08-002")
+@pytest.mark.spec("CP-09-001")
+class TestCLP08002GenesisHashAnchoredToTheOwner:
+    """The genesis hash names the owner on every creation path (#4067).
+
+    The CaseActor is the owner's delegated proxy, so the case it creates from
+    a ``CaseProposal`` hashes exactly as the case the owner would create
+    itself, and the owner's replica keeps that hash rather than redoing it.
+    """
+
+    def test_proposal_path_hash_is_anchored_to_the_owner(self, make_payload):
         from vultron.core.models.case_ledger import compute_genesis_hash
 
         _, case = _run_proposal_to_case(make_payload)
@@ -1010,8 +1136,61 @@ class TestCP09001CaseAttributedToOwner:
         assert case.genesis_hash == compute_genesis_hash(
             case_id=case.id_,
             created_at=case.published,
-            case_actor_id=_CASE_ACTOR_URI,
+            owner_actor_id=_VENDOR_URI,
         )
+        assert case.genesis_hash != compute_genesis_hash(
+            case_id=case.id_,
+            created_at=case.published,
+            owner_actor_id=_CASE_ACTOR_URI,
+        )
+
+    def test_self_created_and_proposal_created_cases_agree(self, make_payload):
+        """Same ``(case_id, created_at, owner)``, same hash, either creator."""
+        _, case = _run_proposal_to_case(make_payload)
+        self_created = VulnerabilityCase(
+            id_=case.id_,
+            published=case.published,
+            attributed_to=_VENDOR_URI,
+        )
+        assert self_created.genesis_hash == case.genesis_hash
+
+    @pytest.mark.parametrize("tamper", [False, True])
+    def test_owner_replica_carries_the_sender_hash_unchanged(
+        self, make_payload, tamper
+    ):
+        """The replica built from ``Create(VulnerabilityCase)`` is not rehashed.
+
+        With ``tamper`` the sent hash is one the receiver would never derive
+        (anchored to the CaseActor), so only a replica that carries the value
+        as received can still hold it.
+        """
+        from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
+        from vultron.core.models.case_ledger import compute_genesis_hash
+        from vultron.wire.as2.parser import parse_activity
+
+        dl, case = _run_proposal_to_case(make_payload)
+        assert case.published is not None
+        # The body the owner is sent is the sealed one (OX-07-001).
+        body = read_sealed_body_dict(dl, str(_created_case_activity(dl).id_))
+        assert body is not None
+        inline_case = body["object"]
+        assert isinstance(inline_case, dict)
+        sent = case.genesis_hash
+        if tamper:
+            sent = compute_genesis_hash(
+                case_id=case.id_,
+                created_at=case.published,
+                owner_actor_id=_CASE_ACTOR_URI,
+            )
+            assert sent != case.genesis_hash
+        inline_case["genesisHash"] = sent
+
+        event = extract_event(parse_activity(body))
+        replica = getattr(event, "object_", None)
+
+        assert isinstance(replica, VulnerabilityCase)
+        assert replica.attributed_to == _VENDOR_URI
+        assert replica.genesis_hash == sent
 
 
 @pytest.mark.spec("CM-21-002")
@@ -1647,8 +1826,8 @@ class TestADR0041EmbargoInit:
     def test_vendor_owner_seeded_as_signatory(self, make_payload):
         """CM-13: vendor (CASE_OWNER) is SIGNATORY on the active embargo.
 
-        ``InitializeDefaultEmbargoNode``'s ``SeedOwnerAsSignatoryNode`` is the
-        one path that seeds it: it reads the owner from the case's
+        ``InitializeDefaultEmbargoNode``'s ``InitializeCreationEmbargoNode``
+        is the one path that seeds it: it reads the owner from the case's
         ``attributed_to`` (CP-09-001), not from the executing CaseActor, which
         is not a participant here and once left an ACTIVE embargo with no
         signatory.
@@ -2339,6 +2518,72 @@ class TestADR0041Idempotency:
             f" ledger dedup (before={len(entries_before)},"
             f" after={len(entries_after)}) — ADR-0041"
         )
+
+
+def _announced_case_creates(dl: SqliteDataLayer) -> list[str]:
+    """Ids of the ``Create(VulnerabilityCase)`` activities queued to *dl*'s
+    outbox, one per queueing."""
+    return [
+        activity_id
+        for activity_id in dl.outbox_list()
+        if getattr(dl.read(activity_id), "type_", None) == "Create"
+    ]
+
+
+class TestARedeliveryAnnouncesTheCaseOnce:
+    """A redelivered proposal announces its case once (CP-05-005, #4146).
+
+    ``ClearCreateCaseMarkerNode`` deletes the retry marker once the Create is
+    queued, so a redelivery cannot rely on the marker to know the case was
+    announced.  The Create's id is derived from the proposal instead, and a
+    redelivery that finds that activity stored queues nothing new.
+    """
+
+    @pytest.mark.spec("CP-05-005")
+    @pytest.mark.spec("CP-05-006")
+    def test_a_redelivery_after_a_late_failure_queues_no_second_create(
+        self, make_payload, monkeypatch
+    ):
+        from py_trees.common import Status
+
+        from vultron.core.behaviors.case.nodes import (
+            CommitNativeLedgerEntriesNode,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        _seed_report(dl)
+        with monkeypatch.context() as patch:
+            # A leaf after ClearCreateCaseMarkerNode fails, so the sender
+            # redelivers a proposal whose case was already announced.
+            patch.setattr(
+                CommitNativeLedgerEntriesNode,
+                "update",
+                lambda self: Status.FAILURE,
+            )
+            _run_full_bt(make_payload, dl)
+        (first,) = _announced_case_creates(dl)
+
+        _run_full_bt(make_payload, dl)
+
+        assert _announced_case_creates(dl) == [first]
+        # The redelivery still finishes what the first delivery left undone.
+        assert dl.list_objects("CaseLedgerEntry"), (
+            "the redelivery must commit the ledger the first one failed to"
+        )
+
+    @pytest.mark.spec("CP-05-006")
+    def test_a_redelivered_proposal_queues_no_second_create(
+        self, make_payload
+    ):
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        _seed_report(dl)
+        _run_full_bt(make_payload, dl)
+        (first,) = _announced_case_creates(dl)
+
+        result = _run_full_bt(make_payload, dl)
+
+        assert result.disposition == HandlerDisposition.APPLIED
+        assert _announced_case_creates(dl) == [first]
 
 
 class TestADR0041GenesisCommitFailure:
@@ -3334,6 +3579,17 @@ class TestEP04SenderProposalAtCaseCreation:
         invitee = dl.read(stored.actor_participant_index[winner])
         assert isinstance(invitee, CaseParticipant)
         assert invitee.embargo_consent_state is PEC.SIGNATORY
+        # Proposing the revision is the loser's consent to it (MSM-07-005):
+        # the executing CaseActor and the winner record nothing (#4152).
+        proposer = dl.read(stored.actor_participant_index[loser])
+        assert isinstance(proposer, CaseParticipant)
+        assert revision_id in proposer.accepted_embargo_ids
+        assert revision_id not in invitee.accepted_embargo_ids
+        case_actor_record = stored.actor_participant_index.get(_CASE_ACTOR_URI)
+        assert case_actor_record is not None, "the CaseActor is a participant"
+        executor = dl.read(case_actor_record)
+        assert isinstance(executor, CaseParticipant)
+        assert revision_id not in executor.accepted_embargo_ids
         # The invitee holds the case before an Invite about it (CP-09-003,
         # CM-14-011): the relay is queued after Create(VulnerabilityCase).
         labels = _outbox_labels(dl)
@@ -3439,6 +3695,72 @@ class TestEP04SenderProposalAtCaseCreation:
             if isinstance(c, VulnerabilityCase)
         ]
         assert case.pending_embargo_proposal_index == {}
+        # The obligation survives the failure, so it can be retried (#4121).
+        assert dl.list_objects("PendingCreationTimeRevisionRelay") != []
+
+    @pytest.mark.spec("EP-04-011")
+    @pytest.mark.spec("EP-04-012")
+    @pytest.mark.spec("EP-08-002")
+    def test_a_redelivery_after_a_failed_relay_sends_the_invite(
+        self, make_payload, monkeypatch
+    ):
+        """Initialization runs once per case (EP-04-012), so a redelivered
+        proposal registers nothing; the recorded obligation is what lets it
+        complete the relay the first delivery failed, exactly once (#4121)."""
+        dl = self._store()
+        self._publish_owner_policy()
+        monkeypatch.setattr(
+            embargo_revision_relay, "invitation_recipients", lambda *a, **k: []
+        )
+        with pytest.raises(VultronBTInternalError):
+            self._run(make_payload, dl, sender_days=self._SENDER_END_DAYS)
+        monkeypatch.undo()
+
+        case, _ = self._run(
+            make_payload, dl, sender_days=self._SENDER_END_DAYS
+        )
+
+        (revision_id,) = case.proposed_embargoes
+        (invite,) = self._invites(dl)
+        assert case.pending_embargo_proposal_index == {revision_id: invite.id_}
+        assert [_as_id(r) for r in invite.to] == [_REPORTER_URI]
+        assert _as_id(invite.attributed_to) == _VENDOR_URI
+        assert dl.list_objects("PendingCreationTimeRevisionRelay") == []
+
+        self._run(make_payload, dl, sender_days=self._SENDER_END_DAYS)
+        assert [i.id_ for i in self._invites(dl)] == [invite.id_]
+
+    @pytest.mark.spec("EP-04-011")
+    @pytest.mark.spec("CM-14-007")
+    @pytest.mark.spec("CM-14-011")
+    def test_the_startup_runner_does_not_relay_ahead_of_the_case_creation(
+        self, make_payload, monkeypatch
+    ):
+        """The tree fails after recording the obligation but before its
+        ledger commit.  The startup runner must not send the Invite then: it
+        would be the case's first ledger entry, announced to parties that
+        never received the case (#4121)."""
+        dl = self._store()
+        self._publish_owner_policy()
+        monkeypatch.setattr(
+            EmitAcceptCaseProposalNode,
+            "update",
+            lambda self: py_trees.common.Status.FAILURE,
+        )
+        self._run(make_payload, dl, sender_days=self._SENDER_END_DAYS)
+        monkeypatch.undo()
+        assert dl.list_objects("PendingCreationTimeRevisionRelay") != []
+        while dl.outbox_pop() is not None:
+            pass
+
+        relayed = retry_pending_creation_time_revision_relays(
+            datalayers_factory=lambda: {_CASE_ACTOR_URI: dl}
+        )
+
+        assert relayed == 0
+        assert self._invites(dl) == []
+        assert dl.list_objects("CaseLedgerEntry") == []
+        assert dl.list_objects("PendingCreationTimeRevisionRelay") != []
 
     @pytest.mark.spec("EP-04-011")
     @pytest.mark.spec("EP-04-012")
@@ -3562,6 +3884,52 @@ class TestEP04SenderProposalAtCaseCreation:
         assert {
             e.id_ for e in dl.list_objects("EmbargoEvent")
         } == events_before
+
+    @pytest.mark.spec("EP-04-002")
+    @pytest.mark.spec("EP-04-012")
+    @pytest.mark.spec("CP-05-006")
+    def test_a_redelivery_after_a_failed_activation_finishes_the_embargo(
+        self, make_payload, monkeypatch
+    ):
+        """AC-2 of #4123 through the whole received tree.
+
+        The first delivery fails between PROPOSE and ACCEPT, which leaves
+        the case at ``EM.NONE`` (EP-04-002).  Redelivering the same
+        ``Create(CaseProposal)`` reuses the case (CP-05-006) and reaches the
+        creation arm, because the guard reads only a state past ``NONE`` as
+        already initialized (EP-04-012): the case ends ``EM.ACTIVE`` with the
+        embargo attached.
+        """
+        from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
+        from vultron.core.states.em import EM_Trigger
+        from vultron.errors import VultronInvalidStateTransitionError
+
+        drive = EmbargoLifecycle._drive_em_transition
+
+        def _refuse_accept(self, **kwargs):
+            if kwargs["trigger"] is EM_Trigger.ACCEPT:
+                raise VultronInvalidStateTransitionError("forced failure")
+            return drive(self, **kwargs)
+
+        dl = self._store()
+        monkeypatch.setattr(
+            EmbargoLifecycle, "_drive_em_transition", _refuse_accept
+        )
+        first, terms = self._run(
+            make_payload, dl, sender_days=self._SENDER_END_DAYS
+        )
+        assert first.current_status.em.state == EM.NONE
+        assert first.active_embargo_id is None
+
+        # The same activity again: the redelivery carries the same terms.
+        monkeypatch.setattr(EmbargoLifecycle, "_drive_em_transition", drive)
+        again, _ = self._run(
+            make_payload, dl, sender_days=self._SENDER_END_DAYS, terms=terms
+        )
+
+        assert again.id_ == first.id_
+        assert again.current_status.em.state == EM.ACTIVE
+        assert again.active_embargo_id == terms.id_
 
     @pytest.mark.spec("EP-04-004")
     def test_an_expired_proposal_is_no_proposal(self, make_payload):

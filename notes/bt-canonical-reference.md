@@ -309,11 +309,11 @@ module (e.g., `vultron/core/behaviors/shared/` or a domain-model method).
 Example pattern (resolved): the former `ApplyEmbargoTeardownNode` in
 `vultron/core/behaviors/embargo/nodes/teardown.py` once imported a
 helper from `vultron.core.use_cases.received.embargo`. The violation was
-resolved by moving `reset_case_participant_embargo_consent` to
+resolved by moving `exit_case_participant_embargo_consent` to
 `vultron.core.use_cases._helpers` (a shared utility module importable by
 both layers) and by decomposing the god node into three single-responsibility
 nodes: `HasEmbargoActiveNode`, `ClearActiveEmbargoNode`, and
-`ResetParticipantConsentNode` (issue #1554).
+`ExitParticipantConsentNode` (issue #1554).
 
 ---
 

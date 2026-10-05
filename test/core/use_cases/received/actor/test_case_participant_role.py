@@ -134,26 +134,21 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
         self, make_payload
     ):
         """When receiving_actor_id is absent the store owner processes the offer."""
-        import py_trees
 
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-        py_trees.blackboard.Blackboard.storage.clear()
-        try:
-            dl = SqliteDataLayer(
-                "sqlite:///:memory:",
-                actor_id=self._CASE_ACTOR_URI,
-            )
-            offer = self._make_offer()
-            event = make_payload(offer, receiving_actor_id=None)
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=self._CASE_ACTOR_URI,
+        )
+        offer = self._make_offer()
+        event = make_payload(offer, receiving_actor_id=None)
 
-            self._execute(dl, event)
+        self._execute(dl, event)
 
-            # The BT runs under the store owner's identity; the tree stores the
-            # offer idempotently regardless of receiving_actor_id stamp.
-            assert _archived_by_intake(dl, offer.id_)
-        finally:
-            py_trees.blackboard.Blackboard.storage.clear()
+        # The BT runs under the store owner's identity; the tree stores the
+        # offer idempotently regardless of receiving_actor_id stamp.
+        assert _archived_by_intake(dl, offer.id_)
 
     def test_offer_case_participant_role_coordinator_persists(
         self, make_payload

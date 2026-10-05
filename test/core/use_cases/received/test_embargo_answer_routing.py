@@ -144,7 +144,11 @@ def test_the_owner_rejecting_a_revision_after_disclosure_ends_the_embargo():
 @pytest.mark.spec("HP-01-005")
 @pytest.mark.parametrize("answer", ["Accept", "Reject"])
 def test_a_participant_handed_an_answer_refuses_it_and_writes_nothing(answer):
-    """Only the CASE_MANAGER records an answer; a replica replays it."""
+    """Only the CASE_MANAGER records an answer; a replica replays it.
+
+    The answer is addressed to the CASE_MANAGER, so the bystander's copy is
+    refused at the door before any tree runs (HP-01-005, ADR-0118).
+    """
     net = _Network(f"https://example.org/cases/answer-misrouted-{answer}")
     revision = _propose(net, "misrouted", 90)
     _replay_to_bystander(net)
@@ -166,7 +170,8 @@ def test_a_participant_handed_an_answer_refuses_it_and_writes_nothing(answer):
     verdict = net.receive(BYSTANDER, body)
 
     assert verdict.disposition is HandlerDisposition.REFUSED
-    assert "not the CASE_MANAGER" in (verdict.reason or "")
+    assert "neither the sender nor a recipient" in (verdict.reason or "")
+    assert BYSTANDER in (verdict.reason or "")
     case = net.case(BYSTANDER)
     assert case.current_status.em.state == EM.REVISE
     assert case.proposed_embargo_ids == [revision]
@@ -205,12 +210,12 @@ def test_the_relay_and_its_replay_record_the_same_rsvp_deadline():
 @pytest.mark.spec("CM-28-014")
 @pytest.mark.spec("CM-28-009")
 @pytest.mark.spec("TB-06-007")
-def test_the_managers_lapse_is_committed_and_replayed_by_a_replica():
-    """A late Accept lapses in the manager's store; a replica replays it.
+def test_the_managers_expiry_is_committed_and_replayed_by_a_replica():
+    """A late Accept expires in the manager's store; a replica replays it.
 
     The replica never evaluates the deadline — its own record still holds the
-    relayed 7-day one — it applies the CASE_MANAGER's committed lapse entry
-    (CM-28-014), an entry distinct from the Accept (CM-28-009).
+    relayed 7-day one — it applies the CASE_MANAGER's committed expiry entry
+    (CM-28-014, ADR-0118), an entry distinct from the Accept (CM-28-009).
     """
     net = _Network("https://example.org/cases/answer-lapse-replay")
     _propose(net, "lapse", 90)
@@ -237,6 +242,6 @@ def test_the_managers_lapse_is_committed_and_replayed_by_a_replica():
     _deliver_all(net, OWNER)
 
     replayed = cast(CaseParticipant, net.stores[OWNER].read(bystander_pid))
-    assert replayed.embargo_consent_state == PEC.DECLINED
+    assert replayed.embargo_consent_state == PEC.EXPIRED
     assert replayed.invite_rsvp_deadline is not None
     assert replayed.invite_rsvp_deadline > datetime.now(tz=UTC)

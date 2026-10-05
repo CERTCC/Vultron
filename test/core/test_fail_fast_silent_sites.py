@@ -27,7 +27,6 @@ Reference: specs/architecture.yaml ARCH-15-001 through ARCH-15-003,
 import logging
 from unittest.mock import MagicMock, patch
 
-import py_trees
 import pytest
 from py_trees.common import Status
 
@@ -66,17 +65,6 @@ CM_PARTICIPANT_ID = f"{CM_CASE_ID}/participants/case-manager-001"
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
-
-
-@pytest.fixture(autouse=True)
-def clear_blackboard():
-    from vultron.core.models.pending_assertion import _reset_stores
-
-    py_trees.blackboard.Blackboard.storage.clear()
-    _reset_stores()
-    yield
-    py_trees.blackboard.Blackboard.storage.clear()
-    _reset_stores()
 
 
 @pytest.fixture()

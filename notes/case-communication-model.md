@@ -7,7 +7,8 @@ description: >
   state updates propagate via CaseLedgerEntry broadcast. Captures the routing
   rule, its rationale, common antipatterns, BT implementation guidance, and the
   embargo revision relay (EP-09, ADR-0113): ledger entries carry state to
-  replicas but never set a parse-and-respond expectation.
+  replicas but never set a parse-and-respond expectation. Also records that the
+  CASE_MANAGER gate checks the receiver, never the sender (HP-01-006, ADR-0115).
 related_specs:
   - specs/architecture.yaml
   - specs/embargo-policy.yaml
@@ -347,7 +348,8 @@ is retired; #3964 removes it from `_prepare_delegated_context()`.
 ## Embargo Relay: the Ledger Carries State, It Never Asks (EP-09, ADR-0113)
 
 The case Invite above is one instance of a general shape, and every embargo
-proposal — the first one for a case or a revision — is the second. A
+proposal — the first one for a case or a revision — is the second (EP-09-001):
+the rule is not only about revisions. A
 participant addresses its proposal to the CASE_MANAGER only (PCR-08-001). The
 CASE_MANAGER adjudicates it, moves the canonical case (`NONE → PROPOSED` or
 `ACTIVE → REVISE`), commits the proposal, and *then* relays it: one
@@ -379,6 +381,9 @@ per other participant, its `Accept`/`Reject` is addressed to nobody, and its
 `notes/embargo-lifecycle.md` § "A trigger writes shared EM state only as the
 CASE_MANAGER"). The manager's commit is also the acknowledgement the
 behavioural specs call EK (EP-09-009).
+Only the CASE_MANAGER evaluates invite expiry; it commits the expiry entry
+behind the role gate, and a replica learns an expiry from that entry and never
+computes one (CM-28-014, ADR-0118).
 
 The rule this pins down, because it kept getting mixed up: **an
 `Announce(CaseLedgerEntry)` is a channel for case state, not a protocol
@@ -557,6 +562,27 @@ state update, without emitting a proxy activity on the participant's behalf
 
 ---
 
+## Antipattern: Reading the CASE_MANAGER Gate as a Sender Check
+
+`create_case_manager_gated_tree` and `not_case_manager_refusal()` ask whether the
+**receiving** actor holds `CVDRole.CASE_MANAGER` (BT-17-001, HP-01-005). They say
+nothing about the sender. A tree whose effects sit behind that gate still applies
+an assertion from *any* sender unless something else checks who sent it. The
+CONCERN-3733 audit found ownership claims, self-admission through an Accept of an
+Invite that was never sent, note removal, and full-ledger replay on a rejected
+ledger entry, all behind a CASE_MANAGER gate.
+
+The sender check is a separate guard (HP-01-006, ADR-0115). Each received use case
+declares its sender entitlement once, the receive-tree factory composes the
+matching guard from the single sender-entitlement module, and a failed guard
+reports `REFUSED`. A reply to an ask is authorized by the ask naming its sender
+(the transferee of a recorded Offer, the invitee of a recorded Invite), never by
+the sender's own copy of the ask: an Accept that embeds an Invite proves nothing
+about the Invite the CASE_MANAGER sent (CM-11-017). A replica accepts
+case-state changes only from the CASE_MANAGER (PCR-03-001).
+
+---
+
 ## Antipattern: Received-Side Guarded Commit with Foreign CASE_MANAGER ID
 
 A subtler form of identity spoofing appears when a received-side use case
@@ -618,6 +644,11 @@ and the handler turns that skip into `REFUSED` — the message was the manager's
 to act on and reached the wrong party (HP-01-005, #3752). The CASE_MANAGER's
 own inbox delivery — which arrives because the trigger tree emitted to
 `case_manager_id` (CLP-10-001) — is the only path to a canonical write.
+
+A test of a gated path MUST seed a `CVDRole.CASE_MANAGER` holder and pass it as
+`receiving_actor_id` (BT-17-005). A test that seeds no role holder never
+reaches the gated effects: the skip arm succeeds and the test passes for the
+wrong reason.
 
 ### Why the `Announce(CaseLedgerEntry)` envelope is not a payload
 

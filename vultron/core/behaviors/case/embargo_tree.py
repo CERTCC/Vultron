@@ -26,9 +26,11 @@ Subtrees defined here:
 
 - ``InitializeDefaultEmbargoNode`` — composed subtree for initial embargo
   set-up on case creation.  A case with P/X/A set gets no embargo and stays
-  EM.NONE (EP-04-008); any other case runs the five leaf steps: resolve
-  duration, create event, advance EM state, attach embargo to case, and seed
-  owner as SIGNATORY.
+  EM.NONE (EP-04-008); any other case runs the leaf steps: resolve
+  duration, create event, select a longer creation-time proposal as the
+  pending revision (EP-04-003), then advance EM state to ACTIVE with the
+  embargo attached, the owner seeded as SIGNATORY and that revision
+  registered, in one commit (EP-04-002, EP-04-012).
 
 Consumed by ``case_proposal_received_tree.py``.
 
@@ -41,10 +43,8 @@ import py_trees
 
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.case.nodes.embargo import (
-    AdvanceEMStateToActiveNode,
-    AttachEmbargoToCaseNode,
     CreateEmbargoEventNode,
-    SeedOwnerAsSignatoryNode,
+    InitializeCreationEmbargoNode,
 )
 from vultron.core.behaviors.case.nodes.embargo_resolution import (
     CaseEmbargoAlreadyInitializedNode,
@@ -52,7 +52,7 @@ from vultron.core.behaviors.case.nodes.embargo_resolution import (
     ResolveEmbargoDurationNode,
 )
 from vultron.core.behaviors.case.nodes.embargo_revision import (
-    RegisterLongerProposalAsRevisionNode,
+    ResolveCreationTimeRevisionNode,
 )
 
 
@@ -73,12 +73,18 @@ class InitializeDefaultEmbargoNode(py_trees.composites.Selector):
     Args:
         actor_config: Source of the protocol default embargo duration
             (EP-04-005).  ``None`` uses the ``ActorConfig`` defaults.
+        report_id: URI of the report the case is created from.  When the
+            sender's terms lost, its author proposed the revision (#4152);
+            either way it is recorded on a contested creation's relay
+            obligation so the relay can resolve the reporter (EP-04-011).
+            A contest with none fails before the initialization commit.
         name: Optional node name.
     """
 
     def __init__(
         self,
         actor_config: ActorConfig | None = None,
+        report_id: str | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(
@@ -93,13 +99,16 @@ class InitializeDefaultEmbargoNode(py_trees.composites.Selector):
                     children=[
                         ResolveEmbargoDurationNode(actor_config=actor_config),
                         CreateEmbargoEventNode(),
-                        AdvanceEMStateToActiveNode(),
-                        AttachEmbargoToCaseNode(),
-                        SeedOwnerAsSignatoryNode(),
-                        # EP-04-003: the longer creation-time candidate becomes
-                        # a pending revision (ACTIVE → REVISE) when both
-                        # parties proposed.
-                        RegisterLongerProposalAsRevisionNode(),
+                        # EP-04-003: when both parties proposed, the longer
+                        # candidate is selected here, before anything is
+                        # written, to become a pending revision.
+                        ResolveCreationTimeRevisionNode(),
+                        # EP-04-002, EP-04-012: activation, consent, the
+                        # owner's SIGNATORY seed (CM-14-003) and the revision
+                        # (ACTIVE → REVISE) are one commit, so EM.PROPOSED is
+                        # never persisted and no failure leaves the case
+                        # active but unfinished (#4142).
+                        InitializeCreationEmbargoNode(report_id=report_id),
                     ],
                 ),
             ],

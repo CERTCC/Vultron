@@ -33,10 +33,8 @@ from vultron.core.behaviors.case.embargo_tree import (
     InitializeDefaultEmbargoNode,
 )
 from vultron.core.behaviors.case.nodes.embargo import (
-    AdvanceEMStateToActiveNode,
-    AttachEmbargoToCaseNode,
     CreateEmbargoEventNode,
-    SeedOwnerAsSignatoryNode,
+    InitializeCreationEmbargoNode,
 )
 from vultron.core.behaviors.case.nodes.embargo_resolution import (
     CaseEmbargoAlreadyInitializedNode,
@@ -44,11 +42,12 @@ from vultron.core.behaviors.case.nodes.embargo_resolution import (
     ResolveEmbargoDurationNode,
 )
 from vultron.core.behaviors.case.nodes.embargo_revision import (
-    RegisterLongerProposalAsRevisionNode,
+    ResolveCreationTimeRevisionNode,
 )
 from vultron.core.behaviors.case.participant_tree import (
     CreateCaseOwnerParticipant,
 )
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor
@@ -257,7 +256,9 @@ class TestInitializeDefaultEmbargoNode:
         """
         for _ in range(2):
             result = bt_scenario.run(
-                InitializeDefaultEmbargoNode(),
+                InitializeDefaultEmbargoNode(
+                    report_id="https://example.org/reports/r-1"
+                ),
                 actor_id=actor_id,
                 owner_profile=_profile(actor_id),
                 case_id=case_obj.id_,
@@ -290,9 +291,16 @@ class TestInitializeDefaultEmbargoNode:
             context="https://example.org/reports/r-1",
             end_time=days_from_now_utc(10),
         )
+        # The contest's other party is the reporter (#4152).
+        report = VulnerabilityReport(
+            name="TEST-REV",
+            content="Test report",
+            attributed_to="https://example.org/actors/reporter",
+        )
+        bt_scenario.dl.create(report)
         for _ in range(2):
             result = bt_scenario.run(
-                InitializeDefaultEmbargoNode(),
+                InitializeDefaultEmbargoNode(report_id=report.id_),
                 actor_id=actor_id,
                 case_id=case_obj.id_,
                 sender_proposed_embargo_duration=timedelta(days=10),
@@ -335,10 +343,8 @@ class TestInitializeDefaultEmbargoNode:
         assert [type(child) for child in creation_arm.children] == [
             ResolveEmbargoDurationNode,
             CreateEmbargoEventNode,
-            AdvanceEMStateToActiveNode,
-            AttachEmbargoToCaseNode,
-            SeedOwnerAsSignatoryNode,
-            RegisterLongerProposalAsRevisionNode,
+            ResolveCreationTimeRevisionNode,
+            InitializeCreationEmbargoNode,
         ]
 
     def test_advance_em_state_delegates_to_embargo_lifecycle(
@@ -366,37 +372,16 @@ class TestInitializeDefaultEmbargoNode:
             def __init__(self, persistence: Any) -> None:
                 self.persistence = persistence
 
-            def propose_embargo(self, **kwargs: Any) -> Any:
+            def initialize_creation_embargo(self, **kwargs: Any) -> Any:
                 calls.append(
                     (
-                        "propose",
+                        "initialize",
                         kwargs["case_id"],
                         kwargs["embargo_id"],
-                        kwargs["transition_mode"].value,
+                        kwargs["actor_id"],
                     )
                 )
-                result = MagicMock()
-                result.em_after = kwargs.get("em_before", EM.NONE)
-                return result
-
-            def accept_embargo_invite(self, **kwargs: Any) -> Any:
-                calls.append(
-                    (
-                        "accept",
-                        kwargs["case_id"],
-                        kwargs["embargo_id"],
-                        kwargs["transition_mode"].value,
-                    )
-                )
-                stored_case = cast(
-                    Any, self.persistence.read(kwargs["case_id"])
-                )
-                object.__setattr__(
-                    stored_case, "active_embargo", kwargs["embargo_id"]
-                )
-                stored_case.append_case_status(em_state=EM.ACTIVE)
-                self.persistence.save(stored_case)
-                return object()
+                return MagicMock()
 
         monkeypatch.setattr(
             "vultron.core.behaviors.case.nodes.embargo.EmbargoLifecycle",
@@ -404,20 +389,21 @@ class TestInitializeDefaultEmbargoNode:
         )
 
         result = bt_scenario.run(
-            AdvanceEMStateToActiveNode(),
+            InitializeCreationEmbargoNode(),
             actor_id=actor_id,
             case_id=case_obj.id_,
             default_embargo_id=embargo.id_,
         )
 
         assert result.status == Status.SUCCESS
+        # One lifecycle call, not propose then activate (EP-04-002, #4123).
         assert calls == [
-            ("propose", case_obj.id_, embargo.id_, "STRICT"),
+            ("initialize", case_obj.id_, embargo.id_, actor_id),
         ]
 
 
-class TestAttachEmbargoToCaseNodeAC1:
-    """AC-1 regression for AttachEmbargoToCaseNode (issue #2583)."""
+class TestInitializeCreationEmbargoNodeAC1:
+    """AC-1 regression for the creation-time EM write (issues #2583, #4123)."""
 
     @pytest.mark.spec("EMB-18-001")
     def test_em_write_routes_through_embargo_lifecycle(
@@ -426,10 +412,11 @@ class TestAttachEmbargoToCaseNodeAC1:
         actor_id: str,
         case_obj: VulnerabilityCase,
     ) -> None:
-        """AC-1 (issue #2712): EM write routes through EmbargoLifecycle.activate_embargo.
+        """AC-1 (issue #2712): EM write routes through EmbargoLifecycle.
 
-        When activate_embargo raises VultronError the node returns FAILURE —
-        proving the EM write is delegated to the service layer.
+        When ``initialize_creation_embargo`` raises VultronError the node
+        returns FAILURE — proving the EM write is delegated to the service
+        layer — and the case is left at ``EM.NONE`` (EP-04-002).
         """
         from unittest.mock import patch
 
@@ -450,64 +437,65 @@ class TestAttachEmbargoToCaseNodeAC1:
 
         with patch.object(
             EmbargoLifecycle,
-            "activate_embargo",
+            "initialize_creation_embargo",
             side_effect=VultronInvalidStateTransitionError("forced failure"),
         ):
             result = bt_scenario.run(
-                AttachEmbargoToCaseNode(),
+                InitializeCreationEmbargoNode(),
                 actor_id=actor_id,
                 case_id=case_obj.id_,
                 default_embargo_id=embargo.id_,
-                default_embargo_initialized=True,
             )
 
         assert result.status == Status.FAILURE
+        stored = cast(Any, bt_scenario.dl.read(case_obj.id_))
+        assert stored.current_status.em.state == EM.NONE
+        assert stored.active_embargo is None
 
-
-class TestSeedOwnerAsSignatoryNode:
-    """SeedOwnerAsSignatoryNode is idempotent when participant is already SIGNATORY."""
-
-    def test_already_signatory_is_idempotent(
+    @pytest.mark.spec("EP-04-012")
+    def test_an_attached_embargo_at_none_fails_rather_than_skips(
         self,
         bt_scenario: BTTestScenario,
-        actor: CaseActor,
         actor_id: str,
         case_obj: VulnerabilityCase,
     ) -> None:
-        """AC-5: SIGNATORY participant stays SIGNATORY without raising.
+        """A case at ``EM.NONE`` with an embargo attached is not initialized.
 
-        SeedOwnerAsSignatoryNode guards against ACCEPT from SIGNATORY
-        (which would raise VultronInvalidStateTransitionError). The node
-        must succeed idempotently when the participant is already SIGNATORY.
+        The guard ahead of the node takes every case past ``NONE``, so this
+        state is inconsistent.  The node reports the service's refusal as
+        FAILURE instead of a SUCCESS that initialized nothing (ARCH-15).
         """
+        attached = EmbargoEvent(
+            end_time=datetime.now(tz=UTC) + timedelta(days=1),
+            context=case_obj.id_,
+        )
+        default = EmbargoEvent(
+            end_time=datetime.now(tz=UTC) + timedelta(days=2),
+            context=case_obj.id_,
+        )
+        bt_scenario.dl.create(attached)
+        bt_scenario.dl.create(default)
         bt_scenario.run(
             CreateCaseOwnerParticipant(),
             actor_id=actor_id,
             case_id=case_obj.id_,
         )
-
-        bt_scenario.run(
-            InitializeDefaultEmbargoNode(),
-            actor_id=actor_id,
-            owner_profile=_profile(actor_id),
-            case_id=case_obj.id_,
-        )
-
-        stored_case = cast(Any, bt_scenario.dl.read(case_obj.id_))
-        participant_id = stored_case.actor_participant_index.get(actor_id)
-        participant = cast(Any, bt_scenario.dl.read(participant_id))
-        assert participant.embargo_consent_state == PEC.SIGNATORY
+        stored = cast(VulnerabilityCase, bt_scenario.dl.read(case_obj.id_))
+        stored.set_embargo(attached.id_)
+        bt_scenario.dl.save(stored)
 
         result = bt_scenario.run(
-            SeedOwnerAsSignatoryNode(),
+            InitializeCreationEmbargoNode(),
             actor_id=actor_id,
             case_id=case_obj.id_,
-            default_embargo_initialized=True,
+            default_embargo_id=default.id_,
         )
-        assert result.status == Status.SUCCESS
 
-        refreshed = cast(Any, bt_scenario.dl.read(participant_id))
-        assert refreshed.embargo_consent_state == PEC.SIGNATORY
+        assert result.status == Status.FAILURE
+        assert "already attached" in result.feedback_message
+        after = cast(Any, bt_scenario.dl.read(case_obj.id_))
+        assert after.current_status.em.state == EM.NONE
+        assert _as_id(after.active_embargo) == attached.id_
 
 
 _CASE_MANAGER_ID = "https://example.org/case-actors/svc-1"
@@ -580,7 +568,7 @@ class TestCaseManagerInitializesTheOwnersEmbargo:
         scenario.seed(embargo)
 
         result = scenario.run(
-            AdvanceEMStateToActiveNode(),
+            InitializeCreationEmbargoNode(),
             case_id=case.id_,
             default_embargo_id=embargo.id_,
         )
@@ -612,4 +600,8 @@ class TestCaseManagerInitializesTheOwnersEmbargo:
             )
 
         assert result.status == Status.FAILURE
-        assert "has no participant record" in caplog.text
+        assert f"for owner '{_OWNER_ID}' not found" in caplog.text
+        # Refused before the activation, so the case is left for a rerun.
+        stored_case = cast(Any, scenario.dl.read(case.id_))
+        assert stored_case.current_status.em.state == EM.NONE
+        assert stored_case.active_embargo is None

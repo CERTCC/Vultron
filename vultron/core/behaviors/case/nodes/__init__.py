@@ -81,10 +81,8 @@ from vultron.core.behaviors.case.nodes.delegation import (
     EmitRejectCaseParticipantRoleNode,
 )
 from vultron.core.behaviors.case.nodes.embargo import (
-    AdvanceEMStateToActiveNode,
-    AttachEmbargoToCaseNode,
     CreateEmbargoEventNode,
-    SeedOwnerAsSignatoryNode,
+    InitializeCreationEmbargoNode,
 )
 from vultron.core.behaviors.case.nodes.embargo_resolution import (
     CaseEmbargoAlreadyInitializedNode,
@@ -96,7 +94,7 @@ from vultron.core.behaviors.case.nodes.embargo_resolution import (
 # ``embargo_revision_relay``: re-exporting it here closes an import cycle
 # through the embargo relay emit, which imports the case role gates.
 from vultron.core.behaviors.case.nodes.embargo_revision import (
-    RegisterLongerProposalAsRevisionNode,
+    ResolveCreationTimeRevisionNode,
 )
 from vultron.core.behaviors.case.nodes.intake import (
     IntakeReceivedActivityNode,
@@ -242,14 +240,12 @@ __all__ = [
     "_create_and_attach_participant",
     "resolve_participant_state_from_dl",
     # embargo (leaf nodes)
-    "AdvanceEMStateToActiveNode",
-    "AttachEmbargoToCaseNode",
+    "InitializeCreationEmbargoNode",
     "CaseEmbargoAlreadyInitializedNode",
     "CaseNotEmbargoEligibleNode",
     "CreateEmbargoEventNode",
-    "RegisterLongerProposalAsRevisionNode",
+    "ResolveCreationTimeRevisionNode",
     "ResolveEmbargoDurationNode",
-    "SeedOwnerAsSignatoryNode",
     # delegation (leaf nodes)
     "AutoAcceptCaseParticipantRoleNode",
     "EmitRejectCaseParticipantRoleNode",

@@ -10,12 +10,13 @@ from vultron.core.behaviors.case.nodes.close_case_effect import (
 )
 from vultron.core.behaviors.case.nodes.conditions import CheckIsCaseManagerNode
 from vultron.core.behaviors.embargo.nodes import (
+    ApplyEmbargoAbandonmentFromLedgerNode,
     ApplyEmbargoAcceptanceFromLedgerNode,
     ApplyEmbargoInviteFromLedgerNode,
     ApplyEmbargoProposalFromLedgerNode,
     ApplyEmbargoRejectionFromLedgerNode,
     ApplyEmbargoTeardownNode,
-    ApplyInviteLapseFromLedgerNode,
+    ApplyInviteExpiryFromLedgerNode,
 )
 from vultron.core.behaviors.sync.nodes import (
     ApplyInviteAcceptFromLedgerNode,
@@ -30,10 +31,11 @@ from vultron.core.behaviors.sync.nodes import (
     IsAcceptEmbargoInviteEventNode,
     IsAddNoteEventNode,
     IsCloseCaseEventNode,
+    IsEmbargoAbandonmentEventNode,
     IsEmbargoInviteRelayEventNode,
     IsEmbargoProposalEventNode,
     IsInviteAcceptEventNode,
-    IsInviteLapsedEventNode,
+    IsInviteExpiryEventNode,
     IsOfferOwnershipTransferEventNode,
     IsOwnershipTransferEventNode,
     IsParticipantStatusEventNode,
@@ -84,11 +86,13 @@ def _event_effect_slot(
 
 
 def _embargo_relay_effect_slots() -> list[py_trees.behaviour.Behaviour]:
-    """The revision relay's five replay slots (EP-09-007, RSH-08-004, ADR-0113).
+    """The embargo negotiation's replay slots (EP-09-007, RSH-08-004, ADR-0113).
 
     The proposal the CASE_MANAGER received, each Invite it relayed, each
-    ``Accept``/``Reject`` of an Invite — the owner's decision included — and
-    each invite lapse the CASE_MANAGER evaluated (CM-28-014).
+    ``Accept``/``Reject`` of an Invite — the owner's decision included — each
+    invite expiry the CASE_MANAGER evaluated (CM-28-014, ADR-0118), and
+    the manager's abandonment of an open proposal once P/X/A is set
+    (EMB-16-001).
     """
     return [
         _event_effect_slot(
@@ -112,9 +116,14 @@ def _embargo_relay_effect_slots() -> list[py_trees.behaviour.Behaviour]:
             ApplyEmbargoRejectionFromLedgerNode,
         ),
         _event_effect_slot(
-            "InviteLapse",
-            IsInviteLapsedEventNode,
-            ApplyInviteLapseFromLedgerNode,
+            "InviteExpiry",
+            IsInviteExpiryEventNode,
+            ApplyInviteExpiryFromLedgerNode,
+        ),
+        _event_effect_slot(
+            "EmbargoAbandonment",
+            IsEmbargoAbandonmentEventNode,
+            ApplyEmbargoAbandonmentFromLedgerNode,
         ),
     ]
 

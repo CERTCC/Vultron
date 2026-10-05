@@ -111,11 +111,6 @@ def _make_factory() -> MagicMock:
     return factory
 
 
-@pytest.fixture(autouse=True)
-def clear_blackboard():
-    py_trees.blackboard.Blackboard.storage.clear()
-
-
 # ---------------------------------------------------------------------------
 # terminate_embargo_bt — shared factory (BT-19-001, BT-19-002)
 # ---------------------------------------------------------------------------
@@ -333,12 +328,12 @@ class TestTerminateEmbargoBT:
 
         for participant_id in case.actor_participant_index.values():
             updated_p = cast(as_CaseParticipant, dl.read(participant_id))
-            assert updated_p.embargo_consent_state == PEC.UNBOUND.value
+            assert updated_p.embargo_consent_state == PEC.UNBOUND_EXITED.value
 
     def test_cascade_path_no_builder_returns_failure_when_no_factory(self):
         """Without activity_builder, FAILURE when no trigger_activity_factory set.
 
-        This is the cascade path used by PublicDisclosureBranchNode (BT-14-001).
+        This is the cascade path used by ThreatTerminationBranchNode (BT-14-001).
         """
         case, _, dl = _make_case_with_manager("teb6", em_state=EM.ACTIVE)
         result_out: dict = {}
@@ -787,7 +782,7 @@ class TestSetEmbargoActiveNode:
             em_after=EM.ACTIVE,
             case_changed=True,
             case_embargo_changed=True,
-            pec_reset=False,
+            pec_exited=False,
         )
         with patch.object(
             EmbargoLifecycle,
@@ -829,7 +824,7 @@ class TestSetEmbargoActiveNode:
             em_after=EM.ACTIVE,
             case_changed=True,
             case_embargo_changed=False,
-            pec_reset=False,
+            pec_exited=False,
         )
         with patch.object(
             EmbargoLifecycle,
@@ -948,7 +943,7 @@ class TestSetEmbargoActiveNode:
             em_after=EM.ACTIVE,
             case_changed=True,
             case_embargo_changed=True,
-            pec_reset=False,
+            pec_exited=False,
         )
         with patch.object(
             EmbargoLifecycle,

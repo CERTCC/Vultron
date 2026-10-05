@@ -172,6 +172,11 @@ groups:
       authority in `add_case_status_tree` (RSH-04-001, where the sender is the
       CASE_MANAGER). Neither sender is necessarily CASE_OWNER, so a duplicate
       CASE_OWNER gate here would block legitimate teardown on both paths.
+    note: >
+      RSH-03-004's skip for a status the CASE_MANAGER declared is not an
+      authorization gate: it does not decide whether a teardown is allowed,
+      only that a replica leaves the CASE_MANAGER's own teardown to its
+      committed entry.
   - id: RSH-03-003
     priority: MUST
     kind: protocol
@@ -183,9 +188,53 @@ groups:
       The node belongs in the tree that writes canonical state. Its presence
       in `add_participant_status_tree` predates the two-seam design and must
       be migrated as part of implementing RSH-01 and RSH-02.
-    verification: Inspection of `vultron/core/behaviors/status/` confirms `PublicDisclosureBranchNode` is absent from
-      `add_participant_status_tree` and `ThreatTerminationBranchNode` is present in `add_case_status_tree`.
+    verification: >
+      `PublicDisclosureBranchNode` is deleted (#4154);
+      `test/core/behaviors/status/test_add_participant_status_bt.py` asserts no
+      node of that name is in `add_participant_status_tree`, and
+      `test/core/behaviors/status/test_add_case_status_bt.py` asserts
+      `ThreatTerminationBranchNode` is present in `add_case_status_tree`.
 
+    stories:
+    - story_2022_081
+  - id: RSH-03-004
+    priority: MUST_NOT
+    kind: protocol
+    statement: >
+      An actor that does not hold `CVDRole.CASE_MANAGER` MUST NOT ask the
+      CASE_MANAGER for an embargo teardown when the P/X/A status that
+      triggered `ThreatTerminationBranchNode` was declared by the
+      CASE_MANAGER; it waits for the CASE_MANAGER's committed teardown entry
+      (EP-09-007).
+    rationale: >
+      The CASE_MANAGER tears down on its own P/X/A detection, commits the
+      teardown and declares the new status. The declaration can reach a
+      replica before the teardown entries do, and the replica would then ask
+      the CASE_MANAGER to terminate the embargo it has already terminated,
+      an ask answered with a refusal (#4149). An open proposal raises no ask
+      either way (EMB-16-002). The same replica would also post the
+      CASE_MANAGER a CSB-18 diagnostic Note for the P/X/A–EM gap the
+      teardown entry is about to close, so `PxaEmInvariantDiagnosticNode`
+      skips on the same condition.
+    note: >
+      The skip decides who carries out the teardown, not whether it is
+      allowed (RSH-03-002).
+    verification: >
+      `test/core/behaviors/status/test_add_case_status_bt.py` runs
+      `ThreatTerminationBranchNode` on a replica that still holds the active
+      embargo, with the CASE_MANAGER as sender, and asserts nothing is
+      queued; with another sender the terminate ask is still queued. The
+      same file runs the whole `add_case_status_tree` at a replica and
+      asserts the outbox stays empty (no ask, no diagnostic Note) for the
+      CASE_MANAGER's declaration, and
+      `test/core/behaviors/status/test_add_participant_status_bt.py` pins
+      that `add_participant_status_tree` gives the branch the status's
+      sender.
+    relationships:
+    - rel_type: refines
+      spec_id: RSH-03-001
+    - rel_type: depends_on
+      spec_id: EP-09-008
     stories:
     - story_2022_081
 - id: RSH-04
@@ -1210,7 +1259,9 @@ groups:
       A non-CASE_MANAGER replica that receives such an activity directly MUST
       store the activity and write no participant or case state; it obtains
       the resulting state from the `Announce(CaseLedgerEntry)` broadcast
-      (PCR-03-001).
+      (PCR-03-001). The one exception is a participant whose ledger stream is
+      paused, which applies an embargo-ending notice sent to it by the
+      CASE_MANAGER (CM-31-010).
     rationale: >
       Received-side trees gate their ledger commit on the CASE_MANAGER role but
       run their state-writing effects at every inbox, so `Add(EmbargoEvent)`,

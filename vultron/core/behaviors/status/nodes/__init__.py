@@ -33,9 +33,8 @@ Submodules:
   AppendStatusAndSaveParticipantNode)
 - ``rm_validation``: RM transition guard for the append sequence
   (ValidateRMTransitionNode)
-- ``lifecycle``: Public disclosure and auto-close emit lifecycle nodes
-  (_PublicDisclosureSkipConditionNode, PublicDisclosureBranchNode,
-  ThreatTerminationBranchNode, EmitCloseCaseNode)
+- ``lifecycle``: Auto-close emit node and the re-exported P/X/A teardown
+  branch (ThreatTerminationBranchNode, EmitCloseCaseNode)
 - ``rm_anomaly``: RM transition anomaly notification (EmitRMGapNoteNode)
 - ``case_status``: Idempotency guard and append nodes for the
   AddCaseStatusToCase workflow.  EmitCaseStatusUpdateNode (direct ledger
@@ -85,9 +84,7 @@ from vultron.core.behaviors.status.nodes.dimension_filter import (
 )
 from vultron.core.behaviors.status.nodes.lifecycle import (
     EmitCloseCaseNode,
-    PublicDisclosureBranchNode,
     ThreatTerminationBranchNode,
-    _PublicDisclosureSkipConditionNode,
 )
 from vultron.core.behaviors.status.nodes.rm_anomaly import (
     EmitRMGapNoteNode,
@@ -113,8 +110,6 @@ __all__ = [
     # rm_validation
     "ValidateRMTransitionNode",
     # lifecycle
-    "_PublicDisclosureSkipConditionNode",
-    "PublicDisclosureBranchNode",
     "ThreatTerminationBranchNode",
     "EmitCloseCaseNode",
     "EmitRMGapNoteNode",

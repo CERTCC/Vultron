@@ -36,9 +36,11 @@ from vultron.adapters.driven.datalayer_sqlite import (
 from vultron.config.app import get_config
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.core.states.em import EM
+from vultron.core.states.participant_embargo_consent import PEC
 from vultron.demo.helpers.seeding import seed_case_participants_for_demo
 from vultron.errors import VultronNotFoundError
 
@@ -178,3 +180,23 @@ def test_seeding_without_the_owners_profile_raises(
     stranger = VultronService(name="Not stored")
     with pytest.raises(VultronNotFoundError):
         _seed(stranger, dl)
+
+
+@pytest.mark.spec("EMB-18-001")
+@pytest.mark.spec("CM-14-005")
+def test_seeded_embargo_records_the_owners_consent(
+    owner_and_dl: tuple[VultronService, SqliteDataLayer],
+) -> None:
+    """The seed goes through ``EmbargoLifecycle`` (#4144).
+
+    The creation-time write records the owner's consent, so the owner is
+    ``SIGNATORY`` to the seeded embargo, as on a case the tree created.
+    """
+    owner, dl = owner_and_dl
+    embargo = _seed(owner, dl)
+
+    stored = cast(VulnerabilityCase, dl.read(embargo.context))
+    participant = dl.read(stored.actor_participant_index[owner.id_])
+    assert isinstance(participant, CaseParticipant)
+    assert participant.embargo_consent_state == PEC.SIGNATORY
+    assert embargo.id_ in participant.accepted_embargo_ids

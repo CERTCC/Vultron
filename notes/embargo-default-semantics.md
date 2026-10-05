@@ -12,10 +12,12 @@ description: >
   earliest-expiration ordering for N open proposals; why the creation-time
   revision's registration order no longer touches consent (ADR-0093); how
   the creation-time revision is relayed to the other party after
-  initialization and indexed only once sent (EP-04-011, CM-14-007, ADR-0113);
+  initialization and indexed only once sent (EP-04-011, CM-14-007, ADR-0113),
+  and why the relay is a durable marker a later run retries (#4121);
   why creation-time initialization runs once per case with the EM state, not
   the active-embargo reference, as the evidence (EP-04-012); why a rerun on a
-  half-built case reuses the minted event's case-derived id; and why the actor
+  half-built case reuses the minted event's case-derived id; why everything
+  after activation commits with it in one `save_many`; and why the actor
   default is the CASE_OWNER's profile policy, carried inline on the case proposal
   (CP-01-009, CP-01-010).
 related_specs:
@@ -33,6 +35,7 @@ related_notes:
   - notes/bt-pitfalls.md
 relevant_packages:
   - transitions
+  - vultron/adapters/driving/fastapi
   - vultron/bt/embargo_management
   - vultron/config
   - vultron/core/behaviors/case
@@ -130,8 +133,8 @@ for implementers:
 - **One comparator, not two.** `earliest_ending` in
   `vultron/core/services/embargo_ordering.py` (#3470) is the comparator:
   `resolve_initial_embargo_duration` uses it for EP-04-003's shortest-wins and
-  `find_embargo_proposal_id` / `ReadProposedEmbargoIdNode` use it for EP-08's
-  earliest-expiring selection. #3392 extends the case-creation input; it MUST NOT
+  `find_embargo_proposal_id` uses it for EP-08's earliest-expiring
+  selection. #3392 extends the case-creation input; it MUST NOT
   grow a second comparator.
 - There is **no multi-candidate poll** to reach for when more than two sets of
   terms are on the table — ADR-0100 retired `ChoosePreferredEmbargo` (#3469).
@@ -321,19 +324,27 @@ knew it existed. The creation-time revision is now a revision like any other and
 follows the relay in `embargo-lifecycle.md` § "Embargo Negotiation Relays Through
 the CASE_MANAGER", in two steps that sit at two different places in the tree:
 
-- **Registered, not indexed.** `RegisterLongerProposalAsRevisionNode` mints the
-  id the relayed `Invite` will carry but writes no
-  `pending_embargo_proposal_index` entry: the bootstrap `Create(VulnerabilityCase)`
-  is rendered later in the tree with the case whole, and an entry already naming
-  the Invite would make the winner's idempotency guard
+- **Owed and registered in one commit, not indexed.**
+  `ResolveCreationTimeRevisionNode` selects the longer proposal before anything
+  is written and publishes it as `creation_time_revision_candidate`;
+  `InitializeCreationEmbargoNode` registers it in the activation's commit and, in
+  that same `save_many`, writes a `PendingCreationTimeRevisionRelay` record keyed
+  on the case — the freshly minted id the relayed `Invite` will carry, the report
+  the reporter is resolved from, whose terms lost
+  (`initial_embargo_duration.source`), and the CASE_MANAGER that owes the relay.
+  It is the `PendingCreateCaseActivity` shape (CP-05-005), committed with the
+  effect it guards rather than ahead of it: a failure leaves neither, never a
+  registered revision with nothing to retry (#4156), and the once-per-case guard
+  lets a redelivery finish both (#4142). A contest whose case names no report
+  fails before the commit. Writing a record initiates no modification, so it does
+  not run ahead of CM-14-007's sequence. `BTBridge` scopes the candidate key to
+  one execution (as it does `ledger_payload_object_override`, #3101), because the
+  selection ticks only on the creation arm. Nothing writes a
+  `pending_embargo_proposal_index` entry: the bootstrap
+  `Create(VulnerabilityCase)` is rendered later in the tree with the case whole,
+  and an entry already naming the Invite would make the winner's idempotency guard
   (`EmbargoProposalNotYetRecordedNode`) read the Invite as already answered and
-  skip it. It publishes a `CreationTimeRevision` — case, embargo, that id, and whose terms lost
-  (`initial_embargo_duration.source`) — on `creation_time_revision`. It writes
-  `None` first whenever it ticks, and `BTBridge` scopes the key to one execution
-  (as it does `ledger_payload_object_override`, #3101), because the registration
-  ticks only on the creation arm: a redelivery that finds the case already
-  initialized never reaches it, and would otherwise hand the relay the previous
-  execution's revision.
+  skip it.
 - **Relayed after initialization.** `RelayCreationTimeRevisionNode` sits in the
   case-proposal tree after `CommitNativeLedgerEntriesNode`, not inside
   `InitializeDefaultEmbargoNode`, because no modification may be initiated before
@@ -344,25 +355,72 @@ the CASE_MANAGER", in two steps that sit at two different places in the tree:
   the outbox write, and only then indexes it (`record_embargo_proposal_index`,
   shared with the received-proposal handler) for the owner's default selection
   (EP-08-002). No proposal activity exists at creation, so the committed relayed
-  Invite *is* the revision's proposal entry (EP-04-011).
+  Invite *is* the revision's proposal entry (EP-04-011). It reads what to relay
+  from the marker, never from the blackboard, and deletes the marker when done.
 
 The loser is the proposer and is not invited: when the reporter's longer terms
 lost (the reporter is the report's `attributedTo`), the owner is invited; when the
-owner's longer default lost, the reporter is. Both were just seeded SIGNATORY, so
+owner's longer default lost, the reporter is. Proposing is consenting
+(MSM-07-005), so the proposer's record, not the executing actor's, gains the
+revision id: on the CASE_MANAGER's creation path the executor is neither party
+(#4152). `creation_revision_parties` (`nodes/embargo_revision.py`) resolves both
+parties from the case owner and the report's author, for the registration and the
+relay alike. Both were just seeded SIGNATORY, so
 the relay's PEC `INVITE` is not legal for the invitee and changes no consent
-(EP-09-004). A tie registers nothing and relays nothing. The relay also sends
-nothing when the published revision names another case, when the embargo is no
-longer an open proposal, or when an entry for that id is already in the ledger —
-the last two read from the store, so a retry after a completed relay sends no
-second Invite. A report naming no reporter, a case naming no CASE_OWNER, or a
-winner who is not an invitation recipient (CM-10-007) raises: the relay is a MUST,
+(EP-09-004). A tie registers nothing and relays nothing. A report naming no
+reporter, a case naming no CASE_OWNER, or a winner who is not an invitation recipient (CM-10-007) raises: the relay is a MUST,
 so a registered revision whose Invite cannot be sent is never a silent SUCCESS,
 and the proposal was already accepted and the case announced, so it is the
 manager's internal error, never a REFUSED verdict on the sender (ADR-0095). A
 reporter that is itself the CASE_OWNER has nobody to invite, so nothing is relayed
-or indexed. A failed relay is not retried: the redelivery takes the
-already-initialized arm and publishes no revision (#4121); because the index is
-written only after sending, it never names an Invite that was not emitted.
+or indexed, and the marker is deleted.
+
+**A failed relay is retried, from the marker (#4121).** Initialization runs once
+per case (EP-04-012), so a redelivered proposal takes the already-initialized arm
+and registers nothing; without a durable record the revision would stay open with
+an Invite nobody sent and nobody could answer. Once the marker is written, a
+failure after it — a missing factory, an unresolvable party, a fault mid-relay, a
+crash — keeps it. Two runs find it. One is a later delivery of a proposal for the
+case, whose accept arm reruns the creation sequence and so reaches the relay
+again; that path is closed while a `PendingCreateCaseActivity` marker exists,
+because `CheckMarkerExistsNode` short-circuits the redelivery. The other is the
+startup runner `retry_pending_creation_time_revision_relays` in
+`vultron/adapters/driving/fastapi/pending_retry.py`, beside the
+`Create(VulnerabilityCase)` retry. The runner wraps the relay node in
+`create_case_manager_gated_tree` (BT-17-001), so an actor that no longer holds
+CASE_MANAGER relays nothing and the marker is kept for the role holder. A tree
+runs against the store of the actor it executes as (BT-05-005, DL-07-004), so the
+runner skips, at WARNING, a marker whose `case_actor_id` is not the store's actor
+rather than relay as one actor against another's store; a marker held by a former
+CASE_MANAGER stays in that actor's store.
+
+The relay node classifies the marker before acting:
+
+- **Not yet.** With no genesis `create_case` entry in the case's ledger, the
+  creation sequence is not complete (CM-14-007, CM-14-011): nothing is sent and
+  the marker is kept. Only a run outside the case tree can see this — inside it,
+  `CommitNativeLedgerEntriesNode` has already committed the genesis entry.
+- **Closed.** The embargo is no longer an open proposal: nothing is sent and the
+  marker is deleted.
+- **Committed.** An entry for the pre-minted Invite id is already in the ledger:
+  the relay committed and then failed. The node re-applies PEC `INVITE` where
+  legal (EP-09-004), writes the index, and deletes the marker. Whether it queues
+  the Invite again is decided by the marker's `invite_queued` receipt, which the
+  relay saves right after `outbox_append`: the outbox cannot answer it, because
+  `outbox_pop` empties the outbox on delivery and so a delivered Invite looks like
+  a lost one. With no receipt the outbox write never happened, so the node
+  appends the committed id — the sealed body stored under it is what is
+  delivered — and records the receipt (#4156). A crash between the append and the
+  receipt write sends the same Invite, under the same id, twice: at-least-once,
+  which the winner's idempotency guard absorbs.
+- **Send.** Otherwise it sends the Invite under the id the marker carries,
+  indexes it, and deletes the marker.
+
+When the `Create` runner recovered the announcement but the native entries were
+never committed, nothing at startup commits them, so the relay waits for a
+redelivered proposal; the runner logs that wait at WARNING on every start, so it
+is never silent. Because the index is written only after the Invite is committed,
+it never names an Invite that was not emitted.
 
 The owner may then accept or reject as with any revision (EP-09-005). Each replica
 learns the revision from two sources. The `Create(VulnerabilityCase)` snapshot
@@ -373,7 +431,7 @@ replays the committed Invite attributed to it (#4099). That replay writes no ind
 for any other actor, for the same idempotency reason the registration does not.
 
 The sender's event arrives under the sender's id, and an id is a sender-supplied
-value. `persist_creation_time_embargo` (`nodes/embargo.py`) therefore refuses a
+value. `persist_creation_time_embargo` (`embargo_lifecycle/creation.py`) refuses a
 stored twin under that id that is not this embargo — about this case, ending when
 this one ends — instead of swallowing `VultronAlreadyExistsError` as a replay the
 way a freshly minted id allowed; otherwise a colliding id would bind the case to a
@@ -437,7 +495,7 @@ EP-04-012 fixes what the guard's evidence is:
 The reference is wrong in the first column. After `terminate_active_embargo`
 the reference is `None` and the state is `EXITED`; a guard keyed on the
 reference falls through to the creation arm, which stores a fresh `EmbargoEvent`
-*before* `AdvanceEMStateToActiveNode` asks the EM machine for a `PROPOSE` it has
+*before* `InitializeCreationEmbargoNode` asks the EM machine for a `PROPOSE` it has
 no transition for from `EXITED` — an orphan write, a failed tree, and a proposal
 that is never answered (#3986). The EM state is right in both columns because
 the machine never returns to `NONE` once it has left it and `PROPOSED` is never
@@ -465,9 +523,33 @@ Consequences for the guard arm:
   registration both live inside it. The embargo is the case's, not the
   report's; terms on a redelivered proposal that conflict with the case lose
   to the case.
-- The per-node skips in `AdvanceEMStateToActiveNode` and
-  `AttachEmbargoToCaseNode` stay. They are each node validating its own
-  transition (CSB-16), not the idempotency guard.
+- The per-node skip in `InitializeCreationEmbargoNode` stays. It is the node
+  validating its own transition (CSB-16), not the idempotency guard.
+
+"`PROPOSED` is never persisted at creation" is a property of one write, not of
+the order of two. `InitializeCreationEmbargoNode` calls
+`EmbargoLifecycle.initialize_creation_embargo`, which applies `PROPOSE` and
+`ACCEPT` in memory, attaches the embargo and saves the case once; every check
+(P/X/A, the event's record, both transitions) runs before that save. The
+creation arm used to call `propose_embargo` and then, in a second node,
+`activate_embargo`: a failure between the two saves left the case at
+`PROPOSED`, which this guard reads as initialized, so the case never got an
+active embargo (#4123).
+
+The same holds for everything after the activation. The consent records, the
+owner's `SIGNATORY` seed (CM-14-003) and a contested creation's revision
+(`ACTIVE → REVISE`, EP-04-003) used to be written by the service and by two
+nodes after the case was saved `ACTIVE`; a failure there left the owner
+unseeded or the revision unregistered, and this guard then refused the rerun
+that would have finished them (#4142). `initialize_creation_embargo` now does
+all of it and commits it through one `save_many`, the atomic write CM-21-004
+already relies on. The shared consent helpers save each record they touch and
+re-read a record an earlier helper changed (the owner is both the proposer and
+the seeded signatory on its own creation path), so the operation runs them
+against `StagedCasePersistence` (`embargo_lifecycle/staged_persistence.py`): it
+stages every save, answers every read from what it staged, refuses any query it
+could not answer faithfully, and flushes once. Any failure before or in that
+flush leaves the case at `NONE`, which this guard admits.
 
 A rerun at `NONE` must also not store a *second* creation-time event (#4117).
 A run can stop after `CreateEmbargoEventNode` stored its event and before EM
@@ -562,7 +644,7 @@ with no upper bound at all. So:
 > on day 7. The embargo ended at hour 24.
 
 The participant is asked to consent to an embargo that is already over, and their
-inaction is recorded as a decline six days after it stopped mattering. The same
+inaction is recorded as an expiry six days after it stopped mattering. The same
 thing happened on day 28 of a 30-day embargo with an ordinary published actor
 default — without any protocol default in the picture.
 

@@ -32,9 +32,9 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.embargo.nodes.teardown import (
     ApplyEmbargoTeardownNode,
     ClearActiveEmbargoNode,
+    ExitParticipantConsentNode,
     HasEmbargoActiveNode,
     RemoveFromProposedEmbargoesNode,
-    ResetParticipantConsentNode,
     SendAnnounceEmbargoEventNode,
 )
 from vultron.core.models.case import VulnerabilityCase
@@ -390,11 +390,11 @@ class TestClearActiveEmbargoNode:
         assert unchanged.current_status.em.state == EM.ACTIVE
 
 
-class TestResetParticipantConsentNode:
-    """Tests for ResetParticipantConsentNode."""
+class TestExitParticipantConsentNode:
+    """Tests for ExitParticipantConsentNode."""
 
     @pytest.mark.spec("EMB-13-001")
-    def test_resets_participant_pec_to_unbound(self):
+    def test_exits_participant_pec_to_unbound_exited(self):
         """Resets all participant PEC states to UNBOUND."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
@@ -413,14 +413,14 @@ class TestResetParticipantConsentNode:
         dl.create(participant)
 
         setup_blackboard(dl)
-        node = ResetParticipantConsentNode(case_id=case.id_)
+        node = ExitParticipantConsentNode(case_id=case.id_)
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
         bt.tick()
 
         assert node.status == py_trees.common.Status.SUCCESS
         updated_p = cast(as_CaseParticipant, dl.read(participant.id_))
-        assert updated_p.embargo_consent_state == PEC.UNBOUND.value
+        assert updated_p.embargo_consent_state == PEC.UNBOUND_EXITED.value
 
     def test_returns_success_with_no_participants(self):
         """Returns SUCCESS when case has no participants."""
@@ -433,7 +433,7 @@ class TestResetParticipantConsentNode:
         dl.create(case)
 
         setup_blackboard(dl)
-        node = ResetParticipantConsentNode(case_id=case.id_)
+        node = ExitParticipantConsentNode(case_id=case.id_)
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
         bt.tick()
@@ -448,7 +448,7 @@ class TestResetParticipantConsentNode:
         )
         setup_blackboard(dl)
 
-        node = ResetParticipantConsentNode(
+        node = ExitParticipantConsentNode(
             case_id="https://example.org/cases/nonexistent"
         )
         bt = py_trees.trees.BehaviourTree(root=node)
@@ -623,7 +623,7 @@ class TestApplyEmbargoTeardownNode:
 
         assert node.status == py_trees.common.Status.SUCCESS
         updated_p = cast(as_CaseParticipant, dl.read(participant.id_))
-        assert updated_p.embargo_consent_state == PEC.UNBOUND.value
+        assert updated_p.embargo_consent_state == PEC.UNBOUND_EXITED.value
 
     def test_returns_success_when_case_missing(self):
         """Node returns SUCCESS when the case ID is not in the DataLayer.

@@ -205,7 +205,9 @@ Adding a second `CommitCaseLedgerEntryNode` to `effect_nodes` is a
 **double-write bug**: the guarded commit fires for CASE_MANAGER at log_index=N;
 the extra unguarded node fires for all actors, including the transferee, also
 at log_index=N but with a different `received_at` and `payload_snapshot` —
-producing an unrecoverable hash-chain fork (ISSUE-2252).
+producing an unrecoverable hash-chain fork (ISSUE-2252). CLP-09-001 requires
+every commit to go through a role-gated composition, and the factory already
+supplies it — the extra node is an unguarded second writer.
 
 ### fvcv_handoff_demo.py
 
