@@ -47,7 +47,10 @@ inboxes.
 import logging
 from collections.abc import Callable, Sequence
 
+from vultron.core.states.rm import RM
+from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.runner import run_exchange_demos
+from vultron.demo.helpers.verification import _check_participant_rm_state_in
 from vultron.demo.helpers.workflow import setup_initialized_case
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
@@ -201,15 +204,24 @@ def demo_invite_actor_reject(
     vendor: as_Actor,
     coordinator: as_Actor,
 ) -> None:
-    """
-    Demonstrates the reject path of the invite-actor-to-case workflow.
+    """Reject path of the invite-actor-to-case workflow.
+
+    ADR-0114 / CM-11-006: the invite-actor-to-case trigger is called first so
+    that ``CreateInertInviteeParticipantNode`` records an inert
+    ``CaseParticipant`` for coordinator at invite-send time.  The invite
+    activity is then also posted to coordinator's inbox directly (exchange-demo
+    pattern) so coordinator can reject it.  After the Reject,
+    ``ApplyInviteRejectToParticipantNode`` closes the inert record at
+    RM ``CLOSED`` (CM-11-007) — coordinator is present in
+    ``actor_participant_index`` but never active (DEMOMA-27-002).
 
     Steps:
     1. Setup: initialize case (report submitted + validated, case created,
        finder participant added)
-    2. Vendor invites coordinator to case (RmInviteToCaseActivity → coordinator inbox)
+    2. Vendor fires invite-actor-to-case trigger (creates inert participant,
+       CM-11-006) and delivers the invite to coordinator's inbox
     3. Coordinator rejects invitation (RmRejectInviteToCaseActivity → vendor inbox)
-    4. Verify coordinator does NOT appear in case participant list
+    4. Verify coordinator is in actor_participant_index at RM.CLOSED (never active)
 
     This follows the reject branch in
     docs/howto/activitypub/activities/invite_actor.md.
@@ -220,9 +232,6 @@ def demo_invite_actor_reject(
 
     case = setup_initialized_case(client, finder, vendor)
 
-    initial_case = log_case_state(client, case.id_, "initial")
-    initial_count = len(initial_case.case_participants) if initial_case else 0
-
     # PCR-08-007: the invite MUST be sent from the CASE_MANAGER's identity (ADR-0088).
     invite_actor_id = _find_case_manager_actor(client, vendor.id_, case.id_)
     if invite_actor_id is None:
@@ -231,7 +240,19 @@ def demo_invite_actor_reject(
         )
 
     invite = None
-    with demo_step("Step 2: Vendor invites coordinator to case"):
+    with demo_step(
+        "Step 2: Vendor fires invite-actor-to-case trigger and delivers invite"
+    ):
+        # Fire the trigger so CreateInertInviteeParticipantNode records the inert
+        # participant on the CASE_MANAGER side at invite-send time (ADR-0114,
+        # CM-11-006).
+        ActorSession(client=client, actor=vendor).with_case(
+            case
+        ).quiet().invite_actor_to_case(
+            invitee_id=str(coordinator.id_), roles=[]
+        )
+        # Also post the invite directly to coordinator's inbox (exchange-demo
+        # delivery pattern) so coordinator has an invite to reject in Step 3.
         invite = rm_invite_to_case_activity(
             coordinator,
             actor=invite_actor_id,
@@ -255,19 +276,36 @@ def demo_invite_actor_reject(
         logger.info("Sending reject: %s", logfmt(reject))
         post_to_inbox_and_wait(client, reject_recipient, reject)
 
-    with demo_step("Step 4: Verify coordinator not added as participant"):
-        with demo_check("Participant count unchanged after reject"):
+    with demo_step(
+        "Step 4: Verify coordinator in actor_participant_index at RM.CLOSED"
+    ):
+        with demo_check(
+            "Coordinator present in actor_participant_index (inert record from"
+            " invite-send, CM-11-006)"
+        ):
             final_case = log_case_state(client, case.id_, "after reject")
             if final_case is None:
                 raise ValueError("Could not retrieve case after reject")
-            final_count = len(final_case.case_participants)
-            if final_count != initial_count:
+            if coordinator.id_ not in final_case.actor_participant_index:
                 raise ValueError(
-                    f"Expected participant count to remain {initial_count} after "
-                    f"reject, got {final_count}"
+                    f"Coordinator '{coordinator.id_}' missing from"
+                    f" actor_participant_index — expected inert record from"
+                    f" invite-send (ADR-0114, CM-11-006)"
                 )
+        with demo_check(
+            "Coordinator at RM.CLOSED after rejection (never active, DEMOMA-27-002)"
+        ):
+            _check_participant_rm_state_in(
+                client=client,
+                case_id=str(case.id_),
+                actor_id=str(coordinator.id_),
+                expected_states={RM.CLOSED},
+                label="Coordinator (rejected invitee)",
+            )
 
-    logger.info("✅ DEMO COMPLETE (reject path): Invite rejected gracefully.")
+    logger.info(
+        "✅ DEMO COMPLETE (reject path): Coordinator at RM.CLOSED, never active."
+    )
 
 
 _ALL_DEMOS: Sequence[tuple[str, Callable[..., None]]] = [

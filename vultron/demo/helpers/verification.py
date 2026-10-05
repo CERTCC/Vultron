@@ -215,6 +215,7 @@ def _check_participant_rm_state_in(
     actor_id: str,
     expected_states: "set[RM]",
     label: str,
+    dl_actor_id: str | None = None,
 ) -> None:
     """Assert actor's latest participant rm_state is in *expected_states*.
 
@@ -229,8 +230,14 @@ def _check_participant_rm_state_in(
         actor_id: Full URI of the actor to check.
         expected_states: Set of acceptable ``RM`` values.
         label: Human-readable label for ``AssertionError`` messages.
+        dl_actor_id: When provided, read from this actor's store on *client*
+            instead of the client's own default store.  Needed when the
+            authoritative record is held by a self-hosted CaseActor rather
+            than the container's primary actor (ADR-0073).
     """
-    participant = _fetch_participant(client, case_id, actor_id)
+    participant = _fetch_participant(
+        client, case_id, actor_id, dl_actor_id=dl_actor_id
+    )
     if participant is None:
         raise AssertionError(
             f"{label}: participant for actor '{actor_id}' not found"

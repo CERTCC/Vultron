@@ -32,6 +32,7 @@ Spec: GitHub issue #2047 (fcv-reject demo scenario).
 import logging
 import sys
 
+from vultron.core.states.rm import RM
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.actor_roles import ActorRole, role_map
 from vultron.demo.helpers.harness import scenario_harness
@@ -64,6 +65,7 @@ from vultron.demo.helpers.sync import (
     run_sync_verification_phase,
     wait_for_replica_ledger_coverage,
 )
+from vultron.demo.helpers.verification import _check_participant_rm_state_in
 from vultron.demo.helpers.workflow import (
     reporter_submits_report,
     run_direct_path_rm_triage,
@@ -297,9 +299,14 @@ def _phase_invite_vendor_reject(
 
     Vendor sends Reject(Invite(actor, case)) back to the CaseActor via the
     ``reject-case-invite`` trigger.  The CaseActor records a
-    ``reject_invite_actor_to_case`` ledger entry and does NOT add Vendor as a
-    participant.  Vendor's participant count stays at 3 (Finder + Coordinator +
-    CaseActor).
+    ``reject_invite_actor_to_case`` ledger entry.
+
+    ADR-0114 / CM-11-006: at invite-send time
+    ``CreateInertInviteeParticipantNode`` adds Vendor to
+    ``actor_participant_index`` as an *inert* participant (``joined=False``,
+    RM ``RECEIVED``).  After the Reject, CM-11-007 moves that record to
+    RM ``CLOSED`` — Vendor is present in the index but never active, and no
+    case content is delivered to it (DEMOMA-27-002).
     """
     logger.info("─" * 80)
     logger.info("Phase 2: Coordinator invites Vendor; Vendor rejects")
@@ -342,17 +349,14 @@ def _phase_invite_vendor_reject(
                 ).quiet().reject_case_invite(invite_id=invite_id)
             logger.info("Vendor sent Reject(Invite) to CaseActor")
 
-    # Participant count remains 3: Coordinator + Finder + CaseActor.
-    # Vendor must NOT appear as a 4th participant.
-    #
-    # Gate on the rejection being committed before checking participant count.
+    # Gate on the rejection being committed before checking participant state.
     # The rejection is self-contained on the CaseActor (CLP-10-006) — no
     # participant-effect Announce is sent, so the entry is only visible in the
     # CaseActor's own store.  Using demo_gate here ensures that the participant
-    # count check is skipped (rather than run against stale state) if the
+    # state checks are skipped (rather than run against stale state) if the
     # CaseActor has not yet committed the rejection entry.
     with demo_gate(
-        "reject_invite_actor_to_case committed (causal gate before participant count check)"
+        "reject_invite_actor_to_case committed (causal gate before participant state check)"
     ):
         wait_for_event_type_in_ledger(
             client=coordinator_client,
@@ -362,15 +366,39 @@ def _phase_invite_vendor_reject(
                 coordinator_client, str(case.id_)
             ),
         )
+        # DEMOMA-27-002, CM-11-006: Vendor IS in actor_participant_index from the
+        # Invite-send moment (inert record created by CreateInertInviteeParticipantNode).
+        # Finder and Coordinator must also be present.
         with demo_check(
-            "Participant count stays at 3 (Vendor not added after rejection)"
+            "Vendor in actor_participant_index after invite (inert record, CM-11-006)"
         ):
             wait_for_case_participants(
                 vendor_client=coordinator_client,
                 case_id=case.id_,
-                expected_actor_ids={finder.id_, coordinator.id_},
+                expected_actor_ids={finder.id_, coordinator.id_, vendor.id_},
             )
-    logger.info("✓ M2: Vendor rejected invite — participant count stable at 3")
+        # DEMOMA-27-002, CM-11-007: Vendor's inert record must be at RM.CLOSED
+        # after the rejection — it was never active (joined=False throughout).
+        # Read from the CaseActor's authoritative store (not coordinator's
+        # replica): the reject tree has no emit node to propagate the
+        # participant state change to replicas (ADR-0073).
+        with demo_check(
+            "Vendor participant at RM.CLOSED after rejection (never active, DEMOMA-27-002)"
+        ):
+            _check_participant_rm_state_in(
+                client=coordinator_client,
+                case_id=str(case.id_),
+                actor_id=str(vendor.id_),
+                expected_states={RM.CLOSED},
+                label="Vendor (rejected invitee)",
+                dl_actor_id=resolve_case_actor_store_id(
+                    coordinator_client, str(case.id_)
+                ),
+            )
+    logger.info(
+        "✓ M2: Vendor rejected invite — inert record at RM.CLOSED, never active"
+        " (DEMOMA-27-002)"
+    )
 
 
 def _phase_sync_verification(
