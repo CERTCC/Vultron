@@ -112,7 +112,10 @@ def _make_case_with_case_manager(
     dl: SqliteDataLayer, owner_actor_id: str, case_actor_id: str
 ) -> as_VulnerabilityCase:
     case = as_VulnerabilityCase(
-        attributed_to=owner_actor_id, name="Test Case", content="Content"
+        attributed_to=owner_actor_id,
+        name="Test Case",
+        content="Content",
+        stub_summary="Security issue — details shared after acceptance",
     )
     owner_participant = as_CaseParticipant(
         attributed_to=owner_actor_id,
@@ -143,7 +146,10 @@ def _shared_case_with_case_manager(
     (ADR-0073); each holds its replica of the same case.
     """
     case = as_VulnerabilityCase(
-        attributed_to=owner_actor_id, name="Test Case", content="Content"
+        attributed_to=owner_actor_id,
+        name="Test Case",
+        content="Content",
+        stub_summary="Security issue — details shared after acceptance",
     )
     owner_participant = as_CaseParticipant(
         attributed_to=owner_actor_id,

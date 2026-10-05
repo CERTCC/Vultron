@@ -129,6 +129,13 @@ class VulnerabilityCase(CoreObject):
         default_factory=list
     )
     notes: list[NonEmptyString] = Field(default_factory=list)
+    # Owner-chosen summary for use in the case stub (CM-17-010, MV-10-001).
+    # The case owner sets this before emitting a stub Invite; the factory
+    # refuses to build a stub if this field is absent (AC-2 of #4165).
+    # ``NonEmptyString | None`` follows the "if present, then non-empty" rule
+    # (CS-08-002): None means "not yet set"; an empty or blank string is
+    # refused at construction time.
+    stub_summary: NonEmptyString | None = None
     # Admits the object, not only a reference, for the same reason
     # `case_participants` does: a recipient cannot dereference a URI it does not
     # hold, and no dereferencing mechanism is specified (AKM-03-001). While this

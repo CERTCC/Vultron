@@ -122,6 +122,7 @@ def _seed_dl_for_case_actor(
         id_=CASE_ID,
         name="OfferRoundTripTest",
         attributed_to=CASE_OWNER_ID,
+        stub_summary="Security issue — details shared after acceptance",
         # What OfferActorToCaseReceivedUseCase records when the recommendation
         # arrives (CM-16-004): the decision handlers read the recommender
         # from here, and refuse a decision on a recommendation never recorded.
@@ -700,6 +701,7 @@ def _seed_dl_for_ac1() -> SqliteDataLayer:
         id_=AC1_CASE_ID,
         name="AC1RolesThreading",
         attributed_to=AC1_CASE_OWNER_ID,
+        stub_summary="Security issue — details shared after acceptance",
         # Recorded when the recommendation arrived (CM-16-004); the Accept
         # handler refuses a decision on a recommendation never recorded.
         recommendation_recommender_index={

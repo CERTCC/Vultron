@@ -169,6 +169,7 @@ def joining_case() -> Any:
     case = as_VulnerabilityCase(
         id_="https://example.org/cases/case-join-1",
         name="CASE-JOINING",
+        stub_summary="Case for joining test",
         attributed_to=case_actor_id,
     )
     invitee = as_Organization(id_=invitee_id)

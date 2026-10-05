@@ -82,7 +82,11 @@ def test_ledger_fanout_reaches_only_active_participants() -> None:
     The invitee is also ``INVITED``, so either fact alone excludes it.
     """
     scenario = BTTestScenario(actor_id=MANAGER_ID)
-    case = VulnerabilityCase(name="Active fan-out", attributed_to=MANAGER_ID)
+    case = VulnerabilityCase(
+        name="Active fan-out",
+        stub_summary="Security issue — active fan-out test",
+        attributed_to=MANAGER_ID,
+    )
     embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now_utc(45))
     case.set_embargo(embargo.id_)
     case.append_case_status(em_state=EM.ACTIVE)

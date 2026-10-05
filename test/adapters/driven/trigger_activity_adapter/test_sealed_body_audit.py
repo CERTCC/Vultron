@@ -94,6 +94,7 @@ class _World:
         self.case = as_VulnerabilityCase(
             id_=self.case_id,
             name="CVE-2026-1",
+            stub_summary="Test case — RCE in widget",
             attributed_to=_ACTOR,
             case_participants=[str(self.participant.id_)],
             vulnerability_reports=[str(self.report.id_)],

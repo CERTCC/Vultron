@@ -557,7 +557,9 @@ def _archived_invite_entry(
     """A received Invite as the datalayer router serializes its record."""
     invite = rm_invite_to_case_activity(
         as_Service(id_=invitee_id),
-        target=as_VulnerabilityCase(id_=case_id),
+        target=as_VulnerabilityCase(
+            id_=case_id, stub_summary="Security issue for test invite"
+        ),
         actor=_MANAGER,
         id_=_INVITE_ID,
     )

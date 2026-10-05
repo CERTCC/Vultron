@@ -848,6 +848,10 @@ def setup_initialized_case(
             "attributed_to": vendor.id_,
             "name": "RCE Case — Web Framework",
             "content": "Tracking the RCE vulnerability in the web framework.",
+            "stub_summary": (
+                "Remote code execution in web framework"
+                " — details shared after acceptance."
+            ),
         }
     )
 
@@ -943,6 +947,16 @@ def setup_canonical_case(
     post_to_inbox_and_wait(client, vendor.id_, validate_activity)
 
     case = wait_for_initialized_case(client, report.id_)
+    # Attach a stub_summary so demo Invites carry the required non-empty
+    # summary (CM-17-010, MV-10-001, #4165).  The BT-created case never has
+    # this field; set it on the local object before any Invite factory call.
+    case = case.model_copy(
+        update={
+            "stub_summary": (
+                f"{report_name} — details shared after acceptance."
+            )
+        }
+    )
     # Resolve the CaseActor from the case's own participant index, not from
     # config: `case_actor_id_for_report` answers "which CaseActor would *this
     # node* address", which is a different question and returns `""` when no
@@ -1061,7 +1075,7 @@ def case_actor_invites_actor_to_case(
     invite = rm_invite_to_case_activity(
         invitee,
         actor=case_actor_id,
-        target=case.id_,
+        target=case,
         to=[invitee.id_],
         attributed_to=inviter.id_,
         roles=roles,
@@ -1146,6 +1160,10 @@ def setup_two_participant_case(
         attributed_to=vendor.id_,
         name="UAF Case — Network Stack",
         content="Tracking the use-after-free vulnerability in the network stack.",
+        stub_summary=(
+            "Use-after-free in network stack"
+            " — details shared after acceptance."
+        ),
     )
     create_case_act = create_case_activity(case, actor=vendor.id_)
     post_to_inbox_and_wait(client, vendor.id_, create_case_act)
@@ -1177,7 +1195,7 @@ def setup_two_participant_case(
     invite = rm_invite_to_case_activity(
         coordinator,
         actor=vendor.id_,
-        target=case.id_,
+        target=case,
         to=[coordinator.id_],
         content=f"Inviting you to participate in {case.name}.",
     )

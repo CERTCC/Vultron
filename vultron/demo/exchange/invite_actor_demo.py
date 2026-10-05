@@ -149,7 +149,7 @@ def demo_invite_actor_accept(
         invite = rm_invite_to_case_activity(
             coordinator,
             actor=invite_actor_id,
-            target=case.id_,
+            target=case,
             to=[coordinator.id_],
             attributed_to=vendor.id_,
             content=f"We're inviting you to participate in {case.name}.",
@@ -235,7 +235,7 @@ def demo_invite_actor_reject(
         invite = rm_invite_to_case_activity(
             coordinator,
             actor=invite_actor_id,
-            target=case.id_,
+            target=case,
             to=[coordinator.id_],
             attributed_to=vendor.id_,
             content=f"We're inviting you to participate in {case.name}.",

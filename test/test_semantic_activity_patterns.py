@@ -525,7 +525,9 @@ def test_rm_invite_projects_full_vulnerability_case_to_stub():
     """
     actor = as_Actor(id_="https://example.org/actors/alice")
     full_case = as_VulnerabilityCase(
-        id_="https://example.org/cases/c1", name="Full"
+        id_="https://example.org/cases/c1",
+        name="Full",
+        stub_summary="Security issue — details shared after acceptance",
     )
     activity = rm_invite_to_case_activity(
         actor,

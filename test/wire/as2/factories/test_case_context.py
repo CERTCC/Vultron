@@ -114,7 +114,11 @@ def _role_offer():
         pytest.param(
             lambda: rm_invite_to_case_activity(
                 invitee=_VENDOR,
-                target=as_VulnerabilityCase(id_=_CASE_ID, name="x"),
+                target=as_VulnerabilityCase(
+                    id_=_CASE_ID,
+                    name="x",
+                    stub_summary="Security issue — details shared after acceptance",
+                ),
                 actor=_ACTOR,
             ),
             id="invite_actor_to_case",
