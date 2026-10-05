@@ -31,9 +31,15 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from vultron.core.behaviors.case.nodes.accept_invite import (
+    EmitAddCaseParticipantNode,
+)
 from vultron.core.behaviors.case.nodes.actor import (
     EmitInviteActorToCaseNode,
     EvaluateDefaultRolesNode,
+)
+from vultron.core.behaviors.case.nodes.invite_inert_participant import (
+    CreateInertInviteeParticipantNode,
 )
 from vultron.core.behaviors.case.nodes.vfd_role_guards import (
     CheckIsCaseOwnerNode,
@@ -807,7 +813,7 @@ class TestDuplicateDetectionTreeStructure:
 
     @pytest.mark.spec("CM-17-007")
     def test_owner_direct_invite_structure(self):
-        """CASE_OWNER arm: owner check, roles, then the Invite — after the duplicates."""
+        """CASE_OWNER arm: owner check, roles, Invite, inert participant, Add."""
         owner = self._duplicate_selector().children[3]
         assert isinstance(owner, py_trees.composites.Sequence)
         assert owner.name == "OwnerDirectInvite"
@@ -815,6 +821,8 @@ class TestDuplicateDetectionTreeStructure:
             CheckIsCaseOwnerNode,
             EvaluateDefaultRolesNode,
             EmitInviteActorToCaseNode,
+            CreateInertInviteeParticipantNode,
+            EmitAddCaseParticipantNode,
         ]
         check = owner.children[0]
         assert isinstance(check, CheckIsCaseOwnerNode)

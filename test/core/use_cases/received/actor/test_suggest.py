@@ -436,8 +436,9 @@ class TestOwnerDirectInviteAtCaseManager:
 
     def _sealed_invite(self, dl) -> dict:
         bodies = self._sealed_bodies(dl)
-        assert len(bodies) == 1, f"expected one Invite, got {bodies!r}"
-        return bodies[0]
+        invites = [b for b in bodies if b.get("type") == "Invite"]
+        assert len(invites) == 1, f"expected one Invite, got {bodies!r}"
+        return invites[0]
 
     @pytest.mark.spec("CM-17-007")
     def test_case_manager_emits_the_invite_itself(
@@ -508,4 +509,7 @@ class TestOwnerDirectInviteAtCaseManager:
 
         queued = self._sealed_bodies(dl)
         assert queued
-        assert all(body.get("type") == "Invite" for body in queued)
+        # An Add(CaseParticipant) is now emitted alongside the Invite (AC-1,
+        # CM-11-006), but no Offer(CaseParticipant) should reach the owner.
+        assert any(body.get("type") == "Invite" for body in queued)
+        assert not any(body.get("type") == "Offer" for body in queued)

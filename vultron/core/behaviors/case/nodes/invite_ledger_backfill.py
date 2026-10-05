@@ -47,14 +47,23 @@ class CapturePreCommitBackfillTargetNode(DataLayerActionWithPorts):
 
     This node MUST appear AFTER ``CheckInviteeNotAlreadyParticipantNode`` in
     the precondition-guards list, so it can read ``invitee_already_participant``
-    from the blackboard.
+    and ``invitee_joined`` from the blackboard.
 
     **Resume case** (invitee already registered, ``invitee_already_participant
-    = True``): the commit's ``FanOutLogEntryNode`` will include the invitee in
-    its recipient list (they are a current case participant), so
-    ``BackfillCanonicalLedgerToInviteeNode`` must limit its window to entries
-    that existed *before* the commit to avoid sending the new entry twice.
-    This node writes ``pre_commit_backfill_target`` to the blackboard.
+    = True``, ``invitee_joined = True``): the commit's ``FanOutLogEntryNode``
+    will include the invitee in its recipient list (they are a current case
+    participant), so ``BackfillCanonicalLedgerToInviteeNode`` must limit its
+    window to entries that existed *before* the commit to avoid sending the
+    new entry twice.  This node writes ``pre_commit_backfill_target`` to the
+    blackboard.
+
+    **Inert-record case** (``invitee_already_participant = True``,
+    ``invitee_joined = False``): the invitee has an inert stub record at
+    invite-send time (ADR-0114, CM-11-006) but is NOT in the fan-out
+    recipients (``is_active_participant()`` is False), so the commit fan-out
+    will NOT include them.  Treat as fresh: leave
+    ``pre_commit_backfill_target`` unset so backfill covers all entries
+    including the new accept entry.
 
     **Fresh case** (invitee not yet registered, ``invitee_already_participant
     = False``): the receipt commit's fan-out will NOT include the invitee (they
@@ -78,6 +87,7 @@ class CapturePreCommitBackfillTargetNode(DataLayerActionWithPorts):
         "invitee_already_participant": PortInformation(
             data_type=object, required=False
         ),
+        "invitee_joined": PortInformation(data_type=object, required=False),
     }
 
     OUTPUT_PORTS: dict[str, PortInformation] = {
@@ -90,6 +100,7 @@ class CapturePreCommitBackfillTargetNode(DataLayerActionWithPorts):
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {
             "invitee_already_participant": "/invitee_already_participant",
+            "invitee_joined": "/invitee_joined",
             "pre_commit_backfill_target": "/pre_commit_backfill_target",
         }
 
@@ -101,25 +112,32 @@ class CapturePreCommitBackfillTargetNode(DataLayerActionWithPorts):
             )
         except (NoDataAvailable, NotImplementedError):
             self._already_participant_bb = False
+        try:
+            self._invitee_joined_bb = self.get_input("invitee_joined")
+        except (NoDataAvailable, NotImplementedError):
+            self._invitee_joined_bb = None
 
     def update(self) -> Status:
         already_participant = self._already_participant_bb
+        # An inert participant (joined=False, ADR-0114) is not included in the
+        # fan-out, so treat the same as fresh — no pre-commit snapshot.
+        invitee_joined = self._invitee_joined_bb
+        is_resume = already_participant and invitee_joined is not False
 
-        if not already_participant:
-            # Fresh case: the receipt commit's fan-out won't reach the invitee
-            # (not yet registered).  Write None to pre_commit_backfill_target so
-            # that BackfillCanonicalLedgerToInviteeNode uses the ledger tail at
-            # backfill time, and any stale value from a prior resume test is
-            # overwritten.
+        if not is_resume:
+            # Fresh case (or inert record): the commit fan-out won't reach the
+            # invitee.  Write None so BackfillCanonicalLedgerToInviteeNode
+            # uses the ledger tail at backfill time, and any stale value from
+            # a prior resume test is overwritten.
             self._set_output("pre_commit_backfill_target", None)
             self.logger.debug(
-                "%s: fresh invite — clearing pre-commit backfill target"
+                "%s: fresh/inert invite — clearing pre-commit backfill target"
                 " (backfill will include post-commit entry)",
                 self.name,
             )
             return Status.SUCCESS
 
-        # Resume case: invitee IS already a participant.
+        # Resume case: invitee IS already a fully-joined participant.
         # Capture the current last index so backfill doesn't re-send the
         # accept-invite entry that the commit fan-out will deliver.
         if self.datalayer is None:

@@ -29,6 +29,7 @@ Node classes:
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.protocol_pair import (
     INVITE_ACTOR_TO_CASE_REPLY_TYPES,
     OFFER_CASE_PARTICIPANT_REPLY_TYPES,
@@ -36,11 +37,15 @@ from vultron.core.models.protocol_pair import (
 
 
 class ActorAlreadyParticipantNode(DataLayerActionWithPorts):
-    """Return SUCCESS if the recommended actor is already a case participant.
+    """Return SUCCESS if the recommended actor is already a joined case participant.
 
     Reads ``VulnerabilityCase.actor_participant_index`` from the DataLayer.
-    Returns SUCCESS when ``recommended_id`` is a key in the index (AC-7b,
-    CM-16-009).
+    Returns SUCCESS when ``recommended_id`` is in the index AND the participant
+    record has ``joined=True`` (AC-7b, CM-16-009).
+
+    An *inert* participant created at invite-send time (``joined=False``,
+    ADR-0114, CM-11-006) is treated as absent so the re-invite flow can proceed
+    (CM-11-015 precedent).
 
     Used as the first arm of the duplicate-detection Selector in
     :func:`~vultron.core.behaviors.case.suggest_actor_tree.create_recommend_actor_to_case_received_tree`.
@@ -66,15 +71,28 @@ class ActorAlreadyParticipantNode(DataLayerActionWithPorts):
         # here, so the graceful ``getattr`` default is intentional (allowlist).
         case_obj = self.datalayer.read_case(self.case_id)
         index = getattr(case_obj, "actor_participant_index", {}) or {}
-        if self.recommended_id in index:
-            self.logger.info(
-                "%s: actor '%s' is already a participant in case '%s'",
+        if self.recommended_id not in index:
+            return Status.FAILURE
+        # An inert record (joined=False) is not a true participant yet;
+        # return FAILURE so the re-invite / fresh-invite path can proceed.
+        participant_id = index[self.recommended_id]
+        participant = self.datalayer.read(participant_id)
+        if isinstance(participant, CaseParticipant) and not participant.joined:
+            self.logger.debug(
+                "%s: actor '%s' has an inert record in case '%s' (joined=False)"
+                " — not yet a participant",
                 self.name,
                 self.recommended_id,
                 self.case_id,
             )
-            return Status.SUCCESS
-        return Status.FAILURE
+            return Status.FAILURE
+        self.logger.info(
+            "%s: actor '%s' is already a participant in case '%s'",
+            self.name,
+            self.recommended_id,
+            self.case_id,
+        )
+        return Status.SUCCESS
 
 
 class InviteInFlightNode(DataLayerActionWithPorts):

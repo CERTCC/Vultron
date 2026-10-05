@@ -49,22 +49,30 @@ class CheckInviteeNotAlreadyParticipantNode(
 
     Returns SUCCESS (allow proceeding) when the invitee is NOT yet
     registered in ``case.actor_participant_index``, or when the invitee IS
-    registered but join-time backfill is still incomplete (resume path).
+    registered but join-time backfill is still incomplete (resume path), or
+    when the invitee IS in the index as an *inert* record (``joined=False``,
+    CM-11-006) that has not yet accepted the stub Invite.
 
     Returns FAILURE (abort tree) with no ledger write when the invitee is
     already a participant AND backfill is complete — a true idempotent no-op
     (CLP-13-001, CLP-13-002).
 
-    Three paths:
+    Four paths:
 
-    1. **Fresh invite**: invitee not yet a participant → SUCCESS, tree runs in full.
-    2. **Backfill-incomplete resume**: invitee is a participant but backfill is
-       still in progress → SUCCESS with ``invitee_already_participant = True``,
-       so downstream effect nodes skip participant-creation while the commit and
-       backfill steps still run.
-    3. **Backfill-complete (true duplicate)**: invitee is a participant and
-       backfill is done → ``_idempotent_failure`` (FAILURE, INFO log, no ledger
-       write — CLP-13-001).
+    1. **Fresh invite**: invitee not yet in index → SUCCESS (tree runs in full,
+       ``invitee_already_participant=False``, ``invitee_joined=False``).
+    2. **Inert record** (ADR-0114, CM-11-006): invitee in index but
+       ``joined=False``, no backfill marker yet → SUCCESS with
+       ``invitee_already_participant=True``, ``invitee_joined=False``.
+       Downstream nodes load the existing record instead of creating a new one,
+       and the backfill uses the *fresh* path (fan-out doesn't reach an inert
+       invitee).
+    3. **Backfill-incomplete resume**: invitee in index, ``joined=True``, but
+       backfill is still in progress → SUCCESS with
+       ``invitee_already_participant=True``, ``invitee_joined=True``.
+    4. **Backfill-complete (true duplicate)**: invitee in index, backfill done
+       → ``_idempotent_failure`` (FAILURE, INFO log, no ledger write —
+       CLP-13-001).
     """
 
     def __init__(
@@ -79,6 +87,7 @@ class CheckInviteeNotAlreadyParticipantNode(
         "invitee_already_participant": PortInformation(
             data_type=object, required=True
         ),
+        "invitee_joined": PortInformation(data_type=object, required=True),
     }
 
     @classmethod
@@ -86,7 +95,20 @@ class CheckInviteeNotAlreadyParticipantNode(
         return {
             "invitee_case": "/invitee_case",
             "invitee_already_participant": "/invitee_already_participant",
+            "invitee_joined": "/invitee_joined",
         }
+
+    def _read_participant_joined(self, case: object) -> bool | None:
+        """Return the stored participant's ``joined`` value, or None if absent."""
+        assert self.datalayer is not None
+        index = getattr(case, "actor_participant_index", {}) or {}
+        participant_id = index.get(self.invitee_id)
+        if not participant_id:
+            return None
+        p = self.datalayer.read(participant_id)
+        if not isinstance(p, CaseParticipant):
+            return None
+        return p.joined
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -98,53 +120,74 @@ class CheckInviteeNotAlreadyParticipantNode(
             return failure  # Regime 1: case must exist (ADR-0087)
 
         existing_ids = [_as_id(p) for p in case.case_participants]
-        already_participant = (
+        in_index = (
             self.invitee_id in case.actor_participant_index
             or self.invitee_id in existing_ids
         )
-        if already_participant:
-            state = self._read_replication_state(case.id_)
-            if state is not None and (
-                state.join_backfill_complete
-                or state.join_backfill_target_index == -1
-            ):
-                # True duplicate: backfill complete — silent FAILURE, no ledger
-                # write (CLP-13-001).
-                self._set_output("invitee_already_participant", True)
-                return self._idempotent_failure(
-                    self.logger,
-                    "%s: actor '%s' already participant in case '%s'"
-                    " — skipping (idempotent, CLP-13-001)",
-                    self.name,
-                    self.invitee_id,
-                    self.case_id,
-                )
-
-            # Resume path: backfill is incomplete (or no marker yet).  Set the
-            # flag so downstream effect nodes skip participant-creation, but
-            # return SUCCESS to allow the commit + backfill steps to run.
-            if state is None:
-                self.logger.info(
-                    "%s: actor '%s' already participant in case '%s' with no "
-                    "replication marker; resuming join-time backfill",
-                    self.name,
-                    self.invitee_id,
-                    self.case_id,
-                )
-            else:
-                self.logger.info(
-                    "%s: actor '%s' already participant in case '%s' but"
-                    " backfill is incomplete; resuming join-time backfill",
-                    self.name,
-                    self.invitee_id,
-                    self.case_id,
-                )
-            self._set_output("invitee_already_participant", True)
+        if not in_index:
+            # Fresh: not in index at all
+            self._set_output("invitee_already_participant", False)
+            self._set_output("invitee_joined", False)
             self._set_output("invitee_case", case)
             return Status.SUCCESS
 
-        # Cache the case object for downstream nodes
-        self._set_output("invitee_already_participant", False)
+        # In index — check whether the participant has joined
+        joined = self._read_participant_joined(case)
+
+        if joined is False:
+            # Inert record from invite-send time (ADR-0114, CM-11-006).
+            # Not a true duplicate; treat as fresh-Accept path so the commit
+            # fan-out (which skips inert participants) is handled correctly.
+            self.logger.info(
+                "%s: actor '%s' has an inert record in case '%s' (joined=False)"
+                " — treating as fresh Accept",
+                self.name,
+                self.invitee_id,
+                self.case_id,
+            )
+            self._set_output("invitee_already_participant", True)
+            self._set_output("invitee_joined", False)
+            self._set_output("invitee_case", case)
+            return Status.SUCCESS
+
+        # joined=True (or unknown): check backfill state
+        state = self._read_replication_state(case.id_)
+        if state is not None and (
+            state.join_backfill_complete
+            or state.join_backfill_target_index == -1
+        ):
+            # True duplicate: backfill complete — silent FAILURE, no ledger
+            # write (CLP-13-001).
+            self._set_output("invitee_already_participant", True)
+            self._set_output("invitee_joined", True)
+            return self._idempotent_failure(
+                self.logger,
+                "%s: actor '%s' already participant in case '%s'"
+                " — skipping (idempotent, CLP-13-001)",
+                self.name,
+                self.invitee_id,
+                self.case_id,
+            )
+
+        # Resume path: backfill is incomplete (or no marker yet).
+        if state is None:
+            self.logger.info(
+                "%s: actor '%s' already participant in case '%s' with no "
+                "replication marker; resuming join-time backfill",
+                self.name,
+                self.invitee_id,
+                self.case_id,
+            )
+        else:
+            self.logger.info(
+                "%s: actor '%s' already participant in case '%s' but"
+                " backfill is incomplete; resuming join-time backfill",
+                self.name,
+                self.invitee_id,
+                self.case_id,
+            )
+        self._set_output("invitee_already_participant", True)
+        self._set_output("invitee_joined", True)
         self._set_output("invitee_case", case)
         return Status.SUCCESS
 

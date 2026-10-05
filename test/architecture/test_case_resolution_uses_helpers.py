@@ -245,6 +245,16 @@ KNOWN_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
             "vultron/core/behaviors/sync/nodes/conditions.py",
             "VerifySenderIsCaseActorNode.update",
         ),
+        # LEN — post-RM-close PEC step in Reject-Invite effects. By the time
+        # this read_case fires the participant's RM transition has already
+        # succeeded; a missing case (should not happen in practice) simply
+        # means no active embargo to decline, so the PEC step is skipped and
+        # the tree succeeds. _require_case would fail the tree instead, which
+        # is wrong disposition here (ADR-0114, CM-11-007).
+        (
+            f"{_NODES}/invite_inert_participant.py",
+            "ApplyInviteRejectToParticipantNode.update",
+        ),
     }
 )
 
