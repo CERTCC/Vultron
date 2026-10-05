@@ -129,7 +129,11 @@ participant.
 A participant can become inert again. An active participant that has not
 accepted a newly activated embargo — one whose consent lapses under ADR-0093 —
 is no longer entitled to case content until it consents. A participant whose RM
-is `CLOSED` receives nothing further either way (CM-23-004).
+is `CLOSED` has declared it has stopped paying attention, and receives nothing
+further either way (CM-23-004). The one exception is the ledger entry that
+records its own closure, which is the last thing it receives: it waits for that
+entry rather than writing `CLOSED` itself, and its replica never learns of later
+closures. Every participant's closure is verified in the CASE_MANAGER's store.
 
 ### Replies to the stub Invite
 

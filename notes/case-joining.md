@@ -82,15 +82,18 @@ stub and embargo Invites (inert participants included, RM `CLOSED` excluded,
 and removed participants excluded once #4084 lands). A roster entry whose
 record cannot be read gets nothing (CM-10-007).
 
-RM `CLOSED` is not part of "active". ADR-0114 says a closed participant
-"receives nothing further", and CM-23-004 says ledger fan-out skips it, but the
-`case_fully_closed` fan-out deliberately reaches every replica whatever its RM
-state, and a departing participant learns its own `CLOSED` only from the
-ledger entry that records it (the sender side does not write it). Applying the
-exclusion to every case-content send would leave a closed replica unable to
-see how the case ended. Only `skip_closed=True` (CM-23-004's own fan-out
-variant) and the Invites leave a closed participant out. #4100 tracks
-reconciling the two rules.
+RM `CLOSED` is not part of "active", but it ends content delivery all the same
+(CM-23-004, ADR-0114; resolved from #4100). A participant at `CLOSED` has
+declared it has stopped paying attention, so it is sent no case content. The one
+exception is the ledger entry that records its own closure: it is the last thing
+the participant receives, and the participant waits for it rather than writing
+`CLOSED` to its own replica. Later entries, including `case_fully_closed`, reach
+only participants not yet closed, and a closed replica does not learn of later
+closures. The CASE_MANAGER's store is where every participant's closure is
+verified, so the demos' "all participants closed" check reads that store. The
+recipient selection therefore drops a closed participant from every content send
+except the entry about its own closure, and the `skip_closed` variant stops
+being a variant.
 
 ## Authority to act
 
@@ -99,8 +102,8 @@ entry, change the roster — requires an *active* participant. An inert
 participant may only reply to the Invites addressed to it: accept or reject the
 stub, accept or reject an embargo Invite. A participant at RM `CLOSED` keeps
 none of it: it is sent no further Invites and may act on nothing further,
-because `CLOSED` is terminal (CM-11-015). It may still *receive* the entries
-that close out its replica (see above). The rule is that no actor acts on
+because `CLOSED` is terminal (CM-11-015). It receives only the entry that
+records its own closure (see above). The rule is that no actor acts on
 a case whose content it may not see; an actor that cannot read the ledger
 cannot know what it is acting on, and a CASE_MANAGER that admitted its acts
 would commit entries an inert participant could only have guessed at. This
