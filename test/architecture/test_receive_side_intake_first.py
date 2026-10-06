@@ -239,6 +239,10 @@ KNOWN_FACTORIES_BYPASSING_INTAKE: frozenset[str] = frozenset(
         # create_commit_log_entry_tree is no longer called directly from
         # received use case files (ARCH-18-002).
         "create_noop_ledger_entry_tree",
+        # re-invite tree — called from _handle_emb17_routing for the EMB-17-003
+        # stale-embargo branch; commits the manager's own emission under its
+        # CASE_MANAGER gate, not a received assertion (EMB-17-011).
+        "create_reinvite_stale_accepter_tree",
     }
 )
 

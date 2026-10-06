@@ -423,6 +423,7 @@ The participant side has two halves, and only the first runs on receipt:
 | `invite_to_embargo_on_case_expired` (the CASE_MANAGER's expiry, attributed to the invitee) | `InviteExpiry` | invitee PEC `EXPIRE` (`INVITED → EXPIRED`); no deadline re-evaluated (CM-28-014) |
 | `honour_late_accept_invite_to_embargo_on_case` (the CASE_MANAGER's honour, attributed to the accepting actor) | `InviteHonourLateAccept` | `EXPIRED → SIGNATORY` or `DECLINED → INVITED → SIGNATORY` (EMB-17-001, EMB-17-009) |
 | `invite_to_embargo_on_case_expired_noop` (the CASE_MANAGER's no-op ack, attributed to the accepting actor) | `InviteExpiryNoop` | no PEC change (EMB-17-004, EMB-17-010) |
+| `invite_to_embargo_on_case_reinvite` (the CASE_MANAGER's own fresh Invite to a late accepter of a stale embargo; no `attributedTo`) | `EmbargoReinvite` | invitee PEC `INVITE` and the `endTime` deadline; no EM change, no proposal (EMB-17-003, EMB-17-011) |
 | `remove_embargo_event_from_case` | teardown | unchanged |
 
 The proposal and a relayed Invite share one event type and are told apart by
