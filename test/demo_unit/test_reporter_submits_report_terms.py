@@ -44,6 +44,9 @@ def quiet_transport(monkeypatch):
         workflow, "_provision_case_actor", lambda *a, **k: None
     )
     monkeypatch.setattr(workflow, "verify_object_stored", lambda *a, **k: None)
+    monkeypatch.setattr(
+        workflow, "wait_for_report_submission_stored", lambda *a, **k: None
+    )
 
 
 def _client() -> DataLayerClient:
@@ -115,3 +118,71 @@ class TestTriggerArm:
         assert seen["kwargs"]["proposed_embargo_end_time"] == _END
         assert isinstance(offer.proposed_embargo, as_EmbargoEvent)
         assert offer.proposed_embargo.context == report.id_
+
+
+class TestTriggerArmDeliversOnlyThroughTheOutbox:
+    """The trigger's outbox is the sole delivery; the demo never re-posts."""
+
+    wait_args: tuple = ()
+
+    def _record_wait(self, calls: list[str], args: tuple) -> None:
+        calls.append("wait")
+        self.wait_args = args
+
+    def _run(self, monkeypatch) -> list[str]:
+        calls: list[str] = []
+
+        class _FakeSession:
+            def __init__(self, *, client, actor):
+                pass
+
+            def submit_report(self, **kwargs):
+                calls.append("trigger")
+                report_id = "urn:uuid:22222222-2222-2222-2222-222222222222"
+                offer = {
+                    "type": "Offer",
+                    "actor": _REPORTER.id_,
+                    "to": [_RECEIVER.id_],
+                    "object": {
+                        "type": "VulnerabilityReport",
+                        "id": report_id,
+                        "attributedTo": _REPORTER.id_,
+                        "name": "n",
+                        "content": "c",
+                    },
+                }
+                return type("R", (), {"offer": offer})()
+
+        monkeypatch.setattr(workflow, "ActorSession", _FakeSession)
+        monkeypatch.setattr(
+            workflow,
+            "post_to_inbox_and_wait",
+            lambda *a, **k: calls.append("post"),
+        )
+        monkeypatch.setattr(
+            workflow,
+            "_provision_case_actor",
+            lambda *a, **k: calls.append("provision"),
+        )
+        monkeypatch.setattr(
+            workflow,
+            "wait_for_report_submission_stored",
+            lambda client, *args, **k: self._record_wait(calls, args),
+        )
+        workflow.reporter_submits_report(
+            _client(), _REPORTER, _RECEIVER, reporter_client=_client()
+        )
+        return calls
+
+    def test_never_hand_delivers(self, monkeypatch):
+        assert "post" not in self._run(monkeypatch)
+
+    def test_provisions_before_the_trigger_then_waits(self, monkeypatch):
+        assert self._run(monkeypatch) == ["provision", "trigger", "wait"]
+
+    def test_waits_on_the_receivers_store(self, monkeypatch):
+        self._run(monkeypatch)
+        receiver_id, report_id, offer_id = self.wait_args
+        assert receiver_id == _RECEIVER.id_
+        assert report_id.startswith("urn:uuid:2222")
+        assert offer_id
