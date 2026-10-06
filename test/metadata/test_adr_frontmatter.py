@@ -11,10 +11,12 @@ from vultron.metadata.adr.schema import AdrFrontmatter
 from vultron.metadata.docs.page_schema import StakeholderType
 from vultron.metadata.specs.schema import AdrStatus
 
+_LC = {"created": "2020-01-01", "updated": "2020-01-01", "revision": 1}
+
 
 class TestAdrFrontmatterSchema:
     def test_minimal_valid(self):
-        fm = AdrFrontmatter.model_validate({"status": "accepted"})
+        fm = AdrFrontmatter.model_validate({**_LC, "status": "accepted"})
         assert fm.status is AdrStatus.ACCEPTED
 
     def test_all_status_values_accepted(self):
@@ -24,41 +26,41 @@ class TestAdrFrontmatterSchema:
             "accepted-provisional",
             "rejected",
         ):
-            fm = AdrFrontmatter.model_validate({"status": status})
+            fm = AdrFrontmatter.model_validate({**_LC, "status": status})
             assert fm.status.value == status
 
     def test_invalid_status_rejected(self):
         with pytest.raises(ValidationError):
-            AdrFrontmatter.model_validate({"status": "kinda-accepted"})
+            AdrFrontmatter.model_validate({**_LC, "status": "kinda-accepted"})
 
     def test_deciders_accepts_string_or_list(self):
         assert (
             AdrFrontmatter.model_validate(
-                {"status": "accepted", "deciders": "adh"}
+                {**_LC, "status": "accepted", "deciders": "adh"}
             ).deciders
             == "adh"
         )
         assert AdrFrontmatter.model_validate(
-            {"status": "accepted", "deciders": ["adh", "Copilot"]}
+            {**_LC, "status": "accepted", "deciders": ["adh", "Copilot"]}
         ).deciders == ["adh", "Copilot"]
 
     def test_date_parsed(self):
         fm = AdrFrontmatter.model_validate(
-            {"status": "accepted", "date": "2026-07-29"}
+            {**_LC, "status": "accepted", "date": "2026-07-29"}
         )
         assert fm.date is not None and fm.date.year == 2026
 
     def test_superseded_requires_superseded_by(self):
         with pytest.raises(ValidationError, match="superseded_by"):
-            AdrFrontmatter.model_validate({"status": "superseded"})
+            AdrFrontmatter.model_validate({**_LC, "status": "superseded"})
 
     def test_deprecated_requires_superseded_by(self):
         with pytest.raises(ValidationError, match="superseded_by"):
-            AdrFrontmatter.model_validate({"status": "deprecated"})
+            AdrFrontmatter.model_validate({**_LC, "status": "deprecated"})
 
     def test_superseded_with_target_valid(self):
         fm = AdrFrontmatter.model_validate(
-            {"status": "superseded", "superseded_by": "0041-next.md"}
+            {**_LC, "status": "superseded", "superseded_by": "0041-next.md"}
         )
         assert fm.status is AdrStatus.SUPERSEDED
         assert fm.superseded_by == "0041-next.md"
@@ -66,7 +68,7 @@ class TestAdrFrontmatterSchema:
     def test_inline_superseded_form_normalised(self):
         """'superseded by <link>' collapses to superseded + superseded_by."""
         fm = AdrFrontmatter.model_validate(
-            {"status": "superseded by 0041-next.md"}
+            {**_LC, "status": "superseded by 0041-next.md"}
         )
         assert fm.status is AdrStatus.SUPERSEDED
         assert fm.superseded_by == "0041-next.md"
@@ -80,6 +82,7 @@ class TestAdrFrontmatterSchema:
         """
         fm = AdrFrontmatter.model_validate(
             {
+                **_LC,
                 "status": "accepted",
                 "partially_superseded_by": "0072-per-actor-storage.md",
             }
@@ -95,6 +98,7 @@ class TestAdrFrontmatterSchema:
         """
         fm = AdrFrontmatter.model_validate(
             {
+                **_LC,
                 "status": "accepted",
                 "partially_superseded_by": "0072-per-actor-storage.md",
             }
@@ -105,6 +109,7 @@ class TestAdrFrontmatterSchema:
     def test_lint_suppress_valid_code(self):
         fm = AdrFrontmatter.model_validate(
             {
+                **_LC,
                 "status": "accepted",
                 "lint_suppress": ["status_prose_contradiction"],
             }
@@ -114,13 +119,13 @@ class TestAdrFrontmatterSchema:
     def test_lint_suppress_unknown_code_rejected(self):
         with pytest.raises(ValidationError):
             AdrFrontmatter.model_validate(
-                {"status": "accepted", "lint_suppress": ["bogus_code"]}
+                {**_LC, "status": "accepted", "lint_suppress": ["bogus_code"]}
             )
 
     def test_lint_suppress_empty_list_rejected(self):
         with pytest.raises(ValidationError, match="non-empty"):
             AdrFrontmatter.model_validate(
-                {"status": "accepted", "lint_suppress": []}
+                {**_LC, "status": "accepted", "lint_suppress": []}
             )
 
 
@@ -134,7 +139,11 @@ class TestAdrStakeholderType:
 
     def test_project_contributor_is_kept(self):
         fm = AdrFrontmatter.model_validate(
-            {"status": "accepted", "stakeholder_type": ["project-contributor"]}
+            {
+                **_LC,
+                "status": "accepted",
+                "stakeholder_type": ["project-contributor"],
+            }
         )
         assert fm.stakeholder_type == [StakeholderType.PROJECT_CONTRIBUTOR]
 
@@ -152,7 +161,7 @@ class TestAdrStakeholderType:
     def test_any_other_value_is_rejected(self, value):
         with pytest.raises(ValidationError, match="stakeholder_type"):
             AdrFrontmatter.model_validate(
-                {"status": "accepted", "stakeholder_type": value}
+                {**_LC, "status": "accepted", "stakeholder_type": value}
             )
 
     def test_every_committed_adr_declares_it(self):
@@ -180,7 +189,7 @@ def test_loader_rejects_dangling_superseded_by(tmp_path):
     adr_dir = tmp_path / "docs" / "adr"
     adr_dir.mkdir(parents=True)
     (adr_dir / "0001-x.md").write_text(
-        "---\nstatus: superseded\nsuperseded_by: 9999-nope.md\n---\n# x\n"
+        "---\nstatus: superseded\ncreated: 2020-01-01\nupdated: 2020-01-01\nrevision: 1\nsuperseded_by: 9999-nope.md\n---\n# x\n"
     )
     with pytest.raises(ValueError, match="superseded_by"):
         load_adr_registry(tmp_path)
@@ -196,7 +205,7 @@ def test_loader_rejects_dangling_partially_superseded_by(tmp_path):
     adr_dir = tmp_path / "docs" / "adr"
     adr_dir.mkdir(parents=True)
     (adr_dir / "0001-x.md").write_text(
-        "---\nstatus: accepted\n"
+        "---\nstatus: accepted\ncreated: 2020-01-01\nupdated: 2020-01-01\nrevision: 1\n"
         "partially_superseded_by: 9999-nope.md\n---\n# x\n"
     )
     with pytest.raises(ValueError, match="partially_superseded_by"):
@@ -213,7 +222,7 @@ def test_loader_raises_valueerror_on_malformed_yaml(tmp_path):
     (tmp_path / "pyproject.toml").write_text("[project]\nname='x'\n")
     # Unclosed flow sequence → yaml.parser.ParserError inside frontmatter.load.
     (adr_dir / "0001-broken.md").write_text(
-        "---\nstatus: accepted\ndeciders: [unclosed\n---\n# broken\n"
+        "---\nstatus: accepted\ncreated: 2020-01-01\nupdated: 2020-01-01\nrevision: 1\ndeciders: [unclosed\n---\n# broken\n"
     )
     with pytest.raises(ValueError, match="malformed YAML frontmatter"):
         load_adr_registry(tmp_path)

@@ -20,6 +20,12 @@ date: {YYYY-MM-DD the ADR was first written; never changed}
 created: {YYYY-MM-DD}
 updated: {YYYY-MM-DD}
 revision: 1
+# status_override: {the reason a human set a status that disagrees with the epoch}
+# All three lifecycle fields are required. spec-lint fails a status that
+# disagrees with the epoch unless status_override (a reason) is present; the
+# adr-lifecycle-check pre-commit hook refuses an epoch-3 Decision Outcome or
+# Considered Options edit without a dated Amendment heading, and a bump of
+# updated past epoch 1 without status_override.
 deciders: {list everyone involved in the decision}
 consulted: {list everyone whose opinions are sought (typically subject-matter experts); and with whom there is a two-way communication}
 informed: {list everyone who is kept up-to-date on progress; and with whom there is a one-way communication}

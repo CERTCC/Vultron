@@ -1,5 +1,6 @@
 ---
 status: accepted
+status_override: Set by the epoch lint rollout (#4196); the status predates the check and awaits a human's review against its epoch.
 date: 2026-07-28
 created: 2026-07-28
 updated: 2026-10-06

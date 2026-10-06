@@ -11,7 +11,10 @@ from vultron.metadata.adr.index_gen import (
 
 
 def _write_adr(adr_dir, num, status, title, superseded_by=None):
-    fm = f"---\nstatus: {status}\n"
+    fm = (
+        f"---\nstatus: {status}\ncreated: 2020-01-01\nupdated: 2020-01-01\n"
+        "revision: 1\n"
+    )
     if superseded_by:
         fm += f"superseded_by: {superseded_by}\n"
     fm += "---\n"
@@ -77,7 +80,7 @@ class TestGenerateIndex:
         adr_dir = _scaffold(tmp_path)
         _write_adr(adr_dir, "0001", "accepted", "Replacement")
         (adr_dir / "0002-stub.md").write_text(
-            "---\nstatus: accepted\n"
+            "---\nstatus: accepted\ncreated: 2020-01-01\nupdated: 2020-01-01\nrevision: 1\n"
             "partially_superseded_by: 0001-stub.md\n---\n# Older\n"
         )
 
@@ -255,7 +258,10 @@ class TestMainCLI:
 
 def _write_adr_named(adr_dir, filename, status, title):
     """Write an ADR at an explicit filename, so two can share a number."""
-    (adr_dir / filename).write_text(f"---\nstatus: {status}\n---\n# {title}\n")
+    (adr_dir / filename).write_text(
+        f"---\nstatus: {status}\ncreated: 2020-01-01\nupdated: 2020-01-01\n"
+        f"revision: 1\n---\n# {title}\n"
+    )
 
 
 class TestDuplicateNumbers:
@@ -333,3 +339,24 @@ class TestDuplicateNumbers:
             " duplicate number"
         )
         assert "Refusing to write" in capsys.readouterr().err
+
+
+class TestLifecycleRendering:
+    """The index shows revision; the epoch report shows the clock-based epoch."""
+
+    def test_revision_above_one_is_annotated(self, tmp_path):
+        adr_dir = _scaffold(tmp_path)
+        _write_adr(adr_dir, "0001", "accepted", "Changed")
+        path = adr_dir / "0001-stub.md"
+        path.write_text(path.read_text().replace("revision: 1", "revision: 3"))
+        assert "*(revision 3)*" in generate_index(tmp_path)
+
+    def test_epoch_report_lists_epoch_and_revision(self, tmp_path):
+        import datetime as dt
+
+        from vultron.metadata.adr.index_gen import epoch_report
+
+        adr_dir = _scaffold(tmp_path)
+        _write_adr(adr_dir, "0001", "accepted", "Old")
+        report = epoch_report(tmp_path, today=dt.date(2026, 10, 20))
+        assert "0001 | 3 | accepted | 1 | 2020-01-01" in report
