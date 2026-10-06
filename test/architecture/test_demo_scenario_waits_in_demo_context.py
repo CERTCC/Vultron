@@ -26,20 +26,23 @@ accumulation model, DEMOCI-01-003/004).
 A raising wait invoked from scenario ``_phase_*`` code MUST therefore sit inside
 a ``demo_step`` / ``demo_check`` / ``demo_gate`` block, OR be invoked through a
 shared helper that performs that wrap internally so every caller inherits it
-(``wait_for_participants_on_replicas`` is the one such helper in
-``polling.py``; the ledger-coverage loop's wrapping helper,
-``wait_for_replica_ledger_coverage``, lives in ``helpers/sync.py`` and is
-governed by DEMOMA-23-005/006 and its own ratchet).
+(``wait_for_participants_on_replicas`` in ``polling.py`` and
+``wait_for_replica_ledger_coverage`` in ``helpers/sync.py`` are such helpers;
+the latter is also governed by DEMOMA-23-005/006 and its own ratchet).
 
-The raising / wrapping classification is derived from ``polling.py`` itself, so
-a new raising helper is covered automatically and a new self-wrapping helper is
-recognised as safe without editing this test.
+The raising / wrapping classification is derived from ``polling.py`` and
+``sync.py`` themselves, so a new raising helper in either module is covered
+automatically and a new self-wrapping helper is recognised as safe without
+editing this test.  A demo context is a literal ``demo_step`` / ``demo_check`` /
+``demo_gate`` call, or a call to a local name bound only to those (for example
+``context = demo_gate if causal else demo_check``).
 
 Source: CONCERN-3384 (#3406), generalising the #1772/#1802 ledger-coverage fix.
 Spec: ``specs/demo-ci.yaml`` DEMOCI-01-011.
 """
 
 import ast
+from collections import Counter
 from pathlib import Path
 
 import pytest
@@ -50,11 +53,15 @@ _DEMO_DIR = _corpus.REPO_ROOT / "vultron" / "demo"
 _HELPERS_DIR = _DEMO_DIR / "helpers"
 _SCENARIO_DIR = _DEMO_DIR / "scenario"
 _POLLING = _HELPERS_DIR / "polling.py"
+_SYNC = _HELPERS_DIR / "sync.py"
+
+#: The helper modules whose ``wait_for_*`` / ``find_*`` functions are classified.
+_HELPER_MODULES = (_POLLING, _SYNC)
 
 #: The demo failure-accumulation context managers (DEMOCI-01-004).
 _DEMO_CONTEXTS = frozenset({"demo_step", "demo_check", "demo_gate"})
 
-#: Prefixes of the polling-helper family in ``polling.py`` that block on a
+#: Prefixes of the polling-helper family in the helper modules that block on a
 #: side effect and raise on timeout.
 _WAIT_PREFIXES = ("wait_for_", "find_")
 
@@ -86,17 +93,112 @@ def _parent_map(node: ast.AST) -> dict[ast.AST, ast.AST]:
     return parents
 
 
+def _is_demo_context_value(expr: ast.expr) -> bool:
+    """True if *expr* evaluates to a demo context manager factory.
+
+    Either a bare ``demo_step`` / ``demo_check`` / ``demo_gate`` name, or a
+    conditional expression whose branches are all such values.
+    """
+    if isinstance(expr, ast.Name):
+        return expr.id in _DEMO_CONTEXTS
+    if isinstance(expr, ast.IfExp):
+        return _is_demo_context_value(expr.body) and _is_demo_context_value(
+            expr.orelse
+        )
+    return False
+
+
+def _plain_assignments(scope: ast.AST) -> list[tuple[str, ast.expr | None]]:
+    """Return ``(name, value)`` for each plain ``name = value`` in *scope*."""
+    found: list[tuple[str, ast.expr | None]] = []
+    for node in ast.walk(scope):
+        if isinstance(node, ast.Assign):
+            found.extend(
+                (t.id, node.value)
+                for t in node.targets
+                if isinstance(t, ast.Name)
+            )
+        elif isinstance(node, ast.AnnAssign) and isinstance(
+            node.target, ast.Name
+        ):
+            found.append((node.target.id, node.value))
+    return found
+
+
+def _demo_context_names(scope: ast.AST) -> frozenset[str]:
+    """Return local names in *scope* bound only to demo context factories.
+
+    A name qualifies when every binding of it is a plain assignment of a demo
+    context (``_is_demo_context_value``).  Any other binding — a parameter, a
+    loop or ``with`` target, an augmented or walrus assignment, a tuple unpack
+    — disqualifies it, since the name may then hold something that is not a
+    demo context.  The analysis is flow-insensitive and per function: it does
+    not order bindings against uses, and a name bound in an outer function or
+    at module level is not resolved (both fail toward flagging the call).
+    """
+    assignments = _plain_assignments(scope)
+    plain_count = Counter(name for name, _ in assignments)
+    bindings = Counter(
+        node.id
+        for node in ast.walk(scope)
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store)
+    )
+    bindings.update(
+        node.arg for node in ast.walk(scope) if isinstance(node, ast.arg)
+    )
+    bad = {
+        name
+        for name, value in assignments
+        if value is None or not _is_demo_context_value(value)
+    }
+    return frozenset(
+        name
+        for name, count in plain_count.items()
+        if bindings[name] == count and name not in bad
+    )
+
+
+def _enclosing_scope(
+    node: ast.AST, parents: dict[ast.AST, ast.AST]
+) -> ast.AST:
+    """Return the nearest enclosing function of *node*, else the tree root."""
+    cur = node
+    while cur in parents:
+        cur = parents[cur]
+        if isinstance(cur, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            return cur
+    return cur
+
+
+def _is_demo_with(node: ast.With, parents: dict[ast.AST, ast.AST]) -> bool:
+    """True if *node* is a ``with`` entering a demo context.
+
+    The context expression is a call to ``demo_step`` / ``demo_check`` /
+    ``demo_gate``, or to a local name bound only to those (see
+    ``_demo_context_names``).
+    """
+    local: frozenset[str] | None = None
+    for item in node.items:
+        ce = item.context_expr
+        if not isinstance(ce, ast.Call):
+            continue
+        if _callee_name(ce) in _DEMO_CONTEXTS:
+            return True
+        if isinstance(ce.func, ast.Name):
+            if local is None:
+                local = _demo_context_names(_enclosing_scope(node, parents))
+            if ce.func.id in local:
+                return True
+    return False
+
+
 def _call_in_demo_context(
     call: ast.AST, parents: dict[ast.AST, ast.AST]
 ) -> bool:
-    """True if *call* has an ancestor ``with demo_step/check/gate(...):``."""
+    """True if *call* has an ancestor ``with`` entering a demo context."""
     cur = parents.get(call)
     while cur is not None:
-        if isinstance(cur, ast.With) and any(
-            isinstance(it.context_expr, ast.Call)
-            and _callee_name(it.context_expr) in _DEMO_CONTEXTS
-            for it in cur.items
-        ):
+        if isinstance(cur, ast.With) and _is_demo_with(cur, parents):
             return True
         cur = parents.get(cur)
     return False
@@ -122,30 +224,34 @@ def _has_unwrapped_raising_call(fn: ast.AST) -> bool:
 
 
 def _wraps_in_demo_context(node: ast.AST) -> bool:
-    """True if *node* contains a ``with demo_step/check/gate(...):`` statement."""
-    for inner in ast.walk(node):
-        if not isinstance(inner, ast.With):
-            continue
-        for item in inner.items:
-            ce = item.context_expr
-            if isinstance(ce, ast.Call) and _callee_name(ce) in _DEMO_CONTEXTS:
-                return True
-    return False
+    """True if *node* contains a ``with`` entering a demo context."""
+    parents = _parent_map(node)
+    return any(
+        isinstance(inner, ast.With) and _is_demo_with(inner, parents)
+        for inner in ast.walk(node)
+    )
 
 
-def _polling_tree() -> ast.Module:
-    """Return the parsed AST of ``polling.py`` from the shared corpus."""
+def _helper_trees() -> list[ast.Module]:
+    """Return the parsed ASTs of every helper module from the shared corpus."""
+    found: dict[Path, ast.Module] = {}
     for path, tree in _corpus.files_mentioning(
-        "def wait_for_", under=_HELPERS_DIR
+        "def wait_for_", "def find_", under=_HELPERS_DIR
     ):
-        if path == _POLLING:
+        if path in _HELPER_MODULES:
             assert isinstance(tree, ast.Module)
-            return tree
-    raise AssertionError(f"{_POLLING} not found in the source corpus")
+            found[path] = tree
+    missing = [p for p in _HELPER_MODULES if p not in found]
+    assert not missing, f"{missing} not found in the source corpus"
+    return [found[p] for p in _HELPER_MODULES]
 
 
-def _classify_polling_helpers() -> tuple[frozenset[str], frozenset[str]]:
-    """Return ``(raising, wrapping)`` helper-name sets derived from polling.py.
+def _classify_polling_helpers(
+    trees: list[ast.Module] | None = None,
+) -> tuple[frozenset[str], frozenset[str]]:
+    """Return ``(raising, wrapping)`` helper-name sets from the helper modules.
+
+    Classifies ``polling.py`` and ``sync.py`` (or the given *trees*).
 
     A ``wait_for_*`` / ``find_*`` function is a *wrapping* helper when it
     contains a demo context AND makes no raising poll call outside one —
@@ -157,17 +263,18 @@ def _classify_polling_helpers() -> tuple[frozenset[str], frozenset[str]]:
     """
     raising: set[str] = set()
     wrapping: set[str] = set()
-    for node in ast.walk(_polling_tree()):
-        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            continue
-        if not node.name.startswith(_WAIT_PREFIXES):
-            continue
-        if _wraps_in_demo_context(node) and not _has_unwrapped_raising_call(
-            node
-        ):
-            wrapping.add(node.name)
-        else:
-            raising.add(node.name)
+    for tree in _helper_trees() if trees is None else trees:
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            if not node.name.startswith(_WAIT_PREFIXES):
+                continue
+            if _wraps_in_demo_context(
+                node
+            ) and not _has_unwrapped_raising_call(node):
+                wrapping.add(node.name)
+            else:
+                raising.add(node.name)
     return frozenset(raising), frozenset(wrapping)
 
 
@@ -221,6 +328,11 @@ def test_polling_module_has_raising_and_wrapping_helpers():
     assert "wait_for_participants_on_replicas" in _WRAPPING_WAITS, (
         "wait_for_participants_on_replicas must wrap its raising poll "
         f"internally (DEMOCI-01-011); got {_WRAPPING_WAITS}"
+    )
+    assert "wait_for_replica_ledger_coverage" in _WRAPPING_WAITS, (
+        "wait_for_replica_ledger_coverage must wrap its raising poll "
+        "internally through its variable-bound demo context "
+        f"(DEMOCI-01-011); got {_WRAPPING_WAITS}"
     )
     assert _WRAPPING_WAITS, "at least one real wrapping helper must exist"
 
@@ -308,3 +420,89 @@ def test_partial_wrap_is_classified_raising_not_wrapping():
     )
     assert isinstance(fully, ast.Module)
     assert not _has_unwrapped_raising_call(fully.body[0])
+
+
+_WAIT = frozenset({"wait_for_case_participants"})
+
+
+def _phase_violation_count(body: str, params: str = "client, case") -> int:
+    """Count bare ``wait_for_case_participants`` calls in a sample ``_phase_demo``."""
+    sample = _corpus.parse_inline(
+        f"def _phase_demo({params}):\n{body}"
+        "    with context('participants present'):\n"
+        "        wait_for_case_participants(client, case.id_, set())\n"
+    )
+    return len(_bare_wait_violations(sample, _WAIT))
+
+
+def test_variable_bound_demo_context_counts_as_demo_context():
+    """A ``with`` on a local name bound only to demo contexts is wrapped."""
+    assert (
+        _phase_violation_count(
+            "    context = demo_gate if causal else demo_check\n",
+            "client, case, causal",
+        )
+        == 0
+    )
+
+
+@pytest.mark.parametrize(
+    "binding",
+    [
+        "context = open_lock",
+        "context = demo_gate if causal else open_lock",
+        "context = demo_gate\n    context = open_lock",
+        "context = demo_gate\n    context += 1",
+        "context, other = demo_gate, 1",
+        "for context in contexts: pass",
+        "if (context := open_lock): pass",
+    ],
+)
+def test_name_bound_to_non_demo_context_is_not_a_demo_context(binding: str):
+    """A name bound (even once) to anything else does not count."""
+    assert (
+        _phase_violation_count(
+            f"    {binding}\n",
+            "client, case, causal, contexts, open_lock",
+        )
+        == 1
+    )
+
+
+def test_parameter_named_like_a_context_is_not_a_demo_context():
+    """A parameter is not known to hold a demo context."""
+    assert _phase_violation_count("", "client, case, context") == 1
+
+
+def test_outer_scope_demo_context_is_not_resolved():
+    """A nested function does not inherit an outer function's context name."""
+    sample = _corpus.parse_inline(
+        "def _phase_demo(client, case):\n"
+        "    context = demo_gate\n"
+        "    def inner():\n"
+        "        with context('participants present'):\n"
+        "            wait_for_case_participants(client, case.id_, set())\n"
+        "    inner()\n"
+    )
+    assert len(_bare_wait_violations(sample, _WAIT)) == 1
+
+
+def test_raising_helper_in_sync_module_is_flagged_when_called_bare():
+    """A raising helper defined in ``sync.py`` is classified and flagged."""
+    sync_like = _corpus.parse_inline(
+        "def wait_for_thing_on_replicas(client, case):\n"
+        "    wait_for_case_participants(client, case.id_, set())\n"
+    )
+    assert isinstance(sync_like, ast.Module)
+    raising, wrapping = _classify_polling_helpers([sync_like])
+    assert raising == {"wait_for_thing_on_replicas"}
+    assert not wrapping
+
+    scenario = _corpus.parse_inline(
+        "def _phase_demo(client, case):\n"
+        "    wait_for_thing_on_replicas(client, case)\n"
+    )
+    violations = _bare_wait_violations(scenario, raising)
+    assert [v[1:] for v in violations] == [
+        ("_phase_demo", "wait_for_thing_on_replicas")
+    ]
