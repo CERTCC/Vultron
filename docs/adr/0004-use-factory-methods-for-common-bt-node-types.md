@@ -2,6 +2,9 @@
 # These are optional elements. Feel free to remove any of them.
 status: accepted
 date: 2023-10-24
+created: 2023-10-24
+updated: 2023-10-24
+revision: 1
 deciders: adh
 stakeholder_type: [project-contributor]
 ---

@@ -17,7 +17,7 @@ groups:
     statement: Code MUST follow PEP 8 style guidelines
     relationships:
     - rel_type: refines
-      spec_id: IMPLTS-07-001
+      spec_id: IMPLTS-07-017
   - id: CS-01-004
     priority: SHOULD
     kind: project

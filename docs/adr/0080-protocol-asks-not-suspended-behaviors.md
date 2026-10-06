@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-08-31
+created: 2026-08-31
+updated: 2026-08-31
+revision: 1
 deciders: Allen D. Householder
 consulted: Claude Opus 5
 informed: []

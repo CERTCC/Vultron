@@ -1357,8 +1357,8 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
         assert activity_data["id"] in case_actor_outbox
 
     def test_offer_falls_back_to_requesting_actor_when_no_case_actor(self):
-        """CM-24-003: when no CaseActor exists, the Offer actor is the offering
-        actor and attributedTo is absent."""
+        """Retired send-directly fallback (CM-24-006): when no CaseActor exists,
+        the Offer actor is the offering actor and attributedTo is absent."""
         owner, dl = _make_actor_dl("Vendor")
         transferee, _ = _make_actor_dl("Coordinator")
         dl.create(transferee)
@@ -1389,7 +1389,7 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
 
         activity_data = activity_of(result)
         assert activity_data["type"] == "Offer"
-        # CM-24-003: falls back to requesting actor when no CaseActor
+        # Retired send-directly fallback: falls back to requesting actor when no CaseActor
         assert activity_data["actor"] == owner.id_
         assert activity_data.get("attributedTo") is None
 

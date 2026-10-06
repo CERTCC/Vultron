@@ -1,6 +1,9 @@
 ---
 status: accepted-provisional
 date: 2026-07-30
+created: 2026-07-30
+updated: 2026-07-30
+revision: 1
 updated: 2026-08-11
 deciders: Allen D. Householder
 consulted: Claude Sonnet 4.6

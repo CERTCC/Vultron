@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-07-27
+created: 2026-07-27
+updated: 2026-07-27
+revision: 1
 stakeholder_type: [project-contributor]
 ---
 
@@ -100,7 +103,7 @@ complete the three-way role-offer flow. See SE-08-004, SE-08-005.
   target-field discrimination.
 - `SE-08-004` mandates `strict=True` on patterns that use `target_` as the
   sole discriminator (amended by CONCERN-2322).
-- `SE-08-005` records the removal of the `OFFER_CASE_MANAGER_ROLE` backward-compat
+- `SE-08-005` recorded the removal of the `OFFER_CASE_MANAGER_ROLE` backward-compat
   format (CONCERN-2322).
 - Implementation issues: tracked as GitHub Task issues blocked by CONCERN-2322.
 

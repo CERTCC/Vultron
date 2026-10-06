@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-04-13
+created: 2026-04-13
+updated: 2026-04-13
+revision: 1
 deciders: ahouseholder
 consulted: notes/datalayer-sqlite-design.md, notes/domain-model-separation.md, notes/architecture-adapters.md
 informed: plan/IMPLEMENTATION_PLAN.md

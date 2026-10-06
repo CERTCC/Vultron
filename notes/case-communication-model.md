@@ -238,12 +238,12 @@ Adding a new participant to an active case uses `RmInviteToCaseActivity` /
 participant record, but the record is **inert** — it receives no case content
 (CM-10-004) — so the standard CASE_MANAGER → broadcast model cannot deliver the
 invite. The CASE_MANAGER MUST still be the authoritative actor in the exchange.
-The join model is ADR-0114 and ADR-0070; the full flow is in
+The join model is ADR-0114 and ADR-0121; the full flow is in
 [case-joining.md](case-joining.md).
 
 ### Correct Flow
 
-This is the target model (CM-11, ADR-0114, ADR-0070). The code still creates
+This is the target model (CM-11, ADR-0114, ADR-0121). The code still creates
 the participant on `Accept(Invite)`; the implementation issues spawned from
 issue #4006 move it.
 
@@ -341,7 +341,7 @@ add_activity_to_outbox(actor_id, activity_id, dl)   # ← dl *is* the manager's 
 
 A case always has a `CVDRole.CASE_MANAGER` participant (CM-24-006), so there is
 no un-delegated path: a resolver that finds no holder fails rather than sending
-directly. The CM-24-003 fallback (`actor` = requester, `attributed_to = None`)
+directly. The retired CM-24-003 fallback (`actor` = requester, `attributed_to = None`)
 is retired; #3964 removes it from `_prepare_delegated_context()`.
 
 ---
@@ -446,7 +446,7 @@ CASE_MANAGER".
 
 **There is no "no CASE_MANAGER" arm.** Both case-creation paths register a
 holder at birth and delegation hands the role on, so the resolver finding nobody
-means a corrupt roster, not a topology. CM-24-003's "send directly" fallback is
+means a corrupt roster, not a topology. The retired CM-24-003 "send directly" fallback is
 superseded by CM-24-006; a resolver that finds no holder fails.
 
 ---
@@ -463,7 +463,7 @@ Requesting actor calls trigger: <trigger-name>
   → Trigger use case _prepare():
       self._actor_id     = case_actor_id      ← CASE_MANAGER sends (CM-24-001)
       self._attributed_to = requesting_actor_id  ← attribution preserved (CM-24-002)
-      # No holder found: raise (CM-24-006) — the CM-24-003 "send directly"
+      # No holder found: raise (CM-24-006) — the retired CM-24-003 "send directly"
       #                   fallback is retired (#3964)
   → BT runs under the CASE_MANAGER's identity → activity queued in its outbox (CM-24-004)
 
@@ -559,7 +559,7 @@ BTBridge(datalayer=dl).execute_with_setup(
 ```
 
 A reply to the full-case Invite is the participant's judgement of the case
-(RV/RI/RC, CM-11-011; ADR-0070). The CASE_MANAGER records it as a direct RM
+(RV/RI/RC, CM-11-011; ADR-0121). The CASE_MANAGER records it as a direct RM
 state update, without emitting a proxy activity on the participant's behalf
 (PCR-08-010). The stub `Accept` moves no RM state at all (CM-11-001).
 

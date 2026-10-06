@@ -171,7 +171,7 @@ def _prepare_delegated_context(
 ) -> tuple[str, str | None]:
     """Return (actor_id, attributed_to) for a CaseActor-delegated trigger.
 
-    Implements the delegated-message contract (CM-24-001 through CM-24-003):
+    Implements the delegated-message contract (CM-24-001, CM-24-002 and CM-24-006):
     when a CaseActor is present, the activity MUST be sent under the
     CaseActor's identity (actor_id) with the requesting actor recorded in
     attributed_to.  When no CaseActor exists the requesting actor sends

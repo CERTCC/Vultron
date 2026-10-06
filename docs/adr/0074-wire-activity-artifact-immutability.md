@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-08-26
+created: 2026-08-26
+updated: 2026-08-26
+revision: 1
 deciders: ahouseholder
 consulted: notes/wire-artifact-immutability.md, notes/datalayer-design.md, notes/activity-factories.md, notes/core-wire-rendering-port.md, docs/adr/archived/0017-domain-wire-object-separation.md, docs/adr/0064-core-branch-validate-assignment.md, docs/adr/0073-per-actor-storage-isolation.md
 informed: specs/vocabulary-model.yaml

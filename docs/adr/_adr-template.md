@@ -7,7 +7,14 @@
 # says the design is provisional / "formed in sand" / expected to converge, use
 # accepted-provisional, never accepted.
 status: {proposed | accepted | accepted-provisional | deprecated | rejected | superseded by (link to new ADR)}
-date: {YYYY-MM-DD when the decision was last updated}
+date: {YYYY-MM-DD the ADR was first written; never changed}
+# Lifecycle fields (ADR-0120). created never changes. updated moves only on a
+# material edit (editorial edits and annotations leave it alone). revision is an
+# integer bumped by each material edit. A new ADR has created = updated = date
+# and revision = 1.
+created: {YYYY-MM-DD}
+updated: {YYYY-MM-DD}
+revision: 1
 deciders: {list everyone involved in the decision}
 consulted: {list everyone whose opinions are sought (typically subject-matter experts); and with whom there is a two-way communication}
 informed: {list everyone who is kept up-to-date on progress; and with whom there is a one-way communication}
