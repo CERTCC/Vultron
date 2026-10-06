@@ -120,10 +120,13 @@ comparison is settled at case creation, so a reader distinguishes the two
 paths by whether terms were stated on the Offer. What follows creation is
 EP-04-011's relay of the losing terms to the winner — so when the Receiver's
 default wins, the Receiver (the CASE_OWNER) is invited to the Reporter's
-longer terms, its default response decision accepts, and an owner's
-acceptance activates them: that run settles at `EM.ACTIVE` on the Reporter's
-terms. When the Reporter's terms win, the Reporter's acceptance only records
-consent, and the case stays at `EM.REVISE`.
+longer terms. The protocol requires no automatic answer (EP-09-006), and the
+prototype's bounded auto-accept fires only at `EM.NONE` for terms within the
+owner's own policy duration (`OwnerMayAutoAcceptEmbargoNode`, #4179), so the
+owner holds its answer: the run stays at `EM.REVISE` with the owner's default
+active and the Reporter's terms pending. When the Reporter's terms win, the
+Reporter's acceptance only records consent, and the case also stays at
+`EM.REVISE`.
 
 **EP-04-003 is the two-party instance of a general rule.** Shortest-wins at case
 creation is the same comparison **EP-08-001** states for *N* simultaneously open

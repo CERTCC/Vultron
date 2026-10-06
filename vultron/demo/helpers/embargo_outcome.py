@@ -16,8 +16,8 @@
 The read and verification steps the ``report-with-embargo`` exchange demo
 runs against the CaseActor's store once the case exists: which
 ``EmbargoEvent`` became active, which was left pending as a revision, that
-every event is about the case (EP-04-009), that an accepted relayed revision
-settled the case (EP-04-011), and that the Receiver's replica agrees.  They live here rather than in the demo module so that the module
+every event is about the case (EP-04-009), and that the Receiver's replica
+agrees.  They live here rather than in the demo module so that the module
 stays a script of runs (CS-18-001) and a second negotiated-path scenario can
 reuse the checks instead of copying them (DEMOMA-17-001).
 
@@ -96,46 +96,6 @@ def assert_window_is(
 
 
 # ---------------------------------------------------------------------------
-def read_case(
-    client: DataLayerClient, case_actor_id: str, case_id: str
-) -> as_VulnerabilityCase:
-    """Read the canonical case from the CaseActor's own store."""
-    data = client.get(client.dl_path(case_id, actor_id=case_actor_id))
-    return as_VulnerabilityCase.model_validate(data)
-
-
-def wait_for_revision_activated(
-    client: DataLayerClient,
-    case_actor_id: str,
-    case_id: str,
-    revision_id: str,
-    timeout_seconds: float = ANSWER_TIMEOUT_SECONDS,
-) -> as_VulnerabilityCase:
-    """Poll the canonical case until *revision_id* is its active embargo.
-
-    The cause is the CASE_OWNER's ``Accept`` of the relayed revision Invite
-    (EP-04-011): an owner's acceptance activates the revision, so the case
-    leaves ``EM.REVISE`` some time after it was created there (ADR-0058).
-    """
-    found: dict[str, as_VulnerabilityCase] = {}
-
-    def _check() -> bool:
-        case = read_case(client, case_actor_id, case_id)
-        found["case"] = case
-        return case.active_embargo_id == revision_id
-
-    _poll_until(
-        _check,
-        timeout_seconds,
-        error_msg=(
-            f"Timed out waiting for revision {revision_id!r} to become the"
-            f" active embargo of {case_id!r} — the CASE_OWNER's answer to the"
-            " relayed Invite may not have arrived (EP-04-011)"
-        ),
-    )
-    return found["case"]
-
-
 # Verification of the creation-time outcome
 # ---------------------------------------------------------------------------
 
@@ -211,28 +171,6 @@ def verify_pending_revision(
         revision.end_time.isoformat(),
     )
     return revision
-
-
-def verify_revision_settled(case: as_VulnerabilityCase) -> None:
-    """The accepted revision left the case ACTIVE with nothing pending."""
-    with demo_check(
-        "Case is back at EM.ACTIVE with nothing pending — the revision was"
-        " accepted, not left open"
-    ):
-        if case.current_status.em_state != EM.ACTIVE:
-            raise AssertionError(
-                f"Expected EM.ACTIVE, found {case.current_status.em_state}"
-            )
-        if case.proposed_embargo_ids:
-            raise AssertionError(
-                "Expected no pending revision once it was accepted, found"
-                f" {case.proposed_embargo_ids}"
-            )
-    logger.info(
-        "Accepted revision settled the case: %s at %s, nothing pending",
-        case.active_embargo_id,
-        case.current_status.em_state,
-    )
 
 
 def verify_uncontested(
