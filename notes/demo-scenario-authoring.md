@@ -103,6 +103,8 @@ produces the effect, read from its own container) and express it with
    - `wait_for_case_on_container` — a case replica arrived.
    - `find_case_invite_for_actor` — an invite arrived.
    - `wait_for_object_stored` — an arbitrary object arrived in a DataLayer.
+   - `wait_for_report_submission_stored` — the submitted report and its Offer
+     arrived in the Receiver's own store (`reporter_submits_report`).
 2. If a poll times out reliably in CI, the underlying delivery path needs
    investigation (retry parameters, health checks, container startup order) — not
    a workaround in the demo script.

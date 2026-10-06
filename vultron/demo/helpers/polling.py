@@ -1238,6 +1238,58 @@ def wait_for_object_stored(
     )
 
 
+def wait_for_report_submission_stored(
+    client: DataLayerClient,
+    receiver_id: str,
+    report_id: str,
+    offer_id: str,
+    timeout_seconds: float = 15.0,
+    poll_interval: float = 0.5,
+) -> None:
+    """Poll the receiver's own store until a submitted report and its Offer land.
+
+    The reporter's ``submit-report`` trigger delivers the ``Offer`` through its
+    outbox, so the receiver stores the report and the Offer when its inbox has
+    processed that delivery -- after the trigger returns, not before.  This
+    gates on that stored effect (EDF-06-002, EDF-06-003, DEMOMA-22-002) rather
+    than on anything the demo itself delivered.
+
+    Both reads name *receiver_id* explicitly (ADR-0073), so the result does not
+    depend on *client*'s own binding.
+
+    Args:
+        client: DataLayerClient connected to the receiver's container.
+        receiver_id: Actor id whose store to read.
+        report_id: Id of the submitted ``VulnerabilityReport``.
+        offer_id: Id of the submit-report ``Offer``.
+        timeout_seconds: Maximum time to wait before raising.
+        poll_interval: Seconds between poll attempts.
+
+    Raises:
+        AssertionError: If either object is still absent at the deadline.
+    """
+    missing: set[str] = {report_id, offer_id}
+
+    def _check() -> bool:
+        for obj_id in sorted(missing):
+            try:
+                if client.get(client.dl_path(obj_id, actor_id=receiver_id)):
+                    missing.discard(obj_id)
+            except Exception:  # noqa: BLE001, S110
+                pass
+        return not missing
+
+    _poll_until(
+        _check,
+        timeout_seconds,
+        poll_interval,
+        f"Timed out waiting for the submitted report/offer in {receiver_id!r}'s"
+        f" DataLayer at {client.base_url} — the reporter's outbox delivery may"
+        " not have completed",
+        swallow_exceptions=True,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Participant-state polling helpers
 # ---------------------------------------------------------------------------
@@ -1574,7 +1626,7 @@ def wait_for_participant_embargo_consent(
     poll_interval: float = 0.25,
     dl_actor_id: str | None = None,
 ) -> None:
-    """Poll until *actor_id*'s consent row for *embargo_id* is *expected*.
+    """Poll until *actor_id*'s consent for *embargo_id* reaches *expected*.
 
     Consent moves when the CASE_MANAGER commits the participant's answer, and
     a replica learns it from the ledger (EP-09-003), so it reads the new value
@@ -1584,8 +1636,8 @@ def wait_for_participant_embargo_consent(
         client: DataLayerClient for the target container.
         case_id: Full URI of the ``as_VulnerabilityCase``.
         actor_id: Full URI of the actor whose consent to check.
-        embargo_id: The embargo whose consent row to read.
-        expected: The consent state to wait for.
+        embargo_id: Full URI of the embargo being tracked.
+        expected: The :class:`~vultron.core.states.participant_embargo_consent.EmbargoConsentState` to wait for.
         timeout_seconds: Maximum time to wait.
         poll_interval: Seconds between DataLayer poll attempts.
         dl_actor_id: Full URI of the actor whose *store* to read, when that is
@@ -1600,7 +1652,7 @@ def wait_for_participant_embargo_consent(
         actor_id,
         lambda participant: participant.consent_for(embargo_id),
         lambda value: value == expected,
-        f"consent to {embargo_id!r} to reach {expected.name}",
+        f"embargo consent to reach {expected.name}",
         timeout_seconds,
         poll_interval,
         dl_actor_id,
@@ -1616,12 +1668,12 @@ def wait_for_participant_embargo_accepted(
     poll_interval: float = 0.25,
     dl_actor_id: str | None = None,
 ) -> None:
-    """Poll until *actor_id*'s participant record shows *embargo_id* accepted.
+    """Poll until *actor_id*'s consent row for *embargo_id* is ``ACCEPTED``.
 
-    Both a first proposal and a revision end in an ``ACCEPTED`` row for the
-    embargo answered (CM-18-001).  Read it where the CASE_MANAGER commits it:
-    an owner that activates a longer revision first lapses every signatory that
-    has not answered (EP-05-001).
+    An Accept always marks the accepted embargo's own row ``ACCEPTED``, including
+    for a proposed revision (ADR-0122), so the revision's row is the trace of it.
+    Read it where the CASE_MANAGER commits it: an owner that activates a longer
+    revision first lapses every signatory that has not answered (EP-05-001).
 
     Args:
         client: DataLayerClient for the target container.
@@ -1636,12 +1688,13 @@ def wait_for_participant_embargo_accepted(
     Raises:
         AssertionError: If the answer is not observed within *timeout_seconds*.
     """
-    wait_for_participant_embargo_consent(
+    _wait_for_participant_embargo_field(
         client,
         case_id,
         actor_id,
-        embargo_id,
-        EmbargoConsentState.ACCEPTED,
+        lambda participant: participant.consent_for(embargo_id),
+        lambda value: value == EmbargoConsentState.ACCEPTED,
+        f"consent for {embargo_id!r} to be ACCEPTED",
         timeout_seconds,
         poll_interval,
         dl_actor_id,

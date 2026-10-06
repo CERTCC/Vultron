@@ -1225,10 +1225,17 @@ groups:
       is not `RM.CLOSED`, except the proposer and except the executing CASE_MANAGER
       itself, with `actor` set to the CASE_MANAGER's ID and `attributedTo` set to the
       proposer's ID (CM-24-001, CM-24-002), and MUST commit each emission as a ledger
-      entry. The CASE_MANAGER MUST NOT invite the proposer or itself. The
-      CASE_MANAGER role carries no embargo stake of its own: consent MUST NOT be
-      solicited or recorded for the role, and when the actor holding it also holds
-      `CVDRole.CASE_OWNER`, that actor's consent is its decision as owner (EP-09-005).
+      entry. The CASE_MANAGER MUST NOT invite the proposer or itself. Instead of an
+      Invite, the CASE_MANAGER MUST write consent rows at the same commit: the
+      proposer's row for the proposed embargo `ACCEPTED` (proposing is consenting), and,
+      when the actor holding the role is also a participant with an embargo stake of its
+      own (a role beyond `CVDRole.CASE_MANAGER` and `CVDRole.COORDINATOR`), its own row
+      for that embargo — `ACCEPTED` when it is the proposer, otherwise `ACCEPTED` or
+      `DECLINED` as its embargo-proposal policy call-out decides (EMB-15-001). The
+      CASE_MANAGER role alone carries no embargo stake: no consent is solicited or
+      recorded for a bare container, and when the actor holding the role also holds
+      `CVDRole.CASE_OWNER`, that actor's consent is its decision as owner (EP-09-005),
+      not written at the commit.
     rationale: >-
       Participants answer only an Invite addressed to them (EP-09-003), so without the
       relay nobody but the proposer would be asked. Proposing terms is consenting to
@@ -1253,7 +1260,13 @@ groups:
       the proposer and the manager, each with `actor` the CASE_MANAGER and
       `attributedTo` the proposer;
       `TestRelayEmbargoInviteToEachNode::test_each_emission_is_committed_as_a_canonical_entry`
-      in the same node test file asserts each emission is committed.
+      in the same node test file asserts each emission is committed;
+      `test/core/use_cases/received/test_embargo_manager_consent.py` asserts the
+      proposer's row is `ACCEPTED` after the commit, that a stakeholder manager (and a
+      manager that is the proposer) holds an `ACCEPTED` row with no Invite addressed to
+      it, and that a bare container writes none; and
+      `test/core/behaviors/embargo/nodes/test_manager_consent.py` pins the policy
+      call-out (`ACCEPTED` or `DECLINED`) and the owner, proposer and existing-row skips.
     relationships:
     - rel_type: refines
       spec_id: CM-24-001
@@ -1526,8 +1539,11 @@ groups:
       CASE_MANAGER's own record takes no RSVP deadline from it (CM-28-003). The refusal
       comes before the P/X/A check, so a misrouted Invite on a public, exploited or attacked
       case gets no ER: EMB-01-002's ER answers a proposal its receiver was sent, and a
-      misrouting is not accepted either way. Two spellings of one actor in `to` (a trailing
-      slash) name one recipient.
+      misrouting is received but not understood. The receiver answers it with
+      `Create(ProcessingFault)` to the sender, naming the Invite in `inReplyTo` and
+      failure class `MisroutedEmbargoInvite` (MSM-05-001, ADR-0123). An Invite that names
+      no embargo is answered the same way, with failure class `EmbargoInviteWithoutEmbargo`.
+      Two spellings of one actor in `to` (a trailing slash) name one recipient.
     rationale: >-
       Every emitter sends a single-recipient Invite — a participant to the CASE_MANAGER, the
       CASE_MANAGER to one participant per relayed Invite (EP-09-002) — so the multi-recipient
@@ -1536,8 +1552,12 @@ groups:
       names the defect; guessing hides it.
     verification: >-
       Tests deliver an Invite with two `to` recipients and with none and assert `REFUSED`
-      with the recipient count in the reason; a single-recipient Invite resolves that
-      recipient (`test_invite_with_several_recipients_is_refused` and
+      with the recipient count in the reason and one `Create(ProcessingFault)` to the
+      sender, however often the Invite is delivered
+      (`test_an_invite_with_zero_or_several_recipients_gets_a_processing_fault`); an Invite
+      naming no embargo gets the `EmbargoInviteWithoutEmbargo` fault
+      (`test_an_invite_naming_no_embargo_gets_a_processing_fault`); a single-recipient Invite
+      resolves that recipient (`test_invite_with_several_recipients_is_refused` and
       `test_invite_with_no_recipient_is_refused` in `test_embargo_revision_relay.py`;
       `TestInviteeIsTheAddressee` and `TestInviteeIdProperty` in
       `test_embargo_invite_lapse.py`).

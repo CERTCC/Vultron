@@ -351,16 +351,16 @@ def test_create_invitee_participant_reads_roles_from_accept_activity_when_invite
 
 
 @pytest.mark.spec("CM-17-003")
+@pytest.mark.spec("CM-11-019")
 def test_read_invite_roles_warns_when_invite_object_missing(
     bt_scenario: BTTestScenario,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """#2802: WARNING emitted when activity.object_ is None — protocol violation.
+    """#2802 / CM-11-019: WARNING logged and FAILURE returned when object_ is None.
 
     A missing embedded Invite object in the Accept activity is a protocol
-    violation (per datalayer-fallback-is-a-smell learning).  The node MUST
-    log a WARNING so operators can distinguish silent absence from graceful
-    empty-roles.
+    violation: the node MUST log a WARNING about the missing object_ and then
+    FAIL (per CM-11-019 — never create a participant with empty roles).
     """
     case = VulnerabilityCase(
         id_=_CM17_CASE_ID, attributed_to=_CM17_CASE_ACTOR_ID
@@ -393,7 +393,8 @@ def test_read_invite_roles_warns_when_invite_object_missing(
             invitee_already_participant=False,
         )
 
-    assert result.status == Status.SUCCESS
+    # CM-11-019: no roles → FAILURE (never create participant with empty roles)
+    assert result.status == Status.FAILURE
     warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
     assert any(
         "object_" in r.message and "protocol violation" in r.message
@@ -404,14 +405,16 @@ def test_read_invite_roles_warns_when_invite_object_missing(
 
 
 @pytest.mark.spec("CM-17-003")
+@pytest.mark.spec("CM-11-019")
 def test_read_invite_roles_warns_when_roles_field_absent(
     bt_scenario: BTTestScenario,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """#2802: WARNING emitted when invite object_ is present but has no roles field.
+    """#2802 / CM-11-019: WARNING logged and FAILURE returned when roles absent.
 
     A missing roles field on the embedded Invite is a protocol violation.
-    The node MUST log a WARNING rather than silently returning an empty list.
+    The node MUST log a WARNING about the missing roles, then FAIL per
+    CM-11-019 (never create a participant with empty roles).
     """
     case = VulnerabilityCase(
         id_=_CM17_CASE_ID, attributed_to=_CM17_CASE_ACTOR_ID
@@ -445,7 +448,8 @@ def test_read_invite_roles_warns_when_roles_field_absent(
             invitee_already_participant=False,
         )
 
-    assert result.status == Status.SUCCESS
+    # CM-11-019: no roles → FAILURE (never create participant with empty roles)
+    assert result.status == Status.FAILURE
     warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
     assert any(
         "roles" in r.message and "protocol violation" in r.message
@@ -456,14 +460,16 @@ def test_read_invite_roles_warns_when_roles_field_absent(
 
 
 @pytest.mark.spec("CM-17-003")
+@pytest.mark.spec("CM-11-019")
 def test_read_invite_roles_warns_and_recovers_on_typeerror(
     bt_scenario: BTTestScenario,
 ) -> None:
-    """#2802: TypeError from validate_roles is caught; node returns SUCCESS.
+    """#2802 / CM-11-019: TypeError from validate_roles is caught; node FAILS.
 
     If validate_roles raises TypeError (truthy but non-iterable roles payload),
     the except clause in _read_invite_roles() MUST catch it rather than
     propagating out of update() and aborting the BT sequence.
+    Per CM-11-019 the node then FAILS (empty roles list → no participant).
     """
     case = VulnerabilityCase(
         id_=_CM17_CASE_ID, attributed_to=_CM17_CASE_ACTOR_ID
@@ -500,7 +506,8 @@ def test_read_invite_roles_warns_and_recovers_on_typeerror(
             invitee_already_participant=False,
         )
 
-    assert result.status == Status.SUCCESS
+    # CM-11-019: coercion failure → empty list → FAILURE (no default VENDOR)
+    assert result.status == Status.FAILURE
 
 
 @pytest.mark.spec("CM-11-001")
@@ -534,6 +541,16 @@ def test_invitee_birth_is_construct_attach_then_advance(
     )
     bt_scenario.seed(case)
 
+    # CM-11-019: CreateInviteeParticipantNode requires roles in the invite.
+    # Provide a minimal fake activity so _read_invite_roles() returns ["vendor"].
+    _fake_invite = types.SimpleNamespace(roles=["vendor"])
+    _fake_activity = types.SimpleNamespace(object_=_fake_invite)
+    _fake_event = types.SimpleNamespace(
+        activity=_fake_activity,
+        activity_id="https://example.org/activities/fake-accept-birth",
+        actor_id=invitee_id,
+    )
+
     # Steps 1 (construct at RM.START) + 2 (attach and save).
     create_then_persist = py_trees.composites.Sequence(
         name="CreateThenPersist",
@@ -550,6 +567,7 @@ def test_invitee_birth_is_construct_attach_then_advance(
     result = bt_scenario.run(
         create_then_persist,
         actor_id=case_actor_id,
+        activity=_fake_event,
         invitee_case=case,
         invitee_already_participant=False,
     )
@@ -597,6 +615,16 @@ def _seed_case_with_persisted_invitee(
         PersistInviteeParticipantNode,
     )
 
+    # CM-11-019: provide a minimal fake activity with roles so
+    # CreateInviteeParticipantNode can resolve them.
+    _fake_invite = types.SimpleNamespace(roles=["vendor"])
+    _fake_activity = types.SimpleNamespace(object_=_fake_invite)
+    _fake_event = types.SimpleNamespace(
+        activity=_fake_activity,
+        activity_id="https://example.org/activities/fake-accept-seed",
+        actor_id=invitee_id,
+    )
+
     result = bt_scenario.run(
         py_trees.composites.Sequence(
             name="CreateThenPersist",
@@ -611,6 +639,7 @@ def _seed_case_with_persisted_invitee(
             ],
         ),
         actor_id=case_actor_id,
+        activity=_fake_event,
         invitee_case=case,
         invitee_already_participant=False,
     )

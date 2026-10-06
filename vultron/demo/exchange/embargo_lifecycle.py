@@ -44,9 +44,7 @@ from collections.abc import Callable
 from datetime import datetime, timedelta
 
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import (
-    EmbargoConsentState,
-)
+from vultron.core.states.participant_embargo_consent import EmbargoConsentState
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.polling import (
     LEDGER_COVERAGE_TIMEOUT,
@@ -170,9 +168,11 @@ def _await_consent_committed(
     case_id: str,
     embargo_id: str,
 ) -> None:
-    """Gate on *answerer*'s consent to *embargo_id* being ``ACCEPTED``.
+    """Gate on *answerer*'s consent being ``ACCEPTED`` in the CASE_MANAGER's store.
 
-    Reads the CASE_MANAGER's store, where the answer is committed.
+    Only meaningful for a first proposal, where the answer moves the answerer
+    from invited to accepted.  A signatory's answer to a revision changes no
+    consent state (EP-09-004), so there is nothing to observe there.
     """
     wait_for_participant_embargo_consent(
         observer.client,
@@ -252,8 +252,8 @@ def demo_propose_and_activate_embargo(
     ``Invite(EmbargoEvent)`` the CASE_MANAGER relays to them and post
     ``accept-embargo`` — the vendor's records its consent, the coordinator's,
     as case owner, activates the embargo.  The helper then checks every replica
-    for ``EM.ACTIVE`` and the coordinator's replica for an ``ACCEPTED``
-    consent row for the embargo on all three participants (DEMOMA-20-002, DEMOMA-20-009).
+    for ``EM.ACTIVE`` and the coordinator's replica for an ``ACCEPTED`` consent row on all
+    three participants (DEMOMA-20-002, DEMOMA-20-009).
 
     Args:
         reporter: The proposer, bound to the reporter's container.
@@ -328,11 +328,9 @@ def demo_propose_embargo_revision(
 
     *owner* may be the same session as *proposing*; it is then never sent an
     Invite and answers its own proposal.  *accepting* must be neither.
-    The owner answers only once the acceptor's answer is in
-    ``accepted_embargo_ids`` at the CASE_MANAGER: a signatory's answer to a
-    revision leaves its consent state unchanged (EP-09-004), but an owner that
-    activates a longer revision first lapses every signatory without that id
-    (EP-05-001).
+    The owner answers only once the acceptor's ``ACCEPTED`` row for the revision
+    is committed at the CASE_MANAGER, so the owner does not decide ahead of it
+    (ADR-0122).
 
     Args:
         proposing: The proposer, bound to its own container.

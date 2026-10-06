@@ -35,6 +35,7 @@ from vultron.demo.helpers.polling import (
     wait_for_event_type_in_ledger,
     wait_for_initialized_case,
     wait_for_participant_rm_state,
+    wait_for_report_submission_stored,
 )
 from vultron.demo.utils import (
     DataLayerClient,
@@ -46,6 +47,7 @@ from vultron.demo.utils import (
     log_case_state,
     post_to_inbox_and_wait,
     ref_id,
+    seed_case_actor,
     seed_case_actor_for_report,
     verify_object_stored,
 )
@@ -87,35 +89,23 @@ _DEMO_REPORT_CONTENT = (
 )
 
 
-def _provision_case_actor(receiver_client, report) -> None:
-    """Provision the CaseActor this report's proposal will be addressed to.
+def _provision_case_actor(receiver_client) -> None:
+    """Provision the CaseActor the receiver's report proposal is addressed to.
 
-    ``ProposeReportCaseToActorNode`` derives the CaseActor's URI from the report
-    and delivery is an ordinary HTTP POST to that actor's inbox (ADR-0042). The
-    inbox route resolves the actor from the store its URI names (ADR-0073), so
-    the CaseActor has to be a hosted actor *before* the proposal is delivered —
-    otherwise the POST answers 404 and the round-trip never starts.
+    ``ProposeReportCaseToActorNode`` sends its proposal to the container's
+    CaseActor, and delivery is an ordinary HTTP POST to that actor's inbox
+    (ADR-0042).  The inbox route resolves the actor from the store its URI names
+    (ADR-0073), so the CaseActor has to be a hosted actor *before* the Offer
+    reaches the receiver -- otherwise the POST answers 404 and the round-trip
+    never starts.
 
-    Called from both arms of :func:`reporter_submits_report`. It used to sit only
-    in the ``reporter_client is None`` arm, so every scenario that passes a
-    reporter client — the FV demo among them — delivered the proposal to an actor
-    that did not exist. The visible symptom was two phases later and nowhere near
-    the cause: "Expected as_VulnerabilityCase to be created after
-    validate-report", then ``'NoneType' object has no attribute 'id_'``. Only the
-    router's own delivery warning named the 404, and it is a WARNING in a passing
-    step.
-
-    Both arms need it and neither can do it earlier: the report id is not known
-    until the offer exists.
+    The CaseActor's identity is stable: one per container, independent of the
+    report (#1872, closed).  So provisioning needs no report id and runs *before*
+    the ``submit-report`` trigger in both arms of :func:`reporter_submits_report`.
+    It used to run after the trigger because the id was per-report; by then the
+    trigger's outbox had already delivered the Offer.
     """
-    report_id = getattr(report, "id_", None)
-    if not isinstance(report_id, str) or not report_id:
-        logger.warning(
-            "_provision_case_actor: report has no id; cannot derive the"
-            " CaseActor to provision, so its proposal will 404 on delivery"
-        )
-        return
-    seed_case_actor_for_report(receiver_client, report_id)
+    seed_case_actor(receiver_client)
 
 
 def reporter_submits_report(
@@ -130,8 +120,11 @@ def reporter_submits_report(
     When ``reporter_client`` is provided (e.g. in a multi-container Docker
     demo), the report and offer are created via the reporter container's
     ``submit-report`` trigger endpoint so that the reporter container logs tell
-    the full process-flow story (D5-6a).  The resulting offer is then delivered
-    to the receiver container's inbox.
+    the full process-flow story (D5-6a).  The trigger's own outbox is the sole
+    delivery of the offer to the receiver's inbox; this function never re-posts
+    it.  The receiver's CaseActor has a stable identity (#1872), so it is
+    provisioned before the trigger, and the function then waits for the report
+    and offer to land in the receiver's own store (EDF-06-002, EDF-06-003).
 
     When ``reporter_client`` is ``None`` (e.g. single-container integration
     tests), the report and offer are constructed in memory and posted directly
@@ -177,6 +170,8 @@ def reporter_submits_report(
         Tuple of ``(report, offer)``.
     """
     if reporter_client is not None:
+        with demo_step("Provision the receiver's CaseActor"):
+            _provision_case_actor(receiver_client)
         result = None
         with demo_step(
             "Reporter submits vulnerability report to receiver's inbox"
@@ -191,14 +186,15 @@ def reporter_submits_report(
             )
         offer_dict = (result.offer or {}) if result is not None else {}
         report, offer = parse_submit_report_offer(offer_dict)
-        # Deliver the offer from the reporter to the receiver's inbox.
-        # Per ADR-0012 (per-actor DataLayer isolation) the trigger stores the
-        # offer only in the reporter's namespace; the receiver must receive
-        # it explicitly via inbox delivery so SubmitReportReceivedUseCase runs
-        # and creates the case at RM.RECEIVED (ADR-0015).
-        with demo_step("Deliver reporter's offer to receiver's inbox"):
-            _provision_case_actor(receiver_client, report)
-            post_to_inbox_and_wait(receiver_client, receiver.id_, offer)
+        # No hand delivery: the trigger's outbox already delivered the offer
+        # (ADR-0012 isolation means it is stored only in the reporter's
+        # namespace until that delivery lands). Gate on the effect in the
+        # receiver's own store instead, naming the receiver rather than relying
+        # on `receiver_client`'s binding (ADR-0073).
+        with demo_check("Report and offer stored in receiver's DataLayer"):
+            wait_for_report_submission_stored(
+                receiver_client, receiver.id_, report.id_, offer.id_
+            )
     else:
         report = as_VulnerabilityReport(
             attributed_to=reporter.id_,
@@ -222,18 +218,18 @@ def reporter_submits_report(
         with demo_step(
             "Reporter submits vulnerability report to receiver's inbox"
         ):
-            _provision_case_actor(receiver_client, report)
+            _provision_case_actor(receiver_client)
             post_to_inbox_and_wait(receiver_client, receiver.id_, offer)
-    # These checks name the receiver explicitly rather than relying on
-    # `receiver_client`'s binding. The check text says whose replica it is about,
-    # so the read should say so too — and not every caller binds its client, in
-    # which case `dl_path` refuses to guess (ADR-0073).
-    with demo_check("Report stored in receiver's DataLayer"):
-        verify_object_stored(
-            receiver_client, report.id_, actor_id=receiver.id_
-        )
-    with demo_check("Offer stored in receiver's DataLayer"):
-        verify_object_stored(receiver_client, offer.id_, actor_id=receiver.id_)
+        # These checks name the receiver explicitly rather than relying on
+        # `receiver_client`'s binding (ADR-0073).
+        with demo_check("Report stored in receiver's DataLayer"):
+            verify_object_stored(
+                receiver_client, report.id_, actor_id=receiver.id_
+            )
+        with demo_check("Offer stored in receiver's DataLayer"):
+            verify_object_stored(
+                receiver_client, offer.id_, actor_id=receiver.id_
+            )
     logger.info("Report submitted: %s", ref_id(report))
     return report, offer
 

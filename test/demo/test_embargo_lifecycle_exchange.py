@@ -26,9 +26,7 @@ from unittest.mock import MagicMock, create_autospec, patch
 import pytest
 
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import (
-    EmbargoConsentState,
-)
+from vultron.core.states.participant_embargo_consent import EmbargoConsentState
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.exchange import embargo_lifecycle as lifecycle
 from vultron.demo.utils import _demo_failures, reset_demo_failures
@@ -194,12 +192,17 @@ class TestProposeAndActivate:
         mocks, log = polls
         reporter, coordinator, vendor = self._run(case, log)
         checked = [
-            (c.args[0], c.args[2], c.args[4])
+            (c.args[0], c.args[2], c.args[3], c.args[4])
             for c in mocks["consent"].call_args_list
             if "dl_actor_id" not in c.kwargs
         ]
         assert checked == [
-            (coordinator.client, s.actor.id_, EmbargoConsentState.ACCEPTED)
+            (
+                coordinator.client,
+                s.actor.id_,
+                EMBARGO_ID,
+                EmbargoConsentState.ACCEPTED,
+            )
             for s in (reporter, coordinator, vendor)
         ]
 

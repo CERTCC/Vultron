@@ -57,11 +57,14 @@ _VALIDATING_NODE_MODULES: tuple[str, ...] = (
 #
 # There are two kinds of entry here, and only the first kind is a *writer*:
 #
-#   1. WRITER exclusions (exactly two, ADR-0089 AC-7): `_adjudication.py` (the
-#      receive path) and `participant_status_effect.py` (the replica-apply
-#      path).  Both genuinely write a ParticipantStatus but under a different
-#      disposition than the emit evaluator, so they legitimately do not route
-#      through it.  These are the "exactly two" the ADR-0089 end state names.
+#   1. WRITER exclusions (three after ADR-0114/#4048): `_adjudication.py` (the
+#      receive path), `participant_status_effect.py` (the replica-apply path),
+#      and `invite_inert_participant.py` (the ADR-0114 birth write at
+#      invite-send time).  All three write a ParticipantStatus but under a
+#      disposition where the emit evaluator does not apply:
+#      - ADR-0089 named the first two as the end state; `invite_inert_participant`
+#        is a BIRTH write — there is no prior state to validate a transition
+#        against (BTND-10-001 birth exemption, CM-11-006).
 #      The former `models/case_participant.py` writer entry is gone: ADR-0089
 #      deleted `CaseParticipant.append_rm_state`, so the model no longer writes
 #      a ParticipantStatus at all (and models/ is outside this scan regardless).
@@ -148,6 +151,17 @@ _DECLARED_EXCLUSIONS: dict[str, str] = {
     "vultron/core/behaviors/status/nodes/cs_dimension_filter.py": (
         "receive-path CaseStatus adjudication — PxaDimension for case-level"
         " PXA, not participant-level; different lifecycle (ADR-0080)"
+    ),
+    # Birth write at invite-send time (ADR-0114, CM-11-006). Creates the
+    # invitee's first ParticipantStatus at RM.RECEIVED.  There is no prior
+    # state to validate a transition against, so the emit evaluator does not
+    # apply (BTND-10-001 birth exemption). The status is embedded in the
+    # CaseParticipant record directly (not written through
+    # CreateParticipantStatusNode, which is for transitions).
+    "vultron/core/behaviors/case/nodes/invite_inert_participant.py": (
+        "ADR-0114 birth write — invitee's initial ParticipantStatus at"
+        " RM.RECEIVED; no prior state, so transition validator does not"
+        " apply (BTND-10-001, CM-11-006)"
     ),
 }
 

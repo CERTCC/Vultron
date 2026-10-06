@@ -40,14 +40,14 @@ sequenceDiagram
     O ->> CA: Offer(actor=CaseOwner, object=Actor, target=Case, suggestedRoles)
     activate CA
     CA ->>+ A: Invite(actor=CASE_MANAGER, object=Actor, target=Case, attributedTo=CaseOwner)
+    note over CA: Records inert CaseParticipant (RM Received, joined=false)
     note over A: Consider invitation
     alt Accept Invitation
         A -->> CA: Accept(object=Invite)
-        CA ->> CA: Create(object=CaseParticipant(actor=Actor), target=Case)
-        note over CA: Actor becomes participant in case
+        note over CA: Activates inert record; actor becomes participant
     else Reject Invitation
         A -->> CA: Reject(object=Invite)
-        note over CA: Actor is not participant in case
+        note over CA: Closes inert record (RM Closed); kept as history
     end
     deactivate A
     deactivate CA
@@ -104,7 +104,7 @@ If you are not the Case Owner but you know an actor belongs on the case, suggest
 |---|---|
 | `Invite(Actor)` | The invitee holds an `Invite` whose `actor` is the CASE_MANAGER. |
 | `Accept(Invite(Actor))` | The case roster holds you, and you have a local case replica. |
-| `Reject(Invite(Actor))` | The roster does not list you, and the refusal is on the ledger. |
+| `Reject(Invite(Actor))` | The CASE_MANAGER's ledger records your refusal; your participant entry is closed (RM Closed) and kept as history, but you are not an active participant. |
 
 ---
 

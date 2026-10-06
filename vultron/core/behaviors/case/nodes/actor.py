@@ -392,6 +392,7 @@ class EvaluateDefaultRolesNode(BehaviourWithPorts):
         recommendation_id: str,
         injected_roles: list[str] | None = None,
         name: str | None = None,
+        require_explicit_roles: bool = False,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.suggested_actor_id = suggested_actor_id
@@ -400,6 +401,7 @@ class EvaluateDefaultRolesNode(BehaviourWithPorts):
         self.logger = node_logger(self)  # type: ignore[assignment]
         self._injected_roles = self._coerce_injected_roles(injected_roles)
         self._roles_key = suggested_roles_key(recommendation_id)
+        self._require_explicit_roles = require_explicit_roles
 
     def _coerce_injected_roles(
         self, injected_roles: list[str] | None
@@ -450,8 +452,20 @@ class EvaluateDefaultRolesNode(BehaviourWithPorts):
         )
 
     def _compute_roles(self) -> list[CVDRole]:
-        """Return roles for the suggested actor; override for custom policy."""
-        return [CVDRole.VENDOR]
+        """Return default roles for the suggested actor (CM-16-003).
+
+        When ``require_explicit_roles`` is ``False`` (the default), returns
+        ``[CVDRole.VENDOR]`` — the protocol default for a participant
+        recommendation (CM-16-003), so the suggest-actor path works without
+        the recommender specifying roles.
+
+        When ``require_explicit_roles`` is ``True``, returns ``[]``, causing
+        FAILURE so that the caller (e.g., the Case Owner's direct invite path)
+        is forced to supply roles explicitly (CM-11-019).  Set this flag for
+        the ``owner_direct_invite`` sub-tree; leave it unset for the
+        ``fresh_path`` sub-tree that handles participant recommendations.
+        """
+        return [] if self._require_explicit_roles else [CVDRole.VENDOR]
 
     def update(self) -> Status:
         roles = (
@@ -460,10 +474,18 @@ class EvaluateDefaultRolesNode(BehaviourWithPorts):
             else self._compute_roles()
         )
         if not roles:
-            self.feedback_message = (
-                f"{self.name}: _compute_roles() returned an empty list "
-                f"for actor '{self.suggested_actor_id}' — cannot assign roles"
-            )
+            if self._require_explicit_roles and not self._injected_roles:
+                self.feedback_message = (
+                    f"{self.name}: no roles specified for actor"
+                    f" '{self.suggested_actor_id}'"
+                    f" — inviter must give the invitee's roles (CM-11-019)"
+                )
+            else:
+                self.feedback_message = (
+                    f"{self.name}: _compute_roles() returned an empty list"
+                    f" for actor '{self.suggested_actor_id}'"
+                    f" — cannot assign roles"
+                )
             self.logger.error("%s", self.feedback_message)
             return Status.FAILURE
         self._set_output("suggested_roles", roles)
