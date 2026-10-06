@@ -15,6 +15,7 @@
 
 import pytest
 
+from vultron.adapters.outbox_sealed_body import is_sealed, sealed_body_id
 from vultron.core.models.fault_classes import (
     VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
 )
@@ -99,6 +100,28 @@ class TestEmitProcessingFault:
 
         # Delivered and never-queued look alike, so it is queued again under
         # the same id (the receiver deduplicates) - once, not per redelivery.
+        assert dl.outbox_list() == [first]
+
+    @pytest.mark.spec("ID-04-005")
+    def test_a_fault_stored_but_not_sealed_is_sealed_and_queued(
+        self, adapter, dl
+    ):
+        kwargs = dict(
+            actor=_ACTOR,
+            failed_activity_id=_FAILED_ACTIVITY,
+            failure_class=VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
+            to=[_SENDER],
+        )
+        first = adapter.emit_processing_fault(**kwargs)
+        # Simulate a crash between the create and the seal.
+        dl.outbox_pop()
+        dl.delete("SealedOutboundBody", sealed_body_id(first))
+        assert not is_sealed(dl, first)
+
+        second = adapter.emit_processing_fault(**kwargs)
+
+        assert second == first
+        assert is_sealed(dl, first)
         assert dl.outbox_list() == [first]
 
     def test_different_failed_activities_get_different_faults(

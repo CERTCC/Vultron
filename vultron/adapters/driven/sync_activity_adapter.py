@@ -103,8 +103,10 @@ class SyncActivityAdapter:
 
         The activity id is derived from the rejected entry, the tail hash
         and the recipients, so a redelivery of the same mismatching entry
-        queues nothing new (ID-04-004).  A different tail hash is a different
-        rejection and gets its own id.
+        builds no new activity and reuses the same id (ID-04-004).  If that
+        Reject is sealed but no longer pending, it is queued once more under
+        the same id and body, which the receiver deduplicates (ID-04-005).  A
+        different tail hash is a different rejection and gets its own id.
 
         Spec: SYNC-03-001.
         """

@@ -17,6 +17,7 @@ import logging
 
 from vultron.adapters.outbox_sealed_body import derived_activity_id, is_sealed
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.errors import VultronAlreadyExistsError
 from vultron.wire.as2.factories.fault import create_processing_fault_activity
 from vultron.wire.as2.vocab.objects.processing_fault import as_ProcessingFault
 
@@ -86,7 +87,16 @@ class _FaultMixin:
             to=to,
             id_=fault_id,
         )
-        self._dl.create(activity)
+        try:
+            self._dl.create(activity)
+        except VultronAlreadyExistsError:
+            # A crash between the create and the seal leaves the activity
+            # stored but unsealed; the derived id makes the retry hit it.
+            logger.info(
+                "ProcessingFault %s is already stored; sealing and queueing"
+                " it (ID-04-005)",
+                fault_id,
+            )
         activity_id, _body = _seal(self._dl, activity)
         self._dl.outbox_append(activity_id)
         logger.debug(
