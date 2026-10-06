@@ -21,8 +21,11 @@ import pytest
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
@@ -68,7 +71,7 @@ def make_case_with_manager(
     em_state: EM = EM.ACTIVE,
     case_manager_actor: str = CASE_MANAGER_ACTOR,
     other_participants: tuple[str, ...] = (OTHER_PARTICIPANT_ACTOR,),
-    other_consent: PEC = PEC.SIGNATORY,
+    other_consent: EmbargoConsentState | None = EmbargoConsentState.ACCEPTED,
 ) -> tuple[VulnerabilityCase, as_CaseParticipant, SqliteDataLayer]:
     """Return a DataLayer with a case, a CASE_MANAGER, and other participants.
 
@@ -78,19 +81,25 @@ def make_case_with_manager(
     announce to, so the announce is skipped — correct behaviour, but it makes a
     fixture built that way unable to observe the emission at all.
 
-    Every participant is *other_consent* — ``SIGNATORY`` by default, so it is
-    active while the embargo is (CM-10-004) and a case-content send reaches
+    Every participant holds an *other_consent* row for the case's embargo —
+    ``ACCEPTED`` by default (``None`` for no row), so it is a signatory, active
+    while the embargo is (CM-10-004) and a case-content send reaches
     it.
     """
     # The store belongs to the CASE_MANAGER named here: the teardown trees commit
     # to the canonical ledger, which that role holder owns (CLP-09, ADR-0073).
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_manager_actor)
-    case, _ = make_case_and_embargo(suffix, em_state=em_state)
+    case, embargo = make_case_and_embargo(suffix, em_state=em_state)
+    consents = (
+        []
+        if other_consent is None
+        else [EmbargoConsent(embargo_id=embargo.id_, state=other_consent)]
+    )
     cm_participant = as_CaseParticipant(
         id_=f"{case.id_}/participants/cm",
         attributed_to=case_manager_actor,
         case_roles=[CVDRole.CASE_MANAGER],
-        embargo_consent_state=other_consent,
+        embargo_consents=list(consents),
     )
     case.case_participants.append(cm_participant.id_)
     case.actor_participant_index[case_manager_actor] = cm_participant.id_
@@ -101,7 +110,7 @@ def make_case_with_manager(
             id_=f"{case.id_}/participants/p{i}",
             attributed_to=actor,
             context=case.id_,
-            embargo_consent_state=other_consent,
+            embargo_consents=list(consents),
         )
         case.case_participants.append(participant.id_)
         case.actor_participant_index[actor] = participant.id_

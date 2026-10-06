@@ -185,9 +185,9 @@ warns on an unrecognized `producer_type` (audit hint, not a commit blocker).
 
 It carries a **field patch, not a replacement object** (RSH-05-009). The
 snapshot's `object` is the sender's wire-shaped `ParticipantStatus` — flat
-`rmState`/`vfdState`, nested `caseStatus`, plus `@context`, `emConsentState` and
-`cvdRole` — and every replica plus the case-ledger invariant harness read it in
-that shape. A guard in `vultron.core` cannot rebuild that object: core has zero
+`rmState`/`vfdState`, nested `caseStatus`, plus `@context`, `cvdRole` (and,
+before ADR-0122, `emConsentState`) — and every replica plus the case-ledger
+invariant harness read it in that shape. A guard in `vultron.core` cannot rebuild that object: core has zero
 `from vultron.wire` imports (ADR-0009, ADR-0017), so dumping the core model
 would emit nested `rm`/`vfd` dimension objects and drop every field the guard
 never adjudicated. Naming only the adjudicated fields, keyed by wire alias, and

@@ -461,7 +461,8 @@ validators on `CoreObject` (see `_check_computed_field_inputs` and
 `_drop_alias_shadowed_field_names`):
 
 - **Strip a matching computed field; refuse a contradicted one** (landed,
-  #3695). A `@computed_field` (`embargo_adherence`, ADR-0056) appears in
+  #3695). A `@computed_field` (`embargo_adherence`, ADR-0056; retired by
+  ADR-0122, no production class declares one now) appears in
   `model_dump()` output but is not settable, so a round-trip must drop it
   first. Dropping it *unconditionally* would silently erase a peer asserting
   adherence its own consent state denies, so ARCH-23-005 requires a supplied

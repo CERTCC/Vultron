@@ -20,8 +20,11 @@ from vultron.core.behaviors.embargo.nodes import (
 )
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.core.use_cases.triggers.embargo import SvcTerminateEmbargoUseCase
 from vultron.core.use_cases.triggers.requests import (
     TerminateEmbargoTriggerRequest,
@@ -56,6 +59,8 @@ def test_terminate_embargo_transitions_case_to_exited_via_bt_path(
     case, _, participant_id = _build_active_embargo_case(
         owner_dl, owner.id_, finder.id_
     )
+    embargo_id = case.active_embargo_id
+    assert embargo_id is not None
     request = TerminateEmbargoTriggerRequest(
         actor_id=owner.id_,
         case_id=case.id_,
@@ -76,9 +81,14 @@ def test_terminate_embargo_transitions_case_to_exited_via_bt_path(
     )
     assert updated_case.current_status.em.state == EM.EXITED
     assert updated_case.active_embargo is None
-    assert (
-        updated_participant.embargo_consent_state == PEC.UNBOUND_EXITED.value
-    )
+    # Termination writes no consent (ADR-0122): the rows stay as they were and
+    # nobody is a signatory because no embargo is active.
+    assert updated_participant.embargo_consents == [
+        EmbargoConsent(
+            embargo_id=embargo_id, state=EmbargoConsentState.INVITED
+        )
+    ]
+    assert not updated_participant.is_signatory(updated_case.active_embargo_id)
     assert EMBARGO_TEARDOWN_EVENT_TYPE in committed_event_types(
         owner_dl, case.id_
     )

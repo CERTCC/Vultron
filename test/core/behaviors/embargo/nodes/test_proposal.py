@@ -41,9 +41,12 @@ from vultron.core.behaviors.embargo.nodes.proposal import (
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.note import VultronNote
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
@@ -59,15 +62,17 @@ def _tick(node: py_trees.behaviour.Behaviour) -> py_trees.common.Status:
 
 
 def _case_with_rejecter(
-    dl: SqliteDataLayer, *, pec: PEC
+    dl: SqliteDataLayer, *, consent: EmbargoConsentState
 ) -> tuple[VulnerabilityCase, str, str]:
-    """An ACTIVE case whose embargo is in force, plus a rejecter at *pec*."""
+    """An ACTIVE case whose embargo is in force, plus a rejecter whose row
+    for that embargo is *consent*."""
     case, embargo = make_case_and_embargo("rpr1", em_state=EM.ACTIVE)
     participant = as_CaseParticipant(
         attributed_to=REJECTER,
         context=case.id_,
-        embargo_consent_state=pec,
-        accepted_embargo_ids=[embargo.id_] if pec is PEC.SIGNATORY else [],
+        embargo_consents=[
+            EmbargoConsent(embargo_id=embargo.id_, state=consent)
+        ],
     )
     case.actor_participant_index[REJECTER] = participant.id_
     case.case_participants = [*case.case_participants, participant.id_]
@@ -80,7 +85,7 @@ def _case_with_rejecter(
 class TestRecordParticipantRejectionNode:
     def test_records_a_withdrawal_and_succeeds(self, dl: SqliteDataLayer):
         case, embargo_id, participant_id = _case_with_rejecter(
-            dl, pec=PEC.SIGNATORY
+            dl, consent=EmbargoConsentState.ACCEPTED
         )
         setup_blackboard(dl)
         node = RecordParticipantRejectionNode(
@@ -91,8 +96,10 @@ class TestRecordParticipantRejectionNode:
 
         assert _tick(node) == py_trees.common.Status.SUCCESS
         participant = cast(CaseParticipant, dl.read(participant_id))
-        assert participant.embargo_consent_state == PEC.DECLINED.value
-        assert participant.accepted_embargo_ids == []
+        assert (
+            participant.consent_for(embargo_id) is EmbargoConsentState.DECLINED
+        )
+        assert not participant.is_signatory(embargo_id)
 
     def test_partial_replica_without_the_participant_succeeds(
         self, dl: SqliteDataLayer
@@ -116,7 +123,7 @@ class TestRecordParticipantRejectionNode:
     ):
         """The handler reads this FAILURE's prefix as SKIPPED, not REFUSED."""
         case, embargo_id, _participant_id = _case_with_rejecter(
-            dl, pec=PEC.DECLINED
+            dl, consent=EmbargoConsentState.DECLINED
         )
         setup_blackboard(dl)
         node = RecordParticipantRejectionNode(
@@ -129,8 +136,8 @@ class TestRecordParticipantRejectionNode:
         assert node.feedback_message.startswith(ALREADY_DECLINED_PREFIX)
 
     def test_unknown_embargo_fails(self, dl: SqliteDataLayer):
-        case, _embargo_id, participant_id = _case_with_rejecter(
-            dl, pec=PEC.INVITED
+        case, embargo_id, participant_id = _case_with_rejecter(
+            dl, consent=EmbargoConsentState.INVITED
         )
         setup_blackboard(dl)
         node = RecordParticipantRejectionNode(
@@ -142,7 +149,9 @@ class TestRecordParticipantRejectionNode:
         assert _tick(node) == py_trees.common.Status.FAILURE
         assert "neither the active" in node.feedback_message
         participant = cast(CaseParticipant, dl.read(participant_id))
-        assert participant.embargo_consent_state == PEC.INVITED.value
+        assert (
+            participant.consent_for(embargo_id) is EmbargoConsentState.INVITED
+        )
 
     def test_missing_case_fails(self, dl: SqliteDataLayer):
         setup_blackboard(dl)
@@ -174,8 +183,11 @@ class TestRecordParticipantAcceptanceNodeFailsClosed:
         owner_p = as_CaseParticipant(
             attributed_to=OWNER,
             context=case.id_,
-            embargo_consent_state=PEC.SIGNATORY,
-            accepted_embargo_ids=[active.id_],
+            embargo_consents=[
+                EmbargoConsent(
+                    embargo_id=active.id_, state=EmbargoConsentState.ACCEPTED
+                )
+            ],
         )
         case.actor_participant_index[OWNER] = owner_p.id_
         case.case_participants = [owner_p.id_]
@@ -213,7 +225,8 @@ class TestRecordParticipantAcceptanceNodeFailsClosed:
         assert untouched.active_embargo_id == active_id
         assert untouched.proposed_embargoes == [revision_id]
         owner_p = cast(CaseParticipant, dl.read(owner_p_id))
-        assert owner_p.accepted_embargo_ids == [active_id]
+        assert owner_p.is_signatory(active_id)
+        assert owner_p.consent_for(revision_id) is None
 
     @pytest.mark.spec("EMB-18-003")
     @pytest.mark.spec("EP-05-001")
@@ -243,7 +256,8 @@ class TestRecordParticipantAcceptanceNodeFailsClosed:
         assert untouched.active_embargo_id == active_id
         assert untouched.proposed_embargoes == [revision_id]
         owner_p = cast(CaseParticipant, dl.read(owner_p_id))
-        assert owner_p.accepted_embargo_ids == [active_id]
+        assert owner_p.is_signatory(active_id)
+        assert owner_p.consent_for(revision_id) is None
 
     @pytest.mark.spec("EMB-18-003")
     def test_unknown_accepted_embargo_fails_without_an_invariant_error(
@@ -270,4 +284,5 @@ class TestRecordParticipantAcceptanceNodeFailsClosed:
         assert untouched.active_embargo_id == active_id
         assert untouched.proposed_embargoes == [revision_id]
         owner_p = cast(CaseParticipant, dl.read(owner_p_id))
-        assert owner_p.accepted_embargo_ids == [active_id]
+        assert owner_p.is_signatory(active_id)
+        assert owner_p.consent_for(revision_id) is None

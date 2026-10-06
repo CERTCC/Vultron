@@ -46,7 +46,6 @@ from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import (
     DDimension,
     EmDimension,
-    PecDimension,
     PxaDimension,
     RmDimension,
     VfDimension,
@@ -54,7 +53,6 @@ from vultron.core.models.dimensions import (
 from vultron.core.models.participant_status import (
     ParticipantStatus,
     coerce_cvd_roles,
-    coerce_em_consent_state,
 )
 from vultron.core.states.cs import (
     CS_d,
@@ -191,28 +189,14 @@ class CreateParticipantStatusNode(
             participant_obj.add_participant_status(wire_status)
             dl.save(participant_obj)  # type: ignore[attr-defined]
 
-    def _build_participant_metadata(
-        self, participant_obj: object
-    ) -> "tuple[list, PecDimension | None]":
-        """Return (status_roles, consent_dim) derived from participant object."""
+    def _build_participant_roles(self, participant_obj: object) -> list:
+        """Return the status roles derived from the participant object."""
         participant_roles = (
             participant_obj.roles  # type: ignore[union-attr]
             if isinstance(participant_obj, CaseParticipant)
             else []
         )
-        status_roles = coerce_cvd_roles(participant_roles)
-        raw_consent = (
-            getattr(participant_obj, "embargo_consent_state", None)
-            if isinstance(participant_obj, CaseParticipant)
-            else None
-        )
-        em_consent_state = coerce_em_consent_state(raw_consent)
-        consent_dim = (
-            PecDimension(state=em_consent_state)
-            if em_consent_state is not None
-            else None
-        )
-        return status_roles, consent_dim
+        return coerce_cvd_roles(participant_roles)
 
     def _apply_ac1_promotions(
         self,
@@ -292,9 +276,7 @@ class CreateParticipantStatusNode(
                 pxa=PxaDimension(state=effective.pxa),
             )
 
-        status_roles, consent_dim = self._build_participant_metadata(
-            context.participant
-        )
+        status_roles = self._build_participant_roles(context.participant)
         return ParticipantStatus(
             context=case_id,
             attributed_to=self._actor_id,
@@ -315,7 +297,6 @@ class CreateParticipantStatusNode(
                 if effective.d is not None
                 else None
             ),
-            consent=consent_dim,
             cvd_role=status_roles,
             case_status=case_status,
             previous_rm_state=(

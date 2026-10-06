@@ -35,10 +35,13 @@ from vultron.core.models.case_participant import (
     FinderParticipant,
     VendorParticipant,
 )
+from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
@@ -78,7 +81,6 @@ def _make_case(
     owner_participant = VendorParticipant(
         attributed_to=owner_id,
         context=case.id_,
-        embargo_consent_state=PEC.UNBOUND,
     )
     owner_participant.add_role(CVDRole.CASE_MANAGER)
 
@@ -90,7 +92,6 @@ def _make_case(
         p = FinderParticipant(
             attributed_to=pid,
             context=case.id_,
-            embargo_consent_state=PEC.UNBOUND,
         )
         case.case_participants.append(p.id_)
         case.actor_participant_index[pid] = p.id_
@@ -139,34 +140,56 @@ def _record_save_many(
     return calls
 
 
-def _force_pec(dl: SqliteDataLayer, participant_id: str, state: PEC) -> None:
-    """Seed a PEC state directly — test setup only, never a consent write."""
-    participant = cast(CaseParticipant, dl.read(participant_id))
-    object.__setattr__(participant, "embargo_consent_state", state)
-    dl.save(participant)
-
-
-def _pec_of(dl: SqliteDataLayer, participant_id: str) -> str:
-    return cast(CaseParticipant, dl.read(participant_id)).embargo_consent_state
-
-
-def _accepted_ids_of(dl: SqliteDataLayer, participant_id: str) -> list[str]:
-    return list(
-        cast(CaseParticipant, dl.read(participant_id)).accepted_embargo_ids
+def _consent_of(
+    dl: SqliteDataLayer, participant_id: str, embargo_id: str
+) -> str | None:
+    """The stored consent row state for *embargo_id* (``None``: never asked)."""
+    state = cast(CaseParticipant, dl.read(participant_id)).consent_for(
+        embargo_id
     )
+    return state.value if state is not None else None
+
+
+def _consents_of(dl: SqliteDataLayer, participant_id: str) -> dict[str, str]:
+    """Every stored consent row of the participant, ``embargo_id -> state``."""
+    participant = cast(CaseParticipant, dl.read(participant_id))
+    return {r.embargo_id: r.state.value for r in participant.embargo_consents}
 
 
 def _seed_consent(
     dl: SqliteDataLayer,
     participant_id: str,
-    state: PEC,
-    accepted: list[str],
+    embargo_id: str,
+    state: EmbargoConsentState,
 ) -> None:
-    """Seed a participant's PEC state and accepted-embargo list together."""
-    _force_pec(dl, participant_id, state)
+    """Seed one consent row directly — test setup only, never a consent write."""
     participant = cast(CaseParticipant, dl.read(participant_id))
-    participant.accepted_embargo_ids = list(accepted)
+    rows = [
+        r for r in participant.embargo_consents if r.embargo_id != embargo_id
+    ]
+    participant.embargo_consents = [
+        *rows,
+        EmbargoConsent(embargo_id=embargo_id, state=state),
+    ]
     dl.save(participant)
+
+
+def _is_signatory(
+    dl: SqliteDataLayer, case_id: str, participant_id: str
+) -> bool:
+    """Derived: the participant accepted the case's active embargo."""
+    case = cast(VulnerabilityCase, dl.read(case_id))
+    participant = cast(CaseParticipant, dl.read(participant_id))
+    return participant.is_signatory(case.active_embargo_id)
+
+
+def _has_lapsed(
+    dl: SqliteDataLayer, case_id: str, participant_id: str
+) -> bool:
+    """Derived: the participant accepted an older embargo, not the active one."""
+    case = cast(VulnerabilityCase, dl.read(case_id))
+    participant = cast(CaseParticipant, dl.read(participant_id))
+    return participant.has_lapsed(case.active_embargo_id)
 
 
 #: An embargo id no store in these tests ever holds (EMB-18-003).
@@ -197,7 +220,7 @@ def _case_awaiting_activation(
     case.proposed_embargoes = [activated_id]
     dl.save(case)
     if active_id is not None:
-        _seed_consent(dl, owner_p.id_, PEC.SIGNATORY, [active_id])
+        _seed_consent(dl, owner_p.id_, active_id, EmbargoConsentState.ACCEPTED)
     return case, owner_p, active_id
 
 
@@ -215,10 +238,8 @@ def _assert_activation_wrote_nothing(
     assert untouched.active_embargo_id == active_id
     assert untouched.proposed_embargoes == [activated_id]
     owner = cast(CaseParticipant, dl.read(owner_p.id_))
-    expected_pec = PEC.UNBOUND if active_id is None else PEC.SIGNATORY
-    assert owner.embargo_consent_state == expected_pec.value
-    assert owner.accepted_embargo_ids == (
-        [] if active_id is None else [active_id]
+    assert {r.embargo_id: r.state.value for r in owner.embargo_consents} == (
+        {} if active_id is None else {active_id: "ACCEPTED"}
     )
 
 

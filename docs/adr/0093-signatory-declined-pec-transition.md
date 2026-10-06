@@ -5,6 +5,7 @@ created: 2026-09-29
 updated: 2026-09-29
 revision: 1
 deciders: [adh, Claude Sonnet 4.6, Claude Fable 5.1]
+partially_superseded_by: docs/adr/0122-per-embargo-participant-consent.md
 stakeholder_type: [project-contributor]
 ---
 

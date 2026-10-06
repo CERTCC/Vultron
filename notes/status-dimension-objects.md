@@ -82,7 +82,7 @@ pxa: PxaDimension = Field(default_factory=PxaDimension)
 rm: RmDimension = Field(default_factory=RmDimension)
 vf: VfDimension | None = None   # non-None for VENDOR participants
 d: DDimension | None = None     # non-None for DEPLOYER participants
-consent: PecDimension | None = None
+# No consent field: participant embargo consent is per-embargo rows on CaseParticipant (ADR-0122)
 ```
 
 ---
@@ -97,7 +97,7 @@ consent: PecDimension | None = None
 | `VfDimension` | `CS_vf` | `ParticipantStatus.vf` (VENDOR participants; ADR-0075) |
 | `DDimension` | `CS_d` | `ParticipantStatus.d` (DEPLOYER participants; ADR-0075) |
 | `VfdDimension` | `CS_vfd` | retained in `vultron/bt/` legacy only; use `VfDimension`/`DDimension` in new code |
-| `PecDimension` | `PEC` | `ParticipantStatus.em_consent_state` |
+| ~~`PecDimension`~~ | — | removed by ADR-0122; consent is per-embargo rows on `CaseParticipant` |
 
 The `*Dimension` suffix was chosen to avoid collision with the existing
 `VfdState` and `PxaState` NamedTuples in `vultron/core/states/cs.py`.

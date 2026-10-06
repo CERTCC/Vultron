@@ -63,8 +63,11 @@ def _seed_case_with_manager(dl: SqliteDataLayer) -> None:
     """Seed a case whose CASE_MANAGER is *_MANAGER_ID*, plus two participants."""
     from vultron.core.models.case import VulnerabilityCase
     from vultron.core.models.case_participant import CaseParticipant
+    from vultron.core.models.embargo_consent import EmbargoConsent
     from vultron.core.models.embargo_event import EmbargoEvent
-    from vultron.core.states.participant_embargo_consent import PEC
+    from vultron.core.states.participant_embargo_consent import (
+        EmbargoConsentState,
+    )
     from vultron.enums.roles import CVDRole
 
     parts = []
@@ -80,7 +83,11 @@ def _seed_case_with_manager(dl: SqliteDataLayer) -> None:
             attributed_to=actor_id,
             context=CASE_ID,
             case_roles=roles,
-            embargo_consent_state=PEC.SIGNATORY,
+            embargo_consents=[
+                EmbargoConsent(
+                    embargo_id=_EMBARGO_ID, state=EmbargoConsentState.ACCEPTED
+                )
+            ],
         )
         dl.create(p)
         parts.append(p)

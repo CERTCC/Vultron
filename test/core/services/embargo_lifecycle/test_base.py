@@ -24,22 +24,25 @@ import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
 )
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState as ECS,
+)
 from vultron.errors import VultronInvalidStateTransitionError
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
 from .conftest import (
     _PXA_INELIGIBLE_STATES,
+    _consent_of,
     _make_actor,
     _make_case,
     _make_embargo,
+    _seed_consent,
 )
 
 
@@ -118,10 +121,8 @@ def test_accept_embargo_invite_strict_raises_when_pxa_set(
     dl.save(case)
     embargo = _make_embargo(dl, case.id_)
 
-    # Seed owner to INVITED so the PEC transition would be valid
-    owner_p = cast(CaseParticipant, dl.read(participants[0].id_))
-    object.__setattr__(owner_p, "embargo_consent_state", PEC.INVITED)
-    dl.save(owner_p)
+    # Seed owner's row to INVITED so the consent transition would be valid
+    _seed_consent(dl, participants[0].id_, embargo.id_, ECS.INVITED)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
     with pytest.raises(VultronInvalidStateTransitionError):
@@ -140,9 +141,7 @@ def test_accept_embargo_invite_strict_allowed_when_pxa_clear(
     case, participants = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
     embargo = _make_embargo(dl, case.id_)
 
-    owner_p = cast(CaseParticipant, dl.read(participants[0].id_))
-    object.__setattr__(owner_p, "embargo_consent_state", PEC.INVITED)
-    dl.save(owner_p)
+    _seed_consent(dl, participants[0].id_, embargo.id_, ECS.INVITED)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
     result = lifecycle.accept_embargo_invite(
@@ -182,7 +181,7 @@ def test_accept_embargo_invite_strict_non_owner_pxa_set_does_not_raise(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
     pxa_state: CS_pxa,
 ) -> None:
-    """Non-owner STRICT accept with P/X/A set still records PEC (no guard)."""
+    """Non-owner STRICT accept with P/X/A set still records consent (no guard)."""
     owner, dl = owner_and_dl
     finder = _make_actor(dl, "Finder Org")
     case, _ = _make_case(
@@ -194,9 +193,7 @@ def test_accept_embargo_invite_strict_non_owner_pxa_set_does_not_raise(
 
     finder_participant_id = case.actor_participant_index.get(finder.id_)
     assert finder_participant_id is not None
-    finder_p = cast(CaseParticipant, dl.read(finder_participant_id))
-    object.__setattr__(finder_p, "embargo_consent_state", PEC.INVITED)
-    dl.save(finder_p)
+    _seed_consent(dl, finder_participant_id, embargo.id_, ECS.INVITED)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
     # Non-owner: does NOT drive EM state, guard must NOT raise (EMB-02-002)
@@ -207,8 +204,7 @@ def test_accept_embargo_invite_strict_non_owner_pxa_set_does_not_raise(
     )
 
     assert result.em_after == EM.PROPOSED  # EM unchanged
-    refreshed = cast(CaseParticipant, dl.read(finder_participant_id))
-    assert refreshed.embargo_consent_state == PEC.SIGNATORY.value
+    assert _consent_of(dl, finder_participant_id, embargo.id_) == "ACCEPTED"
 
 
 # ---------------------------------------------------------------------------

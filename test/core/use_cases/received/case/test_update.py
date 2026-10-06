@@ -29,8 +29,11 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.use_case_result import HandlerDisposition
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.core.use_cases.received.case.update import (
     UpdateCaseReceivedUseCase,
 )
@@ -253,7 +256,7 @@ class TestCaseUseCases:
     def test_update_case_reports_participant_not_signatory_to_embargo(
         self, monkeypatch, caplog, make_payload
     ):
-        """update_case reports a participant not SIGNATORY to the active embargo as inert (CM-10-004)."""
+        """update_case reports a participant not a signatory to the active embargo as inert (CM-10-004)."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id=RECEIVER_ID,
@@ -271,7 +274,6 @@ class TestCaseUseCases:
             id_="https://example.org/participants/p1",
             attributed_to=actor_id,
             context="https://example.org/cases/uc4",
-            accepted_embargo_ids=[],
         )
         dl.create(participant)
 
@@ -307,7 +309,7 @@ class TestCaseUseCases:
     def test_update_case_logs_no_withholding_when_all_participants_accepted_embargo(
         self, monkeypatch, caplog, make_payload
     ):
-        """update_case reports nobody inert when every participant is SIGNATORY (CM-10-004)."""
+        """update_case reports nobody inert when every participant is a signatory (CM-10-004)."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id=RECEIVER_ID,
@@ -325,8 +327,11 @@ class TestCaseUseCases:
             id_="https://example.org/participants/p2",
             attributed_to=actor_id,
             context="https://example.org/cases/uc5",
-            accepted_embargo_ids=[embargo.id_],
-            embargo_consent_state=PEC.SIGNATORY,
+            embargo_consents=[
+                EmbargoConsent(
+                    embargo_id=embargo.id_, state=EmbargoConsentState.ACCEPTED
+                )
+            ],
         )
         dl.create(participant)
 
@@ -369,7 +374,6 @@ class TestCaseUseCases:
             id_="https://example.org/participants/p3",
             attributed_to=actor_id,
             context="https://example.org/cases/uc6",
-            accepted_embargo_ids=[],
         )
         dl.create(participant)
 
@@ -404,12 +408,12 @@ class TestCaseUseCases:
     def test_update_case_withholds_from_inert_participant(
         self, make_payload, inert
     ):
-        """An inert roster entry gets no case update; a SIGNATORY does.
+        """An inert roster entry gets no case update; a signatory does.
 
         Entitlement is read from the record (CM-10-004).  An entry pointing at
         some other object cannot show the actor is active, so the shared
         selection leaves it out rather than leaking content (CM-10-007); a
-        record that is not SIGNATORY to the active embargo, or that never
+        record that is not a signatory to the active embargo, or that never
         joined, is inert (ADR-0114).
         """
         dl = SqliteDataLayer(
@@ -455,9 +459,16 @@ class TestCaseUseCases:
                 case,
                 actor_id,
                 f"{case_id}/participants/alice",
-                embargo_consent_state=(
-                    PEC.INVITED if inert == "not-signatory" else PEC.SIGNATORY
-                ),
+                embargo_consents=[
+                    EmbargoConsent(
+                        embargo_id=embargo.id_,
+                        state=(
+                            EmbargoConsentState.INVITED
+                            if inert == "not-signatory"
+                            else EmbargoConsentState.ACCEPTED
+                        ),
+                    )
+                ],
                 joined=inert != "not-joined",
             )
         signatory = "https://example.org/users/dave"
@@ -466,7 +477,11 @@ class TestCaseUseCases:
             case,
             signatory,
             f"{case_id}/participants/dave",
-            embargo_consent_state=PEC.SIGNATORY,
+            embargo_consents=[
+                EmbargoConsent(
+                    embargo_id=embargo.id_, state=EmbargoConsentState.ACCEPTED
+                )
+            ],
         )
         _make_receiver_the_case_manager(dl, case)
         dl.create(case)

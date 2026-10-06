@@ -1,38 +1,37 @@
 #!/usr/bin/env python
-"""Participant Embargo Consent (PEC) state machine.
+"""Participant Embargo Consent (PEC): one consent row per (participant, embargo).
 
-Tracks each case participant's consent status with respect to an active or
-proposed embargo.  The seven-state machine is independent of the shared case-
-level EM machine: the shared EM machine describes the coordinator's view of
-the embargo lifecycle; PEC describes each individual participant's position.
+A participant's consent is not one scalar answering "am I bound?"; it is a
+separate answer to each embargo it was asked about (ADR-0122, CM-18).  Each
+row — a :class:`~vultron.core.models.embargo_consent.EmbargoConsent` — holds
+one of the four states below, and this module owns the transitions between
+them.  Whether a participant is *bound* is a lookup of the row for the case's
+active embargo; whether it has *lapsed* is derived from the rows and the
+active embargo.  Neither is stored.
 
 States
 ------
-UNBOUND        – Initial.  This participant is not bound by any embargo terms.
-INVITED        – Participant has been invited but has not yet responded.
-SIGNATORY      – Participant has accepted the current embargo terms.
-LAPSED         – Was SIGNATORY; the owner activated longer terms this
-                 participant has not accepted (ADR-0093).
-DECLINED       – Participant explicitly refused (a Reject of the Invite, or a
-                 consent withdrawal).
-EXPIRED        – Participant was invited and the RSVP deadline passed with no
-                 answer (ADR-0118).  Not a refusal.
-UNBOUND_EXITED – Terminal.  The embargo terminated (EM EXITED); nothing leaves
-                 this state (ADR-0118).
+INVITED  – Asked about this embargo; no answer yet.
+ACCEPTED – Accepted this embargo, explicitly or by containment (EP-05-001).
+DECLINED – Explicitly refused this embargo, or withdrew from it (ADR-0093).
+EXPIRED  – Invited, and the RSVP deadline passed with no answer (ADR-0118).
+           Not a refusal.
 
-Transitions
------------
-INVITE  : UNBOUND | LAPSED | DECLINED | EXPIRED → INVITED
-ACCEPT  : UNBOUND | INVITED | LAPSED | EXPIRED → SIGNATORY
-DECLINE : UNBOUND | INVITED | LAPSED | SIGNATORY | EXPIRED → DECLINED
-REVISE  : SIGNATORY → LAPSED
+A participant with no row for an embargo has not been asked about it.
+
+Transitions (``None`` is "no row yet")
+--------------------------------------
+INVITE  : None | DECLINED | EXPIRED → INVITED
+ACCEPT  : None | INVITED | EXPIRED → ACCEPTED
+DECLINE : None | INVITED | ACCEPTED | EXPIRED → DECLINED
 EXPIRE  : INVITED → EXPIRED  (RSVP deadline passed, CM-28-014)
-EXIT    : every state except UNBOUND_EXITED → UNBOUND_EXITED
-          (embargo terminated, MSM-07-006)
 
-``UNBOUND`` means *not bound by any embargo terms* (ADR-0048, ADR-0091).
-``ACCEPT`` and ``DECLINE`` are therefore valid directly from ``UNBOUND``
-for self-determined embargoes and implicit-consent cases (CM-14-005).
+``ACCEPTED`` refuses ``INVITE`` and ``DECLINED`` refuses ``ACCEPT``: a
+participant that declined is re-invited first (``DECLINED → INVITED``), never
+flipped silently.  ``ACCEPT`` and ``DECLINE`` are valid directly from no row for
+self-determined embargoes and implicit-consent cases (ADR-0048, CM-14-005).
+Whether repeating a trigger is idempotent is the caller's decision (CM-13-005):
+:func:`consent_trigger_is_legal` says whether it moves.
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -50,103 +49,75 @@ for self-determined embargoes and implicit-consent cases (CM-14-005).
 
 from enum import StrEnum, auto
 
-from transitions import Machine
-
-from vultron.core.states.common import TransitionBase, mermaid_machine
+from vultron.errors import VultronInvalidStateTransitionError
 
 
-class PEC(StrEnum):
-    """Participant Embargo Consent states."""
+class EmbargoConsentState(StrEnum):
+    """State of one participant's consent to one embargo."""
 
-    UNBOUND = "UNBOUND"
     INVITED = "INVITED"
-    SIGNATORY = "SIGNATORY"
+    ACCEPTED = "ACCEPTED"
     DECLINED = "DECLINED"
-    LAPSED = "LAPSED"
     EXPIRED = "EXPIRED"
-    UNBOUND_EXITED = "UNBOUND_EXITED"
 
 
 class PEC_Trigger(StrEnum):
-    """Triggers for the Participant Embargo Consent state machine."""
+    """Triggers for a participant's consent row."""
 
-    # auto() produces lowercase names when stringified, matching transitions lib convention.
+    # auto() produces lowercase names when stringified.
     INVITE = auto()
     ACCEPT = auto()
     DECLINE = auto()
-    REVISE = auto()
     EXPIRE = auto()
-    EXIT = auto()
 
 
-class PECTransition(TransitionBase):
-    trigger: PEC_Trigger
-    source: PEC
-    dest: PEC
+_S = EmbargoConsentState
+_T = PEC_Trigger
+
+#: ``trigger → {source → destination}``; a ``None`` source is "no row yet".
+_TRANSITIONS: dict[
+    PEC_Trigger, dict[EmbargoConsentState | None, EmbargoConsentState]
+] = {
+    _T.INVITE: {
+        None: _S.INVITED,
+        _S.DECLINED: _S.INVITED,
+        _S.EXPIRED: _S.INVITED,
+    },
+    _T.ACCEPT: {
+        None: _S.ACCEPTED,
+        _S.INVITED: _S.ACCEPTED,
+        _S.EXPIRED: _S.ACCEPTED,
+    },
+    _T.DECLINE: {
+        None: _S.DECLINED,
+        _S.INVITED: _S.DECLINED,
+        _S.ACCEPTED: _S.DECLINED,
+        _S.EXPIRED: _S.DECLINED,
+    },
+    _T.EXPIRE: {_S.INVITED: _S.EXPIRED},
+}
 
 
-#: The one terminal state: no transition leaves it (ADR-0118).
-PEC_TERMINAL_STATES: frozenset[PEC] = frozenset({PEC.UNBOUND_EXITED})
+def consent_trigger_is_legal(
+    current: EmbargoConsentState | None, trigger: PEC_Trigger
+) -> bool:
+    """True when *trigger* moves a row at *current* (CM-18-003)."""
+    return current in _TRANSITIONS[trigger]
 
 
-def _pec(trigger: PEC_Trigger, source: PEC, dest: PEC) -> dict:
-    return PECTransition(
-        trigger=trigger, source=source, dest=dest
-    ).model_dump()
+def consent_after(
+    current: EmbargoConsentState | None, trigger: PEC_Trigger
+) -> EmbargoConsentState:
+    """The state *trigger* leaves a row in, starting from *current*.
 
-
-_transitions: list[dict] = [
-    # INVITE transitions; EXPIRED is re-invitable like DECLINED (EMB-17-003)
-    *(
-        _pec(PEC_Trigger.INVITE, source, PEC.INVITED)
-        for source in (PEC.UNBOUND, PEC.LAPSED, PEC.DECLINED, PEC.EXPIRED)
-    ),
-    # ACCEPT transitions (ADR-0048: UNBOUND is absence-of-embargo, not
-    # pre-consent; ADR-0118: a late Accept the CASE_MANAGER honours moves an
-    # EXPIRED participant straight to SIGNATORY, EMB-17-002)
-    *(
-        _pec(PEC_Trigger.ACCEPT, source, PEC.SIGNATORY)
-        for source in (PEC.UNBOUND, PEC.INVITED, PEC.LAPSED, PEC.EXPIRED)
-    ),
-    # DECLINE transitions (ADR-0048: symmetric with ACCEPT from UNBOUND;
-    # ADR-0093: SIGNATORY → DECLINED is consent withdrawal, not a lapse;
-    # ADR-0118: a late explicit Reject records DECLINED over EXPIRED)
-    *(
-        _pec(PEC_Trigger.DECLINE, source, PEC.DECLINED)
-        for source in (
-            PEC.UNBOUND,
-            PEC.INVITED,
-            PEC.LAPSED,
-            PEC.SIGNATORY,
-            PEC.EXPIRED,
-        )
-    ),
-    # REVISE: an active signatory lapses when the owner activates longer terms
-    _pec(PEC_Trigger.REVISE, PEC.SIGNATORY, PEC.LAPSED),
-    # EXPIRE: the RSVP deadline passed with no answer — not a refusal
-    # (ADR-0118, CM-28-014).  DECLINE is never the timer path.
-    _pec(PEC_Trigger.EXPIRE, PEC.INVITED, PEC.EXPIRED),
-    # EXIT: the embargo terminated (EM EXITED) — every non-terminal state
-    # moves to the terminal UNBOUND_EXITED, and nothing leaves it (ADR-0118)
-    *(
-        _pec(PEC_Trigger.EXIT, source, PEC.UNBOUND_EXITED)
-        for source in PEC
-        if source not in PEC_TERMINAL_STATES
-    ),
-]
-
-
-def create_pec_machine() -> Machine:
-    """Create a new Participant Embargo Consent state machine instance."""
-    return Machine(
-        states=PEC,
-        transitions=_transitions,
-        initial=PEC.UNBOUND,
-        auto_transitions=False,
-        name="PEC FSM",
-    )
-
-
-if __name__ == "__main__":
-    M = create_pec_machine()
-    print(mermaid_machine(M))
+    Raises:
+        VultronInvalidStateTransitionError: *trigger* is not legal from
+            *current* (CM-18-003, CM-18-009).
+    """
+    try:
+        return _TRANSITIONS[trigger][current]
+    except KeyError:
+        raise VultronInvalidStateTransitionError(
+            f"PEC: consent {current if current else 'with no row'} does not"
+            f" accept trigger '{trigger}'."
+        ) from None

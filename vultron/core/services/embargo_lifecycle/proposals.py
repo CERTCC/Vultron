@@ -31,7 +31,7 @@ from vultron.core.services.embargo_lifecycle.pec_activation import (
 )
 from vultron.core.services.embargo_lifecycle.results import (
     EmbargoLifecycleResult,
-    ParticipantPECChange,
+    ParticipantConsentChange,
     TransitionMode,
 )
 from vultron.core.states.em import EM, EM_Trigger
@@ -86,14 +86,14 @@ class _ProposalOperationsMixin(_PecActivationMixin):
             - ``ACTIVE → REVISE``        (revision proposal)
             - ``REVISE → REVISE``        (counter-revision / idempotent)
 
-        A proposal changes **no participant's consent state** (EP-05-002,
-        ADR-0093): while a revision is merely proposed the prior embargo is
-        still in force and every signatory to it remains ``SIGNATORY``.
-        Consent is re-evaluated only when the owner activates the revision
-        (``accept_embargo_invite`` / ``activate_embargo``, EP-05-001).
+        A proposal changes **no one's consent to the embargo in force**
+        (EP-05-002, ADR-0093): while a revision is merely proposed the prior
+        embargo is still in force and every signatory to it stays one.
+        Carry-over to a shorter revision happens only when the owner activates
+        it (``accept_embargo_invite`` / ``activate_embargo``, EP-05-001).
         Proposing terms is consenting to them, so when *actor_id* is a
-        participant of the case the proposed id is recorded in its
-        ``accepted_embargo_ids`` — list only, no state change (MSM-07-005).
+        participant of the case its row for the proposed embargo is marked
+        ``ACCEPTED`` (MSM-07-005).
 
         The ``EmbargoEvent`` identified by *embargo_id* MUST already exist in
         the DataLayer before this method is called; the caller is responsible
@@ -191,7 +191,6 @@ class _ProposalOperationsMixin(_PecActivationMixin):
             em_after=em_after,
             case_changed=case_mutated,
             case_embargo_changed=False,
-            pec_exited=False,
             participant_changes=[],
         )
 
@@ -290,7 +289,6 @@ class _ProposalOperationsMixin(_PecActivationMixin):
             em_after=em_after,
             case_changed=case_mutated,
             case_embargo_changed=False,
-            pec_exited=False,
             participant_changes=[],
         )
 
@@ -299,15 +297,14 @@ class _ProposalOperationsMixin(_PecActivationMixin):
         case: VulnerabilityCase,
         actor_id: str | None,
         embargo_id: str,
-    ) -> list[ParticipantPECChange]:
+    ) -> list[ParticipantConsentChange]:
         """Record that proposing *embargo_id* is *actor_id*'s consent to it.
 
-        The proposer's list gains the id with no state change (ADR-0093).  A
-        proposer with no participant record (the case-creation default, for
+        The proposer's row for *embargo_id* is marked ``ACCEPTED`` — only that
+        row, so its consent to the embargo in force is untouched (ADR-0093).
+        A proposer with no participant record (the case-creation default, for
         one) has no consent to record.
         """
         if actor_id is None or actor_id not in case.actor_participant_index:
             return []
-        return self._record_actor_pec_acceptance(
-            case, actor_id, embargo_id, advance=False
-        )
+        return self._record_actor_acceptance(case, actor_id, embargo_id)

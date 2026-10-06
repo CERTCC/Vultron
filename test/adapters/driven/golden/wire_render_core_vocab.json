@@ -25,9 +25,8 @@
   },
   "CaseParticipant": {
     "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
-    "acceptedEmbargoIds": [],
     "caseRoles": [],
-    "embargoConsentState": "UNBOUND",
+    "embargoConsents": [],
     "id": "urn:test:caseparticipant:golden",
     "joined": true,
     "participantStatuses": [
@@ -38,8 +37,6 @@
         "cvdRole": [
           "OBSERVER"
         ],
-        "emConsentState": "UNBOUND",
-        "embargoAdherence": false,
         "id": "urn:uuid:<minted>",
         "name": "START",
         "published": "<clock>",
@@ -99,7 +96,6 @@
     "cvdRole": [
       "OBSERVER"
     ],
-    "embargoAdherence": false,
     "id": "urn:test:participantstatus:golden",
     "name": "START",
     "published": "2026-01-02T03:04:05+00:00",
