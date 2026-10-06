@@ -238,6 +238,9 @@ Even when it does hold an entry, the replica still sends
 reordering; it cannot solve loss. If the missing entry was never delivered at
 all, the reject is what prompts the CASE_MANAGER to send it again.
 
+The CASE_MANAGER also does not replay for just anyone.
+It acts on a `Reject(CaseLedgerEntry)` only from an active participant in the case, and reports `REFUSED` to any other sender ([SYNC-03-005](../../reference/specs/protocol.md#sync-03-005)).
+
 The CASE_MANAGER does not replay on demand without limit. If a peer keeps
 rejecting from the same position, the CASE_MANAGER waits out a short cooldown
 before replaying to it again

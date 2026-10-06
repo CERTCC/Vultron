@@ -79,7 +79,7 @@ print(json2md(announce_case_ledger_entry()))
 - **Triggering transition:** triggered by hash-chain mismatch detection —
   not a protocol shorthand.
 - **Wire activity:** `Reject(CaseLedgerEntry)`.
-- **Spec:** SYNC-03-001, SYNC-03-002.
+- **Spec:** SYNC-03-001, SYNC-03-002, SYNC-03-005.
 - **Pattern:** `RejectLogEntryPattern` in
   `vultron/wire/as2/extractor/_instances.py`.
 - **Factory:** `reject_log_entry_activity` in
@@ -95,6 +95,10 @@ print(json2md(reject_case_ledger_entry()))
 Buffering takes priority over rejection (ADR-0037). A `Reject` is sent only for an
 entry genuinely missing from the chain, never for one that is merely out of order,
 so an out-of-order delivery does not start a reject-and-replay cycle.
+
+The CASE_MANAGER acts on a `Reject(CaseLedgerEntry)` only when its sender is an active participant in the case (SYNC-03-005, CM-10-004).
+From any other sender it reports `REFUSED`, records no replication state, and replays no entry and announces no case to that sender.
+The check runs before any write, so a stranger cannot obtain case content by sending a `Reject` with an empty last-accepted hash.
 
 ---
 

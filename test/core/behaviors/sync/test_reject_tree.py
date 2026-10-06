@@ -132,7 +132,7 @@ def _make_event(
 def test_create_reject_log_entry_tree_returns_sequence():
     tree = create_reject_log_entry_tree()
     assert tree.name == "RejectLogEntryReceivedBT"
-    assert len(tree.children) == 4
+    assert len(tree.children) == 5
 
 
 @pytest.mark.spec("SYNC-03-001")
@@ -503,3 +503,81 @@ def test_reject_at_tail_then_growth_replays_the_new_suffix(
     )
     assert result.status == Status.SUCCESS
     assert sync_port.send_announce_log_entry.call_count == 3
+
+
+def _sender_refused(datalayer, event) -> Status:
+    """Run the reject tree for *event* and assert nothing was written or sent."""
+    sync_port = MagicMock(spec=SyncActivityPort)
+    trigger_activity = MagicMock()
+    result = BTBridge(
+        datalayer=datalayer,
+        sync_port=sync_port,
+        trigger_activity=trigger_activity,
+    ).execute_with_setup(
+        tree=create_reject_log_entry_tree(),
+        actor_id=OWNER_ACTOR_ID,
+        activity=event,
+        sync_port=sync_port,
+        trigger_activity=trigger_activity,
+    )
+    if event.actor_id:  # a blank sender cannot even name a state record
+        state_id = VultronReplicationState(
+            case_id=CASE_ID, peer_id=event.actor_id
+        ).id_
+        assert datalayer.read(state_id) is None
+    sync_port.send_announce_log_entry.assert_not_called()
+    trigger_activity.announce_vulnerability_case.assert_not_called()
+    return result.status
+
+
+@pytest.mark.spec("SYNC-03-005")
+def test_reject_from_stranger_halts_before_any_write(
+    datalayer, case_manager_case
+):
+    """A sender absent from the roster leaves no state and gets nothing."""
+    entry = _make_entry(0)
+    datalayer.save(entry)
+    stranger = "https://example.org/actors/stranger"
+    wire_entry = WireCaseLedgerEntry.model_validate(
+        entry.model_dump(mode="json")
+    )
+    event = cast(
+        RejectLogEntryReceivedEvent,
+        extract_event(
+            reject_log_entry_activity(
+                entry=wire_entry,
+                context="",
+                actor=stranger,
+                to=[OWNER_ACTOR_ID],
+            )
+        ),
+    )
+
+    assert _sender_refused(datalayer, event) == Status.FAILURE
+
+
+@pytest.mark.spec("SYNC-03-005")
+def test_reject_from_rostered_but_not_joined_participant_halts(
+    datalayer, case_manager_case
+):
+    """A roster entry that has not joined is inert: nothing is replayed to it."""
+    entry = _make_entry(0)
+    datalayer.save(entry)
+    peer = datalayer.read(case_manager_case.actor_participant_index[PEER_ID])
+    peer.joined = False
+    datalayer.save(peer)
+    event = _make_event(entry, tail_hash="")
+
+    assert _sender_refused(datalayer, event) == Status.FAILURE
+
+
+@pytest.mark.spec("SYNC-03-005")
+def test_reject_without_sender_halts(datalayer, case_manager_case):
+    """An event with no actor_id cannot be vouched for, so it is refused."""
+    entry = _make_entry(0)
+    datalayer.save(entry)
+    event = _make_event(entry, tail_hash="").model_copy(
+        update={"actor_id": ""}
+    )
+
+    assert _sender_refused(datalayer, event) == Status.FAILURE
