@@ -132,7 +132,7 @@ def resolve_proposer_id(
 
 class InviteToEmbargoOnCaseReceivedUseCase:
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4074", "no sender check for embargo invite"
+        "#4256", "no sender check for embargo invite"
     )
 
     def __init__(

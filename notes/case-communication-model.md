@@ -238,12 +238,12 @@ Adding a new participant to an active case uses `RmInviteToCaseActivity` /
 participant record, but the record is **inert** — it receives no case content
 (CM-10-004) — so the standard CASE_MANAGER → broadcast model cannot deliver the
 invite. The CASE_MANAGER MUST still be the authoritative actor in the exchange.
-The join model is ADR-0114 and ADR-0121; the full flow is in
+The join model is ADR-0114 and ADR-0070; the full flow is in
 [case-joining.md](case-joining.md).
 
 ### Correct Flow
 
-This is the target model (CM-11, ADR-0114, ADR-0121). The code still creates
+This is the target model (CM-11, ADR-0114, ADR-0070). The code still creates
 the participant on `Accept(Invite)`; the implementation issues spawned from
 issue #4006 move it.
 
@@ -341,8 +341,8 @@ add_activity_to_outbox(actor_id, activity_id, dl)   # ← dl *is* the manager's 
 
 A case always has a `CVDRole.CASE_MANAGER` participant (CM-24-006), so there is
 no un-delegated path: a resolver that finds no holder fails rather than sending
-directly. The retired CM-24-003 fallback (`actor` = requester, `attributed_to = None`)
-is retired; #3964 removes it from `_prepare_delegated_context()`.
+directly. The CM-24-003 fallback (`actor` = requester, `attributed_to = None`)
+is retired; the shared helper `delegated_authorship()` has no such arm.
 
 ---
 
@@ -447,9 +447,8 @@ CASE_MANAGER".
 
 **There is no "no CASE_MANAGER" arm.** Both case-creation paths register a
 holder at birth and delegation hands the role on, so the resolver finding nobody
-means a corrupt roster, not a topology. The retired CM-24-003 "send
-directly" fallback is superseded by CM-24-006; a resolver that finds no
-holder fails.
+means a corrupt roster, not a topology. CM-24-003's "send directly" fallback is
+superseded by CM-24-006; a resolver that finds no holder fails.
 
 ---
 
@@ -465,7 +464,7 @@ Requesting actor calls trigger: <trigger-name>
   → Trigger use case _prepare():
       self._actor_id     = case_actor_id      ← CASE_MANAGER sends (CM-24-001)
       self._attributed_to = requesting_actor_id  ← attribution preserved (CM-24-002)
-      # No holder found: raise (CM-24-006) — the retired CM-24-003 "send directly"
+      # No holder found: raise (CM-24-006) — the CM-24-003 "send directly"
       #                   fallback is retired (#3964)
   → BT runs under the CASE_MANAGER's identity → activity queued in its outbox (CM-24-004)
 
@@ -476,16 +475,23 @@ Recipient receives Activity:
 
 ### Reference Implementation
 
-Use `_prepare_delegated_context()` (`triggers/_helpers.py`) as the canonical
-implementation.  All delegated-emit trigger use cases MUST call this helper
-(CM-24-005):
+Use `delegated_authorship()` (`vultron/core/behaviors/delegated_authorship.py`)
+as the canonical implementation.  Every delegated emit, trigger-side or
+received-side, MUST call it (CM-24-005).  The caller names both identities; the
+helper looks nothing up:
 
 ```python
 # Delegated-message contract (CM-24-001, CM-24-002, CM-24-006)
-self._actor_id, self._attributed_to = _prepare_delegated_context(
-    self._dl, self._case.id_, requesting_actor_id
+authorship = delegated_authorship(
+    doing_actor_id=case_manager_id,       # the CASE_MANAGER executing the emit
+    requesting_actor_id=requesting_actor_id,  # whoever asked
 )
+# authorship.actor -> Activity.actor; authorship.attributed_to -> attributedTo
 ```
+
+A trigger use case resolves the CASE_MANAGER with `resolve_case_manager_id()`
+and fails when there is none (CM-24-006); a received-side node passes
+`self.actor_id`, which the role gate makes the CASE_MANAGER.
 
 **The delegated emit runs where the CASE_MANAGER is hosted** (CM-24-004,
 ADR-0109).  A container emits only as actors it hosts, so a trigger on a
@@ -513,23 +519,21 @@ does, that trigger still runs the delegated emit locally.
 
 ### Shared-Helper Requirement (CM-24-005)
 
-All delegated-message trigger use cases MUST use a shared helper to enforce
-the pattern.  No callsite may independently reconstruct `actor/attributed_to`
-assignment.  See `specs/case-management.yaml` CM-24-005 for the normative
-requirement.
+All delegated emits MUST use the shared helper to enforce the pattern.  No
+callsite may independently reconstruct `actor/attributed_to` assignment.  See
+`specs/case-management.yaml` CM-24-005 for the normative requirement.
+`test/architecture/test_delegated_attribution_uses_helper.py` fails when a core
+function passes a delegated `attributed_to` to a trigger-activity factory
+without calling the helper.
 
-The one *received*-side delegated emit, the embargo relay
-(`RelayEmbargoInviteToEachNode`, #3913), does not call
-`_prepare_delegated_context()`: that is a trigger use-case helper a BT node
-may not import (BTND-04-003), and its "no CASE_MANAGER, send directly" arm is
-what ADR-0113 retires (#3964).  The node holds the CM-24-001/002 invariants
-structurally instead — it runs only under `create_case_manager_gated_tree`, so
-`actor` is the role holder by construction, and `attributed_to` is the proposer
-the manager adjudicated (`resolve_proposer_id()`, which honours an inbound
-`attributedTo` only when the Invite's `actor` is itself the CASE_MANAGER, so a
-participant cannot name a third party as proposer).  A second received-side
-delegated emit should extract a shared received-side helper rather than repeat
-this reasoning.
+The received-side delegated emits (`RelayEmbargoInviteToEachNode` and its
+creation-time subclass, `EmitInviteActorToCaseNode`,
+`ForwardOfferToTransfereeNode`) call the same helper, which lives under
+`core/behaviors/` so BT nodes may import it (BTND-04-003).  For the embargo
+relay the asking actor is the proposer the manager adjudicated
+(`resolve_proposer_id()`, which honours an inbound `attributedTo` only when the
+Invite's `actor` is itself the CASE_MANAGER, so a participant cannot name a
+third party as proposer).
 
 ---
 
@@ -561,7 +565,7 @@ BTBridge(datalayer=dl).execute_with_setup(
 ```
 
 A reply to the full-case Invite is the participant's judgement of the case
-(RV/RI/RC, CM-11-011; ADR-0121). The CASE_MANAGER records it as a direct RM
+(RV/RI/RC, CM-11-011; ADR-0070). The CASE_MANAGER records it as a direct RM
 state update, without emitting a proxy activity on the participant's behalf
 (PCR-08-010). The stub `Accept` moves no RM state at all (CM-11-001).
 

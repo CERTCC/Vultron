@@ -30,8 +30,7 @@ Sub-modules
   ``publish_embargo_policy`` (``PUT /actors/{slug}/embargo-policy``, EP-02).
 - :mod:`~vultron.demo.helpers.embargo_outcome` — creation-time embargo outcome
   checks for the negotiated path (``verify_reporter_terms_active``,
-  ``verify_pending_revision``, ``wait_for_revision_activated``,
-  ``verify_revision_settled``, ``verify_uncontested``,
+  ``verify_pending_revision``, ``verify_uncontested``,
   ``verify_receiver_replica_agrees``).
 - :mod:`~vultron.demo.helpers.runner` — ``run_exchange_demos`` and
   ``check_all_containers``.
@@ -75,14 +74,11 @@ from vultron.demo.helpers.embargo_outcome import (
     assert_about_the_case,
     assert_window_is,
     embargo_window,
-    read_case,
     read_embargo,
     verify_pending_revision,
     verify_receiver_replica_agrees,
     verify_reporter_terms_active,
-    verify_revision_settled,
     verify_uncontested,
-    wait_for_revision_activated,
 )
 from vultron.demo.helpers.invite_chain import (
     CaseInviter,

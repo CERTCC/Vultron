@@ -35,7 +35,6 @@ from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.services.embargo_ordering import (
     earliest_expiring_embargo_id,
 )
-from vultron.core.use_cases._helpers import _find_case_actor_id
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
 logger = logging.getLogger(__name__)
@@ -162,22 +161,3 @@ def send_case_actor_activity(
         raise VultronValidationError(
             f"{failure_label} failed: {BTBridge.get_failure_reason(tree)}"
         )
-
-
-def _prepare_delegated_context(
-    dl: CasePersistence,
-    case_id: str,
-    requesting_actor_id: str,
-) -> tuple[str, str | None]:
-    """Return (actor_id, attributed_to) for a CaseActor-delegated trigger.
-
-    Implements the delegated-message contract (CM-24-001, CM-24-002 and CM-24-006):
-    when a CaseActor is present, the activity MUST be sent under the
-    CaseActor's identity (actor_id) with the requesting actor recorded in
-    attributed_to.  When no CaseActor exists the requesting actor sends
-    directly and attributed_to is None.
-    """
-    case_actor_id = _find_case_actor_id(dl, case_id)
-    actor_id = case_actor_id if case_actor_id else requesting_actor_id
-    attributed_to = requesting_actor_id if case_actor_id else None
-    return actor_id, attributed_to

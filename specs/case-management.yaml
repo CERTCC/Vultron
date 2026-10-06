@@ -3808,8 +3808,8 @@ groups:
   description: >-
     Requirements for how trigger use cases assign `actor` and `attributed_to`
     when the CASE_MANAGER emits an Activity on behalf of a requesting participant
-    (delegated message).  The reference implementation is
-    `_prepare_delegated_context()` (`vultron/core/use_cases/triggers/_helpers.py`).
+    (delegated message).  The reference implementation is `delegated_authorship()`
+    (`vultron/core/behaviors/delegated_authorship.py`).
     Codified from CONCERN-2170.
   specs:
   - id: CM-24-001

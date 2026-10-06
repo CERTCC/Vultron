@@ -170,8 +170,8 @@ def accept_actor_recommendation_trigger_bt(
 def offer_case_ownership_transfer_trigger_bt(
     case_id: str,
     transferee_id: str,
+    requesting_actor_id: str,
     content: str | None = None,
-    attributed_to: str | None = None,
     captured: dict | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Return the trigger-side BT for the offer-case-ownership-transfer workflow.
@@ -183,7 +183,8 @@ def offer_case_ownership_transfer_trigger_bt(
         case_id: ID of the VulnerabilityCase whose ownership is being offered.
         transferee_id: Actor URI of the intended new owner.
         content: Optional human-readable message included in the offer.
-        attributed_to: Offering actor URI for delegated-message attribution (CM-24-002).
+        requesting_actor_id: Offering actor URI; the Offer is attributed to it
+            through the delegated-authorship helper (CM-24-002, CM-24-005).
         captured: Optional dict; ``captured["activity"]`` is set on success.
 
     Returns:
@@ -197,7 +198,7 @@ def offer_case_ownership_transfer_trigger_bt(
                 case_id=case_id,
                 transferee_id=transferee_id,
                 content=content,
-                attributed_to=attributed_to,
+                requesting_actor_id=requesting_actor_id,
                 captured=captured,
             ),
         ],

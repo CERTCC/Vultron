@@ -55,6 +55,7 @@ from vultron.core.behaviors.embargo.nodes.expiry import (
 )
 from vultron.core.behaviors.embargo.nodes.invite_answer import (
     CanAnswerEmbargoInviteNode,
+    OwnerMayAutoAcceptEmbargoNode,
     SendEmbargoInviteAnswerNode,
 )
 from vultron.core.behaviors.embargo.nodes.lifecycle import (
@@ -119,6 +120,7 @@ from vultron.core.behaviors.embargo.nodes.terminate import (
 __all__ = [
     # Invite answer (EP-09-003)
     "CanAnswerEmbargoInviteNode",
+    "OwnerMayAutoAcceptEmbargoNode",
     "SendEmbargoInviteAnswerNode",
     # Conditions
     "ValidateCaseExistsNode",
