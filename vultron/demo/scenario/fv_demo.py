@@ -171,18 +171,22 @@ Use ``--finder-url`` / ``--vendor-url`` (or env vars
 the demo at running containers.
 
 \b
-Workflow:
-  1. Seed both containers (actor records + peer registration).
-  2. Finder submits a vulnerability report to Vendor's inbox.
-  3. Vendor validates the report (trigger: validate-report); the CaseActor
-     creates the case and seats Finder as reporter, so Finder is never
-     invited.
-  4. Vendor engages the case (trigger: engage-case).
-  5. Verify the Finder's case replica and that the ledgers synchronized.
-  6. Finder and Vendor exchange notes.
-  7. Vendor reports fix ready (VFd; Vendor stops at VFd).
-  8. Vendor and Finder report publication; embargo terminates (EM.EXITED).
-  9. Vendor and Finder close the case (RM.CLOSED on both replicas).
+Workflow (six phases; titles match docs/tutorials/fv-demo.md):
+  Setup. Seed both containers (actor records + peer registration).
+  1. Report submission and case activation (M1): Finder submits a report
+     to Vendor's inbox; Vendor's tree proposes a case and the CaseActor
+     creates it, seating Finder as reporter (Finder is never invited);
+     Vendor validates (trigger: validate-report) and engages the case
+     (trigger: engage-case).
+  2. Replica synchronization verification (M2): verify the Finder's case
+     replica and that the ledgers synchronized.
+  3. Notes exchange (M3): Finder and Vendor exchange notes.
+  4. Fix lifecycle (M4-M5): Vendor reports fix ready (VFd; Vendor stops
+     at VFd).
+  5. Publication and embargo teardown (M6): Vendor and Finder report
+     publication; embargo terminates (EM.EXITED).
+  6. Case closure (M7): Vendor and Finder close the case (RM.CLOSED on
+     both replicas).
 """
 
 # Deterministic actor IDs from docker-compose-multi-actor.yml (D5-1-G3).
