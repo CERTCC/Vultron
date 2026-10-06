@@ -37,7 +37,10 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+    PEC_Trigger,
+)
 from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
     AddEmbargoEventToCaseReceivedUseCase,
@@ -135,8 +138,8 @@ class _GateScenario:
         The case is in REVISE with the revision proposed, and *actor_id*'s
         participant lists the revision, so the CASE_MANAGER's receipt of the
         owner's ``Add(EmbargoEvent)`` admits it (CM-10-004). The revision ends
-        sooner than the active terms, so the signatories carry over by
-        containment and stay admitted (EP-05-001).
+        sooner than the active terms, so the signatories (ACCEPTED rows for the
+        active terms) carry over by containment and stay admitted (EP-05-001).
         """
         revision = as_EmbargoEvent(
             id_=f"{CASE_ID}/embargo_events/e2",
@@ -153,10 +156,7 @@ class _GateScenario:
             f"{CASE_ID}/participants/{actor_id.rsplit('/', 1)[-1]}"
         )
         assert isinstance(participant, CaseParticipant)
-        participant.accepted_embargo_ids = [
-            *participant.accepted_embargo_ids,
-            revision.id_,
-        ]
+        participant.apply_pec_transition(revision.id_, PEC_Trigger.ACCEPT)
         self.dl.save(participant)
 
         activation = add_embargo_to_case_activity(
@@ -207,7 +207,13 @@ class _GateScenario:
             f"{CASE_ID}/participants/{actor_id.rsplit('/', 1)[-1]}"
         )
         assert isinstance(participant, CaseParticipant)
-        participant.embargo_consent_state = PEC.INVITED
+        participant.apply_pec_transition_if_legal(
+            self.embargo.id_, PEC_Trigger.INVITE
+        )
+        assert (
+            participant.consent_for(self.embargo.id_)
+            == EmbargoConsentState.INVITED
+        )
         participant.invite_rsvp_deadline = datetime.now(tz=UTC) - timedelta(
             days=1
         )
@@ -357,7 +363,7 @@ def test_an_honored_late_accept_backfills_withheld_entries(
 
     finder = scenario.dl.read(f"{CASE_ID}/participants/finder")
     assert isinstance(finder, CaseParticipant)
-    assert scenario.embargo.id_ in finder.accepted_embargo_ids
+    assert finder.is_signatory(scenario.embargo.id_)
     _assert_backfilled(scenario, withheld)
 
 

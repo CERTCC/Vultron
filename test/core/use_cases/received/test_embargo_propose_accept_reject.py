@@ -342,7 +342,7 @@ class TestEmbargoProposalLifecycle:
     def test_accept_invite_to_embargo_records_embargo_on_participant(
         self, monkeypatch, make_payload
     ):
-        """accept_invite_to_embargo_on_case records embargo ID in participant.accepted_embargo_ids (CM-10-002, CM-10-003)."""
+        """accept_invite_to_embargo_on_case records an ACCEPTED consent row for the embargo (CM-10-002, CM-10-003)."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.models.case_participant import CaseParticipant
         from vultron.wire.as2.vocab.objects.embargo_event import (
@@ -403,7 +403,7 @@ class TestEmbargoProposalLifecycle:
         updated_participant = dl.get(id_=participant.id_)
         assert updated_participant is not None
         updated_participant = cast(Any, updated_participant)
-        assert embargo.id_ in updated_participant.accepted_embargo_ids
+        assert updated_participant.consent_for(embargo.id_) == "ACCEPTED"
 
     def test_accept_invite_to_embargo_records_case_event(
         self, monkeypatch, make_payload

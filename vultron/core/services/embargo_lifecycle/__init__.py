@@ -39,10 +39,10 @@ Package layout (CS-18, #3760) — one module per responsibility, all composed
 into :class:`EmbargoLifecycle` in ``service.py``:
 
 - ``results.py``    — ``TransitionMode``, ``EmbargoLifecycleResult``,
-  ``ParticipantPECChange``
+  ``ParticipantConsentChange``
 - ``base.py``       — persistence handle, case lookup, P/X/A guard, EM driver
 - ``pec.py``        — participant-consent side effects of EM transitions,
-  including the revision-activation cascade (EP-05-001)
+  including the shorter-revision carry-over (EP-05-001)
 - ``proposals.py``  — ``propose_embargo``
 - ``answers.py``    — ``accept_embargo_invite``, ``reject_embargo_invite``
 - ``activation.py`` — ``terminate_active_embargo``, ``activate_embargo``
@@ -58,7 +58,7 @@ Scaffold (#746); full operations (#747)
 
 from vultron.core.services.embargo_lifecycle.results import (
     EmbargoLifecycleResult,
-    ParticipantPECChange,
+    ParticipantConsentChange,
     TransitionMode,
 )
 from vultron.core.services.embargo_lifecycle.service import EmbargoLifecycle
@@ -66,6 +66,6 @@ from vultron.core.services.embargo_lifecycle.service import EmbargoLifecycle
 __all__ = [
     "EmbargoLifecycle",
     "EmbargoLifecycleResult",
-    "ParticipantPECChange",
+    "ParticipantConsentChange",
     "TransitionMode",
 ]

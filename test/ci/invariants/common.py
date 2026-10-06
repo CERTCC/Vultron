@@ -35,7 +35,6 @@ from pathlib import Path
 import pytest
 import yaml
 
-from vultron.core.states.participant_embargo_consent import PEC
 from vultron.demo.helpers.harness import DUMP_CRASHED_REASON
 from vultron.demo.helpers.ledger_dump import (
     DUMP_MANIFEST_FILENAME,
@@ -684,18 +683,12 @@ def check_late_joiner_has_full_history(
 
 def _missing_fields_in_status_snap(
     snap: dict,
-    valid_em_states: set,
     valid_roles: set,
 ) -> list[str]:
     """Return field-level violation strings for one ParticipantStatus snapshot."""
     missing: list[str] = []
-    if "emConsentState" not in snap and "em_consent_state" not in snap:
-        missing.append("emConsentState")
     if "cvdRole" not in snap and "cvd_role" not in snap:
         missing.append("cvdRole")
-    em_consent = snap.get("emConsentState", snap.get("em_consent_state"))
-    if em_consent not in valid_em_states:
-        missing.append("valid emConsentState value")
     cvd_role = snap.get("cvdRole", snap.get("cvd_role"))
     if not isinstance(cvd_role, list) or not cvd_role:
         missing.append("non-empty cvdRole list")
@@ -707,7 +700,7 @@ def _missing_fields_in_status_snap(
 def check_participant_status_schema_completeness(
     replicas: dict[str, list[dict]],
 ) -> list[str]:
-    """Every ParticipantStatus snapshot includes emConsentState and cvdRole list (Invariant 9)."""
+    """Every ParticipantStatus snapshot includes a cvdRole list (Invariant 9)."""
     auth = auth_entries(replicas)
     status_entries = [
         e
@@ -719,10 +712,6 @@ def check_participant_status_schema_completeness(
             "No add_participant_status_to_participant entries found; cannot check schema completeness"
         ]
 
-    valid_em_states = {
-        *(state.name for state in PEC),
-        *(state.value for state in PEC),
-    }
     valid_roles = {
         *(role.name for role in CVDRole),
         *(role.value for role in CVDRole),
@@ -735,9 +724,7 @@ def check_participant_status_schema_completeness(
             snap = snap["object"]
         elif isinstance(snap.get("object_"), dict):
             snap = snap["object_"]
-        missing_fields = _missing_fields_in_status_snap(
-            snap, valid_em_states, valid_roles
-        )
+        missing_fields = _missing_fields_in_status_snap(snap, valid_roles)
         if missing_fields:
             incomplete.append(
                 f"logIndex={log_index(e)}: missing {missing_fields}"
@@ -1050,8 +1037,7 @@ def check_per_actor_replica_participant_status_schema_completeness(
     """Every ParticipantStatus snapshot on every replica carries the required fields.
 
     Replica-side counterpart of invariant 9.  A participant replica that began
-    emitting snapshots without ``cvdRole`` or ``emConsentState`` is only caught
-    here.
+    emitting snapshots without ``cvdRole`` is only caught here.
     """
     return for_each_replica(
         replicas,

@@ -629,7 +629,10 @@ class TestPostCloseBoundary:
         """An unanswered Invite is expired at close, not left waiting on its deadline."""
         from datetime import UTC, datetime, timedelta
 
-        from vultron.core.states.participant_embargo_consent import PEC
+        from vultron.core.states.participant_embargo_consent import (
+            EmbargoConsentState,
+            PEC_Trigger,
+        )
         from vultron.wire.as2.vocab.objects.embargo_event import (
             as_EmbargoEvent,
         )
@@ -648,7 +651,7 @@ class TestPostCloseBoundary:
         dl.save(case)
         vendor = dl.read(case.actor_participant_index[VENDOR_ID])
         assert isinstance(vendor, CaseParticipant)
-        vendor.embargo_consent_state = PEC.INVITED
+        vendor.apply_pec_transition(embargo.id_, PEC_Trigger.INVITE)
         vendor.invite_rsvp_deadline = datetime.now(tz=UTC) + timedelta(
             days=365
         )
@@ -658,9 +661,9 @@ class TestPostCloseBoundary:
 
         vendor = dl.read(case.actor_participant_index[VENDOR_ID])
         assert isinstance(vendor, CaseParticipant)
-        assert vendor.embargo_consent_state == PEC.EXPIRED, (
-            "owner close must expire a pending Invite immediately (CM-23-014)"
-        )
+        assert (
+            vendor.consent_for(embargo.id_) == EmbargoConsentState.EXPIRED
+        ), "owner close must expire a pending Invite immediately (CM-23-014)"
         ledger = _case_ledger(dl)
         types = [e.event_type for e in ledger]
         rm_closed_ids = {e.id_ for e in _case_actor_rm_closed_entries(dl)}

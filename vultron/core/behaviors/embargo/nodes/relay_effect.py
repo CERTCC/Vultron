@@ -208,6 +208,7 @@ class _EmbargoRelayEffectNode(_LedgerEffectNode):
             ).record_embargo_invite(
                 case_id=case.id_,
                 invitee_id=invitee_id,
+                embargo_id=embargo_id,
                 rsvp_deadline=invite_rsvp_deadline(snapshot),
             )
         except VultronNotFoundError:
@@ -222,7 +223,7 @@ class _EmbargoRelayEffectNode(_LedgerEffectNode):
         self.feedback_message = (
             f"Replayed relayed Invite of embargo '{embargo_id}' to"
             f" '{invitee_id}' on case '{case.id_}'"
-            f" ({len(result.participant_changes)} PEC state change(s))"
+            f" ({len(result.participant_changes)} consent row change(s))"
         )
         self.logger.info("%s: %s", self.name, self.feedback_message)
         return Status.SUCCESS
@@ -316,8 +317,9 @@ class ApplyEmbargoInviteFromLedgerNode(_EmbargoRelayEffectNode):
 
     Calls ``EmbargoLifecycle.record_embargo_invite`` for the invitee — the
     Invite's sole ``to`` — the operation the CASE_MANAGER ran at its commit:
-    PEC ``INVITE`` where CM-18-003 allows it, so a ``SIGNATORY`` asked about
-    a revision keeps its state, and the Invite's RSVP deadline (``endTime``)
+    PEC ``INVITE`` on the row for the Invite's embargo where CM-18-003 allows
+    it, so a signatory asked about a revision keeps its row for the embargo in
+    force, and the Invite's RSVP deadline (``endTime``)
     when it carries one (CM-28-013).  An invitee with no participant record
     here is skipped.
 

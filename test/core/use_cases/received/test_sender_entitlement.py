@@ -74,6 +74,7 @@ from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
+from vultron.core.states.participant_embargo_consent import EmbargoConsentState
 from vultron.core.use_cases.received.actor.invite import (
     AcceptInviteActorToCaseReceivedUseCase,
 )
@@ -730,7 +731,9 @@ def _assert_embargo_untouched(
     for participant_id in case.actor_participant_index.values():
         participant = store.read(participant_id)
         assert isinstance(participant, CaseParticipant)
-        assert embargo_id not in participant.accepted_embargo_ids
+        assert (
+            participant.consent_for(embargo_id) != EmbargoConsentState.ACCEPTED
+        )
     assert store.list_objects("CaseLedgerEntry") == []
     assert store.outbox_list() == []
 

@@ -546,8 +546,7 @@ groups:
     priority: MUST_NOT
     kind: project
     statement: Core snapshot-construction code MUST NOT special-case individual field
-      names to reach the wire spelling (e.g. moving a nested `consent.state` to a
-      flat `emConsentState`). Structural differences between the core and wire shapes
+      names to reach the wire spelling (e.g. moving a nested `rm.state` to a flat `rmState`). Structural differences between the core and wire shapes
       are the responsibility of the rendering port (ARCH-20-001).
     rationale: A per-field patch in core is a partial reimplementation of the translator
       that drifts as either shape evolves, and it is invisible to the adapter layer's

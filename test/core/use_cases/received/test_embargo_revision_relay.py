@@ -17,7 +17,7 @@ moves the canonical case to ``EM.REVISE``, commits, then relays an
 ``Invite(EmbargoEvent)`` to every participant except the proposer.  A
 participant that receives an Invite writes no case or consent state on receipt;
 consent moves when the CASE_MANAGER commits its answer.  A revision Invite to a
-``SIGNATORY`` changes nothing.
+signatory changes none of its existing consent rows.
 
 The manager-side relay (EP-09-001, EP-09-002, EP-09-004) landed with #3913;
 the participant side and the replay of every relay entry (EP-09-003,
@@ -46,7 +46,10 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+    PEC_Trigger,
+)
 from vultron.core.use_cases.received.embargo import (
     InviteToEmbargoOnCaseReceivedUseCase,
     resolve_proposer_id,
@@ -100,7 +103,7 @@ def _active_case_with_revision(
     proposer_record_id = case_read.actor_participant_index.get(PROPOSER)
     if proposer_record_id is not None:
         proposer_record = cast(CaseParticipant, dl.read(proposer_record_id))
-        proposer_record.embargo_consent_state = PEC.SIGNATORY
+        proposer_record.sign_embargo(embargo_a.id_)
         dl.save(proposer_record)
 
     revision = as_EmbargoEvent(
@@ -113,12 +116,21 @@ def _active_case_with_revision(
     return dl, revision
 
 
-def _pec_of(dl: SqliteDataLayer, case_id: str, actor_id: str) -> PEC:
+def _consent_of(
+    dl: SqliteDataLayer, case_id: str, actor_id: str, embargo_id: str
+) -> EmbargoConsentState | None:
+    """*actor_id*'s consent row for *embargo_id*; ``None`` when never asked."""
     case = cast(VulnerabilityCase, dl.read(case_id))
     participant = cast(
         CaseParticipant, dl.read(case.actor_participant_index[actor_id])
     )
-    return PEC(participant.embargo_consent_state)
+    return participant.consent_for(embargo_id)
+
+
+def _active_id(dl: SqliteDataLayer, case_id: str) -> str:
+    case = cast(VulnerabilityCase, dl.read(case_id))
+    assert case.active_embargo_id is not None
+    return case.active_embargo_id
 
 
 def _deliver(dl: SqliteDataLayer, activity, make_payload, receiving_actor_id):
@@ -206,7 +218,7 @@ def test_participant_writes_no_consent_on_receipt_of_relayed_invite(
     dl, revision = _active_case_with_revision(
         case_id, store_actor=OTHER_A, participants=[PROPOSER, OTHER_A]
     )
-    assert _pec_of(dl, case_id, OTHER_A) is PEC.UNBOUND
+    assert _consent_of(dl, case_id, OTHER_A, revision.id_) is None
     relayed = em_propose_embargo_activity(
         revision,
         context=case_id,
@@ -222,11 +234,7 @@ def test_participant_writes_no_consent_on_receipt_of_relayed_invite(
     case = cast(VulnerabilityCase, dl.read(case_id))
     assert case.current_status.em.state == EM.ACTIVE
     assert case.proposed_embargo_ids == []
-    assert _pec_of(dl, case_id, OTHER_A) is PEC.UNBOUND
-    other_a = cast(
-        CaseParticipant, dl.read(case.actor_participant_index[OTHER_A])
-    )
-    assert revision.id_ not in other_a.accepted_embargo_ids
+    assert _consent_of(dl, case_id, OTHER_A, revision.id_) is None
     assert dl.read(relayed.id_) is not None, "the Invite was not stored"
     answers = _outbox_of_type(dl, "Accept")
     assert len(answers) == 1, "the invitee did not answer its Invite"
@@ -238,7 +246,7 @@ def test_participant_writes_no_consent_on_receipt_of_relayed_invite(
 def test_revision_invite_to_a_signatory_succeeds_and_changes_nothing(
     make_payload,
 ):
-    """A signatory is asked about the revision; its consent state is untouched."""
+    """A signatory is asked about the revision; its receiving side writes nothing."""
     case_id = "https://example.org/cases/relay-signatory"
     dl, revision = _active_case_with_revision(
         case_id, store_actor=OTHER_A, participants=[PROPOSER, OTHER_A]
@@ -247,7 +255,8 @@ def test_revision_invite_to_a_signatory_succeeds_and_changes_nothing(
     signatory = cast(
         CaseParticipant, dl.read(case.actor_participant_index[OTHER_A])
     )
-    object.__setattr__(signatory, "embargo_consent_state", PEC.SIGNATORY)
+    active_id = _active_id(dl, case_id)
+    signatory.apply_pec_transition(active_id, PEC_Trigger.ACCEPT)
     dl.save(signatory)
     relayed = em_propose_embargo_activity(
         revision,
@@ -261,7 +270,11 @@ def test_revision_invite_to_a_signatory_succeeds_and_changes_nothing(
     verdict = _deliver(dl, relayed, make_payload, receiving_actor_id=OTHER_A)
 
     assert verdict.disposition is HandlerDisposition.APPLIED
-    assert _pec_of(dl, case_id, OTHER_A) is PEC.SIGNATORY
+    assert (
+        _consent_of(dl, case_id, OTHER_A, active_id)
+        == EmbargoConsentState.ACCEPTED
+    )
+    assert _consent_of(dl, case_id, OTHER_A, revision.id_) is None
 
 
 def _unbound_case(
@@ -564,7 +577,7 @@ def test_counter_revision_at_revise_commits_without_a_transition(make_payload):
     dl.create(counter)
     # OTHER_A is bound to the active embargo, so its counter is admissible.
     other_a = _participant_of(dl, case_id, OTHER_A)
-    other_a.embargo_consent_state = PEC.SIGNATORY
+    other_a.sign_embargo(_active_id(dl, case_id))
     dl.save(other_a)
 
     verdict = _deliver(
@@ -687,49 +700,52 @@ def test_invitees_move_to_invited_at_the_managers_commit(make_payload):
         store_actor=MANAGER,
         participants=[PROPOSER, OTHER_A, OTHER_B],
     )
-    for actor in (MANAGER, OTHER_A, OTHER_B):
-        assert _pec_of(dl, case_id, actor) is PEC.UNBOUND
-    # The proposer is bound to the active embargo, which is what makes its
-    # proposal admissible (CM-10-004, ADR-0115).
-    assert _pec_of(dl, case_id, PROPOSER) is PEC.SIGNATORY
+    for actor in (MANAGER, PROPOSER, OTHER_A, OTHER_B):
+        assert _consent_of(dl, case_id, actor, revision.id_) is None
 
     verdict = _deliver(dl, _proposal(revision, case_id), make_payload, MANAGER)
 
     assert verdict.disposition is HandlerDisposition.APPLIED
-    assert _pec_of(dl, case_id, OTHER_A) is PEC.INVITED
-    assert _pec_of(dl, case_id, OTHER_B) is PEC.INVITED
+    invited = EmbargoConsentState.INVITED
+    assert _consent_of(dl, case_id, OTHER_A, revision.id_) == invited
+    assert _consent_of(dl, case_id, OTHER_B, revision.id_) == invited
     # Neither the proposer nor the manager is asked (EP-09-002, ADR-0109) ...
-    assert _pec_of(dl, case_id, PROPOSER) is PEC.SIGNATORY
-    assert _pec_of(dl, case_id, MANAGER) is PEC.UNBOUND
-    assert MANAGER not in {r for a in _relayed_invites(dl) for r in a.to or []}
-    # ... and proposing terms is consenting to them (ADR-0093), list only.
     assert (
-        revision.id_
-        in _participant_of(dl, case_id, PROPOSER).accepted_embargo_ids
+        _consent_of(dl, case_id, PROPOSER, revision.id_)
+        != EmbargoConsentState.INVITED
     )
+    assert _consent_of(dl, case_id, MANAGER, revision.id_) is None
+    assert MANAGER not in {r for a in _relayed_invites(dl) for r in a.to or []}
+    # ... and proposing terms is consenting to them (ADR-0093): the proposer's
+    # row for the revision is ACCEPTED, the manager's does not exist.
     assert (
-        revision.id_
-        not in _participant_of(dl, case_id, MANAGER).accepted_embargo_ids
+        _consent_of(dl, case_id, PROPOSER, revision.id_)
+        == EmbargoConsentState.ACCEPTED
     )
 
 
 @pytest.mark.spec("EP-09-004")
 @pytest.mark.spec("EP-05-002")
 def test_a_signatory_is_asked_but_keeps_its_state_at_the_manager(make_payload):
-    """The manager relays to a SIGNATORY and writes no consent for it."""
+    """The manager relays to a signatory, which keeps its ACCEPTED row for the terms in force."""
     case_id = "https://example.org/cases/relay-signatory-manager"
     dl, revision = _active_case_with_revision(
         case_id, store_actor=MANAGER, participants=[PROPOSER, OTHER_A]
     )
     signatory = _participant_of(dl, case_id, OTHER_A)
-    signatory.apply_pec_transition(PEC_Trigger.ACCEPT)
+    active_id = _active_id(dl, case_id)
+    signatory.apply_pec_transition(active_id, PEC_Trigger.ACCEPT)
     dl.save(signatory)
 
     verdict = _deliver(dl, _proposal(revision, case_id), make_payload, MANAGER)
 
     assert verdict.disposition is HandlerDisposition.APPLIED
     assert [a.to for a in _relayed_invites(dl)] == [[OTHER_A]]
-    assert _pec_of(dl, case_id, OTHER_A) is PEC.SIGNATORY
+    assert _participant_of(dl, case_id, OTHER_A).is_signatory(active_id)
+    assert (
+        _consent_of(dl, case_id, OTHER_A, revision.id_)
+        == EmbargoConsentState.INVITED
+    )
 
 
 @pytest.mark.spec("CM-24-002")
@@ -757,8 +773,8 @@ def test_a_relayed_proposal_is_attributed_to_its_original_proposer(
     )
     assert {a.attributed_to for a in relayed} == {PROPOSER}
     assert (
-        revision.id_
-        in _participant_of(dl, case_id, PROPOSER).accepted_embargo_ids
+        _consent_of(dl, case_id, PROPOSER, revision.id_)
+        == EmbargoConsentState.ACCEPTED
     )
 
 
@@ -874,12 +890,12 @@ def test_a_participant_cannot_attribute_its_proposal_to_a_third_party(
     )
     assert {a.attributed_to for a in relayed} == {PROPOSER}
     assert (
-        revision.id_
-        in _participant_of(dl, case_id, PROPOSER).accepted_embargo_ids
+        _consent_of(dl, case_id, PROPOSER, revision.id_)
+        == EmbargoConsentState.ACCEPTED
     )
     assert (
-        revision.id_
-        not in _participant_of(dl, case_id, OTHER_B).accepted_embargo_ids
+        _consent_of(dl, case_id, OTHER_B, revision.id_)
+        != EmbargoConsentState.ACCEPTED
     )
 
 
@@ -968,8 +984,9 @@ def test_a_redelivery_after_a_mid_relay_fault_relays_to_everyone_again(
     assert len(first_round) == 1
     (invited_first,) = first_round[0].to or []
     (not_yet,) = {OTHER_A, OTHER_B} - {invited_first}
-    assert _pec_of(dl, case_id, invited_first) is PEC.INVITED
-    assert _pec_of(dl, case_id, not_yet) is PEC.UNBOUND
+    invited = EmbargoConsentState.INVITED
+    assert _consent_of(dl, case_id, invited_first, revision.id_) == invited
+    assert _consent_of(dl, case_id, not_yet, revision.id_) is None
     case = cast(VulnerabilityCase, dl.read(case_id))
     assert case.current_status.em.state == EM.REVISE
     assert revision.id_ not in case.pending_embargo_proposal_index
@@ -988,8 +1005,8 @@ def test_a_redelivery_after_a_mid_relay_fault_relays_to_everyone_again(
     assert second.disposition is HandlerDisposition.APPLIED
     recipients = sorted(r for a in _relayed_invites(dl) for r in (a.to or []))
     assert recipients == sorted([invited_first, invited_first, not_yet])
-    assert _pec_of(dl, case_id, invited_first) is PEC.INVITED
-    assert _pec_of(dl, case_id, not_yet) is PEC.INVITED
+    assert _consent_of(dl, case_id, invited_first, revision.id_) == invited
+    assert _consent_of(dl, case_id, not_yet, revision.id_) == invited
     # One entry for the proposal (reused, not duplicated) and one per Invite.
     assert [e.event_type for e in _ledger_entries(dl, case_id)] == [
         "invite_to_embargo_on_case"

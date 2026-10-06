@@ -1321,7 +1321,7 @@ def _seed_active_embargo(case_obj, dl) -> None:
     )
     # The EM write goes through the lifecycle service like the tree's own
     # (EMB-18-001): one save at EM.ACTIVE, with the owner's consent recorded
-    # and the owner seeded SIGNATORY as the creation arm does (CM-14-005).
+    # and the owner's consent row seeded ACCEPTED as the creation arm does (CM-14-005).
     EmbargoLifecycle(persistence=dl).initialize_creation_embargo(
         case_id=case_id, embargo=embargo, actor_id=owner_id
     )

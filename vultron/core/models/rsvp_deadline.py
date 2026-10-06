@@ -69,8 +69,8 @@ HONOUR_LATE_ACCEPT_EVENT_TYPE = "honour_late_accept_invite_to_embargo_on_case"
 
 Committed when a late ``Accept(Invite(EmbargoEvent))`` arrives and the
 embargo is still active and matching (EMB-17-001, ADR-0118).  The CASE_MANAGER
-advances the participant ``EXPIRED → SIGNATORY`` (or ``DECLINED → INVITED →
-SIGNATORY``) and commits this entry so replicas can replay the same
+advances the participant ``EXPIRED → ACCEPTED`` (or ``DECLINED → INVITED →
+ACCEPTED``) and commits this entry so replicas can replay the same
 advancement via
 :class:`~vultron.core.behaviors.embargo.nodes.expiry.ApplyHonourLateAcceptFromLedgerNode`.
 """

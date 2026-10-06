@@ -193,9 +193,8 @@ def reject_invite_to_embargo_tree(
     replay (SYNC-12-001).  :class:`RecordParticipantRejectionNode` records
     the rejecting actor's consent under the MSM-07-004 rule
     (ADR-0093): a Reject naming the *active* embargo is consent withdrawal,
-    one naming a *proposed* embargo drops the id from
-    ``accepted_embargo_ids`` and declines only a participant not yet
-    ``SIGNATORY``, and the owner's EJ changes nobody's record.  When the
+    one naming a *proposed* embargo declines that embargo's row only,
+    and the owner's EJ changes nobody's record.  When the
     rejecting actor is the case owner the Reject *decides* the proposal
     (EP-08-003): ``PROPOSED → NONE`` or ``REVISE → ACTIVE`` when it was the
     last one open, or ET when P/X/A is set (EMB-04-002).

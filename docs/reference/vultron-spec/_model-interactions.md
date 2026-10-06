@@ -70,13 +70,13 @@ A change that is only proposed does not.
 
 - **EM enters `Revised`.** No consent changes.
   The prior embargo is still in force and every signatory to it remains `SIGNATORY`; the CASE_MANAGER records the proposer as having accepted the terms it proposed.
-- **EM returns to `Active` with revised terms.** The CASE_MANAGER MUST re-evaluate every participant's consent against the new terms.
-  If the revised embargo ends no later than the one it replaces, every signatory is carried over unchanged.
-  If it ends later, every `SIGNATORY` that has not accepted the revised terms MUST move to `LAPSED`.
-  In either case a participant in any other state that has already accepted the revised terms MUST move to `SIGNATORY`; only signatories to the replaced terms are carried over.
+- **EM returns to `Active` with revised terms.** Consent is recorded per embargo, so the CASE_MANAGER re-evaluates every participant's position against the new terms.
+  If the revised embargo ends no later than the one it replaces, every signatory to the replaced terms is carried over as a signatory of the revised terms.
+  If it ends later, a signatory that has not accepted the revised terms is no longer a signatory to the active embargo, which is the `LAPSED` position; nothing is written to record it.
+  A participant that has already accepted the revised terms is a signatory to them.
 - **EM returns to `Active` because the owner rejected the revision.** No consent changes; the prior terms stand.
-- **EM enters `Exited`.** The CASE_MANAGER MUST move every participant's PEC machine to the terminal `UNBOUND_EXITED`.
-  No embargo is in scope, so no consent is either, and a terminated embargo cannot be re-invited (ADR-0118).
+- **EM enters `Exited`.** No embargo is in scope, so no participant is a signatory to one, which is the terminal `UNBOUND_EXITED` position.
+  The CASE_MANAGER writes nothing to record it, and a terminated embargo cannot be re-invited (ADR-0118).
 - **After a teardown.** The CASE_MANAGER SHOULD commit and send a fresh
   `Announce(CaseLedgerEntry)` so every participant learns that the embargo
   ended.

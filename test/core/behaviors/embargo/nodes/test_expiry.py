@@ -36,11 +36,14 @@ from vultron.core.behaviors.embargo.nodes.expiry import (
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.rsvp_deadline import (
     INVITE_EXPIRED_EVENT_TYPE,
 )
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
@@ -49,11 +52,12 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
 CASE_ID = "https://example.org/cases/expiry-nodes"
 MANAGER = "https://example.org/actors/expiry-nodes-manager"
 INVITEE = "https://example.org/actors/expiry-nodes-invitee"
+EMBARGO_ID = f"{CASE_ID}/embargos/e1"
 
 
 def _seed(
     scenario: BTTestScenario,
-    pec: PEC = PEC.INVITED,
+    consent: EmbargoConsentState = EmbargoConsentState.INVITED,
 ) -> str:
     manager = CaseParticipant(
         id_=f"{CASE_ID}/participants/manager",
@@ -65,7 +69,9 @@ def _seed(
         id_=f"{CASE_ID}/participants/invitee",
         attributed_to=INVITEE,
         context=CASE_ID,
-        embargo_consent_state=pec,
+        embargo_consents=[
+            EmbargoConsent(embargo_id=EMBARGO_ID, state=consent)
+        ],
     )
     case = VulnerabilityCase(
         id_=CASE_ID,
@@ -81,10 +87,12 @@ def _seed(
     return invitee.id_
 
 
-def _pec(scenario: BTTestScenario, participant_id: str) -> PEC:
+def _consent(
+    scenario: BTTestScenario, participant_id: str
+) -> EmbargoConsentState | None:
     record = scenario.dl.read(participant_id)
     assert isinstance(record, CaseParticipant)
-    return PEC(record.embargo_consent_state)
+    return record.consent_for(EMBARGO_ID)
 
 
 def _expiry_event(actor: str | None) -> Any:
@@ -114,13 +122,18 @@ class TestApplyInviteExpiryFromLedgerNode:
         self, bt_scenario: BTTestScenario
     ) -> None:
         """No deadline on the replica's record: it applies, never computes."""
-        participant_id = _seed(bt_scenario, pec=PEC.INVITED)
+        participant_id = _seed(
+            bt_scenario, consent=EmbargoConsentState.INVITED
+        )
         result = bt_scenario.run(
             ApplyInviteExpiryFromLedgerNode(name="ApplyExpiry"),
             activity=_expiry_event(INVITEE),
         )
         bt_scenario.assert_success(result)
-        assert _pec(bt_scenario, participant_id) is PEC.EXPIRED
+        assert (
+            _consent(bt_scenario, participant_id)
+            is EmbargoConsentState.EXPIRED
+        )
 
     @pytest.mark.executes_as(INVITEE)
     @pytest.mark.spec("ADR-0118")
@@ -128,13 +141,18 @@ class TestApplyInviteExpiryFromLedgerNode:
         self, bt_scenario: BTTestScenario
     ) -> None:
         """An already-EXPIRED participant is left unchanged."""
-        participant_id = _seed(bt_scenario, pec=PEC.EXPIRED)
+        participant_id = _seed(
+            bt_scenario, consent=EmbargoConsentState.EXPIRED
+        )
         result = bt_scenario.run(
             ApplyInviteExpiryFromLedgerNode(name="ApplyExpiry"),
             activity=_expiry_event(INVITEE),
         )
         bt_scenario.assert_success(result)
-        assert _pec(bt_scenario, participant_id) is PEC.EXPIRED
+        assert (
+            _consent(bt_scenario, participant_id)
+            is EmbargoConsentState.EXPIRED
+        )
 
     @pytest.mark.executes_as(INVITEE)
     def test_an_entry_naming_no_invitee_fails(
@@ -146,7 +164,10 @@ class TestApplyInviteExpiryFromLedgerNode:
             activity=_expiry_event(None),
         )
         assert result.status == Status.FAILURE
-        assert _pec(bt_scenario, participant_id) is PEC.INVITED
+        assert (
+            _consent(bt_scenario, participant_id)
+            is EmbargoConsentState.INVITED
+        )
 
     @pytest.mark.executes_as(INVITEE)
     def test_an_invitee_the_replica_does_not_hold_is_skipped(
@@ -168,9 +189,6 @@ class TestApplyInviteExpiryFromLedgerNode:
             activity=_expiry_event(INVITEE),
         )
         bt_scenario.assert_success(result)
-
-
-EMBARGO_ID = f"{CASE_ID}/embargos/e1"
 
 
 def _honour_late_accept_event(
@@ -211,57 +229,72 @@ class TestApplyHonourLateAcceptFromLedgerNode:
 
     @pytest.mark.executes_as(INVITEE)
     @pytest.mark.spec("EMB-17-001", "RSH-08-004", "ADR-0118")
-    def test_expired_participant_becomes_signatory_on_replica(
+    def test_expired_participant_row_becomes_accepted_on_replica(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        """A replica applies EXPIRED → SIGNATORY from the honour entry."""
+        """A replica applies EXPIRED → ACCEPTED from the honour entry."""
         from vultron.core.behaviors.embargo.nodes.expiry import (
             ApplyHonourLateAcceptFromLedgerNode,
         )
 
-        participant_id = _seed(bt_scenario, pec=PEC.EXPIRED)
+        participant_id = _seed(
+            bt_scenario, consent=EmbargoConsentState.EXPIRED
+        )
         result = bt_scenario.run(
             ApplyHonourLateAcceptFromLedgerNode(name="ApplyHonour"),
             activity=_honour_late_accept_event(INVITEE),
         )
         bt_scenario.assert_success(result)
-        assert _pec(bt_scenario, participant_id) is PEC.SIGNATORY
+        assert (
+            _consent(bt_scenario, participant_id)
+            is EmbargoConsentState.ACCEPTED
+        )
 
     @pytest.mark.executes_as(INVITEE)
     @pytest.mark.spec("EMB-17-001", "CM-18-003", "ADR-0118")
-    def test_declined_participant_becomes_signatory_on_replica(
+    def test_declined_participant_row_becomes_accepted_on_replica(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        """A replica applies DECLINED → INVITED → SIGNATORY from the honour entry."""
+        """A replica applies DECLINED → INVITED → ACCEPTED from the honour entry."""
         from vultron.core.behaviors.embargo.nodes.expiry import (
             ApplyHonourLateAcceptFromLedgerNode,
         )
 
-        participant_id = _seed(bt_scenario, pec=PEC.DECLINED)
+        participant_id = _seed(
+            bt_scenario, consent=EmbargoConsentState.DECLINED
+        )
         result = bt_scenario.run(
             ApplyHonourLateAcceptFromLedgerNode(name="ApplyHonour"),
             activity=_honour_late_accept_event(INVITEE),
         )
         bt_scenario.assert_success(result)
-        assert _pec(bt_scenario, participant_id) is PEC.SIGNATORY
+        assert (
+            _consent(bt_scenario, participant_id)
+            is EmbargoConsentState.ACCEPTED
+        )
 
     @pytest.mark.executes_as(INVITEE)
     @pytest.mark.spec("ADR-0118")
-    def test_already_signatory_is_idempotent(
+    def test_already_accepted_is_idempotent(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        """A SIGNATORY participant is not changed by replay (idempotent)."""
+        """An ACCEPTED row is not changed by replay (idempotent)."""
         from vultron.core.behaviors.embargo.nodes.expiry import (
             ApplyHonourLateAcceptFromLedgerNode,
         )
 
-        participant_id = _seed(bt_scenario, pec=PEC.SIGNATORY)
+        participant_id = _seed(
+            bt_scenario, consent=EmbargoConsentState.ACCEPTED
+        )
         result = bt_scenario.run(
             ApplyHonourLateAcceptFromLedgerNode(name="ApplyHonour"),
             activity=_honour_late_accept_event(INVITEE),
         )
         bt_scenario.assert_success(result)
-        assert _pec(bt_scenario, participant_id) is PEC.SIGNATORY
+        assert (
+            _consent(bt_scenario, participant_id)
+            is EmbargoConsentState.ACCEPTED
+        )
 
     @pytest.mark.executes_as(INVITEE)
     def test_entry_naming_no_actor_fails(
@@ -272,7 +305,7 @@ class TestApplyHonourLateAcceptFromLedgerNode:
             ApplyHonourLateAcceptFromLedgerNode,
         )
 
-        _seed(bt_scenario, pec=PEC.EXPIRED)
+        _seed(bt_scenario, consent=EmbargoConsentState.EXPIRED)
         result = bt_scenario.run(
             ApplyHonourLateAcceptFromLedgerNode(name="ApplyHonour"),
             activity=_honour_late_accept_event(None),

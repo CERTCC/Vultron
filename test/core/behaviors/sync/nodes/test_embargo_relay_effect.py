@@ -42,9 +42,12 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronWiringError
 
@@ -129,12 +132,20 @@ def _entry(event_type: str, snapshot: dict[str, Any]) -> CaseLedgerEntry:
 
 
 def _participant(
-    datalayer, case: VulnerabilityCase, actor_id: str, pec: PEC, **kw: Any
+    datalayer,
+    case: VulnerabilityCase,
+    actor_id: str,
+    consents: dict[str, EmbargoConsentState] | None = None,
+    **kw: Any,
 ) -> str:
+    """Seat *actor_id* holding one consent row per ``embargo id -> state``."""
     participant = CaseParticipant(
         attributed_to=actor_id,
         context=CASE_ID,
-        embargo_consent_state=pec,
+        embargo_consents=[
+            EmbargoConsent(embargo_id=embargo_id, state=state)
+            for embargo_id, state in (consents or {}).items()
+        ],
         **kw,
     )
     datalayer.create(participant)
@@ -162,17 +173,15 @@ def revising_case(datalayer) -> VulnerabilityCase:
         datalayer,
         case,
         MANAGER_ACTOR_ID,
-        PEC.SIGNATORY,
+        {ACTIVE_EMBARGO_ID: EmbargoConsentState.ACCEPTED},
         case_roles=[CVDRole.CASE_MANAGER],
-        accepted_embargo_ids=[ACTIVE_EMBARGO_ID],
     )
     for actor_id in (OWNER_ACTOR_ID, PARTICIPANT_ACTOR_ID, PROPOSER_ACTOR_ID):
         _participant(
             datalayer,
             case,
             actor_id,
-            PEC.SIGNATORY,
-            accepted_embargo_ids=[ACTIVE_EMBARGO_ID],
+            {ACTIVE_EMBARGO_ID: EmbargoConsentState.ACCEPTED},
         )
     datalayer.save(case)
     return case
@@ -276,11 +285,13 @@ class TestApplyEmbargoProposal:
         _replay_proposal(bridge)
 
         proposer = _record(datalayer, PROPOSER_ACTOR_ID)
-        assert REVISION_ID in proposer.accepted_embargo_ids
-        assert proposer.embargo_consent_state == PEC.SIGNATORY
+        assert (
+            proposer.consent_for(REVISION_ID) is EmbargoConsentState.ACCEPTED
+        )
+        assert proposer.is_signatory(ACTIVE_EMBARGO_ID)
         other = _record(datalayer, PARTICIPANT_ACTOR_ID)
-        assert REVISION_ID not in other.accepted_embargo_ids
-        assert other.embargo_consent_state == PEC.SIGNATORY
+        assert other.consent_for(REVISION_ID) is None
+        assert other.is_signatory(ACTIVE_EMBARGO_ID)
 
     @pytest.mark.spec("EP-09-007")
     def test_keeps_an_existing_pending_index_entry(
@@ -305,7 +316,7 @@ class TestApplyEmbargoProposal:
         relayed Invite of its sole recipient, which is recorded as invited.
         """
         newcomer = "https://example.org/actors/newcomer"
-        _participant(datalayer, revising_case, newcomer, PEC.UNBOUND)
+        _participant(datalayer, revising_case, newcomer)
         datalayer.save(revising_case)
 
         result = _run(
@@ -322,7 +333,7 @@ class TestApplyEmbargoProposal:
         assert result.status == Status.SUCCESS
         assert _case(datalayer).proposed_embargo_ids == [REVISION_ID]
         record = _record(datalayer, newcomer)
-        assert record.embargo_consent_state == PEC.INVITED
+        assert record.consent_for(REVISION_ID) is EmbargoConsentState.INVITED
         assert record.invite_rsvp_deadline is not None
 
     @pytest.mark.spec("EP-09-007")
@@ -331,7 +342,7 @@ class TestApplyEmbargoProposal:
     ):
         """Addressed to nobody, the manager's proposal entry is not a relay."""
         newcomer = "https://example.org/actors/newcomer"
-        _participant(datalayer, revising_case, newcomer, PEC.UNBOUND)
+        _participant(datalayer, revising_case, newcomer)
         datalayer.save(revising_case)
         snapshot = _invite_snapshot(attributed_to=None, to=[])
         snapshot.pop("to")
@@ -344,9 +355,7 @@ class TestApplyEmbargoProposal:
 
         assert result.status == Status.SUCCESS
         assert _case(datalayer).proposed_embargo_ids == [REVISION_ID]
-        assert (
-            _record(datalayer, newcomer).embargo_consent_state == PEC.UNBOUND
-        )
+        assert _record(datalayer, newcomer).embargo_consents == []
 
     @pytest.mark.spec("SYNC-12-001")
     def test_partial_replica_without_the_case_skips(self, bridge, datalayer):
@@ -401,7 +410,7 @@ def _proposers_invite() -> dict[str, Any]:
 class TestApplyEmbargoInvite:
     @pytest.mark.spec("CM-28-013")
     @pytest.mark.spec("EP-09-004")
-    def test_signatory_keeps_its_state_and_takes_the_deadline(
+    def test_signatory_keeps_its_consent_and_is_invited_to_the_revision(
         self, bridge, datalayer, revising_case
     ):
         result = _run(
@@ -412,16 +421,17 @@ class TestApplyEmbargoInvite:
 
         assert result.status == Status.SUCCESS
         record = _record(datalayer, PARTICIPANT_ACTOR_ID)
-        assert record.embargo_consent_state == PEC.SIGNATORY
+        assert record.is_signatory(ACTIVE_EMBARGO_ID)
+        assert record.consent_for(REVISION_ID) is EmbargoConsentState.INVITED
         assert record.invite_rsvp_deadline is not None
         assert record.invite_rsvp_deadline.isoformat() == _DEADLINE
 
     @pytest.mark.spec("EP-09-007")
-    def test_unbound_invitee_becomes_invited(
+    def test_invitee_without_a_row_becomes_invited(
         self, bridge, datalayer, revising_case
     ):
         newcomer = "https://example.org/actors/newcomer"
-        _participant(datalayer, revising_case, newcomer, PEC.UNBOUND)
+        _participant(datalayer, revising_case, newcomer)
         datalayer.save(revising_case)
 
         result = _run(
@@ -435,7 +445,7 @@ class TestApplyEmbargoInvite:
 
         assert result.status == Status.SUCCESS
         record = _record(datalayer, newcomer)
-        assert record.embargo_consent_state == PEC.INVITED
+        assert record.consent_for(REVISION_ID) is EmbargoConsentState.INVITED
         assert record.invite_rsvp_deadline is None
 
     @pytest.mark.spec("EP-09-010")
@@ -556,7 +566,7 @@ class TestApplyEmbargoAnswers:
 
         assert result.status == Status.SUCCESS
         record = _record(datalayer, PARTICIPANT_ACTOR_ID)
-        assert REVISION_ID in record.accepted_embargo_ids
+        assert record.consent_for(REVISION_ID) is EmbargoConsentState.ACCEPTED
         assert _case(datalayer).current_status.em.state == EM.REVISE
 
     @pytest.mark.spec("MSM-07-003")
@@ -602,8 +612,8 @@ class TestApplyEmbargoAnswers:
         assert case.active_embargo_id == ACTIVE_EMBARGO_ID
         assert case.proposed_embargo_ids == []
         assert REVISION_ID not in case.pending_embargo_proposal_index
-        assert _record(datalayer, OWNER_ACTOR_ID).embargo_consent_state == (
-            PEC.SIGNATORY
+        assert _record(datalayer, OWNER_ACTOR_ID).is_signatory(
+            ACTIVE_EMBARGO_ID
         )
 
     @pytest.mark.spec("SYNC-12-003")
@@ -624,7 +634,9 @@ class TestApplyEmbargoAnswers:
             assert result.status == Status.SUCCESS
 
         record = _record(datalayer, PARTICIPANT_ACTOR_ID)
-        assert record.embargo_consent_state == PEC.DECLINED
+        assert record.consent_for(ACTIVE_EMBARGO_ID) is (
+            EmbargoConsentState.DECLINED
+        )
 
     @pytest.mark.spec("SYNC-12-001")
     @pytest.mark.spec("SYNC-14-001")
@@ -637,12 +649,12 @@ class TestApplyEmbargoAnswers:
         that no longer holds the embargo has already applied what followed.
         Failing would block the persist and buffer every later entry.
         """
-        before = _record(datalayer, PARTICIPANT_ACTOR_ID).embargo_consent_state
+        before = _record(datalayer, PARTICIPANT_ACTOR_ID).embargo_consents
         result = _replay_answer(bridge, "Reject", PARTICIPANT_ACTOR_ID)
         assert result.status == Status.SUCCESS
         assert "nothing to replay" in result.feedback_message
         record = _record(datalayer, PARTICIPANT_ACTOR_ID)
-        assert record.embargo_consent_state == before
+        assert record.embargo_consents == before
 
     @pytest.mark.spec("SYNC-12-001")
     @pytest.mark.parametrize("verb", ["Accept", "Reject"])

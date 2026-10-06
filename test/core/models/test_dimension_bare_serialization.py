@@ -33,7 +33,6 @@ from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import (
     DDimension,
     EmDimension,
-    PecDimension,
     PxaDimension,
     RmDimension,
     VfDimension,
@@ -41,7 +40,6 @@ from vultron.core.models.dimensions import (
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.case_status import (
@@ -65,7 +63,6 @@ class TestBareSerialization:
             (PxaDimension(), "pxa"),
             (VfDimension(), "vf"),
             (DDimension(), "d"),
-            (PecDimension(), "UNBOUND"),
         ],
     )
     def test_dumps_to_a_bare_string(self, dimension, expected):
@@ -78,7 +75,6 @@ class TestBareSerialization:
             (EmDimension, "EXITED"),
             (VfDimension, "VF"),
             (DDimension, "D"),
-            (PecDimension, "SIGNATORY"),
         ],
     )
     def test_accepts_the_bare_form(self, cls, value):
@@ -89,7 +85,6 @@ class TestBareSerialization:
         [
             (RmDimension, "ACCEPTED"),
             (EmDimension, "EXITED"),
-            (PecDimension, "SIGNATORY"),
         ],
     )
     def test_still_accepts_the_mapping_form(self, cls, value):
@@ -102,10 +97,6 @@ class TestBareSerialization:
             RmDimension.model_validate(original.model_dump(mode="json"))
             == original
         )
-
-    def test_retired_pec_spelling_still_coerces(self):
-        """ADR-0091 renamed ``NO_EMBARGO`` to ``UNBOUND``; the old name still reads."""
-        assert PecDimension.model_validate("NO_EMBARGO").state is PEC.UNBOUND
 
     def test_behaviour_survives_the_serializer(self):
         """The serializer must not disturb transitions or guards."""
@@ -147,17 +138,11 @@ _EQUIVALENT_STATES = [
         },
     ),
     (
-        "consent",
-        {"em_consent_state": PEC.SIGNATORY},
-        {"em_consent_state": PEC.SIGNATORY, "embargo_adherence": True},
-    ),
-    (
         "all_set",
         {
             "rm_state": RM.ACCEPTED,
             "vf_state": CS_vf.VF,
             "d_state": CS_d.D,
-            "em_consent_state": PEC.SIGNATORY,
             "cvd_role": [CVDRole.VENDOR, CVDRole.DEPLOYER],
             "tracking_id": "VU#9",
             "case_engagement": False,
@@ -166,11 +151,9 @@ _EQUIVALENT_STATES = [
             "rm_state": RM.ACCEPTED,
             "vf_state": CS_vf.VF,
             "d_state": CS_d.D,
-            "em_consent_state": PEC.SIGNATORY,
             "cvd_role": [CVDRole.VENDOR, CVDRole.DEPLOYER],
             "tracking_id": "VU#9",
             "case_engagement": False,
-            "embargo_adherence": True,
         },
     ),
     # The nested-CaseStatus case. Kept because it is the only one of these that
