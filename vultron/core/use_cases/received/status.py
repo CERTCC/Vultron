@@ -197,7 +197,7 @@ class AddCaseStatusToCaseReceivedUseCase:
 
 class CreateParticipantStatusReceivedUseCase:
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4069", "no sender check defined for participant status creation"
+        "#3813", "no sender check defined for participant status creation"
     )
 
     def __init__(
