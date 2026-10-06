@@ -764,7 +764,10 @@ class TestInviteeIsTheAddressee:
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert "names 2 'to' recipients" in (result.reason or "")
-        assert dl.outbox_list() == []
+        # Only the ProcessingFault answers it: no Invite is relayed (MSM-05-001).
+        assert [
+            getattr(dl.read(item), "type_", None) for item in dl.outbox_list()
+        ] == ["Create"]
         for participant_id in (invitee_p_id, other_p_id, coord_p_id):
             participant = self._read_participant(dl, participant_id)
             assert participant.embargo_consent_state == PEC.UNBOUND

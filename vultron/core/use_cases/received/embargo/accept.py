@@ -43,7 +43,7 @@ from vultron.core.use_cases.received._bt_verdict import (
 )
 from vultron.core.use_cases.received._embargo_pxa import (
     pxa_embargo_ineligible,
-    queue_pxa_reject,
+    run_pxa_refusal_tree,
 )
 
 if TYPE_CHECKING:
@@ -110,15 +110,23 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             case_id,
         )
         if invite_id:
-            queue_pxa_reject(
+            if not run_pxa_refusal_tree(
                 self._dl,
                 self._trigger_activity,
+                self._wire_render_port,
+                self._sync_port,
                 invite_id=invite_id,
                 case_id=case_id,
                 actor_id=receiving_actor_id,
                 recipient_id=accepting_actor_id,
+                store_invite=False,
+                activity=self._request,
                 label="accept_invite_to_embargo_on_case",
-            )
+            ):
+                return HandlerResult.skipped(
+                    f"EA for Invite '{invite_id}' was already answered with"
+                    f" ER on case '{case_id}' (HP-01-003)"
+                )
         else:
             logger.warning(
                 "accept_invite_to_embargo_on_case: missing invite_id"

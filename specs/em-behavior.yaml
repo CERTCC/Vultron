@@ -81,7 +81,9 @@ groups:
       been observed (q^cs ∈ ·····A). The Participant MUST respond with ER to reject the proposal.
       The ER duty binds only the proposal's addressee: a receiver that is neither the sender nor
       named in its `to` or `cc` holds an unaddressed copy, refuses it (HP-01-005) and answers
-      nothing (ADR-0118).
+      nothing (ADR-0118). The ER names the Invite by id and needs no terms, so an Invite that
+      names its terms by URI only is answered too (ADR-0120). A re-delivery of an Invite already
+      answered with ER is a duplicate: it is skipped and queues no second ER (HP-01-003).
     rationale: >-
       Embargo negotiation is not viable once public disclosure has occurred.
       VP-06-001 and VP-11-001 prohibit new embargo negotiations in these states.

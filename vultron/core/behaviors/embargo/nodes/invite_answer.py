@@ -170,7 +170,9 @@ class SendEmbargoInviteAnswerNode(_SendEmbargoActivityBase):
     """Queue an ``Accept`` or ``Reject`` of a stored embargo Invite.
 
     Addressed to the case's CASE_MANAGER (EP-09-003, PCR-08-001) and built by
-    the trigger-activity port from the stored Invite.
+    the trigger-activity port from the stored Invite.  A ``recipient_id``
+    overrides the CASE_MANAGER for an answer that goes elsewhere: the
+    CASE_MANAGER's ER to the actor whose proposal or Accept it refuses.
 
     **Fails by raising, never by returning FAILURE.**  The node is the action
     of an arm in the EMB-15 response Selector, so a FAILURE from the accept
@@ -188,11 +190,13 @@ class SendEmbargoInviteAnswerNode(_SendEmbargoActivityBase):
         invite_id: str,
         *,
         accept: bool,
+        recipient_id: str | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(case_id=case_id, name=name)
         self._invite_id = invite_id
         self._accept = accept
+        self._recipient_id = recipient_id
 
     @property
     def _verb(self) -> str:
@@ -210,6 +214,8 @@ class SendEmbargoInviteAnswerNode(_SendEmbargoActivityBase):
         if failure is not None:
             return failure
         assert self.datalayer is not None
+        if self._recipient_id is not None:
+            return self._invite_id, self._recipient_id
         manager_id = resolve_case_manager_id(case, self.datalayer)
         if manager_id is None:
             self.feedback_message = (

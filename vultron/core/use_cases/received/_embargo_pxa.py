@@ -22,25 +22,30 @@ The ER goes where an answer to that Invite goes.  The CASE_MANAGER answers the
 proposer that sent it; a participant answers the CASE_MANAGER, never a peer
 (EP-09-003, PCR-08-001), and only an Invite addressed to it (EP-09-010).
 
-The store keeps an Invite's object by reference: the Invite reads back whole,
-as the proposal the ER factory requires, only when the ``EmbargoEvent`` it
-names is stored too.  The refusal therefore stores the copy of the terms the
-Invite carries, as the tree's intake does on the normal path.  An Invite that
-names terms the receiver does not hold is a partial replica (Regime 2,
-ADR-0087): it is refused with no ER, which could not name the proposal, as
-``CanAnswerEmbargoInviteNode`` declines to answer it (ISSUE-4104).  Storing
+The store keeps an Invite's object by reference, so the refusal stores the copy
+of the terms the Invite carries, as the tree's intake does on the normal path,
+and the ER is built from the stored Invite.  An Invite that names its terms by
+URI only is answered all the same: the ER names the Invite by id and needs no
+terms, so the Invite reads back with the URI as its object (ADR-0120).  Storing
 the terms moves no EM or consent state (EP-09-003).
 
 An Invite this receiver already answered before the case went public is a
 re-delivery: ``pending_embargo_proposal_index`` maps its embargo to it, the
 same latch the tree's idempotency guard reads, so it is skipped rather than
-contradicted by an ER (HP-01-003).  The ER itself records no decision, so a
-repeated delivery of an Invite refused here is refused again (#4140).
+contradicted by an ER (HP-01-003).  The ER itself is the record of the refusal: a
+``Reject`` with an id derived from the rejecting actor and the Invite, queued by
+a node of ``RefuseEmbargoInviteBT``, so a repeated delivery finds it sent and is
+skipped (#4140).
 """
 
 import logging
 from typing import TYPE_CHECKING
 
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.embargo.refusal_tree import (
+    EmbargoInviteNotYetRefusedNode,
+    embargo_invite_refusal_tree,
+)
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.embargo import (
     InviteToEmbargoOnCaseReceivedEvent,
@@ -54,14 +59,16 @@ from vultron.core.states.cs import (
     is_pxa_exploit_public,
     is_pxa_public_aware,
 )
-from vultron.core.use_cases._helpers import (
-    _idempotent_create,
-    add_activity_to_outbox,
+from vultron.core.use_cases.received._bt_verdict import (
+    applied_or_raise,
+    node_failed,
 )
 from vultron.errors import VultronNotFoundError
 
 if TYPE_CHECKING:
+    from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
+    from vultron.core.ports.wire_render import WireRenderPort
 
 logger = logging.getLogger(__name__)
 
@@ -85,23 +92,28 @@ def pxa_embargo_ineligible(dl: CasePersistence, case_id: str) -> bool:
     )
 
 
-def queue_pxa_reject(
+def run_pxa_refusal_tree(
     dl: CaseOutboxPersistence,
     trigger_activity: "TriggerActivityPort | None",
+    wire_render_port: "WireRenderPort | None",
+    sync_port: "SyncActivityPort | None",
     *,
     invite_id: str,
     case_id: str,
     actor_id: str,
-    recipient_id: str,
+    recipient_id: str | None,
+    store_invite: bool,
+    embargo: EmbargoEvent | None = None,
+    answer: bool = True,
+    activity: object | None = None,
     label: str,
-) -> None:
-    """Queue ER — a ``Reject`` of *invite_id* — from *actor_id* to *recipient_id*.
+) -> bool:
+    """Run the refusal tree; return ``False`` when the ER was already sent.
 
-    The stored Invite must read back whole (its ``EmbargoEvent`` held), which
-    is the caller's to establish.  Without a trigger-activity port nothing can
-    be built, so the refusal stands without its ER and says so.
+    Without a trigger-activity port nothing can be built, so the refusal
+    stands without its ER and says so.
     """
-    if trigger_activity is None:
+    if answer and trigger_activity is None:
         logger.warning(
             "%s: trigger_activity unavailable — ER not emitted by actor '%s'"
             " to '%s' for invite '%s' on case '%s'",
@@ -111,14 +123,25 @@ def queue_pxa_reject(
             invite_id,
             case_id,
         )
-        return
-    reject_id, _ = trigger_activity.reject_embargo(
-        proposal_id=invite_id,
-        case_id=case_id,
-        actor=actor_id,
-        to=[recipient_id],
+        answer = False
+    tree = embargo_invite_refusal_tree(
+        case_id,
+        invite_id,
+        recipient_id,
+        store_invite=store_invite,
+        embargo=embargo,
+        answer=answer,
     )
-    add_activity_to_outbox(actor_id, reject_id, dl)
+    result = BTBridge(
+        datalayer=dl,
+        trigger_activity=trigger_activity,
+        wire_render_port=wire_render_port,
+        sync_port=sync_port,
+    ).execute_with_setup(tree=tree, actor_id=actor_id, activity=activity)
+    if node_failed(tree, EmbargoInviteNotYetRefusedNode):
+        return False
+    applied_or_raise(tree, result, label="RefuseEmbargoInviteBT")
+    return True
 
 
 def _invite_er_recipient(
@@ -142,6 +165,8 @@ def _invite_er_recipient(
 def refuse_pxa_invite(
     dl: CaseOutboxPersistence,
     trigger_activity: "TriggerActivityPort | None",
+    wire_render_port: "WireRenderPort | None",
+    sync_port: "SyncActivityPort | None",
     request: InviteToEmbargoOnCaseReceivedEvent,
     *,
     case_id: str,
@@ -154,9 +179,9 @@ def refuse_pxa_invite(
 
     EMB-01-002: MUST NOT process EP when P/X/A is set; MUST emit ER.  The
     Invite and the terms it carries are stored so the ER can be built from
-    the stored Invite.  No ER is sent for an Invite already answered (skipped), an
-    Invite addressed to another actor (EP-09-010), or an Invite naming terms
-    the receiver does not hold (Regime 2, ADR-0087).
+    the stored Invite.  No ER is sent for an Invite already answered (skipped) or
+    an Invite addressed to another actor (EP-09-010).  An Invite that names its
+    terms by URI is answered all the same: the ER names the Invite (ADR-0120).
 
     Raises:
         VultronNotFoundError: the case names no CASE_MANAGER (CM-24-006).
@@ -191,24 +216,11 @@ def refuse_pxa_invite(
     reason = (
         f"EMB-01-002: P/X/A set on case '{case_id}'; embargo proposal rejected"
     )
-    _idempotent_create(
-        dl,
-        request.activity_type,
-        invite_id,
-        request.activity,
-        "InviteToEmbargoOnCase",
-        invite_id,
+    terms = (
+        request.object_ if isinstance(request.object_, EmbargoEvent) else None
     )
-    if isinstance(request.object_, EmbargoEvent):
-        _idempotent_create(
-            dl,
-            request.object_.type_,
-            embargo_id,
-            request.object_,
-            "EmbargoEvent",
-            invite_id,
-        )
-    if receiving_actor_id != invitee_id:
+    addressed = receiving_actor_id == invitee_id
+    if not addressed:
         logger.warning(
             "%s: invite '%s' from actor '%s' is addressed to '%s', not to"
             " receiving actor '%s' — ER not emitted for the refusal on case"
@@ -220,35 +232,36 @@ def refuse_pxa_invite(
             receiving_actor_id,
             case_id,
         )
+    answer = addressed
+    sent = run_pxa_refusal_tree(
+        dl,
+        trigger_activity,
+        wire_render_port,
+        sync_port,
+        invite_id=invite_id,
+        case_id=case_id,
+        actor_id=receiving_actor_id,
+        recipient_id=(
+            _invite_er_recipient(
+                dl, case_id, receiving_actor_id, request.actor_id
+            )
+            if answer
+            else None
+        ),
+        store_invite=True,
+        embargo=terms,
+        answer=answer,
+        activity=request,
+        label=_INVITE_LABEL,
+    )
+    if not sent:
+        return HandlerResult.skipped(
+            f"Invite(EmbargoEvent) '{invite_id}' was already refused with ER"
+            f" on case '{case_id}' (HP-01-003)"
+        )
+    if not addressed:
         return HandlerResult.refused(
             f"{reason}; no ER sent, the Invite is addressed to"
             f" '{invitee_id}' (EP-09-010)"
         )
-    if not isinstance(dl.read(embargo_id), EmbargoEvent):
-        logger.warning(
-            "%s: invite '%s' from actor '%s' names embargo '%s' by id only and"
-            " receiving actor '%s' does not hold it — ER not emitted for the"
-            " refusal on case '%s' (Regime 2, ADR-0087)",
-            _INVITE_LABEL,
-            invite_id,
-            request.actor_id,
-            embargo_id,
-            receiving_actor_id,
-            case_id,
-        )
-        return HandlerResult.refused(
-            f"{reason}; no ER sent, embargo '{embargo_id}' is named by id only"
-            " and not held here (ADR-0087)"
-        )
-    queue_pxa_reject(
-        dl,
-        trigger_activity,
-        invite_id=invite_id,
-        case_id=case_id,
-        actor_id=receiving_actor_id,
-        recipient_id=_invite_er_recipient(
-            dl, case_id, receiving_actor_id, request.actor_id
-        ),
-        label=_INVITE_LABEL,
-    )
     return HandlerResult.refused(reason)

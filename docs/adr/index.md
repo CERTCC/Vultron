@@ -189,6 +189,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0116 Removing a Participant Withdraws Entitlement, Not Membership](0116-removing-a-participant-withdraws-entitlement-not-membership.md)
 - [ADR-0117 The Per-Case Genesis Hash Is Anchored to the Case Owner, Not the CaseActor](0117-genesis-hash-is-anchored-to-the-case-owner.md)
 - [ADR-0118 An Expired Invite Is Not a Decline, and a Terminated Embargo Is Not the Start State](0118-pec-expired-and-unbound-exited-states.md)
+- [ADR-0120 An Embargo Invite May Name Its Terms by URI](0120-embargo-invite-may-name-its-terms-by-uri.md)
 
 ## Proposed ADRs
 

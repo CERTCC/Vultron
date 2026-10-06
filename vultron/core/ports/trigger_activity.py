@@ -661,6 +661,14 @@ class TriggerActivityPort(Protocol):
         """
         ...
 
+    def embargo_invite_answered(self, actor: str, proposal_id: str) -> bool:
+        """Whether *actor* already rejected the Invite *proposal_id*.
+
+        A ``Reject`` of one Invite by one actor is a single activity, so a
+        repeat refusal of a re-delivered Invite can be told from the first.
+        """
+        ...
+
     def announce_embargo(
         self,
         embargo_id: str,

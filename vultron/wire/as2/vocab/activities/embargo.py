@@ -19,6 +19,7 @@ from typing import TypeAlias
 
 from pydantic import Field
 
+from vultron.primitives import NonEmptyString
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
@@ -39,10 +40,12 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 class _EmProposeEmbargoActivity(as_Invite):
     """The actor is proposing an embargo on the case.
     This corresponds to the Vultron Message Types EP and EV
-    object_: as_EmbargoEvent
+    object_: as_EmbargoEvent, or its URI when the sender named the terms by
+        reference.  An Invite received that way is still answered: the ER
+        names the Invite by id and needs no terms (ADR-0120).
     """
 
-    object_: as_EmbargoEvent = Field(
+    object_: as_EmbargoEvent | NonEmptyString = Field(
         default=..., validation_alias="object", serialization_alias="object"
     )
     context: as_VulnerabilityCaseRef = None

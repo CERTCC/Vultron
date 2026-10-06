@@ -434,8 +434,13 @@ def test_a_participant_with_pxa_set_answers_a_revision_with_er_never_et():
 
 
 @pytest.mark.spec("EMB-01-002")
-def test_a_bare_uri_invite_with_pxa_set_is_refused_without_raising(caplog):
-    """No copy of the terms means no ER can be built: refuse, never raise."""
+@pytest.mark.spec("MSM-05-001")
+def test_a_bare_uri_invite_with_pxa_set_gets_an_er_naming_the_invite():
+    """Terms held by bare URI only: the ER still names the Invite by id.
+
+    The ER answers the Invite, not the terms, so a receiver that holds no
+    copy of them can still decline (EMB-01-002, MSM-05-001).
+    """
     net = _Network("https://example.org/cases/relay-replay-pxa-uri")
     _propose(net, "public-uri", 90)
     _set_pxa(net, OWNER)
@@ -444,18 +449,22 @@ def test_a_bare_uri_invite_with_pxa_set_is_refused_without_raising(caplog):
     assert body is not None
     body["object"] = body["object"]["id"]
 
-    with caplog.at_level("WARNING"):
-        verdict = net.receive(OWNER, body)
+    verdict = net.receive(OWNER, body)
+    again = net.receive(OWNER, body)
 
     assert verdict.disposition is HandlerDisposition.REFUSED
     assert verdict.reason is not None and "EMB-01-002" in verdict.reason
-    assert verdict.reason is not None and "no ER sent" in verdict.reason
-    assert net.queued(OWNER, to=MANAGER) == []
-    assert net.stores[OWNER].read(invite.id_) is not None
-    assert any(
-        "by id only" in record.getMessage() and record.levelname == "WARNING"
-        for record in caplog.records
-    )
+    assert again.disposition is HandlerDisposition.SKIPPED
+    (reject,) = net.queued(OWNER, to=MANAGER, type_="Reject")
+    sealed = read_sealed_body_dict(net.stores[OWNER], reject.id_)
+    assert sealed is not None
+    assert sealed["object"]["id"] == invite.id_
+    # The proposer understands it: the ER arrives as the answer to its Invite.
+    received = net.receive(MANAGER, sealed)
+    assert received.disposition in (
+        HandlerDisposition.APPLIED,
+        HandlerDisposition.SKIPPED,
+    ), received.reason
 
 
 @pytest.mark.spec("EMB-02-002")
@@ -510,11 +519,6 @@ def _pxa_invite_body(
 @pytest.mark.spec("EMB-01-002")
 @pytest.mark.spec("HP-01-003")
 @pytest.mark.spec("TB-06-007")
-@pytest.mark.xfail(
-    strict=True,
-    reason="#4140: the P/X/A refusal records no decision, so a re-delivered"
-    " Invite is refused again and a second ER is queued",
-)
 def test_a_redelivered_invite_with_pxa_set_is_refused_once():
     """A re-delivery was answered on first arrival: no second ER."""
     net = _Network("https://example.org/cases/relay-replay-pxa-again")
@@ -903,3 +907,59 @@ def test_termination_exits_every_participant_in_every_store():
             assert participant.accepts_pec_trigger(PEC_Trigger.INVITE) is False
             with pytest.raises(VultronInvalidStateTransitionError):
                 participant.apply_pec_transition(PEC_Trigger.INVITE)
+
+
+def _faults(net: _Network, sender: str, to: str):
+    """``Create(ProcessingFault)`` bodies *sender* queued for *to*."""
+    bodies = []
+    for activity in net.queued(sender, to=to, type_="Create"):
+        body = read_sealed_body_dict(net.stores[sender], activity.id_)
+        assert body is not None
+        if body["object"]["type"] == "ProcessingFault":
+            bodies.append(body)
+    return bodies
+
+
+@pytest.mark.spec("EP-09-010")
+@pytest.mark.spec("MSM-05-001")
+@pytest.mark.parametrize("recipients", [[OWNER, BYSTANDER], []])
+def test_an_invite_with_zero_or_several_recipients_gets_a_processing_fault(
+    recipients,
+):
+    """A shape violation is received but not understood: fault, not ER."""
+    net = _Network("https://example.org/cases/relay-replay-fault")
+    _, body = _pxa_invite_body(net, MANAGER, OWNER, "shape")
+    body["to"] = recipients
+    body["cc"] = [OWNER]
+
+    verdict = net.receive(OWNER, body)
+    again = net.receive(OWNER, body)
+
+    assert verdict.disposition is HandlerDisposition.REFUSED
+    assert verdict.reason is not None and "EP-09-010" in verdict.reason
+    assert again.disposition is HandlerDisposition.REFUSED
+    (fault,) = _faults(net, OWNER, MANAGER)
+    assert fault["object"]["failureClass"].endswith("MisroutedEmbargoInvite")
+    assert fault["object"]["inReplyTo"] == body["id"]
+    assert net.queued(OWNER, to=MANAGER, type_="Reject") == []
+
+
+@pytest.mark.spec("EMB-02-002")
+@pytest.mark.spec("HP-01-003")
+@pytest.mark.spec("TB-06-007")
+def test_a_redelivered_accept_with_pxa_set_is_answered_once():
+    """The Accept-side refusal answers a repeated Accept once (EMB-02-002)."""
+    net = _Network("https://example.org/cases/relay-replay-pxa-accept-again")
+    _propose(net, "public-accept-again", 90)
+    net.deliver(MANAGER, to=OWNER, type_="Invite")
+    _set_pxa(net, MANAGER)
+    (accept,) = net.queued(OWNER, to=MANAGER, type_="Accept")
+    body = read_sealed_body_dict(net.stores[OWNER], accept.id_)
+    assert body is not None
+
+    first = net.receive(MANAGER, body)
+    again = net.receive(MANAGER, body)
+
+    assert first.disposition is HandlerDisposition.REFUSED
+    assert again.disposition is HandlerDisposition.SKIPPED
+    assert len(net.queued(MANAGER, to=OWNER, type_="Reject")) == 1
