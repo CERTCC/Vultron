@@ -219,7 +219,8 @@ class InviteToEmbargoOnCaseReceivedUseCase:
         ) is not None:
             return refusal
 
-        if case_id and pxa_embargo_ineligible(self._dl, case_id):
+        # The sender guard above refused an empty case_id.
+        if pxa_embargo_ineligible(self._dl, case_id):
             return refuse_pxa_invite(
                 self._dl,
                 self._trigger_activity,
@@ -284,7 +285,7 @@ class InviteToEmbargoOnCaseReceivedUseCase:
         # activity (ADR-0035 DL-06).  A partial replica that holds no copy
         # of the case keeps the Invite and indexes nothing (Regime 2,
         # ADR-0087); CanAnswerEmbargoInviteNode has already warned.
-        if case_id and embargo_id and invite_id:
+        if embargo_id and invite_id:
             try:
                 record_embargo_proposal_index(
                     self._dl, case_id, embargo_id, invite_id

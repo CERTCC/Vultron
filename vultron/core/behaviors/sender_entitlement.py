@@ -230,7 +230,14 @@ def _holds_case_owner_role(
     datalayer: CasePersistence, case: VulnerabilityCase, actor_id: str
 ) -> bool:
     """Return ``True`` when *actor_id*'s participant record holds CASE_OWNER."""
-    participant_id = case.actor_participant_index.get(actor_id)
+    participant_id = next(
+        (
+            pid
+            for aid, pid in case.actor_participant_index.items()
+            if same_actor_id(aid, actor_id)
+        ),
+        None,
+    )
     if participant_id is None:
         return False
     participant = datalayer.read(participant_id)

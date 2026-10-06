@@ -86,9 +86,6 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
         rejecting_actor_id = request.actor_id
         invite_id = request.invite_id
 
-        logger.info(
-            "'%s' rejected embargo '%s'", rejecting_actor_id, invite_id
-        )
         case_id, embargo_id = request.case_id, request.embargo_id
 
         if not case_id:
@@ -123,6 +120,10 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
             )
         ) is not None:
             return refusal
+
+        logger.info(
+            "'%s' rejected embargo '%s'", rejecting_actor_id, invite_id
+        )
 
         close_refused_embargo_proposal(self._dl, request)  # EP-09-008
 

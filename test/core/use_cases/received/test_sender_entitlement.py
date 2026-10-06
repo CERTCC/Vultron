@@ -1106,3 +1106,72 @@ def test_embargo_announce_from_a_non_manager_is_refused(
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert "CASE_MANAGER" in (result.reason or "")
+
+
+@pytest.mark.spec("HP-01-006")
+def test_embargo_remove_from_the_owner_with_trailing_slash_is_applied(
+    cm_store, owned_case, make_payload
+):
+    """The owner's id is compared as an actor id, so a trailing slash holds."""
+    embargo = _embargo_case(
+        cm_store, owned_case, em_state=EM.ACTIVE, active=True
+    )
+    event = make_payload(
+        remove_embargo_from_case_activity(
+            embargo,
+            origin=owned_case.id_,
+            context=owned_case.id_,
+            actor=f"{_OWNER_ID}/",
+            to=[_CASE_MANAGER_ID],
+        ),
+        receiving_actor_id=_CASE_MANAGER_ID,
+    )
+
+    result = RemoveEmbargoEventFromCaseReceivedUseCase(
+        cm_store, event, **_embargo_ports(cm_store)
+    ).execute()
+
+    assert result.disposition is HandlerDisposition.APPLIED
+
+
+@pytest.mark.spec("EP-09-003")
+@pytest.mark.spec("PCR-08-001")
+@pytest.mark.spec("HP-01-006")
+def test_embargo_announce_at_a_participant_from_a_peer_is_refused(
+    make_payload,
+):
+    """A participant replica takes an Announce from the CASE_MANAGER alone."""
+    replica = SqliteDataLayer("sqlite:///:memory:", actor_id=_INVITEE_ID)
+    case = as_VulnerabilityCase(
+        id_="https://example.org/cases/sender-entitlement-announce",
+        name="Replica",
+        attributed_to=_OWNER_ID,
+    )
+    seed_case_manager_participant(replica, case, _CASE_MANAGER_ID)
+    seed_case_participant(replica, case, _INVITEE_ID, [CVDRole.VENDOR])
+    seed_case_participant(replica, case, _BYSTANDER_ID, [CVDRole.VENDOR])
+    replica.create(case)
+    embargo = as_EmbargoEvent(
+        id_=f"{case.id_}/embargo_events/e1",
+        context=case.id_,
+        end_time=days_from_now_utc(45),
+    )
+    replica.create(embargo)
+    event = make_payload(
+        announce_embargo_activity(
+            embargo=embargo,
+            context=case.id_,
+            actor=_BYSTANDER_ID,
+            to=[_INVITEE_ID],
+        ),
+        receiving_actor_id=_INVITEE_ID,
+    )
+
+    result = AnnounceEmbargoEventToCaseReceivedUseCase(
+        replica, event, sync_port=SyncActivityAdapter(replica)
+    ).execute()
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert "CASE_MANAGER" in (result.reason or "")
+    assert replica.outbox_list() == []
+    assert replica.list_objects("CaseLedgerEntry") == []
