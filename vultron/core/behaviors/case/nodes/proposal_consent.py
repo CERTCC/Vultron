@@ -55,7 +55,7 @@ def _seed_participant_as_signatory(
     (CM-18-005, ADR-0048) where CM-18-003 allows it — so a retry against an
     ``ACCEPTED`` row changes nothing, and a participant that declined the
     embargo is not signed (ADR-0118).  With no embargo in force there is
-    nothing to sign and nothing is written (ADR-0120).
+    nothing to sign and nothing is written (ADR-0122).
     """
     # `active_embargo_id`, not the field: it may hold the whole EmbargoEvent
     # when a received case carried one (AKM-03-001), and the rows hold ids.

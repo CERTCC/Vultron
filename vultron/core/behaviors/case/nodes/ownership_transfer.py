@@ -41,6 +41,7 @@ from typing import Any
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.delegated_authorship import delegated_authorship
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     _EmitSingleActivityBase,
@@ -66,8 +67,8 @@ class EmitOfferCaseOwnershipTransferNode(_EmitSingleActivityBase):
         self,
         case_id: str,
         transferee_id: str,
+        requesting_actor_id: str,
         content: str | None = None,
-        attributed_to: str | None = None,
         captured: dict | None = None,
         name: str | None = None,
     ) -> None:
@@ -75,7 +76,7 @@ class EmitOfferCaseOwnershipTransferNode(_EmitSingleActivityBase):
         self.case_id = case_id
         self.transferee_id = transferee_id
         self.content = content
-        self.attributed_to = attributed_to
+        self.requesting_actor_id = requesting_actor_id
 
     def _call_factory(self) -> tuple[str, str]:
         assert self.trigger_activity_factory is not None
@@ -91,13 +92,17 @@ class EmitOfferCaseOwnershipTransferNode(_EmitSingleActivityBase):
             cm_id = resolve_case_manager_id(case, self.datalayer)
             if cm_id:
                 case_actor_id = [cm_id]
+        authorship = delegated_authorship(
+            doing_actor_id=self.actor_id,
+            requesting_actor_id=self.requesting_actor_id,
+        )
         return self.trigger_activity_factory.offer_case_ownership_transfer(
-            actor=self.actor_id,
+            actor=authorship.actor,
             case_id=self.case_id,
             transferee_id=self.transferee_id,
             content=self.content,
             to=case_actor_id,
-            attributed_to=self.attributed_to,
+            attributed_to=authorship.attributed_to,
         )
 
     def _on_success(self, activity_id: str, activity_blob: str) -> None:
@@ -206,12 +211,16 @@ class ForwardOfferToTransfereeNode(_EmitSingleActivityBase):
     def _call_factory(self) -> tuple[str, str]:
         assert self.trigger_activity_factory is not None
         assert self.actor_id is not None
+        authorship = delegated_authorship(
+            doing_actor_id=self.actor_id,
+            requesting_actor_id=self.original_actor_id,
+        )
         return self.trigger_activity_factory.offer_case_ownership_transfer(
             case_id=self.case_id,
             transferee_id=self.transferee_id,
-            actor=self.actor_id,
+            actor=authorship.actor,
             to=[self.transferee_id],
-            attributed_to=self.original_actor_id,
+            attributed_to=authorship.attributed_to,
         )
 
     def _on_success(self, activity_id: str, activity_blob: str) -> None:

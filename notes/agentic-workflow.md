@@ -11,10 +11,13 @@ related_notes:
   - notes/git-workflow-pitfalls.md
   - notes/parallel-development.md
   - notes/bt-pitfalls.md
+  - notes/specs-vs-adrs.md
+  - notes/spec-authoring-rules.md
 related_specs:
   - specs/build-workflow.yaml
   - specs/history-management.yaml
   - specs/parallel-development.yaml
+  - specs/meta-specifications.yaml
 ---
 
 # Agentic Development Workflow
@@ -296,4 +299,9 @@ comparing parsed YAML, so a mid-sentence edit of a folded statement is found.
 `create-pr` writes the placeholder, `pr-triage` FAILs a diff without the
 section, and `pr-verify` blocks on it. New requirements are not amendments.
 
-Source: ISSUE-4189
+A requirement ID removed by an amendment is never reused (MS-09-004); see
+[notes/spec-authoring-rules.md](spec-authoring-rules.md) § "Removed
+Requirements". A test timeout is an acceptable verification of a time-limit MUST
+(HP-07-002 stands).
+
+Source: ISSUE-4189, ISSUE-4195

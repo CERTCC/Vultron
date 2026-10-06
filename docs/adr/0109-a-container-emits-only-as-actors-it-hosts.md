@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-09-28
+created: 2026-09-28
+updated: 2026-09-28
+revision: 1
 deciders: Allen D. Householder
 consulted: notes/case-ledger-authority.md, notes/case-communication-model.md, notes/ownership-transfer.md, notes/outbox.md, docs/adr/0021-caseactor-inbox-routing-canonical-ledger.md, docs/adr/0042-http-only-inter-actor-delivery.md, docs/adr/0073-per-actor-storage-isolation.md, docs/adr/0088-consolidate-case-authority-determination.md
 informed: CERT/CC Vultron protocol team

@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-07-28
+created: 2026-07-28
+updated: 2026-10-06
+revision: 2
 deciders: [adh, Claude Sonnet 4.6]
 supersedes: 0015-create-case-at-report-receipt.md
 stakeholder_type: [project-contributor]
@@ -26,11 +29,10 @@ before the CaseActor exists.
 
 The concrete problems this gap causes:
 
-1. **AS2 authorship violation**: the vendor creates the `VulnerabilityCase` and
-   is the `actor` on `Create(VulnerabilityCase)`, but per ADR-0023 the CaseActor
-   is the authoritative case creator and the only correct `actor` on that
-   `Create`. (Ownership is a separate fact: `attributed_to` on the case records
-   the case owner, the actor that received the report, on every path.)
+1. **AS2 authorship violation**: the vendor creates a `VulnerabilityCase` with
+   itself as `attributed_to`, but per ADR-0023 the CaseActor is the
+   authoritative case creator and the only correct `actor` on
+   `Create(VulnerabilityCase)`.
 
 2. **Prologue back-fill**: `WritePrologueLedgerEntriesNode` (Issue #1688) was
    introduced as a workaround to stamp vendor-authored initialization entries
@@ -109,7 +111,7 @@ Receiver: store report + write VultronReportCaseLink(status=PENDING_PROPOSAL)
 Receiver → Create(as_CaseProposal) → CaseActor inbox
 
 CaseActor (on Accept(CaseProposal)):
-  - Create VulnerabilityCase (attributed_to=Receiver, the case owner)
+  - Create VulnerabilityCase (attributed_to=CaseActor)
   - Add receiver as CASE_OWNER participant (RM.RECEIVED)
   - Add reporter as participant (RM.ACCEPTED)
   - Initialize default embargo
@@ -250,3 +252,17 @@ stands:
   are now scoped to the report-receipt path.
 - The Issue #1767 consequence claimed removal of the back-fill was sufficient on
   its own. It is sufficient only for multi-actor deployments.
+
+## Amendment — 2026-10-02
+
+Problem 1 and the creation flow above place authorship of the case on the CaseActor.
+The decision stands (the CASE_MANAGER is the `actor` of `Create(VulnerabilityCase)`), but one detail is replaced: who `attributed_to` names.
+
+Replaced text, in Context problem 1: "the vendor creates a `VulnerabilityCase` with itself as `attributed_to`, but per ADR-0023 the CaseActor is the authoritative case creator and the only correct `actor` on `Create(VulnerabilityCase)`."
+And in the creation flow: "Create VulnerabilityCase (attributed_to=CaseActor)".
+
+Now: `attributed_to` on a `VulnerabilityCase` is the CASE_OWNER, the actor that received the report, on every creation path (CM-02-008, CM-22-001, CP-09-001).
+The CASE_MANAGER records that it created the case as the `actor` of `Create(VulnerabilityCase)`.
+The original text had conflated ADR-0023's rule about the Create `actor` with the case's `attributedTo`.
+An earlier change (commit `0882ed1c7`, #3979) made this correction in place without a trail; the 2026-10-02 audit of unsupervised agent decisions (#4195) confirmed the reversal, and the original text above is restored so this section is the record of it.
+Confirmed by Allen D. Householder, 2026-10-02.

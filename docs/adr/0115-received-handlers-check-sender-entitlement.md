@@ -1,6 +1,9 @@
 ---
-status: accepted
+status: proposed
 date: 2026-10-01
+created: 2026-10-01
+updated: 2026-10-01
+revision: 1
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; CONCERN-3733; ADR-0095, ADR-0109, ADR-0114;

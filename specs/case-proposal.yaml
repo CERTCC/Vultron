@@ -73,7 +73,7 @@ groups:
       (PCR-01-003, DL-07-005). So it travels on the proposal for the same reason and by
       the same rule as the report itself (CP-01-004). A participant that joined through
       an Invite does not use it to answer the Offer, which was never sent to it
-      (CM-11-005).
+      (CM-11-018).
     relationships:
     - rel_type: refines
       spec_id: CP-01-004
@@ -83,7 +83,7 @@ groups:
       `test/core/behaviors/case/test_offer_provenance_on_proposal.py`
     adr:
     - ADR-0073
-    - ADR-0070
+    - ADR-0121
   - id: CP-01-008
     priority: MUST
     kind: project
@@ -119,7 +119,10 @@ groups:
     kind: protocol
     statement: >-
       The `actor` of `Create(as_CaseProposal)` MAY be the proposing actor's full actor profile inline,
-      or a reference to that profile which the CASE_MANAGER dereferences.
+      or a reference to that profile which the CASE_MANAGER dereferences. The by-reference form is
+      available only where the CASE_MANAGER can dereference an object by an API call (AKM-05-003,
+      AKM-05-004); without that mechanism the profile MUST be inline, and a bare-URI `actor` is
+      refused (CP-01-010).
     rationale: >-
       The proposing actor becomes the CASE_OWNER (CP-09-001), and its published embargo policy lives
       on its profile (EP-01-001), in its own store, which the CASE_MANAGER cannot read (PCR-01-003).
@@ -130,6 +133,8 @@ groups:
       spec_id: EP-04-003
     - rel_type: depends_on
       spec_id: EP-01-001
+    - rel_type: depends_on
+      spec_id: AKM-05-003
     adr:
     - ADR-0096
     stories:

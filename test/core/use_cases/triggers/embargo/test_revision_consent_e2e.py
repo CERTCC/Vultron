@@ -17,7 +17,7 @@ cases (ADR-0093 as revised for #3884; EP-05, MSM-07).
 ``ACTIVE → REVISE → ACTIVE`` three ways — an accepted shorter revision, an
 accepted longer revision, a rejected revision — on a case with an owner, a
 proposer and a silent third signatory, asserting after every step each
-participant's consent rows (one per embargo, ADR-0120), and that
+participant's consent rows (one per embargo, ADR-0122), and that
 ``find_excluded_actor_ids`` (the CM-10-004 content gate) agrees with the
 derived ``is_signatory`` / ``has_lapsed`` answers about who is bound by the
 active embargo.
@@ -381,7 +381,7 @@ def test_rejected_revision_strands_nobody(revision: _Revision):
     assert case.proposed_embargoes == []
     assert case.pending_embargo_proposal_index == {}
     # Every row for A is untouched; the owner's rejection of a proposal while
-    # A is in force writes nothing (ADR-0120).
+    # A is in force writes nothing (ADR-0122).
     after = revision.consent()
     for actor in ACTORS:
         assert after[actor][a] == before[actor][a] == _ACCEPTED, actor

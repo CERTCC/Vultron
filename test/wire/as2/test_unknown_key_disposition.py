@@ -286,11 +286,11 @@ def _inline_case_participant(**extra: Any) -> dict[str, Any]:
 def test_retired_scalar_consent_name_is_refused_with_adr_0120_message(
     build: Callable[..., dict[str, Any]], retired: str, value: Any
 ) -> None:
-    """The scalar consent names are retired by ADR-0120 (#4178).
+    """The scalar consent names are retired by ADR-0122 (#4178).
 
     Consent is per embargo and travels as ``embargoConsents`` rows; a sender
     still using the scalar spelling (on a status or on a participant) has the
-    whole activity refused at the parse edge, naming the key and the ADR-0120
+    whole activity refused at the parse edge, naming the key and the ADR-0122
     replacement, instead of being set aside and read as "never asked".
     """
     body = _with_inline_object(build(**{retired: value}))
@@ -298,7 +298,7 @@ def test_retired_scalar_consent_name_is_refused_with_adr_0120_message(
         parse_activity(body)
     message = str(exc_info.value)
     assert retired in message
-    assert "ADR-0120" in message
+    assert "ADR-0122" in message
     assert "embargoConsents" in message
 
 

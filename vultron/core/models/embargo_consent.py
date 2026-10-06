@@ -15,7 +15,7 @@
 
 """One participant's consent to one embargo.
 
-Consent is per (participant, embargo) (ADR-0120, CM-10-001, CM-18-001): a
+Consent is per (participant, embargo) (ADR-0122, CM-10-001, CM-18-001): a
 :class:`CaseParticipant` carries one :class:`EmbargoConsent` row for each
 embargo it was asked about, and nothing else records consent.  Being bound by
 the embargo in force, and having lapsed from a replaced one, are lookups over

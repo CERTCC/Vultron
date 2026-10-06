@@ -150,7 +150,7 @@ class ApplyEmbargoTeardownNode(DataLayerActionWithPorts):
 
     Performs the ACTIVE/REVISE → EXITED EM state transition and clears
     ``active_embargo``; participant consent needs no write, because with
-    EM ``EXITED`` nobody is bound (ADR-0120).
+    EM ``EXITED`` nobody is bound (ADR-0122).
     Handles idempotency: if EM state is already EXITED, logs and returns
     SUCCESS without modifying the DataLayer.
 

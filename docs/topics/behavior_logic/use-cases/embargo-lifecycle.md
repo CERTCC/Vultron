@@ -27,7 +27,7 @@ The case carries **one** embargo, and each Participant carries its **own stance*
 The distinction is not bookkeeping.
 "The case is under embargo" and "this Participant is bound by it" are different facts, and a case routinely holds both at once: an active embargo with one Participant who declined it.
 A Participant is a signatory when its consent row for the case's active embargo is `ACCEPTED`.
-That is a lookup, not a second record, so the embargo and the Participant's position can never drift apart ([ADR-0120](../../../adr/0120-per-embargo-participant-consent.md)).
+That is a lookup, not a second record, so the embargo and the Participant's position can never drift apart ([ADR-0122](../../../adr/0122-per-embargo-participant-consent.md)).
 A Participant that accepted an earlier embargo but has no accepting row for the one now in force has lapsed, which is read the same way.
 
 A missing row is the thing most often misread.

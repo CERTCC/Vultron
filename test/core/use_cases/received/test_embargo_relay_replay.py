@@ -750,7 +750,7 @@ def test_a_lapsed_bystander_gets_its_invite_but_no_ledger_entry():
 
     The managing owner activates a revision longer than the terms the
     bystander signed, before the bystander answers its Invite, so the
-    bystander lapses (derived, ADR-0093, ADR-0120).  The content gate then withholds every
+    bystander lapses (derived, ADR-0093, ADR-0122).  The content gate then withholds every
     ``Announce(CaseLedgerEntry)`` from it (CM-10-005), while its relayed
     Invite, which is embargo meta-protocol traffic, still reaches it
     directly.  Once it accepts, the paused stream is backfilled in log order
@@ -897,7 +897,7 @@ def test_termination_leaves_nobody_a_signatory_in_every_store():
     """Termination writes no consent, yet no record is bound afterwards.
 
     With no embargo in force nobody is a signatory or lapsed, on the manager
-    and on a replica alike (ADR-0120); the rows are as they were.
+    and on a replica alike (ADR-0122); the rows are as they were.
     """
     net = _managing_owner_network(
         "https://example.org/cases/manager-owner-terminate-pec"

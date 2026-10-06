@@ -13,6 +13,7 @@ related_specs:
   - specs/code-style.yaml
   - specs/structured-logging.yaml
   - specs/behavior-tree-node-design.yaml
+  - specs/meta-specifications.yaml
 related_notes:
   - notes/devcontainer-tooling.md
   - notes/ci-workflow-authoring.md
@@ -335,3 +336,16 @@ the habits the flake8 era required:
   does not settle the question, because it governs *gates* — the CI job, the
   hook, the skills' checks — and `--fix` is not a gate. Never encode a path into
   anything a gate invokes.
+
+## Breaking an Import Cycle Is Housekeeping, Not an ADR
+
+A refactor whose only purpose is to break an import cycle (hoisting a shared
+type or constant into a leaf module, moving a function to the layer that already
+owns its dependencies) does not need an ADR. It changes no behaviour, no public
+contract and no layer rule, so there is no rejected alternative to record
+(MS-11-002, MS-11-005). Do it in the PR that hit the cycle and say so in the body.
+Draft an ADR only if breaking the cycle *requires* changing a layer boundary or
+a port, and then the ADR is about that change, not the cycle (#4114 confirmed
+this reading).
+
+Source: ISSUE-4195

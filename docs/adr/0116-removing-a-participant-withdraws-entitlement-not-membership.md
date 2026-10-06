@@ -1,6 +1,9 @@
 ---
-status: accepted
+status: proposed
 date: 2026-10-01
+created: 2026-10-01
+updated: 2026-10-01
+revision: 1
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; CONCERN-2257; ADR-0093, ADR-0108, ADR-0109, ADR-0113,
@@ -35,7 +38,7 @@ The question: **what does removing a participant change, who may do it, how does
 ## Decision Drivers
 
 - Removal is a decision the case makes about a participant, not a statement the participant makes about itself.
-  It must not be modelled as a consent state (ADR-0084: participant status is self-declaratory).
+  It must not be modelled as a consent state (ADR-0121: participant status is self-declaratory).
 - Entitlement to case content is already an explicit, computed check (the active participant, CM-10-004, ADR-0114), not roster membership.
 - Only the CASE_MANAGER turns an assertion into case state, and replicas take case state from the ledger (ADR-0108).
   One move gets one ledger entry, authored by the actor that made the move.

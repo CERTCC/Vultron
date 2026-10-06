@@ -1992,7 +1992,7 @@ class TestCM14005ReporterSignatory:
     ):
         """AC-4: the reporter's ledger status snapshot carries no consent.
 
-        Consent lives on the participant's per-embargo rows (ADR-0120), so the
+        Consent lives on the participant's per-embargo rows (ADR-0122), so the
         ``ParticipantStatus`` snapshot has no ``emConsentState`` or
         ``embargoAdherence`` key, in either direction.
         """
@@ -2040,7 +2040,7 @@ class TestCM14005ReporterSignatory:
             obj = getattr(entry, "payload_snapshot", {}).get("object", {})
             assert not _RETIRED_CONSENT_KEYS & set(obj), (
                 f"Ledger status snapshot must carry no consent keys (consent"
-                f" is per-embargo on the participant, ADR-0120), got"
+                f" is per-embargo on the participant, ADR-0122), got"
                 f" {sorted(_RETIRED_CONSENT_KEYS & set(obj))}"
             )
 
@@ -2224,7 +2224,7 @@ class TestCM18007InitLedgerEntries:
         self, make_payload
     ):
         """Vendor (CASE_OWNER) init ledger entry carries no consent keys:
-        consent is per-embargo on the participant (ADR-0120, CM-14-003)."""
+        consent is per-embargo on the participant (ADR-0122, CM-14-003)."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id=_CASE_ACTOR_URI,
@@ -3574,7 +3574,7 @@ class TestEP04SenderProposalAtCaseCreation:
         }
         # A signatory asked about a revision gets an INVITED row for the
         # revision and keeps its ACCEPTED row for the active terms
-        # (EP-09-004, ADR-0120).
+        # (EP-09-004, ADR-0122).
         from vultron.core.models.case_participant import CaseParticipant
         from vultron.core.states.participant_embargo_consent import (
             EmbargoConsentState,

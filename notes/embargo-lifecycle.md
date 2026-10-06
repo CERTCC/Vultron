@@ -71,7 +71,7 @@ The embargo lifecycle involves three interacting state machines:
    `NONE → PROPOSED → ACTIVE ↔ REVISE → EXITED`
 2. **PEC** (`vultron/core/states/participant_embargo_consent.py`) — the
    per-participant, per-embargo consent rows (`CaseParticipant.embargo_consents`),
-   each `INVITED`, `ACCEPTED`, `DECLINED` or `EXPIRED` (ADR-0120). A participant
+   each `INVITED`, `ACCEPTED`, `DECLINED` or `EXPIRED` (ADR-0122). A participant
    with no row for an embargo is not bound by it, so `ACCEPT`/`DECLINE` are
    valid directly from no row — consent is not always mediated by an invitation
    (ADR-0048, CM-18-003). "Signatory" (the active embargo's row is `ACCEPTED`)

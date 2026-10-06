@@ -1,8 +1,11 @@
 ---
 status: accepted
 date: 2026-07-31
+created: 2026-07-31
+updated: 2026-07-31
+revision: 1
 deciders: [adh, Claude Opus 5]
-partially_superseded_by: docs/adr/0120-per-embargo-participant-consent.md
+partially_superseded_by: docs/adr/0122-per-embargo-participant-consent.md
 stakeholder_type: [project-contributor]
 ---
 

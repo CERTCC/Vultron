@@ -80,7 +80,7 @@ _VFD_RETIRED = (
 #: retired-key guard (SDO-03-005) — ``extra="forbid"`` refuses these on
 #: in-process and stored data.
 _CONSENT_RETIRED = (
-    "the scalar participant embargo consent is retired (ADR-0120); consent is"
+    "the scalar participant embargo consent is retired (ADR-0122); consent is"
     " per embargo and travels as the participant's embargoConsents rows"
 )
 

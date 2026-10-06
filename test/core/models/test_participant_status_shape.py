@@ -354,7 +354,7 @@ class TestRoleDimensionInvariant:
 
 
 # ---------------------------------------------------------------------------
-# Status carries no consent (ADR-0120)
+# Status carries no consent (ADR-0122)
 # ---------------------------------------------------------------------------
 
 

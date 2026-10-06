@@ -52,7 +52,7 @@ groups:
     - rel_type: derives_from
       spec_id: VAM-02-005
     adr:
-    - ADR-0070
+    - ADR-0121
     stories:
     - story_2022_101
     - story_2022_006
@@ -73,7 +73,7 @@ groups:
     - rel_type: derives_from
       spec_id: VAM-02-004
     adr:
-    - ADR-0070
+    - ADR-0121
     stories:
     - story_2022_101
     - story_2022_006
@@ -129,7 +129,7 @@ groups:
     - rel_type: derives_from
       spec_id: VAM-02-006
     adr:
-    - ADR-0070
+    - ADR-0121
     stories:
     - story_2022_006
     - story_2022_101
@@ -710,7 +710,7 @@ groups:
     (self-reported by vendor/deployer), consent rows are set by the CASE_MANAGER (CM-28-003)
     based on observed participant behavior — incoming Accept/Reject wire activities and
     timer-enforced invitation expiry — and replayed on each replica. Normative authority:
-    specs/case-management.yaml CM-18. Decisions: ADR-0048, ADR-0091, ADR-0118, ADR-0120.
+    specs/case-management.yaml CM-18. Decisions: ADR-0048, ADR-0091, ADR-0118, ADR-0122.
   specs:
   - id: MSM-07-001
     priority: MUST
@@ -785,7 +785,7 @@ groups:
       actor). An implementer handling this activity MUST update both, not
       just the EM state. The PEC ACCEPT trigger is valid directly from no row
       because consent can be self-determined without an invitation (ADR-0048,
-      ADR-0091, CM-18-003). Consent is per embargo (CM-10-001, ADR-0093, ADR-0120): an Accept
+      ADR-0091, CM-18-003). Consent is per embargo (CM-10-001, ADR-0093, ADR-0122): an Accept
       is always a statement about the embargo it names, so it always marks that embargo's row
       and there is no first-proposal versus revision asymmetry to special-case.
     verification: >-
@@ -802,7 +802,7 @@ groups:
       spec_id: MSM-02-002
     adr:
     - ADR-0093
-    - ADR-0120
+    - ADR-0122
   - id: MSM-07-004
     priority: MUST
     kind: project
@@ -849,7 +849,7 @@ groups:
       spec_id: MSM-02-006
     adr:
     - ADR-0093
-    - ADR-0120
+    - ADR-0122
   - id: MSM-07-005
     priority: MUST
     kind: project
@@ -897,7 +897,7 @@ groups:
       spec_id: MSM-02-003
     adr:
     - ADR-0093
-    - ADR-0120
+    - ADR-0122
   - id: MSM-07-006
     priority: MUST
     kind: project
@@ -912,7 +912,7 @@ groups:
       EM EXITED has no outgoing transition, so a terminated embargo can never be invited to
       again. That is a fact about the case, which every replica holds once it replays the
       teardown, so it does not need to be copied onto each participant record as the terminal
-      state it was before ADR-0120 (ADR-0118). Leaving the rows as they were also keeps the
+      state it was before ADR-0122 (ADR-0118). Leaving the rows as they were also keeps the
       history of who accepted what.
     verification: >-
       Inspection of vultron/core/services/embargo_lifecycle/ confirms that
@@ -927,7 +927,7 @@ groups:
       spec_id: MSM-02-007
     adr:
     - ADR-0118
-    - ADR-0120
+    - ADR-0122
   - id: MSM-07-007
     priority: MUST
     kind: project

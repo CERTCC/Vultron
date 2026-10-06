@@ -327,7 +327,7 @@ def test_json_mode_dump_round_trips_for_non_bool_computed_field(
 
 def test_retired_embargo_adherence_refused_at_parse() -> None:
     """An inbound ParticipantStatus carrying the retired embargoAdherence key
-    is refused at parse (ADR-0120), not accepted with the value set aside.
+    is refused at parse (ADR-0122), not accepted with the value set aside.
     """
     import pytest
 
@@ -346,7 +346,7 @@ def test_retired_embargo_adherence_refused_at_parse() -> None:
         },
         "published": "2026-01-01T00:00:00+00:00",
     }
-    with pytest.raises(VultronParseValidationError, match="ADR-0120"):
+    with pytest.raises(VultronParseValidationError, match="ADR-0122"):
         parse_activity(body)
 
 

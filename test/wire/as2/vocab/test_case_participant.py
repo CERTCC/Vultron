@@ -42,7 +42,7 @@ from vultron.wire.as2.vocab.objects.case_participant import (
 
 
 class TestCaseParticipantEmbargoConsents(unittest.TestCase):
-    """Tests for as_CaseParticipant.embargo_consents (CM-10-001, ADR-0120)."""
+    """Tests for as_CaseParticipant.embargo_consents (CM-10-001, ADR-0122)."""
 
     def setUp(self):
         self.actor_id = "https://example.org/actors/alice"

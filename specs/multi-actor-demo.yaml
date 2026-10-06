@@ -534,89 +534,6 @@ groups:
     - rel_type: refines
       spec_id: CBT-01-001
       note: original report submission path bootstrap
-  - id: DEMOMA-08-002
-    priority: MUST
-    kind: project
-    verification_debt: '#2573'
-    deprecated: true
-    statement: >-
-      Case-participant role delegation MUST be implemented as a protocol mechanism distinct
-      from `OFFER_CASE_OWNERSHIP_TRANSFER`, so that the Vendor can retain `CASE_OWNER` while
-      delegating operational authority to a service actor. The three-message handshake
-      (Offer/Accept/Reject) MUST use the distinct `MessageSemantics` values
-      `OFFER_CASE_PARTICIPANT_ROLE`, `ACCEPT_CASE_PARTICIPANT_ROLE`, and
-      `REJECT_CASE_PARTICIPANT_ROLE`.
-    rationale: >-
-      The requirement stands; only the semantics names changed. ADR-0039 (CONCERN-2322)
-      removed the original `CASE_MANAGER`-specific wire format and all supporting
-      infrastructure, replacing it with the self-describing
-      `Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)` shape, which
-      also eliminates the ambiguity with `OFFER_CASE_OWNERSHIP_TRANSFER`. The statement was
-      restated in terms of the surviving semantics because it had been left asserting a MUST
-      about three deleted enum members (issue #3022). See SE-08-005.
-  - id: DEMOMA-08-006
-    priority: MUST
-    kind: project
-    verification_debt: '#2573'
-    deprecated: true
-    statement: >-
-      `OfferCaseParticipantRolePattern`, `AcceptCaseParticipantRolePattern`, and
-      `RejectCaseParticipantRolePattern` MUST be registered in `SEMANTIC_REGISTRY`.
-      `OfferCaseParticipantRoleReceivedUseCase`,
-      `AcceptCaseParticipantRoleReceivedUseCase`, and
-      `RejectCaseParticipantRoleReceivedUseCase` MUST be registered as their
-      `use_case_class`, so that they appear in the mapping returned by `use_case_map()`.
-    rationale: >-
-      The requirement stands; only the pattern and use-case names changed. ADR-0039
-      (CONCERN-2322) deleted the `CaseManagerRole` patterns and use cases in favour of the
-      `CaseParticipantRole` ones registered in `vultron/semantic_registry/actor.py`. The
-      statement was restated in terms of the surviving classes because it had been left
-      asserting a MUST that three deleted pattern classes be registered, in a registry that
-      no longer exists under that name (issue #3022). See SE-08-005.
-  - id: DEMOMA-08-007
-    priority: MUST
-    kind: project
-    verification_debt: '#2573'
-    deprecated: true
-    statement: >-
-      A trigger-side use case `SvcOfferCaseManagerRoleUseCase` MUST be implemented in
-      `vultron/core/use_cases/triggers/actor.py` (or a new module in that package).
-      It MUST build an `_OfferCaseManagerRoleActivity` addressed to the target Case Actor
-      and enqueue it to the offering Vendor's outbox.
-    rationale: >-
-      Superseded by ADR-0039 (CONCERN-2322). `SvcOfferCaseManagerRoleUseCase` was deleted;
-      the replacement is the `offer_case_participant_role` adapter method and
-      `SvcOfferCaseParticipantRoleUseCase`. See SE-08-005.
-  - id: DEMOMA-08-008
-    priority: SHOULD
-    kind: project
-    deprecated: true
-    statement: >-
-      A trigger-side use case `SvcAcceptCaseManagerRoleUseCase` SHOULD be implemented
-      for the Case Actor to explicitly accept (rather than auto-accepting via the received
-      use case). This allows manual override of the auto-accept behavior for deployments
-      that require explicit operator approval before the Case Actor assumes the role.
-    rationale: >-
-      Superseded by ADR-0039 (CONCERN-2322). `SvcAcceptCaseManagerRoleUseCase` was deleted;
-      auto-acceptance is now handled by `AutoAcceptCaseParticipantRoleNode` in the received
-      tree. See SE-08-005.
-  - id: DEMOMA-08-009
-    priority: MUST
-    kind: project
-    verification_debt: '#2573'
-    deprecated: true
-    statement: >-
-      Unit and integration tests MUST cover the full CASE_MANAGER delegation handshake:
-      (1) Vendor offers role via `_OfferCaseManagerRoleActivity`,
-      (2) Case Actor auto-accepts via `OfferCaseManagerRoleReceivedUseCase`,
-      (3) Vendor receives `_AcceptCaseManagerRoleActivity` and triggers
-      trust bootstrap `Create(VulnerabilityCase)` to Reporter.
-    rationale: >-
-      Superseded by ADR-0039 (CONCERN-2322). `_OfferCaseManagerRoleActivity` and
-      `OfferCaseManagerRoleReceivedUseCase` were deleted. Test coverage for the
-      replacement flow (`Offer(CaseParticipantRole)` handshake) is in
-      `test/core/behaviors/case/nodes/test_delegation.py` and
-      `test/adapters/driven/trigger_activity_adapter/test_actors.py`.
   - id: DEMOMA-08-003
     priority: MUST_NOT
     kind: project
@@ -2438,9 +2355,12 @@ groups:
       The FCVD scenario expected-event-types list MUST include
       `invite_actor_to_case` and `accept_invite_actor_to_case` in addition to
       the universal types (DEMOMA-16-001), because the Coordinator invites
-      the Vendor and the Deployer into the case, and both explicitly accept via
-      the `accept-case-invite` trigger. The Finder is seated as reporter at case
-      creation (CM-22-002) and is not invited.
+      Finder, Vendor, and Deployer into the case, and all three explicitly accept
+      via the `accept-case-invite` trigger.
+    note: >-
+      The FCVD scenario is unbuilt. This entry is the text from before #4136 and
+      awaits FCVD planning, which decides who is invited once the Finder is seated
+      as reporter at case creation (DEMOMA-12-003).
     rationale: >-
       FCVD exercises a four-actor coordination chain with one full invitation
       cycle per non-case-owner actor; `invite_actor_to_case` and
@@ -2599,6 +2519,22 @@ groups:
     - rel_type: refines
       spec_id: DEMOMA-03-001
       note: acceptance test scenario files are also subject to this rule
+  - id: DEMOMA-17-002
+    priority: MUST_NOT
+    kind: project
+    verification_debt: '#2573'
+    statement: >-
+      A change that consolidates demo code (extracting or merging helpers, phases or
+      scenario bodies under DEMOMA-17-001) MUST NOT change what any demo scenario
+      passes or fails on. A verdict changed by a consolidation PR MUST instead be
+      made in its own change, with its own issue.
+    rationale: >-
+      Consolidation is behaviour-preserving. A PR that also loosens or tightens a check
+      hides the verdict change inside a refactor, where nobody is looking for it (#3905
+      changed what a demo passes on inside a consolidation and had no issue).
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-17-001
 
 - id: DEMOMA-19
   title: FCVCV 5-Party Scenario (Finder + Coordinator1 + Vendor1 + Coordinator2 + Vendor2)
@@ -4023,7 +3959,24 @@ groups:
     tags:
     - demo
     - testing
-
+  - id: DEMOMA-23-008
+    priority: MUST
+    kind: project
+    verification_debt: '#2573'
+    statement: >-
+      A scenario whose ledger authority holds no ledger entries for the case MUST
+      fail: an authority with an empty ledger is a demo failure, not a vacuous pass of
+      the ledger checks.
+    rationale: >-
+      Checks that iterate over the authority's entries pass with nothing to check. An
+      authority with no entries means the case never reached it, or its ledger was
+      never read. #3905 made that state pass without an issue recording the change.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-23-002
+    tags:
+    - demo
+    - testing
 - id: DEMOMA-24
   title: FCVD Scenario (Finder + Coordinator + Vendor + Deployer)
   trigger:
@@ -4249,12 +4202,15 @@ groups:
       The FCVD implementation MUST ship a dedicated per-scenario case-ledger
       invariant test file (`test/ci/invariants/test_fcvd_invariants.py`) using
       the shared invariant library; the file MUST assert the scenario-specific
-      checks: (1) `invite_actor_to_case` present at least twice (Vendor and
-      Deployer invitations; the Finder is seated as reporter at case creation,
-      CM-22-002, and is not invited), (2) `accept_invite_actor_to_case` present
-      at least twice, (3) `add_participant_status_to_participant` entries show
+      checks: (1) `invite_actor_to_case` present at least three times (Finder,
+      Vendor, Deployer invitations), (2) `accept_invite_actor_to_case` present at
+      least three times, (3) `add_participant_status_to_participant` entries show
       VFd (not VFD) for Vendor and VFD for Deployer, and (4) the Deployer replica
       holds the full case history from genesis.
+    note: >-
+      The FCVD scenario is unbuilt. This entry is the text from before #4136 and
+      awaits FCVD planning, which decides who is invited once the Finder is seated
+      as reporter at case creation (DEMOMA-12-003).
     rationale: >-
       The VFd-vs-VFD distinction for Vendor and Deployer is the central protocol
       claim of the FCVD scenario; without an invariant test that explicitly checks

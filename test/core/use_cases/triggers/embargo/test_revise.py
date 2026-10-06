@@ -188,7 +188,7 @@ def test_propose_embargo_revision_in_revise_state_succeeds(
 
     participant_after = cast(as_CaseParticipant, dl.read(participant_id))
     # The proposer's row for the embargo in force is untouched; proposing adds
-    # only an ACCEPTED row for the proposed revision (ADR-0120).
+    # only an ACCEPTED row for the proposed revision (ADR-0122).
     proposed_id = updated_case.proposed_embargoes[-1]
     assert [
         r

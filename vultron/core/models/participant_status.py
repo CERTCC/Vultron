@@ -83,7 +83,7 @@ class ParticipantStatus(CoreObject):
     ``rm``, ``vf``, and ``d`` are dimension objects that own the RM, VF, and D
     state machines respectively (ADR-0036, ADR-0075, SDO-03-002).  The status
     carries no embargo consent: consent is per (participant, embargo) and lives
-    on the ``CaseParticipant`` (ADR-0120, CM-18-001).  ``vf`` is non-None for VENDOR participants; ``d`` is
+    on the ``CaseParticipant`` (ADR-0122, CM-18-001).  ``vf`` is non-None for VENDOR participants; ``d`` is
     non-None for DEPLOYER participants; a participant with both roles carries
     both.
     """

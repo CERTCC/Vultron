@@ -57,7 +57,7 @@ class _ActivationOperationsMixin(_PecActivationMixin):
         proposal a revision of it, and a revision of an embargo that no
         longer exists cannot be accepted).  No participant's consent is
         written: with EM ``EXITED`` and no active embargo nobody is bound, and
-        nothing more can be consented to (ADR-0118, ADR-0120).  The teardown
+        nothing more can be consented to (ADR-0118, ADR-0122).  The teardown
         replay node runs this in ``OBSERVED`` mode, so the rule holds on
         every replica.
 

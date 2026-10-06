@@ -334,7 +334,7 @@ class TestCNARoleOnParticipant:
 
 
 # ---------------------------------------------------------------------------
-# Per-embargo consent rows (ADR-0120, CM-10-001, CM-18-001, CM-18-005)
+# Per-embargo consent rows (ADR-0122, CM-10-001, CM-18-001, CM-18-005)
 # ---------------------------------------------------------------------------
 
 _EMBARGO = "https://example.org/embargoes/em-001"
@@ -574,7 +574,7 @@ class TestHasLapsed:
 
 
 class TestSignEmbargo:
-    """``sign_embargo`` seeding (CM-14-005, CM-10-001, ADR-0120)."""
+    """``sign_embargo`` seeding (CM-14-005, CM-10-001, ADR-0122)."""
 
     @pytest.mark.parametrize("start", [None, S.INVITED, S.EXPIRED, S.ACCEPTED])
     def test_signs_where_accept_is_legal(self, start):

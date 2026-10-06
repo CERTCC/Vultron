@@ -49,7 +49,7 @@ class EmbargoLifecycle(
     ``MachineError`` handling, actor-to-participant lookup via
     ``actor_participant_index``, PEC trigger application, and idempotent
     ``proposed_embargoes`` management and the per-embargo consent rows
-    (ADR-0120).
+    (ADR-0122).
 
     Callers inject a :class:`~vultron.core.ports.case_persistence.CasePersistence`
     instance once at construction.  ``SqliteDataLayer`` satisfies the protocol

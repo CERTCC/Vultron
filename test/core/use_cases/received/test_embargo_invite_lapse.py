@@ -1952,7 +1952,7 @@ class TestLateAcceptHandling:
     def test_late_accept_noop_when_em_exited(self, make_payload):
         """Late Accept after EM EXITED → ack no-op, actor stays in case (AC-4 #2213).
 
-        Termination writes no consent (ADR-0120) and, with no embargo in
+        Termination writes no consent (ADR-0122) and, with no embargo in
         force, nobody is a signatory; once EM is EXITED a late Accept records
         no acceptance, so the invitee never becomes a signatory.
         """
@@ -2567,3 +2567,132 @@ class TestLapseIsDerived:
         assert not participant.has_lapsed(b_id)
         assert not participant.is_signatory(b_id)
         assert not case.is_active_participant(participant)
+
+
+class TestOwnerAnswerToRelayedInvite:
+    """The case owner's answer to a relayed embargo Invite is its own (EP-09-005/006).
+
+    The protocol never requires an automatic answer.  The prototype keeps one
+    bounded auto-accept: the owner accepts on its own only at ``EM.NONE`` and
+    only for terms no longer than its own policy duration; in every other
+    case — above all a revision Invite while an embargo is active — it holds
+    the answer.  A non-owner participant's default accept is unchanged.
+    """
+
+    def _seed(
+        self,
+        dl,
+        case_id: str,
+        *,
+        em_state: EM,
+        roles: list[CVDRole],
+        proposal_days: int,
+        policy_days: int | None,
+    ):
+        from vultron.core.models.actor import VultronOrganization
+        from vultron.core.models.embargo_policy import EmbargoPolicy
+
+        case = VulnerabilityCase(
+            id_=case_id, name="Owner Answer", attributed_to=_COORD
+        )
+        case.append_case_status(em_state=em_state)
+        embargo = as_EmbargoEvent(
+            id_=f"{case_id}/embargos/e1",
+            context=case_id,
+            end_time=days_from_now_utc(proposal_days),
+        )
+        dl.create(embargo)
+        coord_cp = WireCP(
+            attributed_to=_COORD,
+            context=case_id,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        invitee_cp = WireCP(
+            attributed_to=_INVITEE,
+            context=case_id,
+            case_roles=roles,
+        )
+        dl.create(coord_cp)
+        dl.create(invitee_cp)
+        case.actor_participant_index[_COORD] = coord_cp.id_
+        case.actor_participant_index[_INVITEE] = invitee_cp.id_
+        dl.create(case)
+        profile = VultronOrganization(
+            id_=_INVITEE,
+            embargo_policy=(
+                None
+                if policy_days is None
+                else EmbargoPolicy(
+                    actor_id=_INVITEE,
+                    inbox=f"{_INVITEE}/inbox",
+                    preferred_duration=timedelta(days=policy_days),
+                )
+            ),
+        )
+        dl.create(profile)
+        return case, embargo
+
+    def _deliver(self, dl, case, embargo, make_payload):
+        invite = em_propose_embargo_activity(
+            embargo=embargo,
+            context=case.id_,
+            actor=_COORD,
+            to=[_INVITEE],
+        )
+        return InviteToEmbargoOnCaseReceivedUseCase(
+            dl,
+            make_payload(invite, receiving_actor_id=_INVITEE),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+    @pytest.mark.parametrize(
+        ("em_state", "roles", "proposal_days", "policy_days", "answers"),
+        [
+            # The regression: a revision Invite at an active embargo.
+            (EM.ACTIVE, [CVDRole.CASE_OWNER], 60, 30, []),
+            (EM.ACTIVE, [CVDRole.CASE_OWNER], 10, 30, []),
+            (EM.REVISE, [CVDRole.CASE_OWNER], 10, 30, []),
+            # The bounded auto-accept: no embargo yet, within own policy.
+            (EM.NONE, [CVDRole.CASE_OWNER], 10, 30, ["Accept"]),
+            # Beyond the owner's policy, or no policy to bound against.
+            (EM.NONE, [CVDRole.CASE_OWNER], 60, 30, []),
+            (EM.NONE, [CVDRole.CASE_OWNER], 10, None, []),
+            # A non-owner's default accept records its own consent only.
+            (EM.ACTIVE, [CVDRole.VENDOR], 60, 30, ["Accept"]),
+        ],
+        ids=[
+            "owner-active-longer-holds",
+            "owner-active-shorter-holds",
+            "owner-revise-holds",
+            "owner-none-within-policy-accepts",
+            "owner-none-beyond-policy-holds",
+            "owner-none-no-policy-holds",
+            "non-owner-active-accepts",
+        ],
+    )
+    @pytest.mark.spec("EP-09-005", "EP-09-006")
+    def test_owner_answer_is_bounded(
+        self,
+        make_payload,
+        em_state,
+        roles,
+        proposal_days,
+        policy_days,
+        answers,
+    ):
+        dl = _make_dl(actor_id=_INVITEE)
+        case, embargo = self._seed(
+            dl,
+            "https://example.org/cases/owner-answer",
+            em_state=em_state,
+            roles=roles,
+            proposal_days=proposal_days,
+            policy_days=policy_days,
+        )
+
+        result = self._deliver(dl, case, embargo, make_payload)
+
+        assert result.disposition is HandlerDisposition.APPLIED
+        assert _answers_in_outbox(dl, _INVITEE) == answers

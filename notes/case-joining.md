@@ -39,7 +39,7 @@ relevant_packages:
 # Joining a Case — Stub Invite, Inert Participant, Full-Case Invite
 
 The decisions are ADR-0114 (joining, inert participants, the stub type, the
-`R → C` transition), ADR-0070 (judging the case) and ADR-0116 (removal and
+`R → C` transition), ADR-0121 (judging the case) and ADR-0116 (removal and
 reinstatement). This note keeps the flow in
 one place and records what the earlier model got wrong, because each piece of that model
 was internally consistent and the error only showed once all of them were laid
@@ -188,7 +188,7 @@ the filter would have leaked every ledger entry to them. The filter now lives in
 the shared recipient selection, not at each send site, and `case_addressees` is
 gone (#4046).
 
-**An invitee validated a report it was never offered.** ADR-0070 originally had
+**An invitee validated a report it was never offered.** ADR-0121 originally had
 the invitee recover the reporter's `Offer(VulnerabilityReport)` from the ledger
 replay and answer it with the standard `validate-report`. Two things are wrong
 with that. A reply must answer a message sent to the replier. And the joiner
@@ -202,8 +202,8 @@ docstrings called it the RV message and `Reject(Invite)` the RI message. Both
 were half right: there are two Invites. Accepting the stub is joining (no RM
 move); accepting the full-case Invite is RV.
 
-**Status updates created participants.** ADR-0084 scoped on-behalf `v→V` to a
-vendor "not yet — or never — a participant", so the on-behalf tree minted a
+**Status updates created participants.** The original ADR-0084 scoped
+on-behalf `v→V` to a vendor "not yet — or never — a participant", so the on-behalf tree minted a
 participant for an absent target, saved it, and then — for `d→D` — had the RM↔D
 entailment refuse the write, leaving a stray record behind. A status update is
 never a way into a case.
@@ -239,7 +239,7 @@ message is designed: we accept offers and invitations, never bare objects.
 - **A joined participant never answers the original `Offer(VulnerabilityReport)`**
   and never runs `validate-report`/`invalidate-report`/`reject-report` for the
   case's report; it judges the case by answering the full-case Invite
-  (CM-11-005, ADR-0070).
+  (CM-11-018, ADR-0121).
 - **A status update never creates a participant.** An on-behalf assertion whose
   target is not a participant is refused before any write (PRM-06-006).
 - **Removal is not deletion and not a consent state.** Do not drop a removed

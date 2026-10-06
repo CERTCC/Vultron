@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-08-26
+created: 2026-08-26
+updated: 2026-08-26
+revision: 1
 deciders: ahouseholder
 consulted: notes/sync-ledger-replication.md, docs/reference/draft-vultron-spec.md
 informed: Vultron implementers, external reviewers

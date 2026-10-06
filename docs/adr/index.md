@@ -122,7 +122,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0045 Correct Field Assignment on `Create(VulnerabilityCase)` — `context` to Case URI, `inReplyTo` to Accept URI](0045-create-vulnerability-case-field-assignment.md)
 - [ADR-0046 Two-Gate Authorization Model for Received-Side CaseStatus Canonicalization](0046-received-status-authorization.md) *(provisional)*
 - [ADR-0047 Report-to-Others Party Discovery: Sentinel Over Inline BT Loop](0047-report-to-others-sentinel-over-inline-bt.md)
-- [ADR-0048 PEC `NO_EMBARGO` Means Absence of Embargo, Not Pre-Consent](0048-pec-no-embargo-is-absence-not-pre-consent.md) — partially superseded by docs/adr/0120-per-embargo-participant-consent.md
+- [ADR-0048 PEC `NO_EMBARGO` Means Absence of Embargo, Not Pre-Consent](0048-pec-no-embargo-is-absence-not-pre-consent.md) — partially superseded by docs/adr/0122-per-embargo-participant-consent.md
 - [ADR-0049 Core Does Not Model Inbound Protocol Error Message Types; No `create_inbound_error_followup_tree`](0049-core-does-not-model-error-message-types.md)
 - [ADR-0050 Leave(VulnerabilityCase) Is the Canonical RM Case Closure Mechanism](0050-leave-vul-case-canonical-rm-closure.md)
 - [ADR-0051 CaseActor Has Its Own RM Lifecycle Tracked via CaseParticipant](0051-caseactor-rm-lifecycle.md)
@@ -142,7 +142,6 @@ General information about architectural decision records is available at <https:
 - [ADR-0067 Accept Non-Adjacent Forward RM Jumps and Notify; Refuse Backward Regressions Non-Silently](0067-rm-nonadj-accept-and-notify.md)
 - [ADR-0068 Refuse Misaddressed Activities at the Inbox with a Synchronous 4xx](0068-inbox-refuse-misaddressed-activities.md)
 - [ADR-0069 Adopt certcc.github.io/Vultron as the Initial Vultron Vocabulary Namespace Host](0069-vultron-namespace-uri.md) *(provisional)* — partially superseded by 0106-versioning-machine-facing-interfaces.md
-- [ADR-0070 A Joined Participant Judges the Case by Answering a Full-Case Invite, Not the Original Report Offer](0070-invited-actor-rm-triage-via-ledger-backfill.md)
 - [ADR-0071 CVE Eligibility: Reference Baseline over Normative Citation or Implementation-Defined](0071-cna-eligibility-reference-baseline.md)
 - [ADR-0072 Use a Dedicated `stories:` Field for Spec-to-Story Traceability (Not `relationships:`)](0072-stories-field-for-spec-to-story-traceability.md)
 - [ADR-0073 Give Each Actor Its Own Store; Delete the Unscoped DataLayer](0073-per-actor-storage-isolation.md) — partially superseded by 0109-a-container-emits-only-as-actors-it-hosts.md
@@ -155,16 +154,15 @@ General information about architectural decision records is available at <https:
 - [ADR-0080 Asking Permission Is a Protocol Message, Not a Suspended Behavior](0080-protocol-asks-not-suspended-behaviors.md)
 - [ADR-0081 Peer Knowledge Lives in the Hosted Actor's Own Store, Not as a Hosted Actor](0081-peer-knowledge-in-hosted-actor-store.md)
 - [ADR-0083 The Formal Message Set and the AS2 Wire Vocabulary Are Deliberately Different Shapes; the Mapping Is the Reconciling Artifact](0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md)
-- [ADR-0084 Participant Status Is Self-Declaratory, With Narrow Externally-Evidenced On-Behalf Exceptions](0084-participant-assertion-authority.md)
 - [ADR-0085 Owner-Close Is a Hard Write Boundary; RM.CLOSED Is Terminal and Rejoin Is Unsupported](0085-case-lifecycle-boundaries.md)
 - [ADR-0086 Report Every Violation, Reject the Batch — and the Emit/Receive Dispositions Are Postel's Maxim](0086-report-every-violation-reject-the-batch.md)
 - [ADR-0087 Case-Resolution Disposition for BT Nodes Is Chosen by Role, Not Re-Decided Per Call Site](0087-case-resolution-disposition-policy.md)
 - [ADR-0088 Authority Is the CASE_MANAGER Role; "Case Actor" Names the Prototype Actor That Enacts It, Not the Authority](0088-consolidate-case-authority-determination.md)
 - [ADR-0089 One `ParticipantStatus` Writer, and Pre-Case RM State Belongs to `ReportCaseLink`](0089-one-participant-status-writer.md)
 - [ADR-0090 A Blank Required Field Is Absence, and a Recognised Inline Object That Fails Validation Is Refused](0090-blank-is-absent-and-inline-faults-are-refused.md)
-- [ADR-0091 Rename PEC `NO_EMBARGO` to `UNBOUND`; Drop `EM.NO_EMBARGO` Alias](0091-rename-pec-no-embargo-to-unbound.md) — partially superseded by docs/adr/0120-per-embargo-participant-consent.md
+- [ADR-0091 Rename PEC `NO_EMBARGO` to `UNBOUND`; Drop `EM.NO_EMBARGO` Alias](0091-rename-pec-no-embargo-to-unbound.md) — partially superseded by docs/adr/0122-per-embargo-participant-consent.md
 - [ADR-0092 Lint Fragments as Source, and Evaluate Page-Scoped Style Rules on the Rendered Page](0092-lint-fragments-as-source-page-rules-on-rendered-page.md)
-- [ADR-0093 `DECLINE` Is Legal from `SIGNATORY` — Consent Withdrawal Is a First-Class PEC Action](0093-signatory-declined-pec-transition.md) — partially superseded by docs/adr/0120-per-embargo-participant-consent.md
+- [ADR-0093 `DECLINE` Is Legal from `SIGNATORY` — Consent Withdrawal Is a First-Class PEC Action](0093-signatory-declined-pec-transition.md) — partially superseded by docs/adr/0122-per-embargo-participant-consent.md
 - [ADR-0094 Replace flake8, isort and black with ruff, and declare lint exclusions instead of discovering them](0094-ruff-replaces-flake8-isort-black.md)
 - [ADR-0095 Received-Side `HandlerResult` Carries a Handler Disposition Across the Dispatcher Boundary](0095-received-side-handler-result.md)
 - [ADR-0096 A Protocol Default Embargo Replaces the Pre-Case Phase](0096-protocol-default-embargo.md)
@@ -184,18 +182,20 @@ General information about architectural decision records is available at <https:
 - [ADR-0112 Per-Recipient Ordered Outbox Delivery: One Drain per Actor, One In-Flight Row per Recipient](0112-per-recipient-ordered-outbox-delivery.md)
 - [ADR-0113 Embargo Negotiation Relays Through the CASE_MANAGER; the Ledger Carries State but Never Asks](0113-embargo-revision-negotiation-relays-through-the-case-manager.md)
 - [ADR-0114 Joining a Case: The Invite Creates an Inert Participant, the Stub Is Its Own Type, and RM Closes from *Received*](0114-joining-a-case-stub-invite-inert-participant.md)
-- [ADR-0115 Received Handlers Check the Sender's Entitlement, Declared Once per Use Case and Composed by the Receive-Tree Factory](0115-received-handlers-check-sender-entitlement.md)
-- [ADR-0116 Removing a Participant Withdraws Entitlement, Not Membership](0116-removing-a-participant-withdraws-entitlement-not-membership.md)
 - [ADR-0117 The Per-Case Genesis Hash Is Anchored to the Case Owner, Not the CaseActor](0117-genesis-hash-is-anchored-to-the-case-owner.md)
-- [ADR-0118 An Expired Invite Is Not a Decline, and a Terminated Embargo Is Not the Start State](0118-pec-expired-and-unbound-exited-states.md) — partially superseded by docs/adr/0120-per-embargo-participant-consent.md
-- [ADR-0120 Participant Embargo Consent Is Recorded per (Participant, Embargo)](0120-per-embargo-participant-consent.md)
+- [ADR-0118 An Expired Invite Is Not a Decline, and a Terminated Embargo Is Not the Start State](0118-pec-expired-and-unbound-exited-states.md) — partially superseded by docs/adr/0122-per-embargo-participant-consent.md
 
 ## Proposed ADRs
 
 - [ADR-0020 Move Inbox Orchestration into a Core BT Module with a Typed `process_payload` Seam](0020-inbox-bt-orchestration.md)
 - [ADR-0105 Two Cases for One Vulnerability Merge by Owner Consent: the Offered Case Freezes and Redirects](0105-case-merge-freeze-and-redirect-by-owner-consent.md)
 - [ADR-0107 A Case Ledger Entry Is a Postmark on the Received Envelope; References Resolve by Dereference](0107-case-ledger-entry-is-a-postmark-on-the-received-envelope.md)
+- [ADR-0115 Received Handlers Check the Sender's Entitlement, Declared Once per Use Case and Composed by the Receive-Tree Factory](0115-received-handlers-check-sender-entitlement.md)
+- [ADR-0116 Removing a Participant Withdraws Entitlement, Not Membership](0116-removing-a-participant-withdraws-entitlement-not-membership.md)
 - [ADR-0119 The Case Ledger Records Completed Acts](0119-case-ledger-records-completed-acts.md)
+- [ADR-0120 ADR Lifecycle: Three Epochs and Tiered Edits](0120-adr-lifecycle-epochs-and-edit-tiers.md)
+- [ADR-0121 A Joined Participant Judges the Case by Answering a Full-Case Invite; Status Is Self-Declared and Asserted Only for Existing Participants](0121-joined-participant-judges-the-case-by-full-case-invite.md)
+- [ADR-0122 Participant Embargo Consent Is Recorded per (Participant, Embargo)](0122-per-embargo-participant-consent.md)
 
 ## Rejected ADRs
 
@@ -209,6 +209,8 @@ Each is listed here with a forward link to its replacement.
 
 - [ADR-0015 Create VulnerabilityCase at Report Receipt (RM.RECEIVED)](archived/0015-create-case-at-report-receipt.md) — superseded by 0041-caseactor-authoritative-case-initialization.md
 - [ADR-0017 Domain/Wire Object Separation: Shared-Base, Two-Branch Hierarchy](archived/0017-domain-wire-object-separation.md) — superseded by 0099-one-object-model-as2-is-a-serialization.md
-- [ADR-0056 `embargo_adherence` Is a Computed Property Derived from PEC State](archived/0056-embargo-adherence-computed-field.md) — superseded by 0120-per-embargo-participant-consent.md
+- [ADR-0056 `embargo_adherence` Is a Computed Property Derived from PEC State](archived/0056-embargo-adherence-computed-field.md) — superseded by 0122-per-embargo-participant-consent.md
 - [ADR-0062 Normalise Wire → Core at Ingress, and Enforce It Again at the Persistence Boundary](archived/0062-normalise-wire-to-core-at-both-ingress-and-persistence.md) — superseded by 0082-wire-core-boundary-pairing-registry.md
+- [ADR-0070 Reuse `validate-report` for Invited Actors; Derive `VultronOfferRecord` from Ledger Backfill](archived/0070-invited-actor-rm-triage-via-ledger-backfill.md) — superseded by 0121-joined-participant-judges-the-case-by-full-case-invite.md
 - [ADR-0082 Wire/Core Boundary: One Declarative Pairing Registry, One Translator, and Reject Unknown Keys](archived/0082-wire-core-boundary-pairing-registry.md) — superseded by 0099-one-object-model-as2-is-a-serialization.md
+- [ADR-0084 Participant Status Is Self-Declaratory, With Narrow Externally-Evidenced On-Behalf Exceptions](archived/0084-participant-assertion-authority.md) — superseded by 0121-joined-participant-judges-the-case-by-full-case-invite.md

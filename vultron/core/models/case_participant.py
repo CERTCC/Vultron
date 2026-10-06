@@ -88,7 +88,7 @@ class CaseParticipant(CoreObject):
     )
     case_roles: list[CVDRole] = Field(default_factory=list)
     participant_statuses: list[ParticipantStatus] = Field(default_factory=list)
-    # Consent is per (participant, embargo) (ADR-0120, CM-10-001, CM-18-001):
+    # Consent is per (participant, embargo) (ADR-0122, CM-10-001, CM-18-001):
     # one row for each embargo this participant was asked about, and the only
     # record of consent.  Bound-by-the-active-embargo and lapsed are lookups
     # over these rows (``is_signatory``, ``has_lapsed``), never stored.
@@ -183,7 +183,7 @@ class CaseParticipant(CoreObject):
         """Apply *trigger* to the consent row for *embargo_id*.
 
         The single authoritative consent-write path (CM-18-005, CM-18-006,
-        ADR-0120): fail-closed against the transition table, creating the row
+        ADR-0122): fail-closed against the transition table, creating the row
         on first contact.  Raises
         :exc:`~vultron.errors.VultronInvalidStateTransitionError` on an
         illegal trigger.  The caller persists the record.

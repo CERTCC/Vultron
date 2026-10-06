@@ -617,6 +617,10 @@ groups:
     statement: >-
       When the CASE_MANAGER updates canonical case state, it MUST notify every active
       participant (CM-10-004).
+    rationale: >-
+      An owner's `Update(VulnerabilityCase)` is not a ledgered assertion (ADR-0111,
+      #3936); the CASE_MANAGER announces a received update to the participants as
+      a broadcast, and every ledgered change reaches them as `Announce(CaseLedgerEntry)`.
     verification: >-
       Integration tests in `test/demo/` confirm that after the CASE_MANAGER updates
       canonical case state it fans out `Announce(CaseLedgerEntry)` to every active
@@ -806,7 +810,7 @@ groups:
       owner activates a revision that ends no later than terms the participant had accepted
       (EP-05-001). No other record of embargo consent may exist on the participant.
     rationale: >-
-      Consent is per embargo (ADR-0093, ADR-0120). The rows are what the CM-10-004 content gate
+      Consent is per embargo (ADR-0093, ADR-0122). The rows are what the CM-10-004 content gate
       reads, so they must name every embargo the participant is bound to, including one carried over
       by containment: agreeing to N days is agreeing to every shorter period, so no explicit
       `Accept` is owed for it. A second record of consent beside the rows — the scalar PEC state this
@@ -819,7 +823,7 @@ groups:
       spec_id: VP-05-001
     adr:
     - ADR-0093
-    - ADR-0120
+    - ADR-0122
     stories:
     - story_2022_014
     - story_2022_023
@@ -965,7 +969,7 @@ groups:
     How an actor goes from invited to participating: the stub Invite creates an
     inert participant record, the participant's reply to it decides whether it
     joins, and a joined participant judges the case by replying to a full-case
-    Invite (ADR-0114, ADR-0070; notes/case-joining.md).
+    Invite (ADR-0114, ADR-0121; notes/case-joining.md).
   specs:
   - id: CM-11-001
     priority: MUST
@@ -1007,7 +1011,7 @@ groups:
     - rel_type: depends_on
       spec_id: CM-11-001
     adr:
-    - ADR-0070
+    - ADR-0121
     stories:
     - story_2022_006
   - id: CM-11-004
@@ -1051,25 +1055,6 @@ groups:
     - ADR-0114
     lint_suppress:
     - missing_story_reference
-  - id: CM-11-005
-    priority: MUST_NOT
-    kind: protocol
-    statement: >-
-      A participant that joined a case through an Invite MUST NOT send
-      `Accept`, `TentativeReject` or `Reject` of the original
-      `Offer(VulnerabilityReport)`, and MUST NOT run `validate-report`,
-      `invalidate-report` or `reject-report` for the case's report. It was never
-      offered that report; it judges the case by replying to the full-case
-      Invite (CM-11-011).
-    rationale: >-
-      A reply must answer a message sent to the replier. And a joined
-      participant — a late joiner especially — judges the case as it stands,
-      with its history, not the original submission, which may have been far
-      sparser (ADR-0070).
-    verification: A test confirms a joined participant's triage emits no
-      activity whose object is the original `Offer(VulnerabilityReport)`.
-    adr:
-    - ADR-0070
   - id: CM-11-006
     priority: MUST
     kind: protocol
@@ -1149,7 +1134,7 @@ groups:
     verification: Tests confirm each stub reply sets a vendor's VF to `V`.
     adr:
     - ADR-0114
-    - ADR-0084
+    - ADR-0121
     stories:
     - story_2022_061
   - id: CM-11-010
@@ -1166,11 +1151,11 @@ groups:
       only asks the question and carries no copy of the case. Delivery to each
       recipient is ordered (ADR-0112), so queuing the Invite after the replay
       means it arrives once the participant can answer it; its ledger position
-      is the floor the participant must reach before answering (ADR-0070).
+      is the floor the participant must reach before answering (ADR-0121).
     verification: A test confirms the full-case Invite is queued after the last
       replayed ledger entry and carries the CASE_MANAGER's ledger tail position.
     adr:
-    - ADR-0070
+    - ADR-0121
     stories:
     - story_2022_006
   - id: CM-11-011
@@ -1187,7 +1172,7 @@ groups:
     verification: Tests drive each of the three replies and check the
       participant's RM state.
     adr:
-    - ADR-0070
+    - ADR-0121
     stories:
     - story_2022_006
     - story_2022_062
@@ -1203,11 +1188,11 @@ groups:
       The Invite's position is a floor, not a pin. A reply behind it was made
       without seeing what the participant was asked to judge; a reply beyond it
       is better informed. Pinning the reply to the Invite's position would make
-      every reply on a busy case stale (ADR-0070).
+      every reply on a busy case stale (ADR-0121).
     verification: Tests confirm a reply behind the floor, or naming an entry the
       ledger does not hold, is refused, and a reply beyond the floor is accepted.
     adr:
-    - ADR-0070
+    - ADR-0121
     stories:
     - story_2022_045
   - id: CM-11-013
@@ -1243,7 +1228,7 @@ groups:
       seated by the case initialization sequence (CM-14-001) and those that have
       accepted their stub Invite.
     rationale: >-
-      RM is the participant's own judgement (ADR-0084), so a timeout cannot
+      RM is the participant's own judgement (ADR-0121), so a timeout cannot
       stand in for one. An invitee that never answered must not keep the case
       from closing (ADR-0114).
     verification: >-
@@ -1335,6 +1320,25 @@ groups:
       spec_id: CM-11-001
     adr:
     - ADR-0115
+  - id: CM-11-018
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A participant that joined a case through an Invite MUST NOT send
+      `Accept`, `TentativeReject` or `Reject` of the original
+      `Offer(VulnerabilityReport)`, and MUST NOT run `validate-report`,
+      `invalidate-report` or `reject-report` for the case's report. It was never
+      offered that report; it judges the case by replying to the full-case
+      Invite (CM-11-011).
+    rationale: >-
+      A reply must answer a message sent to the replier. And a joined
+      participant — a late joiner especially — judges the case as it stands,
+      with its history, not the original submission, which may have been far
+      sparser (ADR-0121).
+    verification: A test confirms a joined participant's triage emits no
+      activity whose object is the original `Offer(VulnerabilityReport)`.
+    adr:
+    - ADR-0121
 - id: CM-12
   title: Case Creation Timing
   specs:
@@ -2151,7 +2155,7 @@ groups:
       replay, and the full-case Invite.
     adr:
     - ADR-0114
-    - ADR-0070
+    - ADR-0121
     relationships:
     - rel_type: implements
       spec_id: CM-11-001
@@ -2313,7 +2317,9 @@ groups:
       consent needs the case's identity, a human-readable account of what it is asked to
       join, and the embargo terms (CM-17-002); the Invite envelope says who is asking.
       The case name can itself be an opsec concern, so the summary is chosen for the
-      invitee, not copied from the case. #4165 owns emitting it.
+      invitee, not copied from the case. #4165 owns emitting it. Whether the stub should
+      name the coordinator and the Case Owner explicitly, for Invites relayed by a third
+      party, is the open Idea #4184; until it is decided the rule above stands.
     verification: >-
       `test/wire/as2/factories/test_case_factories.py::test_rm_invite_stub_carries_a_non_empty_summary`
       is a strict xfail naming #4165 that asserts a stub projected from a full case
@@ -2356,7 +2362,7 @@ groups:
       it had accepted. The two disagreed (Concern #3884) and were kept in step by reconciliation
       rules. One row per (participant, embargo) states each answer once; "bound by the active
       embargo" is a lookup of the active embargo's row, so there is nothing to reconcile and no
-      first-proposal versus revision asymmetry (ADR-0120, which supersedes the seven-state machine of
+      first-proposal versus revision asymmetry (ADR-0122, which supersedes the seven-state machine of
       ADR-0048, ADR-0093 and ADR-0118). The "pocket veto" survives as the `EXPIRED` row state, kept
       distinct from `DECLINED` so every reader can tell silence from a refusal (ADR-0118).
       `UNBOUND` and `UNBOUND_EXITED` are not states: an embargo the participant was never asked about
@@ -2373,7 +2379,7 @@ groups:
     - ADR-0091
     - ADR-0093
     - ADR-0118
-    - ADR-0120
+    - ADR-0122
     stories:
     - story_2022_023
     - story_2022_014
@@ -2397,7 +2403,7 @@ groups:
       (CM-28-002). The pocket veto and the explicit RSVP deadline are ONE
       mechanism at two levels of explicitness, not two competing timeouts.
     rationale: >-
-      Per ADR-0093, ADR-0120 and `notes/participant-embargo-consent.md`: a participant has lapsed when
+      Per ADR-0093, ADR-0122 and `notes/participant-embargo-consent.md`: a participant has lapsed when
       the active embargo was replaced by longer terms it has not accepted. While a revision is merely
       proposed the prior embargo is still in force and every signatory to it is still bound by it, so
       nothing about their consent has changed. Per ADR-0118, a participant that did not answer has
@@ -2416,7 +2422,7 @@ groups:
     adr:
     - ADR-0093
     - ADR-0118
-    - ADR-0120
+    - ADR-0122
     stories:
     - story_2022_027
     - story_2022_014
@@ -2457,7 +2463,7 @@ groups:
     - ADR-0048
     - ADR-0093
     - ADR-0118
-    - ADR-0120
+    - ADR-0122
   - id: CM-18-004
     priority: MUST_NOT
     kind: protocol
@@ -2471,7 +2477,7 @@ groups:
     rationale: >-
       Consent already given cannot be withdrawn by re-inviting the participant. A signatory to the
       active embargo is bound by it; only replacing that embargo with longer terms (which lapses the
-      participant by derivation — ADR-0093, ADR-0120) or the participant's own withdrawal (`DECLINE`)
+      participant by derivation — ADR-0093, ADR-0122) or the participant's own withdrawal (`DECLINE`)
       ends that position.
     relationships:
     - rel_type: refines
@@ -2479,7 +2485,7 @@ groups:
     adr:
     - ADR-0093
     - ADR-0118
-    - ADR-0120
+    - ADR-0122
   - id: CM-18-005
     priority: MUST
     kind: project
@@ -2493,7 +2499,7 @@ groups:
       the table, so a row could reach a state no trigger leads to. The legacy `apply_pec_trigger()`
       soft-fail helper was removed (CONCERN-1871); all consent-write sites MUST use
       `CaseParticipant.apply_pec_transition()` (or `apply_pec_transition_if_legal()` where an
-      illegal trigger is a recorded no-op). Per ADR-0048, ADR-0120.'
+      illegal trigger is a recorded no-op). Per ADR-0048, ADR-0122.'
     verification: Inspection of `vultron/core/` confirms that all consent-write sites call
       `CaseParticipant.apply_pec_transition()` or `apply_pec_transition_if_legal()` and that no site
       assigns `embargo_consents` outside `CaseParticipant`.
@@ -2502,7 +2508,7 @@ groups:
       spec_id: CM-18-003
     adr:
     - ADR-0048
-    - ADR-0120
+    - ADR-0122
   - id: CM-18-006
     priority: MUST
     kind: project
@@ -2515,7 +2521,7 @@ groups:
     rationale: 'Consent lives on the `CaseParticipant` rows, not on `ParticipantStatus`, so an
       `Add(ParticipantStatus)` entry carries no consent. The ledger entry of the causing activity is
       the record, and replaying it through the lifecycle operation gives every store the same rows.
-      Per ADR-0048, ADR-0120.'
+      Per ADR-0048, ADR-0122.'
     verification: Integration tests in `test/demo/` confirm that, after an embargo Invite, Accept,
       Reject and expiry, the participant's consent rows on a replica equal those on the
       CASE_MANAGER.
@@ -2524,7 +2530,7 @@ groups:
       spec_id: CM-18-005
     adr:
     - ADR-0048
-    - ADR-0120
+    - ADR-0122
   - id: CM-18-007
     priority: MUST
     kind: project
@@ -2549,7 +2555,7 @@ groups:
       spec_id: CM-14-003
     adr:
     - ADR-0048
-    - ADR-0120
+    - ADR-0122
   - id: CM-18-009
     priority: MUST
     kind: project
@@ -2598,7 +2604,7 @@ groups:
       activated id and exited every record at termination existed only to keep a scalar state in
       step with the per-embargo list (Concern #3884). With one row per embargo they have nothing to
       keep in step, and a write that re-introduced one would re-create the second record of consent
-      that ADR-0120 removed.
+      that ADR-0122 removed.
     verification: >-
       Unit tests in `test/core/services/embargo_lifecycle/` assert that activating a longer revision
       and terminating the embargo report no participant consent change and leave every
@@ -2607,7 +2613,7 @@ groups:
     - rel_type: refines
       spec_id: CM-18-001
     adr:
-    - ADR-0120
+    - ADR-0122
 - id: CM-19
   title: Participant Index Discipline
   specs:
@@ -3153,6 +3159,11 @@ groups:
     Add(ParticipantStatus, rm_state=RM.CLOSED) is not a valid closure trigger.
     See ADR-0050 (Leave is canonical for RM closure) and ADR-0051
     (CASE_MANAGER RM lifecycle).
+
+    Pending decision: the closure semantics in CM-23-002, CM-23-013 and CM-23-014
+    (what the owner's close does to pending Invites and to later Leaves; #4065, #4066)
+    await a separate decision by the maintainer. Nothing in this group changes
+    them until that decision is recorded.
   specs:
   - id: CM-23-001
     priority: MUST
@@ -3536,7 +3547,7 @@ groups:
       RM.CLOSED.
     rationale: >-
       A participant's RM state is the self-declaratory record of how that
-      participant handled the report (ADR-0084). A Leave is that participant's
+      participant handled the report (ADR-0121). A Leave is that participant's
       own authoritative closure act, so advancing the leaving actor to RM.CLOSED
       regardless of rung is legitimate self-declaration, not an externally
       imposed jump. Every closure is an ordinary transition: the RM transition
@@ -3567,7 +3578,7 @@ groups:
       spec_id: CM-23-002
     adr:
     - ADR-0050
-    - ADR-0084
+    - ADR-0121
     - ADR-0085
     - ADR-0114
     stories:
@@ -3676,13 +3687,40 @@ groups:
     - ADR-0085
     stories:
     - story_2022_066
+  - id: CM-23-016
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A participant's case replica is the case as it stood when the replica was seeded
+      plus the ledger entries since. A replica MUST apply the transitions the ledger
+      records, in ledger order, and MUST NOT derive a transition the ledger does not
+      record, for example by walking the RM transition table from its own stored state
+      to a target state.
+    rationale: >-
+      The CASE_MANAGER is the single mover (ADR-0108) and the ledger records each move
+      as it makes it. A replica that re-derives a path from its own, possibly lagging,
+      state can write an RM rung the ledger never recorded, so replicas diverge from the
+      CASE_MANAGER's history (#4091). CM-23-001 states the rule for closure; this states
+      it for every replicated transition.
+    verification: >-
+      A unit test replays a ledger whose entries skip a rung that a table walk would
+      insert, and asserts the replica's per-actor status history equals the ledger's and
+      that no step the ledger lacks is written.
+    relationships:
+    - rel_type: extends
+      spec_id: CM-23-001
+    adr:
+    - ADR-0108
+    - ADR-0114
+    stories:
+    - story_2022_066
 - id: CM-24
   title: CASE_MANAGER-Delegated Activity Authorship Contract
   description: >-
     Requirements for how trigger use cases assign `actor` and `attributed_to`
     when the CASE_MANAGER emits an Activity on behalf of a requesting participant
-    (delegated message).  The reference implementation is
-    `_prepare_delegated_context()` (`vultron/core/use_cases/triggers/_helpers.py`).
+    (delegated message).  The reference implementation is `delegated_authorship()`
+    (`vultron/core/behaviors/delegated_authorship.py`).
     Codified from CONCERN-2170.
   specs:
   - id: CM-24-001
@@ -3728,31 +3766,6 @@ groups:
     stories:
     - story_2022_089
     - story_2022_034
-  - id: CM-24-003
-    priority: MUST
-    kind: protocol
-    deprecated: true
-    superseded_by: CM-24-006
-    statement: >-
-      This requirement is superseded by CM-24-006; a case has a `CVDRole.CASE_MANAGER`
-      holder from creation onward, so the "no dedicated CASE_MANAGER, send directly"
-      fallback it required (`actor` = requesting participant, `attributed_to` = None)
-      describes a state no creation path can produce.
-    rationale: >-
-      The fallback was written when a case could be minted without a manager. Both creation
-      paths now register one (ADR-0041, CM-02-015) and delegation hands the role on, so the
-      arm only ever fired on a corrupt roster, where sending directly hid the fault. Retired
-      by Concern #3918 (ADR-0113 as rewritten 2026-09-30); the code paths that carried it
-      are removed by #3964.
-    verification: >-
-      Retired. `_prepare_delegated_context` has no fallback branch and no node succeeds with
-      a warning when the resolver finds no holder (CM-24-006); the tests that asserted the
-      fallback are deleted with it (#3964).
-    relationships:
-    - rel_type: refines
-      spec_id: CM-24-001
-    stories:
-    - story_2022_106
   - id: CM-24-004
     priority: MUST
     kind: architecture
@@ -3843,9 +3856,9 @@ groups:
       under CM-02-015), and role delegation transfers it without a gap. No trigger, received
       tree or shared helper MAY carry an arm for a case with no CASE_MANAGER: a resolver that
       finds none MUST fail, and MUST NOT succeed with a warning or send the activity
-      directly. This supersedes CM-24-003.
+      directly.
     rationale: >-
-      CM-24-003 codified a "no dedicated CASE_MANAGER, send directly" fallback that no
+      An earlier requirement (retired; `plan/retired-specs/CM-24-003.md`) codified a "no dedicated CASE_MANAGER, send directly" fallback that no
       creation path can produce; it survived in the delegated-context helper, in two nodes
       that returned SUCCESS with a warning when the resolver found nobody, and in tests that
       asserted the fallback. An arm for an unreachable state is where a corrupt roster hides
@@ -3859,8 +3872,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-24-001
-    - rel_type: supersedes
-      spec_id: CM-24-003
     - rel_type: depends_on
       spec_id: CM-22-002
     adr:

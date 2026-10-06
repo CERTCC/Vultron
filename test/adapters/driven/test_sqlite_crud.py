@@ -221,7 +221,7 @@ def test_retired_embargo_adherence_row_does_not_read_back_as_clean_core(
     dl, caplog
 ):
     """A stored row still carrying the retired embargo_adherence key does not
-    read back as a clean core ParticipantStatus (ADR-0120, ARCH-12-003).
+    read back as a clean core ParticipantStatus (ADR-0122, ARCH-12-003).
 
     Pins the observed dl.read() behaviour for a row written before consent
     left the status, so that a future change to the read path cannot silently

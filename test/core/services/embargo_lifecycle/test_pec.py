@@ -1,6 +1,6 @@
 """The consent side-effect helpers shared by the EM operations (``pec.py``).
 
-Consent is per (participant, embargo) (ADR-0120): "signatory" and "lapsed"
+Consent is per (participant, embargo) (ADR-0122): "signatory" and "lapsed"
 are derived from the rows and the case's active embargo, never written.  The
 operations' own tests cover these helpers through ``accept_embargo_invite``
 and ``activate_embargo`` (the containment carry-over, EP-05-001) and
@@ -359,7 +359,7 @@ def test_record_actor_rejection_withdrawal_declines_every_accepted_proposal(
 
 
 # ---------------------------------------------------------------------------
-# Consent at activation (ADR-0120, EP-05-001)
+# Consent at activation (ADR-0122, EP-05-001)
 # ---------------------------------------------------------------------------
 
 

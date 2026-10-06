@@ -132,7 +132,7 @@ class TestSnapshotBuilders:
     def test_participant_status_carries_no_consent_keys(
         self, participant, port
     ):
-        """Consent lives on the participant rows, so the status snapshot has no consent keys (ADR-0120)."""
+        """Consent lives on the participant rows, so the status snapshot has no consent keys (ADR-0122)."""
         status = participant.participant_statuses[0]
         snap = build_add_participant_status_snapshot(
             status, participant, CASE_ACTOR_ID, CASE_ID, port

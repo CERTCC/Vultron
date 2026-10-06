@@ -1047,7 +1047,7 @@ class TestHtmlRenderer:
 
 
 # ---------------------------------------------------------------------------
-# No PEC column: status snapshots carry no consent (ADR-0120)
+# No PEC column: status snapshots carry no consent (ADR-0122)
 # ---------------------------------------------------------------------------
 
 

@@ -294,7 +294,7 @@ dump `Record.from_obj(ParticipantStatus(...)).data_` and look at the keys.
 
 They once looked like reasons to keep core-side aliasing: CM-18-006 constrained the
 consent/`emConsentState` relationship, and DRPT-02-008 obliged the demo-report
-extractor to read `pec_state` from a snapshot. Both are moot since ADR-0120.
+extractor to read `pec_state` from a snapshot. Both are moot since ADR-0122.
 `ParticipantStatus` carries no consent, CM-18-006 now says consent is reproduced from
 the ledger entry of the causing activity, and DRPT-02-008 (with -014 and -015) was
 removed along with the report's PEC column. The port argument above stands on its own.

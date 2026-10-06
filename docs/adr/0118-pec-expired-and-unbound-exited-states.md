@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-10-02
+created: 2026-10-02
+updated: 2026-10-02
+revision: 1
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; Issue #4153, Concern #4133, Bug #4132, PR #4141;
@@ -8,7 +11,7 @@ consulted: >-
   specs/em-behavior.yaml EMB-01, EMB-03, EMB-17; specs/handler-protocol.yaml HP-01;
   specs/message-semantics-mapping.yaml MSM-07
 informed: []
-partially_superseded_by: docs/adr/0120-per-embargo-participant-consent.md
+partially_superseded_by: docs/adr/0122-per-embargo-participant-consent.md
 stakeholder_type: [project-contributor]
 ---
 

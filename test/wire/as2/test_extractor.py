@@ -826,7 +826,7 @@ def test_activity_snapshot_never_reprs_a_non_uri_attributed_to(raw, expected):
 
 
 def test_consent_coercion_helpers_are_retired():
-    """The scalar-consent coercion helpers are gone with the scalar (ADR-0120, #4178).
+    """The scalar-consent coercion helpers are gone with the scalar (ADR-0122, #4178).
 
     Consent is per-embargo rows on the core participant; neither the extractor
     nor the wire vocab base coerces a PEC string any more.

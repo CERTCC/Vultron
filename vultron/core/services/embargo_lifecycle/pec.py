@@ -16,7 +16,7 @@
 The EM operations in the sibling modules change one case's embargo state;
 these helpers record the matching consent on the participant records — one
 actor's record on accept/reject, every participant's when the owner activates
-a shorter revision.  Consent is per (participant, embargo) (ADR-0120,
+a shorter revision.  Consent is per (participant, embargo) (ADR-0122,
 CM-10-001, CM-18-001): each participant holds one row per embargo it was asked
 about, "signatory" is the row for the active embargo saying ``ACCEPTED``, and a
 lapse or an exit is derived from the rows and the case, never written.  Every
@@ -126,7 +126,7 @@ class _PecEffectsMixin(_ActivationArmMixin):
         embargo's row, whether it is the embargo in force, a proposed
         revision, or the actor's own proposal (MSM-07-003).  Whether that
         makes the actor a signatory is a lookup of the active embargo, never
-        a second write (ADR-0120).
+        a second write (ADR-0122).
 
         Idempotent (CM-13-005): an ``ACCEPTED`` row changes nothing and
         reports nothing.  A ``DECLINED`` row records nothing: ``ACCEPT`` is

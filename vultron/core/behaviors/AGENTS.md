@@ -92,7 +92,7 @@ Mechanism, the silent node-shadowing variant, and the full rules:
 
 ## PEC Consent Writes — Never Direct-Assign `embargo_consents`
 
-(CM-18-005, CM-18-016; ADR-0120)
+(CM-18-005, CM-18-016; ADR-0122)
 
 ```python
 # WRONG — skips the transition table
@@ -104,7 +104,7 @@ dl.save(participant)
 
 "Signatory" and "lapsed" are reads (`is_signatory`, `has_lapsed`), never
 writes: a node that writes a row to record a lapse, advance or exit re-creates
-the second record ADR-0120 removed. See `notes/participant-embargo-consent.md`.
+the second record ADR-0122 removed. See `notes/participant-embargo-consent.md`.
 
 ---
 

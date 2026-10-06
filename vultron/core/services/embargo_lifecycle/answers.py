@@ -66,7 +66,7 @@ class _AnswerOperationsMixin(_PecActivationMixin):
         for *embargo_id* ``ACCEPTED`` (MSM-07-003).  There is one rule whether
         *embargo_id* is the embargo in force, a proposed revision, or the
         actor's own proposal: the row is written, and being a signatory is the
-        lookup of the active embargo's row (ADR-0120).
+        lookup of the active embargo's row (ADR-0122).
 
         Args:
             case_id: ID of the ``VulnerabilityCase`` to update.

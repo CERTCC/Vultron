@@ -73,6 +73,7 @@ from vultron.core.behaviors.embargo.nodes import (
     EmbargoProposalNotYetRecordedNode,
     HasEmbargoActiveNode,
     IsActiveEmbargoNode,
+    OwnerMayAutoAcceptEmbargoNode,
     PersistEmbargoEventNode,
     ProposeEmbargoLifecycleNode,
     RelayEmbargoInviteToEachNode,
@@ -86,6 +87,7 @@ from vultron.core.behaviors.embargo.nodes import (
 from vultron.core.behaviors.embargo.response_decision_tree import (
     create_embargo_response_decision_tree,
 )
+from vultron.core.behaviors.sender_entitlement import SenderIsCaseOwnerNode
 from vultron.core.behaviors.sync.nodes.embargo_backfill import (
     BackfillAdmittedParticipantsNode,
 )
@@ -122,7 +124,7 @@ def remove_embargo_from_case_tree(
     embargo from ``proposed_embargoes`` (idempotent) and, if the embargo is
     the active one, applies the ACTIVE/REVISE → EXITED EM state transition,
     and clears ``active_embargo``; no participant consent is written, since with
-    EM ``EXITED`` nobody is bound (ADR-0118, ADR-0120).
+    EM ``EXITED`` nobody is bound (ADR-0118, ADR-0122).
     Always commits a canonical ledger entry when the executing actor holds
     the ``CASE_MANAGER`` role (via the guarded commit subtree).
 
@@ -267,10 +269,9 @@ def invite_to_embargo_on_case_tree(
     it (EP-09-004).  A case whose EM state admits no proposal (``EXITED``) is
     refused by a read-only guard ahead of the commit (CLP-10-009); the P/X/A
     refusal with ER (EMB-01-002, EMB-03-003) is the use case's pre-flight.
-    The CM-24 authorship invariants hold structurally — the relay runs only
-    under the role gate, so ``actor`` is the role holder — rather than through
-    the trigger-side ``_prepare_delegated_context()`` helper, which a BT node
-    may not import (BTND-04-003) and whose fallback arm ADR-0113 retires.
+    The CM-24 authorship pair comes from the shared ``delegated_authorship``
+    helper (CM-24-005): the relay runs only under the role gate, so ``actor``
+    is the role holder, and ``attributedTo`` is the proposer.
 
     **Either arm is preceded by an idempotency guard**: the same Invite
     delivered again (``pending_embargo_proposal_index`` already maps the
@@ -360,6 +361,27 @@ def invite_to_embargo_on_case_tree(
                                     invitee_id=invitee_id,
                                     embargo_id=embargo_id,
                                 ),
+                            ),
+                            # EP-09-005/006: the owner's answer is its own
+                            # to give; it auto-accepts only inside the
+                            # prototype's bound, otherwise it holds.
+                            py_trees.composites.Sequence(
+                                name="OwnerHoldsAnswer",
+                                memory=False,
+                                children=[
+                                    SenderIsCaseOwnerNode(
+                                        sender_actor_id=invitee_id,
+                                        case_id=case_id,
+                                        name="InviteeIsCaseOwner",
+                                    ),
+                                    py_trees.decorators.Inverter(
+                                        name="AutoAcceptNotAllowed",
+                                        child=OwnerMayAutoAcceptEmbargoNode(
+                                            case_id=case_id,
+                                            embargo_id=embargo_id,
+                                        ),
+                                    ),
+                                ],
                             ),
                             create_embargo_response_decision_tree(
                                 case_id=case_id,

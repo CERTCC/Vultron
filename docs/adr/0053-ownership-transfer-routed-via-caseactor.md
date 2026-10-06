@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-08-05
+created: 2026-08-05
+updated: 2026-08-05
+revision: 1
 deciders: Allen D. Householder
 consulted: []
 informed: []

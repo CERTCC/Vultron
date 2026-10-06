@@ -15,7 +15,7 @@
 
 Split from :mod:`~vultron.core.services.embargo_lifecycle.pec` (CS-18-001):
 the activation arm of the consent bookkeeping.  Consent is per embargo
-(ADR-0120), so activation needs almost no bookkeeping: whoever holds an
+(ADR-0122), so activation needs almost no bookkeeping: whoever holds an
 ``ACCEPTED`` row for the activated embargo is its signatory by lookup, and
 whoever does not has lapsed by derivation (CM-18-001).  The one write left is
 containment: a revision that ends no later than the embargo it replaces asks
@@ -103,7 +103,7 @@ class _PecActivationMixin(_PecEffectsMixin):
 
         - A first activation writes nothing: an ``ACCEPTED`` row for the
           activated embargo already makes its holder a signatory (its proposer,
-          an early acceptor), with no advance step (ADR-0120).
+          an early acceptor), with no advance step (ADR-0122).
         - Replacing A with B is the owner's acceptance of B: the owner's row
           gains B first, so the owner is never lapsed by its own activation.
           Then a B ending no later than A carries A's signatories over

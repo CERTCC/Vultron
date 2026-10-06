@@ -81,7 +81,7 @@ def test_terminate_embargo_transitions_case_to_exited_via_bt_path(
     )
     assert updated_case.current_status.em.state == EM.EXITED
     assert updated_case.active_embargo is None
-    # Termination writes no consent (ADR-0120): the rows stay as they were and
+    # Termination writes no consent (ADR-0122): the rows stay as they were and
     # nobody is a signatory because no embargo is active.
     assert updated_participant.embargo_consents == [
         EmbargoConsent(

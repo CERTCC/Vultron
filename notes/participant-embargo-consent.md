@@ -40,9 +40,9 @@ relevant_packages:
 **Source**: `archived_notes/demo-review-26042001.md` + architectural review
 2026-04-20; the scalar machine was revised by ADR-0048 (Issue #1714), ADR-0093
 (Concern #3884) and ADR-0118 (Issue #4153), and replaced by the per-embargo rows of
-ADR-0120 (Issue #4178)
+ADR-0122 (Issue #4178)
 **See also**: `specs/case-management.yaml` CM-10-001, CM-18 (authoritative);
-`docs/adr/0120-per-embargo-participant-consent.md`; `notes/stub-objects.md`
+`docs/adr/0122-per-embargo-participant-consent.md`; `notes/stub-objects.md`
 
 ---
 
@@ -56,14 +56,14 @@ Each `CaseParticipant`, however, has their own relationship to each embargo they
 have been asked about: they may have accepted it, declined it, let the invitation
 expire, or not yet responded. That is what this note's machinery records.
 
-Before ADR-0120 the record was a hybrid — a per-embargo list
+Before ADR-0122 the record was a hybrid — a per-embargo list
 (`accepted_embargo_ids`) plus one scalar seven-state value that answered only
 "am I bound by the *active* embargo?". The two disagreed (Concern #3884) and three
 reconciliation rules plus a first-proposal special case kept them in step. The
 maintainer ruled the hybrid a model mismatch; **consent is now recorded once, per
 (participant, embargo)**. If you find a note, comment or test describing
 `SIGNATORY`, `LAPSED`, `UNBOUND` or `UNBOUND_EXITED` as a stored state, it predates
-ADR-0120.
+ADR-0122.
 
 ---
 
@@ -93,7 +93,7 @@ is not silently undone and a refusal is not silently reversed; a decliner is
 re-invited first (`DECLINED → INVITED`). An illegal trigger raises (CM-18-009).
 
 Normative: `specs/case-management.yaml` CM-18-003. Decisions: ADR-0048, ADR-0093,
-ADR-0118, ADR-0120. MSM coupling: `specs/message-semantics-mapping.yaml` MSM-07.
+ADR-0118, ADR-0122. MSM coupling: `specs/message-semantics-mapping.yaml` MSM-07.
 
 ### What Is Derived, Not Stored
 
@@ -105,7 +105,7 @@ ADR-0118, ADR-0120. MSM coupling: `specs/message-semantics-mapping.yaml` MSM-07.
 | **Bound for the content gate** | `VulnerabilityCase.is_active_participant` reads `is_signatory(active_embargo_id)` (CM-10-004) |
 
 `ParticipantStatus` carries no consent and `embargo_adherence` no longer exists
-(ADR-0120 supersedes ADR-0056): both projected a scalar that is gone. The wire
+(ADR-0122 supersedes ADR-0056): both projected a scalar that is gone. The wire
 keys `emConsentState`, `embargoAdherence`, `embargoConsentState` and
 `acceptedEmbargoIds` are refused inbound by name (`RETIRED_NAMES`).
 
@@ -114,7 +114,7 @@ keys `emConsentState`, `embargoAdherence`, `embargoConsentState` and
 ## Consent Is Per Embargo
 
 *Spec: CM-10-001, CM-18-001, CM-18-016, MSM-07-003, MSM-07-004, MSM-07-005, EP-05.
-Decisions: ADR-0093, ADR-0120.*
+Decisions: ADR-0093, ADR-0122.*
 
 Consent is given to specific terms — an `EmbargoEvent` — and there is one record of
 it: the row. An Accept is always a statement about the embargo it names, so it always
@@ -150,7 +150,7 @@ participants' answers arrive first and inform that decision.
 The containment carry-over is the one activation write left
 (`_carry_signatories_over`). Lapse, advance and exit are reads, not writes
 (CM-18-016). Code that writes a row to record one of them re-creates the second
-record ADR-0120 removed.
+record ADR-0122 removed.
 
 ### Pitfall: Never Write Consent on Propose, Lapse, Advance or Exit
 
@@ -242,7 +242,7 @@ nothing. This is the one statement of the rule in this note.
 
 ## No Row Means Not Bound by Any Embargo Terms
 
-*Spec: CM-18-001, CM-18-003. Decisions: ADR-0048, ADR-0091, ADR-0120.*
+*Spec: CM-18-001, CM-18-003. Decisions: ADR-0048, ADR-0091, ADR-0122.*
 
 A participant with no row for an embargo is **not bound by it**. That does *not*
 mean "has not consented yet, and an invitation is owed". Read the second way, it

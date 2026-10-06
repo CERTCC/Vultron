@@ -169,7 +169,7 @@ class TestCoerceUnknownEnumNames(unittest.TestCase):
             )
 
     def test_retired_consent_key_raises_validation_error(self):
-        """A retired scalar-consent key is refused, not silently dropped (ADR-0120)."""
+        """A retired scalar-consent key is refused, not silently dropped (ADR-0122)."""
         for key in ("emConsentState", "em_consent_state", "embargoAdherence"):
             with self.subTest(key=key), pytest.raises(ValidationError):
                 as_ParticipantStatus.model_validate(

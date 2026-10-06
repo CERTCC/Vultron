@@ -399,7 +399,7 @@ of the maxim applies at that boundary, not which path is inconsistent.
 **The receive path stays liberal — this question is settled (CONCERN-3040).**
 The arguments for all-or-nothing were examined and rejected on two grounds:
 
-1. *RM is self-declaratory* (ADR-0084): the CASE_MANAGER has no independent
+1. *RM is self-declaratory* (ADR-0121): the CASE_MANAGER has no independent
    knowledge of a participant's RM state. If a sender asserts `rm=VALID` while
    the ledger records `ACCEPTED`, the ledger is merely stale — the participant
    knows their own state. The CASE_MANAGER cannot correct a self-report.
@@ -472,7 +472,7 @@ write node ticks.
 
 The composed evaluator covers the four `ParticipantStatus` dimensions (RM, VF,
 D and the case-level P/X/A) and nothing else. Embargo consent (PEC) is not one
-of them: `ParticipantStatus` carries no consent at all (ADR-0120): consent is the
+of them: `ParticipantStatus` carries no consent at all (ADR-0122): consent is the
 participant's per-embargo rows, and they move only through
 `CaseParticipant.apply_pec_transition()` (CM-18-005), which refuses an illegal
 trigger on its own. A PEC arm in the evaluator would check a value no status

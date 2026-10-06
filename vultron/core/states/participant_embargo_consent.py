@@ -2,7 +2,7 @@
 """Participant Embargo Consent (PEC): one consent row per (participant, embargo).
 
 A participant's consent is not one scalar answering "am I bound?"; it is a
-separate answer to each embargo it was asked about (ADR-0120, CM-18).  Each
+separate answer to each embargo it was asked about (ADR-0122, CM-18).  Each
 row — a :class:`~vultron.core.models.embargo_consent.EmbargoConsent` — holds
 one of the four states below, and this module owns the transitions between
 them.  Whether a participant is *bound* is a lookup of the row for the case's

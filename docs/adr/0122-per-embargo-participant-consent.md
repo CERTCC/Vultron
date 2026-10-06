@@ -1,6 +1,9 @@
 ---
-status: accepted
+status: proposed
 date: 2026-10-06
+created: 2026-10-06
+updated: 2026-10-06
+revision: 1
 deciders: Allen D. Householder
 consulted: >-
   Claude Sonnet 5.5; Issue #4178, Concern #3884, Issue #4153, PR #4002;

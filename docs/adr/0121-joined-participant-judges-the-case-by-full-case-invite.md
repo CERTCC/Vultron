@@ -1,18 +1,28 @@
 ---
-status: accepted
-date: 2026-10-01
+status: proposed
+date: 2026-10-06
+created: 2026-10-06
+updated: 2026-10-06
+revision: 1
 deciders: Allen D. Householder
 consulted: >-
-  Claude Opus 5.5; CONCERN-2320; CONCERN-4006; ADR-0114;
-  specs/case-management.yaml CM-11;
-  specs/sync-ledger-replication.yaml SYNC-10
+  Claude Sonnet 5.5; CONCERN-2320; CONCERN-4006; CONCERN-2087; ADR-0114;
+  specs/case-management.yaml CM-11; specs/participant-role-management.yaml PRM-06;
+  the 2026-10-02 audit of unsupervised agent decisions (#4195)
+supersedes: 0070-invited-actor-rm-triage-via-ledger-backfill.md
 informed: []
 stakeholder_type: [project-contributor]
 ---
 
-# A Joined Participant Judges the Case by Answering a Full-Case Invite, Not the Original Report Offer
+# A Joined Participant Judges the Case by Answering a Full-Case Invite; Status Is Self-Declared and Asserted Only for Existing Participants
 
 ## Context and Problem Statement
+
+This ADR carries the 2026-10-01 decisions of CONCERN-4006 that replaced two accepted ADRs, both of which had been rewritten in place under their own numbers: ADR-0070 (how an invited actor reaches `VALID`) and ADR-0084 (participant assertion authority).
+Their original texts are restored and marked superseded by this ADR, and the 2026-10-01 text now lives here.
+The two decisions are one flow: the first is what a joined participant answers, the second is which participants a status write may target.
+
+### Decision A — judging the case
 
 An actor that joins a case by accepting its stub Invite (ADR-0114) arrives at
 RM `RECEIVED`. It then has to judge the case — valid, invalid, or a hard no —
@@ -116,7 +126,7 @@ The existing catch-up gate (SYNC-10-004) already blocks a participant from
 protocol-significant case actions until its ledger copy is contiguous from
 genesis; the Invite's position gives that gate its target for this reply.
 
-### Consequences
+### Consequences of Decision A
 
 - Good, because the participant answers what it was shown, and a late joiner
   judges the case it actually joined.
@@ -129,6 +139,63 @@ genesis; the Invite's position gives that gate its target for this reply.
   answers to different invitations, so the difference is the point, but both
   must be maintained.
 
+### Decision B — participant status is self-declared, asserted on behalf only for existing participants
+
+The rules of ADR-0084 that are unchanged by the 2026-10-01 decision are restated here so that this ADR is self-contained.
+ADR-0084 weighed three options (strictly self-reported with no exceptions; a general on-behalf proxy for the Case Manager or Case Owner; self-declared with narrow externally evidenced exceptions) and chose the third; that choice is unchanged.
+The change is the first rule: **on-behalf assertions target existing participants only**, and joining a case is the Invite flow of ADR-0114.
+
+  own RM and VFD state; no approval is required. This is why they are
+  *participant* status items.
+
+- **On-behalf assertions target existing participants only.** A status
+  update never creates a participant; an on-behalf assertion whose target is
+  not a participant in the case is refused. Joining a case is the Invite flow
+  (ADR-0114), and the Invite is what creates the participant record.
+- **`v→V` (vendor aware) MAY be asserted on behalf of a Vendor-role
+  participant** by a Case Manager or Case Owner, because the notification event
+  is itself observable evidence. Any acknowledgement from the vendor of any
+  message sent to it — even a `Read(Invite(stub))` — is sufficient evidence.
+  The bump changes VF only, never RM.
+- **`d→D` (fix deployed) MAY be asserted on behalf of a Deployer-role
+  participant** by a Case Manager or Case Owner under the same
+  externally-evidenced pattern, but only in exceptional circumstances (a MAY,
+  expected to be rare; for example, a deployer that joined and has since gone
+  quiet). Deployment is normally self-reported by the Deployer. The write is
+  still subject to the cross-machine entailments, so it succeeds only for a
+  deployer whose RM is consistent with deployment.
+- **`f→F` (fix ready) is Vendor-only, always self-reported.** It is not
+  externally knowable; no on-behalf assertion is ever permitted.
+- **Role and roster changes require Case Owner approval** via the existing
+  CaseActor-routed Offer/Accept pattern (ADR-0026). Nothing here relaxes that.
+
+#### When a vendor participant may be at `v`
+
+A Vendor that has answered its Invite, or that has otherwise acknowledged any
+message about the case, is aware of the case. The Invite creates the vendor's
+participant record at VF `v` before it has answered (ADR-0114), and that record
+is the only place a vendor participant carries `v`. Therefore:
+
+- A Vendor-role participant never self-reports `v`: its only valid VF
+  self-reports are `Vf` and `VF`.
+- Any reply to the Invite sets `V`.
+- The on-behalf `v→V` assertion is the mechanism for recording awareness of an
+  invited vendor that has not answered: it targets that inert participant
+  record, so the CASE_MANAGER can track pre-join awareness without minting
+  anything.
+
+This invariant is enforceable and always an error to violate, so it belongs in
+the consolidated rule layer (`vultron/core/predicates/`, CONCERN-3020), not
+inline at each assertion site.
+
+### Consequences of Decision B
+
+- Good: the vendor-awareness gap (CONCERN-2087) closes without a general proxy
+  authority for the Case Actor, and without minting participants.
+- Good: `f→F` remains unforgeable; only the vendor can claim fix readiness.
+- Bad: the Vendor-implies-V invariant must be added to the rule layer and every
+  existing Vendor VF assertion site checked against it.
+
 ## Validation
 
 - A test drives each of the three replies and checks the participant's RM.
@@ -136,12 +203,18 @@ genesis; the Invite's position gives that gate its target for this reply.
   ledger does not hold, is refused, and a reply beyond it is accepted.
 - A test asserts a joined participant's triage emits no activity whose object
   is the original `Offer(VulnerabilityReport)`.
+- A test asserts an on-behalf assertion for an actor that is not a participant
+  is refused and leaves the roster unchanged.
+- A rule-layer test asserts a Vendor-role participant cannot self-report a VF
+  state with `v` set (valid Vendor VF self-reports ∈ {Vf, VF}).
+- A test asserts `f→F` is rejected when asserted by any actor other than the
+  Vendor-role holder.
 
 ## Pros and Cons of the Options
 
 ### Option 1 — Reuse `validate-report`
 
-The decision this ADR originally recorded (CONCERN-2320).
+The decision ADR-0070 originally recorded (CONCERN-2320).
 
 - Good, because one trigger reaches `VALID` for every participant.
 - Bad, because the participant answers an Offer that was never sent to it.
@@ -169,6 +242,12 @@ The decision this ADR originally recorded (CONCERN-2320).
 
 ## More Information
 
+- ADR-0070 and ADR-0084 — superseded by this ADR; their original texts are
+  restored in `docs/adr/archived/`.
+- ADR-0026 — role authority; ADR-0080 — the owner-approval mechanism;
+  ADR-0085 — case lifecycle boundaries (companion to ADR-0084).
+- CONCERN-2087, CONCERN-3020, CONCERN-2833 — the vendor-awareness gap, the
+  rule layer, and the planning session behind ADR-0084.
 - ADR-0114 — the join flow this judgement follows: the stub Invite, the inert
   participant, the stub type, and the `R → C` transition.
 - CONCERN-2320 — the original question (how an invited actor reaches `VALID`).

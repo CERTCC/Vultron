@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-06-05
+created: 2026-06-05
+updated: 2026-06-05
+revision: 1
 deciders: Vultron maintainers
 consulted: notes/case-ledger-authority.md
 stakeholder_type: [project-contributor]

@@ -1,4 +1,4 @@
-"""Tests for the per-embargo consent row-state table (ADR-0120, CM-18-003)."""
+"""Tests for the per-embargo consent row-state table (ADR-0122, CM-18-003)."""
 
 import pytest
 

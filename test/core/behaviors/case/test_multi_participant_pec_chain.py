@@ -1,6 +1,6 @@
 """Multi-participant consent chain: no row -> INVITED -> ACCEPTED.
 
-Exercises the consent-row path via BTTestScenario and BT nodes (ADR-0120).
+Exercises the consent-row path via BTTestScenario and BT nodes (ADR-0122).
 A regression to direct row assignment would cause this test to fail because:
 - Direct assignment bypasses ``apply_pec_transition`` and accepts any state.
 - The BT nodes enforce valid trigger-based transitions.

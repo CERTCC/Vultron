@@ -39,7 +39,7 @@ groups:
     verification_debt: '#2575'
     statement: 'The dimension objects MUST be named: EmDimension (EM state), PxaDimension (CS_pxa state), RmDimension
       (RM state), and VfdDimension (CS_vfd state). Participant embargo consent is not a status dimension: it is a per-embargo
-      row set on the participant (CM-18-001, ADR-0120).'
+      row set on the participant (CM-18-001, ADR-0122).'
     rationale: The "Dimension" suffix avoids collision with existing VfdState and PxaState NamedTuples in vultron/core/states/cs.py.
       See ADR-0036.
     adr:
@@ -165,7 +165,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: 'ParticipantStatus MUST replace its flat enum fields (rm_state: RM, vfd_state: CS_vfd) with embedded dimension
-      object fields: rm: RmDimension and vfd: VfdDimension. It carries no embargo consent (CM-18-001, ADR-0120).'
+      object fields: rm: RmDimension and vfd: VfdDimension. It carries no embargo consent (CM-18-001, ADR-0122).'
     rationale: Same rationale as SDO-03-001. See ADR-0036.
     verification: 'Inspection of `vultron/core/models/` confirms `ParticipantStatus` declares `rm: RmDimension`, `vfd:
       VfdDimension`, with no residual flat enum fields and no consent field.'

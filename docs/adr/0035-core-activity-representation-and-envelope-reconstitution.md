@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-07-17
+created: 2026-07-17
+updated: 2026-07-17
+revision: 1
 deciders: Vultron maintainers
 consulted: notes/datalayer-design.md, notes/domain-model-separation.md, ADR-0034, ADR-0017
 informed: CERT/CC Vultron contributors

@@ -578,7 +578,7 @@ participant to send a case-scoped message, debugging out-of-band note or
 embargo delivery, or auditing outbound activity addressing.
 
 **`case-joining.md`**
-How an actor joins a case (ADR-0114, ADR-0070): the stub Invite creates an
+How an actor joins a case (ADR-0114, ADR-0121): the stub Invite creates an
 inert participant record, `Accept`/`Reject` of the stub decides whether it
 joins, and a joined participant judges the case by replying to a full-case
 Invite that carries a ledger-position floor. Defines *active* versus *inert*,
@@ -627,7 +627,7 @@ relationship to AppendOnlyLedger/LedgerFanout implementation phases.
 
 **`participant-embargo-consent.md`**
 Design decisions for per-participant embargo consent, recorded as one row per
-(participant, embargo) — `INVITED`, `ACCEPTED`, `DECLINED`, `EXPIRED` (ADR-0120) —
+(participant, embargo) — `INVITED`, `ACCEPTED`, `DECLINED`, `EXPIRED` (ADR-0122) —
 with "signatory" and "lapsed" derived from the rows and the active embargo,
 embargo meta-protocol delivery to non-signatories, and the
 `Accept(Invite(case))` → implicit consent rule. Records why a missing row means

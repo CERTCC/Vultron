@@ -1015,8 +1015,10 @@ groups:
     rationale: 'Amended with ADR-0111: the rule as first written required a commit for
       every factory-built tree, which the CASE_MANAGER refused for an
       `Update(VulnerabilityCase)` the moment the update tree moved onto the factory
-      (#3870); whether an owner''s update should become a ledgered assertion
-      (ADR-0108) is decided separately. Original rationale: a rejection validator
+      (#3870). ADR-0111 (#3936) records that an owner''s `Update(VulnerabilityCase)`
+      is deliberately not a ledgered assertion: no production code sends it, it
+      has no protocol story, and `Announce(CaseLedgerEntry)` fan-out already
+      carries every ledgered case change (ADR-0108). Original rationale: a rejection validator
       (FAILURE-on-mismatch, read-only) belongs before
       the commit; an effects node (writes, enqueues, state mutations) belongs after.
       Mixing the two — placing a rejection validator in effect_nodes — creates a window

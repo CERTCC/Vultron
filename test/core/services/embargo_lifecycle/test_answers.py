@@ -16,7 +16,7 @@
 
 Owner versus non-owner behaviour, STRICT and OBSERVED mode, idempotency,
 pruning of decided proposals (EP-08-003), and the per-embargo consent rules
-of ADR-0093 and ADR-0120: the containment carry-over at activation
+of ADR-0093 and ADR-0122: the containment carry-over at activation
 (EP-05-001, MSM-07-005), a
 signatory's answer to a *proposed* revision (MSM-07-003), and which embargo
 a Reject names (MSM-07-004)."""
@@ -555,7 +555,7 @@ def test_owner_may_activate_a_revision_before_anyone_else_answers(
 
 
 # ---------------------------------------------------------------------------
-# Tests: consent is per embargo; activation carries it over (ADR-0120)
+# Tests: consent is per embargo; activation carries it over (ADR-0122)
 # ---------------------------------------------------------------------------
 
 

@@ -77,7 +77,7 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
         an ``ACCEPTED`` row stays accepted.  The row belongs to *embargo_id*
         alone: a signatory asked about a revision gains a row for the revision
         and keeps its row for the embargo in force, so its binding is
-        untouched (EP-09-004, ADR-0120).  When *rsvp_deadline* is given the
+        untouched (EP-09-004, ADR-0122).  When *rsvp_deadline* is given the
         invitee's record takes it (CM-28-013).  The CASE_MANAGER calls this as
         it relays the Invite; a replica calls it as it replays the relay's
         ledger entry (EP-09-007), so both stores apply one rule.

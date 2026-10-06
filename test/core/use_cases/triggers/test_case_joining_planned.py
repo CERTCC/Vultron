@@ -16,7 +16,7 @@ Strict-``xfail`` tests for the case-joining requirements planned under #4006
 (each test names its implementing issue):
 
 - CM-11-006 — the stub Invite creates the invitee's inert participant.
-- CM-11-005 — a joined participant never answers the original report Offer.
+- CM-11-018 — a joined participant never answers the original report Offer.
 - PRM-06-006 — an on-behalf status assertion never creates a participant
   (passing since #4047).
 - CM-11-014 — a stub Invite carries a deadline; an unanswered invitee does
@@ -315,11 +315,11 @@ def test_stub_invite_creates_inert_invitee_participant(actor_store) -> None:
 @pytest.mark.xfail(
     strict=True,
     reason=(
-        "CM-11-005: a participant that joined through an Invite never"
+        "CM-11-018: a participant that joined through an Invite never"
         " answers the original Offer(VulnerabilityReport). Tracked by #4051."
     ),
 )
-@pytest.mark.spec("CM-11-005")
+@pytest.mark.spec("CM-11-018")
 def test_joined_participant_never_answers_the_original_report_offer(
     actor_store,
 ) -> None:
@@ -392,7 +392,7 @@ def test_joined_participant_never_answers_the_original_report_offer(
             sync_port=SyncActivityAdapter(dl),
         ).execute()
     except VultronError:
-        # Refusing the trigger outright also satisfies CM-11-005.  The setup
+        # Refusing the trigger outright also satisfies CM-11-018.  The setup
         # is otherwise complete (today the trigger succeeds and emits
         # Accept(Offer)), so a raise here is the refusal, not a broken fixture.
         pass

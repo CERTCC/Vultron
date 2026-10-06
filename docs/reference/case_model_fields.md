@@ -55,7 +55,7 @@ Defined in `vultron/core/models/case_participant.py`.
 | `attributed_to` | The actor this record stands for; `actor_participant_index` is keyed on it |
 | `case_roles` | `list[CVDRole]` — the roles this actor holds in this case |
 | `participant_statuses` | Append-only history of `ParticipantStatus` snapshots |
-| `embargo_consents` | `list[EmbargoConsent]` — one Participant Embargo Consent (PEC) row for each embargo this participant was asked about, each holding the embargo URI and `INVITED`, `ACCEPTED`, `DECLINED` or `EXPIRED` (ADR-0120). "Signatory" and "lapsed" are read from these rows and the case's active embargo, never stored |
+| `embargo_consents` | `list[EmbargoConsent]` — one Participant Embargo Consent (PEC) row for each embargo this participant was asked about, each holding the embargo URI and `INVITED`, `ACCEPTED`, `DECLINED` or `EXPIRED` (ADR-0122). "Signatory" and "lapsed" are read from these rows and the case's active embargo, never stored |
 | `joined` | Whether the participant has joined the case: it was seated by case initialization or accepted its stub Invite. Defaults to `true`. One input to `VulnerabilityCase.is_active_participant`, which decides whether the participant is sent case content (CM-10-004, ADR-0114) |
 | `participant_case_name` | Optional human-readable name for this participant in this case |
 | `invite_rsvp_deadline` | The RSVP deadline the CASE_MANAGER stamped as `Invite.end_time` on this participant's `Invite(EmbargoEvent)`; recorded at the manager's commit of that Invite and reaching replicas through the ledger, never derived on receipt (CM-28-012, CM-28-013) |
@@ -190,6 +190,6 @@ classDiagram
 - [The CASE_MANAGER and the Case Ledger](../topics/case_lifecycle/case_manager_and_ledger.md) — who writes the case history
 - ADR-0036: Per-Machine Dimension Objects for `CaseStatus` and `ParticipantStatus`
 - ADR-0051: CaseActor Has Its Own RM Lifecycle Tracked via CaseParticipant
-- ADR-0120: Participant embargo consent is recorded per (participant, embargo)
+- ADR-0122: Participant embargo consent is recorded per (participant, embargo)
 - ADR-0057: Observer role (`CVDRole.OBSERVER`)
 - ADR-0078: Retire `CVDRole.FINDER` — Reporter Is the Protocol-Salient Role
