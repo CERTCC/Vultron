@@ -38,6 +38,7 @@ from vultron.demo.helpers.polling import (
 )
 from vultron.demo.utils import (
     DataLayerClient,
+    case_references_report,
     demo_check,
     demo_gate,
     demo_step,
@@ -634,15 +635,7 @@ def find_case_by_report_id(
         if case is None:
             continue
 
-        report_ids = [
-            (
-                report
-                if isinstance(report, str)
-                else getattr(report, "id_", str(report))
-            )
-            for report in (case.vulnerability_reports or [])
-        ]
-        if report_id in report_ids:
+        if case_references_report(case, report_id):
             return case
     return None
 
