@@ -169,7 +169,7 @@ class CheckTrustedCreatorNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class CheckInlineParticipantsNode(DataLayerActionWithPorts):
+class CheckInlineParticipantsNode(py_trees.behaviour.Behaviour):
     """Trusted route: every participant must be an inline typed object.
 
     Refuses before anything is persisted, so the bootstrap is atomic: the full
@@ -193,7 +193,7 @@ class CheckInlineParticipantsNode(DataLayerActionWithPorts):
             f" contains {len(bare)} bare-URI participant reference(s);"
             f" inline typed objects required (CBT-01-007, CBT-05-008)"
         )
-        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        logger.warning("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE
 
 
