@@ -93,6 +93,9 @@ def _parent_map(node: ast.AST) -> dict[ast.AST, ast.AST]:
     return parents
 
 
+_SCOPE_NODES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)
+
+
 def _is_demo_context_value(expr: ast.expr) -> bool:
     """True if *expr* evaluates to a demo context manager factory.
 
@@ -125,13 +128,38 @@ def _plain_assignments(scope: ast.AST) -> list[tuple[str, ast.expr | None]]:
     return found
 
 
+def _other_bindings(node: ast.AST) -> list[str]:
+    """Return the names *node* binds other than by ``Name`` store context.
+
+    Covers parameters, imports, ``def`` / ``class`` names, ``except ... as``,
+    ``match`` captures, and ``global`` / ``nonlocal`` declarations (which let
+    another scope rebind the name).
+    """
+    if isinstance(node, ast.arg):
+        return [node.arg]
+    if isinstance(node, ast.alias):
+        return [node.asname or node.name.split(".")[0]]
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+        return [node.name]
+    if isinstance(node, ast.ExceptHandler) and node.name:
+        return [node.name]
+    if isinstance(node, (ast.MatchAs, ast.MatchStar)) and node.name:
+        return [node.name]
+    if isinstance(node, ast.MatchMapping) and node.rest:
+        return [node.rest]
+    if isinstance(node, (ast.Global, ast.Nonlocal)):
+        return list(node.names)
+    return []
+
+
 def _demo_context_names(scope: ast.AST) -> frozenset[str]:
     """Return local names in *scope* bound only to demo context factories.
 
     A name qualifies when every binding of it is a plain assignment of a demo
     context (``_is_demo_context_value``).  Any other binding — a parameter, a
-    loop or ``with`` target, an augmented or walrus assignment, a tuple unpack
-    — disqualifies it, since the name may then hold something that is not a
+    loop or ``with`` target, an augmented or walrus assignment, a tuple unpack,
+    an import, a ``def`` / ``class``, an ``except ... as`` or ``match`` capture,
+    a ``global`` / ``nonlocal`` declaration — disqualifies it, since the name may then hold something that is not a
     demo context.  The analysis is flow-insensitive and per function: it does
     not order bindings against uses, and a name bound in an outer function or
     at module level is not resolved (both fail toward flagging the call).
@@ -144,7 +172,7 @@ def _demo_context_names(scope: ast.AST) -> frozenset[str]:
         if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store)
     )
     bindings.update(
-        node.arg for node in ast.walk(scope) if isinstance(node, ast.arg)
+        name for node in ast.walk(scope) for name in _other_bindings(node)
     )
     bad = {
         name
@@ -195,9 +223,13 @@ def _is_demo_with(node: ast.With, parents: dict[ast.AST, ast.AST]) -> bool:
 def _call_in_demo_context(
     call: ast.AST, parents: dict[ast.AST, ast.AST]
 ) -> bool:
-    """True if *call* has an ancestor ``with`` entering a demo context."""
+    """True if *call* has an ancestor ``with`` entering a demo context.
+
+    The search stops at a function or lambda boundary: a call deferred inside a
+    closure may run outside the ``with`` that lexically encloses the closure.
+    """
     cur = parents.get(call)
-    while cur is not None:
+    while cur is not None and not isinstance(cur, _SCOPE_NODES):
         if isinstance(cur, ast.With) and _is_demo_with(cur, parents):
             return True
         cur = parents.get(cur)
@@ -456,6 +488,14 @@ def test_variable_bound_demo_context_counts_as_demo_context():
         "context, other = demo_gate, 1",
         "for context in contexts: pass",
         "if (context := open_lock): pass",
+        "context = demo_gate\n    import context",
+        "context = demo_gate\n    from somewhere import context",
+        "context = demo_gate\n    def context(name): pass",
+        "context = demo_gate\n    class context: pass",
+        "context = demo_gate\n    try: pass\n    except Exception as context: pass",
+        "context = demo_gate\n    match contexts:\n        case [context]: pass",
+        "context = demo_gate\n    global context",
+        "context = demo_gate\n    nonlocal context",
     ],
 )
 def test_name_bound_to_non_demo_context_is_not_a_demo_context(binding: str):
@@ -506,3 +546,20 @@ def test_raising_helper_in_sync_module_is_flagged_when_called_bare():
     assert [v[1:] for v in violations] == [
         ("_phase_demo", "wait_for_thing_on_replicas")
     ]
+
+
+@pytest.mark.parametrize(
+    "deferred",
+    [
+        "    def inner():\n            wait_for_case_participants(c, 1, set())\n",
+        "    f = lambda: wait_for_case_participants(c, 1, set())\n",
+    ],
+)
+def test_call_deferred_in_closure_inside_demo_context_is_not_wrapped(
+    deferred: str,
+):
+    """A closure defined inside a demo ``with`` may run outside it."""
+    sample = _corpus.parse_inline(
+        f"def _phase_demo(c):\n    with demo_check('x'):\n    {deferred}"
+    )
+    assert len(_bare_wait_violations(sample, _WAIT)) == 1
