@@ -86,7 +86,8 @@ class EvaluateInviteExpiryNode(DataLayerActionWithPorts):
     and writes its outcome to *result_out*:
 
     * :data:`IS_EXPIRED_KEY` — ``True`` when the deadline passed and the
-      participant is not a signatory to the active embargo.  Used by EMB-17 routing.
+      participant is not a signatory to the active embargo.
+      Used by EMB-17 routing.
     * :data:`NEEDS_APPLY_KEY` — ``True`` when the invitee is still ``INVITED``
       and the commit + effect nodes need to run.
 

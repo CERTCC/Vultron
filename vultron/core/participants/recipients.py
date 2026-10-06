@@ -194,7 +194,8 @@ def embargo_withheld_participants(
     """Return the actor IDs the active embargo alone withholds content from.
 
     A joined participant that is not active: with :attr:`embargo_in_force`
-    that means it is not a signatory to the active embargo (CM-10-004).  These are the
+    that means it is not a signatory to the active embargo (CM-10-004).
+    These are the
     participants whose ledger stream is paused and backfilled on admission
     (CM-10-005, CM-10-006).  A participant that has not joined is left out:
     it is inert whatever the embargo, and its case copy and ledger arrive

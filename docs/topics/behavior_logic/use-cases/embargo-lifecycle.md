@@ -195,7 +195,7 @@ The case manager instead asks whether the accepted embargo is still the case's c
 
 | What the late Accept refers to | What the case manager does |
 |---|---|
-| The case's current embargo | Honor it; record the Participant as SIGNATORY, exactly as for an on-time Accept — directly from `EXPIRED`, after a fresh invitation from `DECLINED` (EMB-17-002) |
+| The case's current embargo | Honor it; record the Participant's consent row as `ACCEPTED`, exactly as for an on-time Accept — directly from `EXPIRED`, after a fresh invitation from `DECLINED` (EMB-17-002) |
 | A superseded embargo | Send a fresh invitation carrying the current terms. Do **not** record consent to terms the actor never saw (EMB-17-003, EMB-17-005) |
 | An embargo the case no longer has | Acknowledge as a no-op. Do not invite, and do not remove the actor from the case (EMB-17-004, EMB-17-007, EMB-17-008) |
 
