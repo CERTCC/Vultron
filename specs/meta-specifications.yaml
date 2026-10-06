@@ -1123,7 +1123,7 @@ groups:
       `lint_suppress: [phantom_symbol_ref]`.
     rationale: >-
       Two legitimate reasons to name a symbol that does not resolve: recording that
-      it was removed (SE-08-005 documents the retirement of a semantic), and naming
+      it was removed (the retired SE-08-005 documented the removal of a semantic), and naming
       a proposed spec-authoring tag rather than an identifier (PROTO-04-001's
       `PROD_ONLY`). Requiring the explicit opt-out keeps both visible as deliberate
       choices instead of leaving them indistinguishable from the stale MUSTs

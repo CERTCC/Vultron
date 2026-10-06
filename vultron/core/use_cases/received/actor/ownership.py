@@ -78,7 +78,8 @@ class OfferCaseOwnershipTransferReceivedUseCase:
         offerer of record; nothing downstream re-checks it, because
         CLP-07-003 validates `payloadSnapshot.actor` and not `attributed_to`.
         Outside the delegated shape the sender is the offerer, which is also the
-        correct answer when the case has no CaseActor at all (the retired send-directly arm; see CM-24-006).
+        correct answer when the case has no CaseActor at all (the retired
+        send-directly arm; see CM-24-006).
         """
         request = self._request
         delegated_author = _as_id(request.activity.attributed_to)
