@@ -37,10 +37,10 @@ from enum import IntEnum
 from pathlib import Path
 from typing import Protocol
 
-import frontmatter
 from pydantic import ValidationError
 
 from vultron.metadata.adr.schema import AdrFrontmatter
+from vultron.metadata.file_loading import loads_frontmatter
 from vultron.metadata.specs.schema import AdrStatus
 
 #: Whole days of age at which epoch 2 and epoch 3 begin (72 hours, day 10).
@@ -54,9 +54,8 @@ _PROTECTED_SECTIONS = ("Decision Outcome", "Considered Options")
 _NON_ADR_FILES = {"index.md", "README.md"}
 
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.*?)\s*$")
-_AMENDMENT_RE = re.compile(
-    r"^#{1,6}\s+(?=.*\bAmendment\b)(?=.*\d{4}-\d{2}-\d{2})",
-    re.IGNORECASE | re.MULTILINE,
+_AMENDMENT_TITLE_RE = re.compile(
+    r"(?=.*\bAmendment\b)(?=.*\d{4}-\d{2}-\d{2})", re.IGNORECASE
 )
 _FENCE_RE = re.compile(r"^(```|~~~)")
 
@@ -117,30 +116,73 @@ def status_epoch_fault(
     )
 
 
-def _split_sections(body: str) -> dict[str, str]:
-    """Map each heading title to its text, up to the next heading of any level.
+def _parse_sections(body: str) -> list[tuple[int, str, str]]:
+    """Return ``(level, title, own text)`` for each heading, in order.
 
-    Headings inside fenced code blocks are ignored. Nested subsections (an
-    Amendment, say) are separate entries, so a section's text excludes them.
+    Headings inside fenced code blocks are ignored. A section's own text ends
+    at the next heading of any level.
     """
-    sections: dict[str, list[str]] = {}
-    current: str | None = None
+    sections: list[tuple[int, str, list[str]]] = []
     in_fence = False
     for line in body.splitlines():
         if _FENCE_RE.match(line):
             in_fence = not in_fence
         match = None if in_fence else _HEADING_RE.match(line)
         if match:
-            title = match.group(2) or ""
-            current = title
-            sections.setdefault(title, [])
-        elif current is not None:
-            sections[current].append(line)
-    return {k: "\n".join(v).strip() for k, v in sections.items()}
+            sections.append((len(match.group(1)), match.group(2) or "", []))
+        elif sections:
+            sections[-1][2].append(line)
+    return [(lvl, title, "\n".join(lines)) for lvl, title, lines in sections]
+
+
+def _is_amendment_title(title: str) -> bool:
+    return bool(_AMENDMENT_TITLE_RE.search(title))
+
+
+def _protected_text(body: str) -> dict[str, str]:
+    """Map each protected section name to its full text.
+
+    A heading belongs to a protected section when its title starts with the
+    section name, ignoring case ("Considered Options (request side)" counts).
+    The text runs through nested subsections, except dated Amendment blocks,
+    which are how the section is allowed to change.
+    """
+    out: dict[str, list[str]] = {}
+    sections = _parse_sections(body)
+    for idx, (level, title, text) in enumerate(sections):
+        name = next(
+            (
+                n
+                for n in _PROTECTED_SECTIONS
+                if title.lower().startswith(n.lower())
+            ),
+            None,
+        )
+        if name is None:
+            continue
+        parts = out.setdefault(name, [])
+        parts.append(f"{title}\n{text}")
+        skip_below: int | None = None
+        for sub_level, sub_title, sub_text in sections[idx + 1 :]:
+            if sub_level <= level:
+                break
+            if skip_below is not None and sub_level > skip_below:
+                continue
+            skip_below = None
+            if _is_amendment_title(sub_title):
+                skip_below = sub_level
+                continue
+            parts.append(f"{sub_title}\n{sub_text}")
+    return {k: "\n".join(v).strip() for k, v in out.items()}
 
 
 def _amendment_count(body: str) -> int:
-    return len(_AMENDMENT_RE.findall(body))
+    """Count dated Amendment headings outside fenced code blocks."""
+    return sum(
+        1
+        for _, title, _ in _parse_sections(body)
+        if _is_amendment_title(title)
+    )
 
 
 def edit_faults(
@@ -155,8 +197,8 @@ def edit_faults(
 
     Frontmatter that fails its schema is left to the loader to report.
     """
-    old = frontmatter.loads(old_text)
-    new = frontmatter.loads(new_text)
+    old = loads_frontmatter(old_text)
+    new = loads_frontmatter(new_text)
     try:
         old_fm = AdrFrontmatter.model_validate(old.metadata)
         new_fm = AdrFrontmatter.model_validate(new.metadata)
@@ -178,8 +220,8 @@ def edit_faults(
         )
 
     if old_fm.status is AdrStatus.ACCEPTED and old_epoch is AdrEpoch.SETTLED:
-        old_sections = _split_sections(old.content)
-        new_sections = _split_sections(new.content)
+        old_sections = _protected_text(old.content)
+        new_sections = _protected_text(new.content)
         changed = [
             title
             for title in _PROTECTED_SECTIONS
@@ -234,19 +276,19 @@ def verified_dependents(
 
 def hardened_adrs(
     registry: dict[str, AdrFrontmatter],
-    verified_dependents: dict[str, list[str]],
+    dependents: dict[str, list[str]],
     today: _dt.date,
 ) -> dict[str, list[str]]:
     """Return ADRs a human could promote early, with their dependent specs.
 
-    ``verified_dependents`` maps an ADR number (``"0120"``) to the spec IDs
+    ``dependents`` maps an ADR number (``"0120"``) to the spec IDs
     that cite it in ``adr:`` and carry a test-backed ``verification:``. An ADR
     in epoch 1 or 2 with such a dependent is reported (MS-14-007).
     """
     out: dict[str, list[str]] = {}
     for rel_path, fm in registry.items():
         number = Path(rel_path).name.split("-", 1)[0]
-        deps = verified_dependents.get(number)
+        deps = dependents.get(number)
         if (
             deps
             and fm.status in _EPOCH_OF_STATUS
@@ -256,14 +298,37 @@ def hardened_adrs(
     return out
 
 
-def _text_at(base: str, path: Path) -> str | None:
-    res = subprocess.run(
-        ["git", "show", f"{base}:{path.as_posix()}"],
-        capture_output=True,
-        text=True,
-        check=False,
+def _git(*args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", *args], capture_output=True, text=True, check=False
     )
+
+
+def verify_base(base: str) -> None:
+    """Raise ``ValueError`` unless ``base`` names a commit.
+
+    Without this, a mistyped ref reads as "every ADR is new" and the gate
+    passes everything.
+    """
+    res = _git("rev-parse", "--verify", "--quiet", f"{base}^{{commit}}")
+    if res.returncode != 0:
+        raise ValueError(f"--base {base!r} is not a commit in this repository")
+
+
+def _text_at(base: str, path: Path) -> str | None:
+    """Return the text of ``path`` at ``base``, or None if absent there."""
+    res = _git("show", f"{base}:{path.as_posix()}")
     return res.stdout if res.returncode == 0 else None
+
+
+def _rename_sources(base: str) -> dict[Path, Path]:
+    """Map each renamed path to the path it had at ``base``."""
+    res = _git("diff", "-M", "--name-status", "--diff-filter=R", base)
+    out: dict[Path, Path] = {}
+    for line in res.stdout.splitlines():
+        _, old, new = line.split("\t")
+        out[Path(new)] = Path(old)
+    return out
 
 
 def check_paths(
@@ -271,15 +336,19 @@ def check_paths(
 ) -> list[str]:
     """Check each ADR path's working-tree text against its text at ``base``.
 
-    A path with no text at ``base`` is a new ADR and is unconstrained.
+    A renamed path is compared with the path it had at ``base``. A path with
+    no text at ``base`` is a new ADR and is unconstrained. Raises
+    ``ValueError`` if ``base`` is not a commit.
     """
+    verify_base(base)
+    renames = _rename_sources(base)
     faults: list[str] = []
     for path in paths:
         if path.name in _NON_ADR_FILES or path.name.startswith("_"):
             continue
         if not path.is_file():
             continue
-        old_text = _text_at(base, path)
+        old_text = _text_at(base, renames.get(path, path))
         if old_text is None:
             continue
         faults.extend(
@@ -299,7 +368,11 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--base", default="HEAD", help="ref to diff against")
     parser.add_argument("paths", nargs="*", type=Path)
     args = parser.parse_args(argv)
-    faults = check_paths(args.paths, args.base, today_utc())
+    try:
+        faults = check_paths(args.paths, args.base, today_utc())
+    except ValueError as exc:
+        print(f"[ERROR] {exc}", file=sys.stderr)
+        sys.exit(2)
     for fault in faults:
         print(f"[ERROR] {fault}", file=sys.stderr)
     sys.exit(1 if faults else 0)

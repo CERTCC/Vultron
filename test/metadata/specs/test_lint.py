@@ -2040,3 +2040,38 @@ def test_lint_adr_status_override_silences_epoch_error(tmp_path):
         override="status_override: a human chose this\n",
     )
     assert lint(tmp_path, adr_dir=adr_dir) == 0
+
+
+def test_lint_reports_hardened_unsettled_adr_as_info(tmp_path):
+    """A tested dependent of an unsettled ADR is reported, not failed (MS-14-010)."""
+    import datetime as dt
+
+    today = dt.date(2026, 10, 20)
+    adr_dir = _make_adr_dir(tmp_path)
+    _write_dated_adr(adr_dir, "0099", "proposed", today.isoformat())
+    _write_dated_adr(adr_dir, "0098", "accepted", "2020-01-01")
+    (tmp_path / "test").mkdir()
+    (tmp_path / "test" / "test_dep.py").write_text("")
+
+    class _Reg:
+        all_specs = {
+            "TST-01-001": type(
+                "S",
+                (),
+                {
+                    "adr": ["ADR-0099", "ADR-0098"],
+                    "verification": "`test/test_dep.py` checks it",
+                },
+            )()
+        }
+
+    errors, warnings = lint_module._check_adr_status(
+        adr_dir,
+        _Reg(),
+        today,  # type: ignore[arg-type]
+    )
+    assert errors == []
+    infos = [w for w in warnings if w.startswith("[INFO]")]
+    assert len(infos) == 1
+    assert "0099-stub.md" in infos[0]
+    assert "TST-01-001" in infos[0]
