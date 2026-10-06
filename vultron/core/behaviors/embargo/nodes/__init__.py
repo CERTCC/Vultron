@@ -43,6 +43,16 @@ from vultron.core.behaviors.embargo.nodes.em_state import (
     ReadEmStateNode,
     read_case_em_state,
 )
+from vultron.core.behaviors.embargo.nodes.expiry import (
+    ApplyHonourLateAcceptFromLedgerNode,
+    ApplyInviteExpiryFromLedgerNode,
+    ApplyInviteExpiryNoopFromLedgerNode,
+    EvaluateInviteExpiryNode,
+    HonourLateAcceptNode,
+    InviteExpiryChangedConsentNode,
+    InviteExpiryNeedsApplyNode,
+    RecordInviteExpiryNode,
+)
 from vultron.core.behaviors.embargo.nodes.invite_answer import (
     CanAnswerEmbargoInviteNode,
     SendEmbargoInviteAnswerNode,
@@ -152,6 +162,15 @@ __all__ = [
     "LeaveAbandonmentToCaseManagerNode",
     "ApplyEmbargoAbandonmentFromLedgerNode",
     "case_manager_admits_proposal_guard",
+    # Invite expiry: evaluation (CM-28-014, BT-17-001) and replay (ADR-0118)
+    "ApplyHonourLateAcceptFromLedgerNode",
+    "ApplyInviteExpiryFromLedgerNode",
+    "ApplyInviteExpiryNoopFromLedgerNode",
+    "EvaluateInviteExpiryNode",
+    "HonourLateAcceptNode",
+    "InviteExpiryChangedConsentNode",
+    "InviteExpiryNeedsApplyNode",
+    "RecordInviteExpiryNode",
     # Proposal
     "CreateAndStoreInviteNode",
     "RecordParticipantAcceptanceNode",

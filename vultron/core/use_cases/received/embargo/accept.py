@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from vultron.config.actor import ActorConfig
     from vultron.core.models.case import VulnerabilityCase
     from vultron.core.ports.wire_render import WireRenderPort
 
@@ -13,17 +14,18 @@ from vultron.core.behaviors.embargo.announce_teardown_tree import (
     accept_invite_to_embargo_tree,
     embargo_admission_backfill_tree,
 )
-from vultron.core.behaviors.sync.commit_tree import (
-    create_commit_log_entry_tree,
+from vultron.core.behaviors.embargo.expiry_tree import (
+    IS_EXPIRED_KEY,
+    create_honour_late_accept_tree,
+    create_invite_expiry_tree,
+    create_noop_ledger_entry_tree,
+)
+from vultron.core.behaviors.embargo.rsvp_stamp import (
+    stamp_invite_rsvp_deadline,
 )
 from vultron.core.models._helpers import _as_id, claimed_published_iso
-from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedEvent,
-)
-from vultron.core.models.rsvp_deadline import (
-    INVITE_EXPIRED_EVENT_TYPE,
-    INVITE_EXPIRED_SNAPSHOT_TYPE,
 )
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
@@ -31,12 +33,8 @@ from vultron.core.models.use_case_result import (
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.services.embargo_lifecycle import (
-    EmbargoLifecycle,
-    TransitionMode,
-)
+from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC_Trigger
 from vultron.core.use_cases._helpers import (
     add_activity_to_outbox,
     resolve_receiving_actor_id,
@@ -54,6 +52,7 @@ from vultron.core.use_cases.received._embargo_pxa import (
 from vultron.core.use_cases.triggers._helpers import (
     _prepare_delegated_context,
 )
+from vultron.errors import VultronNotFoundError
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -76,26 +75,6 @@ def _resolve_case_for_embargo_acceptance(
     return None
 
 
-def _needs_reinvite_to_accept(
-    dl: CasePersistence, case: "VulnerabilityCase", actor_id: str
-) -> bool:
-    """True when *actor_id*'s consent must be re-invited before ACCEPT.
-
-    ``ACCEPT`` is legal from ``EXPIRED`` (ADR-0118) but not from ``DECLINED``
-    (CM-18-003); a declined participant whose late Accept is honoured goes
-    ``DECLINED → INVITED → SIGNATORY``.  An actor with no readable
-    participant record needs nothing here: the consent write that follows
-    warns and skips it.
-    """
-    participant_id = case.actor_participant_index.get(actor_id)
-    participant = dl.read(participant_id) if participant_id else None
-    if not isinstance(participant, CaseParticipant):
-        return False
-    return not participant.accepts_pec_trigger(
-        PEC_Trigger.ACCEPT
-    ) and participant.accepts_pec_trigger(PEC_Trigger.INVITE)
-
-
 class AcceptInviteToEmbargoOnCaseReceivedUseCase:
     def __init__(
         self,
@@ -104,63 +83,51 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         sync_port: "SyncActivityPort | None" = None,
         trigger_activity: "TriggerActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
+        actor_config: "ActorConfig | None" = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
         self._request: AcceptInviteToEmbargoOnCaseReceivedEvent = request
         self._sync_port = sync_port
         self._trigger_activity = trigger_activity
+        self._actor_config = actor_config
 
-    def _commit_expiry_ledger_entry(
+    def _pxa_refusal(
         self,
         *,
         case_id: str,
         invite_id: str,
-        embargo_id: str,
-        accepting_actor_id: str,
         receiving_actor_id: str,
-        has_pec_change: bool,
-    ) -> None:
-        # CM-28-009: only commit when a PEC transition was actually applied to
-        # keep the entry idempotent — a repeated late-Accept does not double-log.
-        if not has_pec_change:
-            return
-
-        tree = create_commit_log_entry_tree(
-            case_id=case_id,
-            object_id=invite_id or case_id,
-            event_type=INVITE_EXPIRED_EVENT_TYPE,
-            payload_snapshot={
-                "type": INVITE_EXPIRED_SNAPSHOT_TYPE,
-                "actor": accepting_actor_id,
-                "context": case_id,
-                # The expiry is CASE_MANAGER-synthesised (CM-28-009) but the
-                # snapshot is attributed to the accepting participant, so its
-                # claimed time must come from that participant's own clock —
-                # the triggering Accept — not the CaseActor's.  Mixing the two
-                # inside one actor's claimed stream is what CLP-15-003 reads as
-                # a regression.  ``include_activity=True`` on the
-                # ACCEPT_INVITE_TO_EMBARGO_ON_CASE registry entry guarantees the
-                # activity is present; the fallback is defence in depth.
-                "published": claimed_published_iso(self._request.activity),
-                "object": {
-                    "type": "Invite",
-                    "id": invite_id or case_id,
-                    "object": {"type": "EmbargoEvent", "id": embargo_id},
-                },
-            },
+        accepting_actor_id: str,
+    ) -> "HandlerResult | None":
+        """Return a refusal if P/X/A is set, otherwise ``None`` (EMB-02-002)."""
+        if not pxa_embargo_ineligible(self._dl, case_id):
+            return None
+        logger.info(
+            "accept_invite_to_embargo_on_case: P/X/A set on case '%s'"
+            " — rejecting EA (EMB-02-002)",
+            case_id,
         )
-        result = BTBridge(
-            datalayer=self._dl,
-            wire_render_port=self._wire_render_port,
-            sync_port=self._sync_port,
-        ).execute_with_setup(
-            tree=tree,
-            actor_id=receiving_actor_id,
+        if invite_id:
+            queue_pxa_reject(
+                self._dl,
+                self._trigger_activity,
+                invite_id=invite_id,
+                case_id=case_id,
+                actor_id=receiving_actor_id,
+                recipient_id=accepting_actor_id,
+                label="accept_invite_to_embargo_on_case",
+            )
+        else:
+            logger.warning(
+                "accept_invite_to_embargo_on_case: missing invite_id"
+                " — ER not emitted for EA on case '%s'",
+                case_id,
+            )
+        return HandlerResult.refused(
+            f"EMB-02-002: P/X/A set on case '{case_id}'; embargo"
+            " acceptance rejected"
         )
-        # The expiry is already applied to this store; an unrecorded expiry
-        # would diverge the replicas silently (CM-28-009).
-        applied_or_raise(tree, result, label="CommitExpiryLedgerEntryBT")
 
     def _backfill_admitted(
         self, *, case_id: str, receiving_actor_id: str
@@ -176,6 +143,69 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         )
         applied_or_raise(tree, result, label="EmbargoAdmissionBackfillBT")
 
+    def _run_expiry_tree(
+        self,
+        *,
+        case_id: str,
+        accepting_actor_id: str,
+        invite_id: str,
+        embargo_id: str,
+        receiving_actor_id: str,
+        now: "datetime",
+    ) -> dict[str, object]:
+        """Run the gated expiry evaluation; extracted for CLP-10-005 (ADR-0022)."""
+        expiry_out: dict[str, object] = {}
+        expiry_tree = create_invite_expiry_tree(
+            case_id=case_id,
+            invitee_id=accepting_actor_id,
+            invite_id=invite_id,
+            embargo_id=embargo_id,
+            published=claimed_published_iso(self._request.activity),
+            now=now,
+            result_out=expiry_out,
+        )
+        BTBridge(
+            datalayer=self._dl,
+            wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
+        ).execute_with_setup(tree=expiry_tree, actor_id=receiving_actor_id)
+        return expiry_out
+
+    def _commit_noop_ledger_entry(
+        self,
+        *,
+        case_id: str,
+        invite_id: str,
+        embargo_id: str,
+        accepting_actor_id: str,
+        receiving_actor_id: str,
+    ) -> None:
+        """Commit the EMB-17-004 no-op acknowledgement entry (ADR-0118, RSH-08-004).
+
+        Gated on CASE_MANAGER (BT-17-001): only the CASE_MANAGER commits the
+        no-op entry.  A non-manager receiving the same late Accept is refused
+        by the normal Accept path; this method must never be called for it.
+        The gate is the belt-and-suspenders guard that ensures the ledger
+        integrity invariant is never accidentally violated if the caller
+        ordering changes.
+        """
+        tree = create_noop_ledger_entry_tree(
+            case_id=case_id,
+            invite_id=invite_id,
+            embargo_id=embargo_id,
+            accepting_actor_id=accepting_actor_id,
+            published=claimed_published_iso(self._request.activity),
+        )
+        result = BTBridge(
+            datalayer=self._dl,
+            wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
+        ).execute_with_setup(
+            tree=tree,
+            actor_id=receiving_actor_id,
+        )
+        applied_or_raise(tree, result, label="CommitNoopLedgerEntryBT")
+
     def _handle_emb17_routing(
         self,
         *,
@@ -183,7 +213,7 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         embargo_id: str,
         accepting_actor_id: str,
         receiving_actor_id: str,
-        service: "EmbargoLifecycle",
+        invite_id: str,
     ) -> None:
         """EMB-17: late-Accept compatibility routing after an invite expired."""
         _fresh_case = self._dl.read_case(case_id)
@@ -202,25 +232,26 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             em_state in (EM.ACTIVE, EM.REVISE)
             and active_embargo_id == embargo_id
         ):
-            # AC-2 of #2213: current embargo still matches — honor.  An
-            # EXPIRED participant accepts directly (EXPIRED → SIGNATORY,
-            # ADR-0118); one that declined is re-invited first, since ACCEPT
-            # is not legal from DECLINED (CM-18-003).
-            if _fresh_case is not None and _needs_reinvite_to_accept(
-                self._dl, _fresh_case, accepting_actor_id
-            ):
-                service.record_participant_consent(
-                    case_id=case_id,
-                    actor_id=accepting_actor_id,
-                    pec_trigger=PEC_Trigger.INVITE,
-                    embargo_id=embargo_id,
-                )
-            service.accept_embargo_invite(
+            # AC-2 of #2213: current embargo still matches — honour.
+            # Commit the honour entry first so replicas learn the participant
+            # became SIGNATORY (RSH-08-004, ADR-0118, CLP-10-006).  The tree
+            # is gated on CASE_MANAGER (BT-17-001).
+            honour_tree = create_honour_late_accept_tree(
                 case_id=case_id,
+                accepting_actor_id=accepting_actor_id,
+                invite_id=invite_id,
                 embargo_id=embargo_id,
-                actor_id=accepting_actor_id,
-                transition_mode=TransitionMode.OBSERVED,
+                published=claimed_published_iso(self._request.activity),
             )
+            result = BTBridge(
+                datalayer=self._dl,
+                wire_render_port=self._wire_render_port,
+                sync_port=self._sync_port,
+            ).execute_with_setup(
+                tree=honour_tree,
+                actor_id=receiving_actor_id,
+            )
+            applied_or_raise(honour_tree, result, label="HonourLateAcceptBT")
             logger.info(
                 "accept_invite_to_embargo_on_case: late Accept honored"
                 " for actor '%s' on case '%s' (embargo '%s' still active;"
@@ -245,18 +276,34 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
                 actor_id, _ = _prepare_delegated_context(
                     self._dl, case_id, receiving_actor_id
                 )
+                # The re-invite is a fresh ask, so it carries a fresh deadline
+                # the manager records (ASK-03-004, CM-28-012, CM-28-013);
+                # the lapsed one would lapse it again on the next answer.
+                try:
+                    stamp = stamp_invite_rsvp_deadline(
+                        self._dl, active_embargo_id, self._actor_config
+                    )
+                except VultronNotFoundError as exc:
+                    # The case names this embargo as active, so a missing
+                    # record is the manager's own store's fault (ADR-0087).
+                    raise RuntimeError(
+                        f"cannot stamp the re-invite to embargo"
+                        f" '{active_embargo_id}' on case '{case_id}': {exc}"
+                    ) from exc
                 new_invite_id, _ = self._trigger_activity.propose_embargo(
                     embargo_id=active_embargo_id,
                     case_id=case_id,
                     actor=actor_id,
                     to=[accepting_actor_id],
+                    rsvp_deadline=stamp.rsvp_deadline,
+                    published=stamp.published,
+                    min_rsvp_window=stamp.min_rsvp_window,
                 )
                 add_activity_to_outbox(actor_id, new_invite_id, self._dl)
-                service.record_participant_consent(
+                EmbargoLifecycle(persistence=self._dl).record_embargo_invite(
                     case_id=case_id,
-                    actor_id=accepting_actor_id,
-                    pec_trigger=PEC_Trigger.INVITE,
-                    embargo_id=active_embargo_id,
+                    invitee_id=accepting_actor_id,
+                    rsvp_deadline=stamp.rsvp_deadline,
                 )
                 logger.info(
                     "accept_invite_to_embargo_on_case: late Accept for"
@@ -295,6 +342,14 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
                 case_id,
                 em_state,
                 accepting_actor_id,
+            )
+            # Commit so replicas can replay (RSH-08-004, ADR-0118).
+            self._commit_noop_ledger_entry(
+                case_id=case_id,
+                invite_id=invite_id,
+                embargo_id=embargo_id,
+                accepting_actor_id=accepting_actor_id,
+                receiving_actor_id=receiving_actor_id,
             )
 
     def execute(self) -> HandlerResult:
@@ -337,70 +392,40 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
 
         # EMB-02-002: MUST NOT process EA to transition EM to Active when P/X/A
         # is set; MUST emit ER instead.
-        if pxa_embargo_ineligible(self._dl, case_id):
-            logger.info(
-                "accept_invite_to_embargo_on_case: P/X/A set on case '%s'"
-                " — rejecting EA (EMB-02-002)",
-                case_id,
-            )
-            if invite_id:
-                queue_pxa_reject(
-                    self._dl,
-                    self._trigger_activity,
-                    invite_id=invite_id,
-                    case_id=case_id,
-                    actor_id=receiving_actor_id,
-                    recipient_id=request.actor_id,
-                    label="accept_invite_to_embargo_on_case",
-                )
-            else:
-                logger.warning(
-                    "accept_invite_to_embargo_on_case: missing invite_id"
-                    " — ER not emitted for EA on case '%s'",
-                    case_id,
-                )
-            return HandlerResult.refused(
-                f"EMB-02-002: P/X/A set on case '{case_id}'; embargo"
-                " acceptance rejected"
-            )
-
-        # Lazy invite-expiry detection (AC-2 of #2212, CM-28, EP-07-001).
-        now = datetime.now(tz=UTC)
-        service = EmbargoLifecycle(persistence=self._dl)
-        expiry_result = service.detect_and_apply_expiry(
-            case_id=case_id,
-            actor_id=accepting_actor_id,
-            now=now,
-        )
-
-        if expiry_result.is_expired:
-            # CM-28-009: author a distinct ledger entry for the expiry event
-            # (CM-28-005) then route via EMB-17 compatibility branches.
-            self._commit_expiry_ledger_entry(
+        if (
+            pxa_refusal := self._pxa_refusal(
                 case_id=case_id,
                 invite_id=invite_id,
-                embargo_id=embargo_id,
-                accepting_actor_id=accepting_actor_id,
                 receiving_actor_id=receiving_actor_id,
-                has_pec_change=bool(expiry_result.participant_changes),
+                accepting_actor_id=accepting_actor_id,
             )
+        ) is not None:
+            return pxa_refusal
+
+        # Expiry eval gated on CASE_MANAGER (CM-28-014, BT-17-001, CLP-10-005).
+        expiry_out = self._run_expiry_tree(
+            case_id=case_id,
+            accepting_actor_id=accepting_actor_id,
+            invite_id=invite_id,
+            embargo_id=embargo_id,
+            receiving_actor_id=receiving_actor_id,
+            now=datetime.now(tz=UTC),
+        )
+
+        if bool(expiry_out.get(IS_EXPIRED_KEY)):
+            # CM-28-009: expiry entry already committed by the tree above.
+            # Route via EMB-17 compatibility branches.
             self._handle_emb17_routing(
                 case_id=case_id,
                 embargo_id=embargo_id,
                 accepting_actor_id=accepting_actor_id,
                 receiving_actor_id=receiving_actor_id,
-                service=service,
+                invite_id=invite_id,
             )
             return HandlerResult.applied()
 
-        # Normal path (invite still open): record acceptance via BT.
-        # Single BT execution under receiving_actor_id (ADR-0022 / CLP-10-005).
-        # accepting_actor_id is threaded into the tree as a node constructor arg
-        # so RecordParticipantAcceptanceNode records acceptance for the correct
-        # actor even when receiving_actor_id != accepting_actor_id (e.g. the
-        # CaseActor processing an Accept sent by the invitee).  The embedded
-        # guarded-commit branch fires naturally when the receiving actor holds
-        # CVDRole.CASE_MANAGER.
+        # Normal path: invite still open.  accepting_actor_id is passed so the
+        # node records acceptance for the right actor when receiving != accepting.
         tree = accept_invite_to_embargo_tree(
             case_id=case_id,
             embargo_id=embargo_id,

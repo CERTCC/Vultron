@@ -417,9 +417,12 @@ The participant side has two halves, and only the first runs on receipt:
 | Entry (`event_type`) | Slot | Replica effect |
 |---|---|---|
 | proposal (`invite_to_embargo_on_case`, not a relay) | `EmbargoProposal` | stores B, `propose_embargo` (→ `PROPOSED`/`REVISE`), index recorded, proposer's consent |
-| relayed Invite (same type, `actor` the CASE_MANAGER, `attributedTo` someone else) | `EmbargoInviteRelay` | invitee PEC `INVITE` where legal, RSVP deadline stored |
+| relayed Invite (same type, `actor` the CASE_MANAGER, `attributedTo` someone else) | `EmbargoInviteRelay` | invitee PEC `INVITE` where legal; the RSVP deadline the entry carries as `endTime` stored (CM-28-013) |
 | `accept_invite_to_embargo_on_case` | `EmbargoAcceptance` | the answerer's consent; the owner's Accept activates B |
 | `reject_invite_to_embargo_on_case` | `EmbargoRejection` | the answerer declines; the owner's Reject returns EM to A and forgets B |
+| `invite_to_embargo_on_case_expired` (the CASE_MANAGER's expiry, attributed to the invitee) | `InviteExpiry` | invitee PEC `EXPIRE` (`INVITED → EXPIRED`); no deadline re-evaluated (CM-28-014) |
+| `honour_late_accept_invite_to_embargo_on_case` (the CASE_MANAGER's honour, attributed to the accepting actor) | `InviteHonourLateAccept` | `EXPIRED → SIGNATORY` or `DECLINED → INVITED → SIGNATORY` (EMB-17-001, EMB-17-009) |
+| `invite_to_embargo_on_case_expired_noop` (the CASE_MANAGER's no-op ack, attributed to the accepting actor) | `InviteExpiryNoop` | no PEC change (EMB-17-004, EMB-17-010) |
 | `remove_embargo_event_from_case` | teardown | unchanged |
 
 The proposal and a relayed Invite share one event type and are told apart by

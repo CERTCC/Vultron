@@ -1,10 +1,10 @@
 """Received ``Invite(EmbargoEvent)`` (EP, EV) and its invitee and proposer."""
 
 import logging
-from datetime import datetime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from vultron.config.actor import ActorConfig
     from vultron.core.ports.wire_render import WireRenderPort
 
 from vultron.core.behaviors.bridge import BTBridge
@@ -17,7 +17,6 @@ from vultron.core.behaviors.embargo.nodes import (
 from vultron.core.behaviors.embargo.proposal_index import (
     record_embargo_proposal_index,
 )
-from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.embargo import (
     InviteToEmbargoOnCaseReceivedEvent,
@@ -29,7 +28,6 @@ from vultron.core.models.use_case_result import (
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.predicates.addressing import same_actor_id
 from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
     unaddressed_copy_refusal,
@@ -127,40 +125,6 @@ def resolve_proposer_id(
     return request.actor_id
 
 
-def _store_invite_deadline(
-    dl: CasePersistence,
-    case_id: str,
-    actor_id: str,
-    rsvp_deadline: datetime,
-) -> None:
-    """Store RSVP deadline on the invitee's record for lazy invite-expiry detection.
-
-    A proposal addressed to the CASE_MANAGER names it as the sole recipient,
-    but the manager adjudicates that Invite and is never its invitee
-    (EP-09-010): its record gets no deadline, so the enforcer of invite
-    expiry is never the record expiry is evaluated on (CM-28-003).
-    """
-    case = dl.read_case(case_id)
-    if case is None:
-        return
-    manager_id = resolve_case_manager_id(case, dl)
-    if manager_id is None:
-        # No enforcer to tell from the invitee (CM-24-006, CM-28-003).
-        raise VultronNotFoundError("CASE_MANAGER of case", case_id)
-    if same_actor_id(actor_id, manager_id):
-        return
-    participant_id = case.actor_participant_index.get(actor_id)
-    if not participant_id:
-        return
-    participant = dl.read(participant_id)
-    if not isinstance(participant, CaseParticipant):
-        return
-    if participant.invite_rsvp_deadline == rsvp_deadline:
-        return
-    participant.invite_rsvp_deadline = rsvp_deadline
-    dl.save(participant)
-
-
 class InviteToEmbargoOnCaseReceivedUseCase:
     def __init__(
         self,
@@ -169,12 +133,14 @@ class InviteToEmbargoOnCaseReceivedUseCase:
         sync_port: "SyncActivityPort | None" = None,
         trigger_activity: "TriggerActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
+        actor_config: "ActorConfig | None" = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
         self._request: InviteToEmbargoOnCaseReceivedEvent = request
         self._sync_port = sync_port
         self._trigger_activity = trigger_activity
+        self._actor_config = actor_config
 
     def execute(self) -> HandlerResult:
         request = self._request
@@ -254,6 +220,7 @@ class InviteToEmbargoOnCaseReceivedUseCase:
                 if isinstance(request.object_, EmbargoEvent)
                 else None
             ),
+            actor_config=self._actor_config,
         )
         bridge = BTBridge(
             datalayer=self._dl,
@@ -299,11 +266,7 @@ class InviteToEmbargoOnCaseReceivedUseCase:
                     case_id,
                 )
 
-        # Store RSVP deadline on the invitee's participant record so
-        # detect_and_apply_expiry() can check it without reading the stored
-        # invite activity (CM-28, EP-07-001).
-        if case_id and request.rsvp_deadline:
-            _store_invite_deadline(
-                self._dl, case_id, invitee_id, request.rsvp_deadline
-            )
+        # No deadline is stored on receipt: the CASE_MANAGER recorded the one
+        # it stamped at its relay's commit, and a replica records that value
+        # from the committed entry (CM-28-013).
         return verdict
