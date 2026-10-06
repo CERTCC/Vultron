@@ -10,7 +10,11 @@ from __future__ import annotations
 
 import pytest
 
-from vultron.metadata.specs.yaml_items import SpecItem, iter_blocks
+from vultron.metadata.specs.yaml_items import (
+    SpecItem,
+    iter_blocks,
+    remove_lint_suppression,
+)
 
 
 def _items(text: str) -> list[SpecItem]:
@@ -131,3 +135,44 @@ def test_items_in_a_corpus_shaped_file_carry_their_own_fields():
     # the comment and the block scalar both belong to their item
     assert any("CP-01-007" in line for line in found[1].lines)
     assert found[1].lines[-1] == "      across two lines.\n"
+
+
+def _item(text: str) -> SpecItem:
+    (only,) = _items(text)
+    return only
+
+
+_SUPPRESSED = """\
+- id: TST-01-001
+  priority: MUST
+  lint_suppress:
+  # why the first one is here
+  - phantom_path_ref
+  - must_without_verification
+  statement: x
+"""
+
+
+def test_remove_lint_suppression_keeps_other_codes_and_their_comments():
+    lines, removed = remove_lint_suppression(
+        _item(_SUPPRESSED), "must_without_verification"
+    )
+    assert removed
+    assert "".join(lines) == _SUPPRESSED.replace(
+        "  - must_without_verification\n", ""
+    )
+
+
+def test_remove_lint_suppression_drops_an_emptied_flow_list():
+    text = (
+        "- id: TST-01-001\n  lint_suppress: [x_code]  # note\n  statement: x\n"
+    )
+    lines, removed = remove_lint_suppression(_item(text), "x_code")
+    assert removed
+    assert "".join(lines) == "- id: TST-01-001\n  statement: x\n"
+
+
+def test_remove_lint_suppression_reports_an_absent_code():
+    lines, removed = remove_lint_suppression(_item(_SUPPRESSED), "other")
+    assert not removed
+    assert "".join(lines) == _SUPPRESSED

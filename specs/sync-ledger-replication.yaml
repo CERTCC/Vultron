@@ -17,16 +17,19 @@ groups:
   - id: SYNC-00-001
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: The AppendOnlyLedger phase MUST establish the local append-only case ledger with hash-chain indexing.
   - id: SYNC-00-005
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: Each entry in the AppendOnlyLedger MUST be immutable once committed.
     rationale: Immutability is the foundation of hash-chain integrity; a mutable entry would invalidate all successor
       entries and undermine replay determinism.
   - id: SYNC-00-006
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: Each entry in the AppendOnlyLedger MUST be cryptographically linked to its predecessor via a content hash,
       providing the integrity foundation for all subsequent replication phases.
     rationale: The hash link makes tampering detectable; any modification to an entry breaks the chain from that point
@@ -34,6 +37,7 @@ groups:
   - id: SYNC-00-002
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: >-
       The LedgerFanout phase MUST implement one-way replication from the actor holding the
       CASE_MANAGER role to all Participant Actors via `Announce(CaseLedgerEntry)` messages.
@@ -42,17 +46,20 @@ groups:
   - id: SYNC-00-003
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: The LedgerReconciliation phase MUST extend LedgerFanout with a full synchronisation loop, retry, and
       backoff.
   - id: SYNC-00-007
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: When a participant's replica falls behind, the LedgerReconciliation mechanism MUST detect the gap.
     rationale: Gap detection is the precondition for triggered retry; without it, a lagging replica would remain
       silently diverged.
   - id: SYNC-00-008
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: When a participant's replica falls behind, the LedgerReconciliation mechanism MUST retry entry delivery
       until the participant's tail hash converges to the CASE_MANAGER's tail hash.
     rationale: Convergence to the authoritative tail hash is the definition of a synchronised replica; retrying until
@@ -462,8 +469,8 @@ groups:
   - id: SYNC-07-004
     priority: MUST
     kind: protocol
+    verification_debt: '#3612'
     lint_suppress:
-    - must_without_verification
     - missing_story_reference
     statement: >-
       Unit tests MUST cover pending-assertion suppression semantics: add,
@@ -472,8 +479,8 @@ groups:
   - id: SYNC-07-005
     priority: MUST
     kind: protocol
+    verification_debt: '#3612'
     lint_suppress:
-    - must_without_verification
     - missing_story_reference
     statement: >-
       Unit tests MUST cover per-actor pending-assertion store isolation via
@@ -597,6 +604,7 @@ groups:
   - id: SYNC-10-005
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       The catch-up gate MUST NOT require the actor's acknowledged tip to equal the CASE_MANAGER's
       current ledger tip; lagging behind the leader tip is allowed if the actor's own
@@ -631,6 +639,7 @@ groups:
   - id: SYNC-11-004
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       The CASE_MANAGER MUST NOT use the pending-assertion store for its own ledger commits;
       the CASE_MANAGER's DataLayer idempotency check already guards against duplicate commits
@@ -720,6 +729,7 @@ groups:
   - id: SYNC-13-002
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: Adapter, wire, transport, and message-parsing code MUST NOT create, save, or otherwise persist a
       `CaseLedgerEntry` to the DataLayer.
     rationale: Ingress code delivers the message; it does not write the ledger. Any ingress write would bypass the
@@ -754,6 +764,7 @@ groups:
   - id: SYNC-13-003
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       Message ingress MUST NOT use the canonical ledger/DataLayer store as a scratch or
       lookup cache for routing, semantic classification, or rehydration of an inbound
@@ -851,6 +862,7 @@ groups:
   - id: SYNC-14-007
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: The drain path MUST NOT re-apply effects for an entry already present in the local ledger (SYNC-12-003).
     rationale: Re-applying effects for a previously committed entry would cause duplicate state transitions and violate
       the idempotency guarantee established by SYNC-12-003.
@@ -869,6 +881,7 @@ groups:
   - id: SYNC-14-005
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       The out-of-order holding area MUST NOT be the canonical ledger/DataLayer store; a
       buffered entry MUST NOT be persisted as a CaseLedgerEntry until it is drained (i.e.
@@ -937,6 +950,7 @@ groups:
   - id: SYNC-15-002
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: A participant MUST NOT persist a `CaseLedgerEntry` when the per-case genesis hash is unavailable.
     relationships:
     - rel_type: depends_on
@@ -945,6 +959,7 @@ groups:
   - id: SYNC-15-006
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: A `CaseLedgerEntry` received when the per-case genesis hash is unavailable MUST NOT be treated as
       committed.
     rationale: Treating a pre-genesis entry as committed would populate the already-stored gate (SYNC-12-003)
@@ -952,6 +967,7 @@ groups:
   - id: SYNC-15-007
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: The domain effects of a `CaseLedgerEntry` received when the per-case genesis hash is unavailable MUST
       NOT be applied (SYNC-12-001).
     rationale: Applying effects before the genesis hash is known means the effects cannot be attributed to a
@@ -987,6 +1003,7 @@ groups:
   - id: SYNC-15-009
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: A Reject reporting an unchanged replication position within the cooldown MUST NOT trigger another
       replay.
     rationale: >-
@@ -1009,6 +1026,7 @@ groups:
   - id: SYNC-15-011
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: A replay in which zero entries were sent MUST NOT update the recorded position, because no delivery
       was attempted at that position.
     rationale: Recording a position at which nothing was delivered would start a cooldown that suppresses the first

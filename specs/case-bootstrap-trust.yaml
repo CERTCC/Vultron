@@ -178,6 +178,7 @@ groups:
   - id: CBT-01-009
     priority: MUST
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       The CASE_MANAGER MUST generate the bootstrap `Create(VulnerabilityCase)`
       activity only after the `VulnerabilityCase` domain object has been fully
@@ -222,6 +223,7 @@ groups:
   - id: CBT-02-002
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: Transport authentication or encrypted direct messaging alone MUST NOT be treated as establishing authority to
       trust a previously unknown CASE_MANAGER; the explicit bootstrap trust handoff is required.
     relationships:
@@ -256,6 +258,7 @@ groups:
   - id: CBT-03-002
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: A pre-bootstrap CASE_MANAGER message MUST NOT update local case state before the corresponding trust-establishing
       bootstrap message has been validated.
     relationships:
@@ -373,11 +376,10 @@ groups:
   - id: CBT-05-005
     priority: MUST
     kind: protocol
+    verification_debt: '#3612'
     stories:
     - story_2022_013
     - story_2022_063
-    lint_suppress:
-    - must_without_verification
     statement: >-
       Tests MUST verify that a valid bootstrap `Create(VulnerabilityCase)` causes the
       reporter's participant status record to be stored as an embedded participant in the
@@ -385,11 +387,10 @@ groups:
   - id: CBT-05-006
     priority: MUST
     kind: protocol
+    verification_debt: '#3612'
     stories:
     - story_2022_092
     - story_2022_093
-    lint_suppress:
-    - must_without_verification
     statement: >-
       Tests MUST verify that `AddParticipantStatusBT` executes successfully on the
       reporter's replica after bootstrap, confirming the reporter appears in the
@@ -397,11 +398,10 @@ groups:
   - id: CBT-05-007
     priority: MUST
     kind: protocol
+    verification_debt: '#3612'
     stories:
     - story_2022_088
     - story_2022_038
-    lint_suppress:
-    - must_without_verification
     statement: >-
       Tests MUST verify that the reporter's RM state is advanced from `RM.START` to
       `RM.ACCEPTED` as part of the bootstrap sequence, confirming full case-management

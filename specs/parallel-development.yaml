@@ -19,12 +19,14 @@ groups:
       - id: PAD-01-001
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           Tasks MUST be represented as GitHub Issues in the CERTCC/Vultron
           repository. All work is tracked exclusively as GitHub Issues.
       - id: PAD-01-002
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           Issues MUST be organized in up to three levels: Epic (thematic
           group), Task (coherent unit of work), and Subtask (atomic PR-sized
@@ -33,6 +35,7 @@ groups:
       - id: PAD-01-003
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           Epic Issues MUST be wired on GitHub Project #24 with a `Schedule`
           field value (Focus/Now/Next/Later/Someday) that reflects the current
@@ -40,6 +43,7 @@ groups:
       - id: PAD-01-005
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           Task Issues MUST be sub-issues of their parent Epic.
         relationships:
@@ -48,6 +52,7 @@ groups:
       - id: PAD-01-006
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           Subtask Issues MUST be sub-issues of their parent Task.
         relationships:
@@ -99,6 +104,7 @@ groups:
       - id: PAD-02-001
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           A non-Epic Issue on GitHub Project #24 MUST NOT carry a `Schedule`
           value. Its priority tier is the `Schedule` value of its nearest Epic
@@ -116,6 +122,7 @@ groups:
       - id: PAD-02-004
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           A `stale-claim` label MUST be applied by the sweeper job (PAD-10)
           when a claimed Issue has no open PR and the claim branch has not
@@ -123,6 +130,7 @@ groups:
       - id: PAD-02-011
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           Agents MUST skip Issues that carry the `stale-claim` label.
         relationships:
@@ -131,6 +139,7 @@ groups:
       - id: PAD-02-005
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           A `needs-rebase` label MUST be applied when an open PR has merge
           conflicts that cannot be automatically resolved (PAD-11). Human
@@ -138,6 +147,7 @@ groups:
       - id: PAD-02-006
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           Docs-only PRs (containing only `specs/` and `notes/` changes) MUST
           carry the `specs-notes` label to identify them as docs-only for
@@ -145,6 +155,7 @@ groups:
       - id: PAD-02-008
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           Every thematic group that has two or more open leaf Issues MUST have
           exactly one open Epic Issue on GitHub Project #24. A leaf Issue is
@@ -152,6 +163,7 @@ groups:
       - id: PAD-02-009
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           Epic Issues MUST be created using the GitHub `Epic` issue type (via
           GraphQL `createIssue` with the Epic issue type's `issueTypeId`, discovered
@@ -161,6 +173,7 @@ groups:
       - id: PAD-02-013
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           The `create-epic` skill MUST be used to create Epic Issues to ensure
           consistent sub-issue wiring, correct issue type assignment, and
@@ -175,6 +188,7 @@ groups:
       - id: PAD-03-001
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           The `Schedule` field (Focus/Now/Next/Later/Someday) on Epic Issues on
           GitHub Project #24 MUST be the authoritative source for work
@@ -187,6 +201,7 @@ groups:
       - id: PAD-03-002
         priority: MUST_NOT
         kind: process
+        verification_debt: '#2571'
         statement: >-
           Agents MUST NOT create or write to any external priority-ordering
           file. Only the `review-priorities` skill (and humans directly) may
@@ -194,6 +209,7 @@ groups:
       - id: PAD-03-003
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           When the `build` skill selects a task, it MUST query GitHub
           Project #24 for Epics with `Schedule=Focus` or `Schedule=Now`
@@ -208,6 +224,7 @@ groups:
       - id: PAD-04-001
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           An agent MUST claim an Issue before beginning work on it by having
           GitHub create a branch named `<prefix>/<issue-number>-<slug>` linked
@@ -225,6 +242,7 @@ groups:
       - id: PAD-04-002
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           After creating the claim branch, the agent MUST assign the Issue to
           the triggering user, MUST set its Project #24 `Status` to
@@ -233,6 +251,7 @@ groups:
       - id: PAD-04-003
         priority: MUST_NOT
         kind: process
+        verification_debt: '#2571'
         statement: >-
           Agents MUST NOT begin implementation work on an Issue whose claim
           branch already exists, whose `stale-claim` label is set, or that
@@ -303,6 +322,7 @@ groups:
       - id: PAD-05-010
         priority: MUST_NOT
         kind: process
+        verification_debt: '#2571'
         statement: >-
           The PR-open measurement MUST NOT overwrite the AC-count estimate
           label on the Issue.
@@ -444,12 +464,14 @@ groups:
       - id: PAD-07-001
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           The `build` skill MUST invoke the `code-review` agent before
           opening a PR.
       - id: PAD-07-005
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           The `code-review` agent MUST run against the current branch diff
           relative to `main`.
@@ -459,6 +481,7 @@ groups:
       - id: PAD-07-002
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           Every finding produced by the `code-review` agent MUST be tagged
           either `[BLOCKING]` or `[ADVISORY]`. `[BLOCKING]` findings are bugs
@@ -468,12 +491,14 @@ groups:
       - id: PAD-07-003
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           The `build` skill MUST resolve all `[BLOCKING]` findings before
           opening a PR.
       - id: PAD-07-006
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           After resolving `[BLOCKING]` findings, the `build` skill MUST re-run
           the code review to confirm no new `[BLOCKING]` findings were
@@ -494,6 +519,7 @@ groups:
       - id: PAD-08-001
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           The `build` skill MUST select work by querying GitHub Project #24
           for Epics with `Schedule=Focus` or `Schedule=Now` (Focus first),
@@ -503,6 +529,7 @@ groups:
       - id: PAD-08-002
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           The `build` skill MUST open a GitHub Pull Request with "Closes #N"
           in the body after completing implementation and passing all
@@ -510,11 +537,13 @@ groups:
       - id: PAD-08-004
         priority: MUST_NOT
         kind: process
+        verification_debt: '#2571'
         statement: >-
           The `build` skill MUST NOT commit directly to `main`.
       - id: PAD-08-003
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           After implementation, the `build` skill MUST compute the diff size
           and update the size label on both the Issue and the PR per
@@ -526,6 +555,7 @@ groups:
       - id: PAD-09-001
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           After writing `specs/<topic>.yaml` and `notes/<topic>.md`, the
           `ingest-idea` skill MUST open a docs-only PR carrying the
@@ -535,6 +565,7 @@ groups:
       - id: PAD-09-002
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           After the docs-only PR is opened, `ingest-idea` MUST create a
           GitHub Issue with: a title and description derived from the spec,
@@ -545,6 +576,7 @@ groups:
       - id: PAD-09-003
         priority: MUST_NOT
         kind: process
+        verification_debt: '#2571'
         statement: >-
           `ingest-idea` MUST NOT begin implementation work. It MUST stop after
           creating the Issue. Implementation work begins only when the Issue
@@ -557,6 +589,7 @@ groups:
       - id: PAD-10-001
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           A scheduled GitHub Actions workflow (weekly cadence, also
           triggerable on `workflow_dispatch`) MUST scan for Issues that are
@@ -566,6 +599,7 @@ groups:
       - id: PAD-10-002
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           When the sweeper identifies an orphaned claim, it MUST apply the
           `stale-claim` label to the Issue and MUST post a comment identifying
@@ -576,18 +610,21 @@ groups:
       - id: PAD-11-001
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           When a PR has merge conflicts, the `build` skill MUST attempt an
           automatic rebase of the task branch onto `main`.
       - id: PAD-11-002
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           If the automatic rebase succeeds, the agent MUST force-push the
           rebased branch. CI re-runs automatically on the updated head.
       - id: PAD-11-003
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           If the automatic rebase fails, the agent MUST post a comment on the
           PR explaining the conflict.
@@ -597,6 +634,7 @@ groups:
       - id: PAD-11-004
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           If the automatic rebase fails, the agent MUST apply the
           `needs-rebase` label to the PR.
@@ -606,6 +644,7 @@ groups:
       - id: PAD-11-005
         priority: MUST_NOT
         kind: process
+        verification_debt: '#2571'
         statement: >-
           If the automatic rebase fails, the agent MUST NOT attempt further
           changes; human intervention is required to resolve the conflict and
@@ -620,6 +659,7 @@ groups:
       - id: PAD-12-001
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           The `review-priorities` skill MUST surface as a triage list for the
           current review session every open Epic with `Schedule=Someday` or no
@@ -628,6 +668,7 @@ groups:
       - id: PAD-12-002
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           For each Epic surfaced in triage, the `review-priorities` skill MUST
           use `ask_user` to determine which `Schedule` tier to place it in, or
@@ -636,6 +677,7 @@ groups:
       - id: PAD-12-003
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           After the user confirms a placement, the `review-priorities` skill
           MUST apply it via the GitHub API: the Epic's `Schedule` field on
@@ -648,6 +690,7 @@ groups:
       - id: PAD-13-001
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           When the `update-plan` skill identifies a new implementation gap (a
           spec requirement with no corresponding code or test), it MUST create
@@ -655,6 +698,7 @@ groups:
       - id: PAD-13-002
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           Issues created by `update-plan` MUST be added to GitHub Project #24
           as sub-issues of an Epic (PAD-01-007), with no `Schedule` value
@@ -667,6 +711,7 @@ groups:
       - id: PAD-14-003
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           A GitHub Actions workflow MUST be created to implement the
           stale-claim sweeper (PAD-10): run on `schedule` (weekly) and

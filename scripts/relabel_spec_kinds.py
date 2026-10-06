@@ -10,8 +10,8 @@ For every listed item this script:
   in block or flow style;
 - drops the ``lint_suppress:`` block entirely when that leaves it empty.
 
-Text-manipulation approach: items are sliced by the shared
-``vultron.metadata.specs.yaml_items.iter_blocks``. No YAML load/dump
+Text-manipulation approach: items are sliced, and the suppression removed,
+by the shared helpers in ``vultron.metadata.specs.yaml_items``. No YAML load/dump
 round-trip, so every other line of every file is preserved byte for byte.
 
 Usage:
@@ -25,7 +25,11 @@ import re
 import sys
 from pathlib import Path
 
-from vultron.metadata.specs.yaml_items import SpecItem, iter_blocks
+from vultron.metadata.specs.yaml_items import (
+    SpecItem,
+    iter_blocks,
+    remove_lint_suppression,
+)
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _SPECS_DIR = _REPO_ROOT / "specs"
@@ -34,13 +38,6 @@ _SUPPRESSION = "missing_story_reference"
 
 # A trailing ``# comment`` on a scalar line is kept and re-emitted verbatim.
 _KIND_RE = re.compile(r"^(\s+)kind:\s*(\S+)(\s+#.*)?\s*$")
-_LINT_SUPPRESS_BLOCK_RE = re.compile(r"^(\s+)lint_suppress:\s*$")
-_LINT_SUPPRESS_FLOW_RE = re.compile(
-    r"^(\s+)lint_suppress:\s*\[([^\]]*)\](\s+#.*?)?\s*$"
-)
-# A list entry: a code, optionally quoted, optionally followed by a comment.
-_LIST_ITEM_RE = re.compile(r"^\s+-\s+['\"]?(\w+)['\"]?\s*(?:#.*)?$")
-_COMMENT_RE = re.compile(r"^\s*#")
 
 
 class _RunTally:
@@ -55,122 +52,33 @@ class _RunTally:
         self.kind_not_found: list[str] = []
 
 
-def _strip_from_block(
-    header: str, item_lines: list[str], start: int
-) -> tuple[list[str], int, bool]:
-    """Rewrite one block-style ``lint_suppress:`` list starting at *start*.
-
-    Returns ``(lines_to_emit, next_index, removed)``. Each entry is an item
-    line plus the comment lines that precede it, so a comment justifying a
-    suppression leaves with the item it justifies; trailing comments with no
-    item are kept. The header is dropped only when the list had entries and
-    none remain; a header with no parsed entries (a null ``lint_suppress:``)
-    is not a target and is left untouched.
-
-    A line that still belongs to the list — it starts with a dash, or sits
-    deeper than the header — but is not a list entry raises ``ValueError``:
-    silently breaking out would drop the header and orphan the entries after
-    it, producing unparseable YAML.
-    """
-    header_indent = len(header) - len(header.lstrip())
-    entries: list[tuple[list[str], str, str]] = []
-    pending_comments: list[str] = []
-    j = start
-    while j < len(item_lines):
-        candidate = item_lines[j]
-        if _COMMENT_RE.match(candidate):
-            pending_comments.append(candidate)
-            j += 1
-            continue
-        im = _LIST_ITEM_RE.match(candidate)
-        if im is None:
-            body = candidate.rstrip("\n\r")
-            in_list = body.lstrip().startswith("-") or (
-                body and len(body) - len(body.lstrip()) > header_indent
-            )
-            if in_list:
-                raise ValueError(
-                    f"unparseable lint_suppress entry under "
-                    f"{header.strip()!r}: {body!r}"
-                )
-            break
-        entries.append((pending_comments, candidate, im.group(1)))
-        pending_comments = []
-        j += 1
-
-    remaining = [e for e in entries if e[2] != _SUPPRESSION]
-    out: list[str] = []
-    if remaining or not entries:
-        out.append(header)
-        for comments, item, _code in remaining:
-            out.extend(comments)
-            out.append(item)
-    out.extend(pending_comments)
-    return out, j, len(remaining) != len(entries)
-
-
 def _rewrite_item(
     item: SpecItem, new_kind: str | None, tally: _RunTally
 ) -> list[str]:
     """Return the item's lines with the kind relabeled and the suppression removed."""
-    spec_id, item_lines, field_indent = (
-        item.spec_id,
-        item.lines,
-        item.field_indent,
-    )
+    lines, stripped = remove_lint_suppression(item, _SUPPRESSION)
     out: list[str] = []
-    stripped_here = False
     kind_seen = False
-    j = 0
-    while j < len(item_lines):
-        line = item_lines[j]
-
+    for line in lines:
         km = _KIND_RE.match(line)
-        if km and km.group(1) == field_indent and new_kind is not None:
+        if km and km.group(1) == item.field_indent and new_kind is not None:
             kind_seen = True
             if km.group(2) == new_kind:
-                tally.unchanged_kind.append(spec_id)
+                tally.unchanged_kind.append(item.spec_id)
             else:
                 tally.relabeled += 1
-            out.append(f"{field_indent}kind: {new_kind}{km.group(3) or ''}\n")
-            j += 1
+            out.append(
+                f"{item.field_indent}kind: {new_kind}{km.group(3) or ''}\n"
+            )
             continue
-
-        fm = _LINT_SUPPRESS_FLOW_RE.match(line)
-        if fm and fm.group(1) == field_indent:
-            # Entries keep their spelling (quotes included); the match unquotes.
-            codes = [c.strip() for c in fm.group(2).split(",") if c.strip()]
-            remaining = [c for c in codes if c.strip("'\"") != _SUPPRESSION]
-            if len(remaining) != len(codes):
-                stripped_here = True
-                # The trailing comment stays with a surviving list and leaves
-                # with an emptied one, as a block-style entry's comment does.
-                if remaining:
-                    out.append(
-                        f"{field_indent}lint_suppress: [{', '.join(remaining)}]"
-                        f"{fm.group(3) or ''}\n"
-                    )
-            else:
-                out.append(line)
-            j += 1
-            continue
-
-        bm = _LINT_SUPPRESS_BLOCK_RE.match(line)
-        if bm and bm.group(1) == field_indent:
-            block, j, removed = _strip_from_block(line, item_lines, j + 1)
-            stripped_here = stripped_here or removed
-            out.extend(block)
-            continue
-
         out.append(line)
-        j += 1
 
-    if stripped_here:
+    if stripped:
         tally.stripped += 1
     else:
-        tally.no_suppression.append(spec_id)
+        tally.no_suppression.append(item.spec_id)
     if new_kind is not None and not kind_seen:
-        tally.kind_not_found.append(spec_id)
+        tally.kind_not_found.append(item.spec_id)
     return out
 
 

@@ -17,6 +17,7 @@ groups:
   - id: DRPT-01-001
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The report tool MUST be implemented as a standalone module at
       `vultron/demo/report.py`, importable as `vultron.demo.report`, and MUST
@@ -29,6 +30,7 @@ groups:
   - id: DRPT-01-002
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The tool MUST accept a directory path (defaulting to the `DEVLOGS_DIR`
       environment variable, or `devlogs/` relative to the repository root when
@@ -41,6 +43,7 @@ groups:
   - id: DRPT-01-003
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The tool MUST derive each entry's actor name from the name of the
       directory that contains its JSONL file (e.g. `finder`, `vendor`,
@@ -48,6 +51,7 @@ groups:
   - id: DRPT-01-004
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The tool MUST exit with status code 0 on success and a non-zero status
       code when the input directory is missing, contains no matching JSONL
@@ -76,6 +80,7 @@ groups:
   - id: DRPT-02-001
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The tool MUST define a first-class `pydantic.BaseModel` (v2) distilled
       event type (e.g. `CaseTimelineEvent`) that represents one canonical
@@ -87,6 +92,7 @@ groups:
   - id: DRPT-02-002
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Each distilled event MUST surface, where available in the source entries:
       the acting actor, the event type (or extracted message semantics), the
@@ -96,6 +102,7 @@ groups:
   - id: DRPT-02-003
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The parser MUST tolerate both camelCase and snake_case field spellings in
       source entries (e.g. `logIndex`/`log_index`, `entryHash`/`entry_hash`,
@@ -104,6 +111,7 @@ groups:
   - id: DRPT-02-004
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The tool MUST merge entries from all discovered actors into a single
       canonical timeline, de-duplicating replicated entries by `entry_hash`, and
@@ -114,6 +122,7 @@ groups:
   - id: DRPT-02-005
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       For each canonical timeline event, the tool MUST compute a per-actor
       replica-presence indicator recording which discovered actors' replicas
@@ -122,6 +131,7 @@ groups:
   - id: DRPT-02-006
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       When the discovered entries span more than one case (distinct `case_id`
       values — as when the default `devlogs/` root accumulates multiple demo
@@ -139,6 +149,7 @@ groups:
   - id: DRPT-02-007
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       `build_timeline` MUST skip entries whose `disposition` field is not
       `"recorded"` (e.g. `"rejected"`). Rejected entries are local-only
@@ -155,6 +166,7 @@ groups:
   - id: DRPT-02-008
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Each distilled event MUST carry the per-participant Embargo Consent state
       (`pec_state`) extracted from the `ParticipantStatus` payload snapshot,
@@ -174,6 +186,7 @@ groups:
   - id: DRPT-02-009
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       When the discovered entries span more than one case, the tool MUST NOT
       interleave events from different cases.
@@ -186,6 +199,7 @@ groups:
   - id: DRPT-02-010
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The distilled event model MUST carry the `case_id` field.
     rationale: >-
@@ -196,6 +210,7 @@ groups:
   - id: DRPT-02-011
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Timeline ordering MUST be case-contiguous: events MUST be grouped by
       `case_id` and ordered by `log_index` ascending within each case group.
@@ -207,6 +222,7 @@ groups:
   - id: DRPT-02-012
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The replica-presence matrix MUST be computed per case.
     rationale: >-
@@ -217,6 +233,7 @@ groups:
   - id: DRPT-02-013
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Each renderer MUST present one clearly labelled section (or table) per
       case.
@@ -229,6 +246,7 @@ groups:
   - id: DRPT-02-014
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The `pec_state` extractor MUST handle the ADR-0036 dimension-object
       shape (`{"consent": {"state": "SIGNATORY"}}`), the legacy flat camelCase
@@ -244,6 +262,7 @@ groups:
   - id: DRPT-02-015
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Both renderers MUST include a `PEC` column in the event table and
       populate it from `pec_state`.
@@ -258,6 +277,7 @@ groups:
   - id: DRPT-03-001
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Human-readable output MUST render actors and target objects by short,
       friendly names (e.g. "Finder", "report", "note"), MUST NOT use bare URIs
@@ -271,6 +291,7 @@ groups:
   - id: DRPT-03-003
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The tool MUST build a URI-to-display-name map during timeline construction
       by scanning all payload snapshots for actor objects (type
@@ -289,6 +310,7 @@ groups:
   - id: DRPT-03-002
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Event summaries MUST map the event type to a concise active-voice phrase
       (subject verb object) by looking up the matching `SemanticEntry` in
@@ -303,6 +325,7 @@ groups:
   - id: DRPT-03-004
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       When rendering a phrase template, the tool MUST supply slot values for
       `{actor}`, `{object}`, and `{target}` drawn from the event record's
@@ -322,6 +345,7 @@ groups:
   - id: DRPT-03-005
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The tool MUST NOT maintain a local phrase table parallel to the
       `SEMANTIC_REGISTRY`.
@@ -334,6 +358,7 @@ groups:
   - id: DRPT-03-006
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       When no `SEMANTIC_REGISTRY` entry exists for an event type (e.g. data
       from a future protocol version), the tool MUST fall back to a humanized
@@ -346,6 +371,7 @@ groups:
   - id: DRPT-03-007
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Actor labels MUST use the resolved display name from the
       URI-to-display-name map when available.
@@ -357,6 +383,7 @@ groups:
   - id: DRPT-03-008
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Actor labels MUST fall back to the URI path-segment heuristic only when
       no entry is found in the URI-to-display-name map.
@@ -371,6 +398,7 @@ groups:
   - id: DRPT-04-001
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The tool MUST render a markdown table report (one row per canonical
       timeline event) covering the distilled fields, including a per-actor
@@ -378,6 +406,7 @@ groups:
   - id: DRPT-04-002
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The tool MUST render a self-contained static HTML report file with all
       styling inlined (no external CSS, JS, fonts, or network assets), so the
@@ -390,6 +419,7 @@ groups:
   - id: DRPT-04-003
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       In the HTML report, the per-actor replica-presence matrix MUST be rendered
       as a per-actor checkbox/emoji cell per event, showing a present/absent
@@ -398,6 +428,7 @@ groups:
   - id: DRPT-04-004
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The output format MUST be selectable (e.g. `--format markdown|html`), and
       the tool MUST write the report to a file (path configurable).
@@ -431,6 +462,7 @@ groups:
   - id: DRPT-04-007
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The Time column header MUST be labelled "ΔT".
     rationale: >-
@@ -451,6 +483,7 @@ groups:
   - id: DRPT-04-008
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The time range line MUST be omitted when no events in the case carry a
       `receivedAt` timestamp.
@@ -462,6 +495,7 @@ groups:
   - id: DRPT-04-009
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       When all events in a case share the same `receivedAt` timestamp, both
       time range bounds MUST be shown (`{ts} – {ts}`).
@@ -473,6 +507,7 @@ groups:
   - id: DRPT-04-010
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       In markdown output, the time range MUST appear as a bullet line between
       the case heading and the event table.
@@ -484,6 +519,7 @@ groups:
   - id: DRPT-04-011
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       In HTML output, the time range MUST appear as a `<p class="meta">`
       element between the `<h2>` heading and the `<table>`.
@@ -495,6 +531,7 @@ groups:
   - id: DRPT-04-012
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Each Time cell MUST display a delta from the previous row's `receivedAt`
       timestamp as an adaptive duration string: `+Ns` when under 60 seconds,
@@ -508,6 +545,7 @@ groups:
   - id: DRPT-04-013
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The first row that carries a `receivedAt` timestamp MUST show `+0s` in
       the Time cell.
@@ -519,6 +557,7 @@ groups:
   - id: DRPT-04-014
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Rows without a `receivedAt` value MUST show `—` in the Time cell.
     rationale: >-
@@ -529,6 +568,7 @@ groups:
   - id: DRPT-04-015
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       In the HTML renderer, the full ISO 8601 `receivedAt` string MUST be
       retained as a `title=` tooltip on the Time `<td>` element.
@@ -540,6 +580,7 @@ groups:
   - id: DRPT-04-016
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       In the markdown renderer, the absolute `receivedAt` timestamp MUST NOT
       appear in the Time column table cell body.
@@ -554,6 +595,7 @@ groups:
   - id: DRPT-05-001
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Unit tests MUST cover JSONL-to-distilled-model parsing against fixtures
       that include both camelCase and snake_case field spellings, and MUST
@@ -562,6 +604,7 @@ groups:
   - id: DRPT-05-002
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Unit tests MUST cover both renderers: given a fixed list of distilled
       events, assert the markdown table structure and assert that the HTML
@@ -569,6 +612,7 @@ groups:
   - id: DRPT-05-003
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       A CLI smoke test MUST invoke the entry point against a tiny fixture
       directory, assert exit code 0, assert an output file is written, and
@@ -576,6 +620,7 @@ groups:
   - id: DRPT-05-004
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Unit tests MUST cover actor name resolution (DRPT-03-003): assert that
       `collect_actor_names` extracts URI-to-name mappings from inline actor
@@ -589,6 +634,7 @@ groups:
   - id: DRPT-05-005
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Unit tests MUST cover the `_format_delta` helper directly: assert `+0s`
       when `prev_received_at` is `None` and `received_at` is set (first-row
@@ -602,6 +648,7 @@ groups:
   - id: DRPT-05-006
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Renderer tests MUST assert that the Time column in the table body
       contains delta strings (e.g. `+0s`) rather than ISO 8601 timestamps.
@@ -613,6 +660,7 @@ groups:
   - id: DRPT-05-007
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       HTML renderer tests MUST assert that the full ISO 8601 `receivedAt`
       timestamp is retained as a `title=` tooltip on the Time `<td>` element.

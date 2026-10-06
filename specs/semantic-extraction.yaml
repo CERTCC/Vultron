@@ -249,6 +249,7 @@ groups:
   - id: SE-06-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       The `ActivityPatternRegistry` MUST include an import-time guard function
       `_validate_registry_order()` that raises `RegistryOrderError` if any registered
@@ -266,6 +267,7 @@ groups:
   - id: SE-06-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       `RegistryOrderError` MUST be a named exception class in the semantic extraction
       module. It MUST NOT be raised as a generic `ValueError` or `AssertionError`.
@@ -275,6 +277,7 @@ groups:
   - id: SE-06-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       The registry order guard MUST have a companion unit test that asserts correct ordering
       is maintained for all registered patterns. The test MUST fail if the guard raises
@@ -288,6 +291,7 @@ groups:
   - id: SE-07-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       Every `SemanticEntry` in `SEMANTIC_REGISTRY` MUST carry a non-empty `phrase: str`
       field containing an active-voice format-string template suitable for human-readable
@@ -300,6 +304,7 @@ groups:
   - id: SE-07-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       Phrase templates MUST use named slots drawn from the set `{actor}`, `{object}`,
       `{target}`, `{context}`, `{origin}`, `{inner_object}`. Slot names MUST be
@@ -317,6 +322,7 @@ groups:
   - id: SE-07-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       The `SemanticEntry` dataclass `phrase` field MUST have no default value so
       that omitting it is a construction-time `TypeError`, not a silent empty string.
@@ -326,6 +332,7 @@ groups:
   - id: SE-07-004
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       A parametrized unit test MUST assert that every entry in `SEMANTIC_REGISTRY`
       has a non-empty `phrase` and that calling `entry.phrase.format_map(d)` with a
@@ -337,6 +344,7 @@ groups:
   - id: SE-07-005
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       A unit test MUST assert that no phrase in `SEMANTIC_REGISTRY` references a
       slot name outside the set currently populated by the runtime render pipeline
@@ -356,6 +364,7 @@ groups:
   - id: SE-07-006
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       Companion behavioural tests MUST call `event_phrase()` and
       `CaseTimelineEvent.summary` with representative `MessageSemantics` values

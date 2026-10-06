@@ -25,12 +25,14 @@ groups:
       - id: DOCBW-01-001
         priority: MUST
         kind: project
+        verification_debt: '#2574'
         statement: >-
           The workflow file MUST be named
           `.github/workflows/docs-build-check.yml`.
       - id: DOCBW-01-002
         priority: MUST
         kind: project
+        verification_debt: '#2574'
         statement: >-
           The workflow `name:` field MUST be `Docs Build and Link Check`.
 
@@ -60,6 +62,7 @@ groups:
       - id: DOCBW-02-002
         priority: MUST
         kind: project
+        verification_debt: '#2574'
         statement: >-
           The workflow MUST trigger on `workflow_dispatch` events to allow
           manual runs at any time.
@@ -81,6 +84,7 @@ groups:
       - id: DOCBW-03-001
         priority: MUST
         kind: project
+        verification_debt: '#2574'
         statement: >-
           The workflow MUST contain a single job that runs both the
           build-site and link-check phases sequentially, sharing the same
@@ -88,6 +92,7 @@ groups:
       - id: DOCBW-03-002
         priority: MUST
         kind: project
+        verification_debt: '#2574'
         statement: >-
           The Build Site step MUST run on every workflow trigger regardless
           of which paths changed, so that Python-macro and plugin failures
@@ -264,6 +269,7 @@ groups:
       - id: DOCBW-05-001
         priority: MUST
         kind: project
+        verification_debt: '#2574'
         statement: >-
           All `uses:` references in `docs-build-check.yml` MUST be pinned
           to a specific commit SHA with an inline human-readable version
@@ -271,6 +277,7 @@ groups:
       - id: DOCBW-05-002
         priority: MUST
         kind: project
+        verification_debt: '#2574'
         statement: >-
           The workflow MUST declare `permissions: contents: read` at the
           workflow level and no additional permissions, per CISEC-02-002.

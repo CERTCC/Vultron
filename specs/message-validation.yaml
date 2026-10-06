@@ -87,6 +87,7 @@ groups:
   - id: MV-01-007
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       The semantic-dispatch stage MUST NOT propagate internal dispatch
       errors to callers.
@@ -102,6 +103,7 @@ groups:
   - id: MV-02-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The system MUST use Pydantic models to validate activities
     relationships:
     - rel_type: implements
@@ -109,14 +111,17 @@ groups:
   - id: MV-02-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The system MUST reject activities that fail Pydantic validation with HTTP 422
   - id: MV-02-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: Validation error responses MUST include detailed error information
   - id: MV-02-004
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The system MUST log validation failures at WARNING level
 - id: MV-03
   title: Required Field Validation
@@ -344,6 +349,7 @@ groups:
   - id: MV-10-003
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: The DataLayer MUST NOT overwrite a full domain object with a stub object
     rationale: >-
       A recipient may receive a stub for an object they already have in full; discarding preserves
@@ -351,6 +357,7 @@ groups:
   - id: MV-10-004
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: Inbound stubs MUST NOT be used to create new domain records
   - id: MV-10-005
     priority: MUST

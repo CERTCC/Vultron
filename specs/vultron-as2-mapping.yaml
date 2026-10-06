@@ -25,12 +25,14 @@ groups:
   - id: VAM-01-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       The AS2 activity patterns defined in this document MUST be implemented as
       `ActivityPattern` objects in `vultron/wire/as2/extractor/_instances.py`.
   - id: VAM-01-002b
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: >-
       AS2 activity pattern objects MUST NOT be defined in any module other than
       `vultron/wire/as2/extractor/_instances.py`.
@@ -48,6 +50,7 @@ groups:
   - id: VAM-01-004
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: An AS2 activity MUST be rehydrated (URI string references expanded to full objects via the DataLayer) before
       pattern matching; pattern matching MUST NOT rely on unhydrated string fields for type discrimination
   - id: VAM-01-005
