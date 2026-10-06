@@ -79,8 +79,29 @@ _VFD_RETIRED = (
 #: normalisation, and consulted only here: core types carry no per-class
 #: retired-key guard (SDO-03-005) — ``extra="forbid"`` refuses these on
 #: in-process and stored data.
+_CONSENT_RETIRED = (
+    "the scalar participant embargo consent is retired (ADR-0122); consent is"
+    " per embargo and travels as the participant's embargoConsents rows"
+)
+
 RETIRED_NAMES: Mapping[str, str] = MappingProxyType(
-    {"vfd_state": _VFD_RETIRED, "vfdState": _VFD_RETIRED}
+    {
+        "vfd_state": _VFD_RETIRED,
+        "vfdState": _VFD_RETIRED,
+        **dict.fromkeys(
+            (
+                "emConsentState",
+                "em_consent_state",
+                "embargoConsentState",
+                "embargo_consent_state",
+                "embargoAdherence",
+                "embargo_adherence",
+                "acceptedEmbargoIds",
+                "accepted_embargo_ids",
+            ),
+            _CONSENT_RETIRED,
+        ),
+    }
 )
 
 

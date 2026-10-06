@@ -47,9 +47,12 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.core.use_cases.triggers._helpers import find_embargo_proposal_id
 from vultron.core.use_cases.triggers.embargo import (
     SvcAcceptEmbargoUseCase,
@@ -114,13 +117,15 @@ def _build_case_with_two_open_proposals(
     owner_participant = VendorParticipant(
         attributed_to=owner_id,
         context=case.id_,
-        embargo_consent_state=PEC.UNBOUND,
     )
     owner_participant.add_role(CVDRole.CASE_MANAGER)
     participant = FinderParticipant(
         attributed_to=participant_id,
         context=case.id_,
-        embargo_consent_state=PEC.INVITED,
+        embargo_consents=[
+            EmbargoConsent(embargo_id=eid, state=EmbargoConsentState.INVITED)
+            for eid in (later.id_, earlier.id_)
+        ],
     )
 
     case.case_participants = [owner_participant.id_, participant.id_]
@@ -216,13 +221,15 @@ def _build_case_with_one_open_proposal(
     owner_participant = VendorParticipant(
         attributed_to=owner_id,
         context=case.id_,
-        embargo_consent_state=PEC.UNBOUND,
     )
     owner_participant.add_role(CVDRole.CASE_MANAGER)
     participant = FinderParticipant(
         attributed_to=participant_id,
         context=case.id_,
-        embargo_consent_state=PEC.INVITED,
+        embargo_consents=[
+            EmbargoConsent(embargo_id=eid, state=EmbargoConsentState.INVITED)
+            for eid in (embargo.id_,)
+        ],
     )
 
     case.case_participants = [owner_participant.id_, participant.id_]

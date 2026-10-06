@@ -90,24 +90,21 @@ Mechanism, the silent node-shadowing variant, and the full rules:
 
 ---
 
-## PEC Consent Writes — Never Direct-Assign `embargo_consent_state`
+## PEC Consent Writes — Never Direct-Assign `embargo_consents`
 
-(CM-18-005, CM-18-006; CONCERN-1970)
+(CM-18-005, CM-18-016; ADR-0122)
 
 ```python
-# WRONG — plain Pydantic write; skips PEC validation and status sync
-participant.embargo_consent_state = PEC.SIGNATORY
-
-# CORRECT — validates the trigger, advances the machine, syncs metadata
-participant.apply_pec_transition(PEC_Trigger.ACCEPT)
+# WRONG — skips the transition table
+participant.embargo_consents = [EmbargoConsent(embargo_id=e, state=ACCEPTED)]
+# CORRECT — validates the trigger against this embargo's row, then persist
+participant.apply_pec_transition(embargo_id, PEC_Trigger.ACCEPT)
 dl.save(participant)
 ```
 
-Both steps are required: the machine write alone is not sufficient without the
-persist. A direct assignment leaves the ledger snapshot's `emConsentState` stale
-while `embargoAdherence` reports the new value — a self-contradicting record.
-See `notes/participant-embargo-consent.md` § "Pitfall: Never Set
-`embargo_consent_state` by Direct Assignment".
+"Signatory" and "lapsed" are reads (`is_signatory`, `has_lapsed`), never
+writes: a node that writes a row to record a lapse, advance or exit re-creates
+the second record ADR-0122 removed. See `notes/participant-embargo-consent.md`.
 
 ---
 

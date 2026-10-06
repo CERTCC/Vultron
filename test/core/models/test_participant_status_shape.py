@@ -52,24 +52,22 @@ sites).
 """
 
 import pytest
+from pydantic import ValidationError
 
 from test.support.participant_status import advance_participant_rm
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import (
     DDimension,
-    PecDimension,
     RmDimension,
     VfDimension,
 )
 from vultron.core.models.participant_status import (
     ParticipantStatus,
-    coerce_em_consent_state,
     participant_status_d_state,
     participant_status_rm_state,
     participant_status_vf_state,
 )
 from vultron.core.states.cs import CS_d, CS_vf
-from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronValidationError
@@ -356,49 +354,34 @@ class TestRoleDimensionInvariant:
 
 
 # ---------------------------------------------------------------------------
-# AC-3 — embargo_adherence is a computed field derived from consent.state
+# Status carries no consent (ADR-0122)
 # ---------------------------------------------------------------------------
 
 
-class TestEmbargoAdherenceComputedField:
-    """``embargo_adherence`` is True iff consent.state == SIGNATORY (ADR-0056, CM-18-008)."""
+class TestStatusCarriesNoConsent:
+    """Consent is per embargo on the participant, never on a status."""
 
-    def test_true_when_signatory(self):
-        status = ParticipantStatus(
-            context=_CONTEXT,
-            consent=PecDimension(state=PEC.SIGNATORY),
-        )
-        assert status.embargo_adherence is True
+    def test_no_consent_or_adherence_attribute(self):
+        status = ParticipantStatus(context=_CONTEXT)
+        assert not hasattr(status, "consent")
+        assert not hasattr(status, "embargo_adherence")
+
+    def test_dump_has_no_consent_keys(self):
+        dumped = ParticipantStatus(context=_CONTEXT).model_dump(by_alias=True)
+        assert not {
+            "consent",
+            "embargo_adherence",
+            "embargoAdherence",
+            "emConsentState",
+        } & set(dumped)
 
     @pytest.mark.parametrize(
-        "pec_state",
-        [PEC.UNBOUND, PEC.INVITED, PEC.LAPSED, PEC.DECLINED],
+        "key",
+        ["consent", "embargo_adherence", "em_consent_state", "emConsentState"],
     )
-    def test_false_when_not_signatory(self, pec_state):
-        status = ParticipantStatus(
-            context=_CONTEXT,
-            consent=PecDimension(state=pec_state),
-        )
-        assert status.embargo_adherence is False
-
-    def test_false_when_consent_is_none(self):
-        status = ParticipantStatus(context=_CONTEXT, consent=None)
-        assert status.embargo_adherence is False
-
-    def test_appears_in_model_dump(self):
-        status = ParticipantStatus(
-            context=_CONTEXT,
-            consent=PecDimension(state=PEC.SIGNATORY),
-        )
-        dumped = status.model_dump()
-        assert "embargo_adherence" in dumped
-        assert dumped["embargo_adherence"] is True
-
-    def test_cannot_be_set_directly(self):
-        """embargo_adherence is read-only; direct assignment must raise."""
-        status = ParticipantStatus(context=_CONTEXT, consent=None)
-        with pytest.raises((AttributeError, ValueError)):
-            status.embargo_adherence = True  # type: ignore[misc]
+    def test_retired_keys_are_refused(self, key):
+        with pytest.raises(ValidationError):
+            ParticipantStatus.model_validate({"context": _CONTEXT, key: "X"})
 
 
 class TestParticipantStatusBackwardRMValidator:
@@ -483,23 +466,3 @@ class TestParticipantStatusBackwardRMValidator:
                 rm=RmDimension(state=RM.ACCEPTED),
                 previous_rm_state=RM.START,
             )
-
-
-class TestCoerceEmConsentState:
-    """Unit tests for coerce_em_consent_state legacy-migration behaviour."""
-
-    def test_none_returns_none(self) -> None:
-        assert coerce_em_consent_state(None) is None
-
-    def test_pec_instance_returned_unchanged(self) -> None:
-        assert coerce_em_consent_state(PEC.SIGNATORY) is PEC.SIGNATORY
-
-    def test_current_string_values_parse(self) -> None:
-        for member in PEC:
-            result = coerce_em_consent_state(member.value)
-            assert result is member
-
-    def test_legacy_no_embargo_migrates_to_unbound(self) -> None:
-        """ADR-0091 renamed NO_EMBARGO → UNBOUND; stored strings must coerce."""
-        result = coerce_em_consent_state("NO_EMBARGO")
-        assert result is PEC.UNBOUND

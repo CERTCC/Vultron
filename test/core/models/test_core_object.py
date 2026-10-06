@@ -427,43 +427,45 @@ def test_retired_core_alias_word_match_spares_longer_names():
 # ---------------------------------------------------------------------------
 
 
-def test_core_object_strips_computed_field_input():
+def test_core_object_strips_computed_field_input(isolated_core_registries):
     """Cleanup #1: a ``@computed_field`` value in the payload is dropped.
 
-    ``ParticipantStatus.embargo_adherence`` is computed (ADR-0056) and appears
-    in ``model_dump()`` output but is not settable.  Under ``extra="forbid"``
-    it would be rejected on re-validation unless stripped first; the value is
-    re-derived from ``consent``, never taken from the injected key.
+    A computed field appears in ``model_dump()`` output but is not settable.
+    Under ``extra="forbid"`` it would be rejected on re-validation unless
+    stripped first; the value is re-derived, never taken from the injected
+    key.  No production class has a computed field (ARCH-23-005), so a local
+    subclass carries one.
     """
-    from vultron.core.models.dimensions import PecDimension
-    from vultron.core.models.participant_status import ParticipantStatus
-    from vultron.core.states.participant_embargo_consent import PEC
+    from typing import Literal
 
-    # UNBOUND → not signatory → False, which is what the payload also says, so
-    # the redundant key is simply stripped.
-    status = ParticipantStatus.model_validate(
-        {
-            "context": "urn:uuid:case-computed-strip",
-            "consent": PecDimension(state=PEC.UNBOUND).model_dump(mode="json"),
-            "embargo_adherence": False,
-        }
+    from pydantic import computed_field
+
+    class _Derived(CoreObject):
+        type_: Literal["_Derived"] = "_Derived"
+        is_sealed_now: bool = False
+
+        @computed_field  # type: ignore[misc]
+        @property
+        def is_unsealed(self) -> bool:
+            return not self.is_sealed_now
+
+    # The payload agrees with the derived value, so the redundant key is
+    # simply stripped.
+    obj = _Derived.model_validate(
+        {"is_sealed_now": False, "is_unsealed": True}
     )
-    assert status.embargo_adherence is False
+    assert obj.is_unsealed is True
 
     # And a full dump round-trips (the computed key in the dump is stripped).
-    assert ParticipantStatus.model_validate(
-        status.model_dump(mode="json")
-    ) == (status)
+    assert _Derived.model_validate(obj.model_dump(mode="json")) == obj
 
     # Including the camelCase spelling, which is the AS2 wire form every core
-    # class emits (ADR-0099 detail 2).  Compared by dump, not ``==``: the wire
-    # dump carries ``@context``, and a parsed document keeps it in ``context_``
-    # (detail 1), which the locally built ``status`` never set.
+    # class emits (ADR-0099 detail 2).
     assert (
-        ParticipantStatus.model_validate(
-            status.model_dump(mode="json", by_alias=True)
+        _Derived.model_validate(
+            obj.model_dump(mode="json", by_alias=True)
         ).model_dump()
-        == status.model_dump()
+        == obj.model_dump()
     )
 
 

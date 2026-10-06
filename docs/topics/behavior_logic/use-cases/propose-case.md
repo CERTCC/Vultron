@@ -56,8 +56,8 @@ The accepting service does eleven things, and the order is not interchangeable.
 | Add the proposing actor | CASE_OWNER at `RM.RECEIVED`, plus whatever roles its configuration declares |
 | Add the reporter | At `RM.ACCEPTED` — the reporter has already accepted, by reporting |
 | Initialize the default embargo | A case begins embargoed rather than open (EP-04-001) |
-| Seed the owner's consent | SIGNATORY, without an invitation round-trip |
-| Seed the reporter's consent | SIGNATORY — submitting a report is implicit consent ([ADR-0048](../../../adr/0048-pec-no-embargo-is-absence-not-pre-consent.md)) |
+| Seed the owner's consent | An `ACCEPTED` consent row for the default embargo, without an invitation round-trip |
+| Seed the reporter's consent | An `ACCEPTED` consent row — submitting a report is implicit consent ([ADR-0048](../../../adr/0048-pec-no-embargo-is-absence-not-pre-consent.md)) |
 | Emit `Accept(as_CaseProposal)` | The proposer learns its request succeeded |
 | Emit `Create(VulnerabilityCase)` | The proposer receives the case replica, with Participants inline |
 | Commit the canonical ledger entries | The case's history starts here, and each entry fans out to every Participant |

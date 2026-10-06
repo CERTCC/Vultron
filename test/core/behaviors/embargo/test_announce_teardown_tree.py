@@ -39,11 +39,15 @@ from vultron.core.behaviors.embargo.announce_teardown_tree import (
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.embargo import (
     RemoveEmbargoEventFromCaseReceivedEvent,
 )
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.states.em import EM
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )
@@ -137,6 +141,41 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
         assert "https://example.org/activities/ann1" in outbox
         updated = cast(VulnerabilityCase, dl.read(case.id_))
         assert updated.current_status.em.state == EM.EXITED
+
+    @pytest.mark.spec("EMB-13-001")
+    def test_teardown_leaves_consent_rows_and_nobody_a_signatory(self):
+        """Teardown writes no consent; clearing the active embargo unbinds all."""
+        case, _, dl = make_case_with_manager("atrt1c", em_state=EM.ACTIVE)
+        embargo_id = cast(str, case.active_embargo_id)
+        dl.create(make_case_and_embargo("atrt1c")[1])
+        tree = remove_embargo_from_case_tree(
+            case_id=case.id_, embargo_id=embargo_id
+        )
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=_make_factory(),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        )
+        embargo = dl.read(embargo_id)
+        assert embargo is not None
+        result = bridge.execute_with_setup(
+            tree=tree,
+            actor_id=CASE_MANAGER_ACTOR,
+            activity=_make_remove_event(
+                case, embargo, "https://example.org/activities/remove1c"
+            ),
+        )
+
+        assert result.status == py_trees.common.Status.SUCCESS
+        updated = cast(VulnerabilityCase, dl.read(case.id_))
+        assert updated.active_embargo_id is None
+        for participant_id in updated.actor_participant_index.values():
+            participant = cast(CaseParticipant, dl.read(participant_id))
+            assert participant.consent_for(embargo_id) is (
+                EmbargoConsentState.ACCEPTED
+            )
+            assert not participant.is_signatory(updated.active_embargo_id)
 
     def test_no_announce_when_embargo_not_active(self):
         """EmbargoWasNotActive path does NOT emit Announce(EmbargoEvent)."""

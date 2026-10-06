@@ -429,13 +429,9 @@ class CaseTimelineEvent(BaseModel):
             ``Accept(Invite(object=Org, target=Case))``).
         activity_target_type: Wire type of the destination/target object.
         received_at: Server-generated receipt timestamp (``receivedAt``).
-        rm_state / em_state / pec_state / vf_state / d_state / pxa_state: Resulting
+        rm_state / em_state / vf_state / d_state / pxa_state: Resulting
             state-machine dimensions extracted from the payload snapshot, where
-            present. ``pec_state`` is the per-participant Embargo Consent state
-            (UNBOUND, INVITED, SIGNATORY, LAPSED, DECLINED, EXPIRED,
-            UNBOUND_EXITED), extracted from
-            the ``consent`` dimension object or legacy ``emConsentState`` /
-            ``embargoConsentState`` flat fields.
+            present.
         present_in: Sorted actor-directory names whose replicas hold this
             entry (the per-actor replica-presence indicator, DRPT-02-005).
     """
@@ -455,7 +451,6 @@ class CaseTimelineEvent(BaseModel):
     received_at: str | None = None
     rm_state: str | None = None
     em_state: str | None = None
-    pec_state: str | None = None
     vf_state: str | None = None
     d_state: str | None = None
     pxa_state: str | None = None
@@ -547,14 +542,6 @@ class CaseTimelineEvent(BaseModel):
             received_at=str(received) if received else None,
             rm_state=_dimension_state(candidates, "rm", "rmState", "rm_state"),
             em_state=_dimension_state(candidates, "em", "emState", "em_state"),
-            pec_state=_dimension_state(
-                candidates,
-                "consent",
-                "emConsentState",
-                "em_consent_state",
-                "embargoConsentState",
-                "embargo_consent_state",
-            ),
             vf_state=_dimension_state(candidates, "vf", "vfState", "vf_state"),
             d_state=_dimension_state(candidates, "d", "dState", "d_state"),
             pxa_state=_dimension_state(
@@ -794,7 +781,6 @@ _TABLE_HEADERS = [
     "Target",
     "RM",
     "EM",
-    "PEC",
     "CS",
     "Entry",
 ]
@@ -892,7 +878,6 @@ def _render_markdown_case(
             _md_cell(event.target_label or ""),
             _md_cell(event.rm_state or ""),
             _md_cell(event.em_state or ""),
-            _md_cell(event.pec_state or ""),
             _md_cell(event.cs_state or ""),
             _md_cell(event.short_hash),
         ]
@@ -1001,7 +986,6 @@ def _render_html_case_table(
             ),
             _html_cell(event.rm_state or ""),
             _html_cell(event.em_state or ""),
-            _html_cell(event.pec_state or ""),
             _html_cell(event.cs_state or ""),
             _html_cell(event.short_hash, title=event.entry_hash or None),
         ]

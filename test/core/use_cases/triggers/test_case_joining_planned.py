@@ -75,7 +75,9 @@ from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.predicates.participants import all_participants_rm_closed
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.actor.suggest import (
     OfferActorToCaseReceivedUseCase,
@@ -290,7 +292,7 @@ def test_stub_invite_creates_inert_invitee_participant(actor_store) -> None:
     latest = participant.participant_statuses[-1]
     assert participant_status_rm_state(latest) == RM.RECEIVED
     assert participant_status_vf_state(latest) == CS_vf.vf
-    assert participant.embargo_consent_state == PEC.INVITED
+    assert participant.consent_for(embargo.id_) == EmbargoConsentState.INVITED
 
     creation_entries = [
         e

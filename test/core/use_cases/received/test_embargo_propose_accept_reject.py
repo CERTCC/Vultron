@@ -27,6 +27,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import HandlerDisposition
@@ -313,7 +314,7 @@ class TestEmbargoProposalLifecycle:
     def test_accept_invite_to_embargo_records_embargo_on_participant(
         self, monkeypatch, make_payload
     ):
-        """accept_invite_to_embargo_on_case records embargo ID in participant.accepted_embargo_ids (CM-10-002, CM-10-003)."""
+        """accept_invite_to_embargo_on_case records an ACCEPTED consent row for the embargo (CM-10-002, CM-10-003)."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.models.case_participant import CaseParticipant
         from vultron.wire.as2.vocab.objects.embargo_event import (
@@ -373,7 +374,7 @@ class TestEmbargoProposalLifecycle:
         updated_participant = dl.get(id_=participant.id_)
         assert updated_participant is not None
         updated_participant = cast(Any, updated_participant)
-        assert embargo.id_ in updated_participant.accepted_embargo_ids
+        assert updated_participant.consent_for(embargo.id_) == "ACCEPTED"
 
     def test_accept_invite_to_embargo_records_case_event(
         self, monkeypatch, make_payload
@@ -722,14 +723,15 @@ class TestInviteToEmbargoReceivedPxaGuard:
         [([], 0), (["coord", "other"], 2)],
         ids=["no-recipient", "two-recipients"],
     )
-    def test_misrouted_ep_on_pxa_case_is_refused_without_er(
+    def test_misrouted_ep_on_pxa_case_gets_a_fault_not_an_er(
         self, make_payload, to, count
     ):
         """A misrouted EP is refused before the P/X/A check answers it.
 
         EMB-01-002's ER answers a proposal this receiver was sent; an Invite
-        naming no recipient or several is a misrouting (EP-09-010), so it is
-        refused with the count and no ER goes back.  Nothing is accepted, so
+        naming no recipient or several is a misrouting (EP-09-010), received
+        but not understood, so it is refused with the count and answered with
+        a ProcessingFault, never an ER (MSM-05-001).  Nothing is accepted, so
         EMB-01-002's MUST NOT still holds.
         """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -758,7 +760,15 @@ class TestInviteToEmbargoReceivedPxaGuard:
         assert result.disposition is HandlerDisposition.REFUSED
         assert f"names {count} 'to' recipients" in (result.reason or "")
         assert "EMB-01-002" not in (result.reason or "")
-        assert dl.outbox_list() == []
+        (queued,) = dl.outbox_list()
+        sealed = read_sealed_body_dict(dl, queued)
+        assert sealed is not None
+        assert sealed["type"] == "Create"
+        assert sealed["object"]["type"] == "ProcessingFault"
+        assert sealed["object"]["failureClass"].endswith(
+            "MisroutedEmbargoInvite"
+        )
+        assert sealed["object"]["inReplyTo"] == proposal.id_
 
     def test_pxa_clear_allows_ep_processing(self, make_payload):
         """invite_to_embargo_on_case runs normally when pxa_state is clear."""

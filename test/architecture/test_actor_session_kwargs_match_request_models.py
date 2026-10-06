@@ -38,6 +38,7 @@ from vultron.core.use_cases.triggers.request_bodies import (
     AcceptActorRecommendationRequest,
     AcceptCaseInviteRequest,
     AcceptCaseOwnershipTransferRequest,
+    AcceptEmbargoRequest,
     AddNoteToCaseRequest,
     CaseTriggerRequest,
     CloseCaseRequest,
@@ -49,10 +50,13 @@ from vultron.core.use_cases.triggers.request_bodies import (
     NotifyFixReadyRequest,
     NotifyPublishedRequest,
     OfferCaseOwnershipTransferRequest,
+    ProposeEmbargoRequest,
+    ProposeEmbargoRevisionRequest,
     RejectCaseInviteRequest,
     SubmitReportRequest,
     SuggestActorToCaseRequest,
     SyncLogEntryRequest,
+    TerminateEmbargoRequest,
     ValidateReportRequest,
 )
 from vultron.demo.actor_session import ActorSession
@@ -81,6 +85,10 @@ METHOD_TO_MODEL = {
     "notify_published": NotifyPublishedRequest,
     "close_case": CloseCaseRequest,
     "sync_log_entry": SyncLogEntryRequest,
+    "propose_embargo": ProposeEmbargoRequest,
+    "propose_embargo_revision": ProposeEmbargoRevisionRequest,
+    "accept_embargo": AcceptEmbargoRequest,
+    "terminate_embargo": TerminateEmbargoRequest,
 }
 
 #: Session-management helpers that are not trigger verbs and carry no request

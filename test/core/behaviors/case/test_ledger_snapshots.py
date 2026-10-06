@@ -129,17 +129,17 @@ class TestSnapshotBuilders:
         assert snap["target"]["type"] == "CaseParticipant"
         assert snap["context"] == CASE_ID
 
-    def test_participant_status_pec_flattened_to_em_consent_state(
+    def test_participant_status_carries_no_consent_keys(
         self, participant, port
     ):
-        """The PEC dimension is rendered as the flat wire key ``emConsentState``."""
+        """Consent lives on the participant rows, so the status snapshot has no consent keys (ADR-0122)."""
         status = participant.participant_statuses[0]
         snap = build_add_participant_status_snapshot(
             status, participant, CASE_ACTOR_ID, CASE_ID, port
         )
-        assert status.consent is not None
-        assert "consent" not in snap["object"]
-        assert snap["object"]["emConsentState"] == status.consent.state.value
+        assert not {"consent", "emConsentState", "embargoAdherence"} & set(
+            snap["object"]
+        )
 
     def test_build_add_case_status_snapshot(self, case, port):
         raw_status = case.case_statuses[0]

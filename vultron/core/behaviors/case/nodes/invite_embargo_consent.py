@@ -132,8 +132,8 @@ class _SignEmbargoConsentLeafNode(DataLayerActionWithPorts):
             )
             return Status.FAILURE
 
-        # A SIGNATORY stays; a DECLINED or terminal UNBOUND_EXITED
-        # participant is not signed and gains no id (ADR-0118).
+        # An ACCEPTED row stays; a participant that declined this embargo is
+        # not signed (ADR-0118).
         participant.sign_embargo(active_embargo_id)
         self.logger.info(
             "%s: signed embargo consent for invitee '%s' (embargo in force,"

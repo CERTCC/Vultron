@@ -1,5 +1,6 @@
 ---
 status: proposed
+status_override: Set by the epoch lint rollout (#4196); the status predates the check and awaits a human's review against its epoch.
 date: 2026-10-01
 created: 2026-10-01
 updated: 2026-10-01
@@ -43,7 +44,7 @@ The question: **what does removing a participant change, who may do it, how does
 - Only the CASE_MANAGER turns an assertion into case state, and replicas take case state from the ledger (ADR-0108).
   One move gets one ledger entry, authored by the actor that made the move.
 - A participant bound by an embargo stays bound however it stopped receiving case content, and must be able to learn when that obligation ends.
-- Inferred statuses are computed from stored facts, never stored themselves (the precedent is `embargo_adherence`, CM-18-008 and CM-18-014).
+- Inferred statuses are computed from stored facts, never stored themselves (the precedent is signatory and lapsed consent, CM-18-001).
 
 ## Considered Options
 

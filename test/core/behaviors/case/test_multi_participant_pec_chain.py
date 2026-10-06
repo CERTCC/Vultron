@@ -1,23 +1,23 @@
-"""Multi-participant PEC chain: UNBOUND → INVITED → SIGNATORY.
+"""Multi-participant consent chain: no row -> INVITED -> ACCEPTED.
 
-Exercises the full PEC state machine path via BTTestScenario and BT nodes.
-A regression to direct PEC assignment would cause this test to fail because:
+Exercises the consent-row path via BTTestScenario and BT nodes (ADR-0122).
+A regression to direct row assignment would cause this test to fail because:
 - Direct assignment bypasses ``apply_pec_transition`` and accepts any state.
 - The BT nodes enforce valid trigger-based transitions.
 
 Covers:
-- UNBOUND → INVITED: via PEC_Trigger.INVITE applied before the accept BT
-- INVITED → SIGNATORY: via _SignEmbargoConsentLeafNode inside the accept BT
-- UNBOUND → SIGNATORY: single-step path (ADR-0048: UNBOUND is absence,
-  not pre-consent, so direct ACCEPT from UNBOUND is valid)
-- Multi-participant: two participants, each reaching SIGNATORY independently
+- no row -> INVITED: via PEC_Trigger.INVITE applied before the accept BT
+- INVITED -> ACCEPTED: via _SignEmbargoConsentLeafNode inside the accept BT
+- no row -> ACCEPTED: single-step path (a participant never asked about the
+  embargo may still accept it)
+- Multi-participant: two participants, each becoming a signatory independently
+- A participant that accepted an earlier embargo has lapsed from the embargo
+  in force (derived) and is a signatory again once it signs it
 
 AC-5 of ISSUE-1976.
 """
 
 from __future__ import annotations
-
-from typing import cast
 
 import pytest
 
@@ -26,7 +26,12 @@ from vultron.core.behaviors.case.nodes.invite_embargo_consent import (
     _SignEmbargoConsentLeafNode,
 )
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
+from vultron.core.models.embargo_consent import EmbargoConsent
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+    PEC_Trigger,
+)
+from vultron.errors import VultronInvalidStateTransitionError
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -35,6 +40,7 @@ from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 _ACTOR_A = "https://example.org/actors/finder"
 _ACTOR_B = "https://example.org/actors/vendor"
 _EMBARGO_ID = "https://example.org/embargoes/embargo-001"
+_EARLIER_EMBARGO_ID = "https://example.org/embargoes/embargo-000"
 
 
 # ---------------------------------------------------------------------------
@@ -42,19 +48,29 @@ _EMBARGO_ID = "https://example.org/embargoes/embargo-001"
 # ---------------------------------------------------------------------------
 
 
-def _participant(actor_id: str, pec: PEC) -> CaseParticipant:
+def _participant(
+    actor_id: str,
+    state: EmbargoConsentState | None = None,
+    *,
+    embargo_id: str = _EMBARGO_ID,
+) -> CaseParticipant:
+    """A participant with one consent row for *embargo_id* (none when None)."""
     return CaseParticipant(
         id_=actor_id,
         attributed_to=actor_id,
-        embargo_consent_state=pec,
+        embargo_consents=(
+            [EmbargoConsent(embargo_id=embargo_id, state=state)]
+            if state is not None
+            else []
+        ),
     )
 
 
 def _run_sign_node(
     scenario: BTTestScenario,
     participant: CaseParticipant,
-) -> PEC:
-    """Run _SignEmbargoConsentLeafNode for ``participant``; return new PEC state."""
+) -> EmbargoConsentState | None:
+    """Run _SignEmbargoConsentLeafNode for ``participant``; return its row."""
     node = _SignEmbargoConsentLeafNode(invitee_id=participant.id_)
     scenario.run(
         node,
@@ -62,152 +78,183 @@ def _run_sign_node(
         new_invite_participant=participant,
         active_embargo_id=_EMBARGO_ID,
     )
-    return cast(PEC, participant.embargo_consent_state)
+    return participant.consent_for(_EMBARGO_ID)
 
 
 # ---------------------------------------------------------------------------
-# Full chain: UNBOUND → INVITED → SIGNATORY
+# Full chain: no row -> INVITED -> ACCEPTED
 # ---------------------------------------------------------------------------
 
 
-class TestPecChainNoEmbargoToSignatory:
-    """Full PEC chain traversal via BT nodes (not direct assignment)."""
+class TestConsentChainNoRowToSignatory:
+    """Full consent-row traversal via BT nodes (not direct assignment)."""
 
     @pytest.mark.spec("EMB-11-001")
-    def test_no_embargo_to_signatory_via_accept_bt(
+    def test_no_row_to_signatory_via_accept_bt(
         self, bt_scenario: BTTestScenario
     ):
-        """UNBOUND → SIGNATORY via _SignEmbargoConsentLeafNode.
+        """No row -> ACCEPTED via _SignEmbargoConsentLeafNode.
 
-        ADR-0048: UNBOUND means 'no embargo in scope', not 'pre-consent',
-        so ACCEPT is valid directly from UNBOUND.
+        ADR-0048: having no row means 'never asked', not 'pre-consent', so
+        ACCEPT is valid directly from it.
         """
-        participant = _participant(_ACTOR_A, PEC.UNBOUND)
-        final_pec = _run_sign_node(bt_scenario, participant)
-        assert final_pec == PEC.SIGNATORY, (
-            f"Expected SIGNATORY after ACCEPT from UNBOUND, got {final_pec!r}"
+        participant = _participant(_ACTOR_A)
+        final = _run_sign_node(bt_scenario, participant)
+        assert final == EmbargoConsentState.ACCEPTED, (
+            f"Expected ACCEPTED after ACCEPT from no row, got {final!r}"
         )
+        assert participant.is_signatory(_EMBARGO_ID)
 
     @pytest.mark.spec("EMB-11-001")
     def test_invited_to_signatory_via_accept_bt(
         self, bt_scenario: BTTestScenario
     ):
-        """UNBOUND → INVITED → SIGNATORY full two-step path.
+        """No row -> INVITED -> ACCEPTED full two-step path.
 
-        Step 1: apply_pec_transition(INVITE) → INVITED (simulates receiving invite)
-        Step 2: BT sign node applies ACCEPT trigger → SIGNATORY
+        Step 1: apply_pec_transition(INVITE) -> INVITED (simulates receiving invite)
+        Step 2: BT sign node applies ACCEPT trigger -> ACCEPTED
         """
-        participant = _participant(_ACTOR_A, PEC.UNBOUND)
+        participant = _participant(_ACTOR_A)
 
-        # Step 1: simulate invite arrival via PEC machine
-        participant.apply_pec_transition(PEC_Trigger.INVITE)
-        assert participant.embargo_consent_state == PEC.INVITED, (
-            "Precondition: participant must be INVITED before accept step"
-        )
+        # Step 1: simulate invite arrival via the consent table
+        participant.apply_pec_transition(_EMBARGO_ID, PEC_Trigger.INVITE)
+        assert (
+            participant.consent_for(_EMBARGO_ID) == EmbargoConsentState.INVITED
+        ), "Precondition: participant must be INVITED before accept step"
+        assert not participant.is_signatory(_EMBARGO_ID)
 
         # Step 2: BT accept path
-        final_pec = _run_sign_node(bt_scenario, participant)
-        assert final_pec == PEC.SIGNATORY, (
-            f"Expected SIGNATORY after ACCEPT from INVITED, got {final_pec!r}"
+        final = _run_sign_node(bt_scenario, participant)
+        assert final == EmbargoConsentState.ACCEPTED, (
+            f"Expected ACCEPTED after ACCEPT from INVITED, got {final!r}"
         )
+        assert participant.is_signatory(_EMBARGO_ID)
 
-    def test_direct_pec_assignment_would_not_enforce_transition_rule(self):
-        """Regression guard: prove that direct assignment bypasses the state machine.
+    def test_illegal_trigger_is_refused_by_the_consent_table(self):
+        """Regression guard: the row is only written through the table.
 
-        This test documents WHY the BT path is required: direct assignment
-        allows any value (even nonsensical ones), while apply_pec_transition
-        raises on invalid source states.  If the BT used direct assignment
-        instead of apply_pec_transition, this test would pass but the
+        ``apply_pec_transition`` raises on a trigger that is not legal from
+        the current row (an ACCEPTED row is never re-INVITED), where a direct
+        write would record it silently.  If the BT bypassed the table, this
         transition-rule enforcement would be silently dropped.
         """
-        participant = _participant(_ACTOR_A, PEC.UNBOUND)
-        # Direct assignment: no validation — this is the regression pattern
-        participant.embargo_consent_state = PEC.SIGNATORY  # type: ignore[assignment]
-        # Shows it worked but bypassed the machine
-        assert participant.embargo_consent_state == PEC.SIGNATORY
+        participant = _participant(_ACTOR_A, EmbargoConsentState.ACCEPTED)
+        with pytest.raises(VultronInvalidStateTransitionError):
+            participant.apply_pec_transition(_EMBARGO_ID, PEC_Trigger.INVITE)
+        assert (
+            participant.consent_for(_EMBARGO_ID)
+            == EmbargoConsentState.ACCEPTED
+        )
+
+    @pytest.mark.spec("EMB-11-001")
+    def test_declined_participant_is_not_signed_by_the_bt(
+        self, bt_scenario: BTTestScenario
+    ):
+        """A participant that declined the embargo stays DECLINED."""
+        participant = _participant(_ACTOR_A, EmbargoConsentState.DECLINED)
+        final = _run_sign_node(bt_scenario, participant)
+        assert final == EmbargoConsentState.DECLINED
+        assert not participant.is_signatory(_EMBARGO_ID)
 
 
 # ---------------------------------------------------------------------------
-# Multi-participant: two actors both reach SIGNATORY independently
+# Multi-participant: two actors both reach ACCEPTED independently
 # ---------------------------------------------------------------------------
 
 
-class TestMultiParticipantPecChain:
-    """Two participants traverse the PEC chain independently."""
+class TestMultiParticipantConsentChain:
+    """Two participants traverse the consent chain independently."""
 
     @pytest.mark.spec("EMB-11-001")
     def test_two_participants_both_reach_signatory(
         self, bt_scenario: BTTestScenario
     ):
-        """Both participants independently transition to SIGNATORY via BT path."""
-        participant_a = _participant(_ACTOR_A, PEC.UNBOUND)
-        participant_b = _participant(_ACTOR_B, PEC.UNBOUND)
+        """Both participants independently become signatories via BT path."""
+        participant_a = _participant(_ACTOR_A)
+        participant_b = _participant(_ACTOR_B)
 
-        pec_a = _run_sign_node(bt_scenario, participant_a)
-        pec_b = _run_sign_node(bt_scenario, participant_b)
+        state_a = _run_sign_node(bt_scenario, participant_a)
+        state_b = _run_sign_node(bt_scenario, participant_b)
 
-        assert pec_a == PEC.SIGNATORY, (
-            f"Participant A: expected SIGNATORY, got {pec_a!r}"
+        assert state_a == EmbargoConsentState.ACCEPTED, (
+            f"Participant A: expected ACCEPTED, got {state_a!r}"
         )
-        assert pec_b == PEC.SIGNATORY, (
-            f"Participant B: expected SIGNATORY, got {pec_b!r}"
+        assert state_b == EmbargoConsentState.ACCEPTED, (
+            f"Participant B: expected ACCEPTED, got {state_b!r}"
         )
 
     @pytest.mark.spec("EMB-11-001")
     def test_participants_reach_signatory_from_different_starting_states(
         self, bt_scenario: BTTestScenario
     ):
-        """One participant starts at UNBOUND; one at INVITED. Both reach SIGNATORY."""
-        participant_a = _participant(_ACTOR_A, PEC.UNBOUND)
-        participant_b = _participant(_ACTOR_B, PEC.UNBOUND)
+        """One participant starts with no row; one at INVITED. Both sign."""
+        participant_a = _participant(_ACTOR_A)
+        participant_b = _participant(_ACTOR_B)
 
         # B gets invited first
-        participant_b.apply_pec_transition(PEC_Trigger.INVITE)
-        assert participant_b.embargo_consent_state == PEC.INVITED
+        participant_b.apply_pec_transition(_EMBARGO_ID, PEC_Trigger.INVITE)
+        assert (
+            participant_b.consent_for(_EMBARGO_ID)
+            == EmbargoConsentState.INVITED
+        )
 
         # Both sign via BT
-        pec_a = _run_sign_node(bt_scenario, participant_a)
-        pec_b = _run_sign_node(bt_scenario, participant_b)
+        state_a = _run_sign_node(bt_scenario, participant_a)
+        state_b = _run_sign_node(bt_scenario, participant_b)
 
-        assert pec_a == PEC.SIGNATORY
-        assert pec_b == PEC.SIGNATORY
+        assert state_a == EmbargoConsentState.ACCEPTED
+        assert state_b == EmbargoConsentState.ACCEPTED
 
     @pytest.mark.spec("EMB-11-001")
     def test_second_participant_does_not_affect_first(
         self, bt_scenario: BTTestScenario
     ):
-        """Running the sign node for B does not alter A's PEC state."""
-        participant_a = _participant(_ACTOR_A, PEC.UNBOUND)
-        participant_b = _participant(_ACTOR_B, PEC.INVITED)
+        """Running the sign node for B does not alter A's consent row."""
+        participant_a = _participant(_ACTOR_A)
+        participant_b = _participant(_ACTOR_B, EmbargoConsentState.INVITED)
 
         _run_sign_node(bt_scenario, participant_a)
-        # A is now SIGNATORY; B still INVITED
-        assert participant_b.embargo_consent_state == PEC.INVITED
+        # A is now a signatory; B still INVITED
+        assert (
+            participant_b.consent_for(_EMBARGO_ID)
+            == EmbargoConsentState.INVITED
+        )
 
         _run_sign_node(bt_scenario, participant_b)
-        # Now B is SIGNATORY; A unchanged
-        assert participant_a.embargo_consent_state == PEC.SIGNATORY
-        assert participant_b.embargo_consent_state == PEC.SIGNATORY
+        # Now B is a signatory; A unchanged
+        assert participant_a.is_signatory(_EMBARGO_ID)
+        assert participant_b.is_signatory(_EMBARGO_ID)
 
 
 # ---------------------------------------------------------------------------
-# LAPSED → SIGNATORY path (for completeness)
+# Lapsed -> signatory path (lapse is derived, not stored)
 # ---------------------------------------------------------------------------
 
 
 class TestLapsedToSignatory:
-    """A LAPSED participant can re-sign and reach SIGNATORY."""
+    """A participant that lapsed from an earlier embargo can sign the new one."""
 
     @pytest.mark.spec("EMB-11-001")
     def test_lapsed_to_signatory_via_accept_bt(
         self, bt_scenario: BTTestScenario
     ):
-        """LAPSED participant reaches SIGNATORY after ACCEPT trigger."""
-        participant = _participant(_ACTOR_A, PEC.SIGNATORY)
-        participant.apply_pec_transition(PEC_Trigger.REVISE)
-        assert participant.embargo_consent_state == PEC.LAPSED
+        """A lapsed participant is a signatory after the sign node runs."""
+        participant = _participant(
+            _ACTOR_A,
+            EmbargoConsentState.ACCEPTED,
+            embargo_id=_EARLIER_EMBARGO_ID,
+        )
+        assert participant.has_lapsed(_EMBARGO_ID)
+        assert not participant.is_signatory(_EMBARGO_ID)
 
-        final_pec = _run_sign_node(bt_scenario, participant)
-        assert final_pec == PEC.SIGNATORY, (
-            f"LAPSED participant must reach SIGNATORY after ACCEPT, got {final_pec!r}"
+        final = _run_sign_node(bt_scenario, participant)
+        assert final == EmbargoConsentState.ACCEPTED, (
+            f"A lapsed participant must reach ACCEPTED, got {final!r}"
+        )
+        assert participant.is_signatory(_EMBARGO_ID)
+        assert not participant.has_lapsed(_EMBARGO_ID)
+        # Its row for the earlier embargo is kept, not overwritten.
+        assert (
+            participant.consent_for(_EARLIER_EMBARGO_ID)
+            == EmbargoConsentState.ACCEPTED
         )

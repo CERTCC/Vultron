@@ -696,41 +696,45 @@ groups:
       spec_id: EMB-18-001
       note: The guard reads EM state; it never writes it.
 - id: EP-05
-  title: Revision Activation PEC Cascade Rule
+  title: Revision Activation Consent Rule
   specs:
   - id: EP-05-001
     priority: MUST
     kind: protocol
     statement: >-
       When the case owner activates a revised embargo that ends later than the embargo
-      it replaces (`REVISE → ACTIVE`), the CASE_MANAGER MUST move each `SIGNATORY`
-      participant whose `accepted_embargo_ids` lacks the revised embargo to `LAPSED` via
-      the PEC `REVISE` trigger, so that their consent to the longer terms is explicit.
-      A revised embargo that ends no later than the one it replaces MUST carry every
-      existing signatory over: the revised id is recorded in their `accepted_embargo_ids`
-      and their consent state is unchanged. In either case a participant in any other
-      state whose `accepted_embargo_ids` already holds the revised id MUST advance to
-      `SIGNATORY` via the PEC `ACCEPT` trigger (MSM-07-005).
+      it replaces (`REVISE → ACTIVE`), the CASE_MANAGER MUST NOT carry any participant's
+      consent over to it: a participant is bound by the revised embargo only through an
+      `ACCEPTED` consent row for it, so each signatory to the replaced embargo that has
+      not accepted the revised one has lapsed (CM-18-001). A revised embargo that ends
+      no later than the one it replaces MUST carry every existing signatory over: the
+      CASE_MANAGER marks the revised embargo's row `ACCEPTED` for every participant whose
+      row for the replaced embargo is `ACCEPTED` (CM-10-001, MSM-07-005). No activation
+      advances anyone: a participant holding an `ACCEPTED` row for the embargo now in
+      force is its signatory by lookup.
     rationale: >-
       A participant who signed for terms `T1` has not consented to longer terms `T2`;
-      leaving them `SIGNATORY` once `T2` is in force would imply consent they never gave.
-      Shorter terms ask nothing new: agreeing to N days is agreeing to every shorter
-      period, the same containment that makes shortest-wins (EP-04-003) and the
-      termination exit cascade (MSM-07-006) safe without asking anyone. The cascade fires at
-      activation rather than at proposal because the participant remains bound by `T1`
-      for as long as `T1` is the active embargo (ADR-0093).
+      treating them as a signatory once `T2` is in force would imply consent they never
+      gave, and because consent is per embargo the lookup already says so — no write is
+      needed to lapse them. Shorter terms ask nothing new: agreeing to N days is agreeing
+      to every shorter period, the same containment that makes shortest-wins (EP-04-003)
+      safe without asking anyone, so their acceptance is carried over by writing the row.
+      The rule applies at activation rather than at proposal because the participant
+      remains bound by `T1` for as long as `T1` is the active embargo (ADR-0093, ADR-0122).
     verification: >-
       Unit tests in `test/core/services/embargo_lifecycle/test_answers.py` and
       `test_activation.py` assert that the owner's acceptance of a revision ending later
-      than the active embargo moves exactly the signatories lacking the revised id to
-      `LAPSED`, that acceptance of a revision ending no later than it moves nobody and
-      records the revised id on every signatory, and that on any activation a
-      non-signatory already holding the newly active id advances to `SIGNATORY`.
+      than the active embargo writes no row for any signatory and leaves those lacking
+      the revised row lapsed and outside the content gate, that acceptance of a revision
+      ending no later than it marks the revised row `ACCEPTED` for every signatory to the
+      replaced embargo, and that a participant already holding an `ACCEPTED` row for the
+      newly active embargo is its signatory with no further write.
     relationships:
     - rel_type: implements
       spec_id: CM-18-001
     adr:
     - ADR-0093
+    - ADR-0122
     stories:
     - story_2022_014
     - story_2022_027
@@ -739,23 +743,27 @@ groups:
     kind: project
     statement: >-
       A revision proposal (`ACTIVE → REVISE`) and any further counter-revision
-      (`REVISE → REVISE`) MUST NOT change any participant's PEC state. Consent is
-      re-evaluated only when the case owner activates a revision (EP-05-001); until then
-      the prior embargo is in force and every signatory to it remains `SIGNATORY`.
+      (`REVISE → REVISE`) MUST NOT change any participant's consent to the embargo in
+      force. The proposer's row for the proposed embargo is marked `ACCEPTED`
+      (MSM-07-005); every other row is left as it is until the case owner activates a
+      revision (EP-05-001), and until then the prior embargo is in force and every
+      signatory to it remains one.
     rationale: >-
       A participant cannot lapse until the embargo on the case differs from the one they
       agreed to. Lapsing on proposal stranded signatories when the revision was rejected,
-      reported `embargo_adherence` false for participants still bound and still receiving
-      embargoed content, and lapsed the proposer of the revision (ADR-0093, Concern #3884).
+      left participants still bound and still receiving embargoed content reported as not
+      bound, and lapsed the proposer of the revision (ADR-0093, Concern #3884). With
+      per-embargo rows a proposal only ever adds a row for the proposed embargo.
     verification: >-
       Unit tests in `test/core/services/embargo_lifecycle/test_proposals.py` assert that
-      `propose_embargo()` from `ACTIVE` and from `REVISE` reports no participant consent
-      changes.
+      `propose_embargo()` from `ACTIVE` and from `REVISE` leaves every participant's row
+      for the embargo in force unchanged.
     relationships:
     - rel_type: refines
       spec_id: EP-05-001
     adr:
     - ADR-0093
+    - ADR-0122
 - id: EP-06
   title: PEC Idempotency
   specs:
@@ -765,11 +773,11 @@ groups:
     verification_debt: '#3612'
     statement: >-
       An idempotent retry or re-processing of a participant add-or-update MUST NOT
-      overwrite a non-null PEC state with the default `UNBOUND`. Once a participant
-      has been assigned any non-default PEC state (`INVITED`, `SIGNATORY`, `LAPSED`,
-      or `DECLINED`), that state MUST be preserved across retries.
+      remove or downgrade a consent row. Once a participant has a row for an embargo
+      (`INVITED`, `ACCEPTED`, `DECLINED` or `EXPIRED`), that row MUST be preserved
+      across retries.
     rationale: >-
-      Overwriting a `SIGNATORY` or `DECLINED` state with `UNBOUND` on retry silently
+      Dropping an `ACCEPTED` or `DECLINED` row on retry silently
       revokes or erases consent that was already given. The positive-path idempotency
       rule (don't double-add) is covered by CM-13-005; this rule covers the negative
       path (don't downgrade).
@@ -1300,20 +1308,23 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      A revision `Invite(EmbargoEvent)` MUST NOT change the consent state of a participant that is
-      already `SIGNATORY` to the active embargo. The PEC `INVITE` trigger applies only to a
-      participant in `UNBOUND`, `LAPSED`, `DECLINED` or `EXPIRED` (CM-18-003); a signatory's answer
-      to a revision is recorded in `accepted_embargo_ids` and leaves its state unchanged until the
-      owner activates the revision (EP-05-001, EP-05-002).
+      A revision `Invite(EmbargoEvent)` MUST NOT change the consent of a participant that is
+      already a signatory to the active embargo. The PEC `INVITE` trigger is applied to the
+      participant's row for the *revision* (CM-18-003), so a signatory gains an `INVITED` row
+      for the revision and keeps its `ACCEPTED` row for the active embargo; its answer to the
+      revision is recorded on the revision's row and binds it to nothing new until the owner
+      activates the revision (EP-05-001, EP-05-002).
     rationale: >-
       A signatory is bound by the active embargo for as long as it is active; a proposal to
-      revise it asks nothing of them yet (ADR-0093). Applying `INVITE` to a `SIGNATORY` is an
-      illegal PEC transition, so a receive tree that applies it unconditionally faults on
-      exactly the participants a revision most concerns.
+      revise it asks nothing of them yet (ADR-0093). Because consent is per embargo
+      (ADR-0122) the Invite lands on its own row and cannot touch the row that binds the
+      signatory, so a receive tree that applies `INVITE` for every recipient no longer
+      faults on exactly the participants a revision most concerns.
     verification: >-
-      A test delivers a revision Invite for a participant already `SIGNATORY` and asserts the
-      receive tree succeeds and the participant is still `SIGNATORY`. Until the implementation
-      lands the test is a strict `xfail` naming its tracking issue.
+      A test delivers a revision Invite for a participant already a signatory and asserts the
+      receive tree succeeds, the participant has an `INVITED` row for the revision, and its
+      row for the active embargo is still `ACCEPTED`. Until the implementation lands the test
+      is a strict `xfail` naming its tracking issue.
     relationships:
     - rel_type: refines
       spec_id: EP-05-002
@@ -1322,6 +1333,7 @@ groups:
     adr:
     - ADR-0113
     - ADR-0093
+    - ADR-0122
   - id: EP-09-005
     priority: MAY
     kind: protocol
@@ -1514,8 +1526,11 @@ groups:
       CASE_MANAGER's own record takes no RSVP deadline from it (CM-28-003). The refusal
       comes before the P/X/A check, so a misrouted Invite on a public, exploited or attacked
       case gets no ER: EMB-01-002's ER answers a proposal its receiver was sent, and a
-      misrouting is not accepted either way. Two spellings of one actor in `to` (a trailing
-      slash) name one recipient.
+      misrouting is received but not understood. The receiver answers it with
+      `Create(ProcessingFault)` to the sender, naming the Invite in `inReplyTo` and
+      failure class `MisroutedEmbargoInvite` (MSM-05-001, ADR-0123). An Invite that names
+      no embargo is answered the same way, with failure class `EmbargoInviteWithoutEmbargo`.
+      Two spellings of one actor in `to` (a trailing slash) name one recipient.
     rationale: >-
       Every emitter sends a single-recipient Invite — a participant to the CASE_MANAGER, the
       CASE_MANAGER to one participant per relayed Invite (EP-09-002) — so the multi-recipient
@@ -1524,8 +1539,12 @@ groups:
       names the defect; guessing hides it.
     verification: >-
       Tests deliver an Invite with two `to` recipients and with none and assert `REFUSED`
-      with the recipient count in the reason; a single-recipient Invite resolves that
-      recipient (`test_invite_with_several_recipients_is_refused` and
+      with the recipient count in the reason and one `Create(ProcessingFault)` to the
+      sender, however often the Invite is delivered
+      (`test_an_invite_with_zero_or_several_recipients_gets_a_processing_fault`); an Invite
+      naming no embargo gets the `EmbargoInviteWithoutEmbargo` fault
+      (`test_an_invite_naming_no_embargo_gets_a_processing_fault`); a single-recipient Invite
+      resolves that recipient (`test_invite_with_several_recipients_is_refused` and
       `test_invite_with_no_recipient_is_refused` in `test_embargo_revision_relay.py`;
       `TestInviteeIsTheAddressee` and `TestInviteeIdProperty` in
       `test_embargo_invite_lapse.py`).

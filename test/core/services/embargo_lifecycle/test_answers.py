@@ -16,7 +16,8 @@
 
 Owner versus non-owner behaviour, STRICT and OBSERVED mode, idempotency,
 pruning of decided proposals (EP-08-003), and the per-embargo consent rules
-of ADR-0093: the revision-activation cascade (EP-05-001, MSM-07-005), a
+of ADR-0093 and ADR-0122: the containment carry-over at activation
+(EP-05-001, MSM-07-005), a
 signatory's answer to a *proposed* revision (MSM-07-003), and which embargo
 a Reject names (MSM-07-004)."""
 
@@ -33,7 +34,9 @@ from vultron.core.services.embargo_lifecycle import (
     TransitionMode,
 )
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState as ECS,
+)
 from vultron.errors import (
     VultronInvalidStateTransitionError,
     VultronNotFoundError,
@@ -43,14 +46,15 @@ from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
 from .conftest import (
     UNHELD_EMBARGO_ID,
-    _accepted_ids_of,
     _assert_activation_wrote_nothing,
     _case_awaiting_activation,
-    _force_pec,
+    _consent_of,
+    _consents_of,
+    _has_lapsed,
+    _is_signatory,
     _make_actor,
     _make_case,
     _make_embargo,
-    _pec_of,
     _seed_consent,
 )
 
@@ -62,14 +66,14 @@ from .conftest import (
 def test_accept_embargo_invite_owner_strict_valid(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """Owner accepts an embargo invite: PROPOSED → ACTIVE, PEC updated."""
+    """Owner accepts an embargo invite: PROPOSED → ACTIVE, its row ACCEPTED."""
     owner, dl = owner_and_dl
     case, participants = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
     owner_participant_id = participants[0].id_
     embargo = _make_embargo(dl, case.id_)
 
-    # Seed owner to INVITED so ACCEPT transition is valid
-    _force_pec(dl, owner_participant_id, PEC.INVITED)
+    # Seed owner's row to INVITED so ACCEPT transition is valid
+    _seed_consent(dl, owner_participant_id, embargo.id_, ECS.INVITED)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
     result = lifecycle.accept_embargo_invite(
@@ -82,14 +86,14 @@ def test_accept_embargo_invite_owner_strict_valid(
     assert result.em_after == EM.ACTIVE
     assert result.case_embargo_changed is True
 
-    owner_participant = cast(CaseParticipant, dl.read(owner_participant_id))
-    assert owner_participant.embargo_consent_state == PEC.SIGNATORY.value
+    assert _consent_of(dl, owner_participant_id, embargo.id_) == "ACCEPTED"
+    assert _is_signatory(dl, case.id_, owner_participant_id)
 
 
 def test_accept_embargo_invite_non_owner_strict(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """Non-owner accepting invite: only PEC updated, EM state unchanged."""
+    """Non-owner accepting invite: only its row updated, EM state unchanged."""
     owner, dl = owner_and_dl
     finder = _make_actor(dl, "Finder Org")
     case, _ = _make_case(
@@ -100,10 +104,10 @@ def test_accept_embargo_invite_non_owner_strict(
     )
     embargo = _make_embargo(dl, case.id_)
 
-    # Seed finder to INVITED so ACCEPT transition is valid
+    # Seed finder's row to INVITED so ACCEPT transition is valid
     finder_participant_id = case.actor_participant_index.get(finder.id_)
     assert finder_participant_id is not None
-    _force_pec(dl, finder_participant_id, PEC.INVITED)
+    _seed_consent(dl, finder_participant_id, embargo.id_, ECS.INVITED)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
     result = lifecycle.accept_embargo_invite(
@@ -116,8 +120,7 @@ def test_accept_embargo_invite_non_owner_strict(
     assert result.em_after == EM.PROPOSED
     assert result.case_embargo_changed is False
 
-    finder_participant = cast(CaseParticipant, dl.read(finder_participant_id))
-    assert finder_participant.embargo_consent_state == PEC.SIGNATORY.value
+    assert _consent_of(dl, finder_participant_id, embargo.id_) == "ACCEPTED"
 
 
 def test_accept_embargo_invite_strict_invalid_state_raises(
@@ -187,14 +190,14 @@ def test_accept_embargo_invite_observed_already_active_syncs_embargo(
 def test_accept_embargo_invite_idempotent(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """Accepting the same embargo twice is idempotent for PEC."""
+    """Accepting the same embargo twice is idempotent for the consent row."""
     owner, dl = owner_and_dl
     case, participants = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
     owner_participant_id = participants[0].id_
     embargo = _make_embargo(dl, case.id_)
 
     # Seed as INVITED so first ACCEPT is valid
-    _force_pec(dl, owner_participant_id, PEC.INVITED)
+    _seed_consent(dl, owner_participant_id, embargo.id_, ECS.INVITED)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
     lifecycle.accept_embargo_invite(
@@ -203,7 +206,7 @@ def test_accept_embargo_invite_idempotent(
         actor_id=owner.id_,
     )
     # Second call: EM now ACTIVE; owner is non-owner w.r.t. EM gate (ACTIVE can't accept again)
-    # The PEC side should still be idempotent
+    # The consent side should still be idempotent
     lifecycle.accept_embargo_invite(
         case_id=case.id_,
         embargo_id=embargo.id_,
@@ -211,9 +214,10 @@ def test_accept_embargo_invite_idempotent(
         transition_mode=TransitionMode.OBSERVED,
     )
 
+    # one row, ACCEPTED, no duplicates
+    assert _consents_of(dl, owner_participant_id) == {embargo.id_: "ACCEPTED"}
     owner_participant = cast(CaseParticipant, dl.read(owner_participant_id))
-    # accepted_embargo_ids should not contain duplicates
-    assert owner_participant.accepted_embargo_ids.count(embargo.id_) == 1
+    assert len(owner_participant.embargo_consents) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -236,8 +240,8 @@ def test_reject_embargo_invite_owner_proposed_to_none(
     case.proposed_embargoes = [embargo.id_]
     dl.save(case)
 
-    # Seed owner to INVITED so DECLINE transition is valid
-    _force_pec(dl, owner_participant_id, PEC.INVITED)
+    # Seed owner's row to INVITED so DECLINE transition is valid
+    _seed_consent(dl, owner_participant_id, embargo.id_, ECS.INVITED)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
     result = lifecycle.reject_embargo_invite(
@@ -250,8 +254,7 @@ def test_reject_embargo_invite_owner_proposed_to_none(
     assert result.em_after == EM.NONE
     assert result.case_changed is True
 
-    owner_participant = cast(CaseParticipant, dl.read(owner_participant_id))
-    assert owner_participant.embargo_consent_state == PEC.DECLINED.value
+    assert _consent_of(dl, owner_participant_id, embargo.id_) == "DECLINED"
 
 
 @pytest.mark.spec("MSM-07-004")
@@ -260,10 +263,10 @@ def test_reject_embargo_invite_signatory_owner_rejecting_first_proposal_declines
 ) -> None:
     """With no embargo in force, a Reject is withdrawal from any state.
 
-    A participant is SIGNATORY without an active embargo only through implicit
-    consent (CM-14-005).  Rejecting the only proposal leaves nothing in force
-    to stay signatory to, so the owner's own record is DECLINED and its list
-    emptied (MSM-07-004) — as the pre-ADR-0093 behaviour already had it.
+    A participant holds ACCEPTED on a proposal before any embargo is active
+    (the proposer, an early acceptor).  Rejecting the only proposal leaves
+    nothing in force to stay signatory to, so the owner's own row for it
+    becomes DECLINED (MSM-07-004).
     """
     owner, dl = owner_and_dl
     case, participants = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
@@ -271,7 +274,7 @@ def test_reject_embargo_invite_signatory_owner_rejecting_first_proposal_declines
     embargo = _make_embargo(dl, case.id_)
     case.proposed_embargoes = [embargo.id_]
     dl.save(case)
-    _seed_consent(dl, owner_participant_id, PEC.SIGNATORY, [embargo.id_])
+    _seed_consent(dl, owner_participant_id, embargo.id_, ECS.ACCEPTED)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
     result = lifecycle.reject_embargo_invite(
@@ -282,11 +285,10 @@ def test_reject_embargo_invite_signatory_owner_rejecting_first_proposal_declines
 
     assert result.em_before == EM.PROPOSED
     assert result.em_after == EM.NONE
-    assert [c.pec_after for c in result.participant_changes] == [
-        PEC.DECLINED.value
-    ]
-    assert _pec_of(dl, owner_participant_id) == PEC.DECLINED.value
-    assert _accepted_ids_of(dl, owner_participant_id) == []
+    assert [
+        (c.consent_before, c.consent_after) for c in result.participant_changes
+    ] == [("ACCEPTED", "DECLINED")]
+    assert _consents_of(dl, owner_participant_id) == {embargo.id_: "DECLINED"}
 
 
 def test_reject_embargo_invite_owner_revise_stays_active(
@@ -318,7 +320,7 @@ def test_reject_embargo_invite_owner_revise_stays_active(
 def test_reject_embargo_invite_non_owner_strict(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """Non-owner rejecting: only PEC updated, EM state unchanged."""
+    """Non-owner rejecting: only its row updated, EM state unchanged."""
     owner, dl = owner_and_dl
     finder = _make_actor(dl, "Finder Org")
     case, _ = _make_case(
@@ -331,10 +333,10 @@ def test_reject_embargo_invite_non_owner_strict(
     case.proposed_embargoes = [embargo.id_]
     dl.save(case)
 
-    # Seed finder to INVITED so DECLINE transition is valid
+    # Seed finder's row to INVITED so DECLINE transition is valid
     finder_participant_id = case.actor_participant_index.get(finder.id_)
     assert finder_participant_id is not None
-    _force_pec(dl, finder_participant_id, PEC.INVITED)
+    _seed_consent(dl, finder_participant_id, embargo.id_, ECS.INVITED)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
     result = lifecycle.reject_embargo_invite(
@@ -345,8 +347,7 @@ def test_reject_embargo_invite_non_owner_strict(
 
     assert result.em_after == EM.PROPOSED  # EM unchanged
 
-    finder_participant = cast(CaseParticipant, dl.read(finder_participant_id))
-    assert finder_participant.embargo_consent_state == PEC.DECLINED.value
+    assert _consent_of(dl, finder_participant_id, embargo.id_) == "DECLINED"
 
 
 @pytest.mark.spec("MSM-07-004")
@@ -367,13 +368,10 @@ def test_reject_embargo_invite_signatory_non_owner_transitions_to_declined(
     case.active_embargo = embargo.id_
     dl.save(case)
 
-    # Seed finder to SIGNATORY via proper FSM path (UNBOUND → SIGNATORY).
+    # Seed finder as a signatory of the active embargo.
     finder_participant_id = case.actor_participant_index.get(finder.id_)
     assert finder_participant_id is not None
-    finder_p = cast(CaseParticipant, dl.read(finder_participant_id))
-    finder_p.apply_pec_transition(PEC_Trigger.ACCEPT)
-    finder_p.accepted_embargo_ids = [embargo.id_]
-    dl.save(finder_p)
+    _seed_consent(dl, finder_participant_id, embargo.id_, ECS.ACCEPTED)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
     result = lifecycle.reject_embargo_invite(
@@ -384,12 +382,8 @@ def test_reject_embargo_invite_signatory_non_owner_transitions_to_declined(
 
     assert result.em_after == EM.ACTIVE  # case-level EM unchanged (VP-13-009)
 
-    finder_participant = cast(CaseParticipant, dl.read(finder_participant_id))
-    assert finder_participant.embargo_consent_state == PEC.DECLINED.value
-    # embargo_adherence derives from consent state: False when not SIGNATORY
-    ps = finder_participant.participant_status
-    assert ps is not None
-    assert ps.embargo_adherence is False
+    assert _consent_of(dl, finder_participant_id, embargo.id_) == "DECLINED"
+    assert not _is_signatory(dl, case.id_, finder_participant_id)
 
 
 def test_reject_embargo_invite_strict_invalid_state_raises(
@@ -398,14 +392,14 @@ def test_reject_embargo_invite_strict_invalid_state_raises(
     """Reject from invalid EM state (NONE) raises in STRICT mode — and writes nothing.
 
     The EM guard runs before the consent write, so a refused transition
-    leaves the owner's record (and its accepted list) exactly as it was.
+    leaves the owner's rows exactly as they were.
     """
     owner, dl = owner_and_dl
     case, (owner_p,) = _make_case(dl, owner.id_, em_state=EM.NONE)
     embargo = _make_embargo(dl, case.id_)
     case.proposed_embargoes = [embargo.id_]
     dl.save(case)
-    _seed_consent(dl, owner_p.id_, PEC.INVITED, [embargo.id_])
+    _seed_consent(dl, owner_p.id_, embargo.id_, ECS.INVITED)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
     with pytest.raises(VultronInvalidStateTransitionError):
@@ -415,8 +409,7 @@ def test_reject_embargo_invite_strict_invalid_state_raises(
             actor_id=owner.id_,
         )
 
-    assert _pec_of(dl, owner_p.id_) == PEC.INVITED.value
-    assert _accepted_ids_of(dl, owner_p.id_) == [embargo.id_]
+    assert _consents_of(dl, owner_p.id_) == {embargo.id_: "INVITED"}
 
 
 def test_reject_embargo_invite_observed_invalid_no_raise(
@@ -509,6 +502,8 @@ def test_participant_accept_is_consent_and_prunes_nothing(
     assert updated.pending_embargo_proposal_index == {
         embargo.id_: "urn:proposal:1"
     }
+    participant_pid = case.actor_participant_index[participant.id_]
+    assert _consents_of(dl, participant_pid) == {embargo.id_: "ACCEPTED"}
 
 
 # ---------------------------------------------------------------------------
@@ -560,8 +555,12 @@ def test_owner_may_activate_a_revision_before_anyone_else_answers(
 
 
 # ---------------------------------------------------------------------------
-# Tests: consent is per embargo; activation re-evaluates it (ADR-0093)
+# Tests: consent is per embargo; activation carries it over (ADR-0122)
 # ---------------------------------------------------------------------------
+
+
+#: An embargo an earlier revision replaced; its signatories may still hold it.
+OLD_EMBARGO_ID = "https://example.org/embargoes/replaced-earlier"
 
 
 def _revision_case(
@@ -572,14 +571,14 @@ def _revision_case(
 ) -> tuple[VulnerabilityCase, dict[str, str], str, str]:
     """Case at REVISE: A (45d) active, B (*revision_days*) proposed.
 
-    Participants and their seeded consent (all signatories hold A):
+    Participants and their seeded consent rows:
 
-    - ``owner``: SIGNATORY, [A]
-    - ``lacking``: SIGNATORY, [A]            — has not accepted B
-    - ``accepted``: SIGNATORY, [A, B]        — accepted B while REVISE
-    - ``invited_with_b``: INVITED, [B]       — accepted B, never bound by A
-    - ``lapsed_plain``: LAPSED, []           — lapsed earlier, no B
-    - ``declined``: DECLINED, []
+    - ``owner``: ACCEPTED(A)
+    - ``lacking``: ACCEPTED(A)              — has not accepted B
+    - ``accepted``: ACCEPTED(A), ACCEPTED(B) — accepted B while REVISE
+    - ``invited_with_b``: ACCEPTED(B)       — accepted B, never bound by A
+    - ``lapsed_plain``: ACCEPTED(OLD)       — bound by an earlier embargo only
+    - ``declined``: DECLINED(A)
 
     Returns the case, ``{label: participant_id}``, A's id and B's id.
     """
@@ -613,14 +612,13 @@ def _revision_case(
     }
     dl.save(case)
 
-    _seed_consent(dl, ids["owner"], PEC.SIGNATORY, [active.id_])
-    _seed_consent(dl, ids["lacking"], PEC.SIGNATORY, [active.id_])
-    _seed_consent(
-        dl, ids["accepted"], PEC.SIGNATORY, [active.id_, revision.id_]
-    )
-    _seed_consent(dl, ids["invited_with_b"], PEC.INVITED, [revision.id_])
-    _seed_consent(dl, ids["lapsed_plain"], PEC.LAPSED, [])
-    _seed_consent(dl, ids["declined"], PEC.DECLINED, [])
+    _seed_consent(dl, ids["owner"], active.id_, ECS.ACCEPTED)
+    _seed_consent(dl, ids["lacking"], active.id_, ECS.ACCEPTED)
+    _seed_consent(dl, ids["accepted"], active.id_, ECS.ACCEPTED)
+    _seed_consent(dl, ids["accepted"], revision.id_, ECS.ACCEPTED)
+    _seed_consent(dl, ids["invited_with_b"], revision.id_, ECS.ACCEPTED)
+    _seed_consent(dl, ids["lapsed_plain"], OLD_EMBARGO_ID, ECS.ACCEPTED)
+    _seed_consent(dl, ids["declined"], active.id_, ECS.DECLINED)
     return case, ids, active.id_, revision.id_
 
 
@@ -633,11 +631,12 @@ def test_owner_activating_a_shorter_revision_carries_every_signatory_over(
     """B ends before A: every signatory to A gains B; nobody lapses.
 
     Agreeing to N days is agreeing to every shorter period (containment).  A
-    non-signatory that already accepted B becomes SIGNATORY; a LAPSED or
-    DECLINED participant without B is untouched.
+    participant that already accepted B is a signatory with no further write;
+    one bound only by an earlier embargo, and one that declined A, are
+    untouched.
     """
     owner, dl = owner_and_dl
-    case, ids, _active_id, revision_id = _revision_case(
+    case, ids, active_id, revision_id = _revision_case(
         dl, owner, revision_days=30
     )
 
@@ -653,58 +652,84 @@ def test_owner_activating_a_shorter_revision_carries_every_signatory_over(
     assert updated.proposed_embargoes == []
     assert updated.pending_embargo_proposal_index == {}
 
-    for label in ("owner", "lacking", "accepted"):
-        assert _pec_of(dl, ids[label]) == PEC.SIGNATORY.value, label
-        assert revision_id in _accepted_ids_of(dl, ids[label]), label
-    assert _pec_of(dl, ids["invited_with_b"]) == PEC.SIGNATORY.value
-    assert _pec_of(dl, ids["lapsed_plain"]) == PEC.LAPSED.value
-    assert _pec_of(dl, ids["declined"]) == PEC.DECLINED.value
-    # Only the invitee's *state* moved; carry-over is a list write.
-    assert [
-        (c.participant_id, c.pec_after) for c in result.participant_changes
-    ] == [(ids["invited_with_b"], PEC.SIGNATORY.value)]
+    for label in ("owner", "lacking", "accepted", "invited_with_b"):
+        assert _consent_of(dl, ids[label], revision_id) == "ACCEPTED", label
+        assert _is_signatory(dl, case.id_, ids[label]), label
+        assert not _has_lapsed(dl, case.id_, ids[label]), label
+    assert _consents_of(dl, ids["lacking"]) == {
+        active_id: "ACCEPTED",
+        revision_id: "ACCEPTED",
+    }
+    assert _consents_of(dl, ids["lapsed_plain"]) == {
+        OLD_EMBARGO_ID: "ACCEPTED"
+    }
+    assert _has_lapsed(dl, case.id_, ids["lapsed_plain"])
+    assert _consents_of(dl, ids["declined"]) == {active_id: "DECLINED"}
+    assert not _is_signatory(dl, case.id_, ids["declined"])
+    # Only the rows that actually moved are reported: the owner's own
+    # acceptance and the carried-over silent signatory.
+    assert {
+        (c.participant_id, c.consent_before, c.consent_after)
+        for c in result.participant_changes
+    } == {
+        (ids["owner"], None, "ACCEPTED"),
+        (ids["lacking"], None, "ACCEPTED"),
+    }
 
 
 @pytest.mark.spec("EP-05-001")
 @pytest.mark.spec("MSM-07-005")
 @pytest.mark.spec("CM-18-002")
 @pytest.mark.spec("CM-18-001")
+@pytest.mark.spec("CM-18-016")
 def test_owner_activating_a_longer_revision_lapses_signatories_lacking_it(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """B ends after A: a SIGNATORY without B → LAPSED via REVISE; with B stays.
+    """B ends after A: a signatory without B lapses by derivation; nothing is written.
 
-    LAPSED then means exactly CM-18-001's definition — was a signatory to the
-    previous active embargo, which the owner replaced with longer terms this
+    ``has_lapsed`` then means exactly CM-18-001's definition — it accepted an
+    earlier embargo, which the owner replaced with longer terms this
     participant has not accepted.  The owner has just accepted B and is never
-    lapsed by its own activation.
+    lapsed by its own activation.  No row is written for anyone else
+    (CM-18-016).
     """
     owner, dl = owner_and_dl
     case, ids, active_id, revision_id = _revision_case(
         dl, owner, revision_days=90
     )
+    before = {
+        label: _consents_of(dl, pid)
+        for label, pid in ids.items()
+        if label != "owner"
+    }
 
     result = EmbargoLifecycle(persistence=dl).accept_embargo_invite(
         case_id=case.id_, embargo_id=revision_id, actor_id=owner.id_
     )
 
     assert result.em_after == EM.ACTIVE
-    assert _pec_of(dl, ids["owner"]) == PEC.SIGNATORY.value
-    assert revision_id in _accepted_ids_of(dl, ids["owner"])
-    assert _pec_of(dl, ids["lacking"]) == PEC.LAPSED.value
-    assert _accepted_ids_of(dl, ids["lacking"]) == [active_id]
-    assert _pec_of(dl, ids["accepted"]) == PEC.SIGNATORY.value
-    assert _pec_of(dl, ids["invited_with_b"]) == PEC.SIGNATORY.value
-    assert _pec_of(dl, ids["lapsed_plain"]) == PEC.LAPSED.value
-    assert _pec_of(dl, ids["declined"]) == PEC.DECLINED.value
-    moves = {
-        c.participant_id: (c.pec_before, c.pec_after)
+    assert _consents_of(dl, ids["owner"]) == {
+        active_id: "ACCEPTED",
+        revision_id: "ACCEPTED",
+    }
+    assert _is_signatory(dl, case.id_, ids["owner"])
+    for label in ("accepted", "invited_with_b"):
+        assert _is_signatory(dl, case.id_, ids[label]), label
+    for label in ("lacking", "lapsed_plain"):
+        assert _has_lapsed(dl, case.id_, ids[label]), label
+        assert not _is_signatory(dl, case.id_, ids[label]), label
+    assert not _has_lapsed(dl, case.id_, ids["declined"])
+    assert not _is_signatory(dl, case.id_, ids["declined"])
+    # Nobody but the owner has a row written.
+    assert {
+        label: _consents_of(dl, pid)
+        for label, pid in ids.items()
+        if label != "owner"
+    } == before
+    assert [
+        (c.participant_id, c.embargo_id, c.consent_after)
         for c in result.participant_changes
-    }
-    assert moves == {
-        ids["lacking"]: (PEC.SIGNATORY.value, PEC.LAPSED.value),
-        ids["invited_with_b"]: (PEC.INVITED.value, PEC.SIGNATORY.value),
-    }
+    ] == [(ids["owner"], revision_id, "ACCEPTED")]
 
 
 @pytest.mark.spec("EP-05-001")
@@ -712,7 +737,7 @@ def test_owner_activating_a_longer_revision_lapses_signatories_lacking_it(
 def test_activation_cascade_runs_in_observed_mode_too(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """A replica syncing the owner's EC lapses the same signatories the manager did."""
+    """A replica syncing the owner's EC derives the same lapses the manager did."""
     owner, dl = owner_and_dl
     case, ids, _active_id, revision_id = _revision_case(
         dl, owner, revision_days=90
@@ -726,17 +751,17 @@ def test_activation_cascade_runs_in_observed_mode_too(
     )
 
     assert result.em_after == EM.ACTIVE
-    assert _pec_of(dl, ids["lacking"]) == PEC.LAPSED.value
-    assert _pec_of(dl, ids["accepted"]) == PEC.SIGNATORY.value
+    assert _has_lapsed(dl, case.id_, ids["lacking"])
+    assert _is_signatory(dl, case.id_, ids["accepted"])
 
 
 @pytest.mark.spec("EP-05-001")
 def test_revise_to_active_without_changing_the_active_embargo_cascades_nothing(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """REVISE → ACTIVE that keeps A active re-evaluates nobody.
+    """REVISE → ACTIVE that keeps A active carries nobody over.
 
-    The cascade is keyed on ``active_embargo`` changing, not on the EM
+    The carry-over is keyed on ``active_embargo`` changing, not on the EM
     transition: an owner's accept that names the embargo already in force
     (an idempotent re-accept while a revision is open) leaves every record
     alone.
@@ -754,21 +779,22 @@ def test_revise_to_active_without_changing_the_active_embargo_cascades_nothing(
     assert result.em_after == EM.ACTIVE
     assert result.case_embargo_changed is False
     assert result.participant_changes == []
-    assert _pec_of(dl, ids["lacking"]) == PEC.SIGNATORY.value
-    assert _pec_of(dl, ids["invited_with_b"]) == PEC.INVITED.value
+    assert _is_signatory(dl, case.id_, ids["lacking"])
+    assert _consent_of(dl, ids["lacking"], _revision_id) is None
     assert cast(VulnerabilityCase, dl.read(case.id_)).active_embargo_id == (
         active_id
     )
 
 
 @pytest.mark.spec("MSM-07-003")
-def test_signatory_accepting_a_proposed_revision_records_the_id_only(
+def test_signatory_accepting_a_proposed_revision_marks_only_the_revision_row(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """A non-owner SIGNATORY's accept of proposed B: list gains B, state unchanged.
+    """A non-owner signatory's accept of proposed B: row(B) ACCEPTED, A untouched.
 
     They were and remain a signatory to A, the embargo in force (MSM-07-003,
-    ADR-0093 point 3); the EM machine does not move for a non-owner.
+    ADR-0093 point 3); the EM machine does not move for a non-owner.  The
+    new row is reported as a participant change.
     """
     owner, dl = owner_and_dl
     case, ids, active_id, revision_id = _revision_case(
@@ -785,9 +811,15 @@ def test_signatory_accepting_a_proposed_revision_records_the_id_only(
     )
 
     assert result.em_after == EM.REVISE
-    assert result.participant_changes == []
-    assert _pec_of(dl, ids["lacking"]) == PEC.SIGNATORY.value
-    assert _accepted_ids_of(dl, ids["lacking"]) == [active_id, revision_id]
+    assert [
+        (c.embargo_id, c.consent_before, c.consent_after)
+        for c in result.participant_changes
+    ] == [(revision_id, None, "ACCEPTED")]
+    assert _consents_of(dl, ids["lacking"]) == {
+        active_id: "ACCEPTED",
+        revision_id: "ACCEPTED",
+    }
+    assert _is_signatory(dl, case.id_, ids["lacking"])
     updated = cast(VulnerabilityCase, dl.read(case.id_))
     assert updated.active_embargo_id == active_id
     assert updated.proposed_embargoes == [revision_id]
@@ -797,13 +829,17 @@ def test_signatory_accepting_a_proposed_revision_records_the_id_only(
 def test_non_signatory_accepting_a_proposed_revision_waits_for_activation(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """An INVITED participant accepting proposed B stays INVITED with B listed;
-    it becomes SIGNATORY when the owner activates B."""
+    """An INVITED participant accepting proposed B holds ACCEPTED(B) at once.
+
+    Accept always marks that embargo's row; there is no advance at accept
+    time.  It is not a signatory while A is in force (A has no accepting
+    row), and becomes one by lookup when the owner activates B.
+    """
     owner, dl = owner_and_dl
     case, ids, _active_id, revision_id = _revision_case(
         dl, owner, revision_days=90
     )
-    _seed_consent(dl, ids["invited_with_b"], PEC.INVITED, [])
+    _seed_consent(dl, ids["invited_with_b"], revision_id, ECS.INVITED)
     invitee_actor = next(
         a
         for a, p in case.actor_participant_index.items()
@@ -814,29 +850,29 @@ def test_non_signatory_accepting_a_proposed_revision_waits_for_activation(
     accepted = lifecycle.accept_embargo_invite(
         case_id=case.id_, embargo_id=revision_id, actor_id=invitee_actor
     )
-    assert accepted.participant_changes == []
-    assert _pec_of(dl, ids["invited_with_b"]) == PEC.INVITED.value
-    assert _accepted_ids_of(dl, ids["invited_with_b"]) == [revision_id]
+    assert [
+        (c.consent_before, c.consent_after)
+        for c in accepted.participant_changes
+    ] == [("INVITED", "ACCEPTED")]
+    assert _consents_of(dl, ids["invited_with_b"]) == {revision_id: "ACCEPTED"}
+    assert not _is_signatory(dl, case.id_, ids["invited_with_b"])
 
     lifecycle.accept_embargo_invite(
         case_id=case.id_, embargo_id=revision_id, actor_id=owner.id_
     )
-    assert _pec_of(dl, ids["invited_with_b"]) == PEC.SIGNATORY.value
+    assert _is_signatory(dl, case.id_, ids["invited_with_b"])
 
 
 @pytest.mark.spec("MSM-07-004")
 def test_owner_rejecting_a_revision_changes_no_participant_record(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """EJ returns EM to ACTIVE under A; nobody's state or list moves, the owner's included."""
+    """EJ returns EM to ACTIVE under A; no row moves, the owner's included."""
     owner, dl = owner_and_dl
     case, ids, active_id, revision_id = _revision_case(
         dl, owner, revision_days=90
     )
-    before = {
-        label: (_pec_of(dl, pid), _accepted_ids_of(dl, pid))
-        for label, pid in ids.items()
-    }
+    before = {label: _consents_of(dl, pid) for label, pid in ids.items()}
 
     result = EmbargoLifecycle(persistence=dl).reject_embargo_invite(
         case_id=case.id_, embargo_id=revision_id, actor_id=owner.id_
@@ -845,10 +881,7 @@ def test_owner_rejecting_a_revision_changes_no_participant_record(
     assert result.em_before == EM.REVISE
     assert result.em_after == EM.ACTIVE
     assert result.participant_changes == []
-    after = {
-        label: (_pec_of(dl, pid), _accepted_ids_of(dl, pid))
-        for label, pid in ids.items()
-    }
+    after = {label: _consents_of(dl, pid) for label, pid in ids.items()}
     assert after == before
     updated = cast(VulnerabilityCase, dl.read(case.id_))
     assert updated.active_embargo_id == active_id
@@ -859,7 +892,7 @@ def test_owner_rejecting_a_revision_changes_no_participant_record(
 def test_signatory_rejecting_a_proposed_revision_keeps_its_consent_to_the_active_embargo(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """Refusing B is not withdrawing from A: B leaves the list, state stays SIGNATORY."""
+    """Refusing B is not withdrawing from A: row(B) DECLINED, still a signatory."""
     owner, dl = owner_and_dl
     case, ids, active_id, revision_id = _revision_case(
         dl, owner, revision_days=90
@@ -875,9 +908,15 @@ def test_signatory_rejecting_a_proposed_revision_keeps_its_consent_to_the_active
     )
 
     assert result.em_after == EM.REVISE
-    assert result.participant_changes == []
-    assert _pec_of(dl, ids["accepted"]) == PEC.SIGNATORY.value
-    assert _accepted_ids_of(dl, ids["accepted"]) == [active_id]
+    assert [
+        (c.embargo_id, c.consent_before, c.consent_after)
+        for c in result.participant_changes
+    ] == [(revision_id, "ACCEPTED", "DECLINED")]
+    assert _consents_of(dl, ids["accepted"]) == {
+        active_id: "ACCEPTED",
+        revision_id: "DECLINED",
+    }
+    assert _is_signatory(dl, case.id_, ids["accepted"])
     # A participant's Reject is consent, not a decision: B stays open.
     assert cast(VulnerabilityCase, dl.read(case.id_)).proposed_embargoes == [
         revision_id
@@ -888,7 +927,7 @@ def test_signatory_rejecting_a_proposed_revision_keeps_its_consent_to_the_active
 def test_non_signatory_rejecting_a_proposed_revision_declines(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """INVITED → DECLINED: there is no consent to A for the refusal to leave intact."""
+    """ACCEPTED(B) → DECLINED(B): there is no consent to A for the refusal to leave intact."""
     owner, dl = owner_and_dl
     case, ids, _active_id, revision_id = _revision_case(
         dl, owner, revision_days=90
@@ -904,9 +943,9 @@ def test_non_signatory_rejecting_a_proposed_revision_declines(
     )
 
     assert [
-        (c.pec_before, c.pec_after) for c in result.participant_changes
-    ] == [(PEC.INVITED.value, PEC.DECLINED.value)]
-    assert _accepted_ids_of(dl, ids["invited_with_b"]) == []
+        (c.consent_before, c.consent_after) for c in result.participant_changes
+    ] == [("ACCEPTED", "DECLINED")]
+    assert _consents_of(dl, ids["invited_with_b"]) == {revision_id: "DECLINED"}
 
 
 @pytest.mark.spec("MSM-07-004")
@@ -931,9 +970,11 @@ def test_signatory_rejecting_the_active_embargo_while_revise_withdraws(
 
     assert result.em_after == EM.REVISE
     assert [
-        (c.pec_before, c.pec_after) for c in result.participant_changes
-    ] == [(PEC.SIGNATORY.value, PEC.DECLINED.value)]
-    assert _accepted_ids_of(dl, ids["lacking"]) == []
+        (c.embargo_id, c.consent_before, c.consent_after)
+        for c in result.participant_changes
+    ] == [(active_id, "ACCEPTED", "DECLINED")]
+    assert _consents_of(dl, ids["lacking"]) == {active_id: "DECLINED"}
+    assert not _is_signatory(dl, case.id_, ids["lacking"])
 
 
 def test_reject_naming_an_unknown_embargo_raises(
@@ -945,22 +986,22 @@ def test_reject_naming_an_unknown_embargo_raises(
         dl, owner, revision_days=90
     )
     stranger = _make_embargo(dl, case.id_, days=10)
-    before = _pec_of(dl, ids["owner"])
+    before = _consents_of(dl, ids["owner"])
 
     with pytest.raises(VultronValidationError, match="neither the active"):
         EmbargoLifecycle(persistence=dl).reject_embargo_invite(
             case_id=case.id_, embargo_id=stranger.id_, actor_id=owner.id_
         )
 
-    assert _pec_of(dl, ids["owner"]) == before
+    assert _consents_of(dl, ids["owner"]) == before
     assert cast(
         VulnerabilityCase, dl.read(case.id_)
     ).current_status.em.state == (EM.REVISE)
 
 
 # ---------------------------------------------------------------------------
-# Tests: every activation advances the holders of the new id; a DECLINED
-# participant holds no consent (#4003)
+# Tests: a first activation needs no advance (holders of ACCEPTED(B) are
+# signatories by lookup); a DECLINED participant holds no consent (#4003)
 # ---------------------------------------------------------------------------
 
 
@@ -969,12 +1010,12 @@ def test_reject_naming_an_unknown_embargo_raises(
 def test_owner_accepting_a_first_proposal_makes_its_non_owner_proposer_a_signatory(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """A proposer holds its own terms list-only until the owner puts them in force.
+    """A proposer holds ACCEPTED(B) from proposing; no advance is needed.
 
-    ``PROPOSED → ACTIVE`` replaces nothing, so there is no A-vs-B arm — but a
-    non-signatory that already holds the newly active id has accepted the
-    embargo now in force and advances, or the content gate (CM-10-004) would
-    admit an actor whose ``embargo_adherence`` says otherwise.
+    ``PROPOSED → ACTIVE`` replaces nothing, so there is no A-vs-B arm and no
+    write for the proposer: its ACCEPTED(B) row already makes it a signatory
+    once B is the embargo in force, and the content gate (CM-10-004) reads
+    the same lookup.  Only the owner's own acceptance is a new row.
     """
     owner, dl = owner_and_dl
     proposer = _make_actor(dl, "Proposer")
@@ -986,20 +1027,20 @@ def test_owner_accepting_a_first_proposal_makes_its_non_owner_proposer_a_signato
     lifecycle.propose_embargo(
         case_id=case.id_, embargo_id=embargo.id_, actor_id=proposer.id_
     )
-    assert _pec_of(dl, proposer_p.id_) == PEC.UNBOUND.value
-    assert _accepted_ids_of(dl, proposer_p.id_) == [embargo.id_]
+    assert _consents_of(dl, proposer_p.id_) == {embargo.id_: "ACCEPTED"}
+    assert not _is_signatory(dl, case.id_, proposer_p.id_)
 
     result = lifecycle.accept_embargo_invite(
         case_id=case.id_, embargo_id=embargo.id_, actor_id=owner.id_
     )
 
     assert result.em_after == EM.ACTIVE
-    assert {c.participant_id for c in result.participant_changes} == {
-        owner_p.id_,
-        proposer_p.id_,
-    }
-    assert _pec_of(dl, owner_p.id_) == PEC.SIGNATORY.value
-    assert _pec_of(dl, proposer_p.id_) == PEC.SIGNATORY.value
+    assert [c.participant_id for c in result.participant_changes] == [
+        owner_p.id_
+    ]
+    assert _consents_of(dl, proposer_p.id_) == {embargo.id_: "ACCEPTED"}
+    assert _is_signatory(dl, case.id_, owner_p.id_)
+    assert _is_signatory(dl, case.id_, proposer_p.id_)
 
 
 @pytest.mark.spec("EP-05-001")
@@ -1011,7 +1052,7 @@ def test_owner_accept_with_an_unreadable_previous_embargo_changes_nothing(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
     mode: TransitionMode,
 ) -> None:
-    """The A-vs-B read fails closed *before* EM, active_embargo or any list move."""
+    """The A-vs-B read fails closed *before* EM, active_embargo or any consent row moves."""
     owner, dl = owner_and_dl
     case, (owner_p,) = _make_case(dl, owner.id_, em_state=EM.REVISE)
     revision = _make_embargo(dl, case.id_, days=90)
@@ -1019,7 +1060,7 @@ def test_owner_accept_with_an_unreadable_previous_embargo_changes_nothing(
     case.active_embargo = missing
     case.proposed_embargoes = [revision.id_]
     dl.save(case)
-    _seed_consent(dl, owner_p.id_, PEC.SIGNATORY, [missing])
+    _seed_consent(dl, owner_p.id_, missing, ECS.ACCEPTED)
 
     with pytest.raises(VultronNotFoundError):
         EmbargoLifecycle(persistence=dl).accept_embargo_invite(
@@ -1033,20 +1074,19 @@ def test_owner_accept_with_an_unreadable_previous_embargo_changes_nothing(
     assert untouched.current_status.em.state == EM.REVISE
     assert untouched.active_embargo_id == missing
     assert untouched.proposed_embargoes == [revision.id_]
-    assert _pec_of(dl, owner_p.id_) == PEC.SIGNATORY.value
-    assert _accepted_ids_of(dl, owner_p.id_) == [missing]
+    assert _consents_of(dl, owner_p.id_) == {missing: "ACCEPTED"}
 
 
 @pytest.mark.spec("MSM-07-004")
 def test_withdrawal_from_the_active_embargo_leaves_its_revisions_too(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """A signatory holding [A, B] that rejects active A ends DECLINED with [].
+    """A signatory holding ACCEPTED on A and B that rejects active A declines both.
 
     Every open proposal is a revision of the one active embargo (ADR-0113),
     so leaving A is leaving B — otherwise the owner's later activation of B
-    would find a DECLINED actor holding the active id, and the list-based
-    content gate (CM-10-004) would admit it (#4003).
+    would find a withdrawn actor holding ACCEPTED(B), and the content gate
+    (CM-10-004) would admit it (#4003).
     """
     owner, dl = owner_and_dl
     signer = _make_actor(dl, "Signer")
@@ -1058,7 +1098,8 @@ def test_withdrawal_from_the_active_embargo_leaves_its_revisions_too(
     case.active_embargo = active.id_
     case.proposed_embargoes = [revision.id_]
     dl.save(case)
-    _seed_consent(dl, signer_p.id_, PEC.SIGNATORY, [active.id_, revision.id_])
+    _seed_consent(dl, signer_p.id_, active.id_, ECS.ACCEPTED)
+    _seed_consent(dl, signer_p.id_, revision.id_, ECS.ACCEPTED)
     lifecycle = EmbargoLifecycle(persistence=dl)
 
     withdrawn = lifecycle.reject_embargo_invite(
@@ -1066,15 +1107,21 @@ def test_withdrawal_from_the_active_embargo_leaves_its_revisions_too(
     )
 
     assert withdrawn.em_after == EM.REVISE
-    assert _pec_of(dl, signer_p.id_) == PEC.DECLINED.value
-    assert _accepted_ids_of(dl, signer_p.id_) == []
+    assert _consents_of(dl, signer_p.id_) == {
+        active.id_: "DECLINED",
+        revision.id_: "DECLINED",
+    }
 
-    # The owner activates B: the withdrawn signer is not a holder of B.
+    # The owner activates B: the withdrawn signer holds no accepting row.
     lifecycle.accept_embargo_invite(
         case_id=case.id_, embargo_id=revision.id_, actor_id=owner.id_
     )
-    assert _pec_of(dl, signer_p.id_) == PEC.DECLINED.value
-    assert _accepted_ids_of(dl, signer_p.id_) == []
+    assert _consents_of(dl, signer_p.id_) == {
+        active.id_: "DECLINED",
+        revision.id_: "DECLINED",
+    }
+    assert not _is_signatory(dl, case.id_, signer_p.id_)
+    assert not _has_lapsed(dl, case.id_, signer_p.id_)
 
 
 @pytest.mark.spec("MSM-07-003")
@@ -1082,7 +1129,7 @@ def test_withdrawal_from_the_active_embargo_leaves_its_revisions_too(
 def test_declined_participant_accepting_records_nothing(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """ACCEPT is not legal from DECLINED, so neither state nor list changes (#4003)."""
+    """ACCEPT is not legal from DECLINED, so no row changes (#4003)."""
     owner, dl = owner_and_dl
     decliner = _make_actor(dl, "Decliner")
     case, (_owner_p, decliner_p) = _make_case(
@@ -1091,7 +1138,7 @@ def test_declined_participant_accepting_records_nothing(
     active = _make_embargo(dl, case.id_)
     case.active_embargo = active.id_
     dl.save(case)
-    _force_pec(dl, decliner_p.id_, PEC.DECLINED)
+    _seed_consent(dl, decliner_p.id_, active.id_, ECS.DECLINED)
 
     result = EmbargoLifecycle(persistence=dl).accept_embargo_invite(
         case_id=case.id_, embargo_id=active.id_, actor_id=decliner.id_
@@ -1099,8 +1146,8 @@ def test_declined_participant_accepting_records_nothing(
 
     assert result.participant_changes == []
     assert result.case_changed is False
-    assert _pec_of(dl, decliner_p.id_) == PEC.DECLINED.value
-    assert _accepted_ids_of(dl, decliner_p.id_) == []
+    assert _consents_of(dl, decliner_p.id_) == {active.id_: "DECLINED"}
+    assert not _is_signatory(dl, case.id_, decliner_p.id_)
 
 
 @pytest.mark.spec("EMB-18-003")
@@ -1173,3 +1220,28 @@ def test_owner_accept_of_a_non_embargo_record_writes_nothing(
         active_id=active_id,
         activated_id=stranger.id_,
     )
+
+
+@pytest.mark.spec("MSM-07-004")
+@pytest.mark.spec("MSM-07-006")
+def test_participant_accept_after_the_embargo_exited_records_nothing(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """Once EM is EXITED a late Accept binds nothing (ADR-0118)."""
+    owner, dl = owner_and_dl
+    late = _make_actor(dl, "Late")
+    case, (_owner_p, late_p) = _make_case(
+        dl, owner.id_, extra_participant_ids=[late.id_], em_state=EM.EXITED
+    )
+    embargo = _make_embargo(dl, case.id_)
+
+    result = EmbargoLifecycle(persistence=dl).accept_embargo_invite(
+        case_id=case.id_,
+        embargo_id=embargo.id_,
+        actor_id=late.id_,
+        transition_mode=TransitionMode.OBSERVED,
+    )
+
+    assert result.participant_changes == []
+    assert result.em_after == EM.EXITED
+    assert _consents_of(dl, late_p.id_) == {}

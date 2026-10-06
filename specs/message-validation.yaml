@@ -246,6 +246,10 @@ groups:
       `object_` field; a bare URI reference or `as_Link` is not permitted because
       the recipient has no access to the sender's DataLayer and cannot resolve the
       reference to determine the activity's semantic type.
+    note: >-
+      The rule binds the activity's own `object_`. An `Invite(EmbargoEvent)` nested as the
+      object of an ER may name its terms by URI: the ER answers the Invite by id and type,
+      both inline, and needs no terms (ADR-0123).
     verification: >-
       Enforced at runtime in `vultron/adapters/driving/fastapi/outbox_delivery.py`;
       `VultronValidationError` is raised when `object_` is a bare string URI rather
@@ -385,12 +389,11 @@ groups:
     statement: >-
       When a participant accepts the stub Invite (`Accept(Invite(Actor,
       VulnerabilityCaseStub))`) and the case has an active embargo, the acceptance MUST
-      imply consent to the active embargo, transitioning that participant's consent
-      state to `SIGNATORY` (CM-11-001).
+      imply consent to the active embargo, marking that participant's consent row
+      for it `ACCEPTED` (CM-11-001).
     verification: >-
       Integration tests in `test/demo/test_invite_actor_demo.py` confirm that
-      accepting the stub Invite transitions the accepting participant's PEC state to
-      `SIGNATORY` when an embargo is active.
+      accepting the stub Invite marks the accepting participant's consent row for the active embargo `ACCEPTED` when an embargo is active.
     relationships:
     - rel_type: depends_on
       spec_id: CM-03-008

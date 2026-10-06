@@ -14,19 +14,18 @@
 """Participant Embargo Consent (PEC) side effects of EM transitions.
 
 The EM operations in the sibling modules change one case's embargo state;
-these helpers apply the matching consent change to the participant records
-— one actor's record on accept/reject, every participant's when the owner
-activates a revision or terminates the embargo.  Consent is per embargo
-(CM-10-001): ``accepted_embargo_ids`` records which terms a participant has
-accepted, the scalar PEC state whether it is bound by the *active* embargo
-(CM-18-001).  Every helper persists what it changes and reports each
-*state* change as a :class:`ParticipantPECChange`; a write that only touches
-``accepted_embargo_ids`` is persisted but not reported, because it moves no
-consent state.
+these helpers record the matching consent on the participant records — one
+actor's record on accept/reject, every participant's when the owner activates
+a shorter revision.  Consent is per (participant, embargo) (ADR-0122,
+CM-10-001, CM-18-001): each participant holds one row per embargo it was asked
+about, "signatory" is the row for the active embargo saying ``ACCEPTED``, and a
+lapse or an exit is derived from the rows and the case, never written.  Every
+helper persists what it changes and reports each row it moved as a
+:class:`ParticipantConsentChange`.
 """
 
 import logging
-from collections.abc import Callable, Iterator
+from collections.abc import Iterator
 
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
@@ -35,45 +34,42 @@ from vultron.core.services.embargo_lifecycle.activation_arm import (
     _ActivationArmMixin,
 )
 from vultron.core.services.embargo_lifecycle.results import (
-    ParticipantPECChange,
+    ParticipantConsentChange,
 )
+from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import (
-    PEC,
+    EmbargoConsentState,
     PEC_Trigger,
 )
 from vultron.errors import VultronValidationError
 
 logger = logging.getLogger(__name__)
 
-#: PEC states from which an ``ACCEPT`` advances a participant to ``SIGNATORY``
-#: (CM-18-003); ``DECLINED`` and the terminal ``UNBOUND_EXITED`` are
-#: deliberately absent.  ``EXPIRED`` is present: a late Accept of the embargo
-#: in force is honoured (EMB-17-002, ADR-0118).
-_ACCEPTABLE_STATES = frozenset(
-    {
-        PEC.UNBOUND.value,
-        PEC.INVITED.value,
-        PEC.LAPSED.value,
-        PEC.EXPIRED.value,
-    }
-)
 
-#: PEC states whose acceptance records nothing, ``accepted_embargo_ids``
-#: included: ``ACCEPT`` is not legal from them (CM-18-003).
-_ACCEPT_RECORDS_NOTHING = frozenset(
-    {PEC.DECLINED.value, PEC.UNBOUND_EXITED.value}
-)
-
-
-def _pec_change(
-    participant_id: str, pec_before: str, participant: CaseParticipant
-) -> ParticipantPECChange:
-    """Describe the PEC move *participant* just made from *pec_before*."""
-    return ParticipantPECChange(
+def _consent_change(
+    participant_id: str,
+    embargo_id: str,
+    before: EmbargoConsentState | None,
+    participant: CaseParticipant,
+) -> ParticipantConsentChange:
+    """Describe the row move *participant* just made from *before*."""
+    after = participant.consent_for(embargo_id)
+    assert after is not None
+    return ParticipantConsentChange(
         participant_id=participant_id,
-        pec_before=pec_before,
-        pec_after=participant.embargo_consent_state,
+        embargo_id=embargo_id,
+        consent_before=before.value if before is not None else None,
+        consent_after=after.value,
     )
+
+
+def _embargo_exited(case: VulnerabilityCase) -> bool:
+    """True once the case's embargo was terminated (EM ``EXITED``, terminal).
+
+    Nothing can be consented to after that, so an Accept or Reject that
+    arrives late records nothing (ADR-0118, MSM-07-006).
+    """
+    return case.current_status.em.state == EM.EXITED
 
 
 class _PecEffectsMixin(_ActivationArmMixin):
@@ -118,124 +114,121 @@ class _PecEffectsMixin(_ActivationArmMixin):
 
     # -- one actor's record -------------------------------------------------
 
-    def _record_actor_pec_acceptance(
+    def _record_actor_acceptance(
         self,
         case: VulnerabilityCase,
         actor_id: str,
         embargo_id: str,
-        *,
-        advance: bool = True,
-    ) -> list[ParticipantPECChange]:
+    ) -> list[ParticipantConsentChange]:
         """Record *actor_id*'s acceptance of *embargo_id*.
 
-        Adds the id to ``accepted_embargo_ids`` and, with *advance* set,
-        applies ``ACCEPT`` unless the participant is already ``SIGNATORY`` or
-        ``DECLINED``.  With *advance* false only the list changes: the
-        participant accepted terms that are not (yet) the embargo in force —
-        a proposed revision, or its own proposal (MSM-07-003, EP-05-002) —
-        and its scalar state stays whatever the *active* embargo makes it.
+        Marks the row for *embargo_id* ``ACCEPTED`` (CM-18-003): always this
+        embargo's row, whether it is the embargo in force, a proposed
+        revision, or the actor's own proposal (MSM-07-003).  Whether that
+        makes the actor a signatory is a lookup of the active embargo, never
+        a second write (ADR-0122).
 
-        Idempotent (CM-13-005): a ``SIGNATORY`` re-accepting changes nothing
-        and reports nothing.  A ``DECLINED`` participant records nothing at
-        all, list included: ``ACCEPT`` is not legal from ``DECLINED``
-        (CM-18-003), and an id on the list of an actor whose state disowns it
-        would let the list-based content gate (CM-10-004) admit an actor that
-        has declined.  It is re-invited first (``DECLINED → INVITED``).  A
-        participant at the terminal ``UNBOUND_EXITED`` records nothing for the
-        same reason, and can never be re-invited (ADR-0118).
+        Idempotent (CM-13-005): an ``ACCEPTED`` row changes nothing and
+        reports nothing.  A ``DECLINED`` row records nothing: ``ACCEPT`` is
+        not legal from it (CM-18-003), and accepting here would let the
+        content gate (CM-10-004) admit an actor that has declined; it is
+        re-invited first (``DECLINED → INVITED``).  Once the embargo has
+        terminated nothing is recorded either, and nobody can be invited back
+        into it (ADR-0118).
         """
         resolved = self._participant_for_actor(case, actor_id, "acceptance")
         if resolved is None:
             return []
         participant_id, participant = resolved
 
-        pec_before = participant.embargo_consent_state
-        if pec_before in _ACCEPT_RECORDS_NOTHING:
+        if _embargo_exited(case):
             logger.info(
-                "Actor '%s' is %s on case '%s'; its acceptance of"
-                " embargo '%s' binds nothing (CM-18-003)",
-                actor_id,
-                pec_before,
+                "Embargo on case '%s' has terminated; actor '%s' acceptance"
+                " of embargo '%s' binds nothing (ADR-0118)",
                 _as_id(case),
+                actor_id,
                 embargo_id,
             )
             return []
-        changed = False
-
-        if advance and pec_before in _ACCEPTABLE_STATES:
-            participant.apply_pec_transition(PEC_Trigger.ACCEPT)
-            changed = True
-
-        if participant.add_accepted_embargo(embargo_id):
-            changed = True
-
-        if not changed:
+        before = participant.consent_for(embargo_id)
+        if before == EmbargoConsentState.ACCEPTED:
             return []
+        if not participant.accepts_pec_trigger(embargo_id, PEC_Trigger.ACCEPT):
+            logger.info(
+                "Actor '%s' is %s on embargo '%s' of case '%s'; its"
+                " acceptance binds nothing (CM-18-003)",
+                actor_id,
+                before,
+                embargo_id,
+                _as_id(case),
+            )
+            return []
+        participant.apply_pec_transition(embargo_id, PEC_Trigger.ACCEPT)
         self._persistence.save(participant)
-        if participant.embargo_consent_state == pec_before:
-            return []
-        return [_pec_change(participant_id, pec_before, participant)]
+        return [
+            _consent_change(participant_id, embargo_id, before, participant)
+        ]
 
-    def _record_actor_pec_rejection(
+    def _record_actor_rejection(
         self,
         case: VulnerabilityCase,
         actor_id: str,
         embargo_id: str,
         *,
         withdrawal: bool,
-    ) -> list[ParticipantPECChange]:
+    ) -> list[ParticipantConsentChange]:
         """Record *actor_id*'s rejection of *embargo_id* (MSM-07-004).
 
-        Drops the id from ``accepted_embargo_ids`` and applies ``DECLINE``
-        to a participant not already ``DECLINED`` — an ``EXPIRED`` one
-        included, since a late explicit Reject is an answer (ADR-0118) — and
-        not at the terminal ``UNBOUND_EXITED``.  With *withdrawal* set the
-        Reject names the case's *active* embargo, so ``DECLINE`` applies from
-        every state including ``SIGNATORY`` (consent withdrawal, ADR-0093).
-        Without it the Reject names a *proposed* embargo: a ``SIGNATORY``
-        keeps its state, because refusing proposed terms is not withdrawing
-        from the embargo in force.
+        Marks the row for *embargo_id* ``DECLINED`` — an ``EXPIRED`` one
+        included, since a late explicit Reject is an answer (ADR-0118).  The
+        same write serves both kinds of Reject: refusing a *proposed* embargo
+        leaves the actor's row for the embargo in force untouched, so a
+        signatory stays a signatory to it (refusing proposed terms is not
+        withdrawing from the embargo in force), while a Reject of the *active*
+        embargo is a withdrawal from it (ADR-0093) and the active row is the
+        one that becomes ``DECLINED``.
 
-        Withdrawal also drops every *open proposal's* id from the list: a case
-        has one active embargo, so every open proposal is a revision of it
-        (ADR-0113), and an actor that has left the embargo has left its
-        revisions — otherwise a ``DECLINED`` actor could still hold the id of
-        a revision that later activates, and the list-based content gate
-        (CM-10-004) would admit it while its state says declined.
+        With *withdrawal* set, every open proposal the actor had accepted is
+        declined too: a case has one active embargo, so every open proposal is
+        a revision of it (ADR-0113), and an actor that has left the embargo
+        has left its revisions — otherwise a ``DECLINED`` actor could still
+        hold an ``ACCEPTED`` row for a revision that later activates and be
+        admitted by the content gate (CM-10-004) while having withdrawn.  Only
+        rows it had *accepted* are declined: a revision it was merely invited
+        to stays answerable.
 
-        Idempotent (CM-13-005): an already-``DECLINED`` participant changes
-        nothing and reports nothing.
+        Idempotent (CM-13-005): an already-``DECLINED`` row changes nothing
+        and reports nothing.  Nothing is recorded once the embargo has
+        terminated (ADR-0118).
         """
         resolved = self._participant_for_actor(case, actor_id, "rejection")
-        if resolved is None:
+        if resolved is None or _embargo_exited(case):
             return []
         participant_id, participant = resolved
 
-        pec_before = participant.embargo_consent_state
-        changed = False
-
-        # DECLINED is idempotent and the terminal UNBOUND_EXITED refuses every
-        # trigger (ADR-0118); neither moves, and the list is still cleaned.
-        keeps_state = pec_before in _ACCEPT_RECORDS_NOTHING or (
-            not withdrawal and pec_before == PEC.SIGNATORY.value
-        )
-        if not keeps_state:
-            participant.apply_pec_transition(PEC_Trigger.DECLINE)
-            changed = True
-
-        if participant.remove_accepted_embargo(embargo_id):
-            changed = True
+        targets = [embargo_id]
         if withdrawal:
-            for proposed_id in case.proposed_embargo_ids:
-                if participant.remove_accepted_embargo(proposed_id):
-                    changed = True
-
-        if not changed:
-            return []
-        self._persistence.save(participant)
-        if participant.embargo_consent_state == pec_before:
-            return []
-        return [_pec_change(participant_id, pec_before, participant)]
+            targets.extend(
+                open_id
+                for open_id in case.proposed_embargo_ids
+                if open_id != embargo_id
+                and participant.consent_for(open_id)
+                == EmbargoConsentState.ACCEPTED
+            )
+        changes: list[ParticipantConsentChange] = []
+        for target in targets:
+            before = participant.consent_for(target)
+            if participant.apply_pec_transition_if_legal(
+                target, PEC_Trigger.DECLINE
+            ):
+                changes.append(
+                    _consent_change(
+                        participant_id, target, before, participant
+                    )
+                )
+        if changes:
+            self._persistence.save(participant)
+        return changes
 
     @staticmethod
     def _assert_rejectable(case: VulnerabilityCase, embargo_id: str) -> bool:
@@ -267,7 +260,7 @@ class _PecEffectsMixin(_ActivationArmMixin):
         embargo_id: str,
         *,
         is_active: bool,
-    ) -> list[ParticipantPECChange]:
+    ) -> list[ParticipantConsentChange]:
         """The whole MSM-07-004 consent effect of *actor_id* rejecting *embargo_id*.
 
         *is_active* is :meth:`_assert_rejectable`'s classification, taken by
@@ -276,12 +269,11 @@ class _PecEffectsMixin(_ActivationArmMixin):
         proposed terms.  The owner's EJ — the owner refusing a proposed
         revision while an embargo is in force — changes nobody's record, the
         owner's included: the owner is keeping the prior terms, not declining
-        them.  When *no* embargo is in force a Reject of a proposal is a
-        decline from any state: there is nothing in force for a ``SIGNATORY``
-        to stay signatory to (CM-18-001), so it is treated as withdrawal.
-        Every other Reject is recorded by :meth:`_record_actor_pec_rejection`.
-        Shared by ``reject_embargo_invite`` and ``record_embargo_rejection``
-        so the two sides cannot drift.
+        them.  Every other Reject is recorded by
+        :meth:`_record_actor_rejection`; with *no* embargo in force a Reject of
+        one proposal declines that proposal's row only, since it is not a
+        withdrawal from anything (CM-18-001).  Shared by ``reject_embargo_invite``
+        and ``record_embargo_rejection`` so the two sides cannot drift.
         """
         nothing_in_force = case.active_embargo_id is None
         is_owner = _as_id(case.attributed_to) == actor_id
@@ -294,89 +286,9 @@ class _PecEffectsMixin(_ActivationArmMixin):
                 _as_id(case),
             )
             return []
-        return self._record_actor_pec_rejection(
+        return self._record_actor_rejection(
             case,
             actor_id,
             embargo_id,
-            withdrawal=is_active or nothing_in_force,
-        )
-
-    # -- every participant's record ----------------------------------------
-
-    def _cascade_pec(
-        self,
-        case: VulnerabilityCase,
-        *,
-        trigger: PEC_Trigger,
-        select: Callable[[CaseParticipant], bool],
-    ) -> list[ParticipantPECChange]:
-        """Apply *trigger* to every participant of *case* that *select* picks.
-
-        Each moved participant is persisted and reported.
-
-        Every *select* keys on the participant's own record, so an inert
-        participant's consent moves only as its own replies or an embargo
-        termination cause (CM-10-007, #4046 AC-5): the one promotion
-        (:meth:`_advance_holders_of`) needs the activated id on the
-        participant's own ``accepted_embargo_ids``, which only its own
-        acceptance puts there; the lapse demotes a ``SIGNATORY`` that never
-        accepted the longer terms; and the exit is the termination.  Whether
-        the participant has joined, or has recorded RM ``CLOSED``, does not
-        enter into it — a closed signatory that never accepted longer terms
-        lapses like any other, so it is not left ``SIGNATORY`` to terms it
-        never agreed to.
-        """
-        changes: list[ParticipantPECChange] = []
-        for participant_id, participant in self._each_participant(case):
-            if not select(participant):
-                continue
-            state = participant.embargo_consent_state
-            participant.apply_pec_transition(trigger)
-            self._persistence.save(participant)
-            changes.append(_pec_change(participant_id, state, participant))
-        return changes
-
-    def _cascade_pec_exit(
-        self, case: VulnerabilityCase
-    ) -> list[ParticipantPECChange]:
-        """Move every participant's PEC state to the terminal UNBOUND_EXITED.
-
-        Called when an embargo is terminated (EM ``EXITED``, MSM-07-006).
-        ``EXIT`` applies from every state, the initial ``UNBOUND`` included,
-        and nothing leaves ``UNBOUND_EXITED`` (ADR-0118); a participant
-        already there is skipped, so a replayed teardown changes nothing.
-        Returns a list of :class:`ParticipantPECChange` for every participant
-        that was updated.  Inert participants exit too: with no embargo there
-        is nothing left for any record to consent to (CM-18-001).
-        """
-        return self._cascade_pec(
-            case,
-            trigger=PEC_Trigger.EXIT,
-            select=lambda p: (
-                p.embargo_consent_state != PEC.UNBOUND_EXITED.value
-            ),
-        )
-
-    def _cascade_pec_revise(
-        self, case: VulnerabilityCase, *, revised_embargo_id: str
-    ) -> list[ParticipantPECChange]:
-        """Lapse every SIGNATORY that has not accepted *revised_embargo_id*.
-
-        Called when the case owner *activates* a revision ending later than
-        the embargo it replaces (EP-05-001, MSM-07-005) — never when one is
-        merely proposed (EP-05-002).  A signatory whose
-        ``accepted_embargo_ids`` already holds the revised id stays
-        ``SIGNATORY``; the rest move to ``LAPSED`` via the ``REVISE``
-        trigger, so their consent to the longer terms is explicit.
-
-        Returns a list of :class:`ParticipantPECChange` records for each
-        participant whose PEC state was updated.
-        """
-        return self._cascade_pec(
-            case,
-            trigger=PEC_Trigger.REVISE,
-            select=lambda p: (
-                p.embargo_consent_state == PEC.SIGNATORY.value
-                and revised_embargo_id not in p.accepted_embargo_ids
-            ),
+            withdrawal=is_active,
         )

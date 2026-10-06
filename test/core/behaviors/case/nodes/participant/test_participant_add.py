@@ -39,7 +39,9 @@ from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.embargo_event import EmbargoEvent
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Add
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
@@ -184,5 +186,8 @@ class TestCreateCaseParticipantNode:
         stored_case = cast(Any, bt_scenario.dl.read(case_obj.id_))
         participant_id = stored_case.actor_participant_index[finder_actor_id]
         participant = cast(Any, bt_scenario.dl.read(participant_id))
-        assert participant.embargo_consent_state == PEC.SIGNATORY
-        assert embargo.id_ in participant.accepted_embargo_ids
+        assert (
+            participant.consent_for(embargo.id_)
+            == EmbargoConsentState.ACCEPTED
+        )
+        assert participant.is_signatory(embargo.id_)

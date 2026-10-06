@@ -19,6 +19,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any, cast
 
+from vultron.adapters.outbox_sealed_body import derived_activity_id, is_sealed
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.errors import VultronAlreadyExistsError
 from vultron.wire.as2.factories import (
@@ -33,6 +34,11 @@ from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from ._base import _seal, _to_wire
 
 logger = logging.getLogger(__name__)
+
+
+def _reject_id(actor: str, proposal_id: str) -> str:
+    """The id of *actor*'s ``Reject`` of the Invite *proposal_id*."""
+    return derived_activity_id("embargo-reject", actor, proposal_id)
 
 
 class _EmbargoMixin:
@@ -114,10 +120,19 @@ class _EmbargoMixin:
         actor: str,
         to: list[str] | None = None,
     ) -> tuple[str, str]:
-        """Create and persist a ``Reject(Invite)`` embargo-reject activity."""
+        """Create and persist a ``Reject(Invite)`` embargo-reject activity.
+
+        The id is derived from the rejecting actor and the Invite, so an
+        actor's rejection of one Invite is one activity (ID-04-004) and
+        :meth:`requeue_embargo_refusal` can tell it was sent.
+        """
         proposal = cast(Any, self._dl.read(proposal_id))
         activity = em_reject_embargo_activity(
-            proposal=proposal, context=case_id, actor=actor, to=to
+            proposal=proposal,
+            context=case_id,
+            actor=actor,
+            to=to,
+            id_=_reject_id(actor, proposal_id),
         )
         try:
             self._dl.create(activity)
@@ -127,6 +142,23 @@ class _EmbargoMixin:
                 activity.id_,
             )
         return _seal(self._dl, activity)
+
+    def requeue_embargo_refusal(self, actor: str, proposal_id: str) -> bool:
+        """Whether *actor* already rejected the Invite *proposal_id*.
+
+        The sealed body is written before the caller queues the ``Reject``, so
+        a sealed ``Reject`` that is no longer pending may have been delivered
+        or may never have been queued; the queue cannot say which.  It is
+        queued again under the same id and body, which the receiver
+        deduplicates, so a failure between the two writes never loses the ER
+        (ID-04-005).  A ``Reject`` still pending is left alone.
+        """
+        reject_id = _reject_id(actor, proposal_id)
+        if not is_sealed(self._dl, reject_id):
+            return False
+        if reject_id not in self._dl.outbox_list():
+            self._dl.outbox_append(reject_id)
+        return True
 
     def announce_embargo(
         self,

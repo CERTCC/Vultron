@@ -44,10 +44,8 @@ import logging
 from collections.abc import Callable, Sequence
 
 from vultron.core.models.dimensions import (
-    PecDimension,
     RmDimension,
 )
-from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
@@ -259,7 +257,6 @@ def demo_manage_participants_accept(
             context=coordinator_participant.id_,
             rm=RmDimension(state=RM.ACCEPTED),
             attributed_to=coordinator.id_,
-            consent=PecDimension(state=PEC.UNBOUND),
             cvd_role=[CVDRole.COORDINATOR],
         )
         create_status = create_status_for_participant_activity(

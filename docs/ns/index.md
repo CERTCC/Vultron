@@ -27,7 +27,7 @@ The shape of an activity is described in [Vultron and ActivityPub](../howto/acti
 | `CaseStatus` | Case-level status snapshot: the Embargo Management (EM) state and the public (pxa) dimensions of the Case State (CS) |
 | `EmbargoEvent` | Embargo proposal, acceptance, revision, or termination record |
 | `EmbargoPolicy` | Actor-level declaration of embargo preferences |
-| `ParticipantStatus` | Per-participant snapshot: Report Management (RM) state, the vendor fix (vf) and deployment (d) dimensions of the CS, roles, and [embargo consent](../topics/behavior_logic/use-cases/embargo-lifecycle.md#which-messages-move-consent) |
+| `ParticipantStatus` | Per-participant snapshot: Report Management (RM) state, the vendor fix (vf) and deployment (d) dimensions of the CS, and roles |
 | `ProcessingFault` | Negative acknowledgment returned when a received activity could not be processed |
 | `VulnerabilityCase` | Coordination container for a vulnerability disclosure case |
 | `VulnerabilityCaseStub` | Minimal stand-in for a case, sent as the target of a case Invite so the invitee can give informed consent before it holds the case |
