@@ -573,13 +573,13 @@ def _phase_coordinator_invites_vendor2(
     # can build the stub Invite (CM-17-010, MV-10-001, #4165).
     # EmitInviteActorToCaseNode runs in the CASE_MANAGER's received tree and
     # reads from the CASE_MANAGER's store, not the inviting actor's.
-    # After the handoff, Coordinator is the CASE_OWNER and CASE_MANAGER; its
-    # case-actor lives on coordinator_client (VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL
-    # points to the coordinator container itself, ADR-0041).
-    _case_actor = get_actor_by_id(
-        coordinator_client, case_actor_id_on(coordinator_client.base_url)
-    )
-    ActorSession(client=coordinator_client, actor=_case_actor).with_case(
+    # The CASE_MANAGER actor was created on vendor_client when the report was
+    # first received (EnsureCaseActorHostedNode runs only in
+    # receive_report_case_tree). Ownership transfer moves the CASE_OWNER but
+    # not the CASE_MANAGER actor — the case participant record still names
+    # http://vendor:7999/api/v2/actors/case-actor (== case_actor_id above).
+    _case_actor = get_actor_by_id(vendor_client, case_actor_id)
+    ActorSession(client=vendor_client, actor=_case_actor).with_case(
         case
     ).quiet().set_stub_summary("Vulnerability report from Finder")
 
