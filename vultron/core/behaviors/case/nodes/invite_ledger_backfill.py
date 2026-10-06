@@ -29,13 +29,12 @@ from py_trees.common import Status
 from py_trees.ports import NoDataAvailable
 
 from vultron.core.behaviors.helpers import (
-    DataLayerAction,
     DataLayerActionWithPorts,
     PortInformation,
+    _EmitSingleActivityBase,
 )
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.replication_state import VultronReplicationState
-from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.errors import VultronWiringError
 
@@ -302,7 +301,7 @@ class BackfillCanonicalLedgerToInviteeNode(DataLayerActionWithPorts):
         return state
 
 
-class EmitAnnounceCaseToInviteeNode(DataLayerAction):
+class EmitAnnounceCaseToInviteeNode(_EmitSingleActivityBase):
     """Queue Announce(VulnerabilityCase) to the invitee from the CaseActor.
 
     Per MV-10-003/MV-10-005, the CaseActor sends the full case object after
@@ -343,9 +342,10 @@ class EmitAnnounceCaseToInviteeNode(DataLayerAction):
                 context_id=self.case_id,
                 to=[self.invitee_id],
             )
-            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
-                activity_id
-            )
+            # Route through the shared emit seam (OX-14-001, ASK-04-008).
+            # factory.announce_vulnerability_case returns str only;
+            # pass an empty blob since no captured dict is present.
+            self._emit_through_seam(activity_id, "")
             self.logger.info(
                 "%s: queued AnnounceVulnerabilityCase '%s' to '%s'"
                 " for case '%s' (MV-10-003)",
