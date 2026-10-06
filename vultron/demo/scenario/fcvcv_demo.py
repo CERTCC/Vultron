@@ -90,6 +90,7 @@ from vultron.demo.scenario.registry import scenario
 from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
     DataLayerClient,
     assert_demo_success,
+    case_actor_id_on,
     check_server_availability,
     demo_check,
     demo_gate,
@@ -322,9 +323,14 @@ def _phase_report_submission(
                 case_id=case.id_,
             )
 
-        # Seed stub_summary on C1's DataLayer copy so the invite BT can build
-        # the stub Invite (CM-17-010, MV-10-001, #4165).
-        ActorSession(client=c1_client, actor=c1_in_c1).with_case(
+        # Seed stub_summary on the CASE_MANAGER's DataLayer copy so the invite
+        # BT can build the stub Invite (CM-17-010, MV-10-001, #4165).
+        # EmitInviteActorToCaseNode runs in the CASE_MANAGER's received tree
+        # and reads from the CASE_MANAGER's store, not the inviting actor's.
+        _case_actor = get_actor_by_id(
+            c1_client, case_actor_id_on(c1_client.base_url)
+        )
+        ActorSession(client=c1_client, actor=_case_actor).with_case(
             case
         ).quiet().set_stub_summary("Vulnerability report")
 

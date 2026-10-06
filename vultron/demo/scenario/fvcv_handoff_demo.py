@@ -320,6 +320,7 @@ def _phase_ownership_handoff(
     finder_client: DataLayerClient,
     vendor_client: DataLayerClient,
     coordinator_client: DataLayerClient,
+    case_actor_client: DataLayerClient,
     finder: as_Actor,
     vendor: as_Actor,
     vendor_in_vendor: as_Actor,
@@ -337,9 +338,14 @@ def _phase_ownership_handoff(
     )
     logger.info("─" * 80)
 
-    # Seed stub_summary on Vendor1's DataLayer copy so the invite BT can build
-    # the stub Invite (CM-17-010, MV-10-001, #4165).
-    ActorSession(client=vendor_client, actor=vendor_in_vendor).with_case(
+    # Seed stub_summary on the CASE_MANAGER's DataLayer copy so the invite BT
+    # can build the stub Invite (CM-17-010, MV-10-001, #4165).
+    # EmitInviteActorToCaseNode runs in the CASE_MANAGER's received tree and
+    # reads from the CASE_MANAGER's store, not the inviting actor's.
+    _case_actor = get_actor_by_id(
+        case_actor_client, case_actor_id_on(case_actor_client.base_url)
+    )
+    ActorSession(client=case_actor_client, actor=_case_actor).with_case(
         case
     ).quiet().set_stub_summary("Vulnerability report from Finder")
 
@@ -556,6 +562,7 @@ def _phase_coordinator_invites_vendor2(
     finder_client: DataLayerClient,
     vendor_client: DataLayerClient,
     coordinator_client: DataLayerClient,
+    case_actor_client: DataLayerClient,
     vendor2_client: DataLayerClient,
     finder: as_Actor,
     vendor: as_Actor,
@@ -590,13 +597,16 @@ def _phase_coordinator_invites_vendor2(
     # needs, so a failed trigger or lookup skips its dependents instead of
     # handing them ``None`` (ADR-0058 nested-block model, EDF-06-005, #3038).
 
-    # Seed stub_summary on Coordinator's DataLayer copy so the invite BT can
-    # build the stub Invite (CM-17-010, MV-10-001, #4165).
-    ActorSession(
-        client=coordinator_client, actor=coordinator_in_coordinator
-    ).with_case(case).quiet().set_stub_summary(
-        "Vulnerability report from Finder"
+    # Seed stub_summary on the CASE_MANAGER's DataLayer copy so the invite BT
+    # can build the stub Invite (CM-17-010, MV-10-001, #4165).
+    # EmitInviteActorToCaseNode runs in the CASE_MANAGER's received tree and
+    # reads from the CASE_MANAGER's store, not the inviting actor's.
+    _case_actor = get_actor_by_id(
+        case_actor_client, case_actor_id_on(case_actor_client.base_url)
     )
+    ActorSession(client=case_actor_client, actor=_case_actor).with_case(
+        case
+    ).quiet().set_stub_summary("Vulnerability report from Finder")
 
     with demo_step("Coordinator invites Vendor2 to the case"):
         invite_offer = (
@@ -1239,6 +1249,7 @@ def run_fvcv_handoff_demo(
             finder_client=finder_client,
             vendor_client=vendor_client,
             coordinator_client=coordinator_client,
+            case_actor_client=case_actor_client,
             finder=finder,
             vendor=vendor,
             vendor_in_vendor=vendor_in_vendor,
@@ -1251,6 +1262,7 @@ def run_fvcv_handoff_demo(
             finder_client=finder_client,
             vendor_client=vendor_client,
             coordinator_client=coordinator_client,
+            case_actor_client=case_actor_client,
             vendor2_client=vendor2_client,
             finder=finder,
             vendor=vendor,
