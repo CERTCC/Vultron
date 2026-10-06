@@ -10,12 +10,9 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-import importlib
-
 import pytest
-from _pytest.monkeypatch import MonkeyPatch
 
-from test.demo._helpers import make_testclient_call
+from test.demo._helpers import route_exchange_demo_at_testclient
 from vultron.adapters.driving.fastapi.outbox_handler import (
     configure_default_emitter,
     get_default_emitter,
@@ -40,25 +37,20 @@ class _NoOpEmitter:
 
 @pytest.fixture(scope="module")
 def demo_env(client):
-    """Sets up the demo environment, patching BASE_URL and DataLayerClient.call."""
-    mp = MonkeyPatch()
-    base = str(client.base_url).rstrip("/") + "/api/v2"
-    # Replace the module-level default emitter (the path outbox_handler uses when
-    # request.app.state.emitter is None, which is the case for routes served
-    # through the mounted api_app root) with a no-op so BT-emitted outbound
-    # activities are dropped rather than re-POSTed via the same TestClient portal.
+    """Routes the demo at the TestClient and drops BT-emitted deliveries.
+
+    The module-level default emitter is the path outbox_handler uses when
+    request.app.state.emitter is None (the case for routes served through the
+    mounted api_app root); replace it with a no-op so BT-emitted outbound
+    activities are dropped rather than re-POSTed via the same TestClient portal.
+    """
     previous_emitter = get_default_emitter()
     configure_default_emitter(_NoOpEmitter())  # type: ignore[arg-type]
     try:
-        mp.setattr(demo, "BASE_URL", base)
-        mp.setattr(
-            demo.DataLayerClient, "call", make_testclient_call(client, base)
-        )
-        yield
+        with route_exchange_demo_at_testclient(client, demo):
+            yield
     finally:
         configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
-        mp.undo()
-        importlib.reload(demo)
 
 
 @pytest.mark.parametrize(

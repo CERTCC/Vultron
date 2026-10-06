@@ -10,29 +10,18 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon\u00ae, CERT\u00ae and CERT Coordination Center\u00ae are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-import importlib
 
 import pytest
-from _pytest.monkeypatch import MonkeyPatch
 
-from test.demo._helpers import make_testclient_call
+from test.demo._helpers import route_exchange_demo_at_testclient
 from vultron.demo.exchange import receive_report_demo as demo
 
 
 @pytest.fixture(scope="module")
 def demo_env(client):
-    """Sets up the demo environment, patching BASE_URL and DataLayerClient.call."""
-    mp = MonkeyPatch()
-    base = str(client.base_url).rstrip("/") + "/api/v2"
-    try:
-        mp.setattr(demo, "BASE_URL", base)
-        mp.setattr(
-            demo.DataLayerClient, "call", make_testclient_call(client, base)
-        )
+    """Routes the demo's clients at the in-process TestClient."""
+    with route_exchange_demo_at_testclient(client, demo):
         yield
-    finally:
-        mp.undo()
-        importlib.reload(demo)
 
 
 @pytest.mark.parametrize(
