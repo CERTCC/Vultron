@@ -37,6 +37,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -58,6 +59,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Invite,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 JOINER = "https://example.org/users/joiner"
 
@@ -196,3 +198,82 @@ def test_joiner_that_accepts_the_relayed_revision_holds_its_consent(
         _consent_of(dl, case_id, JOINER, active_before)
         is EmbargoConsentState.ACCEPTED
     )
+
+
+def _run_relay_again(dl: SqliteDataLayer, case_id: str):
+    from test.core.behaviors.bt_harness import BTTestScenario
+    from vultron.core.behaviors.case.nodes.invite_revision_relay import (
+        RelayOpenProposalsToJoinerNode,
+    )
+
+    scenario = BTTestScenario(actor_id=MANAGER, dl=dl)
+    return scenario.run(
+        RelayOpenProposalsToJoinerNode(case_id=case_id, invitee_id=JOINER)
+    )
+
+
+@pytest.mark.spec("EP-09-011")
+def test_a_rerun_of_the_relay_does_not_invite_the_joiner_twice(make_payload):
+    """The joiner's row for the proposal is the latch: a re-run sends nothing."""
+    case_id = "https://example.org/cases/joiner-rerun"
+    dl, _ = _open_revision(case_id, make_payload)
+    _join(dl, case_id, make_payload)
+    assert len(_relayed_to(dl, JOINER)) == 1
+
+    result = _run_relay_again(dl, case_id)
+
+    assert result.status.name == "SUCCESS"
+    assert len(_relayed_to(dl, JOINER)) == 1
+
+
+@pytest.mark.spec("EP-09-011")
+def test_every_open_proposal_is_relayed_to_the_joiner(make_payload):
+    """Two counter-proposals are open, so the joiner gets two Invites."""
+    case_id = "https://example.org/cases/joiner-two-proposals"
+    dl, _ = _open_revision(case_id, make_payload)
+    second = as_EmbargoEvent(
+        id_=f"{case_id}/embargo_events/second",
+        content="Even longer terms",
+        context=case_id,
+        end_time=days_from_now_utc(120),
+    )
+    dl.create(second)
+    counter = em_propose_embargo_activity(
+        second,
+        context=case_id,
+        actor=PROPOSER,
+        to=[MANAGER],
+        id_=f"{case_id}/embargo_proposals/second",
+    )
+    _deliver(dl, counter, make_payload, receiving_actor_id=MANAGER)
+
+    _join(dl, case_id, make_payload)
+
+    invites = _relayed_to(dl, JOINER)
+    assert len(invites) == 2
+    assert all(a.attributed_to == PROPOSER for a in invites)
+    for embargo_id in (second.id_, f"{case_id}/embargo_events/revision"):
+        assert (
+            _consent_of(dl, case_id, JOINER, embargo_id)
+            is EmbargoConsentState.INVITED
+        )
+
+
+@pytest.mark.spec("EP-09-011")
+def test_an_open_proposal_with_no_committed_entry_is_an_internal_error(
+    make_payload,
+):
+    """The manager cannot name the proposer, so it raises instead of skipping."""
+    case_id = "https://example.org/cases/joiner-unknown-proposer"
+    dl, _ = _active_case_with_revision(
+        case_id, store_actor=MANAGER, participants=[PROPOSER]
+    )
+    _join(dl, case_id, make_payload)
+    case = cast(VulnerabilityCase, dl.read(case_id))
+    case.proposed_embargoes = [f"{case_id}/embargo_events/ghost"]
+    dl.save(case)
+
+    result = _run_relay_again(dl, case_id)
+
+    assert result.status.name == "FAILURE"
+    assert result.internal_error

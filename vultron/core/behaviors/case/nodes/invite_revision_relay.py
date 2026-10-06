@@ -45,17 +45,23 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.wire_keys import wire_key
 from vultron.core.participants.recipients import invitation_recipients
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.core.sync_helpers import recorded_entries_for_case
 
 
 class RelayOpenProposalsToJoinerNode(RelayEmbargoInviteToEachNode):
     """Invite a new joiner to each embargo proposal open when it joins.
 
-    Skips a proposal the joiner already holds a consent row for, so a resumed
-    accept (backfill incomplete) does not invite it twice.  Everything that
+    Skips a proposal the joiner already holds a consent row for.  Each relay
+    applies PEC ``INVITE`` to the joiner's row, which is legal for a row that
+    does not exist yet, so a re-run of the effects (a resumed accept) does
+    not invite the joiner twice.  Everything that
     goes wrong here is the manager's own store failing, never a refusal of
     the joiner's Accept, so it raises (Regime 1, ADR-0087).
     """
@@ -110,9 +116,12 @@ class RelayOpenProposalsToJoinerNode(RelayEmbargoInviteToEachNode):
                 f"{self.name}: joiner '{self._invitee_id}' is not an"
                 f" invitation recipient on case '{self._case_id}'"
             )
+        entries = recorded_entries_for_case(
+            case_id=case.id_, dl=self.datalayer
+        )
         for embargo_id in pending:
             self._embargo_id = embargo_id
-            self._proposer_id = self._proposer_of(case, embargo_id)
+            self._proposer_id = self._proposer_of(case, embargo_id, entries)
             self._relay_to(self._invitee_id)
         self.feedback_message = (
             f"Relayed {len(pending)} open embargo proposal(s) on case"
@@ -121,7 +130,9 @@ class RelayOpenProposalsToJoinerNode(RelayEmbargoInviteToEachNode):
         self.logger.info("%s: %s", self.name, self.feedback_message)
         return Status.SUCCESS
 
-    def _consent_row_for(self, case: VulnerabilityCase, embargo_id: str):
+    def _consent_row_for(
+        self, case: VulnerabilityCase, embargo_id: str
+    ) -> EmbargoConsentState | None:
         """The joiner's consent to *embargo_id*, ``None`` when never asked."""
         assert self.datalayer is not None
         participant_id = case.actor_participant_index.get(self._invitee_id)
@@ -135,16 +146,23 @@ class RelayOpenProposalsToJoinerNode(RelayEmbargoInviteToEachNode):
             )
         return cast(CaseParticipant, record).consent_for(embargo_id)
 
-    def _proposer_of(self, case: VulnerabilityCase, embargo_id: str) -> str:
-        """Who proposed *embargo_id*, read from its committed proposal entry."""
-        assert self.datalayer is not None
+    def _proposer_of(
+        self,
+        case: VulnerabilityCase,
+        embargo_id: str,
+        entries: list[CaseLedgerEntry],
+    ) -> str:
+        """Who proposed *embargo_id*, read from its committed proposal entry.
+
+        A relayed or creation-time Invite names the proposer in
+        ``attributedTo``; a proposal the proposer sent itself names it as
+        ``actor``.
+        """
         proposal_id = case.pending_embargo_proposal_index.get(embargo_id)
         entry = next(
             (
                 e
-                for e in recorded_entries_for_case(
-                    case_id=case.id_, dl=self.datalayer
-                )
+                for e in entries
                 if proposal_id is not None and e.log_object_id == proposal_id
             ),
             None,
