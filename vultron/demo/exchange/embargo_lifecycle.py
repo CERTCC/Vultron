@@ -52,6 +52,7 @@ from vultron.demo.helpers.polling import (
     find_embargo_invite_for_actor,
     resolve_case_actor_store_id,
     wait_for_case_em_state,
+    wait_for_participant_embargo_accepted,
     wait_for_participant_embargo_consent,
 )
 from vultron.demo.utils import demo_check, demo_gate, demo_step, ref_id
@@ -98,7 +99,7 @@ def _answer_relayed_invite(
     answerer: ActorSession,
     embargo_id: str,
     label: str,
-) -> None:
+) -> bool:
     """Gate on *answerer*'s relayed Invite, then accept it.
 
     The delivered Invite is the cause of the answer, so the answer nests inside
@@ -107,7 +108,11 @@ def _answer_relayed_invite(
     case owner, activates the embargo — once the CASE_MANAGER commits it.
     The answer names no ``proposal_id``: the earliest-expiring open proposal
     is answered (EP-08-002), and only one is open while a demo helper runs.
+
+    Returns:
+        Whether the answer was posted — ``False`` when the Invite never arrived.
     """
+    answered = False
     with demo_gate(f"{label} received the relayed Invite of {embargo_id}"):
         find_embargo_invite_for_actor(
             client=answerer.client,
@@ -117,6 +122,8 @@ def _answer_relayed_invite(
         )
         with demo_step(f"{label} accepts the embargo"):
             answerer.accept_embargo()
+        answered = True
+    return answered
 
 
 def _answer_in_owner_order(
@@ -134,16 +141,19 @@ def _answer_in_owner_order(
     counts as its consent (ADR-0093); it only needs to decide, so it answers
     without waiting for an Invite.  *committed* gates the owner on each
     non-owner's answer having been committed, so the owner does not decide
-    before the others have consented.
+    before the others have consented; it waits only for those that answered.
     """
-    for label, session in answerers:
-        _answer_relayed_invite(session, embargo_id, label)
+    answered = [
+        session
+        for label, session in answerers
+        if _answer_relayed_invite(session, embargo_id, label)
+    ]
     owner_label, owner_session = owner
     # The trigger's 202 is no evidence the answer was committed (EDF-06-001),
     # so the owner decides only once each answer is seen where it commits.
     with demo_gate("Non-owner answers are committed before the owner decides"):
         if committed is not None:
-            for _, session in answerers:
+            for session in answered:
                 committed(session)
         if owner_session.actor.id_ == proposer.actor.id_:
             with demo_step(f"{owner_label} accepts its own proposal as owner"):
@@ -313,8 +323,11 @@ def demo_propose_embargo_revision(
 
     *owner* may be the same session as *proposing*; it is then never sent an
     Invite and answers its own proposal.  *accepting* must be neither.
-    The owner is gated on no commit of the acceptor's answer here, because a
-    signatory's answer to a revision changes no observable state (EP-09-004).
+    The owner answers only once the acceptor's answer is in
+    ``accepted_embargo_ids`` at the CASE_MANAGER: a signatory's answer to a
+    revision leaves its consent state unchanged (EP-09-004), but an owner that
+    activates a longer revision first lapses every signatory without that id
+    (EP-05-001).
 
     Args:
         proposing: The proposer, bound to its own container.
@@ -359,6 +372,18 @@ def demo_propose_embargo_revision(
                 answerers=[("Acceptor", acceptor)],
                 owner=("Owner", deciding),
                 embargo_id=embargo_id,
+                committed=lambda answerer: (
+                    wait_for_participant_embargo_accepted(
+                        deciding.client,
+                        case.id_,
+                        answerer.actor.id_,
+                        embargo_id,
+                        COMMIT_TIMEOUT_SECONDS,
+                        dl_actor_id=resolve_case_actor_store_id(
+                            deciding.client, case.id_
+                        ),
+                    )
+                ),
             )
             _verify_embargo_active(
                 _distinct(

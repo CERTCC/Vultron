@@ -42,6 +42,7 @@ from vultron.demo.helpers.polling import (
     wait_for_case_em_state,
     wait_for_case_participants,
     wait_for_ledger_event,
+    wait_for_participant_embargo_accepted,
     wait_for_participant_embargo_consent,
     wait_for_pending_inbox_quiescent,
 )
@@ -897,3 +898,46 @@ class TestWaitForParticipantEmbargoConsent:
                     timeout_seconds=0.05,
                     poll_interval=0.01,
                 )
+
+    def test_timeout_names_the_read_error_when_no_poll_completed(self):
+        with patch(
+            "vultron.demo.helpers.polling._fetch_participant",
+            side_effect=ConnectionError("refused"),
+        ):
+            with pytest.raises(
+                AssertionError, match="ConnectionError: refused"
+            ):
+                wait_for_participant_embargo_consent(
+                    MagicMock(base_url="http://vendor:7999", actor_id=ACTOR_B),
+                    CASE_ID,
+                    ACTOR_A,
+                    PEC.SIGNATORY,
+                    timeout_seconds=0.05,
+                    poll_interval=0.01,
+                )
+
+
+class TestWaitForParticipantEmbargoAccepted:
+    @staticmethod
+    def _wait(accepted: list[str], embargo_id: str = "urn:revised"):
+        participant = MagicMock()
+        participant.accepted_embargo_ids = accepted
+        with patch(
+            "vultron.demo.helpers.polling._fetch_participant",
+            return_value=participant,
+        ):
+            wait_for_participant_embargo_accepted(
+                MagicMock(base_url="http://vendor:7999", actor_id=ACTOR_B),
+                CASE_ID,
+                ACTOR_A,
+                embargo_id,
+                timeout_seconds=0.05,
+                poll_interval=0.01,
+            )
+
+    def test_returns_when_the_embargo_is_accepted(self):
+        self._wait(["urn:first", "urn:revised"])
+
+    def test_times_out_naming_the_accepted_embargoes(self):
+        with pytest.raises(AssertionError, match=r"current=\['urn:first'\]"):
+            self._wait(["urn:first"])

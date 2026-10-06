@@ -105,6 +105,13 @@ def polls():
             "consent": stack.enter_context(
                 patch.object(lifecycle, "wait_for_participant_embargo_consent")
             ),
+            "accepted": stack.enter_context(
+                patch.object(
+                    lifecycle,
+                    "wait_for_participant_embargo_accepted",
+                    side_effect=lambda *a, **kw: log.append("accepted"),
+                )
+            ),
             "store": stack.enter_context(
                 patch.object(
                     lifecycle,
@@ -227,6 +234,20 @@ class TestProposeAndActivate:
         vendor.accept_embargo.assert_not_called()
         assert any("received the relayed Invite" in f for f in _demo_failures)
 
+    @pytest.mark.spec("EP-09-006")
+    def test_no_commit_wait_for_a_vendor_that_never_answered(
+        self, case, polls
+    ):
+        mocks, log = polls
+        mocks["invite"].side_effect = AssertionError("timed out")
+        self._run(case, log)
+        # The commit wait reads the manager's store; the final checks do not.
+        assert not [
+            c
+            for c in mocks["consent"].call_args_list
+            if "dl_actor_id" in c.kwargs
+        ]
+
     @pytest.mark.spec("DEMOMA-20-002")
     def test_a_failed_proposal_skips_everything_after_it(self, case, polls):
         mocks, log = polls
@@ -267,15 +288,47 @@ class TestProposeRevision:
         """The replicas read ACTIVE both before and after; REVISE goes first."""
         _, log = polls
         self._run(case, log)
-        assert log[:6] == [
+        assert log[:7] == [
             "proposer:propose-revision",
             "em:REVISE",
             "invite:acceptor",
             "acceptor:accept",
+            "accepted",
             "invite:owner",
             "owner:accept",
         ]
-        assert log[6:] == ["em:ACTIVE"] * 4
+        assert log[7:] == ["em:ACTIVE"] * 4
+
+    @pytest.mark.spec("EP-05-001")
+    def test_owner_waits_for_the_acceptors_answer_to_commit(self, case, polls):
+        """An owner that activates first would lapse the acceptor (EP-05-001)."""
+        mocks, log = polls
+        _, accepting, _ = self._run(case, log)
+        call = mocks["accepted"].call_args
+        assert call.args[2] == accepting.actor.id_
+        assert call.args[3] == EMBARGO_ID
+        assert call.kwargs["dl_actor_id"] == MANAGER
+
+    @pytest.mark.spec("EP-05-001")
+    def test_owner_does_not_decide_when_the_acceptors_answer_never_commits(
+        self, case, polls
+    ):
+        mocks, log = polls
+        mocks["accepted"].side_effect = AssertionError("timed out")
+        _, _, owner = self._run(case, log)
+        owner.accept_embargo.assert_not_called()
+        assert _demo_failures
+
+    @pytest.mark.spec("EP-09-006")
+    def test_no_commit_wait_for_an_acceptor_that_never_answered(
+        self, case, polls
+    ):
+        """The Invite never arrived: nothing was answered, so nothing to await."""
+        mocks, log = polls
+        mocks["invite"].side_effect = AssertionError("timed out")
+        _, accepting, _ = self._run(case, log)
+        accepting.accept_embargo.assert_not_called()
+        mocks["accepted"].assert_not_called()
 
     @pytest.mark.spec("DEMOMA-21-010")
     def test_manager_and_each_distinct_replica_checked_for_the_revision(

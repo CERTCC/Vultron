@@ -42,6 +42,7 @@ from vultron.demo.utils import (
     logfmt,
 )
 from vultron.enums.object_types import VultronObjectType
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -1591,6 +1592,77 @@ def wait_for_participant_embargo_consent(
     Raises:
         AssertionError: If *expected* is not observed within *timeout_seconds*.
     """
+    _wait_for_participant_embargo_field(
+        client,
+        case_id,
+        actor_id,
+        lambda participant: participant.embargo_consent_state,
+        lambda value: value == expected,
+        f"embargo consent to reach {expected.name}",
+        timeout_seconds,
+        poll_interval,
+        dl_actor_id,
+    )
+
+
+def wait_for_participant_embargo_accepted(
+    client: DataLayerClient,
+    case_id: str,
+    actor_id: str,
+    embargo_id: str,
+    timeout_seconds: float = 30.0,
+    poll_interval: float = 0.25,
+    dl_actor_id: str | None = None,
+) -> None:
+    """Poll until *actor_id*'s participant record lists *embargo_id* as accepted.
+
+    A signatory's answer to a revision changes no consent state (EP-09-004), so
+    the only trace of it is the revised embargo joining ``accepted_embargo_ids``.
+    Read it where the CASE_MANAGER commits it: an owner that activates a longer
+    revision first lapses every signatory that has not answered (EP-05-001).
+
+    Args:
+        client: DataLayerClient for the target container.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        actor_id: Full URI of the actor whose answer to check.
+        embargo_id: The embargo the actor answered.
+        timeout_seconds: Maximum time to wait.
+        poll_interval: Seconds between DataLayer poll attempts.
+        dl_actor_id: Full URI of the actor whose *store* to read, when that is
+            not the client's own actor — see :func:`_fetch_participant`.
+
+    Raises:
+        AssertionError: If the answer is not observed within *timeout_seconds*.
+    """
+    _wait_for_participant_embargo_field(
+        client,
+        case_id,
+        actor_id,
+        lambda participant: list(participant.accepted_embargo_ids),
+        lambda value: isinstance(value, list) and embargo_id in value,
+        f"accepted embargoes to include {embargo_id!r}",
+        timeout_seconds,
+        poll_interval,
+        dl_actor_id,
+    )
+
+
+def _wait_for_participant_embargo_field(
+    client: DataLayerClient,
+    case_id: str,
+    actor_id: str,
+    read: Callable[[as_CaseParticipant], object],
+    satisfied: Callable[[object], bool],
+    description: str,
+    timeout_seconds: float,
+    poll_interval: float,
+    dl_actor_id: str | None,
+) -> None:
+    """Poll one embargo field of a participant record until *satisfied*.
+
+    The timeout names the last value read, and the last read error when no poll
+    completed, so a slow commit and a broken read look different.
+    """
     current: list[object] = ["no participant record"]
 
     def _check() -> bool:
@@ -1599,8 +1671,8 @@ def wait_for_participant_embargo_consent(
         )
         if participant is None:
             return False
-        current[0] = participant.embargo_consent_state
-        return participant.embargo_consent_state == expected
+        current[0] = read(participant)
+        return satisfied(current[0])
 
     store = dl_actor_id or client.actor_id
     try:
@@ -1613,10 +1685,15 @@ def wait_for_participant_embargo_consent(
         )
     except AssertionError as exc:
         # Built after the wait: ``current`` is what the last poll read.
+        cause = (
+            f"; {exc.__cause__.__class__.__name__}: {exc.__cause__}"
+            if exc.__cause__ is not None
+            else ""
+        )
         raise AssertionError(
-            f"Timed out waiting for actor '{actor_id}' embargo consent to"
-            f" reach {expected.name}; current={current[0]!r} (polled"
-            f" {client.base_url}, store of {store!r})"
+            f"Timed out waiting for actor '{actor_id}' {description};"
+            f" current={current[0]!r} (polled {client.base_url}, store of"
+            f" {store!r}){cause}"
         ) from exc
 
 
