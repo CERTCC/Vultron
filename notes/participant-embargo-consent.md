@@ -477,8 +477,9 @@ The stamp is `stamp_invite_rsvp_deadline()`
 `ActorConfig` (`default_rsvp_window`, floor `min_rsvp_window`). Every embargo
 Invite the CASE_MANAGER sends goes through it: each relayed revision
 (`RelayEmbargoInviteToEachNode`) and the EMB-17-003 re-invite of a stale late
-accepter, which carries a fresh deadline (ASK-03-004) — though that re-invite is
-not yet committed, so only the manager records its deadline (#4137). The relay
+accepter, which carries a fresh deadline (ASK-03-004) and is committed under its
+own `event_type` (`ReinviteStaleAccepterNode`, EMB-17-011), so the replica
+records the same deadline (#4137). The relay
 passes the stamp to `propose_embargo()` as `rsvp_deadline`, `published` and
 `min_rsvp_window`, so the factory checks the same floor the stamp used. It then
 records the deadline read back from the sealed body — the value the committed
@@ -552,7 +553,7 @@ embargoes when CS is P/X/A; EMB-17-004 closes the remaining gap where EM has
 
 ### Synthesised Ledger Entries for Expiry and Late-Accept Routing
 
-Three CASE_MANAGER-authored entries record the outcomes of the lazy expiry
+Four CASE_MANAGER-authored entries record the outcomes of the lazy expiry
 evaluation (all in `vultron/core/models/rsvp_deadline.py`, all CASE_MANAGER-gated,
 RSH-08-004, ADR-0118):
 
@@ -561,10 +562,11 @@ RSH-08-004, ADR-0118):
 | `INVITE_EXPIRED_EVENT_TYPE` | `InviteExpired` | `INVITED` past deadline → `EXPIRED` | `ApplyInviteExpiryFromLedgerNode` |
 | `HONOUR_LATE_ACCEPT_EVENT_TYPE` | `HonourLateAccept` | EMB-17-001: active/matching embargo still current | `ApplyHonourLateAcceptFromLedgerNode` |
 | `INVITE_EXPIRED_NOOP_EVENT_TYPE` | `InviteExpiredNoop` | EMB-17-004: EM `EXITED`/`NONE` — no consent change | no effect node needed (state is already terminal) |
+| `EMBARGO_REINVITE_EVENT_TYPE` | `Invite` (no `attributedTo`) | EMB-17-003: accepted embargo is stale — fresh Invite to the current one | `ApplyEmbargoReinviteFromLedgerNode` |
 
 Each entry uses the guard→commit→effect order (CLP-10-006).
 `create_invite_expiry_tree`, `create_honour_late_accept_tree`, and
-`create_noop_ledger_entry_tree` (all in
+`create_noop_ledger_entry_tree` and `create_reinvite_stale_accepter_tree` (all in
 `vultron/core/behaviors/embargo/expiry_tree.py`) are CASE_MANAGER-gated
 factories; a non-manager processing a late `Accept` gets `REFUSED` from the
 gate and applies no consent change.

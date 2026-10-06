@@ -244,9 +244,12 @@ Each branch commits a synthesised entry so replicas learn the outcome
   `consent.py`.
   Replicas learn the outcome through `ApplyHonourLateAcceptFromLedgerNode`
   in `create_announce_log_entry_tree`.
-- **EMB-17-003** (stale embargo — re-invite): no synthesised expiry entry;
-  `EmbargoLifecycle.record_embargo_invite()` records the fresh Invite on the
-  manager; the relay path handles replica propagation.
+- **EMB-17-003** (stale embargo — re-invite): `create_reinvite_stale_accepter_tree`
+  stamps a fresh deadline, commits the Invite as an
+  `invite_to_embargo_on_case_reinvite` entry (EMB-17-011) before it is queued,
+  and `EmbargoLifecycle.record_embargo_invite()` records it on the manager.
+  Replicas learn it through `ApplyEmbargoReinviteFromLedgerNode`, which records
+  the same PEC `INVITE` and deadline and moves no EM state.
 - **EMB-17-004** (EM `EXITED`/`NONE` — no-op): `create_noop_ledger_entry_tree`
   commits an `invite_to_embargo_on_case_expired_noop` entry; no PEC transition is
   applied (the terminal `UNBOUND_EXITED` stays as it is, or `EXPIRED` remains

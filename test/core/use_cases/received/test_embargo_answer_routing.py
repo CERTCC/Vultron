@@ -25,16 +25,23 @@ from datetime import UTC, datetime, timedelta
 from typing import cast
 
 import pytest
+from py_trees.common import Status
 
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.embargo.expiry_tree import (
+    create_reinvite_stale_accepter_tree,
+)
 from vultron.core.behaviors.embargo.nodes.relay import invite_rsvp_deadline
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.rsvp_deadline import (
+    EMBARGO_REINVITE_EVENT_TYPE,
+    INVITE_EXPIRED_EVENT_TYPE,
     INVITE_EXPIRED_NOOP_EVENT_TYPE,
 )
 from vultron.core.models.use_case_result import (
@@ -64,6 +71,25 @@ def _reject(net: _Network, actor: str, index: int = 0) -> HandlerResult:
         proposal_id=invite.id_, case_id=net.case_id, actor=actor, to=[MANAGER]
     )
     return cast(HandlerResult, net.receive(MANAGER, json.loads(sealed)))
+
+
+def _entries(
+    net: _Network, actor: str, event_type: str
+) -> list[CaseLedgerEntry]:
+    return [
+        obj
+        for obj in net.stores[actor].list_objects("CaseLedgerEntry")
+        if isinstance(obj, CaseLedgerEntry)
+        and str(obj.event_type) == event_type
+    ]
+
+
+def _event_types(net: _Network, actor: str) -> list[str]:
+    return [
+        str(obj.event_type)
+        for obj in net.stores[actor].list_objects("CaseLedgerEntry")
+        if isinstance(obj, CaseLedgerEntry)
+    ]
 
 
 def _deliver_all(net: _Network, to: str) -> None:
@@ -246,10 +272,133 @@ def test_the_managers_expiry_is_committed_and_replayed_by_a_replica():
     net.receive(MANAGER, body)
     _deliver_all(net, OWNER)
 
+    # The accepted embargo is a pending revision, not the current one, so the
+    # manager also re-invites (EMB-17-003) and the replica ends re-invited; the
+    # expiry it replayed on the way is the entry in its ledger.
+    assert _event_types(net, OWNER).count(INVITE_EXPIRED_EVENT_TYPE) == 1
     replayed = cast(CaseParticipant, net.stores[OWNER].read(bystander_pid))
-    assert replayed.embargo_consent_state == PEC.EXPIRED
+    assert replayed.embargo_consent_state == PEC.INVITED
     assert replayed.invite_rsvp_deadline is not None
     assert replayed.invite_rsvp_deadline > datetime.now(tz=UTC)
+
+
+@pytest.mark.spec("EMB-17-003")
+@pytest.mark.spec("CM-28-012")
+@pytest.mark.spec("CM-28-013")
+@pytest.mark.spec("EP-09-007")
+@pytest.mark.spec("RSH-08-004")
+@pytest.mark.spec("CLP-10-006")
+@pytest.mark.spec("TB-06-007")
+def test_the_managers_reinvite_is_committed_and_replayed_by_a_replica():
+    """A late Accept of a stale embargo is re-invited; a replica learns it.
+
+    The manager commits the fresh Invite as its own ledger entry before it
+    queues it, so the ledger holds the entry before the outbox does
+    (CLP-10-006).  The replica, replaying it, moves the invitee to ``INVITED``
+    with the Invite's new deadline and leaves EM alone (CM-28-013, EP-09-007).
+    """
+    net = _Network("https://example.org/cases/answer-reinvite")
+    _propose(net, "reinvite", 90)
+    bystander_pid = net.case(MANAGER).actor_participant_index[BYSTANDER]
+    _replay_to_bystander(net)
+    net.deliver(MANAGER, to=BYSTANDER, type_="Invite")
+    (accept,) = net.queued(BYSTANDER, to=MANAGER, type_="Accept")
+    body = read_sealed_body_dict(net.stores[BYSTANDER], accept.id_)
+    assert body is not None
+    for actor_id in (MANAGER, OWNER):
+        dl = net.stores[actor_id]
+        participant = cast(CaseParticipant, dl.read(bystander_pid))
+        update: dict[str, object] = {"embargo_consent_state": PEC.INVITED}
+        if actor_id == MANAGER:
+            update["invite_rsvp_deadline"] = datetime.now(tz=UTC) - timedelta(
+                hours=1
+            )
+        dl.save(participant.model_copy(update=update))
+
+    # The replica has replayed the proposal before the re-invite exists, so
+    # what it holds then is what the re-invite entry must leave alone.
+    _deliver_all(net, OWNER)
+    before = net.case(OWNER)
+    em_before = before.current_status.em.state
+    proposals_before = list(before.proposed_embargo_ids)
+    active_before = before.active_embargo_id
+    assert em_before == EM.REVISE
+
+    net.receive(MANAGER, body)
+    _deliver_all(net, OWNER)
+
+    manager_record = cast(
+        CaseParticipant, net.stores[MANAGER].read(bystander_pid)
+    )
+    assert manager_record.embargo_consent_state == PEC.INVITED
+    assert manager_record.invite_rsvp_deadline is not None
+    assert manager_record.invite_rsvp_deadline > datetime.now(tz=UTC)
+    assert _event_types(net, MANAGER).count(EMBARGO_REINVITE_EVENT_TYPE) == 1
+    (entry,) = _entries(net, MANAGER, EMBARGO_REINVITE_EVENT_TYPE)
+    snapshot = entry.payload_snapshot
+    assert snapshot["actor"] == MANAGER
+    assert snapshot.get("attributedTo") is None
+    assert snapshot["to"] == [BYSTANDER]
+    # The entry is the body the outbox delivers, with the deadline as endTime.
+    assert (
+        invite_rsvp_deadline(snapshot) == manager_record.invite_rsvp_deadline
+    )
+
+    # The replica's own store (TB-06-007): same consent and deadline, no EM move.
+    assert _event_types(net, OWNER).count(EMBARGO_REINVITE_EVENT_TYPE) == 1
+    replayed = cast(CaseParticipant, net.stores[OWNER].read(bystander_pid))
+    assert replayed.embargo_consent_state == PEC.INVITED
+    assert replayed.invite_rsvp_deadline == manager_record.invite_rsvp_deadline
+    # The entry replays as a re-invite, never as a second proposal of the
+    # embargo it names: EM, the open proposals and the active embargo stay put.
+    after = net.case(OWNER)
+    assert after.current_status.em.state == em_before
+    assert list(after.proposed_embargo_ids) == proposals_before
+    assert after.active_embargo_id == active_before
+
+
+@pytest.mark.spec("EMB-17-003")
+@pytest.mark.spec("CLP-10-020")
+def test_a_reinvite_is_not_committed_by_a_store_that_is_not_the_manager():
+    """The gate is the tree's: a non-manager tree writes and sends nothing."""
+    net = _Network("https://example.org/cases/answer-reinvite-gated")
+    _propose(net, "gated", 90)
+    revision = net.case(MANAGER).active_embargo_id
+    assert revision is not None
+    dl = net.stores[OWNER]
+    tree = create_reinvite_stale_accepter_tree(
+        case_id=net.case_id, embargo_id=revision, invitee_id=BYSTANDER
+    )
+
+    result = BTBridge(
+        datalayer=dl,
+        trigger_activity=TriggerActivityAdapter(dl),
+    ).execute_with_setup(tree=tree, actor_id=OWNER)
+
+    assert result.status == Status.SUCCESS
+    assert _event_types(net, OWNER).count(EMBARGO_REINVITE_EVENT_TYPE) == 0
+
+
+@pytest.mark.spec("EMB-17-003")
+@pytest.mark.spec("BT-17-001")
+def test_a_late_accept_of_a_stale_embargo_reinvites_nobody_from_a_replica():
+    """The use case, run on a store that is not the manager, commits nothing."""
+    net = _Network("https://example.org/cases/answer-reinvite-replica")
+    _propose(net, "replica", 90)
+    _replay_to_bystander(net)
+    net.deliver(MANAGER, to=BYSTANDER, type_="Invite")
+    (accept,) = net.queued(BYSTANDER, to=MANAGER, type_="Accept")
+    body = read_sealed_body_dict(net.stores[BYSTANDER], accept.id_)
+    assert body is not None
+    _deliver_all(net, OWNER)
+    queued_before = len(net.queued(OWNER, to=BYSTANDER, type_="Invite"))
+
+    net.receive(OWNER, body)
+
+    assert _event_types(net, OWNER).count(EMBARGO_REINVITE_EVENT_TYPE) == 0
+    assert (
+        len(net.queued(OWNER, to=BYSTANDER, type_="Invite")) == queued_before
+    )
 
 
 @pytest.mark.spec("EMB-17-001")

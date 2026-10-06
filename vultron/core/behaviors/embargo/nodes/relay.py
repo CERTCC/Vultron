@@ -346,6 +346,13 @@ class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
         """The id the Invite to *recipient_id* takes; ``None`` mints a fresh one."""
         return None
 
+    #: Ledger ``event_type`` the emission is committed under.
+    _EVENT_TYPE = EMBARGO_INVITE_EVENT_TYPE
+
+    def _attributed_to(self) -> str | None:
+        """Whose terms the Invite carries; ``None`` when it is the manager's own ask."""
+        return self._proposer_id
+
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
@@ -384,7 +391,7 @@ class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
             case_id=self._case_id,
             actor=self.actor_id,
             to=[recipient_id],
-            attributed_to=self._proposer_id,
+            attributed_to=self._attributed_to(),
             activity_id=self._activity_id_for(recipient_id),
             rsvp_deadline=stamp.rsvp_deadline,
             published=stamp.published,
@@ -401,7 +408,7 @@ class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
             self.actor_id,
             self._embargo_id,
             recipient_id,
-            self._proposer_id,
+            self._attributed_to() or self.actor_id,
         )
 
     def _record_queued(self, activity_id: str) -> None:
@@ -420,7 +427,7 @@ class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
             case_id=self._case_id,
             activity_id=activity_id,
             activity_blob=blob,
-            event_type=EMBARGO_INVITE_EVENT_TYPE,
+            event_type=self._EVENT_TYPE,
             sync_port=self._sync_port,
         )
 

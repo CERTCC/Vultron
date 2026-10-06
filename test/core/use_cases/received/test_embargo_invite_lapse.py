@@ -13,9 +13,10 @@
 """Tests for CaseActor lazy invite expiry (#2212, ADR-0118) and late-Accept
 compatibility (#2213)."""
 
+import json
 import logging
 from datetime import UTC, datetime, timedelta
-from typing import Literal, cast
+from typing import Any, Literal, cast
 
 import pytest
 
@@ -1823,7 +1824,26 @@ class TestLateAcceptHandling:
         # Mock trigger_activity to capture re-invite call
         trigger_mock = MagicMock()
         new_invite_id = f"{case_id}/proposals/reinvite"
-        trigger_mock.propose_embargo.return_value = (new_invite_id, {})
+
+        def _sealed_invite(**kwargs: Any) -> tuple[str, str]:
+            """What the factory returns: the id and the sealed Invite body."""
+            return new_invite_id, json.dumps(
+                {
+                    "id": new_invite_id,
+                    "type": "Invite",
+                    "actor": kwargs["actor"],
+                    "to": kwargs["to"],
+                    "context": kwargs["case_id"],
+                    "published": kwargs["published"].isoformat(),
+                    "endTime": kwargs["rsvp_deadline"].isoformat(),
+                    "object": {
+                        "type": "EmbargoEvent",
+                        "id": kwargs["embargo_id"],
+                    },
+                }
+            )
+
+        trigger_mock.propose_embargo.side_effect = _sealed_invite
 
         event = _make_accept_event(
             stale_proposal, case, _INVITEE, make_payload
