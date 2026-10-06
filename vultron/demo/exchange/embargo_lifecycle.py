@@ -44,7 +44,9 @@ from collections.abc import Callable
 from datetime import datetime, timedelta
 
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.polling import (
     LEDGER_COVERAGE_TIMEOUT,
@@ -163,19 +165,21 @@ def _answer_in_owner_order(
 
 
 def _await_consent_committed(
-    observer: ActorSession, answerer: ActorSession, case_id: str
+    observer: ActorSession,
+    answerer: ActorSession,
+    case_id: str,
+    embargo_id: str,
 ) -> None:
-    """Gate on *answerer*'s consent being ``SIGNATORY`` in the CASE_MANAGER's store.
+    """Gate on *answerer*'s consent to *embargo_id* being ``ACCEPTED``.
 
-    Only meaningful for a first proposal, where the answer moves the answerer
-    from invited to signatory.  A signatory's answer to a revision changes no
-    consent state (EP-09-004), so there is nothing to observe there.
+    Reads the CASE_MANAGER's store, where the answer is committed.
     """
     wait_for_participant_embargo_consent(
         observer.client,
         case_id,
         answerer.actor.id_,
-        PEC.SIGNATORY,
+        embargo_id,
+        EmbargoConsentState.ACCEPTED,
         COMMIT_TIMEOUT_SECONDS,
         dl_actor_id=resolve_case_actor_store_id(observer.client, case_id),
     )
@@ -248,8 +252,8 @@ def demo_propose_and_activate_embargo(
     ``Invite(EmbargoEvent)`` the CASE_MANAGER relays to them and post
     ``accept-embargo`` — the vendor's records its consent, the coordinator's,
     as case owner, activates the embargo.  The helper then checks every replica
-    for ``EM.ACTIVE`` and the coordinator's replica for ``PEC.SIGNATORY`` on all
-    three participants (DEMOMA-20-002, DEMOMA-20-009).
+    for ``EM.ACTIVE`` and the coordinator's replica for an ``ACCEPTED``
+    consent row for the embargo on all three participants (DEMOMA-20-002, DEMOMA-20-009).
 
     Args:
         reporter: The proposer, bound to the reporter's container.
@@ -279,7 +283,7 @@ def demo_propose_and_activate_embargo(
             owner=("Coordinator", sessions["Coordinator"]),
             embargo_id=embargo_id,
             committed=lambda answerer: _await_consent_committed(
-                sessions["Coordinator"], answerer, case.id_
+                sessions["Coordinator"], answerer, case.id_, embargo_id
             ),
         )
         _verify_embargo_active(
@@ -296,7 +300,8 @@ def demo_propose_and_activate_embargo(
                     sessions["Coordinator"].client,
                     case.id_,
                     session.actor.id_,
-                    PEC.SIGNATORY,
+                    embargo_id,
+                    EmbargoConsentState.ACCEPTED,
                     COMMIT_TIMEOUT_SECONDS,
                 )
 
