@@ -235,19 +235,23 @@ class TestInviteActorUseCases:
         Intake is the use case's only store of a received activity
         (CLP-10-019): the Invite is archived as a ``ReceivedActivityRecord``
         and the use case writes nothing under the sender's id (CLP-10-017).
+
+        The invitee_id matches the dl owner so the AC-1 trust-anchor check
+        (PCR-03-004) passes and the Invite is APPLIED, not refused.
         """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.models.received_activity_record import (
             ReceivedActivityRecord,
         )
 
+        invitee_id = "https://test.example/api/v2/actors/test-actor"
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=invitee_id,
         )
 
         invite = rm_invite_to_case_activity(
-            as_Actor(id_="https://example.org/users/coordinator"),
+            as_Actor(id_=invitee_id),
             target="https://example.org/cases/case1",
             actor="https://example.org/users/owner",
             id_="https://example.org/cases/case1/invitations/1",
@@ -276,13 +280,15 @@ class TestInviteActorUseCases:
 
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
         invitee_id = "https://example.org/users/coordinator"
         sender_id = "https://example.org/users/owner"
         case_id = "https://example.org/cases/case1"
+        # dl owner matches invitee_id so the trust-anchor AC-1 check passes
+        # (PCR-03-004) and LogInviteReceivedNode is reached.
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=invitee_id,
+        )
 
         invite = rm_invite_to_case_activity(
             as_Actor(id_=invitee_id),
@@ -319,12 +325,14 @@ class TestInviteActorUseCases:
 
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
+        # invitee_id matches dl owner so the AC-1 check passes (PCR-03-004).
+        invitee_id = "https://test.example/api/v2/actors/test-actor"
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=invitee_id,
         )
         invite = rm_invite_to_case_activity(
-            as_Actor(id_="https://example.org/users/coordinator"),
+            as_Actor(id_=invitee_id),
             target="https://example.org/cases/case1",
             actor="https://example.org/users/owner",
             id_="https://example.org/cases/case1/invitations/narrative-2",
@@ -347,6 +355,7 @@ class TestInviteActorUseCases:
         assert awaiting, "Expected the case-stub awaiting log entry"
         assert all(r.levelno == logging.DEBUG for r in awaiting)
 
+    @pytest.mark.spec("PCR-03-004")
     def test_invite_invitee_path_stores_trust_anchor(self, make_payload):
         """InviteActorToCaseReceivedUseCase invitee path stores a trust anchor.
 
@@ -392,8 +401,13 @@ class TestInviteActorUseCases:
             "Trust anchor case_actor_id must equal the invite sender (the CASE_MANAGER)"
         )
 
+    @pytest.mark.spec("PCR-03-004")
     def test_invite_trust_anchor_is_first_invite_wins(self, make_payload):
-        """A second invite from a different sender does not overwrite the anchor."""
+        """A second invite naming a different CaseActor is refused; anchor unchanged.
+
+        AC-3 (PCR-03-004 path b): the existing anchor is never overwritten.
+        The second Invite disposition is REFUSED, naming both CaseActor ids.
+        """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.models.pending_case_inbox import (
             VultronPendingCaseInbox,
@@ -419,18 +433,26 @@ class TestInviteActorUseCases:
             id_=f"{case_id}/invitations/b",
         )
 
-        InviteActorToCaseReceivedUseCase(
+        first_result = InviteActorToCaseReceivedUseCase(
             dl,
             make_payload(invite1),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
-        InviteActorToCaseReceivedUseCase(
+        second_result = InviteActorToCaseReceivedUseCase(
             dl,
             make_payload(invite2),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
+
+        assert first_result.disposition is HandlerDisposition.APPLIED, (
+            "First Invite must be APPLIED"
+        )
+        # AC-3: conflicting second Invite is refused, not silently ignored.
+        assert second_result.disposition is HandlerDisposition.REFUSED, (
+            "Second Invite naming a different CaseActor MUST be REFUSED (PCR-03-004 path b)"
+        )
 
         pending = dl.read(VultronPendingCaseInbox.build_id(case_id))
         assert isinstance(pending, VultronPendingCaseInbox)
@@ -448,13 +470,16 @@ class TestInviteActorUseCases:
             VultronPendingCaseInbox,
         )
 
+        # invitee_id matches dl owner so the AC-1 check passes (PCR-03-004)
+        # and the first delivery is APPLIED, not refused.
+        invitee_id = "https://test.example/api/v2/actors/test-actor"
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=invitee_id,
         )
         case_id = "https://example.org/cases/case1"
         invite = rm_invite_to_case_activity(
-            as_Actor(id_="https://example.org/users/coordinator"),
+            as_Actor(id_=invitee_id),
             target=case_id,
             actor="https://example.org/users/owner",
             id_=f"{case_id}/invitations/2",
@@ -478,6 +503,50 @@ class TestInviteActorUseCases:
         assert first.disposition is HandlerDisposition.APPLIED
         assert second.disposition is HandlerDisposition.SKIPPED
         assert dl.read(VultronPendingCaseInbox.build_id(case_id)) == anchor
+
+    @pytest.mark.spec("PCR-03-004")
+    def test_invite_misaddressed_to_different_actor_is_refused(
+        self, make_payload
+    ):
+        """An Invite whose object is not the receiving actor is REFUSED; no anchor.
+
+        AC-1 (PCR-03-004 path b): the trust anchor node refuses to record a
+        pending expectation when the Invite's ``object`` (the named invitee)
+        does not match the receiving actor.  No ``VultronPendingCaseInbox``
+        is written.
+        """
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.models.pending_case_inbox import (
+            VultronPendingCaseInbox,
+        )
+
+        case_id = "https://example.org/cases/case-misaddressed-1"
+        # The Invite names a different actor as the invitee.
+        named_invitee_id = "https://example.org/actors/coordinator"
+        receiving_actor_id = "https://example.org/actors/vendor"
+        case_manager_id = "https://example.org/actors/case-manager"
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=receiving_actor_id)
+
+        invite = rm_invite_to_case_activity(
+            as_Actor(id_=named_invitee_id),  # object ≠ receiving actor
+            target=case_id,
+            actor=case_manager_id,
+            id_=f"{case_id}/invitations/misaddressed-1",
+        )
+        result = InviteActorToCaseReceivedUseCase(
+            dl,
+            make_payload(invite),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.REFUSED, (
+            "An Invite whose object is not the receiving actor MUST be REFUSED"
+        )
+        assert dl.read(VultronPendingCaseInbox.build_id(case_id)) is None, (
+            "No trust anchor MUST be written when invitee != receiving actor"
+        )
 
     @pytest.mark.parametrize("missing", ["target", "object"])
     def test_invite_missing_case_or_invitee_is_refused(
@@ -517,10 +586,11 @@ class TestInviteActorUseCases:
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.behaviors.bridge import BTBridge
 
+        # Invitee matches dl owner so the AC-1 check passes (PCR-03-004).
         owner_id = "https://test.example/api/v2/actors/test-actor"
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=owner_id)
         invite = rm_invite_to_case_activity(
-            as_Actor(id_="https://example.org/users/coordinator"),
+            as_Actor(id_=owner_id),
             target="https://example.org/cases/case1",
             actor="https://example.org/users/owner",
             id_="https://example.org/cases/case1/invitations/one-tree",
@@ -1741,7 +1811,8 @@ class TestInviteDispositions:
 
     @pytest.mark.spec("HP-01-003")
     def test_invitee_path_redelivery_is_skipped(self, make_payload):
-        dl = self._dl()
+        # dl owner must match the invitee so the AC-1 trust-anchor check passes.
+        dl = self._dl(actor_id=self._INVITEE)
         event = make_payload(self._invite("https://example.org/cases/d-inv1"))
 
         first = InviteActorToCaseReceivedUseCase(

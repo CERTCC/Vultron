@@ -13,10 +13,11 @@ groups:
   - id: CS-01-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: Code MUST follow PEP 8 style guidelines
     relationships:
     - rel_type: refines
-      spec_id: IMPLTS-07-001
+      spec_id: IMPLTS-07-017
   - id: CS-01-004
     priority: SHOULD
     kind: project
@@ -46,14 +47,17 @@ groups:
   - id: CS-03-001
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: Wildcard imports (e.g., `from module import *`) MUST NOT be used
   - id: CS-03-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: Unused imports MUST be removed
   - id: CS-03-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: When importing more than 10 items from a module, import the module itself instead
     rationale: Reduces line noise and makes module boundaries clearer
   - id: CS-03-004
@@ -78,6 +82,7 @@ groups:
   - id: CS-05-001
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: Core modules SHALL NOT import from application layer modules
     relationships:
     - rel_type: derives_from
@@ -129,10 +134,12 @@ groups:
   - id: CS-05-003
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: Shared types and errors SHALL be placed in neutral modules
   - id: CS-05-004
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: Before adding imports between modules, trace the import chain to prevent cycles
 - id: CS-06
   title: Module Size
@@ -147,11 +154,13 @@ groups:
   - id: CS-07-001
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: use the `as_` prefix on Pydantic **field names** anywhere in the codebase. Class names (e.g., `as_Activity`,
       `as_Object`) retain the `as_` prefix as an ActivityStreams provenance marker.
   - id: CS-07-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: 'For fields whose plain name collides with a Python builtin or reserved word (e.g., `object`, `type`, `id`,
       `context`), use a trailing underscore: `object_`, `type_`, `id_`, `context_`'
     rationale: Idiomatic Python (PEP 8); keeps models readable and decoupled from AS2 naming conventions.
@@ -168,6 +177,7 @@ groups:
   - id: CS-08-001
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: Optional string fields MUST NOT contain empty strings when present; the invariant is "if present, then non-empty"
     rationale: Distinguishes "not provided" from "provided but blank", avoiding ambiguous database states.
   - id: CS-08-002
@@ -200,6 +210,7 @@ groups:
   - id: CS-10-001
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: Data passed across port/adapter boundaries MUST use named, domain-typed objects rather than type-erased containers
       (plain maps, untyped base classes, or equivalent). Port interface signatures MUST declare parameters and return values
       as specific domain types, not as generic base types or untyped collections.
@@ -213,6 +224,7 @@ groups:
   - id: CS-10-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: In this Python codebase, port boundary types MUST be named Pydantic model classes (e.g., `VulnerabilityCase`,
       `CaseParticipant`), not plain `dict`s or bare `BaseModel` subclasses without semantic meaning. Port `Protocol` signatures
       MUST declare parameters and return values as these specific domain types.
@@ -238,6 +250,7 @@ groups:
   - id: CS-11-001
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: Code MUST NOT use `Any` in type hints when the type can be determined
     rationale: '`Any` defeats static type checking, obscures API contracts, and hides bugs at the boundary between typed and
       untyped code'
@@ -264,12 +277,14 @@ groups:
   - id: CS-13-001
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: All datetime values produced by the application MUST be timezone-aware and MUST use UTC
     rationale: Naive datetimes are ambiguous in a distributed system where actors may run in different timezones; UTC eliminates
       this ambiguity
   - id: CS-13-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: All datetime values MUST be created via the `now_utc()` helper in `vultron.core.models._helpers`
   - id: CS-13-003
     priority: SHOULD
@@ -278,6 +293,7 @@ groups:
   - id: CS-13-004
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: Embargo deadline datetimes MUST be computed using the `from_now_utc(delta)` / `days_from_now_utc(n)` helpers in `vultron.core.models._helpers` rather than inline arithmetic
   - id: CS-13-005
     priority: MUST
@@ -314,16 +330,19 @@ groups:
   - id: CS-14-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: Wire-layer Pydantic models (classes in `vultron/wire/as2/vocab/`) MUST inherit `model_config` from `as_Base`,
       which sets `alias_generator=to_camel`, `validate_by_name=True`, and `validate_by_alias=True`
   - id: CS-14-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: Core/domain-layer Pydantic models (classes in `vultron/core/models/`) MUST set `populate_by_name=True` in their
       `model_config`
   - id: CS-14-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: Domain event subclasses MUST narrow the `semantic_type` field to a `Literal[MessageSemantics.FOO]` type with
       the corresponding default value
     relationships:
@@ -335,6 +354,7 @@ groups:
   - id: CS-15-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: When a module, function, variable, or symbol is refactored or replaced, the old symbol MUST be deleted. Compatibility
       aliases, re-exports, and shims that exist solely to avoid updating call sites are prohibited.
     rationale: The codebase is in prototype development; there are no external downstream consumers that require stable import
@@ -345,6 +365,7 @@ groups:
   - id: CS-16-001
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: Methods and class-level variables MUST NOT be named after Python built-in types (`list`, `dict`, `set`, `tuple`,
       `type`, `object`, `int`, `str`, `float`, `bool`, `bytes`, etc.)
     rationale: >-
@@ -359,6 +380,7 @@ groups:
   - id: CS-17-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: CLI tools and any code that reads or writes structured files (YAML frontmatter, JSON, structured config) MUST
       define a Pydantic model for the file structure rather than using `dict.get()` with fallback defaults.
     rationale: Ad-hoc `metadata.get("field", "")` access makes it impossible to distinguish "absent field" from "empty field",
@@ -397,6 +419,7 @@ groups:
   - id: CS-18-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: A subpackage created by splitting a flat module MUST re-export all previously public names from its `__init__.py`
       to preserve import compatibility with callers.
     rationale: Callers that previously imported `from vultron.foo.nodes import SomeNode` MUST continue to work without modification.
@@ -552,9 +575,9 @@ groups:
       `test/architecture/test_no_broad_except_outside_bt_update.py`: an AST scan
       that fails on any `except Exception` outside a node's `update()` method.
       Genuine framework boundaries are recorded in that test's
-      `_DECLARED_EXCLUSIONS` allow-list, one reason per entry, and the list can
-      only shrink. When it is genuinely unclear whether a broad catch is
-      load-bearing, apply the instrument-and-count method from #3217 (log the
+      `_DECLARED_EXCLUSIONS` allow-list, one reason per entry, held as an exact
+      pinned exemption set (ARCH-18-005). When it is genuinely unclear whether a
+      broad catch is load-bearing, apply the instrument-and-count method from #3217 (log the
       class, keys, and error reaching the handler; run the full suite; group by
       cause) before deciding to narrow, delete, or justify it.
     relationships:

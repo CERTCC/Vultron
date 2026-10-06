@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-08-28
+created: 2026-08-28
+updated: 2026-08-28
+revision: 1
 deciders: Vultron maintainers
 consulted: Vultron maintainers
 informed: Vultron contributors
@@ -182,10 +185,14 @@ exposes `rsvp_deadline` with UTC normalisation; sub-floor values are clamped
 on receipt; `ActorConfig` carries `min_rsvp_window` (72h) and
 `default_rsvp_window` (7d). CaseActor lazy-evaluation enforcement (Part 3) and
 late-`Accept` compatibility (Part 4) landed in issues #2212/#2213:
-`EmbargoLifecycle.detect_and_apply_lapse()` applies `PEC_Trigger.DECLINE` on
-read when `invite_rsvp_deadline` is set and passed; the three EMB-17 branches
-(honor, re-invite, no-op) are implemented in
-`AcceptInviteToEmbargoOnCaseReceivedUseCase`.
+`EmbargoLifecycle.assess_invite_expiry()` and `record_invite_expiry()` apply `PEC_Trigger.EXPIRE` on read when `invite_rsvp_deadline` is set and passed (ADR-0118 renamed `detect_and_apply_lapse()` / `PEC_Trigger.DECLINE` to these names and the `EXPIRED` state); the three EMB-17 branches (honour, re-invite, no-op) are implemented in `AcceptInviteToEmbargoOnCaseReceivedUseCase`.
+
+[ADR-0113](0113-embargo-revision-negotiation-relays-through-the-case-manager.md) has since moved who computes and enforces the deadline, and issue #3961 implemented that.
+The CASE_MANAGER now stamps `Invite.end_time` on every Invite it relays, using the window, floor and ceiling defined here, and records it when it commits the Invite (CM-28-012, CM-28-013).
+Replicas take the deadline from the ledger entry, and no receiver stores a deadline it derived on receipt.
+Only the CASE_MANAGER evaluates lapse, behind its role gate, and it commits the lapse as a distinct ledger entry that replicas replay (CM-28-014).
+The receive-side computation described above still runs on every inbound embargo Invite, but its result is only logged, each clamp per EP-07-005, and never stored.
+Its default-window fallback applies only to an Invite with no `end_time`, which is a misrouted Invite or one from a foreign implementation.
 
 ## Pros and Cons of the Options
 

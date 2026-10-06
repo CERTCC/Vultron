@@ -7,6 +7,7 @@ related_notes:
   - notes/bt-integration.md
   - notes/outbox-delivery-reliability.md
   - notes/datalayer-design.md
+  - notes/git-workflow-pitfalls.md
 ---
 
 # Known Flaky Tests

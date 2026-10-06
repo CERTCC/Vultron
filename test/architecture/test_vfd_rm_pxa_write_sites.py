@@ -13,11 +13,13 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""AC-7 architecture ratchet: audit VF/D/RM/PXA dimension write sites.
+"""AC-7 architecture test: audit VF/D/RM/PXA dimension write sites.
 
 AST-scans ``vultron/core/behaviors/`` for every ``VfDimension``,
 ``DDimension``, ``RmDimension``, and ``PxaDimension`` constructor call and
-asserts the result matches the audited set below.
+asserts the result matches the audited set below.  ``AUDITED_SITES`` is a pinned
+exemption set, not a ratchet (ARCH-18-005): the list *is* the BTND-10-001 audit,
+so it has no empty end state and tracks the code in both directions.
 
 A new unclassified constructor call fails this test immediately, which forces
 an explicit audit decision:
@@ -65,6 +67,7 @@ from test.architecture import _corpus
 #                Node (received path); the filter adjudicates before writing
 #   REPLICATE  — authoritative ledger-replication write with monotonic ratchet
 # ---------------------------------------------------------------------------
+# permanent: BTND-10-001 (the list is the write-site audit)
 AUDITED_SITES: list[tuple[str, str]] = sorted(
     [
         # PROTECTED — CreateParticipantStatusNode validates its own writes.

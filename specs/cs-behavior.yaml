@@ -1614,6 +1614,7 @@ groups:
   - id: CSB-14-003
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       A Participant entering CS Attacks Observed MUST NOT seek new embargoes
       for this case.
@@ -2504,6 +2505,7 @@ groups:
   - id: CSB-19-001
     priority: MUST
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       CS ordering invariants (ephemeral-state guard, history-prefix validity,
       CP-before-ET ordering) MUST be evaluated at buffer-drain time — that is,
@@ -2529,6 +2531,7 @@ groups:
   - id: CSB-19-002
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       A buffered out-of-order CS ledger entry MUST NOT trigger an ephemeral-state
       violation or history-prefix validation failure at the time it is buffered.
@@ -2548,6 +2551,7 @@ groups:
   - id: CSB-19-003
     priority: MUST
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       The CP-before-ET ordering constraint (CSB-12-001: CS→P MUST be recorded
       before ET is emitted) is preserved under out-of-order ledger delivery

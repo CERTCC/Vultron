@@ -28,9 +28,11 @@ from typing import Any
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
+from vultron.core.behaviors.case.nodes.case_lookup import CaseIdInputPortMixin
 from vultron.core.behaviors.helpers import (
     DataLayerAction,
     DataLayerActionWithPorts,
+    DataLayerConditionWithPorts,
 )
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.activity import VultronCreateCaseActivity
@@ -82,6 +84,56 @@ def announced_case_id(
             f" {type(stored).__name__} that announces no case"
         )
     return case_id
+
+
+def case_is_announced(datalayer: CasePersistence, case_id: str) -> bool:
+    """Whether a ``Create(VulnerabilityCase)`` for *case_id* is already stored.
+
+    Unlike :func:`announced_case_id`, which asks about one proposal's Create, this
+    asks about the case: a proposer that reuses its case under a new proposal id
+    (CP-05-008) is answered with a new ``Accept`` but the case is not announced
+    to it a second time.
+    """
+    return any(
+        getattr(obj, "type_", None) == "Create"
+        and _as_id(getattr(obj, "context", None)) == case_id
+        for obj in datalayer.list_objects("Create")
+    )
+
+
+class CheckCaseAlreadyAnnouncedNode(
+    CaseIdInputPortMixin, DataLayerConditionWithPorts
+):
+    """Return SUCCESS if the case on the blackboard was already announced.
+
+    Guards the ``Create(VulnerabilityCase)`` step of the accept flow: when a
+    proposer re-proposes a report whose case it already owns and holds
+    (CP-05-008), the tree answers with an ``Accept`` naming that case but does
+    not create or announce a second ``VulnerabilityCase``.  Returns FAILURE
+    for a case nothing has announced yet, including one a failed earlier
+    delivery left half-built, so the normal flow completes it.
+    """
+
+    def __init__(self, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        case_id = self._resolve_case_id()
+        if case_id is None:
+            return Status.FAILURE
+        if case_is_announced(self.datalayer, case_id):
+            logger.info(
+                "%s: case '%s' was already announced — not announcing it"
+                " again (CP-05-008)",
+                self.name,
+                case_id,
+            )
+            return Status.SUCCESS
+        return Status.FAILURE
 
 
 class CheckMarkerExistsNode(DataLayerAction):

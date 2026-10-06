@@ -45,6 +45,7 @@ groups:
   - id: PRM-01-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: 'Core code in `vultron/core/` MUST use `participant.roles` (the property) or `participant.has_role(role)` for
       role-presence checks and role iteration; direct reads of `participant.case_roles` MUST NOT appear in core code outside
       of the `CaseParticipant` class itself.'
@@ -148,6 +149,7 @@ groups:
   - id: PRM-03-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: 'Core code in `vultron/core/` MUST NOT mutate `case_roles` directly on a CaseParticipant instance after
       construction (e.g. `participant.case_roles.append(...)` or `participant.case_roles = [...]` post-init). `add_role()`
       and `remove_role()` MUST be used for all post-construction role changes.'
@@ -205,6 +207,7 @@ groups:
   - id: PRM-04-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: 'The wire-layer participant `as_CaseParticipant` (`vultron/wire/as2/vocab/objects/case_participant.py`) MUST
       expose `add_role()`, `remove_role()`, and `has_role()` methods with behavioral contracts equivalent to those on the
       core `CaseParticipant`: idempotent add/remove with optional raise-on-duplicate/missing flags, and a boolean presence
@@ -278,19 +281,20 @@ groups:
   - id: PRM-06-001
     priority: MUST
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       Participant status is self-declaratory by default: each participant
       asserts its own RM and VFD state without external approval.  This is why
-      they are *participant* status items (ADR-0084).  The one write about a
+      they are *participant* status items (ADR-0121).  The one write about a
       participant that the participant does not make is its birth: the
       CASE_MANAGER creates the record at RM ``RECEIVED`` (and VF ``vf`` for a
       vendor) when it sends the stub Invite (CM-11-006, ADR-0114).
     rationale: >-
       The self-declaratory model keeps state authority with the role holder.
       Deviations must be narrow, externally evidenced, and explicitly named
-      (ADR-0084).
+      (ADR-0121).
     adr:
-    - ADR-0084
+    - ADR-0121
     tags:
     - protocol
     lint_suppress:
@@ -303,7 +307,7 @@ groups:
       of ``CS_vf.vf`` (vendor-unaware).  Valid Vendor VF self-reports are
       ``{CS_vf.Vf, CS_vf.VF}``.  The only ``vf`` a vendor participant carries is
       the one the CASE_MANAGER writes when the stub Invite creates its record
-      (CM-11-006); any reply to that Invite sets ``V`` (CM-11-009) (ADR-0084,
+      (CM-11-006); any reply to that Invite sets ``V`` (CM-11-009) (ADR-0121,
       ADR-0114).
     rationale: >-
       A vendor that has answered its Invite, or otherwise acknowledged a message
@@ -321,7 +325,7 @@ groups:
       The CASE_MANAGER's birth write at the stub Invite is the one write that
       may carry ``vf`` for a vendor.
     adr:
-    - ADR-0084
+    - ADR-0121
     - ADR-0114
     tags:
     - protocol
@@ -334,7 +338,7 @@ groups:
       (any vendor acknowledgement — including ``Read(Invite(stub))`` —
       suffices).  The target MUST already be a participant in the case —
       typically an inert invitee that has not yet replied — and the write MUST
-      NOT change its RM state (ADR-0084).
+      NOT change its RM state (ADR-0121).
     rationale: >-
       Closes the vendor-awareness gap (CONCERN-2087): the case can record that
       an invited vendor is aware even if it never answers.  The stub Invite
@@ -347,7 +351,7 @@ groups:
       participant by ``CheckOnBehalfTargetIsParticipantNode``, before any
       write occurs.
     adr:
-    - ADR-0084
+    - ADR-0121
     tags:
     - protocol
     stories:
@@ -363,14 +367,14 @@ groups:
       Deployer).  The target MUST already be a participant in the case, and the
       write remains subject to the cross-machine entailments, so it succeeds
       only for a deployer whose RM state is consistent with deployment
-      (ADR-0084).
+      (ADR-0121).
     rationale: >-
       Exceptional circumstances require a narrow exception path; the on-behalf
       restriction keeps it from becoming a general proxy capability.  A deployer
       that never joined is not in the case, so the case has nothing to record
       about it (CONCERN-4006).
     adr:
-    - ADR-0084
+    - ADR-0121
     tags:
     - protocol
     stories:
@@ -394,7 +398,7 @@ groups:
       ``CheckOnBehalfTargetIsParticipantNode`` enforces it as a read-only
       guard ahead of the only write in the on-behalf tree.
     adr:
-    - ADR-0084
+    - ADR-0121
     tags:
     - protocol
     stories:
@@ -406,7 +410,7 @@ groups:
       ``f→F`` (fix ready, ``CS_vf.VF``) MUST NOT be asserted by any actor
       other than the Vendor-role holder.  Fix readiness is not externally
       knowable; no on-behalf assertion is ever permitted for this transition
-      (ADR-0084).
+      (ADR-0121).
     rationale: >-
       Allowing a non-vendor to assert fix-readiness would let the CASE_MANAGER
       fabricate protocol-visible fix state, undermining the meaning of the F
@@ -420,6 +424,6 @@ groups:
       ``CreateParticipantStatusNode`` and ``ValidateTriggerTransitionsNode``
       call (BTND-10-002).
     adr:
-    - ADR-0084
+    - ADR-0121
     tags:
     - protocol

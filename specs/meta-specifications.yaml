@@ -15,6 +15,7 @@ groups:
   - id: MS-01-001
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: Each spec file MUST focus on a single topic of concern and be largely independent of other spec files.
     rationale: Focused files are easier to navigate and maintain.
     tags:
@@ -22,6 +23,7 @@ groups:
   - id: MS-01-002
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: Requirements MUST be grouped by category within each spec file; each group MUST address a single, cohesive
       area of concern.
     rationale: Grouping by category improves navigation and traceability.
@@ -42,6 +44,7 @@ groups:
   - id: MS-02-002
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: 'Each spec entry MUST have a `priority:` field whose value is one of the RFC 2119 vocabulary keywords: MUST,
       MUST NOT, SHOULD, SHOULD NOT, or MAY.'
     rationale: The `priority:` field is the machine-readable record of requirement strength. The Pydantic schema enum is the
@@ -105,6 +108,7 @@ groups:
   - id: MS-03-001
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: Each spec entry MUST contain exactly one normative statement; compound or multi-condition requirements MUST
       be split into separate entries.
     rationale: Atomic requirements are independently testable and traceable.
@@ -113,6 +117,7 @@ groups:
   - id: MS-03-002
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: Every requirement MUST have a unique ID.
     rationale: IDs enable stable cross-referencing.
     tags:
@@ -123,6 +128,7 @@ groups:
   - id: MS-04-001
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: Requirement IDs MUST follow the format `PREFIX-NN-NNN` where PREFIX is the file-level prefix, NN is a two-digit
       group number, and NNN is a three-digit requirement number.
     rationale: Consistent format enables automated validation.
@@ -131,6 +137,7 @@ groups:
   - id: MS-04-002
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: Requirement IDs MUST be globally unique across all spec files.
     rationale: Uniqueness prevents ambiguous cross-references.
     tags:
@@ -141,6 +148,7 @@ groups:
   - id: MS-04-003
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: Requirement IDs MUST be stable; once assigned, an ID MUST NOT be renumbered.
     rationale: Stable IDs preserve traceability in git history.
     tags:
@@ -148,6 +156,7 @@ groups:
   - id: MS-04-005
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: Superseded requirements MUST be removed entirely rather than left in place as deprecated.
     rationale: >-
       Deprecated-but-present requirements create confusion for agents and future
@@ -162,6 +171,7 @@ groups:
   - id: MS-04-004
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: The group ID prefix of a spec ID MUST match the group it lives in (e.g., spec `HP-01-001` MUST live in group
       `HP-01`).
     rationale: Mismatched prefixes break navigability and cross-reference accuracy.
@@ -176,6 +186,7 @@ groups:
   - id: MS-05-001
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: Requirements MUST be concise; prose explanations MUST NOT appear inline in requirement statements.
     rationale: Concise statements reduce ambiguity.
     tags:
@@ -183,6 +194,7 @@ groups:
   - id: MS-05-002
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: Requirements MUST be specific; vague terms such as 'appropriate' or 'robust' MUST NOT be used unless explicitly
       defined.
     rationale: Specificity makes requirements testable.
@@ -191,6 +203,7 @@ groups:
   - id: MS-05-003
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: Requirements MUST be testable; measurable acceptance criteria MUST be provided where applicable.
     rationale: Untestable requirements cannot be verified.
     tags:
@@ -198,6 +211,7 @@ groups:
   - id: MS-05-004
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: Requirements MUST be declarative; they MUST state what the system must do, not how, unless the how is itself
       normative.
     rationale: Declarative requirements avoid constraining implementation unnecessarily.
@@ -209,6 +223,7 @@ groups:
   - id: MS-07-001
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: Cross-references between spec entries MUST use the `relationships:` list with a `rel_type` field (one of the
       defined vocabulary terms) and a `spec_id` field referencing the target requirement ID.
     rationale: Structured cross-references in the `relationships:` field enable automated graph analysis and linting of dangling
@@ -226,6 +241,7 @@ groups:
   - id: MS-07-004
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: Source attribution MUST appear only in the file header, not repeated on individual requirements.
     rationale: Per-requirement sources create maintenance overhead.
     tags:
@@ -236,6 +252,7 @@ groups:
   - id: MS-08-001
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: Spec files MUST use `kebab-case.yaml` naming; `specs/README.md` is the sole exception and MUST remain Markdown.
     rationale: Consistent naming enables glob patterns and automated tooling.
     tags:
@@ -249,6 +266,7 @@ groups:
   - id: MS-09-001
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: Superseded requirements MUST be removed from spec files rather than marked deprecated or left in place with
       an annotation.
     rationale: >-
@@ -262,13 +280,51 @@ groups:
   - id: MS-09-002
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: The removal of a requirement MUST be recorded in the implementation history so there is an audit trail.
     rationale: Audit trail preserves context for future maintainers.
+    tags:
+    - documentation
+  - id: MS-09-004
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: A requirement ID MUST NOT be reused. Once an ID has been removed (MS-09-001), no later requirement, in any
+      spec file, MAY carry it, and a rule that replaces a removed one MUST receive a new ID.
+    rationale: >-
+      Citations outlive requirements: code comments, tests, ADRs, PR bodies and history entries
+      cite IDs. A reused ID silently re-points every one of those at a rule they never meant, and
+      the reuse of CM-11-005 with the opposite force (found in the 2026-10-02 audit) did exactly
+      that. A new ID costs nothing; a stale citation that still resolves is undetectable.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-09-001
+    tags:
+    - documentation
+  - id: MS-09-005
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: The text of every removed requirement MUST be preserved in an archive of retired requirements, one file per
+      requirement ID, in a folder outside `specs/` (`plan/retired-specs/`, laid out like `plan/history/`), and loaders and
+      agents reading the spec corpus MUST NOT load that folder.
+    rationale: >-
+      MS-09-001 keeps retired text out of the specs so it cannot be mistaken for current
+      obligation, but git history is a poor place to look up what a cited ID used to say. One file
+      per ID gives a citation something to resolve to without putting retired text into agent
+      context. The archive tooling and the loader exclusion are tracked in #4197; until they
+      land, files are written by hand.
+    relationships:
+    - rel_type: depends_on
+      spec_id: MS-09-001
+    - rel_type: depends_on
+      spec_id: MS-09-002
     tags:
     - documentation
   - id: MS-09-003
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: Cross-references to a removed requirement MUST be updated to point to the replacement requirement.
     rationale: Dangling cross-references break traceability.
     tags:
@@ -303,7 +359,11 @@ groups:
       from SHOULD to MUST (CONCERN-2382) to align with MS-05-003 and enable
       progressive linter enforcement. MUST_NOT is in scope per MS-02-003: a
       prohibition with nothing checking it is the same gap. See MS-10-005 through
-      MS-10-007 for enforcement.
+      MS-10-008 for enforcement while the backlog is worked down.
+    verification: >-
+      `spec-lint` exits 1 on any MUST or MUST_NOT requirement that has neither a
+      `verification:` field nor a `verification_debt:` marker; unit tests in
+      `test/metadata/specs/test_verification.py` prove it for both keywords.
     relationships:
     - rel_type: refines
       spec_id: MS-05-003
@@ -314,21 +374,22 @@ groups:
     priority: MUST
     kind: process
     statement: >-
-      For each kind that still has a ceiling under MS-10-006, spec-lint MUST report in its
-      default output one summary line giving the number of `priority: MUST` or
-      `priority: MUST_NOT` requirements of that kind whose `verification:` field is null or
-      absent, alongside that kind's ceiling. It MUST list the offending IDs only when
-      asked through an opt-in flag, and MUST NOT print one line per offending requirement
-      by default.
+      spec-lint MUST report in its default output one summary line per kind that has an
+      MS-10-006 owner entry or a `verification_debt:` marker, giving the number of
+      `priority: MUST` or `priority: MUST_NOT` requirements of that kind that carry a
+      marker, tallied by the issue each marker names. The line MUST be computed from the
+      markers, not read from a committed count. spec-lint MUST list the marked IDs only
+      when asked through an opt-in flag, and MUST NOT print one line per marked
+      requirement by default.
     rationale: >-
       MS-05-003 and MS-10-003 require MUST and MUST_NOT requirements to carry measurable
       acceptance criteria. The original per-item [WARN] (CONCERN-2382) grew to more than a
       thousand lines, which made a newly introduced instance invisible. A per-kind count
-      against a ceiling keeps the backlog legible and makes each backfill's progress
-      visible. Once a kind reaches zero, MS-10-007 replaces its count with a hard error.
+      keeps the backlog legible and makes each backfill's progress visible. Computing it
+      from the markers leaves no committed number for concurrent PRs to race on (#3984).
     verification: Unit tests in `test/metadata/specs/test_lint.py` assert that a fixture
-      corpus with unverified MUST and MUST_NOT items produces exactly one summary line per
-      kind with the correct count and ceiling, no per-item lines by default, and the IDs
+      corpus with marked MUST and MUST_NOT items produces exactly one summary line per
+      kind with the correct per-owner tally, no per-item lines by default, and the IDs
       when the opt-in flag is passed.
     relationships:
     - rel_type: implements
@@ -344,23 +405,39 @@ groups:
     priority: MUST
     kind: process
     statement: >-
-      A ratchet test MUST pin, per kind, the number of `priority: MUST` or
-      `priority: MUST_NOT` requirements with no `verification:` field, counting those that
-      carry `lint_suppress: [must_without_verification]`, to a ceiling equal to the live
-      count. The ceilings live in one table under `vultron/metadata/specs/` that spec-lint
-      (MS-10-005) also reads. Each non-zero ceiling MUST name the issue that owns driving it
-      to zero, and the test MUST fail if any non-zero ceiling names no owner.
+      Until it gains a `verification:` field, each `priority: MUST` or
+      `priority: MUST_NOT` requirement MUST carry a `verification_debt:` marker naming,
+      in `#N` form, the open issue that owns verifying it, and that issue MUST be listed
+      as an owner of the requirement's kind in the one owner table under
+      `vultron/metadata/specs/`. spec-lint MUST fail, one requirement at a time, on a
+      MUST-tier requirement with neither field, on a requirement with both (a stale
+      marker), on a marker below the MUST tier, and on a marker naming an issue that
+      does not own its kind. A pull-request check MUST fail a pull request that closes
+      an owner issue a marker or the owner table still names, and a scheduled check
+      running at least hourly MUST report any marker or owner entry naming a closed
+      issue through one tracking issue, without failing the build.
     rationale: >-
-      A ceiling that is merely not raised can stay at its seed value indefinitely. Pinning
-      it to the live count forces every backfill to lower it, and a new unverified MUST
-      fails at once. Counting suppressed items means a kind cannot reach zero by
-      suppression. A named owner gives every backlog a tracked path to zero; a closed
-      owner on a live ceiling is a defect for review. One shared table keeps lint's
-      printed number and the test's pinned number in step.
-    verification: '`test/metadata/specs/test_must_verification_ratchet.py` fails when a
-      kind''s live count, suppressed items included, differs from its ceiling in either
-      direction, and when a non-zero ceiling entry carries no owning issue reference; a
-      fixture-based test proves both failure modes fire.'
+      A count pinned to the live value in both directions is correct on the PR that sets
+      it and wrong on every other PR in flight: a sibling that moves the count by one is
+      green alone and red once merged (#3984). A per-item rule has no shared number to
+      race, and two PRs conflict only when they edit the same requirement. The marker
+      gives every unverified requirement a tracked path to verification. An owner
+      usually closes through the backfill PR that says `Closes #N`; failing that PR
+      alone races nothing, and catches a backfill that claims to finish while leaving
+      requirements unverified. An owner closed by hand is caused by no PR, so failing
+      the build on it would turn every PR in flight red; it is reported instead
+      (ARCH-18-004). The owner table holds issue references, never counts, so verifying
+      a requirement never edits it.
+    verification: >-
+      Fixture-corpus tests in `test/metadata/specs/test_verification.py` prove each
+      per-item failure fires (neither field, both fields, a below-tier marker, a
+      wrong-kind owner), that a PR closing an owner still in use fails, and that a
+      closed owner or a failed lookup is reported; a spec-corpus test there asserts the
+      live corpus has no per-item failure.
+      `test/ci/test_verification_debt_owner_check.py` asserts that
+      `.github/workflows/verification-debt-owners.yml` fails a pull request through
+      `--check-closing-pr`, and runs `--check-debt-owners` hourly and on push to `main`
+      without failing the build.
     relationships:
     - rel_type: implements
       spec_id: MS-10-003
@@ -373,21 +450,26 @@ groups:
     priority: MUST
     kind: process
     statement: >-
-      When a kind's MS-10-006 ceiling reaches zero, spec-lint MUST treat any
-      `priority: MUST` or `priority: MUST_NOT` requirement of that kind with no
-      `verification:` field as a hard error that `lint_suppress` cannot silence, and that
-      kind's ceiling entry MUST be removed in the same change.
+      When no `verification_debt:` marker names an owner issue, that issue MUST be removed
+      from the MS-10-006 owner table, and a kind's entry MUST be removed with its last
+      owner. spec-lint MUST report an owner that no marker names, and MUST treat a marker
+      on any requirement of a kind with no owner entry as a hard error, so that an
+      unverified MUST or MUST_NOT of that kind can only pass by gaining a `verification:`
+      field.
     rationale: >-
-      Zero is the only state a ratchet cannot drift from, and only if nothing can raise it
-      back. Because MS-10-006 counts suppressed items, a kind at zero has no suppressions
-      left to honour, and a suppression added afterwards would be an unratcheted way back
-      up. A hard error makes the end state permanent and retires the ceiling, so the
-      ceiling table shrinks to empty as each tier is finished. The `protocol` tier flips
-      first (#3612); the other kinds flip when their backfill Tasks finish.
+      Zero is the only state a backlog cannot drift from, and only if nothing can raise it
+      back. Removing a kind's entry makes the end state permanent: no marker of that kind
+      is accepted, and an unmarked unverified requirement already fails under MS-10-006.
+      An owner no marker names is reported rather than failed, because two PRs that each
+      verify some of its last requirements are green alone and would turn `main` red
+      merged (#3984); the PR that closes the owner issue fails until the entry is
+      removed, which forces the removal. The growth guard (#4200) keeps markers from being added
+      while an owner remains. The `protocol` tier is expected to finish first (#3612).
     verification: >-
-      Unit tests in `test/metadata/specs/test_lint.py` assert that, for a kind
-      with no ceiling entry, an unverified MUST and an unverified MUST_NOT each make lint
-      exit 1, including when the spec carries `lint_suppress: [must_without_verification]`.
+      Unit tests in `test/metadata/specs/test_lint.py` and
+      `test/metadata/specs/test_verification.py` assert that, for a kind with no owner
+      entry, a marked MUST and a marked MUST_NOT each make lint exit 1, that verified
+      items of that kind pass, and that an owner no marker names is reported.
     tracking_issue: '#3612'
     relationships:
     - rel_type: depends_on
@@ -401,17 +483,19 @@ groups:
     priority: MUST
     kind: process
     statement: >-
-      A change that moves a `priority: MUST` or `priority: MUST_NOT` requirement with no
-      `verification:` field from one kind to another MUST add its `verification:` field in
-      the same change.
+      A change that moves a `priority: MUST` or `priority: MUST_NOT` requirement carrying a
+      `verification_debt:` marker from one kind to another MUST replace the marker with a
+      `verification:` field in the same change.
     rationale: >-
-      Without this rule, a kind reclassification (MS-12) would force an upward edit to the
-      destination kind's MS-10-006 ceiling, which is exactly the edit the ratchet exists to
-      forbid.
+      Each kind's backlog has its own owner. Re-pointing a relabelled requirement's marker
+      at the destination kind's owner would add debt to a backlog that never took it on,
+      which is the growth the marker exists to forbid.
     verification: >-
-      The MS-10-006 ratchet test fails on the destination kind when a relabel moves an
-      unverified requirement without backfilling it, because that kind's live count
-      rises above its ceiling.
+      spec-lint fails on a marker naming an issue that does not own its requirement's
+      kind, so a relabel that keeps its old marker fails; a fixture test in
+      `test/metadata/specs/test_verification.py` proves it. A relabel that re-points the
+      marker at the destination kind's owner is a new marker for that owner, which the
+      growth guard (#4200) rejects.
     relationships:
     - rel_type: refines
       spec_id: MS-10-006
@@ -464,6 +548,7 @@ groups:
   - id: MS-11-001
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: A spec file MUST be used to capture testable requirements — what the system MUST, SHOULD, or MAY do — using
       RFC 2119 keywords. Specs define the intended behaviour of the system; they do not record the rationale for choosing one
       approach over another.
@@ -474,6 +559,7 @@ groups:
   - id: MS-11-002
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: An Architecture Decision Record (ADR) MUST be created whenever a meaningful alternative was evaluated and
       rejected. The primary signal for an ADR is the presence of options considered and discarded — "we weighed X, Y, and Z
       and chose X because …"
@@ -527,6 +613,7 @@ groups:
   - id: MS-12-001
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: When a spec is about how the project is run — CI configuration, GitHub workflow, agent conventions, documentation
       standards, or spec authoring rules — the spec MUST be classified as `process`.
     tags:
@@ -536,7 +623,14 @@ groups:
     kind: process
     statement: When a spec references a language construct, library, file path, class, function, module, or codebase-specific
       mechanism (py_trees, pydantic, `vultron/`, `.py`, pytest, Behavior Tree nodes, etc.), the spec MUST be classified
-      as `project`.
+      as `project`. A spec about an internal endpoint or mechanism of this codebase is `project` even when it is phrased
+      as a MUST on observable behaviour.
+    rationale: >-
+      Compare TCP and an operating system's socket API. An RFC fixes what two independent
+      implementations exchange on the wire; how one implementation structures its internals (its
+      endpoints, stores, compare-and-set loops) is not RFC content, however firm the MUST.
+      EP-02-004 (compare-and-set on the policy PUT) is the worked example: it constrains an
+      internal endpoint, so it is `project`, not `protocol`.
     verification: >-
       MS-12-006's spec-lint check enforces the unambiguous half of this rule — a spec of kind protocol
       carrying no story back-reference, whose text names a `.py` suffix, a `vultron/`, `test/`, or
@@ -551,14 +645,23 @@ groups:
   - id: MS-12-003
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: When a spec describes a requirement that an independent implementer would need to satisfy to be considered
       Vultron-compliant regardless of language or framework (wire behaviour, state machine invariants, behavioral contracts,
-      message semantics, protocol rules), the spec MUST be classified as `protocol`.
+      message semantics, protocol rules), the spec MUST be classified as `protocol`. `protocol` means RFC content, namely wire
+      messages, the behaviours that lead to them, and state machines. Nothing else is `protocol`.
+    rationale: >-
+      The test is the TCP analogy: if the sentence could appear in an RFC for the protocol and an
+      implementer in any language would have to honour it to interoperate, it is `protocol`.
+      Behaviour that only changes how one implementation is built is not. Labelling internal
+      mechanisms `protocol` inflates the compliance surface; the roughly ninety relabels
+      made in #3944 are reverted by #3943 under this reading.
     tags:
     - documentation
   - id: MS-12-004
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: When none of the above apply — the spec is a structural or behavioral constraint that is implementation-independent
       but not required for Vultron compliance — the spec MUST be classified as `architecture`.
     tags:
@@ -580,7 +683,7 @@ groups:
     kind: process
     statement: >-
       spec-lint MUST emit a hard error for any spec with kind protocol that carries no
-      `stories:` back-reference and whose `statement` or `verification` text references
+      `stories:` back-reference and whose `statement` text references
       an unambiguous codebase construct — a `.py` suffix, a `vultron/`, `test/`, or
       `scripts/` path, or the tokens `pytest`, `pydantic`, or `py_trees`. The check MUST
       be suppressible per-spec via the `protocol_kind_with_code_reference` lint_suppress
@@ -592,7 +695,9 @@ groups:
       corrected kind. An unenforced MUST anti-advertises: partial adoption reads as "no rule
       here". Three choices keep it off already-compliant specs: story-less specs only, a token
       list narrow enough to exclude domain English, and the whole tree — not one branch — as
-      the remedy. Derived in `notes/spec-authoring-rules.md`.
+      the remedy. Derived in `notes/spec-authoring-rules.md`. Only the `statement` is scanned: a
+      `verification` field names the test that checks a rule, and naming a test file there says
+      nothing about whether the rule itself is protocol content.
     verification: Unit tests in `test/metadata/specs/test_lint.py` cover the hard error, the
       story-bearing exemption, and the suppression path, and `test/architecture/` holds a ratchet
       asserting the live corpus has no unsuppressed violation.
@@ -624,7 +729,10 @@ groups:
       backlog. A decreasing ceiling keeps the remaining suppressions visible as debt. It is
       asserted tight rather than merely sufficient because a test cannot otherwise notice its
       own constant being edited upward; slack is headroom the corpus regrows into. Counting
-      every spec carrying the code surfaces dead suppressions too.
+      every spec carrying the code surfaces dead suppressions too. The ceiling is down-only and
+      is its own ceiling, separate from the one for any other suppression code: the
+      `missing_story_reference` suppressions that remain after the kind reversal of #3943 are
+      counted on their own so they cannot trade places with another code's count.
     verification: A ratchet test under `test/architecture/` fails both when the suppression count
       exceeds its pinned constant and when the constant exceeds the live count, mirroring
       `test/metadata/test_agents_md_size_ratchet.py::test_known_overage_ceilings_are_tight`.
@@ -673,6 +781,7 @@ groups:
   - id: MS-13-001
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       A spec item MUST use BehavioralSpec format (with preconditions, steps[], and
       postconditions fields) when it describes a sequential, stateful process that has a
@@ -687,6 +796,7 @@ groups:
   - id: MS-13-002
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       A spec item MUST use StatementSpec format when it expresses a capability
       constraint, behavioral property, or structural rule that does not depend on
@@ -700,6 +810,7 @@ groups:
   - id: MS-13-003
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       A spec group whose items describe a demo scenario workflow MUST include a
       trigger field with type: scenario_start to indicate to conformance tooling that
@@ -713,6 +824,7 @@ groups:
   - id: MS-13-004
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       A spec group with trigger type scenario_start MUST contain at least one
       BehavioralSpec item with a non-empty steps field describing the ordered
@@ -732,6 +844,7 @@ groups:
   - id: MS-14-001
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Every ADR under docs/adr/ (excluding the template and index) MUST declare
       a non-empty status field whose value is a member of the AdrStatus StrEnum
@@ -784,6 +897,7 @@ groups:
   - id: MS-14-003
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       An ADR's placement in docs/adr/index.md (Accepted / Proposed / Rejected /
       Superseded-Archived sections) MUST agree with its own status field, and a
@@ -819,6 +933,7 @@ groups:
   - id: MS-14-005
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       ADR frontmatter MUST validate against the AdrFrontmatter Pydantic model
       (vultron/metadata/adr/schema.py), and a retired ADR MUST carry a
@@ -839,6 +954,7 @@ groups:
   - id: MS-14-006
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       docs/adr/index.md MUST be generated from ADR frontmatter (uv run
       adr-index --write), and an ADR, archived or not, MUST NOT be referenced in
@@ -862,12 +978,55 @@ groups:
     - tooling
     adr:
     - ADR-0027
+  - id: MS-14-007
+    priority: MUST
+    kind: process
+    statement: >-
+      An ADR's `status` MUST agree with the lifecycle epoch computed from its `updated` date
+      (ADR-0120): `proposed` under 72 hours, `accepted-provisional` from 72 hours to day 10, and
+      `accepted` from day 10 on. A human MAY override the computed value, and the override MUST be
+      visible in the ADR's frontmatter.
+    rationale: >-
+      An ADR's status is the confidence signal agents read, and an unmaintained status drifts from
+      how settled the decision really is. Computing the expected value from `updated` makes the
+      drift mechanical to find; the override keeps a human's judgement (for example a merged
+      dependent implementation hardening an ADR early) above the clock. The lint itself is #4196.
+    verification_debt: '#2571'
+    relationships:
+    - rel_type: depends_on
+      spec_id: MS-14-001
+    adr:
+    - ADR-0120
+    tags:
+    - documentation
+    - tooling
+  - id: MS-14-008
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      ADR frontmatter MUST carry `created` (set once, never changed), `updated` (changed only by a
+      material edit), and `revision` (an integer incremented by each material edit). Existing ADRs
+      MUST be migrated with `created = updated = date` and `revision = 1`.
+    rationale: >-
+      The epochs of ADR-0120 are measured from `updated`, so it must move only when the decision
+      changes; `date` was rewritten by editorial edits and cannot serve. `created` is the immutable
+      birth date and `revision` counts how many times the decision has changed.
+    relationships:
+    - rel_type: depends_on
+      spec_id: MS-14-005
+    adr:
+    - ADR-0120
+    tags:
+    - documentation
+    - tooling
 - id: MS-15
   title: Spec Statements Must Not Reference Phantom Paths or Phantom Symbols
   specs:
   - id: MS-15-001
     priority: MUST_NOT
     kind: process
+    verification_debt: '#2571'
     statement: >-
       A spec item's `statement`, `verification`, `behavioral step`, `precondition`,
       and `postcondition` fields MUST NOT reference a file path or directory path
@@ -890,6 +1049,7 @@ groups:
   - id: MS-15-002
     priority: MUST_NOT
     kind: process
+    verification_debt: '#2571'
     statement: >-
       A spec item's `statement` and `verification` fields MUST NOT use an absolute
       path or a `..` segment.
@@ -963,7 +1123,7 @@ groups:
       `lint_suppress: [phantom_symbol_ref]`.
     rationale: >-
       Two legitimate reasons to name a symbol that does not resolve: recording that
-      it was removed (SE-08-005 documents the retirement of a semantic), and naming
+      it was removed (the retired SE-08-005 documented the removal of a semantic), and naming
       a proposed spec-authoring tag rather than an identifier (PROTO-04-001's
       `PROD_ONLY`). Requiring the explicit opt-out keeps both visible as deliberate
       choices instead of leaving them indistinguishable from the stale MUSTs
@@ -984,6 +1144,7 @@ groups:
   - id: MS-16-001
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       A spec statement, notes file, or AGENTS.md entry MUST NOT restate a
       count that will drift independently of the authoritative source.
@@ -1016,6 +1177,7 @@ groups:
   - id: MS-16-002
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       A long-lived document — a spec, a notes file, AGENTS.md, or a `docs/`
       table that mirrors a code, spec, or config inventory — MUST NOT state a

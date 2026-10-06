@@ -124,7 +124,7 @@ def publish_embargo_policy(
     profile is saved to *dl*, the actor's own store (EP-01-004).  An actor has
     one profile and the profile one policy field, so a replace overwrites the
     field and exactly one policy exists for the actor with nothing to delete
-    (EP-01-001, EP-02-003).
+    (EP-01-001, EP-02-005).
 
     *actor* is the profile as the caller read it, and the write is a
     compare-and-set against it (:meth:`DataLayer.save_if_unchanged`): the

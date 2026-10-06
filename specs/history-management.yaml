@@ -18,16 +18,19 @@ groups:
   - id: HM-01-001
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       History entries for `learning` and `priority` types MUST reside under
       `plan/history/` as per-entry write-once files.
   - id: HM-01-006
     priority: MUST_NOT
     kind: process
+    verification_debt: '#2571'
     statement: The top-level `plan/` directory MUST NOT contain any `*HISTORY.md` files.
   - id: HM-01-002
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: Each `learning` or `priority` history entry MUST be stored as an individual write-once file at the path
       `plan/history/YYMM/<type>/<entry-id>.md`, where `YYMM` is the two-digit year and two-digit month when the entry
       was created, `<type>` is the entry type (see HM-02-002), and `<entry-id>` is the originating task or idea identifier
@@ -46,12 +49,14 @@ groups:
   - id: HM-01-003
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: After each `append-history` invocation, the tool MUST regenerate a local `plan/history/YYMM/README.md` index
       from entry frontmatter (see HM-03-006). This file is a **gitignored local cache** — it MUST NOT be committed to the
       repository. To view the history index, use `uv run show-history [--month YYMM | --all]`.
   - id: HM-01-005
     priority: MUST_NOT
     kind: process
+    verification_debt: '#2571'
     statement: Once an entry file has been merged to `main`, it MUST NOT be modified. History entries are immutable records.
       An entry MAY still be corrected while it remains unmerged on the branch that created it, because until then no record
       has been published. The `plan/history/YYMM/README.md` index may be regenerated locally but is gitignored.
@@ -68,6 +73,7 @@ groups:
   - id: HM-01-007
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       History entries for `implementation` and `idea` types whose `--source` resolves
       to a GitHub issue number MUST be posted as a comment on the corresponding GitHub
@@ -81,6 +87,7 @@ groups:
   - id: HM-01-008
     priority: MUST_NOT
     kind: process
+    verification_debt: '#2571'
     statement: >-
       History entries for `implementation` and `idea` types whose `--source` resolves
       to a GitHub issue number MUST NOT be written as files under `plan/history/`.
@@ -108,6 +115,7 @@ groups:
   - id: HM-02-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: Valid `type` values MUST be defined as a `StrEnum` named `HistoryEntryType` in `vultron/metadata/history/types.py`.
       Current values are `idea`, `implementation`, `learning`, and `priority`.
   - id: HM-02-005
@@ -147,11 +155,13 @@ groups:
   - id: HM-03-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The tool MUST be invokable as `uv run append-history <type>` where `<type>` is one of the valid `HistoryEntryType`
       values (see HM-02-002).
   - id: HM-03-009
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: Passing an unrecognised `<type>` to `append-history` MUST produce a clear error message and exit non-zero.
     relationships:
     - rel_type: refines
@@ -159,27 +169,32 @@ groups:
   - id: HM-03-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: 'When no `--file` argument is given, the tool MUST read entry content from standard input (stdin). This enables
       pipeline use: `echo "..." | uv run append-history idea`.'
   - id: HM-03-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The tool MUST accept a `--file <path>` argument as an alternative to stdin. When `--file` is given, content
       is read from the specified file rather than stdin.
   - id: HM-03-004
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       The tool MUST determine the target month directory using the current system
       clock (`datetime.date.today()`) during normal operation.
   - id: HM-03-005
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The tool MUST create `plan/history/YYMM/` and `plan/history/YYMM/<type>/` if they do not already exist before
       writing the entry file.
   - id: HM-03-006
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: After writing a new entry file, the tool MUST regenerate `plan/history/YYMM/README.md` by scanning the known-type
       subdirectories (`idea/`, `implementation/`, `learning/`, `priority/`), reading each entry file's frontmatter, and writing
       a summary table sorted by timestamp descending.
@@ -188,10 +203,12 @@ groups:
   - id: HM-03-007
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The `append-history` tool's Python module MUST reside under `vultron/metadata/history/` as a sibling of `vultron/metadata/specs/`.
   - id: HM-03-010
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The `append-history` entry point function MUST be `vultron.metadata.history.cli:main`.
     relationships:
     - rel_type: refines
@@ -199,6 +216,7 @@ groups:
   - id: HM-03-008
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       The tool MUST be registered in `pyproject.toml` under `[project.scripts]` as
       `append-history = "vultron.metadata.history.cli:main"`.
@@ -217,6 +235,7 @@ groups:
   - id: HM-03-012
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: Normal skill and agent guidance MUST use the default current-date flow.
     rationale: >-
       Agents must not diverge from the standard flow by choosing a target month
@@ -227,6 +246,7 @@ groups:
   - id: HM-03-013
     priority: MUST_NOT
     kind: process
+    verification_debt: '#2571'
     statement: Normal skill and agent guidance MUST NOT require agents to choose a target month manually.
     rationale: >-
       Manual month selection is an error-prone step that the tool eliminates by
@@ -240,6 +260,7 @@ groups:
   - id: HM-04-001
     priority: MUST_NOT
     kind: process
+    verification_debt: '#2571'
     statement: '`plan/history/` MUST NOT be included in the default "read plan context" step that agents perform at the start
       of every workflow. Agents MUST read only `plan/*.md` (excluding `plan/history/`) during their standard orientation phase.'
   - id: HM-04-002
@@ -250,6 +271,7 @@ groups:
   - id: HM-04-003
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: The `study-project-docs` skill documentation MUST explicitly state that Step 2 (read plan context) covers `plan/*.md`
       but NOT `plan/history/`. Agents following this skill MUST NOT recursively read `plan/history/` during orientation.
 - id: HM-05
@@ -258,14 +280,17 @@ groups:
   - id: HM-05-001
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: The `build` skill MUST use `uv run append-history implementation` to write completion summaries.
   - id: HM-05-002
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: The `ingest-idea` skill MUST use `uv run append-history idea` to archive processed ideas.
   - id: HM-05-003
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: The `learn` skill MUST NOT read `plan/*HISTORY.md` files directly. When historical context is needed, the `learn`
       skill MUST invoke `study-project-docs` and let that skill mediate which plan files are relevant to load.
 - id: HM-06
@@ -283,6 +308,7 @@ groups:
   - id: HM-06-007
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The `append-history` tool MUST populate the `timestamp` field automatically from the current system clock when
       creating new entries.
     relationships:
@@ -351,10 +377,12 @@ groups:
   - id: HM-07-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The `append-history <type>` command MUST accept `--title` and `--source` as required named arguments.
   - id: HM-07-005
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The tool MUST construct the YAML frontmatter block internally from the `--title`, `--source`, and auto-generated
       `timestamp` arguments; callers MUST NOT supply frontmatter content.
     relationships:
@@ -363,6 +391,7 @@ groups:
   - id: HM-07-002
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: Callers of `append-history` MUST NOT include a YAML frontmatter block in the content they supply via stdin
       or `--file`.
     relationships:
@@ -371,10 +400,12 @@ groups:
   - id: HM-07-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The tool MUST accept a hidden `--timestamp` argument for backfill use only (e.g., migrating pre-existing entries).
   - id: HM-07-006
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The `--timestamp` override argument MUST accept an ISO 8601 datetime string with a UTC offset.
     relationships:
     - rel_type: refines
@@ -382,6 +413,7 @@ groups:
   - id: HM-07-007
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The standard future-date validation (HM-06-004) MUST apply to values supplied via the `--timestamp` override
       argument.
     relationships:
@@ -392,6 +424,7 @@ groups:
   - id: HM-07-004
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: Skill documentation (`ingest-idea`, `build`, `learn`) and `notes/history-management.md` MUST use the `--title`/`--source`
       interface for `append-history`. The frontmatter-in-stdin pattern MUST NOT be used.
 - id: HM-08
@@ -400,6 +433,7 @@ groups:
   - id: HM-08-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: When `append-history` is invoked with type `implementation` or `idea` and `--source` is a value that resolves
       to a GitHub issue number (i.e., the string `ISSUE-N` for any positive integer N, or a bare positive integer), the tool
       MUST post the entry body as a comment on issue N in the CERTCC/Vultron repository using `gh issue comment`, rather than
@@ -407,22 +441,26 @@ groups:
   - id: HM-08-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: When `append-history` falls through to GitHub comment mode (HM-08-001), it MUST print the URL of the newly
       created comment to stdout so callers can record it.
   - id: HM-08-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: When `append-history` is invoked with type `implementation` or `idea` and `--source` does NOT resolve to a
       GitHub issue number (e.g., source is `IDEA-26042702`, `TASK-BTND5`, or any other non-numeric format), the tool MUST
       fall back to writing a file under `plan/history/` as in the pre-HM-08 behaviour.
   - id: HM-08-004
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: The `archive-history` skill MUST NOT call `git add plan/history/` or commit any file when the entry was posted
       as a GitHub comment (HM-08-001). The `git add` and commit steps are only needed for file-mode entries.
   - id: HM-08-005
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The comment body posted to GitHub MUST contain the full entry body text (same content that would have been
       the Markdown body in the file-based format), prefixed with a one-line heading showing the entry type and title.
   - id: HM-08-006

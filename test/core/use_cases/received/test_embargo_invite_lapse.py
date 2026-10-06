@@ -13,13 +13,15 @@
 """Tests for CaseActor lazy invite expiry (#2212, ADR-0118) and late-Accept
 compatibility (#2213)."""
 
+import json
 import logging
 from datetime import UTC, datetime, timedelta
-from typing import Literal, cast
+from typing import Any, Literal, cast
 
 import pytest
 
 from test.core.use_cases.received.conftest import (
+    seed_case_manager_participant,
     seed_store_owner_as_case_manager,
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -41,12 +43,10 @@ from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
     InviteToEmbargoOnCaseReceivedUseCase,
     RejectInviteToEmbargoOnCaseReceivedUseCase,
-    _store_invite_deadline,
     resolve_invitee_id,
 )
 from vultron.enums.roles import CVDRole
 from vultron.errors import (
-    VultronNotFoundError,
     VultronProtocolViolationError,
 )
 from vultron.wire.as2.factories import (
@@ -91,6 +91,24 @@ def _answers_in_outbox(dl: SqliteDataLayer, actor_id: str) -> list[str]:
     return answers
 
 
+def _relayed_deadline_to(dl: SqliteDataLayer, invitee_id: str) -> datetime:
+    """The ``end_time`` the CASE_MANAGER stamped on its Invite to *invitee_id*.
+
+    The manager authors the deadline (CM-28-012), so the record it keeps is
+    the one its outbound Invite carries — not the proposer's ``endTime``.
+    """
+    deadlines = [
+        getattr(activity, "end_time", None)
+        for activity in (dl.read(i) for i in dl.outbox_list())
+        if getattr(activity, "type_", None) == "Invite"
+        and getattr(activity, "to", None) == [invitee_id]
+    ]
+    assert len(deadlines) == 1, deadlines
+    deadline = deadlines[0]
+    assert isinstance(deadline, datetime)
+    return deadline
+
+
 def _make_dl(actor_id: str = _COORD) -> SqliteDataLayer:
     return SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
 
@@ -103,6 +121,9 @@ def _make_active_embargo_case(
     invitee_deadline: datetime | None = None,
 ):
     """Create and persist a case with an active embargo and one invitee participant.
+
+    ``_COORD`` holds the CASE_MANAGER role in every store, since the role is
+    never unfilled (CM-24-006) and only its holder evaluates lapse (CM-28-014).
 
     Returns (case, embargo, invitee_participant_id).
     """
@@ -127,6 +148,7 @@ def _make_active_embargo_case(
     if invitee_deadline is not None:
         invitee_cp_core.invite_rsvp_deadline = invitee_deadline
 
+    seed_case_manager_participant(dl, case, _COORD)
     dl.create(case)
     dl.create(embargo)
     dl.create(invitee_cp_core)
@@ -287,15 +309,21 @@ class TestDetectAndApplyExpiry:
 
 
 # ---------------------------------------------------------------------------
-# Integration tests — InviteToEmbargoOnCaseReceivedUseCase stores deadline
+# Integration tests — InviteToEmbargoOnCaseReceivedUseCase stores no deadline
 # ---------------------------------------------------------------------------
 
 
-class TestInviteStoresDeadline:
-    """Receiving an Invite stores the RSVP deadline on the participant record."""
+class TestInviteReceiptStoresNoDeadline:
+    """Receiving an Invite stores no RSVP deadline (CM-28-013, ADR-0113).
 
-    def test_invite_with_deadline_stores_rsvp_deadline(self, make_payload):
-        """Processing an InviteToEmbargoOnCase with rsvp_deadline stores it."""
+    The CASE_MANAGER records the deadline it stamped at its relay commit, and
+    a replica records that same value when it replays the entry.  The Invite
+    arriving in an invitee's inbox writes nothing.
+    """
+
+    @pytest.mark.spec("CM-28-013")
+    def test_invite_with_deadline_stores_no_rsvp_deadline(self, make_payload):
+        """An Invite carrying ``endTime`` leaves the invitee's record bare."""
         dl = _make_dl(actor_id=_INVITEE)
         case_id = "https://example.org/cases/store1"
         embargo_id = "https://example.org/cases/store1/embargos/e1"
@@ -349,14 +377,14 @@ class TestInviteStoresDeadline:
             sync_port=SyncActivityAdapter(dl),
         ).execute()
 
-        # The deadline should be stored on the participant record
+        # Receipt is not a record: the deadline arrives with the ledger entry.
         fresh_case = dl.read(case_id)
         assert isinstance(fresh_case, CoreCase)
         p_id = fresh_case.actor_participant_index.get(_INVITEE)
         assert p_id is not None
         participant = dl.read(p_id)
         assert isinstance(participant, CaseParticipant)
-        assert participant.invite_rsvp_deadline == _FUTURE
+        assert participant.invite_rsvp_deadline is None
 
 
 class TestInviteeIsTheAddressee:
@@ -482,7 +510,9 @@ class TestInviteeIsTheAddressee:
         # Invite (EP-09-002, AC-3), the proposer records only its consent.
         invitee = self._read_participant(dl, invitee_p_id)
         assert invitee.embargo_consent_state == PEC.INVITED
-        assert invitee.invite_rsvp_deadline == _FUTURE
+        assert invitee.invite_rsvp_deadline == _relayed_deadline_to(
+            dl, _INVITEE
+        )
 
         coord = self._read_participant(dl, coord_p_id)
         assert coord.embargo_consent_state == PEC.UNBOUND
@@ -517,7 +547,9 @@ class TestInviteeIsTheAddressee:
 
         invitee = self._read_participant(dl, invitee_p_id)
         assert invitee.embargo_consent_state == PEC.INVITED
-        assert invitee.invite_rsvp_deadline == _FUTURE
+        assert invitee.invite_rsvp_deadline == _relayed_deadline_to(
+            dl, _INVITEE
+        )
 
         coord = self._read_participant(dl, coord_p_id)
         assert coord.embargo_consent_state == PEC.UNBOUND
@@ -688,7 +720,9 @@ class TestInviteeIsTheAddressee:
 
         invitee = self._read_participant(dl, invitee_p_id)
         assert invitee.embargo_consent_state == PEC.UNBOUND
-        assert invitee.invite_rsvp_deadline == _FUTURE
+        assert (
+            invitee.invite_rsvp_deadline is None
+        )  # receipt stores none (CM-28-013)
         assert _answers_in_outbox(dl, _INVITEE) == ["Accept"]
 
     @pytest.mark.spec("EP-09-010")
@@ -771,54 +805,6 @@ class TestInviteeIsTheAddressee:
         assert result.disposition is HandlerDisposition.APPLIED
         coord = self._read_participant(dl, coord_p_id)
         assert coord.invite_rsvp_deadline is None
-
-    @pytest.mark.spec("CM-28-003")
-    def test_slashed_manager_id_still_takes_no_deadline(self):
-        """The manager is told apart by actor, not by its exact spelling."""
-        dl = _make_dl(actor_id=_COORD)
-        case_id = "https://example.org/cases/addressee-manager-slash"
-        embargo_id = f"{case_id}/embargos/e"
-        _, _, coord_p_id, _ = self._seed_case(dl, case_id, embargo_id)
-        case = dl.read_case(case_id)
-        assert case is not None
-        case.actor_participant_index[_COORD + "/"] = coord_p_id
-        dl.save(case)
-
-        _store_invite_deadline(dl, case_id, _COORD + "/", _FUTURE)
-
-        assert (
-            self._read_participant(dl, coord_p_id).invite_rsvp_deadline is None
-        )
-
-    @pytest.mark.spec("CM-24-006")
-    def test_case_with_no_manager_is_a_fault_not_a_deadline(self):
-        """With no CASE_MANAGER there is no enforcer: storing a deadline fails.
-
-        The guard tells the enforcer from the invitee, so a held case whose
-        roster names no manager is an error rather than a silent write
-        (CM-24-006, CM-28-003).
-        """
-        dl = _make_dl(actor_id=_INVITEE)
-        case_id = "https://example.org/cases/addressee-no-manager"
-        case = VulnerabilityCase(
-            id_=case_id, name="No Manager", attributed_to=_COORD
-        )
-        invitee_cp = WireCP(
-            attributed_to=_INVITEE,
-            context=case_id,
-            case_roles=[CVDRole.VENDOR],
-        )
-        dl.create(case)
-        dl.create(invitee_cp)
-        case.actor_participant_index[_INVITEE] = invitee_cp.id_
-        dl.save(case)
-
-        with pytest.raises(VultronNotFoundError, match="CASE_MANAGER of case"):
-            _store_invite_deadline(dl, case_id, _INVITEE, _FUTURE)
-        assert (
-            self._read_participant(dl, invitee_cp.id_).invite_rsvp_deadline
-            is None
-        )
 
     @pytest.mark.spec("HP-01-005")
     @pytest.mark.spec("EMB-01-002")
@@ -1448,45 +1434,247 @@ class TestAcceptWhenTheReplacedEmbargoIsUnreadable:
         assert fresh.proposed_embargoes == [revision.id_]
 
 
-class TestNeedsReinviteToAccept:
-    """``_needs_reinvite_to_accept`` is True only where ACCEPT needs INVITE."""
+class TestAssessAndRecordInviteExpiry:
+    """``assess_invite_expiry`` is read-only; ``record_invite_expiry`` is the effect.
 
-    @pytest.mark.spec("CM-18-003", "EMB-17-002")
-    @pytest.mark.parametrize("state", list(PEC))
-    def test_only_a_declined_participant_is_reinvited(self, state):
-        from vultron.core.use_cases.received.embargo.accept import (
-            _needs_reinvite_to_accept,
-        )
+    The guard → commit → effect pattern (CLP-10-006) requires that the assess
+    step make no writes and the record step only run after a successful commit.
+    """
 
-        dl = _make_dl(actor_id=_COORD)
-        case_id = f"https://example.org/cases/reinvite-{state.value.lower()}"
+    @pytest.mark.spec("CLP-10-006", "BT-06-006")
+    def test_assess_returns_is_expired_needs_apply_for_invited_past_deadline(
+        self,
+    ):
+        """assess_invite_expiry returns (True, True) for an INVITED invitee past deadline."""
+        dl = _make_dl()
+        case_id = "https://example.org/cases/assess1"
+        embargo_id = f"{case_id}/embargos/e1"
         _make_active_embargo_case(
-            dl, case_id, f"{case_id}/embargos/e1", invitee_pec=state
+            dl,
+            case_id,
+            embargo_id,
+            invitee_pec=PEC.INVITED,
+            invitee_deadline=_PAST,
         )
-        fresh = dl.read(case_id)
-        assert isinstance(fresh, CoreCase)
-        assert _needs_reinvite_to_accept(dl, fresh, _INVITEE) is (
-            state is PEC.DECLINED
-        )
+        is_expired, needs_apply = EmbargoLifecycle(
+            persistence=dl
+        ).assess_invite_expiry(case_id=case_id, actor_id=_INVITEE, now=_NOW)
+        assert is_expired is True
+        assert needs_apply is True
+        # No participant write happened
+        case = dl.read(case_id)
+        assert isinstance(case, CoreCase)
+        p = dl.read(case.actor_participant_index[_INVITEE])
+        assert isinstance(p, CaseParticipant)
+        assert p.embargo_consent_state == PEC.INVITED  # unchanged
 
-    def test_an_actor_with_no_record_needs_nothing(self):
-        from vultron.core.use_cases.received.embargo.accept import (
-            _needs_reinvite_to_accept,
-        )
-
-        dl = _make_dl(actor_id=_COORD)
-        case_id = "https://example.org/cases/reinvite-none"
+    @pytest.mark.spec("CLP-10-006", "BT-06-006")
+    def test_assess_returns_is_expired_false_for_invited_future_deadline(self):
+        """assess_invite_expiry returns (False, False) when deadline is in the future."""
+        dl = _make_dl()
+        case_id = "https://example.org/cases/assess2"
+        embargo_id = f"{case_id}/embargos/e1"
         _make_active_embargo_case(
-            dl, case_id, f"{case_id}/embargos/e1", invitee_pec=PEC.DECLINED
+            dl,
+            case_id,
+            embargo_id,
+            invitee_pec=PEC.INVITED,
+            invitee_deadline=_FUTURE,
         )
-        fresh = dl.read(case_id)
-        assert isinstance(fresh, CoreCase)
-        assert (
-            _needs_reinvite_to_accept(
-                dl, fresh, "https://example.org/actors/stranger"
+        is_expired, needs_apply = EmbargoLifecycle(
+            persistence=dl
+        ).assess_invite_expiry(case_id=case_id, actor_id=_INVITEE, now=_NOW)
+        assert is_expired is False
+        assert needs_apply is False
+
+    @pytest.mark.spec("CLP-10-006", "BT-06-006", "ADR-0118")
+    def test_assess_is_expired_true_but_needs_apply_false_for_already_expired(
+        self,
+    ):
+        """assess_invite_expiry returns (True, False) for a participant already EXPIRED."""
+        dl = _make_dl()
+        case_id = "https://example.org/cases/assess3"
+        embargo_id = f"{case_id}/embargos/e1"
+        _make_active_embargo_case(
+            dl,
+            case_id,
+            embargo_id,
+            invitee_pec=PEC.EXPIRED,
+            invitee_deadline=_PAST,
+        )
+        is_expired, needs_apply = EmbargoLifecycle(
+            persistence=dl
+        ).assess_invite_expiry(case_id=case_id, actor_id=_INVITEE, now=_NOW)
+        assert is_expired is True
+        assert needs_apply is False  # already expired, nothing to apply
+
+    @pytest.mark.spec("CLP-10-006", "BT-06-006")
+    def test_record_invite_expiry_applies_after_assess(self):
+        """record_invite_expiry moves INVITED → EXPIRED (the effect step)."""
+        dl = _make_dl()
+        case_id = "https://example.org/cases/record1"
+        embargo_id = f"{case_id}/embargos/e1"
+        _make_active_embargo_case(
+            dl,
+            case_id,
+            embargo_id,
+            invitee_pec=PEC.INVITED,
+            invitee_deadline=_PAST,
+        )
+        svc = EmbargoLifecycle(persistence=dl)
+        result = svc.record_invite_expiry(case_id=case_id, actor_id=_INVITEE)
+        assert result.is_expired is True
+        assert len(result.participant_changes) == 1
+        assert result.participant_changes[0].pec_before == PEC.INVITED.value
+        assert result.participant_changes[0].pec_after == PEC.EXPIRED.value
+        # Persisted
+        case = dl.read(case_id)
+        assert isinstance(case, CoreCase)
+        p = dl.read(case.actor_participant_index[_INVITEE])
+        assert isinstance(p, CaseParticipant)
+        assert p.embargo_consent_state == PEC.EXPIRED
+
+    @pytest.mark.spec("CLP-10-006", "BT-06-006")
+    def test_failed_commit_leaves_invitee_invited(self, monkeypatch):
+        """A failed commit in create_invite_expiry_tree leaves the invitee INVITED.
+
+        The tree uses guard → commit → effect.  If the commit node fails, the
+        effect node (RecordInviteExpiryNode) must not run, so the invitee stays
+        in INVITED state rather than EXPIRED (CLP-10-006, BT-06-006).
+        """
+        from unittest.mock import patch
+
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.behaviors.embargo.expiry_tree import (
+            create_invite_expiry_tree,
+        )
+
+        dl = _make_dl()
+        case_id = "https://example.org/cases/fail-commit"
+        embargo_id = f"{case_id}/embargos/e1"
+        _make_active_embargo_case(
+            dl,
+            case_id,
+            embargo_id,
+            invitee_pec=PEC.INVITED,
+            invitee_deadline=_PAST,
+        )
+
+        # Simulate a commit failure by making the ledger write raise.
+        from vultron.core.behaviors.sync import commit_tree as _ct_module
+
+        def _failing_commit(*args, **kwargs):
+            """Return a tree whose only node always fails."""
+            import py_trees
+
+            class _Fail(py_trees.behaviour.Behaviour):
+                def update(self):
+                    return py_trees.common.Status.FAILURE
+
+            return _Fail(name="FailingCommitSim")
+
+        with patch.object(
+            _ct_module, "create_commit_log_entry_tree", _failing_commit
+        ):
+            # Rebuild tree with patched commit
+            result_out2: dict = {}
+            tree2 = create_invite_expiry_tree(
+                case_id=case_id,
+                invitee_id=_INVITEE,
+                invite_id=f"{case_id}/invites/i1",
+                embargo_id=embargo_id,
+                published="2026-01-01T00:00:00Z",
+                now=_NOW,
+                result_out=result_out2,
             )
-            is False
+            BTBridge(datalayer=dl).execute_with_setup(
+                tree=tree2, actor_id=_COORD
+            )
+
+        # The invitee must still be INVITED — no effect was applied.
+        case2 = dl.read(case_id)
+        assert isinstance(case2, CoreCase)
+        p = dl.read(case2.actor_participant_index[_INVITEE])
+        assert isinstance(p, CaseParticipant)
+        assert p.embargo_consent_state == PEC.INVITED, (
+            "Failed commit must leave invitee INVITED, not EXPIRED (CLP-10-006)"
         )
+
+
+class TestHonourLateAcceptService:
+    """``honour_late_accept`` applies EXPIRED/DECLINED → SIGNATORY via the service."""
+
+    @pytest.mark.spec("EMB-17-001", "ADR-0118")
+    def test_expired_participant_becomes_signatory(self):
+        """EXPIRED → SIGNATORY in a single step (ADR-0118)."""
+        dl = _make_dl()
+        case_id = "https://example.org/cases/honour-expired"
+        embargo_id = f"{case_id}/embargos/e1"
+        _make_active_embargo_case(
+            dl,
+            case_id,
+            embargo_id,
+            invitee_pec=PEC.EXPIRED,
+            invitee_deadline=_PAST,
+        )
+        result = EmbargoLifecycle(persistence=dl).honour_late_accept(
+            case_id=case_id, actor_id=_INVITEE, embargo_id=embargo_id
+        )
+        assert any(
+            c.pec_after == PEC.SIGNATORY.value
+            for c in result.participant_changes
+        )
+        case = dl.read(case_id)
+        assert isinstance(case, CoreCase)
+        p = dl.read(case.actor_participant_index[_INVITEE])
+        assert isinstance(p, CaseParticipant)
+        assert p.embargo_consent_state == PEC.SIGNATORY
+
+    @pytest.mark.spec("EMB-17-001", "CM-18-003", "ADR-0118")
+    def test_declined_participant_becomes_signatory_via_invite(self):
+        """DECLINED → INVITED → SIGNATORY (CM-18-003: ACCEPT not legal from DECLINED)."""
+        dl = _make_dl()
+        case_id = "https://example.org/cases/honour-declined"
+        embargo_id = f"{case_id}/embargos/e1"
+        _make_active_embargo_case(
+            dl,
+            case_id,
+            embargo_id,
+            invitee_pec=PEC.DECLINED,
+            invitee_deadline=_PAST,
+        )
+        result = EmbargoLifecycle(persistence=dl).honour_late_accept(
+            case_id=case_id, actor_id=_INVITEE, embargo_id=embargo_id
+        )
+        pec_states = [c.pec_before for c in result.participant_changes] + [
+            c.pec_after for c in result.participant_changes
+        ]
+        assert PEC.DECLINED.value in pec_states
+        case = dl.read(case_id)
+        assert isinstance(case, CoreCase)
+        p = dl.read(case.actor_participant_index[_INVITEE])
+        assert isinstance(p, CaseParticipant)
+        assert p.embargo_consent_state == PEC.SIGNATORY
+
+    @pytest.mark.spec("EMB-17-001", "ADR-0118")
+    def test_signatory_is_unchanged_idempotent(self):
+        """A participant already SIGNATORY is not changed by honour_late_accept."""
+        dl = _make_dl()
+        case_id = "https://example.org/cases/honour-signatory"
+        embargo_id = f"{case_id}/embargos/e1"
+        _make_active_embargo_case(
+            dl, case_id, embargo_id, invitee_pec=PEC.SIGNATORY
+        )
+        result = EmbargoLifecycle(persistence=dl).honour_late_accept(
+            case_id=case_id, actor_id=_INVITEE, embargo_id=embargo_id
+        )
+        # No state change — already SIGNATORY
+        assert result.participant_changes == []
+        case = dl.read(case_id)
+        assert isinstance(case, CoreCase)
+        p = dl.read(case.actor_participant_index[_INVITEE])
+        assert isinstance(p, CaseParticipant)
+        assert p.embargo_consent_state == PEC.SIGNATORY
 
 
 class TestLateAcceptHandling:
@@ -1636,7 +1824,26 @@ class TestLateAcceptHandling:
         # Mock trigger_activity to capture re-invite call
         trigger_mock = MagicMock()
         new_invite_id = f"{case_id}/proposals/reinvite"
-        trigger_mock.propose_embargo.return_value = (new_invite_id, {})
+
+        def _sealed_invite(**kwargs: Any) -> tuple[str, str]:
+            """What the factory returns: the id and the sealed Invite body."""
+            return new_invite_id, json.dumps(
+                {
+                    "id": new_invite_id,
+                    "type": "Invite",
+                    "actor": kwargs["actor"],
+                    "to": kwargs["to"],
+                    "context": kwargs["case_id"],
+                    "published": kwargs["published"].isoformat(),
+                    "endTime": kwargs["rsvp_deadline"].isoformat(),
+                    "object": {
+                        "type": "EmbargoEvent",
+                        "id": kwargs["embargo_id"],
+                    },
+                }
+            )
+
+        trigger_mock.propose_embargo.side_effect = _sealed_invite
 
         event = _make_accept_event(
             stale_proposal, case, _INVITEE, make_payload
@@ -1657,13 +1864,22 @@ class TestLateAcceptHandling:
             or call_kwargs.args[0] == current_embargo_id
         )
 
-        # Invitee PEC should be INVITED (re-invited to current embargo)
+        # The re-invite carries its own fresh deadline (ASK-03-004, CM-28-012).
+        stamped = call_kwargs.kwargs.get("rsvp_deadline")
+        published = call_kwargs.kwargs.get("published")
+        assert isinstance(stamped, datetime)
+        assert isinstance(published, datetime)
+        assert stamped - published == timedelta(days=7)
+
+        # Invitee PEC should be INVITED (re-invited to current embargo), and
+        # its record takes the re-invite's deadline, not the lapsed one.
         fresh_case = dl.read(case_id)
         assert isinstance(fresh_case, CoreCase)
         p_id = fresh_case.actor_participant_index[_INVITEE]
         participant = dl.read(p_id)
         assert isinstance(participant, CaseParticipant)
         assert participant.embargo_consent_state == PEC.INVITED
+        assert participant.invite_rsvp_deadline == stamped
 
     @pytest.mark.spec("EMB-17-004")
     def test_late_accept_noop_when_em_exited(self, make_payload):
@@ -2109,14 +2325,6 @@ class TestLateAcceptHandling:
 class TestExpiryIsTheManagersAlone:
     """CM-28-014: only the CASE_MANAGER evaluates expiry and commits its entry."""
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "CM-28-014: the expiry ledger entry is committed unconditionally in "
-            "whichever store processes the late Accept. Tracked by #3961 "
-            "(Concern #3918, ADR-0113)."
-        ),
-    )
     @pytest.mark.spec("CM-28-014")
     def test_non_manager_commits_no_expiry_entry(self, make_payload):
         """A replica that sees a late Accept writes no expiry entry."""
@@ -2124,21 +2332,13 @@ class TestExpiryIsTheManagersAlone:
         dl = _make_dl(actor_id=_OTHER)
         case_id = "https://example.org/cases/lapse-replica"
         embargo_id = f"{case_id}/embargos/e1"
-        case, embargo, _ = _make_active_embargo_case(
+        case, embargo, _participant_id = _make_active_embargo_case(
             dl,
             case_id,
             embargo_id,
             invitee_pec=PEC.INVITED,
             invitee_deadline=_PAST,
         )
-        manager_cp = WireCP(
-            attributed_to=_COORD,
-            context=case_id,
-            case_roles=[CVDRole.COORDINATOR, CVDRole.CASE_MANAGER],
-        )
-        dl.create(manager_cp)
-        case.actor_participant_index[_COORD] = manager_cp.id_
-        dl.save(case)
 
         proposal = em_propose_embargo_activity(
             embargo=embargo,
@@ -2159,10 +2359,11 @@ class TestExpiryIsTheManagersAlone:
         )
         event = make_payload(accept, receiving_actor_id=_OTHER)
 
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(
+        result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
             dl,
             event,
             sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         expiry_entries = [
@@ -2172,3 +2373,138 @@ class TestExpiryIsTheManagersAlone:
             and e.event_type == INVITE_EXPIRED_EVENT_TYPE
         ]
         assert expiry_entries == []
+        # Nor does it compute one: the invitee's consent is left as it was,
+        # and the answer is refused as the manager's to adjudicate (HP-01-005).
+        participant = dl.read(_participant_id)
+        assert isinstance(participant, CaseParticipant)
+        assert participant.embargo_consent_state == PEC.INVITED
+        assert result.disposition is HandlerDisposition.REFUSED
+
+
+class TestOwnerAnswerToRelayedInvite:
+    """The case owner's answer to a relayed embargo Invite is its own (EP-09-005/006).
+
+    The protocol never requires an automatic answer.  The prototype keeps one
+    bounded auto-accept: the owner accepts on its own only at ``EM.NONE`` and
+    only for terms no longer than its own policy duration; in every other
+    case — above all a revision Invite while an embargo is active — it holds
+    the answer.  A non-owner participant's default accept is unchanged.
+    """
+
+    def _seed(
+        self,
+        dl,
+        case_id: str,
+        *,
+        em_state: EM,
+        roles: list[CVDRole],
+        proposal_days: int,
+        policy_days: int | None,
+    ):
+        from vultron.core.models.actor import VultronOrganization
+        from vultron.core.models.embargo_policy import EmbargoPolicy
+
+        case = VulnerabilityCase(
+            id_=case_id, name="Owner Answer", attributed_to=_COORD
+        )
+        case.append_case_status(em_state=em_state)
+        embargo = as_EmbargoEvent(
+            id_=f"{case_id}/embargos/e1",
+            context=case_id,
+            end_time=days_from_now_utc(proposal_days),
+        )
+        dl.create(embargo)
+        coord_cp = WireCP(
+            attributed_to=_COORD,
+            context=case_id,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        invitee_cp = WireCP(
+            attributed_to=_INVITEE,
+            context=case_id,
+            case_roles=roles,
+        )
+        dl.create(coord_cp)
+        dl.create(invitee_cp)
+        case.actor_participant_index[_COORD] = coord_cp.id_
+        case.actor_participant_index[_INVITEE] = invitee_cp.id_
+        dl.create(case)
+        profile = VultronOrganization(
+            id_=_INVITEE,
+            embargo_policy=(
+                None
+                if policy_days is None
+                else EmbargoPolicy(
+                    actor_id=_INVITEE,
+                    inbox=f"{_INVITEE}/inbox",
+                    preferred_duration=timedelta(days=policy_days),
+                )
+            ),
+        )
+        dl.create(profile)
+        return case, embargo
+
+    def _deliver(self, dl, case, embargo, make_payload):
+        invite = em_propose_embargo_activity(
+            embargo=embargo,
+            context=case.id_,
+            actor=_COORD,
+            to=[_INVITEE],
+        )
+        return InviteToEmbargoOnCaseReceivedUseCase(
+            dl,
+            make_payload(invite, receiving_actor_id=_INVITEE),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+    @pytest.mark.parametrize(
+        ("em_state", "roles", "proposal_days", "policy_days", "answers"),
+        [
+            # The regression: a revision Invite at an active embargo.
+            (EM.ACTIVE, [CVDRole.CASE_OWNER], 60, 30, []),
+            (EM.ACTIVE, [CVDRole.CASE_OWNER], 10, 30, []),
+            (EM.REVISE, [CVDRole.CASE_OWNER], 10, 30, []),
+            # The bounded auto-accept: no embargo yet, within own policy.
+            (EM.NONE, [CVDRole.CASE_OWNER], 10, 30, ["Accept"]),
+            # Beyond the owner's policy, or no policy to bound against.
+            (EM.NONE, [CVDRole.CASE_OWNER], 60, 30, []),
+            (EM.NONE, [CVDRole.CASE_OWNER], 10, None, []),
+            # A non-owner's default accept records its own consent only.
+            (EM.ACTIVE, [CVDRole.VENDOR], 60, 30, ["Accept"]),
+        ],
+        ids=[
+            "owner-active-longer-holds",
+            "owner-active-shorter-holds",
+            "owner-revise-holds",
+            "owner-none-within-policy-accepts",
+            "owner-none-beyond-policy-holds",
+            "owner-none-no-policy-holds",
+            "non-owner-active-accepts",
+        ],
+    )
+    @pytest.mark.spec("EP-09-005", "EP-09-006")
+    def test_owner_answer_is_bounded(
+        self,
+        make_payload,
+        em_state,
+        roles,
+        proposal_days,
+        policy_days,
+        answers,
+    ):
+        dl = _make_dl(actor_id=_INVITEE)
+        case, embargo = self._seed(
+            dl,
+            "https://example.org/cases/owner-answer",
+            em_state=em_state,
+            roles=roles,
+            proposal_days=proposal_days,
+            policy_days=policy_days,
+        )
+
+        result = self._deliver(dl, case, embargo, make_payload)
+
+        assert result.disposition is HandlerDisposition.APPLIED
+        assert _answers_in_outbox(dl, _INVITEE) == answers

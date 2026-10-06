@@ -50,6 +50,7 @@ from vultron.core.behaviors.case.nodes.participant.roles import (
     suggested_roles_key,
 )
 from vultron.core.behaviors.case.offer_provenance import find_offer_for_report
+from vultron.core.behaviors.delegated_authorship import delegated_authorship
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     _EmitSingleActivityBase,
@@ -163,13 +164,23 @@ class EmitInviteActorToCaseNode(_EmitSingleActivityBase):
         # missing local case therefore emits a bare stub rather than failing;
         # this read is deliberately unguarded (conformance allowlist).
         case = self.datalayer.read_case(self.case_id)
+        # ``None`` is the manager's own invitation; otherwise the participant
+        # who asked for it is the attributed author (PCR-08-007, CM-24-005).
+        authorship = (
+            delegated_authorship(
+                doing_actor_id=self.actor_id,
+                requesting_actor_id=self.attributed_to,
+            )
+            if self.attributed_to is not None
+            else None
+        )
         activity_id, activity_blob = (
             self.trigger_activity_factory.invite_actor_to_case(
                 invitee_id=self.invitee_id,
                 case_id=self.case_id,
-                actor=self.actor_id,
+                actor=authorship.actor if authorship else self.actor_id,
                 to=[self.invitee_id],
-                attributed_to=self.attributed_to,
+                attributed_to=authorship.attributed_to if authorship else None,
                 roles=roles,
                 target=case,
             )
@@ -439,14 +450,18 @@ class EvaluateDefaultRolesNode(BehaviourWithPorts):
         )
 
     def _compute_roles(self) -> list[CVDRole]:
-        """Return roles for the suggested actor; override for custom policy.
+        """Return default roles for the suggested actor (CM-16-003).
 
-        The base implementation returns an empty list, which causes FAILURE
-        in ``update()`` (CM-11-019). Subclasses that have domain knowledge to
-        assign a default role MUST override this method; callers that know the
-        intended roles SHOULD inject them via ``injected_roles``.
+        The base implementation returns ``[CVDRole.VENDOR]``, the
+        protocol default for a suggested actor.  Subclasses may override
+        for domain-specific policy; an empty return produces FAILURE and the
+        message below.
+
+        CM-11-019 (no-roles Invite must be refused) is enforced separately in
+        ``CreateInertInviteeParticipantNode``, which runs later in the same
+        tree and validates the resolved roles before creating the inert record.
         """
-        return []
+        return [CVDRole.VENDOR]
 
     def update(self) -> Status:
         roles = (
@@ -455,18 +470,11 @@ class EvaluateDefaultRolesNode(BehaviourWithPorts):
             else self._compute_roles()
         )
         if not roles:
-            if self._injected_roles is None:
-                self.feedback_message = (
-                    f"{self.name}: no roles specified for actor"
-                    f" '{self.suggested_actor_id}'"
-                    f" — inviter must give the invitee's roles (CM-11-019)"
-                )
-            else:
-                self.feedback_message = (
-                    f"{self.name}: _compute_roles() returned an empty list"
-                    f" for actor '{self.suggested_actor_id}'"
-                    f" — cannot assign roles"
-                )
+            self.feedback_message = (
+                f"{self.name}: _compute_roles() returned an empty list"
+                f" for actor '{self.suggested_actor_id}'"
+                f" — cannot assign roles"
+            )
             self.logger.error("%s", self.feedback_message)
             return Status.FAILURE
         self._set_output("suggested_roles", roles)

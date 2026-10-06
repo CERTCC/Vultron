@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-09-17
+created: 2026-09-17
+updated: 2026-09-17
+revision: 1
 deciders: Vultron maintainers
 consulted: Vultron maintainers
 informed: Vultron contributors
@@ -79,7 +82,7 @@ belong in it, which is worth recording because both are easy to miscount:
 CS-23-001 (blanket `except Exception` / bare `except`) is a third case kept out of
 that table, and the most instructive one: it *does* have a gate. Its `verification:` names
 `test/architecture/test_no_broad_except_outside_bt_update.py`, an AST scan with a
-shrink-only `_DECLARED_EXCLUSIONS` allow-list — but that ratchet covers only
+exact-match `_DECLARED_EXCLUSIONS` pinned exemption set — but that test covers only
 `vultron/core/behaviors/`. Ruff's `BLE001`, `S110` and `S112` widen the same check
 to the whole tree, so for CS-23-001 this decision adds reach to an existing gate
 rather than a first gate.

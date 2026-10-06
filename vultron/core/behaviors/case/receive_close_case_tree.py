@@ -27,7 +27,7 @@ Implements receiver-side role semantics for Leave(VulnerabilityCase):
   the case remains open for remaining participants (CM-23-003).
 
 The role check is performed by :class:`~vultron.core.behaviors.case.nodes
-.vfd_role_guards.CheckIsCaseOwnerNode` as a tree-level condition node, per
+.vfd_role_guards.SenderIsCaseOwnerNode` as a tree-level condition node, per
 BTND-08-001/BTND-08-002 (role checks MUST be in the tree, not in action node
 ``update()`` logic).
 
@@ -47,9 +47,6 @@ from vultron.core.behaviors.case.nodes.leave import (
     CommitCaseActorRMClosedEntryNode,
     EmitRejectCloseCaseNode,
 )
-from vultron.core.behaviors.case.nodes.vfd_role_guards import (
-    CheckIsCaseOwnerNode,
-)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -57,6 +54,9 @@ from vultron.core.behaviors.embargo.nodes import (
     HasCaseStatusesNode,
     IsCloseBlockedByActiveEmbargoNode,
     ReadEmStateNode,
+)
+from vultron.core.behaviors.sender_entitlement import (
+    SenderIsCaseOwnerNode,
 )
 from vultron.core.behaviors.sync.nodes import (
     CreateLogEntryNode,
@@ -112,7 +112,7 @@ def create_close_case_received_tree(
             │   │   └── CommitCaseLedgerEntryNode       # commits the close_case entry
             │   └── OwnerOrNonOwnerEffects (Selector)   # Role discriminator
             │       ├── OwnerLeaveSeq (Sequence)        # Owner path (CM-23-002)
-            │       │   ├── CheckIsCaseOwnerNode        # guard: sender IS CASE_OWNER
+            │       │   ├── SenderIsCaseOwnerNode        # guard: sender IS CASE_OWNER
             │       │   ├── AdvanceParticipantToRMClosedNode  # step 1: owner → RM.CLOSED
             │       │   ├── AdvanceCaseActorToRMClosedNode    # step 2: CaseActor → RM.CLOSED
             │       │   ├── CommitCaseActorRMClosedEntryNode  # step 2 on the ledger (CM-23-005)
@@ -231,7 +231,7 @@ def create_close_case_received_tree(
     )
 
     owner_leave_children: list[py_trees.behaviour.Behaviour] = [
-        CheckIsCaseOwnerNode(
+        SenderIsCaseOwnerNode(
             sender_actor_id=sender_actor_id,
             case_id=case_id,
             name="CheckIsCaseOwnerForLeave",
@@ -304,7 +304,7 @@ def create_close_case_received_tree(
         result_out: dict[str, object],
     ) -> list[py_trees.behaviour.Behaviour]:
         return [
-            CheckIsCaseOwnerNode(
+            SenderIsCaseOwnerNode(
                 sender_actor_id=sender_actor_id,
                 case_id=case_id,
                 name="CheckIsCaseOwnerForClose",

@@ -16,12 +16,14 @@ groups:
   - id: SL-01-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: All log entries MUST include `timestamp` field in ISO 8601 format
     scope:
     - production
   - id: SL-01-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       All log entries MUST include `level` field (DEBUG, INFO, WARNING, ERROR, CRITICAL)
     scope:
@@ -29,12 +31,14 @@ groups:
   - id: SL-01-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: All log entries MUST include `component` field (module or function name)
     scope:
     - production
   - id: SL-01-004
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: All log entries MUST include `message` field (human-readable text)
     scope:
     - production
@@ -150,6 +154,7 @@ groups:
   - id: SL-03-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: 'Log levels MUST follow standard Python `logging` severity semantics: DEBUG for diagnostic detail, INFO for normal protocol operations, WARNING for recoverable anomalies, ERROR for failures requiring attention, and CRITICAL for system-threatening failures.'
 - id: SL-04
   title: State Transition Logging
@@ -157,18 +162,22 @@ groups:
   - id: SL-04-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: All state transitions MUST be logged at INFO level
   - id: SL-04-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: State transition logs MUST include before state
   - id: SL-04-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: State transition logs MUST include after state
   - id: SL-04-004
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: State transition logs MUST include triggering event (activity type + semantic)
   - id: SL-04-005
     priority: SHOULD
@@ -187,6 +196,7 @@ groups:
   - id: SL-04-007
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       Infrastructure log lines (persistence store/save/update, BT scaffolding,
       HTTP handler parsing echoes, pipeline completion repeats, FSM internal

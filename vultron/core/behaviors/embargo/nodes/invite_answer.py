@@ -26,8 +26,15 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.embargo.nodes.emit import _SendEmbargoActivityBase
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
+from vultron.core.models._helpers import now_utc
 from vultron.core.participants.authority import resolve_case_manager_id
-from vultron.errors import VultronWiringError
+from vultron.core.services.embargo_duration import (
+    actor_default_duration,
+    stored_actor_profile,
+)
+from vultron.core.services.embargo_ordering import read_embargo_event
+from vultron.core.states.em import EM
+from vultron.errors import VultronNotFoundError, VultronWiringError
 
 
 class CanAnswerEmbargoInviteNode(DataLayerConditionWithPorts):
@@ -92,6 +99,69 @@ class CanAnswerEmbargoInviteNode(DataLayerConditionWithPorts):
                 " the Invite is stored and not answered"
             )
             self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+        return Status.SUCCESS
+
+
+class OwnerMayAutoAcceptEmbargoNode(DataLayerConditionWithPorts):
+    """SUCCESS when the case owner's prototype auto-accept may fire.
+
+    The protocol never requires an automatic answer to an embargo Invite; the
+    owner SHOULD gauge consensus first (EP-09-006).  This prototype bounds the
+    one automatic answer it keeps: the owner accepts on its own only while no
+    embargo exists (``EM.NONE``) and the proposal ends no later than the
+    owner's own policy duration from now.  An owner that published no policy
+    has nothing to bound the proposal against, so nothing is auto-accepted.
+    Every other case — above all a revision Invite while an embargo is active
+    or being revised — is left for the owner, or its policy call-out, to
+    answer (EP-09-005).
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        embargo_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._case_id = case_id
+        self._embargo_id = embargo_id
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            raise VultronWiringError(
+                f"{self.name}: no DataLayer to bound the owner's auto-accept"
+                f" on case '{self._case_id}'"
+            )
+        case = self._resolve_case_replica(self._case_id)
+        if case is None or case.current_status.em_state != EM.NONE:
+            self.feedback_message = (
+                "an embargo exists or is being revised — the owner answers,"
+                " nothing is auto-accepted (EP-09-006)"
+            )
+            return Status.FAILURE
+        if self.actor_id is None:
+            raise VultronWiringError(
+                f"{self.name}: no actor_id to read the owner's embargo policy"
+            )
+        try:
+            policy = actor_default_duration(
+                stored_actor_profile(self.datalayer, self.actor_id)
+            )
+        except VultronNotFoundError:
+            policy = None
+        if policy is None:
+            self.feedback_message = (
+                "the owner published no embargo policy to bound the proposal"
+                " — nothing is auto-accepted"
+            )
+            return Status.FAILURE
+        proposal = read_embargo_event(self.datalayer, self._embargo_id)
+        if proposal.end_time > now_utc() + policy:
+            self.feedback_message = (
+                f"proposal ends {proposal.end_time.isoformat()}, beyond the"
+                f" owner's {policy} policy — nothing is auto-accepted"
+            )
             return Status.FAILURE
         return Status.SUCCESS
 
@@ -185,4 +255,8 @@ class SendEmbargoInviteAnswerNode(_SendEmbargoActivityBase):
         return status
 
 
-__all__ = ["CanAnswerEmbargoInviteNode", "SendEmbargoInviteAnswerNode"]
+__all__ = [
+    "CanAnswerEmbargoInviteNode",
+    "OwnerMayAutoAcceptEmbargoNode",
+    "SendEmbargoInviteAnswerNode",
+]

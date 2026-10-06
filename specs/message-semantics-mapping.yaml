@@ -52,7 +52,7 @@ groups:
     - rel_type: derives_from
       spec_id: VAM-02-005
     adr:
-    - ADR-0070
+    - ADR-0121
     stories:
     - story_2022_101
     - story_2022_006
@@ -73,7 +73,7 @@ groups:
     - rel_type: derives_from
       spec_id: VAM-02-004
     adr:
-    - ADR-0070
+    - ADR-0121
     stories:
     - story_2022_101
     - story_2022_006
@@ -129,7 +129,7 @@ groups:
     - rel_type: derives_from
       spec_id: VAM-02-006
     adr:
-    - ADR-0070
+    - ADR-0121
     stories:
     - story_2022_006
     - story_2022_101
@@ -206,6 +206,7 @@ groups:
   - id: MSM-02-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: Protocol shorthand `EV` (Embargo Revision Proposed) MUST dispatch as `MessageSemantics.INVITE_TO_EMBARGO_ON_CASE`;
       its AS2 wire form is `Invite(Event)[context=VulnerabilityCase]` per VAM-05-005 — identical to `EP`. The revision context
       is inferred from the presence of an active embargo.

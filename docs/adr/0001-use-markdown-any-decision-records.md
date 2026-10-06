@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2023-10-18
+created: 2023-10-18
+updated: 2023-10-18
+revision: 1
 deciders: adh
 stakeholder_type: [project-contributor]
 ---

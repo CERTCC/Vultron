@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-07-31
+created: 2026-07-31
+updated: 2026-07-31
+revision: 1
 deciders: [adh, Claude Opus 4.8]
 stakeholder_type: [project-contributor]
 ---

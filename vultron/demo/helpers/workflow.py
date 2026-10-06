@@ -38,6 +38,7 @@ from vultron.demo.helpers.polling import (
 )
 from vultron.demo.utils import (
     DataLayerClient,
+    case_references_report,
     demo_check,
     demo_gate,
     demo_step,
@@ -634,15 +635,7 @@ def find_case_by_report_id(
         if case is None:
             continue
 
-        report_ids = [
-            (
-                report
-                if isinstance(report, str)
-                else getattr(report, "id_", str(report))
-            )
-            for report in (case.vulnerability_reports or [])
-        ]
-        if report_id in report_ids:
+        if case_references_report(case, report_id):
             return case
     return None
 
@@ -794,7 +787,7 @@ def setup_initialized_case(
     ``[CVDRole.CASE_OWNER, CVDRole.CASE_MANAGER]`` (CM-02-014, CM-02-015).
     Use :func:`setup_canonical_case` for any exchange that requires a separate
     CaseActor service identity — ownership transfer among them — or the routing
-    silently degrades to the direct peer-to-peer path (CM-24-003).
+    silently degrades to the direct peer-to-peer path (a failure under CM-24-006).
 
     Performs the standard 7-step setup shared by ``invite_actor_demo``,
     ``suggest_actor_demo``, and ``status_updates_demo``:
@@ -902,7 +895,7 @@ def setup_canonical_case(
     than :func:`setup_initialized_case`: a vendor-minted case has **no**
     ``CASE_MANAGER`` participant, so there is no CaseActor to address and the
     routing silently degrades to the direct peer-to-peer path it is meant to
-    replace (CM-24-003).
+    replace (a failure under CM-24-006).
 
     Args:
         client: DataLayerClient for the container hosting all three actors.

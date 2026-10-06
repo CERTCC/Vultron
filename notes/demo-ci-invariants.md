@@ -635,6 +635,7 @@ recovery either (CISEC-05-002, ratcheted by
 | `actions-lint.yml`            | push to main       | `ci:workflow-actions-lint`              |
 | `quarterly_tag.yml`           | schedule           | `ci:workflow-quarterly-tag`             |
 | `stale_claim_sweeper.yml`     | schedule           | `ci:workflow-stale-claim-sweeper`       |
+| `verification-debt-owners.yml` | schedule, push to main | `ci:workflow-verification-debt-owners` |
 
 ### Deduplication Model
 

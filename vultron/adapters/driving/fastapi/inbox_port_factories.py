@@ -86,8 +86,7 @@ def _sync_port_factory(dl: DataLayer) -> dict[str, Any]:
     """Create a ``SyncActivityAdapter`` for the given DataLayer.
 
     ``dl`` at runtime is an ``DataLayer`` (satisfies
-    ``CaseOutboxPersistence``) — the cast is safe (DL-07-002, which retired
-    ARCH-13-002).
+    ``CaseOutboxPersistence``) — the cast is safe (DL-07-002).
     """
     return {"sync_port": SyncActivityAdapter(cast(CaseOutboxPersistence, dl))}
 
@@ -137,8 +136,7 @@ def _trigger_activity_port_factory(dl: DataLayer) -> dict[str, Any]:
     """Create a ``TriggerActivityAdapter`` from the current DataLayer.
 
     ``dl`` at runtime is an ``DataLayer`` (satisfies
-    ``CaseOutboxPersistence``) — the cast is safe (DL-07-002, which retired
-    ARCH-13-002).
+    ``CaseOutboxPersistence``) — the cast is safe (DL-07-002).
     """
     return {
         "trigger_activity": TriggerActivityAdapter(
@@ -147,17 +145,31 @@ def _trigger_activity_port_factory(dl: DataLayer) -> dict[str, Any]:
     }
 
 
-def _submit_report_port_factory(dl: DataLayer) -> dict[str, Any]:
+def _trigger_activity_with_actor_config_port_factory(
+    dl: DataLayer,
+) -> dict[str, Any]:
     """Create the trigger port and resolve the local ``ActorConfig``.
 
-    Used for ``SUBMIT_REPORT`` so that ``SubmitReportReceivedUseCase``
-    receives a populated ``actor_config`` and can honour
-    ``auto_create_case=False`` at runtime (CM-15-001, issue #1319).
-    Falls back to ``actor_config=None`` when ``SeedConfig`` is unavailable,
-    preserving the always-create default.  The sync and wire-render ports
-    come from :func:`with_received_baseline_ports`.
+    Registered for two semantic sets that need the receiver's own
+    configuration:
+
+    - ``SUBMIT_REPORT``, so that ``SubmitReportReceivedUseCase`` can honour
+      ``auto_create_case=False`` at runtime (CM-15-001, issue #1319).
+    - ``INVITE_TO_EMBARGO_ON_CASE`` and ``ACCEPT_INVITE_TO_EMBARGO_ON_CASE``,
+      whose CASE_MANAGER stamps every Invite it relays, and the EMB-17-003
+      re-invite, with an RSVP deadline measured against its configured
+      ``min_rsvp_window`` and ``default_rsvp_window`` (CM-28-012, EP-07-002).
+
+    Falls back to ``actor_config=None`` when ``SeedConfig`` is unavailable:
+    report submission keeps the always-create default and the embargo use
+    cases stay on ``ActorConfig()``'s defaults.  The sync and wire-render
+    ports come from :func:`with_received_baseline_ports`.
     """
-    kwargs: dict[str, Any] = _trigger_activity_port_factory(dl)
+    return _with_actor_config(_trigger_activity_port_factory(dl))
+
+
+def _with_actor_config(kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Add the local ``ActorConfig`` to *kwargs* when one resolves."""
     actor_config = _resolve_actor_config()
     if actor_config is not None:
         kwargs["actor_config"] = actor_config
@@ -190,14 +202,12 @@ def _case_proposal_port_factory(dl: DataLayer) -> dict[str, Any]:
     its own bundle here, the same way this module wires
     ``STATUS_AUTHORIZATION_PERMISSIVE`` for the received-side status gates.
     """
-    kwargs: dict[str, Any] = {
-        "call_out": CASE_PROPOSAL_DETERMINISTIC,
-        **_trigger_activity_port_factory(dl),
-    }
-    actor_config = _resolve_actor_config()
-    if actor_config is not None:
-        kwargs["actor_config"] = actor_config
-    return kwargs
+    return _with_actor_config(
+        {
+            "call_out": CASE_PROPOSAL_DETERMINISTIC,
+            **_trigger_activity_port_factory(dl),
+        }
+    )
 
 
 # Semantics whose use cases need the trigger-activity port.  None of these
@@ -209,10 +219,6 @@ _TRIGGER_ACTIVITY_PORT_SEMANTICS = frozenset(
         MessageSemantics.ACK_REPORT,
         MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER,
         MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
-        # INVITE_TO_EMBARGO_ON_CASE and ACCEPT_INVITE_TO_EMBARGO_ON_CASE emit
-        # ER when P/X/A is set (EMB-01-002, EMB-02-002).
-        MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
-        MessageSemantics.INVITE_TO_EMBARGO_ON_CASE,
         MessageSemantics.ACCEPT_OFFER_CASE_PARTICIPANT,
         # CLOSE_CASE emits the as:Reject that declines an owner close during a
         # live embargo (CM-23-011).
@@ -250,6 +256,18 @@ _SUBMIT_REPORT_SEMANTICS = frozenset({MessageSemantics.SUBMIT_REPORT})
 # CaseProposalCallOutBundle for the decline path (CP-05-002, CP-05-004).  See
 # _case_proposal_port_factory.  Separate set for the same reason as above.
 _CASE_PROPOSAL_SEMANTICS = frozenset({MessageSemantics.CREATE_CASE_PROPOSAL})
+
+# INVITE_TO_EMBARGO_ON_CASE and ACCEPT_INVITE_TO_EMBARGO_ON_CASE emit ER when
+# P/X/A is set (EMB-01-002, EMB-02-002), so they need the trigger port; the
+# CASE_MANAGER's relay and EMB-17-003 re-invite also stamp the RSVP deadline
+# from the local ActorConfig (CM-28-012).  See
+# _trigger_activity_with_actor_config_port_factory.
+_EMBARGO_INVITE_SEMANTICS = frozenset(
+    {
+        MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
+        MessageSemantics.INVITE_TO_EMBARGO_ON_CASE,
+    }
+)
 
 # Status-authorization call-out seam (ADR-0076, RSH-07-003):
 # ADD_CASE_STATUS_TO_CASE and ADD_PARTICIPANT_STATUS_TO_PARTICIPANT both

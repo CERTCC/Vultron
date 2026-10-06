@@ -42,6 +42,7 @@ groups:
   - id: PD-03-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: '`notes/*.md` files MUST be updated when implementation phases they describe are completed'
   - id: PD-03-002
     priority: SHOULD
@@ -52,18 +53,21 @@ groups:
   - id: PD-03-004
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: 'Notes sections (or whole files) that are fully superseded by delivered code, ADRs, or spec entries MUST be
       archived via `append-history note` to `plan/history/YYMM/note/` promptly, rather than left as stale context. When all
       sections of a file are archived, the file MUST be removed from `notes/` and its entry deleted from `notes/README.md`.'
   - id: PD-03-005
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: 'When archiving a notes section via `append-history note`, the entry body MUST include: archiving reason,
       superseding pointer (code path, spec ID, or docs page), `---` separator, and the original section content verbatim.
       Source ID MUST follow the `NOTES-<file-stem>--<section-slug>` convention.'
   - id: PD-03-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: Module paths referenced in `notes/` MUST be updated to reflect canonical current locations whenever those paths
       change
   - id: PD-03-006
@@ -74,6 +78,7 @@ groups:
   - id: PD-03-007
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       When an implementation or bug-fix PR changes behavior, interfaces, or architecture described in
       `docs/`, the PR MUST include the corresponding `docs/` updates or a linked follow-up
@@ -136,11 +141,13 @@ groups:
   - id: PD-04-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: '`mkdocs build --strict` MUST pass without warnings before any changes to `docs/` directory files are staged
       for commit'
   - id: PD-04-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: Validation MUST occur after markdown linting (via `.claude/skills/format-markdown/SKILL.md`) and before test
       runs, in the build-and-test workflow documented in `.claude/skills/build-docs/SKILL.md`
   - id: PD-04-003
@@ -154,11 +161,13 @@ groups:
   - id: PD-05-001
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: Agents MUST append new entries exclusively to the **end** of `plan/*HISTORY.md` files. Inserting content at
       an arbitrary line number, a specific section heading, or anywhere other than the very end of the file is **prohibited**.
   - id: PD-05-002
     priority: MUST_NOT
     kind: process
+    verification_debt: '#2571'
     statement: 'Agents MUST NOT perform a conditional existence check (e.g., `ls`, `test -f`, `os.path.exists`) before appending.
       Instead, agents MUST unconditionally ensure the file exists using a simple guard (e.g., `touch plan/HISTORY.md`), then
       proceed directly to the append step. The prohibited pattern is the `ls → if not found: create; if found: append` decision
@@ -166,11 +175,13 @@ groups:
   - id: PD-05-003
     priority: MUST_NOT
     kind: process
+    verification_debt: '#2571'
     statement: Agents MUST NOT read the full content of an append-only file in order to append a new entry. Only the final
       lines need to be inspected (using `view_range` with the tail of the file) to locate the exact end-of-file position.
   - id: PD-05-004
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: 'Agents MUST use the following canonical append procedure: 1. Ensure the file exists: `touch <file>` (no-op
       if already present). 2. Write the new entry to a temporary file, then append that file to the target using `bash("cat
       /tmp/entry.md >> plan/HISTORY.md")` — or use Python `open(file, ''a'')` for content that contains shell-special characters.
@@ -180,6 +191,7 @@ groups:
   - id: PD-05-005
     priority: MUST_NOT
     kind: process
+    verification_debt: '#2571'
     statement: Agents MUST NOT edit, reorder, or remove any existing entry from a `plan/*HISTORY.md` file. Once written, a
       history entry is permanent.
 - id: PD-06
@@ -188,6 +200,7 @@ groups:
   - id: PD-06-004
     priority: MUST_NOT
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Priority ordering is the sole responsibility of the `Schedule` field
       (Focus/Now/Next/Later/Someday) on Epics in GitHub Project #24 (PAD-02-001);
@@ -247,6 +260,7 @@ groups:
   - id: PD-09-004
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       An Epic whose scope includes changes to the canonical CaseLedgerEntry commit path
       (commit call sites, commit authorization/gating, or per-actor ledger content) MUST include a

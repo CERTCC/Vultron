@@ -9,13 +9,24 @@ from vultron.core.behaviors.case.nodes.close_case_effect import (
     ApplyCloseCaseFromLedgerNode,
 )
 from vultron.core.behaviors.case.nodes.conditions import CheckIsCaseManagerNode
+from vultron.core.behaviors.case.receive_activity_tree import (
+    create_receive_activity_tree,
+)
 from vultron.core.behaviors.embargo.nodes import (
     ApplyEmbargoAbandonmentFromLedgerNode,
     ApplyEmbargoAcceptanceFromLedgerNode,
     ApplyEmbargoInviteFromLedgerNode,
     ApplyEmbargoProposalFromLedgerNode,
+    ApplyEmbargoReinviteFromLedgerNode,
     ApplyEmbargoRejectionFromLedgerNode,
     ApplyEmbargoTeardownNode,
+    ApplyHonourLateAcceptFromLedgerNode,
+    ApplyInviteExpiryFromLedgerNode,
+    ApplyInviteExpiryNoopFromLedgerNode,
+)
+from vultron.core.behaviors.sender_entitlement import (
+    SenderIsCaseManagerNode,
+    SenderIsNamedActorNode,
 )
 from vultron.core.behaviors.sync.nodes import (
     ApplyInviteAcceptFromLedgerNode,
@@ -33,7 +44,11 @@ from vultron.core.behaviors.sync.nodes import (
     IsEmbargoAbandonmentEventNode,
     IsEmbargoInviteRelayEventNode,
     IsEmbargoProposalEventNode,
+    IsEmbargoReinviteEventNode,
+    IsHonourLateAcceptEventNode,
     IsInviteAcceptEventNode,
+    IsInviteExpiryEventNode,
+    IsInviteExpiryNoopEventNode,
     IsOfferOwnershipTransferEventNode,
     IsOwnershipTransferEventNode,
     IsParticipantStatusEventNode,
@@ -44,8 +59,6 @@ from vultron.core.behaviors.sync.nodes import (
     PersistReceivedLogEntryNode,
     ReconstructChainTailNode,
     SendRejectLogEntryNode,
-    VerifySenderIsCaseActorNode,
-    VerifySenderIsOwnIdNode,
 )
 from vultron.core.behaviors.sync.nodes.participant_status_effect import (
     EmitImpossibleStateFaultNode,
@@ -87,9 +100,12 @@ def _embargo_relay_effect_slots() -> list[py_trees.behaviour.Behaviour]:
     """The embargo negotiation's replay slots (EP-09-007, RSH-08-004, ADR-0113).
 
     The proposal the CASE_MANAGER received, each Invite it relayed, each
-    ``Accept``/``Reject`` of an Invite — the owner's decision included — and
-    the manager's abandonment of an open proposal once P/X/A is set
-    (EMB-16-001).
+    ``Accept``/``Reject`` of an Invite — the owner's decision included — each
+    invite expiry the CASE_MANAGER evaluated (CM-28-014, ADR-0118), each
+    honour decision for a late Accept whose embargo is still active
+    (EMB-17-001, ADR-0118), each no-op acknowledgement of a late Accept with
+    no active embargo (EMB-17-004, ADR-0118), and the manager's abandonment
+    of an open proposal once P/X/A is set (EMB-16-001).
     """
     return [
         _event_effect_slot(
@@ -103,6 +119,11 @@ def _embargo_relay_effect_slots() -> list[py_trees.behaviour.Behaviour]:
             ApplyEmbargoInviteFromLedgerNode,
         ),
         _event_effect_slot(
+            "EmbargoReinvite",
+            IsEmbargoReinviteEventNode,
+            ApplyEmbargoReinviteFromLedgerNode,
+        ),
+        _event_effect_slot(
             "EmbargoAcceptance",
             IsAcceptEmbargoInviteEventNode,
             ApplyEmbargoAcceptanceFromLedgerNode,
@@ -111,6 +132,21 @@ def _embargo_relay_effect_slots() -> list[py_trees.behaviour.Behaviour]:
             "EmbargoRejection",
             IsRejectEmbargoInviteEventNode,
             ApplyEmbargoRejectionFromLedgerNode,
+        ),
+        _event_effect_slot(
+            "InviteExpiry",
+            IsInviteExpiryEventNode,
+            ApplyInviteExpiryFromLedgerNode,
+        ),
+        _event_effect_slot(
+            "InviteExpiryNoop",
+            IsInviteExpiryNoopEventNode,
+            ApplyInviteExpiryNoopFromLedgerNode,
+        ),
+        _event_effect_slot(
+            "InviteHonourLateAccept",
+            IsHonourLateAcceptEventNode,
+            ApplyHonourLateAcceptFromLedgerNode,
         ),
         _event_effect_slot(
             "EmbargoAbandonment",
@@ -126,7 +162,7 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
         memory=False,
         children=[
             CheckIsCaseManagerNode(name="CheckIsCaseManager"),
-            VerifySenderIsOwnIdNode(name="VerifySenderIsOwnId"),
+            SenderIsNamedActorNode(name="SenderIsNamedActor"),
             LogDeliveryConfirmationNode(name="LogDeliveryConfirmation"),
         ],
     )
@@ -276,12 +312,22 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
                 name="CheckIsNotCaseManager",
                 child=CheckIsCaseManagerNode(name="CheckIsCaseManagerInverse"),
             ),
-            VerifySenderIsCaseActorNode(name="VerifySenderIsCaseActor"),
+            SenderIsCaseManagerNode(name="SenderIsCaseManager"),
             entry_processing,
         ],
     )
-    return py_trees.composites.Selector(
+    # The replication envelope is never itself a canonical entry (CLP-10-004),
+    # so there is no commit stage (``case_id=None``); intake archives the
+    # received Announce only and leaves the inlined entry to the chain check.
+    return create_receive_activity_tree(
         name="AnnounceLogEntryReceivedBT",
-        memory=False,
-        children=[case_actor_subtree, participant_subtree],
+        case_id=None,
+        precondition_guards=[],
+        effect_nodes=[
+            py_trees.composites.Selector(
+                name="AnnounceLogEntryRoles",
+                memory=False,
+                children=[case_actor_subtree, participant_subtree],
+            )
+        ],
     )

@@ -30,8 +30,7 @@ Sub-modules
   ``publish_embargo_policy`` (``PUT /actors/{slug}/embargo-policy``, EP-02).
 - :mod:`~vultron.demo.helpers.embargo_outcome` — creation-time embargo outcome
   checks for the negotiated path (``verify_reporter_terms_active``,
-  ``verify_pending_revision``, ``wait_for_revision_activated``,
-  ``verify_revision_settled``, ``verify_uncontested``,
+  ``verify_pending_revision``, ``verify_uncontested``,
   ``verify_receiver_replica_agrees``).
 - :mod:`~vultron.demo.helpers.runner` — ``run_exchange_demos`` and
   ``check_all_containers``.
@@ -51,6 +50,9 @@ Sub-modules
   ``find_case_by_report_id``, ``find_case_for_offer``,
   ``wait_for_case_for_offer``, ``setup_initialized_case``, and
   ``setup_two_participant_case``.
+- :mod:`~vultron.demo.helpers.invite_chain` — ``run_case_invite_chain``,
+  ``CaseInviter``, and ``EmittedBy``: the invite → deliver → answer → replica
+  chain every scenario joins an invitee through (DEMOMA-17-001).
 - :mod:`~vultron.demo.helpers.notes` — ``participant_adds_note_to_case``.
 - :mod:`~vultron.demo.helpers.milestones` — lifecycle milestone verifiers
   (``verify_case_active``, ``verify_fix_ready``, ``verify_fix_deployed``,
@@ -72,14 +74,16 @@ from vultron.demo.helpers.embargo_outcome import (
     assert_about_the_case,
     assert_window_is,
     embargo_window,
-    read_case,
     read_embargo,
     verify_pending_revision,
     verify_receiver_replica_agrees,
     verify_reporter_terms_active,
-    verify_revision_settled,
     verify_uncontested,
-    wait_for_revision_activated,
+)
+from vultron.demo.helpers.invite_chain import (
+    CaseInviter,
+    EmittedBy,
+    run_case_invite_chain,
 )
 from vultron.demo.helpers.ledger_commit import (
     trigger_log_commit,

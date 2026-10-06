@@ -18,9 +18,9 @@
 Covers the DEMOMA-07-003 steps (step 3 raw re-broadcast removed per DEMOMA-07-005)
 and StatusAdoptionGate authorization (ADR-0046, RSH-01-001 to RSH-01-004):
 
-  1. VerifySenderIsParticipantNode             — unknown sender is rejected
+  1. SenderIsActiveParticipantNode             — unknown sender is rejected
   2. AppendParticipantStatusNode               — status appended, RM regression rejected
-  StatusAdoptionGate: CheckIsCaseOwnerNode                — CASE_OWNER gospel bypass (RSH-01-002)
+  StatusAdoptionGate: SenderIsCaseOwnerNode                — CASE_OWNER gospel bypass (RSH-01-002)
   StatusAdoptionGate: StatusAdoptionGate                   — Fallback: bypass or call-out (RSH-01-002)
   StatusAdoptionGate: EmitCaseStatusUpdateNode             — direct ledger write (RSH-01-003, RSH-04-004)
 
@@ -50,11 +50,12 @@ from vultron.core.behaviors.call_out.bundles.status_authorization import (
     StatusAuthorizationCallOutBundle,
 )
 from vultron.core.behaviors.call_out.nodes import AlwaysFail
-from vultron.core.behaviors.case.nodes.vfd_role_guards import (
-    CheckIsCaseOwnerNode,
-)
 from vultron.core.behaviors.case_status_snapshot import (
     EmitCaseStatusUpdateNode,
+)
+from vultron.core.behaviors.sender_entitlement import (
+    SenderIsActiveParticipantNode,
+    SenderIsCaseOwnerNode,
 )
 from vultron.core.behaviors.status.add_participant_status_tree import (
     add_participant_status_tree,
@@ -71,7 +72,6 @@ from vultron.core.behaviors.status.nodes import (
     LoadParticipantNode,
     ResolveAndPersistStatusObjectNode,
     ValidateRMTransitionNode,
-    VerifySenderIsParticipantNode,
 )
 from vultron.core.behaviors.status.nodes.dimension_filter import BB_RM_ANOMALY
 from vultron.core.behaviors.status.nodes.threat_termination import (
@@ -197,14 +197,14 @@ def populated_bridge(populated_dl):
 
 
 # ---------------------------------------------------------------------------
-# Step 1: VerifySenderIsParticipantNode
+# Step 1: SenderIsActiveParticipantNode
 # ---------------------------------------------------------------------------
 
 
-class TestVerifySenderIsParticipantNode:
+class TestSenderIsActiveParticipantNode:
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_known_sender_succeeds(self, populated_bridge):
-        node = VerifySenderIsParticipantNode(
+        node = SenderIsActiveParticipantNode(
             status_id=STATUS_ID,
             sender_actor_id=ACTOR_ID,
             case_id=CASE_ID,
@@ -216,7 +216,7 @@ class TestVerifySenderIsParticipantNode:
 
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_unknown_sender_fails(self, populated_bridge):
-        node = VerifySenderIsParticipantNode(
+        node = SenderIsActiveParticipantNode(
             status_id=STATUS_ID,
             sender_actor_id=OUTSIDER_ID,
             case_id=CASE_ID,
@@ -228,7 +228,7 @@ class TestVerifySenderIsParticipantNode:
 
     def test_missing_case_fails(self, bridge):
         """No case in DataLayer → FAILURE."""
-        node = VerifySenderIsParticipantNode(
+        node = SenderIsActiveParticipantNode(
             status_id=STATUS_ID,
             sender_actor_id=ACTOR_ID,
             case_id="https://example.org/cases/nonexistent",
@@ -239,7 +239,7 @@ class TestVerifySenderIsParticipantNode:
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_no_case_id_falls_back_to_dl_lookup(self, populated_bridge):
         """When case_id is None, node resolves case_id from status.context."""
-        node = VerifySenderIsParticipantNode(
+        node = SenderIsActiveParticipantNode(
             status_id=STATUS_ID,
             sender_actor_id=ACTOR_ID,
             case_id=None,
@@ -942,7 +942,7 @@ class TestAddParticipantStatusTree:
         populated_dl,
         make_payload,
     ):
-        """Unknown sender → VerifySenderIsParticipantNode fails, tree halts."""
+        """Unknown sender → SenderIsActiveParticipantNode fails, tree halts."""
         activity = add_status_to_participant_activity(
             status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
             target=as_CaseParticipant(
@@ -972,7 +972,7 @@ class TestAddParticipantStatusTree:
         """Non-CASE_OWNER sender with AlwaysFail call-out → blocked at gate
         (RSH-01-002): StatusAdoptionGate denied — Add(CaseStatus) NOT emitted to outbox.
 
-        Uses CASE_MANAGER_ID as the sender (not CASE_OWNER) so CheckIsCaseOwnerNode
+        Uses CASE_MANAGER_ID as the sender (not CASE_OWNER) so SenderIsCaseOwnerNode
         returns FAILURE, routing to the AlwaysFail call-out which also fails.
         Executes as ACTOR_ID (vendor) to skip the guarded ledger-commit subtree.
         """
@@ -983,7 +983,7 @@ class TestAddParticipantStatusTree:
         cm_status_id = f"{STATUS_ID}/cm"
         cm_status = as_ParticipantStatus(id_=cm_status_id, context=CASE_ID)
         populated_dl.create(cm_status)
-        # CASE_MANAGER_ID is NOT CASE_OWNER — CheckIsCaseOwnerNode will return FAILURE
+        # CASE_MANAGER_ID is NOT CASE_OWNER — SenderIsCaseOwnerNode will return FAILURE
         cm_activity = add_status_to_participant_activity(
             status=as_ParticipantStatus(id_=cm_status_id, context=CASE_ID),
             target=as_CaseParticipant(
@@ -1030,7 +1030,7 @@ class TestAddParticipantStatusTree:
         cm_status_id = f"{STATUS_ID}/cm-default"
         cm_status = as_ParticipantStatus(id_=cm_status_id, context=CASE_ID)
         populated_dl.create(cm_status)
-        # CASE_MANAGER_ID is NOT CASE_OWNER — CheckIsCaseOwnerNode returns FAILURE → call-out fires
+        # CASE_MANAGER_ID is NOT CASE_OWNER — SenderIsCaseOwnerNode returns FAILURE → call-out fires
         cm_activity = add_status_to_participant_activity(
             status=cm_status,
             target=as_CaseParticipant(
@@ -1181,8 +1181,8 @@ class TestAddParticipantStatusTree:
         assert "StatusAdoptionGate" in node_names, (
             "StatusAdoptionGate must be present (RSH-01-001)"
         )
-        assert "CheckIsCaseOwner" in node_names, (
-            "CheckIsCaseOwnerNode must be present inside StatusAdoptionGate (RSH-01-002)"
+        assert "SenderIsCaseOwner" in node_names, (
+            "SenderIsCaseOwnerNode must be present inside StatusAdoptionGate (RSH-01-002)"
         )
 
 
@@ -1250,16 +1250,16 @@ class TestNoAutoCloseSequenceInTree:
 
 
 # ---------------------------------------------------------------------------
-# StatusAdoptionGate: CheckIsCaseOwnerNode (RSH-01-002)
+# StatusAdoptionGate: SenderIsCaseOwnerNode (RSH-01-002)
 # ---------------------------------------------------------------------------
 
 
-class TestCheckIsCaseOwnerNode:
+class TestSenderIsCaseOwnerNode:
     @pytest.mark.spec("RSH-01-002")
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_case_owner_returns_success(self, populated_bridge):
         """CASE_OWNER sender → SUCCESS (gospel bypass)."""
-        node = CheckIsCaseOwnerNode(
+        node = SenderIsCaseOwnerNode(
             sender_actor_id=ACTOR_ID,  # has CASE_OWNER role in fixture
             case_id=CASE_ID,
         )
@@ -1272,7 +1272,7 @@ class TestCheckIsCaseOwnerNode:
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_non_owner_returns_failure(self, populated_bridge):
         """CASE_MANAGER sender (not CASE_OWNER) → FAILURE (proceeds to call-out)."""
-        node = CheckIsCaseOwnerNode(
+        node = SenderIsCaseOwnerNode(
             sender_actor_id=CASE_MANAGER_ID,  # has CASE_MANAGER role, not CASE_OWNER
             case_id=CASE_ID,
         )
@@ -1284,7 +1284,7 @@ class TestCheckIsCaseOwnerNode:
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_unknown_actor_returns_failure(self, populated_bridge):
         """Actor not in actor_participant_index → FAILURE."""
-        node = CheckIsCaseOwnerNode(
+        node = SenderIsCaseOwnerNode(
             sender_actor_id=OUTSIDER_ID,
             case_id=CASE_ID,
         )
@@ -1296,7 +1296,7 @@ class TestCheckIsCaseOwnerNode:
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_no_case_returns_failure(self, bridge):
         """No case in DataLayer → FAILURE."""
-        node = CheckIsCaseOwnerNode(
+        node = SenderIsCaseOwnerNode(
             sender_actor_id=ACTOR_ID,
             case_id="https://example.org/cases/nonexistent",
         )
@@ -1306,7 +1306,7 @@ class TestCheckIsCaseOwnerNode:
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_no_case_id_returns_failure(self, bridge):
         """No case_id at all → FAILURE."""
-        node = CheckIsCaseOwnerNode(
+        node = SenderIsCaseOwnerNode(
             sender_actor_id=ACTOR_ID,
             case_id=None,
         )

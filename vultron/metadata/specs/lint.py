@@ -37,9 +37,11 @@ from vultron.metadata.specs.schema import (
     TriggerType,
 )
 from vultron.metadata.specs.verification import (
-    VERIFICATION_CEILINGS,
-    VerificationCeiling,
+    VERIFICATION_DEBT_OWNERS,
+    check_closing_pr,
     check_verification_coverage,
+    closed_debt_owners,
+    debt_owner_refs,
 )
 
 _RATIONALE_WARN_CHARS = 500
@@ -663,9 +665,10 @@ def _check_per_spec_advisory_warnings(registry: SpecRegistry) -> list[str]:
     Covers: testable_without_steps, rationale_too_long, missing_tags, and
     missing_story_reference for every ``kind: protocol`` requirement below the
     MUST tier (SR-11-004 — SHOULD, SHOULD_NOT and MAY). All are suppressible
-    via ``lint_suppress``. Unverified MUST-tier requirements are counted per
-    kind by :func:`~vultron.metadata.specs.verification.check_verification_coverage`
-    instead of warned per item (MS-10-005).
+    via ``lint_suppress``. Unverified MUST-tier requirements are checked per
+    item, against their ``verification_debt`` markers, by
+    :func:`~vultron.metadata.specs.verification.check_verification_coverage`
+    (MS-10-006).
     """
     warnings: list[str] = []
     for spec_id, spec in registry.all_specs.items():
@@ -851,7 +854,9 @@ def lint(
     registry: SpecRegistry | None = None,
     *,
     list_unverified: bool = False,
-    ceilings: Mapping[SpecKind, VerificationCeiling] | None = None,
+    debt_owners: Mapping[SpecKind, frozenset[str]] | None = None,
+    check_debt_owners: bool = False,
+    closing_pr: int | None = None,
 ) -> int:
     """Validate the spec registry in ``spec_dir``.
 
@@ -869,18 +874,26 @@ def lint(
         registry: Pre-loaded :class:`SpecRegistry` instance.  When provided,
             the ``load_registry(spec_dir)`` call is skipped, avoiding
             redundant I/O in callers that already hold a loaded registry.
-        list_unverified: Print the IDs of every unverified MUST-tier
-            requirement under its kind's summary line (MS-10-005 opt-in;
-            ``--list-unverified`` on the CLI).
-        ceilings: The MS-10-006 ceiling table.  Defaults to the live
-            :data:`~vultron.metadata.specs.verification.VERIFICATION_CEILINGS`;
+        list_unverified: Print the ID and marker of every unverified
+            MUST-tier requirement under its kind's summary line (MS-10-005
+            opt-in; ``--list-unverified`` on the CLI).
+        debt_owners: The issues that own each kind's verification backlog.
+            Defaults to the live
+            :data:`~vultron.metadata.specs.verification.VERIFICATION_DEBT_OWNERS`;
             tests pass a fixture table.
+        check_debt_owners: Also fail on any ``verification_debt`` marker or
+            owner entry naming a closed issue (MS-10-006;
+            ``--check-debt-owners`` on the CLI). Needs the ``gh`` CLI and a
+            token, so CI runs it and the pre-commit hook does not.
+        closing_pr: Also fail when this pull request closes an owner issue
+            that a marker or owner entry still names (MS-10-006;
+            ``--check-closing-pr N`` on the CLI). Needs ``gh`` and a token.
 
     Returns:
         ``0`` if no hard errors, ``1`` if any hard errors found.
     """
-    if ceilings is None:
-        ceilings = VERIFICATION_CEILINGS
+    if debt_owners is None:
+        debt_owners = VERIFICATION_DEBT_OWNERS
     if adr_dir is None:
         adr_dir = spec_dir.parent / "docs" / "adr"
 
@@ -908,10 +921,16 @@ def lint(
 
     warnings.extend(_check_per_spec_advisory_warnings(registry))
     verification_errors, verification_lines = check_verification_coverage(
-        registry, ceilings, list_unverified
+        registry, debt_owners, list_unverified
     )
     hard_errors.extend(verification_errors)
     status_lines.extend(verification_lines)
+    if check_debt_owners:
+        hard_errors.extend(
+            closed_debt_owners(debt_owner_refs(registry, debt_owners))
+        )
+    if closing_pr is not None:
+        hard_errors.extend(check_closing_pr(registry, debt_owners, closing_pr))
 
     adr_ref_errors, adr_ref_warnings = _check_adr_references(registry, adr_dir)
     hard_errors.extend(adr_ref_errors)
@@ -952,8 +971,27 @@ def main() -> None:
         "--list-unverified",
         action="store_true",
         help=(
-            "List the ID of every MUST or MUST_NOT requirement with no "
-            "verification: field under its kind's summary line (MS-10-005)"
+            "List the ID and verification_debt marker of every MUST or "
+            "MUST_NOT requirement with no verification: field under its "
+            "kind's summary line (MS-10-005)"
+        ),
+    )
+    parser.add_argument(
+        "--check-debt-owners",
+        action="store_true",
+        help=(
+            "Fail when a verification_debt marker or owner entry names a "
+            "closed issue (MS-10-006); needs the gh CLI and a token"
+        ),
+    )
+    parser.add_argument(
+        "--check-closing-pr",
+        type=int,
+        metavar="N",
+        help=(
+            "Fail when pull request N closes an owner issue that a "
+            "verification_debt marker or owner entry still names "
+            "(MS-10-006); needs the gh CLI and a token"
         ),
     )
     args = parser.parse_args()
@@ -964,7 +1002,14 @@ def main() -> None:
             file=sys.stderr,
         )
         sys.exit(2)
-    sys.exit(lint(spec_dir, list_unverified=args.list_unverified))
+    sys.exit(
+        lint(
+            spec_dir,
+            list_unverified=args.list_unverified,
+            check_debt_owners=args.check_debt_owners,
+            closing_pr=args.check_closing_pr,
+        )
+    )
 
 
 if __name__ == "__main__":

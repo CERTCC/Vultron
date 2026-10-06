@@ -31,7 +31,7 @@ Three use cases covering the full CP message flow (ADR-0023):
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.bridge import BTBridge
@@ -64,6 +64,11 @@ from vultron.core.behaviors.case.nodes.proposal_retry_marker import (
 from vultron.core.behaviors.case.reject_case_proposal_received_tree import (
     RecordCaseProposalRejectionNode,
     create_reject_case_proposal_received_tree,
+)
+from vultron.core.behaviors.sender_entitlement import (
+    SenderEntitlement,
+    SenderEntitlementKind,
+    exempt,
 )
 from vultron.core.models.events.case_proposal import (
     AcceptCaseProposalReceivedEvent,
@@ -125,6 +130,12 @@ class CreateCaseProposalReceivedUseCase:
 
     Spec: CP-05-001 through CP-05-004.
     """
+
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#812",
+        "prototype admits a Create(CaseProposal) from any sender (CP-05-002); "
+        "sender must be the report receiver once CaseActors are spawned",
+    )
 
     def __init__(
         self,
@@ -331,6 +342,12 @@ class AcceptCaseProposalReceivedUseCase:
     Spec: CP-06-001, CP-06-003.
     """
 
+    # The sender must be the actor the vendor addressed the proposal to,
+    # as recorded on the report case link (CP-06-005).
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.NAMED_ACTOR
+    )
+
     def __init__(
         self,
         dl: CasePersistence,
@@ -411,6 +428,10 @@ class RejectCaseProposalReceivedUseCase:
     Spec: CP-06-002, CP-06-004.
     """
 
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.NAMED_ACTOR
+    )
+
     def __init__(
         self,
         dl: CasePersistence,
@@ -448,6 +469,7 @@ class RejectCaseProposalReceivedUseCase:
 
         tree = create_reject_case_proposal_received_tree(
             report_id=report_id,
+            sender_actor_id=request.actor_id,
             rejection_reason=rejection_reason,
         )
         result = BTBridge(

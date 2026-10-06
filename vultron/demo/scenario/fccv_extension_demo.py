@@ -42,6 +42,10 @@ from vultron.core.states.rm import RM
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.actor_roles import ActorRole, role_map
 from vultron.demo.helpers.harness import scenario_harness
+from vultron.demo.helpers.invite_chain import (
+    CaseInviter,
+    run_case_invite_chain,
+)
 from vultron.demo.helpers.ledger_dump import (
     LedgerDumpTarget,
     dump_case_ledgers,
@@ -57,7 +61,6 @@ from vultron.demo.helpers.notes import participant_adds_note_to_case
 from vultron.demo.helpers.polling import (
     PARTICIPANT_JOIN_TIMEOUT,
     find_case_actor_participant_id,
-    find_case_invite_for_actor,
     find_cp_offer_for_case,
     wait_for_all_participants_rm_closed,
     wait_for_case_em_terminated,
@@ -302,57 +305,33 @@ def _phase_report_submission(
             expected_actor_ids={finder.id_, c1.id_},
         )
 
-        # C1 invites C2 with CVDRole.COORDINATOR (not CASE_MANAGER).
-        # Every step that depends on the invite — the delivery gate, the accept
-        # and the replica wait — is nested inside the block that produces what it
-        # needs, so a failed trigger or lookup skips its dependents instead of
-        # handing them ``None`` (ADR-0058 nested-block model, EDF-06-005, #3038).
-        with demo_step("C1 invites C2 with CVDRole.COORDINATOR"):
-            invite_offer = (
-                ActorSession(client=c1_client, actor=c1_in_c1)
-                .with_case(case)
-                .quiet()
-                .invite_actor_to_case(
-                    invitee_id=c2.id_, roles=[CVDRole.COORDINATOR]
-                )
-            ).activity
-            logger.info(
-                "Asked the CASE_MANAGER to invite C2: %s", invite_offer.id_
-            )
-
-            # Wait for the CaseActor-routed Invite to appear in C2's DataLayer.
-            with demo_gate(
-                "CaseActor-routed Invite for C2 stored in C2's DataLayer"
-            ):
-                invite_id = find_case_invite_for_actor(
-                    client=c2_client,
+        # C1 invites C2 with CVDRole.COORDINATOR (not CASE_MANAGER).  The chain
+        # nests the delivery gate, the accept and the replica wait inside the
+        # invite step, so a failed trigger or lookup skips its dependents
+        # (ADR-0058 nested-block model, EDF-06-005, #3038).
+        def _check_c2_joined() -> None:
+            # 4 participants: Finder + C1 + C2 + CaseActor
+            with demo_check("C1 case reflects Finder + C1 + C2 participants"):
+                wait_for_case_participants(
+                    vendor_client=c1_client,
                     case_id=case.id_,
-                    invitee_id=c2.id_,
+                    expected_actor_ids={finder.id_, c1.id_, c2.id_},
                 )
-                logger.info("CaseActor Invite for C2: %s", invite_id)
 
-                # C2 accepts the invite.
-                with demo_step("C2 accepts the case invitation"):
-                    ActorSession(
-                        client=c2_client, actor=c2_in_c2
-                    ).quiet().accept_case_invite(invite_id=invite_id)
-
-                # Wait for C2's container to replicate the case.
-                with demo_check("C2's DataLayer received case replica"):
-                    wait_for_case_on_container(
-                        client=c2_client,
-                        case_id=case.id_,
-                    )
-
-                # 4 participants: Finder + C1 + C2 + CaseActor
-                with demo_check(
-                    "C1 case reflects Finder + C1 + C2 participants"
-                ):
-                    wait_for_case_participants(
-                        vendor_client=c1_client,
-                        case_id=case.id_,
-                        expected_actor_ids={finder.id_, c1.id_, c2.id_},
-                    )
+        run_case_invite_chain(
+            case=case,
+            invitee_name="C2",
+            invitee_client=c2_client,
+            invitee=c2,
+            invitee_in_own_container=c2_in_c2,
+            inviter=CaseInviter(
+                name="C1",
+                client=c1_client,
+                actor=c1_in_c1,
+                role=CVDRole.COORDINATOR,
+            ),
+            then=_check_c2_joined,
+        )
 
     with demo_check(
         "M1: required participants (≥4), EM.ACTIVE, finder + c2 have replicas"
@@ -462,38 +441,19 @@ def _phase_c2_suggests_vendor(
             )
     logger.info("C1 sent Accept(Offer(CaseParticipant)) to CaseActor")
 
-    # CaseActor receives Accept → emits Invite(Actor, CaseStub) to Vendor.  Poll
-    # Vendor's DataLayer for the arriving Invite, then puppeteer Vendor's accept.
-    # The invite is the causal precondition for the accept, so this is a
-    # demo_gate with the accept nested inside it — a timeout skips the accept
-    # instead of posting ``invite_id: None`` (EDF-06-005, #3038).
-    with demo_gate("Vendor received invite from CaseActor (ADR-0026 path)"):
-        invite_id = find_case_invite_for_actor(
-            client=vendor_client,
-            case_id=case.id_,
-            invitee_id=vendor.id_,
-            timeout_seconds=20.0,
-        )
-        logger.info("Vendor received CaseActor invite: %s", invite_id)
-
-        with demo_step("Vendor accepts the CaseActor invitation"):
-            ActorSession(
-                client=vendor_client, actor=vendor_in_vendor
-            ).quiet().accept_case_invite(invite_id=invite_id)
-        logger.info("Vendor sent Accept(Invite) to CaseActor")
-
-        # Vendor's replica is seeded by the CaseActor's
-        # Announce(VulnerabilityCase) sent in response to the Accept above.
-        with demo_check("Vendor's DataLayer received case replica"):
-            wait_for_case_on_container(
-                client=vendor_client,
-                case_id=case.id_,
-                timeout_seconds=20.0,
-            )
-        logger.info(
-            "Vendor received case replica via CaseActor Announce"
-            " (ADR-0026 path)"
-        )
+    # CaseActor receives Accept → emits Invite(Actor, CaseStub) to Vendor; the
+    # chain polls Vendor's DataLayer for it and puppeteers Vendor's accept
+    # (ADR-0026).  Everything after the invite nests inside its gate
+    # (EDF-06-005, #3038).
+    run_case_invite_chain(
+        case=case,
+        invitee_name="Vendor",
+        invitee_client=vendor_client,
+        invitee=vendor,
+        invitee_in_own_container=vendor_in_vendor,
+        invite_timeout=20.0,
+        replica_timeout=20.0,
+    )
 
     # All 5 participants (Finder + C1 + C2 + Vendor + CaseActor) present is the
     # causal precondition for Vendor's RM triage below: a demo_gate — not

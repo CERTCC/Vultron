@@ -1,6 +1,9 @@
 ---
 status: accepted-provisional
 date: 2026-09-23
+created: 2026-09-23
+updated: 2026-09-23
+revision: 1
 deciders: Allen Householder
 consulted: CERT/CC Vultron team
 informed: Vultron contributors

@@ -31,8 +31,8 @@ from vultron.core.behaviors.case.nodes.proposal_retry_marker import (
     announced_case_id,
 )
 from vultron.core.behaviors.helpers import (
-    DataLayerAction,
     DataLayerActionWithPorts,
+    _EmitSingleActivityBase,
 )
 from vultron.core.models.pending_create_case_activity import (
     PendingCreateCaseActivity,
@@ -43,7 +43,7 @@ from vultron.errors import VultronError
 logger = logging.getLogger(__name__)
 
 
-class EmitAcceptCaseProposalNode(DataLayerActionWithPorts):
+class EmitAcceptCaseProposalNode(_EmitSingleActivityBase):
     """Build Accept(CaseProposal), store it, and queue it to the outbox.
 
     Sets ``accept_activity_id`` on the blackboard so the downstream
@@ -138,9 +138,25 @@ class EmitAcceptCaseProposalNode(DataLayerActionWithPorts):
             logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
-        # `outbox_append`, not `record_outbox_item`: the queue lives in the
-        # owning actor's store, so it takes no actor argument (ADR-0073).
-        cast(CaseOutboxPersistence, self.datalayer).outbox_append(activity_id)
+        # The Accept's id is derived from the proposal, so a redelivery names
+        # the Accept its first delivery built and re-sends it unchanged
+        # (CP-05-006).  A copy still waiting in the outbox already is that
+        # re-send; queueing it again would only duplicate the row (ID-04-004).
+        if (
+            activity_id
+            in cast(CaseOutboxPersistence, self.datalayer).outbox_list()
+        ):
+            logger.info(
+                "%s: Accept(CaseProposal) '%s' is still queued — not queueing"
+                " it again (CP-05-006)",
+                self.name,
+                activity_id,
+            )
+        else:
+            # Route through the shared emit seam (OX-14-001, ASK-04-008).
+            # outbox_append is now called inside _emit_through_seam, not
+            # directly (ADR-0073: the queue lives in the owning actor's store).
+            self._emit_through_seam(activity_id, "")
         self._set_output("accept_activity_id", activity_id)
         logger.info(
             "%s: Queued Accept(CaseProposal) '%s' to outbox for report receiver '%s'",
@@ -151,7 +167,7 @@ class EmitAcceptCaseProposalNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class EmitCreateVulnerabilityCaseNode(DataLayerAction):
+class EmitCreateVulnerabilityCaseNode(_EmitSingleActivityBase):
     """Reconstruct Create(VulnerabilityCase) from the stored marker and queue it.
 
     Reads the pre-constructed ``Create(VulnerabilityCase)`` payload from the
@@ -253,9 +269,10 @@ class EmitCreateVulnerabilityCaseNode(DataLayerAction):
             return Status.FAILURE
 
         try:
-            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
-                activity_id
-            )
+            # Route through the shared emit seam (OX-14-001, ASK-04-008).
+            # factory.emit_prepared_create_case returns (id, blob); pass
+            # empty blob since no captured dict is present here.
+            self._emit_through_seam(activity_id, "")
         except Exception as exc:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = (
                 f"Failed to enqueue Create(VulnerabilityCase) to outbox: {exc}"

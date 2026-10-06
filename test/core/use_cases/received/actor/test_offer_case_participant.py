@@ -29,6 +29,7 @@ import pytest
 
 from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
+    seed_case_owner_participant,
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -36,6 +37,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.actor import (
     AcceptOfferCaseParticipantReceivedEvent,
     OfferCaseParticipantReceivedEvent,
@@ -71,6 +73,9 @@ RECOMMENDED_ID = "https://example.org/actors/vendor-new"
 BYSTANDER_ID = "https://example.org/actors/bystander"
 #: The original ``Offer(Actor)`` the transformed Offer carries as ``origin``.
 RECOMMENDATION_ID = "https://example.org/activities/orig-offer-001"
+#: The ``Offer(CaseParticipant)`` the CASE_MANAGER recorded and the Case Owner
+#: answers; replies name it by this id.
+OFFER_ID = "https://example.org/activities/offer-case-participant-001"
 
 
 def _case_ref(case_id: str) -> as_VulnerabilityCase:
@@ -128,9 +133,22 @@ def _seed_dl_for_case_actor(
         recommendation_recommender_index={RECOMMENDATION_ID: RECOMMENDER_ID},
     )
     seed_case_manager_participant(dl, case, manager_id)
+    seed_case_owner_participant(dl, case, CASE_OWNER_ID)
     dl.create(case_actor)
     dl.create(case)
+    _record_offer(dl)
     return dl, CASE_ACTOR_ID
+
+
+def _record_offer(dl: SqliteDataLayer) -> None:
+    """Store the ``Offer(CaseParticipant)`` the CASE_MANAGER forwarded.
+
+    Accept and Reject act on this record (CM-16-019), as
+    ``offer_actor_to_case()`` leaves it when the recommendation is forwarded.
+    """
+    offer = _build_offer_activity()
+    dl.create(cast(CaseParticipant, offer.object_))
+    dl.create(offer)
 
 
 def _forget_recommendation(dl: SqliteDataLayer) -> None:
@@ -149,8 +167,9 @@ def _build_offer_activity(
     cc: list[str] | None = None,
     origin: str | None = RECOMMENDATION_ID,
     roles: list | None = None,
+    recommended_id: str = RECOMMENDED_ID,
 ):
-    recommended = as_Actor(id_=RECOMMENDED_ID)
+    recommended = as_Actor(id_=recommended_id)
     extra: dict[str, Any] = {"origin": origin} if origin is not None else {}
     return offer_case_participant_activity(
         recommended,
@@ -159,6 +178,7 @@ def _build_offer_activity(
         to=to or [CASE_OWNER_ID],
         cc=cc or [],
         roles=roles,
+        id_=OFFER_ID,
         **extra,
     )
 
@@ -318,6 +338,10 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
         Dehydration stores object_ as a bare IRI; the IRI is followed at read
         time via dl.read(). So both the Offer and its CaseParticipant object
         must be stored in the DL for the roles to be found.
+
+        ``_seed_dl_for_case_actor`` already stores the same offer (via
+        ``_record_offer``); ``dl.save`` overwrites any prior record so both
+        the participant and the offer carry the expected roles.
         """
         from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.objects.case_participant import (
@@ -327,10 +351,13 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
         offer = _build_offer_activity(origin=origin, roles=[CVDRole.VENDOR])
         # Store the CaseParticipant object so the IRI follow-up in the use
         # case (AKM-03-001) succeeds and returns the roles.
+        # dl.save() is used instead of dl.create() because _record_offer
+        # (called by _seed_dl_for_case_actor) may have already stored these
+        # records; save() overwrites without raising VultronAlreadyExistsError.
         participant = offer.object_
         if isinstance(participant, as_CaseParticipant):
-            dl.create(participant)
-        dl.create(offer)
+            dl.save(participant)
+        dl.save(offer)
         accept = accept_case_participant_offer_activity(
             offer,
             target=_case_ref(CASE_ID),
@@ -407,6 +434,85 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
         assert "no recommendation" in (result.reason or "")
         assert dl.outbox_list() == []
 
+    @pytest.mark.spec("CM-16-019")
+    def test_invitee_comes_from_the_recorded_offer_not_the_reply(self):
+        """The Accept's copy of the Offer names someone else; it is ignored.
+
+        The Case Owner answers the recorded Offer by id, but the reply embeds
+        a copy whose CaseParticipant names another actor.
+        The Invite goes to the actor the CASE_MANAGER recorded (CM-16-019).
+        """
+        forged_id = "https://example.org/actors/forged-invitee"
+        dl, _ = _seed_dl_for_case_actor()
+        accept = accept_case_participant_offer_activity(
+            _build_offer_activity(recommended_id=forged_id),
+            target=_case_ref(CASE_ID),
+            actor=CASE_OWNER_ID,
+            to=[CASE_ACTOR_ID],
+        )
+        event = cast(
+            AcceptOfferCaseParticipantReceivedEvent, extract_event(accept)
+        )
+
+        result = AcceptOfferCaseParticipantReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.APPLIED
+        invites = [
+            obj
+            for obj in (dl.read(a) for a in dl.outbox_list())
+            if str(getattr(obj, "type_", "")) == "Invite"
+        ]
+        assert invites, "the recorded invitee must be invited"
+        invitees = {
+            getattr(getattr(i, "object_", None), "id_", None)
+            or getattr(i, "object_", None)
+            for i in invites
+        }
+        assert invitees == {RECOMMENDED_ID}
+
+    @pytest.mark.spec("CM-16-019")
+    def test_offer_archived_from_a_stranger_is_not_a_record(self):
+        """An Offer a stranger sent, archived by intake, is refused as a record.
+
+        Intake stores every inbound activity, so the id the Case Owner names
+        can resolve to an Offer the CASE_MANAGER never sent; the invitee
+        must come only from one it did.
+        """
+        dl, _ = _seed_dl_for_case_actor()
+        dl.save(
+            _build_offer_activity(
+                actor="https://example.org/actors/stranger",
+                recommended_id="https://example.org/actors/forged-invitee",
+            )
+        )
+        accept = accept_case_participant_offer_activity(
+            _build_offer_activity(),
+            target=_case_ref(CASE_ID),
+            actor=CASE_OWNER_ID,
+            to=[CASE_ACTOR_ID],
+        )
+        event = cast(
+            AcceptOfferCaseParticipantReceivedEvent, extract_event(accept)
+        )
+
+        result = AcceptOfferCaseParticipantReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "never recorded" in (result.reason or "")
+        assert dl.outbox_list() == []
+
     def test_never_fabricates_the_local_actor(self, caplog):
         """There is no "no local actor" case to skip for (ADR-0073).
 
@@ -437,6 +543,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
         mock_event = MagicMock()
         mock_event.activity_id = "https://example.org/activities/bad-accept"
         mock_event.target_id = None
+        mock_event.inner_target_id = None
         mock_event.activity = None
         with caplog.at_level(logging.WARNING):
             result = AcceptOfferCaseParticipantReceivedUseCase(
@@ -448,16 +555,17 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
         assert any("missing" in r.message.lower() for r in caplog.records)
         assert result.disposition is HandlerDisposition.REFUSED
 
-    def test_skips_when_missing_invitee_id(self, caplog):
+    @pytest.mark.spec("CM-16-019")
+    def test_refuses_an_offer_it_never_recorded(self, caplog):
+        """A reply naming an Offer this store never recorded has no invitee."""
         dl, _ = _seed_dl_for_case_actor()
         mock_event = MagicMock()
         mock_event.activity_id = "https://example.org/activities/bad-accept-2"
         mock_event.target_id = CASE_ID
         mock_event.activity = MagicMock()
-        # object_ has no attributed_to → invitee_id will be None
         inner_offer = MagicMock()
-        inner_offer.object_ = MagicMock(attributed_to=None)
-        inner_offer.origin = None
+        inner_offer.id_ = "https://example.org/activities/never-recorded"
+        inner_offer.origin = RECOMMENDATION_ID
         mock_event.activity.object_ = inner_offer
         with caplog.at_level(logging.WARNING):
             result = AcceptOfferCaseParticipantReceivedUseCase(
@@ -466,8 +574,9 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
                 wire_render_port=As2WireRenderAdapter(),
                 sync_port=SyncActivityAdapter(dl),
             ).execute()
-        assert any("missing" in r.message.lower() for r in caplog.records)
+        assert any("never recorded" in r.message for r in caplog.records)
         assert result.disposition is HandlerDisposition.REFUSED
+        assert dl.outbox_list() == []
 
     def test_recommender_notified_via_core_state(self):
         """AC-5: recommender notification emitted; recommender read from core state.
@@ -599,22 +708,24 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
         assert "no recommendation" in (result.reason or "")
         assert dl.outbox_list() == []
 
-    @pytest.mark.spec("CM-16-007")
-    def test_refuses_when_no_recommended_actor_can_be_named(self):
-        """A Reject whose Offer names neither a participant nor an object id.
+    @pytest.mark.spec("CM-16-019")
+    def test_refuses_an_offer_it_never_recorded(self):
+        """A Reject naming an Offer this store never recorded has nobody to name.
 
-        ``RejectActorRecommendation`` carries the recommended actor; with no
-        ``attributed_to`` on the CaseParticipant and no ``object_id`` on the
-        event there is nobody to name, and before #3877 ``""`` was sent.
+        ``RejectActorRecommendation`` carries the recommended actor, which is
+        the recorded Offer's; with no record there is nobody to name, and the
+        Reject's own ``object_id`` is not a substitute.
         """
         dl, _ = _seed_dl_for_case_actor()
         event = MagicMock()
         event.activity_id = "https://example.org/activities/reject-no-actor"
         event.target_id = CASE_ID
-        event.object_id = None
+        event.object_id = RECOMMENDED_ID
         event.receiving_actor_id = CASE_ACTOR_ID
+        event.activity.object_.id_ = (
+            "https://example.org/activities/never-recorded"
+        )
         event.activity.object_.origin = RECOMMENDATION_ID
-        event.activity.object_.object_ = None
         result = RejectOfferCaseParticipantReceivedUseCase(
             dl,
             event,
@@ -623,8 +734,41 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
             sync_port=SyncActivityAdapter(dl),
         ).execute()
         assert result.disposition is HandlerDisposition.REFUSED
-        assert "no recommended actor" in (result.reason or "")
+        assert "never recorded" in (result.reason or "")
         assert dl.outbox_list() == []
+
+    @pytest.mark.spec("CM-16-019")
+    def test_recommended_actor_comes_from_the_recorded_offer(self):
+        """The Reject's copy of the Offer names someone else; it is ignored."""
+        forged_id = "https://example.org/actors/forged-invitee"
+        dl, _ = _seed_dl_for_case_actor()
+        reject = reject_case_participant_offer_activity(
+            _build_offer_activity(recommended_id=forged_id),
+            target=_case_ref(CASE_ID),
+            actor=CASE_OWNER_ID,
+            to=[CASE_ACTOR_ID],
+        )
+        event = cast(
+            RejectOfferCaseParticipantReceivedEvent, extract_event(reject)
+        )
+
+        result = RejectOfferCaseParticipantReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.APPLIED
+        notices = [
+            str(obj.model_dump())
+            for obj in (dl.read(a) for a in dl.outbox_list())
+            if obj is not None and str(getattr(obj, "type_", "")) == "Reject"
+        ]
+        assert len(notices) == 1, "the recommender must be told once"
+        assert RECOMMENDED_ID in notices[0]
+        assert forged_id not in notices[0]
 
     def test_never_fabricates_the_local_actor(self, caplog):
         """There is no "no local actor" case to skip for (ADR-0073).
@@ -749,6 +893,7 @@ def _seed_dl_for_ac1() -> SqliteDataLayer:
     # The CaseActor holds CASE_MANAGER: both the Accept(Offer) effects and
     # the Accept(Invite) effects are role-gated (BT-17-001, BT-17-005).
     seed_case_manager_participant(dl, case, AC1_CASE_ACTOR_ID)
+    seed_case_owner_participant(dl, case, AC1_CASE_OWNER_ID)
     invitee = as_Organization(id_=AC1_INVITEE_ID)
     dl.create(case_actor)
     dl.create(case)
@@ -928,24 +1073,38 @@ class TestAcceptOfferCaseParticipantRolesThreading:
           no silent default substitution (ADR-0032 BT-HELPER-01).
     """
 
-    def _build_accept_offer_event(
-        self,
-    ) -> AcceptOfferCaseParticipantReceivedEvent:
-        from vultron.enums.roles import CVDRole
-
-        recommended = as_Actor(id_=AC1_INVITEE_ID)
-        offer = offer_case_participant_activity(
-            recommended,
+    @staticmethod
+    def _ac1_offer(roles: list | None = None):
+        """The ``Offer(CaseParticipant)`` for the AC1 invitee, by its fixed id."""
+        extra: dict[str, Any] = {"roles": roles} if roles else {}
+        return offer_case_participant_activity(
+            as_Actor(id_=AC1_INVITEE_ID),
             target=_case_ref(AC1_CASE_ID),
             actor=AC1_CASE_ACTOR_ID,
             to=[AC1_CASE_OWNER_ID],
-            roles=[CVDRole.VENDOR],
+            id_=OFFER_ID,
             # CM-16-004: the transformed Offer names the recommendation it
             # answers; without it the CASE_MANAGER has nobody to notify.
             origin=RECOMMENDATION_ID,
+            **extra,
         )
+
+    def _build_accept_offer_event(
+        self, dl: SqliteDataLayer
+    ) -> AcceptOfferCaseParticipantReceivedEvent:
+        """Record a VENDOR Offer, then build the Accept that embeds a forged copy.
+
+        The Case Owner's Accept carries a copy of the Offer that adds
+        CASE_OWNER to the roles, but the CASE_MANAGER recorded VENDOR only;
+        the reply's copy is never used (CM-16-019, ISSUE-1745).
+        """
+        from vultron.enums.roles import CVDRole
+
+        recorded = self._ac1_offer(roles=[CVDRole.VENDOR])
+        dl.create(cast(CaseParticipant, recorded.object_))
+        dl.create(recorded)
         accept = accept_case_participant_offer_activity(
-            offer,
+            self._ac1_offer(roles=[CVDRole.VENDOR, CVDRole.CASE_OWNER]),
             target=_case_ref(AC1_CASE_ID),
             actor=AC1_CASE_OWNER_ID,
             to=[AC1_CASE_ACTOR_ID],
@@ -954,17 +1113,17 @@ class TestAcceptOfferCaseParticipantRolesThreading:
             AcceptOfferCaseParticipantReceivedEvent, extract_event(accept)
         )
 
-    def test_invite_roles_none_when_no_blackboard_key(self):
-        """AC-2: EmitInviteActorToCaseNode passes roles=None to factory.
+    @pytest.mark.spec("CM-16-019")
+    def test_invite_roles_are_the_recorded_offers_not_the_replys(self):
+        """The Invite carries the recorded roles, not the reply's forged ones.
 
-        When Accept(Offer(CaseParticipant)) arrives, ``suggested_roles`` is
-        absent from the blackboard (``create_accept_actor_recommendation_received_tree``
-        does not write it).  ``EmitInviteActorToCaseNode._read_suggested_roles()``
-        returns None, and the stored Invite has roles=None — no silent default
-        substitution (ADR-0032, BT-HELPER-01).
+        The reply's copy of the Offer adds CASE_OWNER; the Invite still names
+        only what the CASE_MANAGER recorded (CM-16-019, ISSUE-1745).
         """
+        from vultron.enums.roles import CVDRole
+
         dl = _seed_dl_for_ac1()
-        event = self._build_accept_offer_event()
+        event = self._build_accept_offer_event(dl)
         AcceptOfferCaseParticipantReceivedUseCase(
             dl,
             event,
@@ -984,29 +1143,47 @@ class TestAcceptOfferCaseParticipantRolesThreading:
         assert invite_obj is not None, (
             "Invite must be stored in CaseActor outbox"
         )
-        assert getattr(invite_obj, "roles", "sentinel") is None, (
-            "AC-2: EmitInviteActorToCaseNode must pass roles=None when "
-            "suggested_roles is absent from blackboard (no default substitution)"
+        assert getattr(invite_obj, "roles", None) == [CVDRole.VENDOR.value], (
+            "the Invite must carry the recorded Offer's roles, not the reply's"
         )
 
     @pytest.mark.spec("CM-11-019")
     def test_participant_case_roles_empty_refused_per_cm11019(self):
-        """CM-11-019: full round-trip with no-roles Invite is REFUSED at each step.
+        """CM-11-019: Accept(Offer) with empty roles is REFUSED.
 
-        Previously (AC-1 / ISSUE-1406) this path ended with
-        ``participant.case_roles == []``.  Per CM-11-019 a no-roles Invite is
-        now refused at inert-participant creation time
-        (``CreateInertInviteeParticipantNode``) and again at Accept time
-        (``CreateInviteeParticipantNode``).  No participant must be created.
+        Store an Offer whose CaseParticipant carries ``case_roles=[]``.
+        ``_require_recorded_offer`` returns ``roles=None``, so
+        ``CreateInertInviteeParticipantNode`` (CM-11-019) returns FAILURE and
+        the overall use-case result is REFUSED.  No inert participant is
+        created.
         """
-        dl = _seed_dl_for_ac1()
-        event = self._build_accept_offer_event()
+        from vultron.core.models.case import VulnerabilityCase
 
-        # Step 1: CaseActor receives Accept(Offer(CaseParticipant)).
-        # The offer is not stored in DL, so offer_roles=None → REFUSED at
-        # CreateInertInviteeParticipantNode (CM-11-019).  The Invite is still
-        # emitted because EmitInviteActorToCaseNode runs earlier in the
-        # Sequence; the overall result is REFUSED.
+        dl = _seed_dl_for_ac1()
+
+        # Store an Offer with empty roles so _require_recorded_offer returns
+        # roles=None → CreateInertInviteeParticipantNode refuses (CM-11-019).
+        empty_roles_offer = offer_case_participant_activity(
+            as_Actor(id_=AC1_INVITEE_ID),
+            target=_case_ref(AC1_CASE_ID),
+            actor=AC1_CASE_ACTOR_ID,
+            to=[AC1_CASE_OWNER_ID],
+            id_=OFFER_ID,
+            origin=RECOMMENDATION_ID,
+            roles=[],
+        )
+        dl.create(cast(CaseParticipant, empty_roles_offer.object_))
+        dl.create(empty_roles_offer)
+        accept = accept_case_participant_offer_activity(
+            empty_roles_offer,
+            target=_case_ref(AC1_CASE_ID),
+            actor=AC1_CASE_OWNER_ID,
+            to=[AC1_CASE_ACTOR_ID],
+        )
+        event = cast(
+            AcceptOfferCaseParticipantReceivedEvent, extract_event(accept)
+        )
+
         result = AcceptOfferCaseParticipantReceivedUseCase(
             dl,
             event,
@@ -1020,13 +1197,20 @@ class TestAcceptOfferCaseParticipantRolesThreading:
 
         # No inert participant should have been created.
         reloaded_case = dl.read(AC1_CASE_ID)
-        from vultron.core.models.case import VulnerabilityCase
-
         assert isinstance(reloaded_case, VulnerabilityCase)
         assert AC1_INVITEE_ID not in reloaded_case.actor_participant_index, (
             "CM-11-019: no inert participant must be created for a no-roles "
             "Accept(Offer(CaseParticipant))"
         )
+
+    @pytest.mark.spec("CM-16-019")
+    def test_participant_takes_only_the_recorded_roles(self):
+        """Full round trip: the admitted participant holds the recorded roles.
+
+        The reply's forged CASE_OWNER never reaches the Invite, so the invitee
+        is admitted as VENDOR only (CM-16-019).
+        """
+        self._test_participant_case_roles_empty_after_full_round_trip_invite_obj()
 
     def _test_participant_case_roles_empty_after_full_round_trip_invite_obj(
         self,
@@ -1034,7 +1218,7 @@ class TestAcceptOfferCaseParticipantRolesThreading:
         """Helper: find the Invite stored during step 1 of the round-trip."""
 
         dl = _seed_dl_for_ac1()
-        event = self._build_accept_offer_event()
+        event = self._build_accept_offer_event(dl)
         AcceptOfferCaseParticipantReceivedUseCase(
             dl,
             event,
@@ -1057,6 +1241,43 @@ class TestAcceptOfferCaseParticipantRolesThreading:
 
         # Step 3: invitee sends Accept(Invite) — BT creates CaseParticipant
         py_trees.blackboard.Blackboard.storage.clear()
+        from vultron.core.models.events.actor import (
+            AcceptInviteActorToCaseReceivedEvent,
+        )
+        from vultron.core.use_cases.received.actor.invite import (
+            AcceptInviteActorToCaseReceivedUseCase,
+        )
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+            as_Invite,
+        )
+
+        accept_invite = rm_accept_invite_to_case_activity(
+            cast(as_Invite, invite_obj), actor=AC1_INVITEE_ID
+        )
+        accept_invite_event = cast(
+            AcceptInviteActorToCaseReceivedEvent, extract_event(accept_invite)
+        )
+        AcceptInviteActorToCaseReceivedUseCase(
+            dl,
+            accept_invite_event,
+            sync_port=MagicMock(),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        # Step 4: assert participant.case_roles == [VENDOR]
+        reloaded_case = cast(Any, dl.read(AC1_CASE_ID))
+        participant_id = reloaded_case.actor_participant_index.get(
+            AC1_INVITEE_ID
+        )
+        assert participant_id is not None, (
+            "Invitee must be registered as participant"
+        )
+        participant = cast(Any, dl.get(id_=participant_id))
+        assert participant is not None
+        assert participant.case_roles == [CVDRole.VENDOR], (
+            "participant.case_roles must be the recorded Offer's roles only"
+        )
 
 
 # ---------------------------------------------------------------------------

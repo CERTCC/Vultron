@@ -6,6 +6,12 @@ import py_trees
 from vultron.core.behaviors.case.nodes.conditions import (
     CheckIsCaseManagerNode,
 )
+from vultron.core.behaviors.case.receive_activity_tree import (
+    create_receive_activity_tree,
+)
+from vultron.core.behaviors.sender_entitlement import (
+    SenderIsActiveLedgerParticipantNode,
+)
 from vultron.core.behaviors.sync.nodes import (
     AnnounceCaseOnGenesisRejectNode,
     FindCaseActorNode,
@@ -24,15 +30,26 @@ def create_reject_log_entry_tree() -> py_trees.behaviour.Behaviour:
     ``FindCaseActorNode`` looks up — the authority is a role, and its holder
     may be any Actor type (CLP-09 precedent; see ADR-0073).
 
+    The sender must be an active participant (SYNC-03-005); any other sender
+    halts the tree before replication state is written.
+
     A non-manager skips the pre-seed rather than failing: replaying entries it
     already holds is still correct, and only the authoritative actor may seed a
     peer's replica.
     """
-    return py_trees.composites.Sequence(
+    # The envelope is never a canonical entry (CLP-10-004): no commit stage.
+    return create_receive_activity_tree(
         name="RejectLogEntryReceivedBT",
-        memory=False,
-        children=[
+        case_id=None,
+        precondition_guards=[],
+        effect_nodes=[
             FindCaseActorNode(name="FindCaseActor"),
+            # Sender entitlement (SYNC-03-005, HP-01-006): only an active
+            # participant's rejection is acted on, and the check precedes any
+            # write so a stranger leaves no replication state.
+            SenderIsActiveLedgerParticipantNode(
+                name="SenderIsActiveParticipant"
+            ),
             UpdateReplicationStateNode(name="UpdateReplicationState"),
             # When the peer has no VulnerabilityCase yet (last_accepted_hash=""),
             # send Announce(VulnerabilityCase) before replaying entries so the

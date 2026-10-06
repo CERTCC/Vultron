@@ -14,12 +14,16 @@ from vultron.core.behaviors.sync.announce_tree import (
     create_announce_log_entry_tree,
 )
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
+from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
+)
 from vultron.core.models.rsvp_deadline import (
     INVITE_EXPIRED_EVENT_TYPE,
     INVITE_EXPIRED_SNAPSHOT_TYPE,
@@ -104,13 +108,47 @@ def _make_event(
         entry.model_dump(mode="json")
     )
     activity = announce_log_entry_activity(entry=wire_entry, actor=actor_id)
-    return cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
+    event = cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
+    # The inbox pipeline attaches the core wire activity; intake archives it.
+    event.activity = VultronActivity(
+        id_=event.activity_id,
+        type_="Announce",
+        actor=actor_id,
+        object_=entry,
+    )
+    return event
 
 
-def test_create_announce_log_entry_tree_returns_selector():
+def test_create_announce_log_entry_tree_is_intake_then_role_selector():
     tree = create_announce_log_entry_tree()
     assert tree.name == "AnnounceLogEntryReceivedBT"
+    # Intake first (CLP-10-017), then the CASE_MANAGER / participant arms.
+    assert tree.children[0].name == "IntakeReceivedActivityNode"
     assert len(tree.children) == 2
+    assert len(tree.children[1].children) == 2
+
+
+def _archived(datalayer, event) -> bool:
+    record = datalayer.read(ReceivedActivityRecord.build_id(event.activity_id))
+    return isinstance(record, ReceivedActivityRecord)
+
+
+@pytest.mark.spec("CLP-10-017")
+def test_announce_archives_the_received_activity(
+    bridge, datalayer, case_actor, case_obj
+):
+    entry = _make_entry(0, case_obj.genesis_hash)
+    event = _make_event(entry, actor_id=case_actor.id_)
+
+    result = bridge.execute_with_setup(
+        tree=create_announce_log_entry_tree(),
+        actor_id=PARTICIPANT_ACTOR_ID,
+        activity=event,
+        sync_port=MagicMock(spec=SyncActivityPort),
+    )
+
+    assert result.status == Status.SUCCESS
+    assert _archived(datalayer, event)
 
 
 @pytest.fixture
@@ -299,6 +337,9 @@ def test_hash_mismatch_sends_reject_and_does_not_store(
     assert result.status == Status.FAILURE
     assert datalayer.read(bad_entry.id_) is None
     sync_port.send_reject_log_entry.assert_called_once()
+    # The refused chain check leaves the archive of what arrived, and only
+    # that: the inlined entry is not stored (CLP-10-017, CLP-10-018).
+    assert _archived(datalayer, event)
 
 
 def _make_remove_embargo_entry(
@@ -528,15 +569,6 @@ class TestAnnounceLogEntryAppliesEmbargoInviteRelay:
         assert updated.invite_rsvp_deadline is not None
         assert updated.embargo_consent_state == PEC.INVITED
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "CM-28-014: no replica apply node exists for "
-            "invite_to_embargo_on_case_expired, so an expiry the CASE_MANAGER "
-            "recorded reaches no replica. Tracked by #3961 (Concern #3918, "
-            "ADR-0113)."
-        ),
-    )
     @pytest.mark.spec("CM-28-014")
     def test_replica_reads_expired_from_expiry_entry(
         self, bridge, datalayer, case_actor, case_obj

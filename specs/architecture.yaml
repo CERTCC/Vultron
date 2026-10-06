@@ -15,6 +15,7 @@ groups:
   - id: ARCH-01-001
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: The `core/` package (or equivalent domain layer) MUST NOT import from `wire/`, `adapters/`, or any external
       framework
     rationale: Keeps domain logic replaceable without touching the wire or transport layer
@@ -24,10 +25,12 @@ groups:
   - id: ARCH-01-002
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: Core functions MUST accept and return domain types only
   - id: ARCH-01-003
     priority: MUST_NOT
     kind: architecture
+    verification_debt: '#2569'
     statement: The `wire/` layer (AS2 parser, semantic extractor) MUST NOT contain handler logic, case management, or journal
       management
     rationale: >-
@@ -39,6 +42,7 @@ groups:
   - id: ARCH-01-004
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: All ARCH-01-001 violations in `vultron/core/` MUST be remediated via dedicated driven ports. Each file with
       a core→wire import MUST be given a narrow driven port (following the `SyncActivityPort` or `TriggerActivityPort` pattern)
       or folded under an expanded shared port.
@@ -52,6 +56,7 @@ groups:
   - id: ARCH-01-005
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: Production adapters (HTTP routes, CLI commands, MCP server, background workers) MUST NOT import from `vultron/demo/`.
       Demo-layer modules are not part of the production dependency graph and MUST be treated as test-only code for runtime
       purposes.
@@ -64,6 +69,7 @@ groups:
   - id: ARCH-01-006
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: Demo-layer modules (`vultron/demo/**`) MUST NOT import from the legacy simulator package (`vultron/bt/**`).
       The sole permitted exception is the unified demo CLI aggregator (`vultron/demo/cli.py`, mandated by DC-01-001), which
       surfaces the standalone `vultron/bt/`-based behaviour-tree demos (pacman, robot, cvd) as a sub-group. Demo *logic* modules
@@ -106,6 +112,7 @@ groups:
   - id: ARCH-04-001
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: Driven adapters (persistence, delivery queue, DNS resolver, HTTP delivery) MUST be injected into core services
       via port interfaces
     rationale: Enables testing core logic with in-memory ports and swapping production backends without touching domain code
@@ -140,6 +147,7 @@ groups:
   - id: ARCH-04-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       The concrete adapter (`SyncActivityAdapter`) MUST be implemented in
       `vultron/adapters/driven/sync_activity_adapter.py` and own the full
@@ -153,6 +161,7 @@ groups:
   - id: ARCH-04-004
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: Core use cases and BT nodes MUST call only the `SyncActivityPort` methods.
     rationale: >-
       Calling only port methods enforces the hexagonal boundary and enables
@@ -163,6 +172,7 @@ groups:
   - id: ARCH-04-005
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: >-
       Core use cases and BT nodes MUST NOT import wire types (`CaseLedgerEntry`,
       `WireCaseLedgerEntry`) or wire factory functions (`announce_log_entry_activity`,
@@ -179,11 +189,13 @@ groups:
   - id: ARCH-05-001
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: Connector plugins (tracker integrations) MUST be discovered via Python entry points (`importlib.metadata`);
       the core MUST NOT import them directly
   - id: ARCH-05-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: Connector plugins MUST translate only — no case handling logic, authorization, or journal management belongs
       in a connector
 - id: ARCH-06
@@ -199,6 +211,7 @@ groups:
   - id: ARCH-07-001
     priority: MUST_NOT
     kind: architecture
+    verification_debt: '#2569'
     statement: Handler functions MUST NOT re-invoke semantic extraction
 - id: ARCH-08
   title: Driving Adapter Boundary
@@ -206,11 +219,13 @@ groups:
   - id: ARCH-08-001
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: Driving adapters (HTTP inbox, CLI, MCP server) MUST invoke the wire pipeline before calling into the core
     rationale: Any driving adapter that needs to ingest AS2 can reuse the wire pipeline; there is no duplication
   - id: ARCH-08-002
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: A driving adapter MUST promote an incoming wire object to its most-specific domain type at the adapter boundary,
       before passing the object into the core. The core MUST NOT receive a bare `BaseObject` or generic `BaseModel` when a
       more specific type is determinable from the wire payload.
@@ -355,6 +370,7 @@ groups:
   - id: ARCH-12-008
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: Wire-branch types MUST register in `VOCABULARY`.
     rationale: >-
       The `VOCABULARY` registry is the wire layer's type-dispatch table; omitting a wire type
@@ -365,6 +381,7 @@ groups:
   - id: ARCH-12-009
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       `CoreObject` subclasses MUST register in `CORE_VOCABULARY` as the DataLayer primary
       reconstruction path.
@@ -377,6 +394,7 @@ groups:
   - id: ARCH-12-010
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       Core types that extend `CoreRecord` but not `CoreObject` MUST register in
       `CORE_TYPE_MAP` so that core types remain discoverable by type string.  Registration
@@ -394,6 +412,7 @@ groups:
   - id: ARCH-12-011
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: >-
       Wire-branch types MUST NOT register in either core registry (`CORE_VOCABULARY` or
       `CORE_TYPE_MAP`).
@@ -449,6 +468,7 @@ groups:
   - id: ARCH-09-001
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: Core domain models MUST be as rich as or richer than their wire-layer counterparts
     rationale: A thinner core model forces piecemeal additions as handlers are implemented, causing boundary leakage and implementation
       drift
@@ -479,6 +499,7 @@ groups:
   - id: ARCH-10-001
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: Domain events and domain models MUST validate required fields at construction time and fail immediately if
       required invariants are not satisfied
     rationale: Late validation masks missing data and makes debugging harder; fail-fast ensures errors surface at the point
@@ -492,6 +513,7 @@ groups:
   - id: ARCH-15-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: 'A BT node''s update() MUST return Status.FAILURE when a required blackboard key is absent or resolves to None.
       It MUST NOT return Status.SUCCESS in this case, as doing so misleads the enclosing BT sequence and silently drops protocol
       behavior (e.g., ledger entries not written).'
@@ -507,6 +529,7 @@ groups:
   - id: ARCH-15-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: 'A helper function that requires a non-None ID MUST check the result and raise VultronValidationError (or UnroutableActivityError
       for routing failures) immediately. The strict guarantee lives in the caller or the helper itself — never deferred silently
       to downstream code.'
@@ -521,6 +544,7 @@ groups:
   - id: ARCH-15-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: 'The dispatcher MUST raise UnroutableActivityError when no case_id can be extracted from an inbound event.
       It MUST NOT return None and silently drop the activity from ledger indexing.'
     rationale: 'A silently dropped activity produces an invisible gap in the canonical case ledger and leaves no audit trail.
@@ -535,6 +559,7 @@ groups:
   - id: ARCH-15-004
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: 'Each domain helper function MUST have exactly one canonical copy. Layer-neutral helpers (no dependencies above
       `models/`) MUST live in `vultron/core/models/_helpers.py`. Use-case-specific helpers belong in `vultron/core/use_cases/_helpers.py`.
       Duplicate implementations of the same logic are prohibited.'
@@ -596,31 +621,6 @@ groups:
 - id: ARCH-13
   title: DataLayer Scope Contract
   specs:
-  - id: ARCH-13-001
-    priority: MUST
-    kind: project
-    deprecated: true
-    superseded_by: DL-07-002
-    statement: This requirement is superseded by DL-07-002; there is no unscoped DataLayer to keep away from queue operations.
-    rationale: >-
-      The rule policed a hazard that ADR-0073 removed rather than mitigated. It distinguished a "shared"
-      DataLayer from an actor-scoped one and forbade passing the former to queue operations; with every
-      DataLayer belonging to exactly one actor, the distinction has no referent and the rule is vacuous.
-      Retiring it is the point: the decision *deletes* guard rails instead of adding them.
-    adr:
-    - ADR-0073
-  - id: ARCH-13-002
-    priority: MUST
-    kind: project
-    deprecated: true
-    superseded_by: DL-07-001
-    statement: This requirement is superseded by DL-07-001; queue operations have no unscoped alternative to be required away from.
-    rationale: >-
-      Named `ActorScopedDataLayer`, a protocol refinement that existed only to mark the scoped case as
-      distinct. With no unscoped mode the refinement was merged back into `DataLayer`, and queue rows no
-      longer carry an `actor_id` column to address at all — the queue lives in its owner's store.
-    adr:
-    - ADR-0073
   - id: ARCH-13-003
     priority: MUST
     kind: project
@@ -648,38 +648,13 @@ groups:
       the same through the trigger routes' `get_trigger_dl` chain.
     adr:
     - ADR-0073
-  - id: ARCH-13-004
-    priority: MUST
-    kind: project
-    deprecated: true
-    superseded_by: DL-07-001
-    statement: This requirement is superseded by DL-07-001; the two identities it required to match no longer both exist.
-    rationale: >-
-      It required the `actor_id` passed to `record_outbox_item` to equal the one used to construct the
-      reading DataLayer. `record_outbox_item` is gone: every one of its call sites passed the executing
-      actor's own id, so with a mandatory actor scope it was exactly `outbox_append`. With one identity
-      instead of two there is nothing left to keep in agreement.
-    adr:
-    - ADR-0073
-  - id: ARCH-13-005
-    priority: SHOULD
-    kind: project
-    deprecated: true
-    superseded_by: DL-07-002
-    statement: This requirement is superseded by DL-07-002; the `ActorScopedDataLayer` protocol it asked for has been deleted.
-    rationale: >-
-      It asked for a Protocol refinement so type-checkers could enforce the scope boundary at
-      signature level. The boundary is now enforced by construction instead — a DataLayer cannot exist
-      unscoped — so the refinement had no referent and was merged back into `DataLayer`. Retired
-      alongside ARCH-13-001/002/004 rather than kept as an unimplementable SHOULD.
-    adr:
-    - ADR-0073
 - id: ARCH-16
   title: App State Isolation
   specs:
   - id: ARCH-16-001
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: '`create_app()` (or any equivalent application factory) MUST NOT mutate module-level singletons, global registries,
       or process-wide shared state. All per-application state MUST be scoped to the returned app instance or its lifespan
       context.'
@@ -701,6 +676,7 @@ groups:
   - id: ARCH-17-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The `ASGIEmitter` base URL MUST contain only the scheme and netloc components (e.g., `https://example.org`).
       It MUST NOT include a path prefix, trailing slash, or mount-point segment. The emitter strips the mount prefix from
       request paths before constructing outbound URLs; a base URL that includes a prefix causes double-application.
@@ -709,6 +685,7 @@ groups:
   - id: ARCH-17-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: '`ASGIEmitter` MUST use a `contextvars.ContextVar[int]` reentrancy guard, not a `threading.Lock` or boolean
       flag, to detect and prevent re-entrant emission (an emitter call triggered by a handler that was itself invoked by an
       earlier emission). Re-entrant emission MUST raise `EmitterReentrancyError`.'
@@ -723,6 +700,7 @@ groups:
   - id: ARCH-18-001
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: 'Architecture boundary tests that enforce a `KNOWN_VIOLATIONS` allowlist MUST use a bidirectional equality
       assertion: `assert actual_violations == KNOWN_VIOLATIONS`. One-directional subset assertions (`assert actual ⊆ KNOWN`)
       are prohibited because they allow the violation count to grow silently.'
@@ -735,6 +713,7 @@ groups:
   - id: ARCH-18-002
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: When a known architectural violation is resolved (the file or import is removed or refactored), the corresponding
       entry MUST be removed from the `KNOWN_VIOLATIONS` allowlist in the same commit that resolves the violation. Stale allowlist
       entries that no longer correspond to real violations MUST NOT be retained.
@@ -786,12 +765,33 @@ groups:
       spec_id: ARCH-18-003
     lint_suppress:
     - phantom_path_ref
+  - id: ARCH-18-005
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      A baseline under `test/` is a **ratchet** when its terminal value is an empty set or a zero ceiling and an
+      `# owner: #N` issue drives it there; it is a **pinned exemption set** when it is an exact set with no terminal
+      value, kept equal to reality in both directions (ARCH-18-001, ARCH-18-002), whose entries are exempt by a recorded
+      decision rather than awaiting a fix. Only a ratchet counts as open debt. A pinned exemption set MUST carry the
+      `# permanent:` marker of ARCH-18-003, and its comment and module docstring MUST describe that constant as a
+      pinned exemption set, not as a ratchet or a backlog. A pinned set MUST contain only permanent entries: an
+      entry awaiting a fix MUST move to its own ratchet constant with an `# owner: #N` marker.
+    rationale: >-
+      Several exact sets began as shrinking backlogs and were later decided to be permanent design registers, but
+      their files still called them ratchets. A reader counting open debt over-counted, and the real debt was harder to
+      see. Both kinds use the same bidirectional equality check; what differs is whether an end state exists, so the
+      name and the marker carry that difference.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-18-003
 - id: ARCH-19
   title: Outbound Delivery Pipeline
   specs:
   - id: ARCH-19-001
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: >-
       Outbound delivery MUST be modelled as a three-stage pipeline consisting
       of Emission, Transport delivery, and Recipient acceptance.
@@ -800,6 +800,7 @@ groups:
   - id: ARCH-19-006
     priority: MUST_NOT
     kind: architecture
+    verification_debt: '#2569'
     statement: Each stage of the outbound delivery pipeline has distinct error semantics and MUST NOT be conflated with another stage.
     rationale: >-
       Treating a transport timeout (stage 2) as a recipient rejection (stage 3) leads to incorrect
@@ -810,6 +811,7 @@ groups:
   - id: ARCH-19-002
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: 'Emission (stage 1) MUST be idempotent with respect to the outbox: writing the same activity ID twice MUST
       NOT create a duplicate outbox entry.'
     relationships:
@@ -818,6 +820,7 @@ groups:
   - id: ARCH-19-003
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: Transport delivery (stage 2) MUST be retried on transient network failures. The retry mechanism MUST be implemented
       in the outbox worker, not in the use-case or handler.
     relationships:
@@ -826,6 +829,7 @@ groups:
   - id: ARCH-19-004
     priority: MUST_NOT
     kind: architecture
+    verification_debt: '#2569'
     statement: A transport delivery failure (stage 2 error) MUST NOT be interpreted as recipient rejection (stage 3 semantics).
       Delivery failure means the activity did not reach the recipient; it carries no information about whether the recipient
       would accept or reject the activity.
@@ -835,6 +839,7 @@ groups:
   - id: ARCH-19-005
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: The outbox worker MUST record the delivery outcome (success, transient failure, or permanent failure) in the
       per-actor process log (Python `logging`) at the level prescribed in `specs/structured-logging.yaml`. Delivery outcomes
       MUST NOT be written to the canonical case ledger; the case ledger is exclusively for CASE_MANAGER-authored protocol-significant
@@ -949,6 +954,7 @@ groups:
   - id: ARCH-20-004
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The rendering port MUST be injected into behavior-tree execution using the established mechanism — a constructor
       parameter on `BTBridge` published to the blackboard under a named key — in the same manner as `sync_port`. BT nodes and
       use-case helpers MUST NOT import an adapter directly or instantiate a default renderer.
@@ -1090,6 +1096,7 @@ groups:
   - id: ARCH-21-001
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: >-
       Every core domain model (a `pydantic.BaseModel` subclass defined under
       `vultron/core/models/`) MUST have `validate_assignment=True` in effect,
@@ -1128,6 +1135,7 @@ groups:
   - id: ARCH-21-003
     priority: MUST_NOT
     kind: architecture
+    verification_debt: '#2569'
     statement: >-
       No wire-layer class (under `vultron/wire/`) MUST have
       `validate_assignment` enabled. Strictness belongs at the wire-to-core
@@ -1144,6 +1152,7 @@ groups:
   - id: ARCH-21-004
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: >-
       A `mode="after"` model validator on a core model (under `vultron/core/`)
       MUST NOT assign to `self`. Values derived from other fields MUST be derived

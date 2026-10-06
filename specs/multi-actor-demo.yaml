@@ -17,6 +17,7 @@ groups:
   - id: DEMOMA-00-001
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Cross-actor communication MUST occur exclusively via HTTP using the ActivityStreams
       inbox endpoint
@@ -26,24 +27,28 @@ groups:
   - id: DEMOMA-01-001
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Each actor in a multi-actor demo MUST run in a separate container with its own DataLayer
       instance
   - id: DEMOMA-01-002
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Each actor container MUST expose the actor's identity via its `/actors/{actor_id}` profile
       endpoint so that other containers can discover it at startup
   - id: DEMOMA-01-003
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Demo startup MUST automatically reset all actor state to a known clean baseline before
       the scenario executes, without requiring manual user intervention
   - id: DEMOMA-01-004
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Each call to `create_app()` MUST create fresh per-app instances of the dispatcher,
       emitter, and DataLayer stored on `app.state`; `create_app()` MUST NOT mutate
@@ -61,6 +66,7 @@ groups:
   - id: DEMOMA-01-005
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Co-located actors (multiple FastAPI app instances in the same process) MUST each have
       a dedicated `DataLayer` instance registered in their `app.dependency_overrides`; no
@@ -79,6 +85,7 @@ groups:
   - id: DEMOMA-02-001
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Docker Compose configurations for multi-actor demos MUST include a `healthcheck` for
       each actor service that probes the `/health/ready` endpoint
@@ -92,12 +99,14 @@ groups:
   - id: DEMOMA-02-002
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Dependent services (e.g., a demo orchestration container) MUST use `condition: service_healthy`
       for all actor service dependencies
   - id: DEMOMA-02-003
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Port mappings, network names, and required environment variables MUST be documented
       in the `docker-compose.yml` file or an accompanying `README.md`
@@ -107,18 +116,21 @@ groups:
   - id: DEMOMA-03-001
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Each multi-actor demo scenario MUST include an acceptance test that validates the end-to-end
       workflow deterministically
   - id: DEMOMA-03-002
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Acceptance tests MUST assert final state for each actor (e.g., correct RM/EM/CS state,
       expected case ledger entries)
   - id: DEMOMA-03-003
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Acceptance tests MUST be reproducible: the same test on the same codebase MUST produce
       the same result on successive runs
@@ -137,6 +149,7 @@ groups:
   - id: DEMOMA-05-001
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       All actor-initiated actions in scenario demos MUST be driven through the trigger API
       (`POST /actors/{actor_id}/trigger/{behavior-name}`), not by direct inbox injection or
@@ -153,6 +166,7 @@ groups:
   - id: DEMOMA-05-002
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Scenario demo scripts MUST NOT construct and POST raw ActivityStreams JSON directly
       to an actor's inbox as a substitute for calling that actor's trigger endpoint
@@ -182,6 +196,7 @@ groups:
   - id: DEMOMA-05-004
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Demo trigger endpoints and demo helper functions MUST NOT manipulate an actor's
       DataLayer directly (e.g., calling `add_participant_status` or equivalent) or write
@@ -208,6 +223,7 @@ groups:
   - id: DEMOMA-06-001
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FV (Finder + Vendor) demo scenario MUST execute a complete CVD lifecycle
       ending in final case state VFDPxa (Vendor aware, Fix ready, Fix Deployed, Public aware,
@@ -215,6 +231,7 @@ groups:
   - id: DEMOMA-06-002
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FV scenario script MUST verify the following protocol checkpoints in order,
       checking both the Vendor and Finder DataLayers at each checkpoint: (1) report
@@ -275,6 +292,7 @@ groups:
   - id: DEMOMA-06-003
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Milestone verification MUST read both the Vendor DataLayer and the Finder DataLayer
       directly; direct DataLayer reads are acceptable in demo scripts for verification
@@ -282,6 +300,7 @@ groups:
   - id: DEMOMA-06-004
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FV demo Docker topology MUST use a dedicated case-actor container with its
       own isolated DataLayer; the Vendor MUST route case-actor creation to that container
@@ -304,6 +323,7 @@ groups:
   - id: DEMOMA-06-005
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FV demo MUST verify that the case-actor container's DataLayer holds the
       canonical case ledger after the demo completes; the demo script MUST dump the
@@ -315,6 +335,7 @@ groups:
   - id: DEMOMA-06-006
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Before calling `verify_fix_ready`, `verify_fix_deployed`, or
       `verify_publicly_disclosed`, demo scripts MUST first call
@@ -346,6 +367,7 @@ groups:
   - id: DEMOMA-07-001
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       CS state transitions (fix-ready, fix-deployed, published) MUST be driven through
       participant status updates via Add(ParticipantStatus, target=Case) sent to the Case
@@ -365,6 +387,7 @@ groups:
   - id: DEMOMA-07-002
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Demo trigger endpoints for participant status transitions MUST use the "notify" naming
       convention (e.g., notify-fix-ready, notify-fix-deployed, notify-published, close-case)
@@ -372,6 +395,7 @@ groups:
   - id: DEMOMA-07-003
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The Case Actor received handler for ADD_PARTICIPANT_STATUS_TO_PARTICIPANT MUST
       implement the following ordered steps as a BT Sequence:
@@ -450,6 +474,7 @@ groups:
   - id: DEMOMA-07-006
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       **SUPERSEDED by CM-23-001 and ADR-0050**  The BT node decomposition
       requirements for DEMOMA-07-003 step 5 (AllParticipantsRMClosedConditionNode,
@@ -477,6 +502,7 @@ groups:
   - id: DEMOMA-07-005
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The Case Actor received handler for ADD_PARTICIPANT_STATUS_TO_PARTICIPANT MUST NOT
       send a raw Add(ParticipantStatus) re-broadcast directly to peer participants after
@@ -499,6 +525,7 @@ groups:
   - id: DEMOMA-08-001
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The vendor MUST send Create(VulnerabilityCase) (not Announce) to the Reporter as the
       trust bootstrap after case initialization; only the Case Actor uses Announce for
@@ -507,88 +534,10 @@ groups:
     - rel_type: refines
       spec_id: CBT-01-001
       note: original report submission path bootstrap
-  - id: DEMOMA-08-002
-    priority: MUST
-    kind: project
-    deprecated: true
-    statement: >-
-      Case-participant role delegation MUST be implemented as a protocol mechanism distinct
-      from `OFFER_CASE_OWNERSHIP_TRANSFER`, so that the Vendor can retain `CASE_OWNER` while
-      delegating operational authority to a service actor. The three-message handshake
-      (Offer/Accept/Reject) MUST use the distinct `MessageSemantics` values
-      `OFFER_CASE_PARTICIPANT_ROLE`, `ACCEPT_CASE_PARTICIPANT_ROLE`, and
-      `REJECT_CASE_PARTICIPANT_ROLE`.
-    rationale: >-
-      The requirement stands; only the semantics names changed. ADR-0039 (CONCERN-2322)
-      removed the original `CASE_MANAGER`-specific wire format and all supporting
-      infrastructure, replacing it with the self-describing
-      `Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)` shape, which
-      also eliminates the ambiguity with `OFFER_CASE_OWNERSHIP_TRANSFER`. The statement was
-      restated in terms of the surviving semantics because it had been left asserting a MUST
-      about three deleted enum members (issue #3022). See SE-08-005.
-  - id: DEMOMA-08-006
-    priority: MUST
-    kind: project
-    deprecated: true
-    statement: >-
-      `OfferCaseParticipantRolePattern`, `AcceptCaseParticipantRolePattern`, and
-      `RejectCaseParticipantRolePattern` MUST be registered in `SEMANTIC_REGISTRY`.
-      `OfferCaseParticipantRoleReceivedUseCase`,
-      `AcceptCaseParticipantRoleReceivedUseCase`, and
-      `RejectCaseParticipantRoleReceivedUseCase` MUST be registered as their
-      `use_case_class`, so that they appear in the mapping returned by `use_case_map()`.
-    rationale: >-
-      The requirement stands; only the pattern and use-case names changed. ADR-0039
-      (CONCERN-2322) deleted the `CaseManagerRole` patterns and use cases in favour of the
-      `CaseParticipantRole` ones registered in `vultron/semantic_registry/actor.py`. The
-      statement was restated in terms of the surviving classes because it had been left
-      asserting a MUST that three deleted pattern classes be registered, in a registry that
-      no longer exists under that name (issue #3022). See SE-08-005.
-  - id: DEMOMA-08-007
-    priority: MUST
-    kind: project
-    deprecated: true
-    statement: >-
-      A trigger-side use case `SvcOfferCaseManagerRoleUseCase` MUST be implemented in
-      `vultron/core/use_cases/triggers/actor.py` (or a new module in that package).
-      It MUST build an `_OfferCaseManagerRoleActivity` addressed to the target Case Actor
-      and enqueue it to the offering Vendor's outbox.
-    rationale: >-
-      Superseded by ADR-0039 (CONCERN-2322). `SvcOfferCaseManagerRoleUseCase` was deleted;
-      the replacement is the `offer_case_participant_role` adapter method and
-      `SvcOfferCaseParticipantRoleUseCase`. See SE-08-005.
-  - id: DEMOMA-08-008
-    priority: SHOULD
-    kind: project
-    deprecated: true
-    statement: >-
-      A trigger-side use case `SvcAcceptCaseManagerRoleUseCase` SHOULD be implemented
-      for the Case Actor to explicitly accept (rather than auto-accepting via the received
-      use case). This allows manual override of the auto-accept behavior for deployments
-      that require explicit operator approval before the Case Actor assumes the role.
-    rationale: >-
-      Superseded by ADR-0039 (CONCERN-2322). `SvcAcceptCaseManagerRoleUseCase` was deleted;
-      auto-acceptance is now handled by `AutoAcceptCaseParticipantRoleNode` in the received
-      tree. See SE-08-005.
-  - id: DEMOMA-08-009
-    priority: MUST
-    kind: project
-    deprecated: true
-    statement: >-
-      Unit and integration tests MUST cover the full CASE_MANAGER delegation handshake:
-      (1) Vendor offers role via `_OfferCaseManagerRoleActivity`,
-      (2) Case Actor auto-accepts via `OfferCaseManagerRoleReceivedUseCase`,
-      (3) Vendor receives `_AcceptCaseManagerRoleActivity` and triggers
-      trust bootstrap `Create(VulnerabilityCase)` to Reporter.
-    rationale: >-
-      Superseded by ADR-0039 (CONCERN-2322). `_OfferCaseManagerRoleActivity` and
-      `OfferCaseManagerRoleReceivedUseCase` were deleted. Test coverage for the
-      replacement flow (`Offer(CaseParticipantRole)` handshake) is in
-      `test/core/behaviors/case/nodes/test_delegation.py` and
-      `test/adapters/driven/trigger_activity_adapter/test_actors.py`.
   - id: DEMOMA-08-003
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2573'
     statement: >-
       CASE_MANAGER role delegation MUST NOT reuse or adapt the existing
       OFFER_CASE_OWNERSHIP_TRANSFER, ACCEPT_CASE_OWNERSHIP_TRANSFER, or
@@ -597,6 +546,7 @@ groups:
   - id: DEMOMA-08-004
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       When the Case Actor accepts the CASE_MANAGER delegation, it MUST run the case
       initialization BT: establish the default embargo with both Vendor and Reporter
@@ -605,6 +555,7 @@ groups:
   - id: DEMOMA-08-005
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       All nested domain objects in the bootstrap `Create(VulnerabilityCase)` activity (e.g.,
       `CaseParticipant` objects in `case_participants`) MUST be embedded as full inline
@@ -621,6 +572,7 @@ groups:
   - id: DEMOMA-08-010
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The trust bootstrap payload MUST include all three participants (Vendor, Reporter,
       Case Actor) so the Reporter can bind the Case Actor identity to this case.
@@ -637,12 +589,14 @@ groups:
   - id: DEMOMA-09-001
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FVV scenario MUST seed three independent actor containers — Finder, Vendor1, and
       Vendor2 — with no Coordinator; each container MUST have its own isolated DataLayer.
   - id: DEMOMA-09-002
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Vendor1 MUST invite Vendor2 to the case after accepting the report (RM→ACCEPTED),
       and Vendor2 MUST accept and become a full SIGNATORY participant before the scenario
@@ -673,6 +627,7 @@ groups:
   - id: DEMOMA-09-003
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FVV scenario MUST reach a final state of VFDPxa CS on all three actor replicas
       (Finder, Vendor1, Vendor2), with EM.EXITED and RM.CLOSED for all participants;
@@ -681,6 +636,7 @@ groups:
   - id: DEMOMA-09-004
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FVV scenario MUST run deterministically end-to-end via a single
       `docker compose` command using the existing multi-actor Compose stack; the
@@ -689,6 +645,7 @@ groups:
   - id: DEMOMA-09-005
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The PR that introduces the FVV scenario script MUST also add a dedicated parallel
       CI job to `.github/workflows/demo-integration.yml` that runs the FVV scenario
@@ -700,6 +657,7 @@ groups:
   - id: DEMOMA-09-006
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The Case Actor MUST be co-located in the Vendor1 container in the FVV scenario.
     rationale: >-
@@ -715,6 +673,7 @@ groups:
   - id: DEMOMA-10-001
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FVCV-extension scenario MUST involve four actor identities — Finder, Vendor1,
       Coordinator, and Vendor2 — each with its own isolated DataLayer; the CaseActor
@@ -726,6 +685,7 @@ groups:
   - id: DEMOMA-10-002
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Vendor1 MUST create the case (RM→ACCEPTED) and retain `CVDRole.CASE_OWNER`
       throughout the entire scenario. Ownership MUST NOT transfer to the Coordinator.
@@ -739,6 +699,7 @@ groups:
   - id: DEMOMA-10-003
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Vendor1 MUST invite the Coordinator to the case and the Coordinator MUST accept
       and become a participant holding CVDRole.COORDINATOR and NOT CVDRole.CASE_MANAGER.
@@ -772,6 +733,7 @@ groups:
   - id: DEMOMA-10-004
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The Coordinator MUST suggest Vendor2 to the case and the CaseActor MUST
       transform the offer and forward it to Vendor1 for approval.
@@ -804,6 +766,7 @@ groups:
   - id: DEMOMA-10-005
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Vendor1 MUST approve the Coordinator's suggestion and the CaseActor MUST then
       send Invite(CaseStub+embargo) to Vendor2 on Vendor1's behalf.
@@ -832,6 +795,7 @@ groups:
   - id: DEMOMA-10-006
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FVCV-extension scenario MUST reach a final state with four participants —
       Finder, Vendor1, Coordinator, and Vendor2 (plus the CaseActor) — and MUST
@@ -842,6 +806,7 @@ groups:
   - id: DEMOMA-10-007
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FVCV-extension scenario MUST run deterministically end-to-end; the scenario
       script MUST verify LedgerFanout replica convergence for Finder, Coordinator, and Vendor2
@@ -852,6 +817,7 @@ groups:
   - id: DEMOMA-10-008
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The implementation of the FVCV-extension scenario MUST add a dedicated parallel
       CI job that runs the scenario concurrently with existing demo CI jobs; the scenario
@@ -862,6 +828,7 @@ groups:
   - id: DEMOMA-10-009
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The Vendor1 actor container MUST supply `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL`
       in its Docker Compose environment pointing to the dedicated CaseActor container
@@ -883,6 +850,7 @@ groups:
   - id: DEMOMA-11-001
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FVCV-handoff scenario MUST involve four actor identities with isolated
       DataLayers and a separate CaseActor container, as required by DEMOMA-10-001.
@@ -892,6 +860,7 @@ groups:
   - id: DEMOMA-11-002
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Vendor1 MUST transfer case ownership to the Coordinator via the
       offer-case-ownership-transfer / accept-case-ownership-transfer handshake.
@@ -934,6 +903,7 @@ groups:
   - id: DEMOMA-11-003
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       After becoming CASE_OWNER, the Coordinator MUST invite Vendor2 directly using the
       invite-actor-to-case trigger, and Vendor2 MUST accept the invitation before the
@@ -978,6 +948,7 @@ groups:
   - id: DEMOMA-11-004
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The `VulnerabilityCase.attributed_to` field MUST be updated to the Coordinator's actor
       ID after the ownership transfer completes. All participants MUST observe the
@@ -988,6 +959,7 @@ groups:
   - id: DEMOMA-11-005
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       An active embargo initiated before an ownership transfer MUST remain ACTIVE
       through and after the transfer; the EM state machine MUST transition correctly
@@ -998,6 +970,7 @@ groups:
   - id: DEMOMA-11-006
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FVCV-handoff scenario MUST reach a final state with four participants —
       Finder, Vendor1, Coordinator, and Vendor2 (plus CaseActor) — and MUST advance
@@ -1009,6 +982,7 @@ groups:
   - id: DEMOMA-11-007
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FVCV-handoff scenario MUST run deterministically and MUST verify LedgerFanout
       replica convergence for all non-owning participants after each major protocol
@@ -1019,6 +993,7 @@ groups:
   - id: DEMOMA-11-008
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The implementation of the FVCV-handoff scenario MUST add a dedicated parallel
       CI job and a CLI entry point, as required by DEMOMA-10-008.
@@ -1028,6 +1003,7 @@ groups:
   - id: DEMOMA-11-009
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FVCV-handoff scenario script MUST include polling wait steps at each
       asynchronous protocol boundary before driving the next trigger.
@@ -1086,6 +1062,7 @@ groups:
   - id: DEMOMA-11-010
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The Vendor1 actor container MUST supply `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL`
       in its Docker Compose environment pointing to the dedicated CaseActor container
@@ -1100,6 +1077,7 @@ groups:
   - id: DEMOMA-11-011
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       After the FVCV-handoff ownership transfer, the Coordinator MUST hold
       CVDRole.CASE_OWNER.
@@ -1108,6 +1086,7 @@ groups:
   - id: DEMOMA-11-012
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The CaseActor MUST seed Vendor2's case replica on Vendor2's acceptance of the
       FVCV-handoff invitation.
@@ -1117,6 +1096,7 @@ groups:
   - id: DEMOMA-11-013
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       All participants (including Vendor2 after joining) MUST be subject to an active
       embargo that was established before the FVCV-handoff ownership transfer.
@@ -1126,6 +1106,7 @@ groups:
   - id: DEMOMA-11-014
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       After the FVCV-handoff ownership transfer, Vendor1 MUST become a plain
       participant (no longer holding CVDRole.CASE_OWNER).
@@ -1142,6 +1123,7 @@ groups:
   - id: DEMOMA-12-001
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FCV scenario MUST involve four actor identities — Finder, Coordinator,
       Vendor, and CaseActor — each with its own isolated DataLayer and separate
@@ -1158,6 +1140,7 @@ groups:
   - id: DEMOMA-12-002
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The Coordinator MUST receive the Finder's report (RM→RECEIVED), validate it
       (RM→VALID), and engage the case (RM→ACCEPTED), which triggers CaseActor
@@ -1218,6 +1201,7 @@ groups:
   - id: DEMOMA-12-003
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The Coordinator MUST NOT invite the Finder to the case. The Finder is the
       reporter, so the CASE_MANAGER seats it as a SIGNATORY participant when it
@@ -1261,6 +1245,7 @@ groups:
   - id: DEMOMA-12-004
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The Coordinator MUST invite Vendor to the case using the `invite-actor-to-case`
       trigger directly (not via a suggestion/approval chain); Vendor MUST accept via
@@ -1303,6 +1288,7 @@ groups:
   - id: DEMOMA-12-005
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FCV scenario MUST reach a final state with three participants — Finder,
       Coordinator, and Vendor (plus the CaseActor) — advancing to VFDPxa CS with
@@ -1316,6 +1302,7 @@ groups:
   - id: DEMOMA-12-006
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FCV scenario MUST run deterministically end-to-end and MUST verify LedgerFanout
       replica convergence for Finder and Vendor replicas against the authoritative
@@ -1326,6 +1313,7 @@ groups:
   - id: DEMOMA-12-007
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The implementation of the FCV scenario MUST add a dedicated parallel CI job
       (`DEMO=fcv`) to `.github/workflows/demo-integration.yml` in the same PR, so
@@ -1338,6 +1326,7 @@ groups:
   - id: DEMOMA-12-008
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FCV implementation MUST ship a dedicated per-scenario case-ledger
       invariant test file (`test/ci/invariants/test_fcv_invariants.py`) built
@@ -1354,6 +1343,7 @@ groups:
   - id: DEMOMA-12-009
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FCV per-scenario invariant test file MUST assert the following
       scenario-specific checks in addition to the universal library checks:
@@ -1377,6 +1367,7 @@ groups:
   - id: DEMOMA-12-010
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The Coordinator actor container MUST supply `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL`
       in its Docker Compose environment pointing to the dedicated CaseActor container
@@ -1391,6 +1382,7 @@ groups:
   - id: DEMOMA-12-011
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The Coordinator MUST hold `CVDRole.CASE_OWNER` throughout the entire FCV scenario;
       ownership MUST NOT transfer to any other actor.
@@ -1400,6 +1392,7 @@ groups:
   - id: DEMOMA-12-012
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The CaseActor MUST emit `Announce(VulnerabilityCase)` to seed Vendor's case replica
       after Vendor accepts the invitation in the FCV scenario.
@@ -1409,6 +1402,7 @@ groups:
   - id: DEMOMA-12-013
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FCV demo script MUST poll Vendor's DataLayer for the arriving invitation before
       driving the accept step.
@@ -1418,6 +1412,7 @@ groups:
   - id: DEMOMA-12-014
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       FCV demo scripts MUST verify EM.ACTIVE at the case-creation milestone and EM.EXITED
       at the final milestone.
@@ -1428,6 +1423,7 @@ groups:
   - id: DEMOMA-12-015
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FCV invariant test file MUST NOT duplicate universal invariant logic;
       universal chain/hash/RM-closed checks MUST be imported from the shared library,
@@ -1438,6 +1434,7 @@ groups:
   - id: DEMOMA-12-016
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The P-set CS state MUST be visible in all replicas via Announce(CaseLedgerEntry)
       fan-out after the Coordinator triggers CS.P.
@@ -1454,6 +1451,7 @@ groups:
   - id: DEMOMA-13-001
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FCCV-extension scenario MUST involve four actor identities — Finder,
       Coordinator1 (C1), Coordinator2 (C2), and Vendor — each with its own isolated
@@ -1473,6 +1471,7 @@ groups:
   - id: DEMOMA-13-002
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       C1 MUST receive the Finder's report (RM→RECEIVED), validate it (RM→VALID),
       and engage the case (RM→ACCEPTED), retaining CVDRole.CASE_OWNER throughout
@@ -1530,6 +1529,7 @@ groups:
   - id: DEMOMA-13-003
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       C1 MUST invite C2 to the case and C2 MUST accept, becoming a participant
       holding CVDRole.COORDINATOR and NOT CVDRole.CASE_MANAGER.
@@ -1566,6 +1566,7 @@ groups:
   - id: DEMOMA-13-004
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       C2 MUST suggest Vendor to the case and the CaseActor MUST transform the
       offer and forward it to C1 for approval.
@@ -1602,6 +1603,7 @@ groups:
   - id: DEMOMA-13-005
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       C1 MUST approve C2's suggestion and the CaseActor MUST then send
       Invite(CaseStub+embargo) to Vendor on C1's behalf.
@@ -1640,6 +1642,7 @@ groups:
   - id: DEMOMA-13-006
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FCCV-extension scenario MUST reach a final state with four participants —
       Finder, C1, C2, and Vendor (plus the CaseActor) — and MUST advance to
@@ -1657,6 +1660,7 @@ groups:
   - id: DEMOMA-13-007
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FCCV-extension scenario MUST run deterministically end-to-end and MUST
       verify LedgerFanout replica convergence for Finder, C2, and Vendor replicas against
@@ -1669,6 +1673,7 @@ groups:
   - id: DEMOMA-13-008
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The implementation of the FCCV-extension scenario MUST add a dedicated parallel
       CI job (`DEMO=fccv-extension`) to `.github/workflows/demo-integration.yml`,
@@ -1681,6 +1686,7 @@ groups:
   - id: DEMOMA-13-009
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FCCV-extension implementation MUST ship a dedicated per-scenario
       case-ledger invariant test file
@@ -1697,6 +1703,7 @@ groups:
   - id: DEMOMA-13-010
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The C1 actor container MUST supply `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL`
       in its Docker Compose environment pointing to the dedicated CaseActor container
@@ -1711,6 +1718,7 @@ groups:
   - id: DEMOMA-13-011
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FCCV-extension invariant test file MUST assert the following
       scenario-specific checks in addition to universal library checks:
@@ -1735,6 +1743,7 @@ groups:
   - id: DEMOMA-14-001
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FCCV-handoff scenario MUST involve four actor identities — Finder,
       Coordinator1 (C1), Coordinator2 (C2), and Vendor — each with its own
@@ -1754,6 +1763,7 @@ groups:
   - id: DEMOMA-14-002
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       C1 MUST receive the Finder's report (RM→RECEIVED), validate it
       (RM→VALID), and engage the case (RM→ACCEPTED), holding
@@ -1784,6 +1794,7 @@ groups:
   - id: DEMOMA-14-003
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       C1 MUST invite C2 to the case (CVDRole.COORDINATOR), and C2 MUST accept.
     rationale: >-
@@ -1808,6 +1819,7 @@ groups:
   - id: DEMOMA-14-004
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       C1 MUST offer case ownership transfer to C2 (TRIG-11-001) and C2 MUST
       accept (TRIG-11-002).
@@ -1837,6 +1849,7 @@ groups:
   - id: DEMOMA-14-005
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       C2 (the new CASE_OWNER) MUST invite Vendor to the case (NOT C1), and
       Vendor MUST accept.
@@ -1863,6 +1876,7 @@ groups:
   - id: DEMOMA-14-006
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       After Vendor joins, all four actor containers (Finder, C1, C2, Vendor)
       MUST converge to the same case ledger state (LedgerFanout invariant).  Vendor
@@ -1877,6 +1891,7 @@ groups:
   - id: DEMOMA-14-007
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Vendor MUST advance through the full fix lifecycle: CS.VFd (fix ready)
       and CS.VFD (fix deployed).
@@ -1889,6 +1904,7 @@ groups:
   - id: DEMOMA-14-008
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FCCV-handoff implementation MUST ship a dedicated CLI command
       (`vultron-demo fccv-handoff`) wired into `vultron/demo/cli.py`
@@ -1907,6 +1923,7 @@ groups:
   - id: DEMOMA-14-009
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FCCV-handoff implementation MUST ship a dedicated per-scenario
       case-ledger invariant test file
@@ -1923,6 +1940,7 @@ groups:
   - id: DEMOMA-14-010
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       C2 MUST be a participant with CVDRole.COORDINATOR before the ownership transfer
       is initiated in the FCCV-handoff scenario.
@@ -1932,6 +1950,7 @@ groups:
   - id: DEMOMA-14-011
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       After the FCCV-handoff ownership transfer, the case's attributed_to MUST reflect
       C2 on C1's DataLayer, C2's DataLayer, and the CaseActor's canonical ledger.
@@ -1941,6 +1960,7 @@ groups:
   - id: DEMOMA-14-012
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       After the FCCV-handoff ownership transfer, C1's CVDRole MUST become
       CVDRole.COORDINATOR (no longer CASE_OWNER).
@@ -1950,6 +1970,7 @@ groups:
   - id: DEMOMA-14-013
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The Vendor's Accept activity MUST be delivered to the CaseActor so
       `AcceptInviteActorToCaseBT` runs and the join is committed to the canonical
@@ -1960,6 +1981,7 @@ groups:
   - id: DEMOMA-14-014
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       All participants MUST report publication (CS.VFDPx or CS.VFDPxa) and the
       embargo MUST terminate (EM.EXITED) in the FCCV-handoff scenario.
@@ -1969,6 +1991,7 @@ groups:
   - id: DEMOMA-14-015
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       All participants MUST close the case (RM.CLOSED) in the FCCV-handoff scenario.
     rationale: >-
@@ -1977,6 +2000,7 @@ groups:
   - id: DEMOMA-14-016
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FCCV-handoff invariant test file MUST assert the following scenario-specific
       checks in addition to universal library checks: (1) `validate_report` event
@@ -1995,6 +2019,7 @@ groups:
   - id: DEMOMA-15-001
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       `verify_fix_ready` in `vultron/demo/helpers/milestones.py` MUST accept only
       actor IDs holding `CVDRole.VENDOR` in the case's participant index; the f→F
@@ -2017,6 +2042,7 @@ groups:
   - id: DEMOMA-15-002
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       `verify_fix_deployed` MUST accept only actor IDs holding `CVDRole.DEPLOYER`
       in the case's participant index; the d→D (fix-deployed) transition is gated
@@ -2028,6 +2054,7 @@ groups:
   - id: DEMOMA-15-003
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Each demo helper (`verify_fix_ready` and `verify_fix_deployed`) MUST enforce
       its role precondition at runtime, raising `AssertionError` with the actor ID
@@ -2051,6 +2078,7 @@ groups:
   - id: DEMOMA-16-001
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The five universal event types — `validate_report`,
       `add_participant_status_to_participant`, `close_case`,
@@ -2071,6 +2099,7 @@ groups:
   - id: DEMOMA-16-002
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       In addition to the universal types (DEMOMA-16-001), the FV scenario
       MUST verify that its expected-event-types list is restricted to types that
@@ -2086,6 +2115,7 @@ groups:
   - id: DEMOMA-16-003
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FVV scenario expected-event-types list MUST include
       `invite_actor_to_case` and `accept_invite_actor_to_case` in addition
@@ -2101,6 +2131,7 @@ groups:
   - id: DEMOMA-16-004
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FVCV-extension scenario expected-event-types list MUST include
       `invite_actor_to_case`, `offer_case_participant`,
@@ -2120,6 +2151,7 @@ groups:
   - id: DEMOMA-16-005
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FVCV-handoff scenario expected-event-types list MUST include
       `invite_actor_to_case`, `accept_invite_actor_to_case` and
@@ -2147,6 +2179,7 @@ groups:
   - id: DEMOMA-16-006
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FCCV-handoff scenario expected-event-types list MUST include
       `invite_actor_to_case`, `accept_invite_actor_to_case` and
@@ -2164,6 +2197,7 @@ groups:
   - id: DEMOMA-16-007
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FCV scenario expected-event-types list MUST include
       `invite_actor_to_case` and `accept_invite_actor_to_case` in addition
@@ -2180,6 +2214,7 @@ groups:
   - id: DEMOMA-16-008
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The per-scenario expected-event-types list in each
       `test/ci/invariants/test_XXX_invariants.py` file MUST be kept in
@@ -2197,6 +2232,7 @@ groups:
   - id: DEMOMA-16-009
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FCVCV scenario expected-event-types list MUST include
       `invite_actor_to_case`, `offer_case_participant`,
@@ -2229,6 +2265,7 @@ groups:
   - id: DEMOMA-16-010
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FCCV-extension scenario expected-event-types list MUST include
       `invite_actor_to_case`, `offer_case_participant`,
@@ -2248,6 +2285,7 @@ groups:
   - id: DEMOMA-16-011
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FCV-reject scenario expected-event-types list MUST include
       `invite_actor_to_case` and `reject_invite_actor_to_case` in addition to the
@@ -2266,6 +2304,7 @@ groups:
   - id: DEMOMA-16-012
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       In the FCVCV scenario, the case-actor log MUST record `invite_actor_to_case`
       at least three times (C1 invites V1, C1 invites C2, and CaseActor invites V2
@@ -2277,6 +2316,7 @@ groups:
   - id: DEMOMA-16-013
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       In the FCVCV scenario, the case-actor log MUST record `accept_actor_recommendation`
       at least once (C1 approves C2's recommendation) and `accept_invite_actor_to_case`
@@ -2287,6 +2327,7 @@ groups:
   - id: DEMOMA-16-015
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The VC scenario expected-event-types list MUST include
       `invite_actor_to_case` and `accept_invite_actor_to_case` in addition
@@ -2309,13 +2350,17 @@ groups:
   - id: DEMOMA-16-014
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FCVD scenario expected-event-types list MUST include
       `invite_actor_to_case` and `accept_invite_actor_to_case` in addition to
       the universal types (DEMOMA-16-001), because the Coordinator invites
-      the Vendor and the Deployer into the case, and both explicitly accept via
-      the `accept-case-invite` trigger. The Finder is seated as reporter at case
-      creation (CM-22-002) and is not invited.
+      Finder, Vendor, and Deployer into the case, and all three explicitly accept
+      via the `accept-case-invite` trigger.
+    note: >-
+      The FCVD scenario is unbuilt. This entry is the text from before #4136 and
+      awaits FCVD planning, which decides who is invited once the Finder is seated
+      as reporter at case creation (DEMOMA-12-003).
     rationale: >-
       FCVD exercises a four-actor coordination chain with one full invitation
       cycle per non-case-owner actor; `invite_actor_to_case` and
@@ -2334,6 +2379,7 @@ groups:
   - id: DEMOMA-18-001
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The fuzz simulation scenario MUST run entirely in-process with no
       HTTP servers, containers, or network I/O required; each actor MUST
@@ -2349,6 +2395,7 @@ groups:
   - id: DEMOMA-18-002
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The fuzz simulation scenario MUST support a configurable number of
       iterations N (default 10); each iteration MUST start with fresh
@@ -2361,6 +2408,7 @@ groups:
   - id: DEMOMA-18-003
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The fuzz simulation scenario MUST use STOCHASTIC call-out point
       bundles for all actors so that each call-out decision is drawn
@@ -2376,6 +2424,7 @@ groups:
   - id: DEMOMA-18-004
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The fuzz simulation scenario MUST simulate in-process message
       delivery between actors by directly invoking the receiving actor's
@@ -2391,6 +2440,7 @@ groups:
   - id: DEMOMA-18-005
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Each iteration MUST log structured output at INFO level including:
       the iteration number, each call-out point node name and its
@@ -2402,6 +2452,7 @@ groups:
   - id: DEMOMA-18-006
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The fuzz simulation scenario MUST be accessible via the
       ``vultron demo fuzz`` CLI sub-command, accepting at minimum an
@@ -2417,6 +2468,7 @@ groups:
   - id: DEMOMA-18-007
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Existing deterministic demo scenarios MUST NOT be modified by the
       fuzz simulation scenario; the fuzz scenario MUST NOT import from
@@ -2428,6 +2480,7 @@ groups:
   - id: DEMOMA-18-008
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       A unit test in ``test/demo/`` MUST verify that the fuzz simulation
       scenario completes a single iteration without raising an exception;
@@ -2446,6 +2499,7 @@ groups:
   - id: DEMOMA-17-001
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Before writing a second use of a pattern in a scenario file under
       `vultron/demo/scenario/`, the pattern MUST be extracted to
@@ -2465,6 +2519,22 @@ groups:
     - rel_type: refines
       spec_id: DEMOMA-03-001
       note: acceptance test scenario files are also subject to this rule
+  - id: DEMOMA-17-002
+    priority: MUST_NOT
+    kind: project
+    verification_debt: '#2573'
+    statement: >-
+      A change that consolidates demo code (extracting or merging helpers, phases or
+      scenario bodies under DEMOMA-17-001) MUST NOT change what any demo scenario
+      passes or fails on. A verdict changed by a consolidation PR MUST instead be
+      made in its own change, with its own issue.
+    rationale: >-
+      Consolidation is behaviour-preserving. A PR that also loosens or tightens a check
+      hides the verdict change inside a refactor, where nobody is looking for it (#3905
+      changed what a demo passes on inside a consolidation and had no issue).
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-17-001
 
 - id: DEMOMA-19
   title: FCVCV 5-Party Scenario (Finder + Coordinator1 + Vendor1 + Coordinator2 + Vendor2)
@@ -2487,6 +2557,7 @@ groups:
   - id: DEMOMA-19-001
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FCVCV scenario MUST add an `actor6` service to
       `docker/docker-compose-multi-actor.yml`, configured identically to
@@ -2511,6 +2582,7 @@ groups:
   - id: DEMOMA-19-002
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       A `seed_containers_fcvcv` function MUST be added to
       `vultron/demo/helpers/seeding.py` accepting five `DataLayerClient`
@@ -2530,6 +2602,7 @@ groups:
   - id: DEMOMA-19-003
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FCVCV scenario file MUST be implemented at
       `vultron/demo/scenario/fcvcv_demo.py`.
@@ -2550,6 +2623,7 @@ groups:
   - id: DEMOMA-19-004
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       In the FCVCV scenario, V1 MUST be assigned `CVDRole.VENDOR` only (no
       DEPLOYER role) and V2 MUST be assigned both `CVDRole.VENDOR` and
@@ -2570,6 +2644,7 @@ groups:
   - id: DEMOMA-19-005
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       In the FCVCV scenario, V1 MUST publish before V2; after V1 sends its
       participant status update indicating CS.P, the scenario MUST wait for
@@ -2591,6 +2666,7 @@ groups:
   - id: DEMOMA-19-006
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FCVCV scenario MUST be registered as the `fcvcv` sub-command in
       `vultron/demo/cli.py`, consistent with the naming convention of existing
@@ -2606,6 +2682,7 @@ groups:
   - id: DEMOMA-19-007
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FCVCV scenario MUST be added to the CI demo-integration matrix in
       `.github/workflows/demo-integration.yml` with `DEMO=fcvcv`, and
@@ -2625,6 +2702,7 @@ groups:
   - id: DEMOMA-19-008
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       An invariant harness file MUST be created at
       `test/ci/invariants/test_fcvcv_invariants.py` with `_DEMO_NAME = "fcvcv"`,
@@ -2648,6 +2726,7 @@ groups:
   - id: DEMOMA-19-009
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FCVCV scenario MUST exercise the ADR-0026 suggest-actor flow for V2's
       onboarding: C2 posts `suggest-actor-to-case`, CaseActor forwards an
@@ -2670,6 +2749,7 @@ groups:
   - id: DEMOMA-19-010
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       A `seed-actor6.yaml` seed config MUST be created in `docker/seed-configs/`
       with `local_actor.id=http://actor6:7999/api/v2/actors/vendor-deployer`,
@@ -2681,6 +2761,7 @@ groups:
   - id: DEMOMA-19-011
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The `demo-runner` service MUST add `actor6` to its `depends_on` list and
       expose `VULTRON_VENDOR_DEPLOYER_BASE_URL=http://actor6:7999/api/v2` in
@@ -2691,6 +2772,7 @@ groups:
   - id: DEMOMA-19-012
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The `seed_containers_fcvcv` function MUST create five local actors: Finder
       (Person), Coordinator1 (Organization), Vendor1 (Organization), Coordinator2
@@ -2701,6 +2783,7 @@ groups:
   - id: DEMOMA-19-013
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The `seed_containers_fcvcv` function MUST register every actor as a known
       peer on each of the other four containers (N×(N-1) = 20 cross-registrations
@@ -2711,6 +2794,7 @@ groups:
   - id: DEMOMA-19-014
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FCVCV scenario MUST implement the following phases in order:
       report_submission, c2_suggests_v2, sync_verification, notes_exchange,
@@ -2783,6 +2867,7 @@ groups:
   - id: DEMOMA-19-015
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The fix lifecycle phase MUST call `verify_fix_ready` for both V1 and V2 after
       they each advance to VFd, and MUST call `verify_fix_deployed` for V2 only after
@@ -2793,6 +2878,7 @@ groups:
   - id: DEMOMA-19-016
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       `verify_fix_ready` MUST NOT be called with a DEPLOYER-only actor ID;
       `verify_fix_deployed` MUST NOT be called with a VENDOR-only (no DEPLOYER)
@@ -2803,6 +2889,7 @@ groups:
   - id: DEMOMA-19-017
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The `verify_publicly_disclosed` check MUST be called after both V1 and V2
       have published in the FCVCV scenario.
@@ -2812,6 +2899,7 @@ groups:
   - id: DEMOMA-19-018
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The CI devlogs directory for the FCVCV run MUST use the scenario-role naming
       convention: `finder`, `c1`, `v1`, `c2`, `v2`, `case-actor` (not docker
@@ -2822,6 +2910,7 @@ groups:
   - id: DEMOMA-19-019
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FCVCV invariant harness MUST define the universal invariant tests
       (Invariants 1–5) plus at minimum these scenario-specific invariant tests:
@@ -2835,6 +2924,7 @@ groups:
   - id: DEMOMA-19-020
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FCVCV invariant harness MUST load its replicas via
       `load_devlogs(demo_name=_DEMO_NAME)` from `test/ci/invariants/common.py`,
@@ -2845,6 +2935,7 @@ groups:
   - id: DEMOMA-19-021
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FCVCV scenario MUST be routed to the invariant harness file by the
       `demo`/`test_file` matrix in `.github/workflows/demo-integration.yml`;
@@ -2855,6 +2946,7 @@ groups:
   - id: DEMOMA-19-022
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FCVCV scenario MUST use polling helpers (not `post_to_inbox_and_wait`)
       to deliver the invite to V2's inbox, consistent with the no-mail-carrying
@@ -2886,6 +2978,7 @@ groups:
   - id: DEMOMA-20-001
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The rcv-embargo scenario file MUST be implemented at
       `vultron/demo/scenario/rcv_embargo_demo.py`.
@@ -2908,6 +3001,7 @@ groups:
   - id: DEMOMA-20-002
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       An exchange helper function `demo_propose_and_activate_embargo` MUST be
       added to `vultron/demo/exchange/` accepting `(reporter_client,
@@ -2938,6 +3032,7 @@ groups:
   - id: DEMOMA-20-003
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       An exchange helper function `demo_terminate_embargo` MUST be added to
       `vultron/demo/exchange/` accepting `(terminating_client, case_id)` arguments
@@ -2959,6 +3054,7 @@ groups:
   - id: DEMOMA-20-004
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The rcv-embargo scenario MUST be registered as the `rcv-embargo`
       sub-command in `vultron/demo/cli.py`, consistent with the naming
@@ -2975,6 +3071,7 @@ groups:
   - id: DEMOMA-20-005
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The rcv-embargo scenario MUST be added to the CI demo-integration matrix
       in `.github/workflows/demo-integration.yml` with `DEMO=rcv-embargo` and
@@ -2994,6 +3091,7 @@ groups:
   - id: DEMOMA-20-006
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The rcv-embargo scenario invariant harness MUST verify that the case ledger records,
       in order, the event types the CASE_MANAGER commits for the embargo proposal, the
@@ -3020,6 +3118,7 @@ groups:
   - id: DEMOMA-20-007
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The rcv-embargo scenario MUST be structured with the following phases
       executed in order: (1) report_submission, (2) embargo_proposal,
@@ -3090,6 +3189,7 @@ groups:
   - id: DEMOMA-20-008
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       After each phase of the rcv-embargo scenario, the scenario MUST assert
       the expected EM state before proceeding to the next phase.
@@ -3099,6 +3199,7 @@ groups:
   - id: DEMOMA-20-009
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       After completing the propose-activate sequence, `demo_propose_and_activate_embargo`
       MUST assert `em_state == EM.ACTIVE` on the coordinator's case replica and
@@ -3109,6 +3210,7 @@ groups:
   - id: DEMOMA-20-010
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The `demo_propose_and_activate_embargo` helper MUST use `demo_step` and
       `demo_check` for all assertions, consistent with existing exchange helpers.
@@ -3118,6 +3220,7 @@ groups:
   - id: DEMOMA-20-011
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       After delivery of `trigger_terminate_embargo`, `demo_terminate_embargo`
       MUST poll the CASE_MANAGER's canonical case for `em_state == EM.EXITED`
@@ -3131,6 +3234,7 @@ groups:
   - id: DEMOMA-20-012
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       `demo_terminate_embargo` MUST NOT assert PEC states for other participants;
       PEC propagation is asynchronous and belongs in scenario-level phase
@@ -3166,6 +3270,7 @@ groups:
   - id: DEMOMA-21-001
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The rcvv-embargo scenario file MUST be implemented at
       `vultron/demo/scenario/rcvv_embargo_demo.py`.
@@ -3188,6 +3293,7 @@ groups:
   - id: DEMOMA-21-002
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       An exchange helper function `demo_propose_embargo_revision` MUST be added
       to `vultron/demo/exchange/` accepting `(proposing_client, accepting_client,
@@ -3221,6 +3327,7 @@ groups:
   - id: DEMOMA-21-003
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The v2_late_invite phase of rcvv-embargo MUST invite V2 to the case only
       after the embargo revision (phase 3) is complete and `em_state` is confirmed
@@ -3243,6 +3350,7 @@ groups:
   - id: DEMOMA-21-004
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The accidental_collapse phase of rcvv-embargo MUST trigger the P-transition
       by calling `actor_notifies_published` on the reporter's client; the scenario
@@ -3266,6 +3374,7 @@ groups:
   - id: DEMOMA-21-005
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The rcvv-embargo scenario MUST be registered as the `rcvv-embargo`
       sub-command in `vultron/demo/cli.py`, consistent with the naming
@@ -3279,6 +3388,7 @@ groups:
   - id: DEMOMA-21-006
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The rcvv-embargo scenario MUST be added to the CI demo-integration matrix
       in `.github/workflows/demo-integration.yml` with `DEMO=rcvv-embargo` and
@@ -3296,6 +3406,7 @@ groups:
   - id: DEMOMA-21-007
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The rcvv-embargo scenario invariant harness MUST verify that the case ledger records
       the event types the CASE_MANAGER commits for the embargo proposal, the owner's
@@ -3322,6 +3433,7 @@ groups:
   - id: DEMOMA-21-008
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The rcvv-embargo scenario MUST be structured with the following phases
       executed in order: (1) report_submission, (2) embargo_proposal,
@@ -3405,6 +3517,7 @@ groups:
   - id: DEMOMA-21-009
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       After phases 2, 3, 4, and 6 of the rcvv-embargo scenario, the scenario
       MUST assert the expected EM state before proceeding to the next phase.
@@ -3414,6 +3527,7 @@ groups:
   - id: DEMOMA-21-010
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       After the revision sequence, `demo_propose_embargo_revision` MUST poll
       the CASE_MANAGER's canonical case and the accepting client's replica for
@@ -3426,6 +3540,7 @@ groups:
   - id: DEMOMA-21-011
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The `demo_propose_embargo_revision` function MUST be importable from
       `vultron/demo/exchange/` and MUST NOT duplicate the propose-and-activate
@@ -3436,6 +3551,7 @@ groups:
   - id: DEMOMA-21-012
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The rcvv-embargo scenario MUST assert that V2's `emConsentState` is
       SIGNATORY before proceeding to the fix_lifecycle phase.
@@ -3446,6 +3562,7 @@ groups:
   - id: DEMOMA-21-013
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The rcvv-embargo scenario MUST use polling helpers (not
       `post_to_inbox_and_wait`) to detect the invite in V2's inbox, consistent
@@ -3457,6 +3574,7 @@ groups:
   - id: DEMOMA-21-014
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The accidental_collapse phase of rcvv-embargo MUST NOT call
       `trigger_terminate_embargo` directly; the embargo collapse MUST arrive as
@@ -3471,6 +3589,7 @@ groups:
   - id: DEMOMA-22-001
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Every scenario script under `vultron/demo/scenario/` MUST gate each
       asynchronous protocol boundary on a causal precondition satisfying
@@ -3499,6 +3618,7 @@ groups:
   - id: DEMOMA-22-002
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Causal gate *predicates* — the reusable functions that poll or scan an
       actor's own state to decide whether a precondition holds — MUST be defined
@@ -3530,6 +3650,7 @@ groups:
   - id: DEMOMA-22-003
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Each demo scenario MUST have a narrative page under
       `docs/topics/scenarios/` that describes the case's progress through the
@@ -3552,6 +3673,7 @@ groups:
   - id: DEMOMA-22-004
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Each scenario narrative MUST carry a machine-readable list of causal
       edges. Each edge MUST name the antecedent event, the consequent event,
@@ -3574,6 +3696,7 @@ groups:
   - id: DEMOMA-22-005
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The invariant harness MUST assert, for each scenario, that every causal
       edge declared in that scenario's narrative appears in the observed case
@@ -3596,6 +3719,7 @@ groups:
   - id: DEMOMA-22-006
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       A change to a scenario's protocol flow MUST update that scenario's
       narrative and its declared causal edges in the same pull request.
@@ -3611,6 +3735,7 @@ groups:
   - id: DEMOMA-22-007
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Every `wait_for_*` call in a scenario script MUST be wrapped in either
       `demo_gate` (when the wait is a causal precondition for a subsequent
@@ -3649,6 +3774,7 @@ groups:
   - id: DEMOMA-23-001
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Every `run_<name>_demo()` orchestrator MUST run its phase body inside the
       shared `scenario_harness("<demo-name>")` context manager from
@@ -3672,6 +3798,7 @@ groups:
   - id: DEMOMA-23-002
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       A scenario's `_phase_dump_case_ledgers()` MUST be a thin wrapper over
       `vultron.demo.helpers.ledger_dump.dump_case_ledgers()`, declaring only that
@@ -3691,6 +3818,7 @@ groups:
   - id: DEMOMA-23-003
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       A scenario MUST register its dump with `harness.dump_with(...)` as soon as
       a case exists — immediately after the report-submission phase returns —
@@ -3830,7 +3958,24 @@ groups:
     tags:
     - demo
     - testing
-
+  - id: DEMOMA-23-008
+    priority: MUST
+    kind: project
+    verification_debt: '#2573'
+    statement: >-
+      A scenario whose ledger authority holds no ledger entries for the case MUST
+      fail: an authority with an empty ledger is a demo failure, not a vacuous pass of
+      the ledger checks.
+    rationale: >-
+      Checks that iterate over the authority's entries pass with nothing to check. An
+      authority with no entries means the case never reached it, or its ledger was
+      never read. #3905 made that state pass without an issue recording the change.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-23-002
+    tags:
+    - demo
+    - testing
 - id: DEMOMA-24
   title: FCVD Scenario (Finder + Coordinator + Vendor + Deployer)
   trigger:
@@ -3848,6 +3993,7 @@ groups:
   - id: DEMOMA-24-001
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FCVD scenario MUST involve five actor identities — Finder, Coordinator,
       Vendor, Deployer, and CaseActor — each with its own isolated DataLayer and
@@ -3874,6 +4020,7 @@ groups:
   - id: DEMOMA-24-002
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The Vendor actor MUST hold only CVDRole.VENDOR in the case; it MUST NOT hold
       CVDRole.DEPLOYER. The Vendor's participant VFD path MUST advance to VFd (fix
@@ -3899,6 +4046,7 @@ groups:
   - id: DEMOMA-24-003
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The Deployer actor MUST hold only CVDRole.DEPLOYER in the case; it MUST NOT
       hold CVDRole.VENDOR. The Deployer MUST be invited to the case by the
@@ -3924,6 +4072,7 @@ groups:
   - id: DEMOMA-24-004
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FCVD scenario MUST exercise the causal-gate d→D path for the
       DEPLOYER-only participant as specified in CSB-15-004: the BT MUST permit the
@@ -4005,6 +4154,7 @@ groups:
   - id: DEMOMA-24-005
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FCVD scenario MUST reach a final state where: Vendor VFD = VFd; Deployer
       VFD = VFD; all participants (Finder, Coordinator, Vendor, Deployer, CaseActor)
@@ -4026,6 +4176,7 @@ groups:
   - id: DEMOMA-24-006
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The implementation of the FCVD scenario MUST add a dedicated parallel CI job
       (`DEMO=fcvd`) to `.github/workflows/demo-integration.yml` in the same PR as
@@ -4043,18 +4194,22 @@ groups:
   - id: DEMOMA-24-007
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     lint_suppress:
     - phantom_path_ref
     statement: >-
       The FCVD implementation MUST ship a dedicated per-scenario case-ledger
       invariant test file (`test/ci/invariants/test_fcvd_invariants.py`) using
       the shared invariant library; the file MUST assert the scenario-specific
-      checks: (1) `invite_actor_to_case` present at least twice (Vendor and
-      Deployer invitations; the Finder is seated as reporter at case creation,
-      CM-22-002, and is not invited), (2) `accept_invite_actor_to_case` present
-      at least twice, (3) `add_participant_status_to_participant` entries show
+      checks: (1) `invite_actor_to_case` present at least three times (Finder,
+      Vendor, Deployer invitations), (2) `accept_invite_actor_to_case` present at
+      least three times, (3) `add_participant_status_to_participant` entries show
       VFd (not VFD) for Vendor and VFD for Deployer, and (4) the Deployer replica
       holds the full case history from genesis.
+    note: >-
+      The FCVD scenario is unbuilt. This entry is the text from before #4136 and
+      awaits FCVD planning, which decides who is invited once the Finder is seated
+      as reporter at case creation (DEMOMA-12-003).
     rationale: >-
       The VFd-vs-VFD distinction for Vendor and Deployer is the central protocol
       claim of the FCVD scenario; without an invariant test that explicitly checks
@@ -4070,6 +4225,7 @@ groups:
   - id: DEMOMA-24-008
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FCVD scenario MUST run deterministically end-to-end. The Deployer
       container MUST be polled for the arriving case invitation before the
@@ -4092,6 +4248,7 @@ groups:
   - id: DEMOMA-25-001
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The VC scenario MUST involve three actor identities — Vendor, Coordinator,
       and CaseActor — each with its own isolated DataLayer and separate container.
@@ -4114,6 +4271,7 @@ groups:
   - id: DEMOMA-25-002
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       In the VC scenario, Vendor MUST submit the initial vulnerability report to
       its own inbox using `reporter_submits_report` with Vendor in BOTH the
@@ -4154,6 +4312,7 @@ groups:
   - id: DEMOMA-25-003
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Vendor MUST invite Coordinator into the case using the
       `invite-actor-to-case` trigger. Coordinator's case role MUST be
@@ -4197,6 +4356,7 @@ groups:
   - id: DEMOMA-25-004
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       In the VC scenario, only Vendor MUST follow the VFD fix-deployment path
       (vfd → Vfd → VFd → VFD). Coordinator, holding only `CVDRole.OBSERVER`,
@@ -4217,6 +4377,7 @@ groups:
   - id: DEMOMA-25-005
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The VC scenario MUST reach a final state in which both Vendor and
       Coordinator have transitioned to RM.CLOSED. Vendor MUST reach VFDPxa
@@ -4234,6 +4395,7 @@ groups:
   - id: DEMOMA-25-006
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The implementation of the VC scenario MUST add a dedicated parallel CI
       job (`DEMO=vc`) to `.github/workflows/demo-integration.yml` in the same
@@ -4259,6 +4421,7 @@ groups:
   - id: DEMOMA-26-001
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2573'
     statement: >-
       Demo scripts under `vultron/demo/scenario/` and `vultron/demo/exchange/`
       MUST NOT call `post_to_trigger` directly. All trigger endpoint calls MUST
@@ -4416,6 +4579,7 @@ groups:
   - id: DEMOMA-27-001
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The FCV-reject scenario MUST involve four actor identities — Finder,
       Coordinator, Vendor, and CaseActor — each with its own isolated DataLayer
@@ -4440,6 +4604,7 @@ groups:
   - id: DEMOMA-27-002
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The Vendor MUST reject the case invitation by sending
       `Reject(Invite(Actor, VulnerabilityCaseStub))`, and the CaseActor MUST
@@ -4465,6 +4630,7 @@ groups:
   - id: DEMOMA-27-003
     priority: MUST
     kind: project
+    verification_debt: '#2573'
     statement: >-
       The scenario MUST execute its phases in order — report submission,
       invitation and rejection, replica-sync verification, notes exchange,

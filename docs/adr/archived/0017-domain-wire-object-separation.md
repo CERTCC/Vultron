@@ -1,6 +1,9 @@
 ---
 status: superseded
 date: 2026-06-03
+created: 2026-06-03
+updated: 2026-06-03
+revision: 1
 deciders: Vultron maintainers
 consulted: notes/domain-model-separation.md
 amended: >-

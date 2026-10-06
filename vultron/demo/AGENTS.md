@@ -34,9 +34,9 @@ the mail means the outbox→delivery→inbox path is never exercised and demo CI
 proves nothing end-to-end. Poll the effect instead
 (`wait_for_case_on_container`, `find_case_invite_for_actor`,
 `wait_for_object_stored`). A reliably-timing-out poll is a delivery bug to
-investigate, not a workaround to write. Scope: `vultron/demo/scenario/` — exchange
-demos under `vultron/demo/exchange/` drive one backend directly and use
-`post_to_inbox_and_wait` as their normal mechanism.
+investigate, not a workaround to write. Scope: `vultron/demo/scenario/` plus the
+`vultron/demo/helpers/` code it calls (#3980); `vultron/demo/exchange/` demos drive
+one backend directly and use `post_to_inbox_and_wait` as their normal mechanism.
 
 There is **no self-delivery exception**: an actor does not POST to its own inbox to
 update its own replica either. Activities route through the CaseActor, whose
@@ -94,8 +94,8 @@ sub-issues were this one defect in different scenarios.
 2. **Never gate on a synchronously-available proxy** — it proves the cause
    *started* (EDF-06-003, bug #2134).
 3. **Discover a caused object by its properties, not its cause's ID** — a
-   forwarded activity has a new identity; use a discriminator scan such as
-   `find_case_invite_for_actor` (EDF-06-004, bug #2178).
+   forwarded activity has a new identity; scan by discriminator (EDF-06-004, #2178)
+   via `run_case_invite_chain` (DEMOMA-17-001).
 4. **Use `demo_gate` for a precondition, `demo_check` for a verification**
    (DEMOCI-01-007, EDF-06-005) — see the next rule.
 5. **Put the gate in `vultron/demo/helpers/`** — scenario modules MUST NOT define
@@ -156,9 +156,9 @@ See
 After `validate-report`, the BT fires `ProposeReportCaseToActorNode` and the
 CaseActor creates the **canonical** `VulnerabilityCase` (ADR-0041). Do NOT call
 `create_case_activity` in exchange demo setup — that makes a second, vendor-local
-case with no `ReportCaseLink` and no participants. Find the canonical case by
-scanning `GET /datalayer/VulnerabilityCases/` for the entry with
-`case_participants` populated. See
+case with no `ReportCaseLink` and no participants. Find the canonical case with
+`wait_for_initialized_case(client, report_id)` — keyed on the report, never the
+first case found. See
 [`notes/case-proposal.md`](../../notes/case-proposal.md) § "Exchange Demo:
 Discovering the Canonical Case". (ISSUE-1994)
 

@@ -193,19 +193,16 @@ def _composes_through_shared_factory(
 #: entry in the commit that moves the factory (ARCH-18-002).
 #: ADR-0111 detail 7 named the two that composed the CASE_MANAGER gate
 #: directly; those moved with #3870.  The rest were found by this ratchet and
-#: move with the handler migration that owns their area (#3871–#3874), or
-#: with #3935 for the sync and dead-letter trees.  Intake archives only the
-#: activity (ADR-0111 as amended), so the ``CaseLedgerEntry`` the sync trees
-#: carry stays the chain check's business.
+#: move with the handler migration that owns their area (#3871–#3874).
+#: ``create_commit_log_entry_tree`` is not in the set: it is the subtree the
+#: commit node runs, not a tree a received handler calls (#3935).
 KNOWN_FACTORIES_BYPASSING_INTAKE: frozenset[str] = frozenset(
     {
         # case
-        "create_accept_case_proposal_received_tree",
         "create_add_case_participant_received_tree",
         "create_announce_vulnerability_case_received_tree",
         "create_case_proposal_received_tree",
         "create_receive_report_case_tree",
-        "create_reject_case_proposal_received_tree",
         "create_remove_case_participant_received_tree",
         # report
         "create_close_report_received_tree",
@@ -213,17 +210,31 @@ KNOWN_FACTORIES_BYPASSING_INTAKE: frozenset[str] = frozenset(
         "create_report_received_tree",
         # note
         "create_note_tree",
-        # sync — #3935
-        "create_announce_log_entry_tree",
-        "create_commit_log_entry_tree",
-        "create_reject_log_entry_tree",
-        # dead_letter
-        "create_store_dead_letter_tree",
         # embargo — a CM-10-006 follow-on, not a receive-activity tree: it is
         # given no activity and runs after the EMB-17 honored late Accept, a
         # tree-less path in AcceptInviteToEmbargoOnCaseReceivedUseCase whose
         # writes predate it. Leaves with that path's move onto a tree (#3871).
         "embargo_admission_backfill_tree",
+        # expiry tree — the CASE_MANAGER-gated expiry evaluation called from
+        # AcceptInviteToEmbargoOnCaseReceivedUseCase; synthesises and commits an
+        # expiry entry without processing the received activity itself
+        # (CM-28-009, CM-28-014, BT-17-001, ADR-0118).
+        "create_invite_expiry_tree",
+        # honour-late-accept tree — the CASE_MANAGER-gated honour decision
+        # called from AcceptInviteToEmbargoOnCaseReceivedUseCase for the
+        # EMB-17-001 branch; commits a synthesised honour entry, not a received
+        # one, then applies EXPIRED/DECLINED → SIGNATORY (ADR-0118, RSH-08-004).
+        "create_honour_late_accept_tree",
+        # noop-ledger-entry tree — called from _commit_noop_ledger_entry in
+        # AcceptInviteToEmbargoOnCaseReceivedUseCase for the EMB-17-004 no-op
+        # branch; commits a synthesised entry, not a received one (ADR-0118).
+        # create_commit_log_entry_tree is no longer called directly from
+        # received use case files (ARCH-18-002).
+        "create_noop_ledger_entry_tree",
+        # re-invite tree — called from _handle_emb17_routing for the EMB-17-003
+        # stale-embargo branch; commits the manager's own emission under its
+        # CASE_MANAGER gate, not a received assertion (EMB-17-011).
+        "create_reinvite_stale_accepter_tree",
     }
 )
 

@@ -16,10 +16,12 @@ groups:
   - id: TRIG-01-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The system MUST expose trigger endpoints using the path pattern `POST /actors/{actor_id}/trigger/{behavior-name}`
   - id: TRIG-01-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: Trigger endpoints MUST return HTTP 202 on successful acceptance
     relationships:
     - rel_type: depends_on
@@ -27,6 +29,7 @@ groups:
   - id: TRIG-01-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: Trigger endpoints MUST return a structured error response when the actor, case, or report referenced in the
       request body cannot be resolved
     relationships:
@@ -35,6 +38,7 @@ groups:
   - id: TRIG-01-004
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: Trigger endpoint processing MUST NOT block the HTTP response; long-running behavior execution MUST run as a
       background task
     relationships:
@@ -79,6 +83,7 @@ groups:
   - id: TRIG-02-006
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: 'The following behaviors exist only to support demo and prototype scenarios. They are exposed under the `/demo/` URL prefix (see TRIG-09-001) and MUST NOT be mounted in production mode (see TRIG-09-002): add-note-to-case, close-case, sync-log-entry'
   - id: TRIG-02-007
     priority: SHOULD
@@ -94,6 +99,7 @@ groups:
   - id: TRIG-03-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       Each trigger request body MUST include at least one of `case_id` (for
       case-scoped behaviors) or `offer_id` (for offer-response behaviors).
@@ -101,6 +107,7 @@ groups:
   - id: TRIG-03-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: Unknown fields in the request body MUST be ignored (forward-compatibility)
   - id: TRIG-03-003
     priority: SHOULD
@@ -110,6 +117,7 @@ groups:
   - id: TRIG-03-004
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The `reject-report` trigger request body MUST include a `note` field (reason required); the `note` value SHOULD
       be non-empty
     rationale: Hard-close decisions are irreversible and warrant documented justification for audit purposes
@@ -226,6 +234,7 @@ groups:
   - id: TRIG-08-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: 'The application MUST define a `RunMode` StrEnum with at least two values: `PROTOTYPE` and `PROD`'
   - id: TRIG-08-002
     priority: MUST
@@ -289,6 +298,7 @@ groups:
   - id: TRIG-09-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: 'The demo router MUST be conditionally mounted: it MUST be included in the FastAPI application only when `get_config().server.run_mode
       == RunMode.PROTOTYPE`'
   - id: TRIG-09-003
@@ -363,6 +373,7 @@ groups:
   - id: TRIG-10-003
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: '`add-note-to-case` MUST NOT be exposed as a general `/trigger/` endpoint; it MUST be moved to `/demo/add-note-to-case`
       as a demo-only convenience wrapper around `add-object-to-case`'
     relationships:
@@ -371,6 +382,7 @@ groups:
   - id: TRIG-10-004
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: '`sync-log-entry` MUST NOT be exposed as a general `/trigger/` endpoint; it MUST be moved to `/demo/sync-log-entry`'
     rationale: In a correct implementation, SYNC log entries are committed automatically as a cascade effect of every state-changing
       operation. An explicit trigger exists only to let the demo script inject entries manually. A future production "force-sync"

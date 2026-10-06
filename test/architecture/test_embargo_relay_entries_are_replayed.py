@@ -55,7 +55,15 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.base import MessageSemantics
-from vultron.core.models.rsvp_deadline import INVITE_EXPIRED_EVENT_TYPE
+from vultron.core.models.rsvp_deadline import (
+    EMBARGO_REINVITE_EVENT_TYPE,
+    HONOUR_LATE_ACCEPT_EVENT_TYPE,
+    HONOUR_LATE_ACCEPT_SNAPSHOT_TYPE,
+    INVITE_EXPIRED_EVENT_TYPE,
+    INVITE_EXPIRED_NOOP_EVENT_TYPE,
+    INVITE_EXPIRED_NOOP_SNAPSHOT_TYPE,
+    INVITE_EXPIRED_SNAPSHOT_TYPE,
+)
 from vultron.enums.roles import CVDRole
 
 MANAGER = "https://example.org/actors/case-manager"
@@ -102,6 +110,15 @@ REPLAYED: dict[str, tuple[str, dict[str, Any]]] = {
             "object": EMBARGO,
         },
     ),
+    "the manager's re-invite of a stale accepter": (
+        EMBARGO_REINVITE_EVENT_TYPE,
+        {
+            "type": "Invite",
+            "actor": MANAGER,
+            "to": [REPLICA],
+            "object": EMBARGO,
+        },
+    ),
     "Accept of an Invite": (
         MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value,
         {"type": "Accept", "actor": REPLICA, "object": {"object": EMBARGO}},
@@ -118,6 +135,30 @@ REPLAYED: dict[str, tuple[str, dict[str, Any]]] = {
         MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE.value,
         {"type": "Remove", "actor": MANAGER, "object": EMBARGO},
     ),
+    "invite expiry": (
+        INVITE_EXPIRED_EVENT_TYPE,
+        {
+            "type": INVITE_EXPIRED_SNAPSHOT_TYPE,
+            "actor": REPLICA,
+            "object": {"type": "Invite", "object": EMBARGO},
+        },
+    ),
+    "honour late accept": (
+        HONOUR_LATE_ACCEPT_EVENT_TYPE,
+        {
+            "type": HONOUR_LATE_ACCEPT_SNAPSHOT_TYPE,
+            "actor": REPLICA,
+            "object": {"type": "Invite", "object": EMBARGO},
+        },
+    ),
+    "noop late accept": (
+        INVITE_EXPIRED_NOOP_EVENT_TYPE,
+        {
+            "type": INVITE_EXPIRED_NOOP_SNAPSHOT_TYPE,
+            "actor": REPLICA,
+            "object": {"type": "Invite", "object": EMBARGO},
+        },
+    ),
 }
 
 #: Embargo event types outside the revision relay, and who owns them.
@@ -125,10 +166,6 @@ OUTSIDE_THE_RELAY: dict[str, str] = {
     MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE.value: (
         "committed, not yet replayed — #3814 (ledger replay for every"
         " committed event type)"
-    ),
-    INVITE_EXPIRED_EVENT_TYPE: (
-        "committed on a late Accept, replay owned by #3961 (RSVP deadline"
-        " and invite expiry)"
     ),
     MessageSemantics.CREATE_EMBARGO_EVENT.value: "stores an object; commits nothing",
     MessageSemantics.ANNOUNCE_EMBARGO_EVENT_TO_CASE.value: (

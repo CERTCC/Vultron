@@ -35,6 +35,14 @@ captures the full rationale.>
 
 <Spec manifest returned by deepen-context, verbatim>
 
+## Spec amended   <!-- only when the diff changes or removes a spec statement: or priority: -->
+
+### <SPEC-ID>
+
+- Before: <statement/priority on main>
+- After: <statement/priority now>
+- Reason: <why; clarification, corrected reference, or an obligation change the user approved>
+
 ## Docs
 
 Docs: pending check-docs-sync   <!-- create-pr writes this; check-docs-sync's result replaces it -->
@@ -71,6 +79,18 @@ Docs: pending check-docs-sync   <!-- create-pr writes this; check-docs-sync's re
   is complete, so keep the `Considered, skipped` reasons honest.
   `pr-review` and `pr-triage` use it as their spec floor and flag a PR
   without one.
+- **Spec amended**: required on **any** PR (implementation or docs-only) whose
+  diff changes or removes a `statement:` or `priority:` in `specs/`; omit it
+  otherwise. `bash .agents/skills/shared/spec-amendments.sh origin/main` lists the
+  IDs (new requirements are not listed — nothing built on them can be wrong).
+  One `### <ID>` block each, with **Before**, **After** and **Reason**. The
+  section is the single place a reviewer sees spec text moved to fit code; the
+  material test in `notes/agentic-workflow.md` § "Spec Text Conflicts With Code"
+  decides whether the Reason is a clarification (allowed in the PR) or an
+  obligation change (needs the user's approval, recorded in the Reason).
+  `create-pr` writes the placeholder with `<TODO>` fields; the author fills
+  them. `pr-triage` FAILs a diff that changes a statement or priority without the
+  section, or one that still contains `<TODO>`; `pr-verify` blocks on it.
 - **Docs**: required on every implementation or bug-fix PR (PD-03-008) —
   one that closes a `Task`, `Feature`, or `Bug` issue, or changes `.py`
   files. This is the scope `create-pr`, `pr-triage`, `pr-execute`, and
@@ -116,11 +136,21 @@ or other non-Python files.
 
 - **`path/to/file.md`**: <what changed>
 - **`specs/file.yaml`**: <what changed>
+
+## Spec amended   <!-- only when a spec statement: or priority: is changed or removed -->
+
+### <SPEC-ID>
+
+- Before: ...
+- After: ...
+- Reason: ...
 ```
 
 ### Docs-only PR rules
 
 - Closing reference goes at the **top**, before any `##` header.
 - No Verification section — no Python was changed, no test suite ran.
+- `## Spec amended` follows the same rule as for implementation PRs: present
+  exactly when a `statement:` or `priority:` is changed or removed.
 - Keep Changes concise; list meaningful files only (not `README.md` unless
   it was substantively updated).

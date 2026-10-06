@@ -1,7 +1,7 @@
 """Use cases for case note activities."""
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.note.add_note_received_tree import (
@@ -32,10 +32,19 @@ if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.wire_render import WireRenderPort
 
+from vultron.core.behaviors.sender_entitlement import (
+    SenderEntitlement,
+    exempt,
+)
+
 logger = logging.getLogger(__name__)
 
 
 class CreateNoteReceivedUseCase:
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4070", "no sender check for note operations"
+    )
+
     def __init__(
         self,
         dl: CasePersistence,
@@ -102,6 +111,10 @@ class AddNoteToCaseReceivedUseCase:
     note was addressed to the wrong party.
     """
 
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4070", "no sender check for note operations"
+    )
+
     def __init__(
         self,
         dl: CaseOutboxPersistence,
@@ -167,6 +180,10 @@ class AddNoteToCaseReceivedUseCase:
 
 
 class RemoveNoteFromCaseReceivedUseCase:
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4070", "no sender check for note operations"
+    )
+
     def __init__(
         self,
         dl: CasePersistence,

@@ -578,7 +578,7 @@ participant to send a case-scoped message, debugging out-of-band note or
 embargo delivery, or auditing outbound activity addressing.
 
 **`case-joining.md`**
-How an actor joins a case (ADR-0114, ADR-0070): the stub Invite creates an
+How an actor joins a case (ADR-0114, ADR-0121): the stub Invite creates an
 inert participant record, `Accept`/`Reject` of the stub decides whether it
 joins, and a joined participant judges the case by replying to a full-case
 Invite that carries a ledger-position floor. Defines *active* versus *inert*,
@@ -757,10 +757,11 @@ reads as flakiness, why the timeout *method* sets what a trip costs while the
 ceiling only sets how often, measuring the markers collected items really carry
 instead of grepping declarations, fixture/blackboard isolation, py_trees test
 patterns, assertion-quality traps (vacuous asserts, "falls back to" tests, bare
-`MagicMock`), and test layout rules for module splits.
+`MagicMock`), test layout rules for module splits, and why a two-sided count
+pin races concurrent PRs.
 **Load when**: writing or debugging tests, diagnosing an order-dependent or
-apparently-flaky failure, auditing marker or timeout-tier coverage, or reviewing
-a test for vacuous assertions.
+apparently-flaky failure, auditing marker or timeout-tier coverage, reviewing
+a test for vacuous assertions, or designing a ratchet baseline.
 
 **`flaky-tests.md`**
 Fast-lookup catalog of known flaky tests and CI jobs → tracking issue numbers.
@@ -1055,7 +1056,8 @@ accepts for `kind`, `priority`, and `rel_type`; keys silently dropped by
 `spec-dump`; the protocol-coverage ratchet and its strict-`xfail` pattern; and
 the audit passes required when retiring a name or splitting a compound
 requirement; why a priority gate names a tier (`MUST_NOT` with `MUST`), never a
-keyword; and the four rules that make a ceiling ratchet end at zero.
+keyword; and the four rules that make the per-requirement `verification_debt`
+backlog end at zero.
 **Load when**: adding or editing any `specs/*.yaml` entry, choosing a `kind:`
 for a new entry, writing any lint check or ratchet that selects by priority, or
 debugging a spec-lint / `spec-dump` failure. Pair with

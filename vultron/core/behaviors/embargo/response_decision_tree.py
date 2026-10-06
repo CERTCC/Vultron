@@ -66,8 +66,8 @@ from vultron.core.behaviors.call_out.bundles.embargo import (
     EMBARGO_DETERMINISTIC,
     EmbargoCallOutBundle,
 )
-from vultron.core.behaviors.case.nodes.vfd_role_guards import (
-    CheckIsCaseOwnerNode,
+from vultron.core.behaviors.sender_entitlement import (
+    SenderIsCaseOwnerNode,
 )
 
 logger = logging.getLogger(__name__)
@@ -89,7 +89,7 @@ def create_embargo_response_decision_tree(
     InviteToEmbargoOnCase) and delegates to the caller-supplied mechanical BTs.
 
     **Authorization (EMB-15-002)**: a ``AuthorizeSelector`` (Fallback) puts
-    ``CheckIsCaseOwnerNode`` first — when the **deciding** actor (the local
+    ``SenderIsCaseOwnerNode`` first — when the **deciding** actor (the local
     actor processing the inbound overture and choosing how to respond) holds
     ``CVDRole.CASE_OWNER``, the response is gospel and no approval call-out
     is invoked.  Non-owners route through
@@ -120,7 +120,7 @@ def create_embargo_response_decision_tree(
             status for the gospel-bypass guard.
         deciding_actor_id: Actor ID of the LOCAL actor that is processing the
             inbound overture and making the accept/counter/reject decision.
-            Passed to ``CheckIsCaseOwnerNode`` — gospel bypass fires when THIS
+            Passed to ``SenderIsCaseOwnerNode`` — gospel bypass fires when THIS
             actor holds ``CVDRole.CASE_OWNER``, not when the remote proposer does.
         accept_bt: Pre-built BT to execute when the accept arm is taken.
             For Flow A: ``accept_embargo_trigger_bt(...)``.
@@ -142,7 +142,7 @@ def create_embargo_response_decision_tree(
         name="AuthorizeSelector",
         memory=False,
         children=[
-            CheckIsCaseOwnerNode(
+            SenderIsCaseOwnerNode(
                 sender_actor_id=deciding_actor_id,
                 case_id=case_id,
                 name="CheckIsCaseOwner",

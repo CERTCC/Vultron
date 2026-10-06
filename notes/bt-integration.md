@@ -437,9 +437,9 @@ the commit exactly when the received `(type, object)` pair is a canonical payloa
 signature (`_CANONICAL_PAYLOAD_SIGNATURES`) — otherwise the CASE_MANAGER would
 refuse its own commit. `Update(VulnerabilityCase)` is not one, so
 `create_update_case_received_tree` passes `case_id=None` and the CASE_MANAGER
-publishes the update through its `Announce` broadcast (CM-06-001) as before;
-whether an owner's update should become a ledgered assertion (ADR-0108) is
-issue #3936.
+publishes the update through its `Announce` broadcast (CM-06-001) as before.
+That is a decision, not a gap: an owner's update is deliberately not a ledgered
+assertion (ADR-0111, #3936).
 
 ### Trigger/Received Parity
 

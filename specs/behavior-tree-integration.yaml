@@ -16,18 +16,22 @@ groups:
   - id: BT-01-001
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: BT execution MUST be event-driven, triggered by handler invocation
   - id: BT-01-002
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: BTs MUST execute to completion (or max iterations) per invocation
   - id: BT-01-003
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2574'
     statement: BT execution MUST NOT use continuous tick-based polling loops
   - id: BT-01-004
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: BTs MUST be single-shot executions within handler context
 - id: BT-02
   title: BT Library
@@ -35,11 +39,13 @@ groups:
   - id: BT-02-001
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Prototype handlers MUST implement BT execution using industry- standard BT library
     rationale: Mature libraries provide visualization, debugging, and standard BT semantics
   - id: BT-02-002
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Simulation code in `vultron/bt/` MUST remain unchanged
 - id: BT-03
   title: State Management
@@ -58,6 +64,7 @@ groups:
   - id: BT-03-002
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2574'
     statement: BTs MUST NOT maintain separate blackboard persistence
   - id: BT-03-003
     priority: MAY
@@ -79,6 +86,7 @@ groups:
   - id: BT-04-001
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Handler protocol MUST be preserved (decorator, signature, registration)
   - id: BT-04-002
     priority: MAY
@@ -87,10 +95,12 @@ groups:
   - id: BT-04-003
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Handlers MUST remain synchronous (BT execution within handler)
   - id: BT-04-004
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: BT execution errors MUST propagate to handler error handling
 - id: BT-05
   title: BT Bridge Layer
@@ -164,6 +174,7 @@ groups:
     - rationale_too_long
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: >-
       The executing actor of a role-gated tree MUST hold the gating role, and the tree's store MUST be
       that actor's. Where a tree is gated on a role held in the case, the role holder, the receiving
@@ -199,6 +210,7 @@ groups:
   - id: BT-06-001
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: All protocol-significant behavior MUST be implemented as BT nodes or subtrees. There is no "simple enough to
       skip" threshold.
     rationale: The BT is the domain documentation; behaviors outside the tree are invisible to analysis, audit, and explainability.
@@ -217,6 +229,7 @@ groups:
   - id: BT-06-004
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Individual BT nodes MUST be simple and focused on a single concern (e.g., a single exception check or a single
       boolean condition)
     rationale: Surfacing logic in the tree makes the process auditable without reading implementation code; if it is not in
@@ -235,6 +248,7 @@ groups:
   - id: BT-06-006
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: Protocol-observable actions and state transitions MUST NOT be performed as procedural code outside the BT.
 - id: BT-07
   title: DataLayer Integration
@@ -242,10 +256,12 @@ groups:
   - id: BT-07-001
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: BT nodes MUST interact with DataLayer via Protocol interface
   - id: BT-07-002
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: BT nodes MUST use type-safe DataLayer operations
   - id: BT-07-003
     priority: MUST
@@ -294,6 +310,7 @@ groups:
   - id: BT-09-002
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2574'
     statement: Actor blackboards MUST NOT share state
 - id: BT-10
   title: Case Manager Role Management
@@ -414,13 +431,14 @@ groups:
       spec_id: CM-11-001
     adr:
     - ADR-0114
-    - ADR-0070
+    - ADR-0121
 - id: BT-12
   title: VFD/PXA State Machine Usage
   specs:
   - id: BT-12-001
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: When implementing VFD (vendor fix deployed) or PXA (public exploit/attack) state transitions, new code MUST
       use `create_vfd_machine()` and `create_pxa_machine()` (defined in `vultron/core/states/cs.py`) as the authoritative
       source of valid transition sequences. Hand-rolled transition logic for these state dimensions MUST NOT be introduced.
@@ -461,6 +479,7 @@ groups:
   - id: BT-11-002
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: Sequential processing MUST NOT block HTTP response (BackgroundTasks)
   - id: BT-11-003
     priority: MAY
@@ -490,6 +509,7 @@ groups:
   - id: BT-13-001
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: 'After any BT execution that returns FAILURE, code MUST retrieve the failure reason via `BTBridge.get_failure_reason(tree)`
       (a walk down the chain of failed nodes to the failing leaf, taking the last failed child of each composite). Code MUST
       NOT log or inspect `result.feedback_message` or `bt.root.feedback_message` for diagnostic purposes: a `py_trees` Sequence
@@ -502,6 +522,7 @@ groups:
   - id: BT-13-002
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: The `BTBridge.get_failure_reason()` pattern MUST be applied consistently across all BT execution sites, not
       only for a single BT class or protocol flow. Any place in the codebase that logs a BT result MUST use this helper.
     relationships:
@@ -514,6 +535,7 @@ groups:
   - id: BT-14-001
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Any BT node or subtree that performs protocol-visible peer broadcast fan-out MUST return FAILURE when broadcast
       preparation or outbox enqueueing fails. A guaranteed SUCCESS fallback that masks delivery failure MUST_NOT be used.
     rationale: Silent success on failed fan-out causes undetected peer state divergence and hides correctness faults from
@@ -537,6 +559,7 @@ groups:
   - id: BT-15-001
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Trigger-side execute() methods MUST delegate state-machine transitions (RM, EM, CS) to BT leaf nodes via BTBridge,
       following the same pattern as received-side use cases.
     rationale: State machine transitions are protocol-significant behavior (BT-06-001). Inline transitions in execute() bypass
@@ -552,6 +575,7 @@ groups:
   - id: BT-15-002
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: Trigger-side execute() methods MUST NOT call domain lifecycle methods (e.g., EmbargoLifecycle, EMAdapter, direct
       ParticipantStatus writes with rm_state/em_state) outside a BT execution context.
     rationale: Direct lifecycle calls in execute() make protocol transitions invisible to BT-level audit and observability
@@ -752,6 +776,7 @@ groups:
   - id: BT-16-001
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Probabilistic simulation (fuzzer) BT nodes MUST reside in `vultron/demo/fuzzer/` and MUST NOT be placed in
       `vultron/core/behaviors/` or `vultron/bt/`.
     rationale: Demo/simulation nodes are external-dependency touchpoints, not production protocol behaviors. Keeping them
@@ -760,6 +785,7 @@ groups:
   - id: BT-16-002
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: The probabilistic base types (WeightedBehavior subclasses) for simulation nodes MUST be defined in `vultron/demo/fuzzer/base.py`
       using the `py_trees.behaviour.Behaviour` base class.
     rationale: All py_trees-based BT execution uses the standard py_trees library (ADR-0008). Centralizing probabilistic base
@@ -774,6 +800,7 @@ groups:
   - id: BT-16-003
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Each simulation fuzzer node MUST be named after the external-dependency touchpoint it represents (e.g., `EvaluateEmbargoProposal`,
       `DeployFix`) and MUST include a docstring describing its semantic function in the CVD process, the category of external
       input it simulates (system integration, human decision, or environmental check), and its approximate success probability.
@@ -783,6 +810,7 @@ groups:
   - id: BT-16-004
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: 'Simulation fuzzer modules MUST be organized by CVD domain: `vultron/demo/fuzzer/base.py` (probabilistic infrastructure),
       `vultron/demo/fuzzer/embargo.py` (embargo management), `vultron/demo/fuzzer/messaging.py` (inbound message handling),
       and `vultron/demo/fuzzer/report_management/` (report lifecycle sub-workflows as parallel submodules).'
@@ -805,6 +833,7 @@ groups:
   - id: BT-18-001
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: 'Every call-out point node MUST describe its blackboard contract in its class docstring: the set of input keys
       read before dispatch and the set of output keys (with types) written to the blackboard on SUCCESS. The docstring describes
       the contract for a human reader; the authoritative, machine-readable declaration is the typed-port declaration required
@@ -822,6 +851,7 @@ groups:
   - id: BT-18-002
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: A call-out point backend — fuzzer or real implementation — MUST write to all declared output keys when it returns
       SUCCESS. A backend MUST NOT return SUCCESS without writing the declared outputs.
     rationale: 'Downstream BT nodes rely on declared output keys being present after a call-out point succeeds. A fuzzer that
@@ -831,6 +861,7 @@ groups:
   - id: BT-18-003
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: The fuzzer backend for a data-producing call-out point (Evaluator, Retriever, or Composer shape) MUST write
       synthetic but type-conformant data to the declared output keys. The synthetic data MUST be of the correct type; it does
       not need to be semantically meaningful.
@@ -840,6 +871,7 @@ groups:
   - id: BT-18-004
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: A call-out point node MUST be constructed via a backend factory callable.
     rationale: Factory-based injection is the established BT construction pattern in this codebase. Requiring the factory
       as a parameter (rather than hardcoding the fuzzer import) is what makes each call-out point an actual injection seam
@@ -853,6 +885,7 @@ groups:
   - id: BT-18-008
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Tree-building functions that contain call-out points MUST accept the backend factory as a parameter (or as
       an entry in a factory mapping).
     rationale: Accepting the factory as a parameter makes each call-out point an actual injection seam rather than a
@@ -860,12 +893,14 @@ groups:
   - id: BT-18-009
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: The fuzzer factory MUST be the default value for the backend factory parameter of tree-building functions.
     rationale: A fuzzer default ensures demo scenarios work without explicit backend configuration until a real
       implementation is available, while still allowing injection of alternative backends at call sites that opt in.
   - id: BT-18-005
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: The call-out point shape of a fuzzer node MUST be determined solely by the ADR-0024 seam-structure decision
       tree (how external input enters and output exits the call-out point). Automation potential MUST NOT be used as a criterion
       for assigning shape = ProtocolInternal. A node whose automation potential is High but whose inputs arrive from an external
@@ -888,6 +923,7 @@ groups:
   - id: BT-18-006
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: A node that queries an external system synchronously and returns only a binary (SUCCESS/FAILURE) result MUST
       be classified as a Retriever, not a Sentinel — and per BT-18-013 Sentinel is not a call-out capability shape at all,
       so Retriever is the only available classification. The defining criterion for Retriever shape is the synchronous on-demand
@@ -909,6 +945,7 @@ groups:
   - id: BT-18-010
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: A binary-result Retriever MUST declare an empty output-port set; the structured fact is expressed as the BT
       return value (SUCCESS/FAILURE), not as a blackboard write. As with every capability contract, the authoritative
       declaration is the typed-port declaration required by BT-18-012 and the node docstring describes it (BT-18-001).
@@ -927,6 +964,7 @@ groups:
   - id: BT-18-007
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: An Evaluator call-out point that needs to block downstream BT execution — for any reason (editorial rejection,
       legal hold, compliance failure, or other non-approval decision) — MUST return Status.FAILURE from its update() method.
       Setting a structured output field to a "rejected" value while returning Status.SUCCESS does not block a Sequence and
@@ -1149,6 +1187,7 @@ groups:
   - id: BT-19-001
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: A BT Sequence that performs a state mutation and then routes an outbound message MUST resolve all routing prerequisites
       in a read-only guard node placed BEFORE the state-mutation node. The Sequence MUST fail at the guard with no state change
       when routing prerequisites are absent.
@@ -1323,6 +1362,7 @@ groups:
   - id: BT-20-006
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2574'
     statement: The `create_deploy_mitigation_tree` tree MUST NOT include a CS state transition or protocol activity emission
       node; mitigation deployment is tracked externally (CMDB or case record) and the protocol has no dedicated
       mitigation-deployed message type.
@@ -1351,6 +1391,7 @@ groups:
   - id: BT-21-001
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: 'Each fuzzer (simulator) BT node targeted for replacement by a production implementation MUST have a corresponding
       tracking issue that captures: the fuzzer node name, the production replacement design (as a BT-20 entry or equivalent),
       and the blocking dependencies. The tracking issue MUST be linked from the relevant BT-20 `tracking_issue` field.'
@@ -1362,6 +1403,7 @@ groups:
   - id: BT-21-002
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: When a fuzzer node is replaced by its production equivalent, the corresponding BT-20 `PROVISIONAL` rationale
       note MUST be updated to remove the `PROVISIONAL` marker and the BT-21-001 tracking issue MUST be closed in the same
       PR.
@@ -1378,6 +1420,7 @@ groups:
   - id: BT-22-001
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: A BT leaf node's `update()` method MUST NOT directly instantiate or call a use-case class. Use-case
       classes are the handlers that create BTs; they are not work items to be called from within a BT node. Calling
       a use case from inside a BT node creates a BT→UseCase→BT→UseCase call chain that cannot be audited or preempted.
@@ -1392,6 +1435,7 @@ groups:
   - id: BT-22-002
     priority: MUST_NOT
     kind: architecture
+    verification_debt: '#2569'
     statement: BT nodes in `vultron/core/behaviors/` MUST NOT import private helpers or functions from
       `vultron/core/use_cases/`.
     rationale: Importing a use-case helper into a BT node inverts the hexagonal layer boundary and creates circular
@@ -1403,6 +1447,7 @@ groups:
   - id: BT-22-004
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: The dependency direction between BT nodes and use cases MUST be `use_cases/ → behaviors/` (use cases
       create BTs), never `behaviors/ → use_cases/` (BT nodes importing from use cases).
     rationale: The one-way dependency from use cases into behaviors is the structural enforcement of the hexagonal
@@ -1410,6 +1455,7 @@ groups:
   - id: BT-22-005
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: If a helper is needed by both a use case and a BT node, it MUST be extracted to a shared utility module
       (e.g., `vultron/core/behaviors/shared/` or a domain-model method) that neither layer owns.
     rationale: A shared utility module is the canonical resolution when a helper is needed at both layers; placing it
@@ -1443,6 +1489,7 @@ groups:
   - id: BT-23-001
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: >
       Call-out point backends MUST be organised into three logical modes:
       DETERMINISTIC (AlwaysSucceed/AlwaysFail derived from the ceiling/floor of
@@ -1468,6 +1515,7 @@ groups:
   - id: BT-23-002
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: When the stochastic success probability p > 0.5, the DETERMINISTIC backend for that call-out point MUST
       be AlwaysSucceed.
     rationale: Grounding the deterministic backend in the stochastic probability preserves the semantic intent of each
@@ -1479,6 +1527,7 @@ groups:
   - id: BT-23-006
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: When the stochastic success probability p < 0.5, the DETERMINISTIC backend for that call-out point MUST
       be AlwaysFail.
     rationale: Nodes that the simulation expects to usually fail map to AlwaysFail, preserving the semantic intent that
@@ -1486,6 +1535,7 @@ groups:
   - id: BT-23-007
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: When the stochastic success probability p == 0.5, the DETERMINISTIC backend for that call-out point MUST
       be AlwaysSucceed (happy-path default).
     rationale: The p == 0.5 tie-breaking rule selects the happy-path direction so that deterministic demo scenarios make
@@ -1493,6 +1543,7 @@ groups:
   - id: BT-23-003
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Call-out point factories for a domain area MUST be collected into a domain bundle — a frozen @dataclass
       (one per domain area) whose fields are typed `CallOutBackendFactory` values.
     rationale: >
@@ -1509,6 +1560,7 @@ groups:
   - id: BT-23-008
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: The domain bundle dataclass and its DETERMINISTIC singleton (e.g., `VALIDATION_DETERMINISTIC`) MUST be
       defined in the core layer (`vultron/core/behaviors/call_out/bundles/<domain>.py`).
     rationale: The DETERMINISTIC bundle is the production-usable happy-path backend a real actor uses before a
@@ -1518,6 +1570,7 @@ groups:
   - id: BT-23-009
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: The STOCHASTIC singleton (e.g., `VALIDATION_STOCHASTIC`) MUST be defined in the simulation layer
       (`vultron/demo/fuzzer/bundles/<domain>.py`).
     rationale: The probabilistic STOCHASTIC wiring is a simulation artefact; keeping it in vultron/demo/ respects
@@ -1525,6 +1578,7 @@ groups:
   - id: BT-23-010
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: >-
       Tree builders that accept call-out factories MUST accept the bundle as a single typed
       parameter (e.g., `call_out: ValidationCallOutBundle`) rather than individual per-node
@@ -1534,6 +1588,7 @@ groups:
   - id: BT-23-011
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Tree builders MUST default the bundle parameter to the core DETERMINISTIC singleton without importing
       from `vultron/demo/` (per BT-16-001 and ARCH-01-001).
     rationale: Pre-built singletons avoid non-DRY construction in every demo script and test fixture. Defaulting to
@@ -1541,6 +1596,7 @@ groups:
   - id: BT-23-004
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: >
       The CallOutBackendFactory type MUST be defined as a typing.Protocol (not
       a bare Callable type alias). The Protocol MUST declare a single __call__
@@ -1587,6 +1643,7 @@ groups:
   - id: BT-23-012
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: >
       A call-out gate whose permissive backend would let a party other than the
       Case Owner unilaterally cause canonical case-state adoption or embargo

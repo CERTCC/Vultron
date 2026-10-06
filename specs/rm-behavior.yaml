@@ -908,7 +908,7 @@ groups:
       spec_id: VP-02-009
       note: Proceed only after validating received reports
     adr:
-    - ADR-0070
+    - ADR-0121
 
   - id: RMB-09-002
     priority: MAY
@@ -980,6 +980,7 @@ groups:
   - id: RMB-10-002
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       A Participant in RM Valid MUST NOT close the report directly from the
       Valid state (q^rm V → C) without first transitioning through Accepted

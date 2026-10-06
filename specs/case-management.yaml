@@ -464,6 +464,7 @@ groups:
   - id: CM-04-006
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: 'A state transition handler for a participant-specific transition (RM or VFD) MUST NOT update any case-level (participant-agnostic) state field (em_state, pxa_state). A state transition handler for a case-level transition (PXA or EM) MUST NOT update any participant-specific state field (rm_state, vfd_state).'
     relationships:
     - rel_type: implements
@@ -532,6 +533,7 @@ groups:
   - id: CM-05-002
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: A `VulnerabilityCase` MUST reference at least one `VulnerabilityReport`; a case with zero reports MUST NOT
       exist
     relationships:
@@ -573,6 +575,7 @@ groups:
   - id: CM-05-008
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: '`VulnerabilityRecord` identifiers MUST be treated as opaque strings; the system MUST NOT restrict identifier
       values to CVE ID format or any other specific namespace'
     rationale: Different organizations use different identifier namespaces (CVE, CERT/CC VU#, vendor-assigned IDs, etc.);
@@ -614,6 +617,10 @@ groups:
     statement: >-
       When the CASE_MANAGER updates canonical case state, it MUST notify every active
       participant (CM-10-004).
+    rationale: >-
+      An owner's `Update(VulnerabilityCase)` is not a ledgered assertion (ADR-0111,
+      #3936); the CASE_MANAGER announces a received update to the participants as
+      a broadcast, and every ledgered change reaches them as `Announce(CaseLedgerEntry)`.
     verification: >-
       Integration tests in `test/demo/` confirm that after the CASE_MANAGER updates
       canonical case state it fans out `Announce(CaseLedgerEntry)` to every active
@@ -734,6 +741,7 @@ groups:
   - id: CM-08-002
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: Domain objects MUST NOT directly inherit from ActivityStreams base types, and wire classes MUST NOT carry
       translation methods; AS2 serialization MUST be performed by the rendering port (ARCH-20-001)
       (see `notes/domain-model-separation.md` and ADR-0099)
@@ -954,7 +962,7 @@ groups:
     How an actor goes from invited to participating: the stub Invite creates an
     inert participant record, the participant's reply to it decides whether it
     joins, and a joined participant judges the case by replying to a full-case
-    Invite (ADR-0114, ADR-0070; notes/case-joining.md).
+    Invite (ADR-0114, ADR-0121; notes/case-joining.md).
   specs:
   - id: CM-11-001
     priority: MUST
@@ -997,7 +1005,7 @@ groups:
     - rel_type: depends_on
       spec_id: CM-11-001
     adr:
-    - ADR-0070
+    - ADR-0121
     stories:
     - story_2022_006
   - id: CM-11-004
@@ -1041,25 +1049,6 @@ groups:
     - ADR-0114
     lint_suppress:
     - missing_story_reference
-  - id: CM-11-005
-    priority: MUST_NOT
-    kind: protocol
-    statement: >-
-      A participant that joined a case through an Invite MUST NOT send
-      `Accept`, `TentativeReject` or `Reject` of the original
-      `Offer(VulnerabilityReport)`, and MUST NOT run `validate-report`,
-      `invalidate-report` or `reject-report` for the case's report. It was never
-      offered that report; it judges the case by replying to the full-case
-      Invite (CM-11-011).
-    rationale: >-
-      A reply must answer a message sent to the replier. And a joined
-      participant — a late joiner especially — judges the case as it stands,
-      with its history, not the original submission, which may have been far
-      sparser (ADR-0070).
-    verification: A test confirms a joined participant's triage emits no
-      activity whose object is the original `Offer(VulnerabilityReport)`.
-    adr:
-    - ADR-0070
   - id: CM-11-006
     priority: MUST
     kind: protocol
@@ -1140,7 +1129,7 @@ groups:
     verification: Tests confirm each stub reply sets a vendor's VF to `V`.
     adr:
     - ADR-0114
-    - ADR-0084
+    - ADR-0121
     stories:
     - story_2022_061
   - id: CM-11-010
@@ -1157,11 +1146,11 @@ groups:
       only asks the question and carries no copy of the case. Delivery to each
       recipient is ordered (ADR-0112), so queuing the Invite after the replay
       means it arrives once the participant can answer it; its ledger position
-      is the floor the participant must reach before answering (ADR-0070).
+      is the floor the participant must reach before answering (ADR-0121).
     verification: A test confirms the full-case Invite is queued after the last
       replayed ledger entry and carries the CASE_MANAGER's ledger tail position.
     adr:
-    - ADR-0070
+    - ADR-0121
     stories:
     - story_2022_006
   - id: CM-11-011
@@ -1178,7 +1167,7 @@ groups:
     verification: Tests drive each of the three replies and check the
       participant's RM state.
     adr:
-    - ADR-0070
+    - ADR-0121
     stories:
     - story_2022_006
     - story_2022_062
@@ -1194,11 +1183,11 @@ groups:
       The Invite's position is a floor, not a pin. A reply behind it was made
       without seeing what the participant was asked to judge; a reply beyond it
       is better informed. Pinning the reply to the Invite's position would make
-      every reply on a busy case stale (ADR-0070).
+      every reply on a busy case stale (ADR-0121).
     verification: Tests confirm a reply behind the floor, or naming an entry the
       ledger does not hold, is refused, and a reply beyond the floor is accepted.
     adr:
-    - ADR-0070
+    - ADR-0121
     stories:
     - story_2022_045
   - id: CM-11-013
@@ -1234,7 +1223,7 @@ groups:
       seated by the case initialization sequence (CM-14-001) and those that have
       accepted their stub Invite.
     rationale: >-
-      RM is the participant's own judgement (ADR-0084), so a timeout cannot
+      RM is the participant's own judgement (ADR-0121), so a timeout cannot
       stand in for one. An invitee that never answered must not keep the case
       from closing (ADR-0114).
     verification: >-
@@ -1379,6 +1368,25 @@ groups:
       spec_id: CM-11-006
     adr:
     - ADR-0114
+  - id: CM-11-020
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A participant that joined a case through an Invite MUST NOT send
+      `Accept`, `TentativeReject` or `Reject` of the original
+      `Offer(VulnerabilityReport)`, and MUST NOT run `validate-report`,
+      `invalidate-report` or `reject-report` for the case's report. It was never
+      offered that report; it judges the case by replying to the full-case
+      Invite (CM-11-011).
+    rationale: >-
+      A reply must answer a message sent to the replier. And a joined
+      participant — a late joiner especially — judges the case as it stands,
+      with its history, not the original submission, which may have been far
+      sparser (ADR-0121).
+    verification: A test confirms a joined participant's triage emits no
+      activity whose object is the original `Offer(VulnerabilityReport)`.
+    adr:
+    - ADR-0121
 - id: CM-12
   title: Case Creation Timing
   specs:
@@ -1836,6 +1844,7 @@ groups:
   - id: CM-15-003
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       When a receiver's `auto_create_case` is `False`, processing an inbound
       `Offer(Report)` MUST NOT create a `VulnerabilityCase`.
@@ -2054,6 +2063,7 @@ groups:
   - id: CM-16-015
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: >-
       The downstream consumer node of the Evaluator BT node MUST NOT silently substitute a
       default for an empty list written by the Evaluator (ADR-0032 BT-HELPER-01).
@@ -2078,6 +2088,7 @@ groups:
   - id: CM-16-017
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       When a second `Offer(Actor X, Case)` arrives while a pending decision for Actor X is
       still outstanding, the CASE_MANAGER MUST NOT send a second transformed
@@ -2206,7 +2217,7 @@ groups:
       replay, and the full-case Invite.
     adr:
     - ADR-0114
-    - ADR-0070
+    - ADR-0121
     relationships:
     - rel_type: implements
       spec_id: CM-11-001
@@ -2223,6 +2234,7 @@ groups:
   - id: CM-17-005
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       Presence in the case participant list MUST NOT be treated as acceptance of the
       invitation or as entitlement to case content. An invitee is in the list from the
@@ -2367,7 +2379,9 @@ groups:
       consent needs the case's identity, a human-readable account of what it is asked to
       join, and the embargo terms (CM-17-002); the Invite envelope says who is asking.
       The case name can itself be an opsec concern, so the summary is chosen for the
-      invitee, not copied from the case. #4165 owns emitting it.
+      invitee, not copied from the case. #4165 owns emitting it. Whether the stub should
+      name the coordinator and the Case Owner explicitly, for Invites relayed by a third
+      party, is the open Idea #4184; until it is decided the rule above stands.
     verification: >-
       `test/wire/as2/factories/test_case_factories.py::test_rm_invite_stub_carries_a_non_empty_summary`
       is a strict xfail naming #4165 that asserts a stub projected from a full case
@@ -2524,6 +2538,7 @@ groups:
   - id: CM-18-004
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       A participant's PEC state MUST NOT move from `SIGNATORY` to `INVITED` directly (bypassing
       `LAPSED`). The only paths back to `INVITED` from resolved states are `LAPSED → INVITED` (after
@@ -2691,6 +2706,7 @@ groups:
   - id: CM-18-013
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: >-
       The case initialization sequence MUST NOT commit a `UNBOUND` placeholder ledger
       entry for a participant followed by a corrective consent entry for the same
@@ -2707,6 +2723,7 @@ groups:
   - id: CM-18-014
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: '`ParticipantStatus.embargo_adherence` MUST NOT be declared as a stored field.'
     rationale: >-
       A stored field can drift from the PEC state it projects and its fail-open default
@@ -2855,6 +2872,7 @@ groups:
   - id: CM-20-004
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       A Coordinator invited to a case as a regular participant MUST NOT hold
       `CVDRole.CASE_MANAGER` in their `case_roles` list.
@@ -2867,6 +2885,7 @@ groups:
   - id: CM-20-005
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       `CVDRole.CASE_MANAGER` MUST NOT be assigned to any organizational or human participant
       joining a case as a facilitation actor rather than as the actor enacting the
@@ -3285,6 +3304,11 @@ groups:
     Add(ParticipantStatus, rm_state=RM.CLOSED) is not a valid closure trigger.
     See ADR-0050 (Leave is canonical for RM closure) and ADR-0051
     (CASE_MANAGER RM lifecycle).
+
+    Pending decision: the closure semantics in CM-23-002, CM-23-013 and CM-23-014
+    (what the owner's close does to pending Invites and to later Leaves; #4065, #4066)
+    await a separate decision by the maintainer. Nothing in this group changes
+    them until that decision is recorded.
   specs:
   - id: CM-23-001
     priority: MUST
@@ -3668,7 +3692,7 @@ groups:
       RM.CLOSED.
     rationale: >-
       A participant's RM state is the self-declaratory record of how that
-      participant handled the report (ADR-0084). A Leave is that participant's
+      participant handled the report (ADR-0121). A Leave is that participant's
       own authoritative closure act, so advancing the leaving actor to RM.CLOSED
       regardless of rung is legitimate self-declaration, not an externally
       imposed jump. Every closure is an ordinary transition: the RM transition
@@ -3699,7 +3723,7 @@ groups:
       spec_id: CM-23-002
     adr:
     - ADR-0050
-    - ADR-0084
+    - ADR-0121
     - ADR-0085
     - ADR-0114
     stories:
@@ -3809,13 +3833,40 @@ groups:
     - ADR-0085
     stories:
     - story_2022_066
+  - id: CM-23-016
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A participant's case replica is the case as it stood when the replica was seeded
+      plus the ledger entries since. A replica MUST apply the transitions the ledger
+      records, in ledger order, and MUST NOT derive a transition the ledger does not
+      record, for example by walking the RM transition table from its own stored state
+      to a target state.
+    rationale: >-
+      The CASE_MANAGER is the single mover (ADR-0108) and the ledger records each move
+      as it makes it. A replica that re-derives a path from its own, possibly lagging,
+      state can write an RM rung the ledger never recorded, so replicas diverge from the
+      CASE_MANAGER's history (#4091). CM-23-001 states the rule for closure; this states
+      it for every replicated transition.
+    verification: >-
+      A unit test replays a ledger whose entries skip a rung that a table walk would
+      insert, and asserts the replica's per-actor status history equals the ledger's and
+      that no step the ledger lacks is written.
+    relationships:
+    - rel_type: extends
+      spec_id: CM-23-001
+    adr:
+    - ADR-0108
+    - ADR-0114
+    stories:
+    - story_2022_066
 - id: CM-24
   title: CASE_MANAGER-Delegated Activity Authorship Contract
   description: >-
     Requirements for how trigger use cases assign `actor` and `attributed_to`
     when the CASE_MANAGER emits an Activity on behalf of a requesting participant
-    (delegated message).  The reference implementation is
-    `_prepare_delegated_context()` (`vultron/core/use_cases/triggers/_helpers.py`).
+    (delegated message).  The reference implementation is `delegated_authorship()`
+    (`vultron/core/behaviors/delegated_authorship.py`).
     Codified from CONCERN-2170.
   specs:
   - id: CM-24-001
@@ -3861,31 +3912,6 @@ groups:
     stories:
     - story_2022_089
     - story_2022_034
-  - id: CM-24-003
-    priority: MUST
-    kind: protocol
-    deprecated: true
-    superseded_by: CM-24-006
-    statement: >-
-      This requirement is superseded by CM-24-006; a case has a `CVDRole.CASE_MANAGER`
-      holder from creation onward, so the "no dedicated CASE_MANAGER, send directly"
-      fallback it required (`actor` = requesting participant, `attributed_to` = None)
-      describes a state no creation path can produce.
-    rationale: >-
-      The fallback was written when a case could be minted without a manager. Both creation
-      paths now register one (ADR-0041, CM-02-015) and delegation hands the role on, so the
-      arm only ever fired on a corrupt roster, where sending directly hid the fault. Retired
-      by Concern #3918 (ADR-0113 as rewritten 2026-09-30); the code paths that carried it
-      are removed by #3964.
-    verification: >-
-      Retired. `_prepare_delegated_context` has no fallback branch and no node succeeds with
-      a warning when the resolver finds no holder (CM-24-006); the tests that asserted the
-      fallback are deleted with it (#3964).
-    relationships:
-    - rel_type: refines
-      spec_id: CM-24-001
-    stories:
-    - story_2022_106
   - id: CM-24-004
     priority: MUST
     kind: architecture
@@ -3976,9 +4002,9 @@ groups:
       under CM-02-015), and role delegation transfers it without a gap. No trigger, received
       tree or shared helper MAY carry an arm for a case with no CASE_MANAGER: a resolver that
       finds none MUST fail, and MUST NOT succeed with a warning or send the activity
-      directly. This supersedes CM-24-003.
+      directly.
     rationale: >-
-      CM-24-003 codified a "no dedicated CASE_MANAGER, send directly" fallback that no
+      An earlier requirement (retired; `plan/retired-specs/CM-24-003.md`) codified a "no dedicated CASE_MANAGER, send directly" fallback that no
       creation path can produce; it survived in the delegated-context helper, in two nodes
       that returned SUCCESS with a warning when the resolver found nobody, and in tests that
       asserted the fallback. An arm for an unreachable state is where a corrupt roster hides
@@ -3992,8 +4018,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-24-001
-    - rel_type: supersedes
-      spec_id: CM-24-003
     - rel_type: depends_on
       spec_id: CM-22-002
     adr:
@@ -4111,6 +4135,7 @@ groups:
   - id: CM-25-005
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       A participant whose `case_roles` list contains ONLY `CVDRole.OBSERVER`
       MUST NOT emit VFD state-transition messages (CV, CF, or CD). An Observer
@@ -4156,6 +4181,7 @@ groups:
   - id: CM-25-007
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       An empty `case_roles` list MUST NOT be used for Observer invitations; `[]` is
       indistinguishable from the `caseRoles=[]` admission defect (issue #1288) and
@@ -4416,6 +4442,7 @@ groups:
   - id: CM-28-008
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       Implementations MUST NOT require a scheduler or Sentinel runtime for embargo invite
       expiry correctness.
@@ -4453,6 +4480,7 @@ groups:
   - id: CM-28-010
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       The expiry-versus-refusal provenance MUST NOT be duplicated onto `PecDimension` as
       a reason field.

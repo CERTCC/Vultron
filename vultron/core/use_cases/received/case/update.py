@@ -1,7 +1,7 @@
 """Use cases for vulnerability case activities."""
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.update_tree import (
@@ -21,10 +21,19 @@ if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
 
+from vultron.core.behaviors.sender_entitlement import (
+    SenderEntitlement,
+    exempt,
+)
+
 logger = logging.getLogger(__name__)
 
 
 class UpdateCaseReceivedUseCase:
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4070", "no sender check defined for case updates"
+    )
+
     def __init__(
         self,
         dl: CaseOutboxPersistence,

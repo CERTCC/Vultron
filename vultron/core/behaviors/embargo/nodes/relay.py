@@ -35,12 +35,10 @@ it:
     ├─ ProposeEmbargoLifecycleNode          # EM write (EmbargoLifecycle)
     └─ RelayEmbargoInviteToEachNode         # factory → commit → outbox → PEC
 
-The CM-24-005 delegated-authorship helper (``_prepare_delegated_context``) is
-a trigger-side use-case helper a BT node may not import (BTND-04-003), and its
-"no CASE_MANAGER, send directly" arm is what ADR-0113 detail 14 retires
-(#3964).  The received-side relay satisfies CM-24-001/002 structurally
-instead: it runs only under the CASE_MANAGER gate, so ``actor`` is the role
-holder by construction, and ``attributed_to`` is the adjudicated proposer.
+``actor`` and ``attributed_to`` come from the shared CM-24-005 helper
+(``delegated_authorship``): the relay runs only under the CASE_MANAGER gate, so
+the doing actor is the role holder, and the asking actor is the adjudicated
+proposer.
 """
 
 import json
@@ -53,7 +51,11 @@ from py_trees.common import Status
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
 )
+from vultron.core.behaviors.delegated_authorship import delegated_authorship
 from vultron.core.behaviors.embargo.nodes.em_state import read_case_em_state
+from vultron.core.behaviors.embargo.rsvp_stamp import (
+    stamp_invite_rsvp_deadline,
+)
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
@@ -76,6 +78,7 @@ from vultron.errors import (
 )
 
 if TYPE_CHECKING:
+    from vultron.config.actor import ActorConfig
     from vultron.core.ports.sync_activity import SyncActivityPort
 
 #: Ledger ``event_type`` of a relayed ``Invite(EmbargoEvent)`` emission — the
@@ -264,10 +267,12 @@ class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
 
     For each recipient the collect node named: build the Invite through the
     trigger-activity factory as the executing CASE_MANAGER with the proposer
-    in ``attributedTo`` (CM-24-001, CM-24-002), commit the sealed blob as the
-    canonical entry (VM-08-003) before the outbox write (ledger commit
-    precedes outbox write), queue it, then apply PEC ``INVITE`` to the
-    invitee where legal (CM-18-003, EP-09-004).
+    in ``attributedTo`` (CM-24-001, CM-24-002) and the manager's RSVP
+    deadline as its ``endTime`` (CM-28-012, from ``actor_config``'s windows),
+    commit the sealed blob as the canonical entry (VM-08-003) before the
+    outbox write (ledger commit precedes outbox write), queue it, then apply
+    PEC ``INVITE`` to the invitee where legal, recording the deadline the
+    sealed Invite carries (CM-18-003, EP-09-004, CM-28-013).
 
     A step failing mid-relay is not a protocol refusal — the proposal is
     already committed and the EM state moved — so this node catches nothing:
@@ -295,11 +300,13 @@ class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
         embargo_id: str,
         proposer_id: str,
         name: str | None = None,
+        actor_config: "ActorConfig | None" = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
         self._embargo_id = embargo_id
         self._proposer_id = proposer_id
+        self._actor_config = actor_config
         self._sync_port: SyncActivityPort | None = None
         self._recipients: list[str] = []
 
@@ -338,6 +345,13 @@ class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
         """The id the Invite to *recipient_id* takes; ``None`` mints a fresh one."""
         return None
 
+    #: Ledger ``event_type`` the emission is committed under.
+    _EVENT_TYPE = EMBARGO_INVITE_EVENT_TYPE
+
+    def _attributed_to(self) -> str | None:
+        """Whose terms the Invite carries; ``None`` when it is the manager's own ask."""
+        return self._proposer_id
+
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
@@ -358,13 +372,37 @@ class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
         assert self.trigger_activity_factory is not None
         assert self.actor_id is not None
         dl = cast(CaseOutboxPersistence, self.datalayer)
+        # The manager stamps the deadline it alone will evaluate (CM-28-012).
+        # Regime 1 (ADR-0087): the embargo is one the manager itself holds,
+        # so a missing record is its own store's fault, never the sender's —
+        # re-raised as internal, as ``_invite_where_legal`` does (ADR-0095).
+        try:
+            stamp = stamp_invite_rsvp_deadline(
+                dl, self._embargo_id, self._actor_config
+            )
+        except VultronNotFoundError as exc:
+            raise RuntimeError(
+                f"{self.name}: cannot stamp the RSVP deadline of embargo"
+                f" '{self._embargo_id}' on case '{self._case_id}': {exc}"
+            ) from exc
+        proposer_id = self._attributed_to()
+        authorship = (
+            delegated_authorship(
+                doing_actor_id=self.actor_id, requesting_actor_id=proposer_id
+            )
+            if proposer_id
+            else None
+        )
         activity_id, blob = self.trigger_activity_factory.propose_embargo(
             embargo_id=self._embargo_id,
             case_id=self._case_id,
-            actor=self.actor_id,
+            actor=authorship.actor if authorship else self.actor_id,
             to=[recipient_id],
-            attributed_to=self._proposer_id,
+            attributed_to=authorship.attributed_to if authorship else None,
             activity_id=self._activity_id_for(recipient_id),
+            rsvp_deadline=stamp.rsvp_deadline,
+            published=stamp.published,
+            min_rsvp_window=stamp.min_rsvp_window,
         )
         self._commit_emission(activity_id, blob)
         dl.outbox_append(activity_id)
@@ -377,7 +415,7 @@ class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
             self.actor_id,
             self._embargo_id,
             recipient_id,
-            self._proposer_id,
+            self._attributed_to() or self.actor_id,
         )
 
     def _record_queued(self, activity_id: str) -> None:
@@ -396,7 +434,7 @@ class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
             case_id=self._case_id,
             activity_id=activity_id,
             activity_blob=blob,
-            event_type=EMBARGO_INVITE_EVENT_TYPE,
+            event_type=self._EVENT_TYPE,
             sync_port=self._sync_port,
         )
 

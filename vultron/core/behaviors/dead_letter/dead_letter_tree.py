@@ -23,6 +23,9 @@ import logging
 
 import py_trees
 
+from vultron.core.behaviors.case.receive_activity_tree import (
+    create_receive_activity_tree,
+)
 from vultron.core.behaviors.dead_letter.nodes import (
     StoreDeadLetterRecordNode,
 )
@@ -41,10 +44,17 @@ def create_store_dead_letter_tree(
             surrounding activity context.
 
     Returns:
-        A ``StoreDeadLetterRecordNode`` behaviour ready for execution via
+        An intake-first tree whose effect is ``StoreDeadLetterRecordNode``,
+        ready for execution via
         ``BTBridge.execute_with_setup()``.
     """
-    root = StoreDeadLetterRecordNode(request=request)
+    # No commit stage: a dead letter is bookkeeping, not a case assertion.
+    root = create_receive_activity_tree(
+        name="StoreDeadLetterBT",
+        case_id=None,
+        precondition_guards=[],
+        effect_nodes=[StoreDeadLetterRecordNode(request=request)],
+    )
     logger.debug(
         "Created StoreDeadLetterBT for activity '%s'", request.activity_id
     )

@@ -14,18 +14,22 @@ groups:
   - id: AR-01-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The API MUST expose a machine-readable OpenAPI JSON schema at `/openapi.json`
   - id: AR-01-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The API MUST expose rendered documentation UI at `/docs` and `/redoc` in development environments
   - id: AR-01-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: Every endpoint MUST have a unique, stable `operationId` following the `{resource}_{action}` naming convention
   - id: AR-01-004
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: All possible HTTP response codes for each endpoint MUST be declared in the OpenAPI spec with typed response
       models
     scope:
@@ -43,10 +47,12 @@ groups:
   - id: AR-02-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: All valid states and state transitions for state machine resources MUST be documented
   - id: AR-02-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: Endpoints with prerequisites MUST return a structured error using the `error` field value `"PreconditionFailedError"`
       when invoked out of sequence
     scope:
@@ -60,6 +66,7 @@ groups:
   - id: AR-03-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The API MUST use the `error` field (per `error-handling.md` EH-05-001) as a stable, machine-parseable error
       type identifier
     relationships:
@@ -171,12 +178,14 @@ groups:
   - id: AR-08-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The CLI MUST be installable as a Python package entry point defined in `pyproject.toml`
     scope:
     - production
   - id: AR-08-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: Every CLI command MUST support a structured JSON output mode (e.g., `--output json`) emitting machine-parseable
       JSON to stdout
     scope:
@@ -184,12 +193,14 @@ groups:
   - id: AR-08-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: CLI commands MUST exit with code `0` on success, `1` on handled error, and `2` on usage or argument error
     scope:
     - production
   - id: AR-08-004
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: CLI commands wrapping API calls MUST surface the `error` field and `request_id` from API error responses in
       their JSON error output
     scope:

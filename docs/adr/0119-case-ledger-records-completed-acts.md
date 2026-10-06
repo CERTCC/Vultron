@@ -1,6 +1,9 @@
 ---
 status: proposed
 date: 2026-10-02
+created: 2026-10-02
+updated: 2026-10-02
+revision: 1
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; specs/sync-ledger-replication.yaml SYNC-09-002;

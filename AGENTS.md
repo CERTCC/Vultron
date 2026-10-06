@@ -36,7 +36,7 @@ pattern matching; persist with `dl.save(obj)`; return 202 immediately
 
 Agents MAY: implement small–medium features, refactor without behavior change,
 add/update tests, improve typing/validation/error handling, update docs/specs,
-propose architectural changes (not apply without approval).
+implement against `proposed` ADRs (the human touch is the epoch-2 ask, ADR-0120).
 
 Agents MUST NOT: introduce breaking API changes, modify auth/crypto logic,
 change persistence schemas without explicit instruction, touch CI/deployment/secrets.
@@ -174,7 +174,8 @@ For non-trivial changes: state assumptions → load governing specs (`deepen-con
 review `notes/` → describe intent → apply minimal diff → update/add tests →
 call out risks.
 
-For architectural changes, draft an ADR first. Use the decision-tree in
+For architectural changes, draft an ADR first (it may be `proposed`; implement
+against it, ADR-0120). Use the decision-tree in
 `notes/specs-vs-adrs.md` (MS-11-001 through MS-11-006) to decide ADR vs. spec
 entry vs. both.
 
@@ -248,7 +249,10 @@ Full doctrine: `.claude/skills/shared/completeness-doctrine.md` (loaded by
 - Done = all changed behaviors tested, edge cases handled, types/docs current,
   linters clean.
 - **FAIL** → fix before PR. **IMPROVE** → fix this session.
-  **DEFER** → create follow-up issue + user ack. No WARN-and-defer.
+  **DEFER** → create follow-up issue + user ack; unattended runs have no DEFER
+  (fix in the PR or hold it). Never merge on red; never skip a hook
+  (only the documented `actionlint` hang).
+  No WARN-and-defer.
 
 ---
 
@@ -270,7 +274,7 @@ linked file before touching that area. New pitfalls MUST be routed per
 | Behavior tree nodes | [bt-pitfalls](notes/bt-pitfalls.md) | write nodes validate own transitions (CSB-16); guarded commits as CASE_MANAGER (BT-17-005); store follows executing actor, but a received RM write is about the sender (RSH-08-001); don't clear keys you don't own; guards name the transition; **refusal arms fail toward admit** — record first, guards raise, key on the request; log via `node_logger(node)` (SL-01-005, [structured-logging](notes/structured-logging.md)) |
 | BT integration / concurrency | [bt-integration](notes/bt-integration.md), [bt-pitfalls](notes/bt-pitfalls.md) | module-level `RLock` under `BackgroundTasks`; trigger `execute()` delegates SM transitions (BT-15-001); `internal_error is False` ≠ "no bug" — node `except Exception` and nested `BTBridge` hops hide it |
 | Case ledger | [case-ledger-authority](notes/case-ledger-authority.md), [ownership-transfer](notes/ownership-transfer.md) | not a process log (CLP-07); one role-gated commit, already injected by the factory (CLP-09-001); two timestamps — commit stamp vs. claimed `published`, monotonic per snapshot actor but reported, never refused (CLP-15-003/005); blank/missing `published` refused at parse (CLP-15-006); nested times carried as received (ADR-0103); replicas see only ledger entries (CM-23-005, #2505) |
-| Who sends what to whom | [case-communication-model](notes/case-communication-model.md), [case-joining](notes/case-joining.md) | roster ≠ entitlement — recipients only via `core/participants/recipients.py` (CM-10-004/005/007, ADR-0114, #4100); joiners answer the full-case Invite (CM-11-005); participants message only the CASE_MANAGER (PCR-08, ADR-0109); gated effects → `REFUSED` (BT-17-001, HP-01-005); the gate checks the receiver, never the sender — sender entitlement declared once per use case, composed by the factory (HP-01-006/007, ADR-0115); embargo proposals relayed (EP-09, ADR-0113); manager never unfilled (CM-24-006) |
+| Who sends what to whom | [case-communication-model](notes/case-communication-model.md), [case-joining](notes/case-joining.md) | roster ≠ entitlement — recipients only via `core/participants/recipients.py` (CM-10-004/005/007, ADR-0114, #4100); joiners answer the full-case Invite (CM-11-018); participants message only the CASE_MANAGER (PCR-08, ADR-0109); gated effects → `REFUSED` (BT-17-001, HP-01-005); the gate checks the receiver, never the sender — sender entitlement declared once per use case, composed by the factory (HP-01-006/007, ADR-0115); embargo proposals relayed (EP-09, ADR-0113); manager never unfilled (CM-24-006) |
 | Pattern matching / semantics | [activitystreams-semantics](notes/activitystreams-semantics.md), [activitystreams-state-update](notes/activitystreams-state-update.md), [`vultron/wire/as2/AGENTS.md`](vultron/wire/as2/AGENTS.md) | patterns match the inbound wire format; `target_` permissive unless `strict=True` (SE-08); `Reject(Invite)` case in `inner_target` (CM-11-003); phrase placeholders (SE-07-005); no `origin_` field — examples must match exactly one pattern (#3438) |
 | Persistence / stores | [datalayer-design](notes/datalayer-design.md) | `dl.read()` returns core objects (ADR-0034), no wire re-read for semantics (ADR-0035); actor id is a store name (DL-07-004); `_dehydrate_data` keeps inline snapshots; a clock-minted wire default can't round-trip a URI-only core field (#3732); a renamed stored field refuses its old key via `RetiredFieldsRecord`, never an alias (#4128) |
 | Embargo / consent | [embargo-lifecycle](notes/embargo-lifecycle.md), [participant-embargo-consent](notes/participant-embargo-consent.md) | go through `EmbargoLifecycle`, never inline `EMAdapter`; consent only via `apply_pec_transition()` (CM-18-005/006), no downgrade on retry; proposals change no consent, lapse only on activating longer terms (ADR-0093); a revision Invite never re-INVITEs a SIGNATORY (EP-09-004); termination clears every proposal (EP-08-004); default embargo once per case, keyed on EM ≠ `NONE` (EP-04-012; [embargo-default-semantics](notes/embargo-default-semantics.md), #3393, #4019) |
@@ -279,9 +283,9 @@ linked file before touching that area. New pitfalls MUST be routed per
 | Spec/notes/ADR/history tooling | [`vultron/metadata/AGENTS.md`](vultron/metadata/AGENTS.md), [agentic-workflow](notes/agentic-workflow.md) | learning filename slug ≠ `source` (BW-01-003, #1857); loaders name failing files `path:line:col` via `file_loading.py` (MS-17) — YAML errors aren't `ValueError`; pre-code spec needs `lint_suppress: [phantom_path_ref]` |
 | git / branches / PRs | [git-workflow-pitfalls](notes/git-workflow-pitfalls.md) | false-positive rebase "local changes"; conflict-free ≠ working merge; integration branches for related fixes; re-check ADR numbers; verify ACs on `origin/main`, always `Closes #N`, prose ACs skip the pre-claim gate (#1907) |
 | GH Actions / CI YAML | [ci-workflow-authoring](notes/ci-workflow-authoring.md) | red job ≠ assertions ran, all-skipped = green; `notify-failure` mandatory (CISEC-05); bare `on:` → `True`; matrix booleans job vs. step; `python3 -c` breaks `actionlint`; YAML apostrophes |
-| Spec authoring | [spec-authoring-rules](notes/spec-authoring-rules.md) | strict `kind`/`priority`/`rel_type` enums; `adr:` not `references:`; `kind: protocol` needs marker test or strict `xfail`; CASE_MANAGER not "CaseActor" (ADR-0088); item format = field presence, not `isinstance` (ADR-0101); advisories need a ceiling |
+| Spec authoring | [spec-authoring-rules](notes/spec-authoring-rules.md) | strict `kind`/`priority`/`rel_type` enums; `adr:` not `references:`; `kind: protocol` needs marker test or strict `xfail`; CASE_MANAGER not "CaseActor" (ADR-0088); item format = field presence, not `isinstance` (ADR-0101); advisories need an owner and a terminal state |
 | Specs vs. ADRs, doc drift | [specs-vs-adrs](notes/specs-vs-adrs.md), [documentation-sweeps](notes/documentation-sweeps.md) | ADR "what is removed" is scoped to one use; no counts in long-lived docs (MS-16-001); moving a claim ≠ verifying it, share by `include-markdown` fragment (DF-10-001/002) |
-| Tests | [testing-pitfalls](notes/testing-pitfalls.md), [`test/AGENTS.md`](test/AGENTS.md) | killed run reads exit 0 under `tail -5`; vacuous assertions; "falls back to" on malformed input asserts a bug; process-global blackboard/registries (`isolated_core_registries`); `caplog` catches fixture setup; timeout method vs. ceiling (#3603); directory-hook markers need a `trylast` probe (#3604) |
+| Tests | [testing-pitfalls](notes/testing-pitfalls.md), [`test/AGENTS.md`](test/AGENTS.md) | killed run reads exit 0 under `tail -5`; vacuous assertions; "falls back to" on malformed input asserts a bug; process-global blackboard/registries; `caplog` catches fixture setup; timeout method vs. ceiling (#3603); directory-hook markers need a `trylast` probe (#3604); a two-sided count pin races concurrent PRs, keep a per-item record (#3984) |
 | Demo scenarios | [`vultron/demo/AGENTS.md`](vultron/demo/AGENTS.md), [demo-scenario-authoring](notes/demo-scenario-authoring.md), [demo-scenario-registry](notes/demo-scenario-registry.md) | puppeteer via triggers, never inbox injection or mail-carrying; gate steps on their cause (EDF-06, ADR-0058); protocol activity lives in `helpers/workflow.py` ([demo-ci-diagnostics](notes/demo-ci-diagnostics.md)); declare a scenario once with `@scenario`, all inventories generated, no `@main.command`, unbuilt ones go in `demo-future-ideas.md` (ADR-0098, DEMOCI-11) |
 | Inbox / outbox | [inbox-orchestration](notes/inbox-orchestration.md), [inbox-pipeline](notes/inbox-pipeline.md), [outbox-delivery-reliability](notes/outbox-delivery-reliability.md), [`vultron/adapters/AGENTS.md`](vultron/adapters/AGENTS.md) | inbox policy in `core/behaviors/inbox/`, `process_payload` sole entry (IO-02-001/003); catch `UnroutableActivityError` inside `_handle`; retry caps composing to `4 × ∞` (OX-13); inbox has no read surface (IE-02-003/004, #3141); outbox relays the sealed body, never a re-read (OX-07-001, VM-08-003) |
 | Call-out points | [call-out-configuration](notes/call-out-configuration.md) | automation potential ≠ call-out shape (ADR-0024); an externally-versioned capability is **one** call-out unit (BTND-05-007) |

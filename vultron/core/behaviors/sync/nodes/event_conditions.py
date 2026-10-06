@@ -31,6 +31,12 @@ from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
 from vultron.core.behaviors.sync.nodes.conditions import _require_log_entry
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.base import MessageSemantics
+from vultron.core.models.rsvp_deadline import (
+    EMBARGO_REINVITE_EVENT_TYPE,
+    HONOUR_LATE_ACCEPT_EVENT_TYPE,
+    INVITE_EXPIRED_EVENT_TYPE,
+    INVITE_EXPIRED_NOOP_EVENT_TYPE,
+)
 from vultron.core.models.wire_keys import wire_key
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_persistence import CasePersistence
@@ -403,5 +409,75 @@ class IsEmbargoAbandonmentEventNode(_ActivityEventNode):
     def update(self) -> Status:
         entry = _require_log_entry(self.activity, self.name)
         if entry.event_type == EMBARGO_ABANDONMENT_EVENT_TYPE:
+            return Status.SUCCESS
+        return Status.FAILURE
+
+
+class IsEmbargoReinviteEventNode(_ActivityEventNode):
+    """Precondition: this entry is the CASE_MANAGER's re-invite of a stale accepter.
+
+    Matches :data:`~vultron.core.models.rsvp_deadline.EMBARGO_REINVITE_EVENT_TYPE`.
+    Used in the ``EmbargoReinviteEffects`` slot of ``AnnounceLogEntryReceivedBT``.
+
+    Per EMB-17-003, CM-28-013, EP-09-007, RSH-08-004, BTND-08-001, SYNC-12-001.
+    """
+
+    def update(self) -> Status:
+        entry = _require_log_entry(self.activity, self.name)
+        if entry.event_type == EMBARGO_REINVITE_EVENT_TYPE:
+            return Status.SUCCESS
+        return Status.FAILURE
+
+
+class IsInviteExpiryEventNode(_ActivityEventNode):
+    """Precondition: this entry is the CASE_MANAGER's expiry of an embargo Invite.
+
+    Matches :data:`~vultron.core.models.rsvp_deadline.INVITE_EXPIRED_EVENT_TYPE`.
+    Used in the ``InviteExpiryEffects`` slot of ``AnnounceLogEntryReceivedBT``.
+
+    Per CM-28-009, CM-28-014, ADR-0118, BTND-08-001, SYNC-12-001.
+    """
+
+    def update(self) -> Status:
+        entry = _require_log_entry(self.activity, self.name)
+        if entry.event_type == INVITE_EXPIRED_EVENT_TYPE:
+            return Status.SUCCESS
+        return Status.FAILURE
+
+
+class IsInviteExpiryNoopEventNode(_ActivityEventNode):
+    """Precondition: this entry is the CASE_MANAGER's no-op expiry acknowledgement.
+
+    Matches :data:`~vultron.core.models.rsvp_deadline.INVITE_EXPIRED_NOOP_EVENT_TYPE`.
+    Committed when a late ``Accept`` arrives with no current embargo (EM EXITED
+    or NONE); the CASE_MANAGER acknowledges it without changing any PEC state
+    (EMB-17-004, ADR-0118).  Used in the ``InviteExpiryNoopEffects`` slot of
+    ``AnnounceLogEntryReceivedBT``.
+
+    Per EMB-17-004, CM-28-009, ADR-0118, BTND-08-001, SYNC-12-001.
+    """
+
+    def update(self) -> Status:
+        entry = _require_log_entry(self.activity, self.name)
+        if entry.event_type == INVITE_EXPIRED_NOOP_EVENT_TYPE:
+            return Status.SUCCESS
+        return Status.FAILURE
+
+
+class IsHonourLateAcceptEventNode(_ActivityEventNode):
+    """Precondition: this entry is the CASE_MANAGER's honour-late-accept decision.
+
+    Matches :data:`~vultron.core.models.rsvp_deadline.HONOUR_LATE_ACCEPT_EVENT_TYPE`.
+    Committed when a late ``Accept(Invite(EmbargoEvent))`` arrives and the
+    embargo is still active and matching (EMB-17-001, ADR-0118).  Used in
+    the ``InviteHonourLateAcceptEffects`` slot of
+    ``AnnounceLogEntryReceivedBT``.
+
+    Per EMB-17-001, ADR-0118, BTND-08-001, SYNC-12-001.
+    """
+
+    def update(self) -> Status:
+        entry = _require_log_entry(self.activity, self.name)
+        if entry.event_type == HONOUR_LATE_ACCEPT_EVENT_TYPE:
             return Status.SUCCESS
         return Status.FAILURE

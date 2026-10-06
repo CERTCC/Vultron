@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-08-31
+created: 2026-08-31
+updated: 2026-08-31
+revision: 1
 deciders: Allen D. Householder
 consulted: Claude Opus 5
 informed: []
@@ -223,13 +226,12 @@ rule requires.
   approval-recorded check ahead of the action
 - Neutral: pending decisions become visible to all case participants. This is
   intended, but it constrains what an ask may carry
-- Bad (partially resolved): the emit path required consolidation before
+- Bad (resolved): the emit path required consolidation before
   registration could be made structural. `_EmitSingleActivityBase._emit_through_seam()`
-  now provides the single insertion point (ASK-04-008 / #2881); four private
-  `_emit` helpers were migrated and an architecture ratchet guards the seam.
-  Sixteen legacy nodes still call `outbox_append` directly in their `update()`
-  methods and are enumerated in the ratchet's `KNOWN_VIOLATIONS` set for
-  follow-on migration
+  now provides the single insertion point (ASK-04-008 / #2881); all 15 legacy
+  nodes that called `outbox_append` directly in their `update()` methods have
+  been migrated and the architecture ratchet's `KNOWN_VIOLATIONS` set is empty
+  (#3929)
 - Bad: expiry is not prompt until a Sentinel is wired; until then an expired ask
   is noticed only when something next enters the tree or the reap trigger is
   called

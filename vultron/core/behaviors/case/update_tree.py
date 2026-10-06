@@ -58,13 +58,13 @@ def create_update_case_received_tree(
             └── BroadcastCaseUpdateNode
 
     Composed through :func:`create_receive_activity_tree`, which supplies the
-    intake node (CLP-10-017).  The commit stage is omitted (``case_id=None``):
-    ``("Update", "VulnerabilityCase")`` is not a canonical payload signature
-    (``_CANONICAL_PAYLOAD_SIGNATURES`` in ``sync/nodes/canonical_entry.py``),
-    so a guarded commit here would be refused by the canonical-entry check at
-    the CASE_MANAGER and the update would never apply.  The CASE_MANAGER
-    publishes the update through ``BroadcastCaseUpdateNode`` instead
-    (CM-06-001), exactly as before ADR-0111.
+    intake node (CLP-10-017).  The commit stage is omitted (``case_id=None``)
+    by decision, not by accident: an owner's ``Update(VulnerabilityCase)`` is
+    deliberately not a ledgered assertion (ADR-0111, "An owner's
+    ``Update(VulnerabilityCase)`` is not a ledgered assertion", #3936), so a
+    guarded commit here would be refused by the canonical-entry check.  The
+    CASE_MANAGER publishes the update through ``BroadcastCaseUpdateNode``
+    instead (CM-06-001).
 
     Every actor applies the update to its own replica; only the case's
     ``CASE_MANAGER`` announces it (CM-06-001).  The gate is on the **role**
@@ -85,8 +85,7 @@ def create_update_case_received_tree(
     """
     root = create_receive_activity_tree(
         name="UpdateCaseBT",
-        # No commit stage: Update(VulnerabilityCase) has no canonical payload
-        # signature — see the docstring.
+        # No commit stage: deliberately not a ledgered assertion (ADR-0111).
         case_id=None,
         precondition_guards=[
             CheckCaseUpdateOwnerNode(

@@ -342,7 +342,7 @@ add_activity_to_outbox(actor_id, activity_id, dl)   # ← dl *is* the manager's 
 A case always has a `CVDRole.CASE_MANAGER` participant (CM-24-006), so there is
 no un-delegated path: a resolver that finds no holder fails rather than sending
 directly. The CM-24-003 fallback (`actor` = requester, `attributed_to = None`)
-is retired; #3964 removes it from `_prepare_delegated_context()`.
+is retired; the shared helper `delegated_authorship()` has no such arm.
 
 ---
 
@@ -417,9 +417,13 @@ The participant side has two halves, and only the first runs on receipt:
 | Entry (`event_type`) | Slot | Replica effect |
 |---|---|---|
 | proposal (`invite_to_embargo_on_case`, not a relay) | `EmbargoProposal` | stores B, `propose_embargo` (→ `PROPOSED`/`REVISE`), index recorded, proposer's consent |
-| relayed Invite (same type, `actor` the CASE_MANAGER, `attributedTo` someone else) | `EmbargoInviteRelay` | invitee PEC `INVITE` where legal, RSVP deadline stored |
+| relayed Invite (same type, `actor` the CASE_MANAGER, `attributedTo` someone else) | `EmbargoInviteRelay` | invitee PEC `INVITE` where legal; the RSVP deadline the entry carries as `endTime` stored (CM-28-013) |
 | `accept_invite_to_embargo_on_case` | `EmbargoAcceptance` | the answerer's consent; the owner's Accept activates B |
 | `reject_invite_to_embargo_on_case` | `EmbargoRejection` | the answerer declines; the owner's Reject returns EM to A and forgets B |
+| `invite_to_embargo_on_case_expired` (the CASE_MANAGER's expiry, attributed to the invitee) | `InviteExpiry` | invitee PEC `EXPIRE` (`INVITED → EXPIRED`); no deadline re-evaluated (CM-28-014) |
+| `honour_late_accept_invite_to_embargo_on_case` (the CASE_MANAGER's honour, attributed to the accepting actor) | `InviteHonourLateAccept` | `EXPIRED → SIGNATORY` or `DECLINED → INVITED → SIGNATORY` (EMB-17-001, EMB-17-009) |
+| `invite_to_embargo_on_case_expired_noop` (the CASE_MANAGER's no-op ack, attributed to the accepting actor) | `InviteExpiryNoop` | no PEC change (EMB-17-004, EMB-17-010) |
+| `invite_to_embargo_on_case_reinvite` (the CASE_MANAGER's own fresh Invite to a late accepter of a stale embargo; no `attributedTo`) | `EmbargoReinvite` | invitee PEC `INVITE` and the `endTime` deadline; no EM change, no proposal (EMB-17-003, EMB-17-011) |
 | `remove_embargo_event_from_case` | teardown | unchanged |
 
 The proposal and a relayed Invite share one event type and are told apart by
@@ -471,16 +475,23 @@ Recipient receives Activity:
 
 ### Reference Implementation
 
-Use `_prepare_delegated_context()` (`triggers/_helpers.py`) as the canonical
-implementation.  All delegated-emit trigger use cases MUST call this helper
-(CM-24-005):
+Use `delegated_authorship()` (`vultron/core/behaviors/delegated_authorship.py`)
+as the canonical implementation.  Every delegated emit, trigger-side or
+received-side, MUST call it (CM-24-005).  The caller names both identities; the
+helper looks nothing up:
 
 ```python
 # Delegated-message contract (CM-24-001, CM-24-002, CM-24-006)
-self._actor_id, self._attributed_to = _prepare_delegated_context(
-    self._dl, self._case.id_, requesting_actor_id
+authorship = delegated_authorship(
+    doing_actor_id=case_manager_id,       # the CASE_MANAGER executing the emit
+    requesting_actor_id=requesting_actor_id,  # whoever asked
 )
+# authorship.actor -> Activity.actor; authorship.attributed_to -> attributedTo
 ```
+
+A trigger use case resolves the CASE_MANAGER with `resolve_case_manager_id()`
+and fails when there is none (CM-24-006); a received-side node passes
+`self.actor_id`, which the role gate makes the CASE_MANAGER.
 
 **The delegated emit runs where the CASE_MANAGER is hosted** (CM-24-004,
 ADR-0109).  A container emits only as actors it hosts, so a trigger on a
@@ -508,23 +519,21 @@ does, that trigger still runs the delegated emit locally.
 
 ### Shared-Helper Requirement (CM-24-005)
 
-All delegated-message trigger use cases MUST use a shared helper to enforce
-the pattern.  No callsite may independently reconstruct `actor/attributed_to`
-assignment.  See `specs/case-management.yaml` CM-24-005 for the normative
-requirement.
+All delegated emits MUST use the shared helper to enforce the pattern.  No
+callsite may independently reconstruct `actor/attributed_to` assignment.  See
+`specs/case-management.yaml` CM-24-005 for the normative requirement.
+`test/architecture/test_delegated_attribution_uses_helper.py` fails when a core
+function passes a delegated `attributed_to` to a trigger-activity factory
+without calling the helper.
 
-The one *received*-side delegated emit, the embargo relay
-(`RelayEmbargoInviteToEachNode`, #3913), does not call
-`_prepare_delegated_context()`: that is a trigger use-case helper a BT node
-may not import (BTND-04-003), and its "no CASE_MANAGER, send directly" arm is
-what ADR-0113 retires (#3964).  The node holds the CM-24-001/002 invariants
-structurally instead — it runs only under `create_case_manager_gated_tree`, so
-`actor` is the role holder by construction, and `attributed_to` is the proposer
-the manager adjudicated (`resolve_proposer_id()`, which honours an inbound
-`attributedTo` only when the Invite's `actor` is itself the CASE_MANAGER, so a
-participant cannot name a third party as proposer).  A second received-side
-delegated emit should extract a shared received-side helper rather than repeat
-this reasoning.
+The received-side delegated emits (`RelayEmbargoInviteToEachNode` and its
+creation-time subclass, `EmitInviteActorToCaseNode`,
+`ForwardOfferToTransfereeNode`) call the same helper, which lives under
+`core/behaviors/` so BT nodes may import it (BTND-04-003).  For the embargo
+relay the asking actor is the proposer the manager adjudicated
+(`resolve_proposer_id()`, which honours an inbound `attributedTo` only when the
+Invite's `actor` is itself the CASE_MANAGER, so a participant cannot name a
+third party as proposer).
 
 ---
 

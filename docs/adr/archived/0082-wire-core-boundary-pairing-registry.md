@@ -1,6 +1,9 @@
 ---
 status: superseded
 date: 2026-08-31
+created: 2026-08-31
+updated: 2026-08-31
+revision: 1
 deciders: Allen Householder
 consulted: Claude Code (planning agent for G02 / CONCERN-2830)
 informed: Vultron contributors

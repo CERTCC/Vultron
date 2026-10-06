@@ -26,7 +26,13 @@ from typing import Any
 import py_trees
 from py_trees.common import Status
 
+from vultron.core.behaviors.case.receive_activity_tree import (
+    create_receive_activity_tree,
+)
 from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.sender_entitlement import (
+    SenderIsProposalAddresseeNode,
+)
 from vultron.core.models.report_case_link import VultronReportCaseLink
 
 logger = logging.getLogger(__name__)
@@ -79,6 +85,18 @@ class RecordCaseActorAcceptanceNode(DataLayerAction):
             )
             return Status.SUCCESS
 
+        if link.case_id is not None:
+            # CP-06-005: once a case is established for the report, no reply
+            # replaces the trusted CASE_MANAGER.
+            logger.info(
+                "%s: case '%s' already established for report '%s'"
+                " — leaving case_manager_id unchanged (CP-06-005)",
+                self.name,
+                link.case_id,
+                self._report_id,
+            )
+            return Status.SUCCESS
+
         link.case_manager_id = self._case_actor_id
         self.datalayer.save(link)
         logger.info(
@@ -106,12 +124,17 @@ def create_accept_case_proposal_received_tree(
             proposal (the ``actor`` of the inbound ``Accept`` activity).
 
     Returns:
-        A py_trees Sequence behaviour ready for ``BTBridge.execute_with_setup``.
+        A py_trees Sequence behaviour (sender guard, then the record)
+        ready for ``BTBridge.execute_with_setup``.
     """
-    return py_trees.composites.Sequence(
+    return create_receive_activity_tree(
         name="AcceptCaseProposalReceivedBT",
-        memory=False,
-        children=[
+        case_id=None,
+        sender_guard=SenderIsProposalAddresseeNode(
+            report_id=report_id, sender_actor_id=case_actor_id
+        ),
+        precondition_guards=[],
+        effect_nodes=[
             RecordCaseActorAcceptanceNode(
                 report_id=report_id,
                 case_actor_id=case_actor_id,

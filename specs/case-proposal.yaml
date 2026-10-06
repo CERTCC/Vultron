@@ -73,7 +73,7 @@ groups:
       (PCR-01-003, DL-07-005). So it travels on the proposal for the same reason and by
       the same rule as the report itself (CP-01-004). A participant that joined through
       an Invite does not use it to answer the Offer, which was never sent to it
-      (CM-11-005).
+      (CM-11-018).
     relationships:
     - rel_type: refines
       spec_id: CP-01-004
@@ -83,7 +83,7 @@ groups:
       `test/core/behaviors/case/test_offer_provenance_on_proposal.py`
     adr:
     - ADR-0073
-    - ADR-0070
+    - ADR-0121
   - id: CP-01-008
     priority: MUST
     kind: project
@@ -119,7 +119,10 @@ groups:
     kind: protocol
     statement: >-
       The `actor` of `Create(as_CaseProposal)` MAY be the proposing actor's full actor profile inline,
-      or a reference to that profile which the CASE_MANAGER dereferences.
+      or a reference to that profile which the CASE_MANAGER dereferences. The by-reference form is
+      available only where the CASE_MANAGER can dereference an object by an API call (AKM-05-003,
+      AKM-05-004); without that mechanism the profile MUST be inline, and a bare-URI `actor` is
+      refused (CP-01-010).
     rationale: >-
       The proposing actor becomes the CASE_OWNER (CP-09-001), and its published embargo policy lives
       on its profile (EP-01-001), in its own store, which the CASE_MANAGER cannot read (PCR-01-003).
@@ -130,6 +133,8 @@ groups:
       spec_id: EP-04-003
     - rel_type: depends_on
       spec_id: EP-01-001
+    - rel_type: depends_on
+      spec_id: AKM-05-003
     adr:
     - ADR-0096
     stories:
@@ -238,6 +243,7 @@ groups:
   - id: CP-04-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The BT node responsible for sending `Create(as_CaseProposal)` MUST be a distinct node (`ProposeCaseToActorNode`)
       separate from `CreateCaseActorNode`. `CreateCaseActorNode` is responsible only for registering the case-actor service
       resource; it MUST NOT send a `CaseProposal` activity.
@@ -273,6 +279,7 @@ groups:
   - id: CP-04-004
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       Whatever provisions the case-actor's record MUST write it into the *case-actor's own* store, since
       the inbox route resolves an actor from the store its URI names. A copy in the sending actor's store
@@ -361,9 +368,9 @@ groups:
   - id: CP-05-006
     priority: MUST
     kind: protocol
-    statement: 'The case-actor service MUST handle duplicate `Create(as_CaseProposal)` idempotently: if a proposal for the
-      same report has already been accepted, it MUST re-send the stored `Accept(as_CaseProposal)` unchanged, with its
-      original identifier, and MUST NOT create a second `VulnerabilityCase`.'
+    statement: 'The case-actor service MUST handle duplicate `Create(as_CaseProposal)` idempotently: if the same proposal
+      (the same proposal identifier) has already been accepted, it MUST re-send the stored `Accept(as_CaseProposal)` unchanged,
+      with its original identifier, and MUST NOT create a second `VulnerabilityCase`.'
     rationale: >-
       A duplicate proposal is the only signal the case-actor gets that its acceptance
       was lost, so answering it is the recovery path CONCERN-2367 found missing.
@@ -372,7 +379,11 @@ groups:
       which CP-05-005's irrevocability rule precludes.
     note: >-
       Raised from SHOULD to MUST and changed from "a new Accept" to the stored original
-      by ADR-0080 (CONCERN-2367).
+      by ADR-0080 (CONCERN-2367). The duplicate is keyed on the proposal, not the report:
+      the report identifier is chosen by the sender, and a proposal under a new identifier
+      is a new ask the requester is tracking separately, so the stored `Accept` for the old
+      one would answer a proposal the requester may already have expired. A new proposal
+      that names an already-accepted report is governed by CP-05-008 (#3977).
     verification: A duplicate `Create(as_CaseProposal)` after acceptance produces an outbound `Accept(as_CaseProposal)`
       identical to the stored original including its `id`, and no second `VulnerabilityCase`.
     adr:
@@ -404,6 +415,32 @@ groups:
       spec_id: ASK-05-001
     lint_suppress:
     - missing_story_reference
+  - id: CP-05-008
+    priority: MUST
+    kind: protocol
+    statement: A `Create(as_CaseProposal)` under a new proposal identifier is a new request even when it names a report that
+      already has a case. The case-actor service MUST subject it to the admission decision (CP-05-002) and MUST answer it with
+      its own `Accept(as_CaseProposal)` or `Reject(as_CaseProposal)`. When the proposer is that case's owner it MUST reuse the
+      existing case and MUST NOT create a second `VulnerabilityCase`; for any other proposer it MUST create a separate case
+      and MUST NOT add that proposer to the existing case.
+    rationale: >-
+      The report identifier is chosen by the sender. A reuse keyed on the report alone lets a
+      proposer join another party's case by naming its report, and collapses the one-case-per-recipient
+      rule (CBT-06-002) into a shared case. The proposer is the second half of the key that
+      makes the reuse safe: the same proposer re-proposing after its first proposal expired
+      (CP-05-007) converges on its own case, and a different proposer gets its own.
+    verification: A second proposal from the case's owner, under a new identifier, yields a new `Accept` naming the existing
+      case and no second case. A proposal for the same report from a different proposer yields a separate case owned by that
+      proposer, and the first case gains no participant.
+    adr:
+    - ADR-0080
+    relationships:
+    - rel_type: refines
+      spec_id: CP-05-002
+    stories:
+    - story_2022_006
+    - story_2022_012
+    - story_2022_101
 - id: CP-06
   title: Protocol Flow — Receiving (Report-Receiver Side)
   specs:
@@ -504,6 +541,7 @@ groups:
   - id: CP-08-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       Every actor that may trigger the `engage-case` BT path (i.e., any actor that
       creates a `VulnerabilityCase` on behalf of another actor) MUST supply a
@@ -525,6 +563,7 @@ groups:
   - id: CP-08-004
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The `case_actor_service_url` field in `ActorConfig` MUST be a valid `HttpUrl`.
     rationale: >-
       A non-URL value cannot be used to construct a valid inbox endpoint address, so
@@ -535,6 +574,7 @@ groups:
   - id: CP-08-005
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       Absence of `case_actor_service_url` in `ActorConfig` MUST produce a runtime
       `FAILURE` at `ResolveCaseActorUrlsNode` with a clear error message identifying
@@ -548,6 +588,7 @@ groups:
   - id: CP-08-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       `ResolveCaseActorUrlsNode` MUST read `case_actor_service_url` from
       `ActorConfig` (via `get_config().actor.case_actor_service_url`) to derive the
@@ -558,6 +599,7 @@ groups:
   - id: CP-08-006
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: >-
       `ResolveCaseActorUrlsNode` MUST NOT use `server_base_url` from the blackboard
       or from the server configuration to construct `case_actor_id`.
@@ -570,6 +612,7 @@ groups:
   - id: CP-08-007
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: >-
       The `server_base_url` blackboard key MUST NOT be registered or read in
       `ResolveCaseActorUrlsNode.setup()`.
@@ -582,6 +625,7 @@ groups:
   - id: CP-08-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       In all multi-container demo scenarios, every actor whose BT may run the
       `engage-case` path MUST have `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL` set
@@ -597,6 +641,7 @@ groups:
   - id: CP-08-008
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       The `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL` value MUST be the full base URL of
       the dedicated CaseActor container (e.g., `http://case-actor:7999/api/v2`).
@@ -609,6 +654,7 @@ groups:
   - id: CP-08-009
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: Demo scripts MUST NOT rely on `server_base_url` derivation for the CaseActor identity.
     rationale: >-
       `server_base_url` is the running container's own base URL and does not identify a
@@ -715,6 +761,7 @@ groups:
   - id: CP-09-008
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: Additional CVD roles for the report receiver MUST NOT be inferred.
     rationale: >-
       Inferring roles (e.g. hard-coding `CVDRole.VENDOR`) mislabels coordinators
@@ -766,6 +813,7 @@ groups:
   - id: CP-09-005
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       The report receiver MUST NOT create a `VulnerabilityCase` object in its
       own DataLayer before receiving `Create(VulnerabilityCase)` from the

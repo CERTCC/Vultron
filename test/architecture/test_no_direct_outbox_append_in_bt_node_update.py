@@ -103,36 +103,7 @@ def _collect_violations() -> frozenset[str]:
 # ``_emit_through_seam()`` (or the parent ``_EmitSingleActivityBase.update()``).
 # Migration tracked in issue #2881.
 # ---------------------------------------------------------------------------
-KNOWN_VIOLATIONS: frozenset[str] = frozenset(
-    {
-        # case/nodes/invite_ledger_backfill.py
-        "EmitAnnounceCaseToInviteeNode",
-        # case/nodes/proposal_emits.py
-        "EmitAcceptCaseProposalNode",
-        "EmitCreateVulnerabilityCaseNode",
-        # case/nodes/proposal.py
-        "ProposeReportCaseToActorNode",
-        # case/nodes/suggest_actor/emit.py
-        "EmitOfferCaseParticipantToOwnerNode",
-        "EmitNoteDuplicateRecommendationToOwnerNode",
-        # case/nodes/suggest_actor/emit_response.py
-        "EmitAcceptActorRecommendationNode",
-        "EmitRejectActorRecommendationNode",
-        # report/nodes/develop_fix.py
-        "_EmitParticipantStatusActivityBase",
-        # report/nodes/emit.py
-        "_EmitCaseActorReportActivityBase",
-        "EmitSubmitReportActivity",
-        # status/nodes/cs_invariant_diagnostic.py
-        "PxaEmInvariantDiagnosticNode",
-        # status/nodes/lifecycle.py
-        "EmitCloseCaseNode",
-        # status/nodes/rm_anomaly.py
-        "EmitRMGapNoteNode",
-        # sync/nodes/genesis_announce.py
-        "AnnounceCaseOnGenesisRejectNode",
-    }
-)
+KNOWN_VIOLATIONS: frozenset[str] = frozenset()
 
 
 def test_no_direct_outbox_append_in_bt_node_update():

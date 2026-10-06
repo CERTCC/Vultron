@@ -6,7 +6,7 @@ introduced by ADR-0039 as the replacement for the deprecated
 """
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.offer_case_participant_role_received_tree import (
@@ -30,6 +30,11 @@ if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
     from vultron.core.ports.wire_render import WireRenderPort
 
+from vultron.core.behaviors.sender_entitlement import (
+    SenderEntitlement,
+    exempt,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -43,6 +48,10 @@ class OfferCaseParticipantRoleReceivedUseCase:
 
     See SE-08-003, ADR-0039.
     """
+
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4070", "no sender check for role offer"
+    )
 
     def __init__(
         self,

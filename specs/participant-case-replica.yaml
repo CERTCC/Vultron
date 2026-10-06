@@ -48,6 +48,7 @@ groups:
   - id: PCR-01-003
     priority: MUST
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       Actor co-location is an implementation choice the protocol MUST remain indifferent to.
       Whether every Actor runs on one host or on many, Actors MUST exchange information only
@@ -148,6 +149,7 @@ groups:
   - id: PCR-02-005
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       `Create(VulnerabilityCase)` retains its semantic meaning ("a case was created") but
       MUST NOT be used as the mechanism for delivering a full case snapshot to participants.
@@ -173,6 +175,7 @@ groups:
   - id: PCR-03-002
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: The case owner actor MUST NOT write directly to its own local case copy.
     relationships:
     - rel_type: refines
@@ -202,6 +205,13 @@ groups:
       CASE_MANAGER identity, or (b) the actor has completed an `InviteActorToCase`/`AcceptInviteToCase`
       exchange that records a pending-expectation for that case. Accepting any `Announce(VulnerabilityCase)`
       from an unauthenticated or unexpected sender as a bootstrap signal is not permitted.
+      For path (b), the pending-expectation record MUST be created only when the Invite's
+      `object` is the receiving actor; the record MUST bind to the Invite's `actor` id (the
+      named CaseActor), not to the transport-level delivering sender; and a second Invite for
+      the same case naming a different CaseActor MUST be refused — the existing anchor is
+      unchanged. Whether the named CaseActor is genuine cannot be verified without actor
+      identity and signatures (#2841); this requirement records the structural rules that
+      apply before that verification is available.
     rationale: >-
       An `Announce(VulnerabilityCase)` roster is supplied by the sender; a fabricated case
       naming the sender as its own CASE_MANAGER passes a roster-only check. Permitting a
@@ -209,6 +219,9 @@ groups:
       a fake replica, blocking the real CASE_MANAGER on the seeded path (PCR-03-001 fails
       closed). No legitimate protocol sequence delivers an unsolicited first-contact Announce
       without a preceding `Create(VulnerabilityCase)` or `InviteActorToCase`.
+      The path (b) sub-rules prevent a misaddressed Invite from anchoring trust on behalf of
+      a different actor and prevent a second Invite from silently replacing or shadowing the
+      first-established anchor.
     verification: >-
       A unit test confirms that `Announce(VulnerabilityCase)` from an actor with no prior
       local trust record — no matching `VultronReportCaseLink` and no invite trust anchor for
@@ -216,6 +229,11 @@ groups:
       the receiver's DataLayer (PCR-07-010).  A separate unit test confirms that once the
       receiver has processed an `InviteActorToCase` from the CASE_MANAGER, a subsequent
       `Announce(VulnerabilityCase)` from that same actor IS admitted (CBT-05-004).
+      Unit tests for `RecordInviteTrustAnchorNode` confirm: (path b, rule 1) a node whose
+      `invitee_id` differs from the receiving actor returns FAILURE and writes no record;
+      (path b, rule 2) the anchor records the Invite's `actor` id, not the transport sender;
+      (path b, rule 3) a second invocation naming a different CaseActor returns FAILURE at
+      WARNING level and leaves the original anchor unchanged.
     relationships:
     - rel_type: refines
       spec_id: PCR-03-001
@@ -290,6 +308,7 @@ groups:
   - id: PCR-04-003
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       The participant actor MUST be the only externally-addressable entity for receiving case-scoped
       messages on behalf of all cases it participates in; there MUST NOT be a separate per-case
@@ -330,6 +349,7 @@ groups:
   - id: PCR-06-001
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       When a participant actor receives an activity whose `context` field does not match any
       known local case replica, the actor MUST NOT silently discard the activity.
@@ -342,6 +362,7 @@ groups:
   - id: PCR-06-003
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       Activities with unknown case context MUST NOT update any local state until a valid case
       replica has been established.
@@ -381,6 +402,7 @@ groups:
   - id: PCR-08-002
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       A participant actor MUST NOT assume that other participants will receive its case-scoped
       messages through any channel other than the CASE_MANAGER's `Announce(CaseLedgerEntry)` broadcast.
@@ -405,6 +427,7 @@ groups:
   - id: PCR-08-004
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       The `CaseLedgerEntry + broadcast` cascade MUST NOT be manually triggered by demo
       scripts or external clients.
@@ -509,13 +532,14 @@ groups:
       spec_id: PCR-08-003
     adr:
     - ADR-0114
-    - ADR-0070
+    - ADR-0121
     stories:
     - story_2022_054
     - story_2022_088
   - id: PCR-08-014
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       The case owner MUST NOT author or emit any RM state-change activity on behalf of
       the invitee.
@@ -525,6 +549,7 @@ groups:
   - id: PCR-08-010
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       A received-side use case MUST NOT construct or emit an ActivityStreams activity with
       `actor` set to a different actor's ID (identity spoofing).
@@ -534,6 +559,7 @@ groups:
   - id: PCR-08-015
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       A received-side use case MUST NOT execute a Behavior Tree with `actor_id` set to
       any actor other than the one whose DataLayer is active for that use case invocation.
@@ -588,6 +614,7 @@ groups:
   - id: PCR-08-017
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       An emit node in a case-scoped trigger BT MUST NOT silently enqueue an activity
       with a `None` or empty `to` field.

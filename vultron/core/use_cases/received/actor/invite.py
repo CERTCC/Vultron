@@ -1,7 +1,7 @@
 """Use cases for case actor/participant invitation and suggestion activities."""
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.accept_invite_tree import (
@@ -13,6 +13,10 @@ from vultron.core.behaviors.case.invite_actor_to_case_received_tree import (
 )
 from vultron.core.behaviors.case.nodes.invite_participant import (
     CheckInviteeNotAlreadyParticipantNode,
+)
+from vultron.core.behaviors.sender_entitlement import (
+    SenderEntitlement,
+    exempt,
 )
 from vultron.core.models.events.actor import (
     AcceptInviteActorToCaseReceivedEvent,
@@ -62,6 +66,10 @@ class InviteActorToCaseReceivedUseCase:
     ``with_received_baseline_ports`` so ``CommitCaseLedgerEntryNode`` can fan
     out via ``sync_port`` (SYNC-02-002, #4113).
     """
+
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4070", "no sender check for actor invite"
+    )
 
     def __init__(
         self,
@@ -134,6 +142,10 @@ class AcceptInviteActorToCaseReceivedUseCase:
     BT-06-001, BT-15-001: all RM transitions, participant creation, case
     events, and outbox work live in leaf nodes of the BT.
     """
+
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4070", "no sender check for accept invite"
+    )
 
     def __init__(
         self,
@@ -223,6 +235,10 @@ class RejectInviteActorToCaseReceivedUseCase:
     The CASE_MANAGER records that the invitee declined the invitation; any
     other receiver of a copy refuses (HP-01-005).
     """
+
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4070", "no sender check for reject invite"
+    )
 
     def __init__(
         self,
