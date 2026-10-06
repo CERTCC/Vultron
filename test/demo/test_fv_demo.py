@@ -2528,3 +2528,24 @@ class TestFvCausalGates:
                 assert "close_case entry present" in failure
             finally:
                 reset_demo_failures()
+
+
+def test_cli_help_phases_match_tutorial() -> None:
+    """CLI_HELP names the same phases, in order, as docs/tutorials/fv-demo.md.
+
+    Guards against the two hand-written step lists drifting apart (#3853).
+    """
+    import re
+    from pathlib import Path
+
+    tutorial = Path(__file__).parents[2] / "docs" / "tutorials" / "fv-demo.md"
+    titles = re.findall(
+        r"^### Phase \d+ — (.+?) \(M\d+(?:–M\d+)?\)$",
+        tutorial.read_text(encoding="utf-8"),
+        flags=re.MULTILINE,
+    )
+    assert len(titles) >= 6, "tutorial phase headings not found"
+    positions = [demo.CLI_HELP.find(t) for t in titles]
+    assert all(p >= 0 for p in positions), (titles, positions)
+    assert positions == sorted(positions)
+    assert "invite" not in demo.CLI_HELP.lower().replace("never invited", "")
