@@ -64,16 +64,12 @@ def _hand_written_chain_links(tree: ast.AST) -> list[tuple[int, str]]:
 
 
 def _scenario_trees() -> list[tuple[Path, ast.AST]]:
-    return [
-        (path, tree)
-        for path, tree in _corpus.all_trees(_SCENARIO_DIR)
-        if path.name.endswith("_demo.py")
-    ]
+    return list(_corpus.all_trees(_SCENARIO_DIR))
 
 
 def test_scenario_corpus_is_non_empty() -> None:
     """A zero-target gate proves nothing."""
-    assert _scenario_trees(), f"no *_demo.py files under {_SCENARIO_DIR}"
+    assert _scenario_trees(), f"no scenario files under {_SCENARIO_DIR}"
 
 
 @pytest.mark.parametrize(
@@ -95,13 +91,17 @@ def test_ratchet_detects_a_hand_nested_chain() -> None:
     """The detector fires on the shape it exists to forbid."""
     source = (
         "def phase(c):\n"
+        "    ActorSession(c).invite_actor_to_case(invitee_id=i)\n"
         "    with demo_gate('x'):\n"
         "        invite_id = find_case_invite_for_actor(client=c)\n"
         "        ActorSession(c).accept_case_invite(invite_id=invite_id)\n"
+        "        ActorSession(c).reject_case_invite(invite_id=invite_id)\n"
     )
     assert [
         n for _, n in _hand_written_chain_links(_corpus.parse_inline(source))
     ] == [
+        "invite_actor_to_case",
         "find_case_invite_for_actor",
         "accept_case_invite",
+        "reject_case_invite",
     ]

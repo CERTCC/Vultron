@@ -30,8 +30,12 @@ variants as parameters:
   earlier link fails (ADR-0058, EDF-06-005, #3038).
 
 The chain reports pass/fail through ``demo_step`` / ``demo_gate`` /
-``demo_check`` exactly as the hand-written copies did: a failed trigger or
-lookup skips its dependents and is recorded, never raised.
+``demo_check`` as the hand-written copies did: a failed trigger or lookup
+skips its dependents and is recorded, never raised.  Two differences: step
+and gate labels are now uniform across scenarios, and the Accept result is no
+longer re-validated as a transitive activity (it fed only a log line).  A
+failure inside ``then`` is recorded against the delivery gate, whose label
+names the invite rather than the cause.
 """
 
 import logging

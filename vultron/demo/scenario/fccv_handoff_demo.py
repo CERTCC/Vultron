@@ -508,9 +508,8 @@ def _phase_c2_invites_vendor(
     # C2, letting AcceptInviteActorToCaseBT run (PCR-08-007, PCR-08-008).  The
     # check on the delivered Invite below is what holds that property honest.
     #
-    # Every step that depends on the invite — the delivery gate, the accept
-    # and the replica wait — is nested inside the block that produces what it
-    # needs (ADR-0058 nested-block model, EDF-06-005, #3038).
+    # run_case_invite_chain nests the accept and the replica wait inside the
+    # delivery gate (ADR-0058 nested-block model, EDF-06-005, #3038).
     run_case_invite_chain(
         case=case,
         invitee_name="Vendor",

@@ -130,6 +130,10 @@ def test_failed_invite_trigger_skips_every_dependent(chain_mocks):
     chain_mocks.replica.assert_not_called()
     assert ran == []
     assert len(demo_utils._demo_failures) == 1
+    assert (
+        "Coordinator invites Vendor with CVDRole.VENDOR"
+        in (demo_utils._demo_failures[0])
+    )
 
 
 def test_undelivered_invite_skips_the_answer_and_what_follows(chain_mocks):
@@ -142,16 +146,24 @@ def test_undelivered_invite_skips_the_answer_and_what_follows(chain_mocks):
     chain_mocks.replica.assert_not_called()
     assert ran == []
     assert len(demo_utils._demo_failures) == 1
+    assert (
+        "Vendor invite delivered to Vendor's DataLayer"
+        in (demo_utils._demo_failures[0])
+    )
 
 
 def test_sender_check_runs_before_the_answer(chain_mocks):
+    order: list[str] = []
+    chain_mocks.received.side_effect = lambda *a, **k: order.append("check")
+    chain_mocks.accept.side_effect = lambda *a, **k: order.append("accept")
+
     _run(
         expect_emitted_by=EmittedBy(
             case_actor_id="urn:t:case-actor", consequence="it would misroute"
         )
     )
 
-    chain_mocks.received.assert_called_once()
+    assert order == ["check", "accept"]
     assert chain_mocks.received.call_args.args[1:] == (
         "urn:t:invite",
         "urn:t:case-actor",
@@ -181,3 +193,46 @@ def test_failed_replica_wait_is_recorded_and_then_still_runs(chain_mocks):
 
     assert ran == [True]
     assert len(demo_utils._demo_failures) == 1
+
+
+def test_then_runs_after_a_reject(chain_mocks):
+    ran = []
+
+    _run(respond="reject", then=lambda: ran.append(True))
+
+    assert ran == [True]
+    chain_mocks.replica.assert_not_called()
+
+
+def test_step_and_gate_labels_are_pinned(chain_mocks):
+    """Scenario logs and CI triage grep these labels; changing one is visible."""
+    labels: list[str] = []
+    real_step, real_gate, real_check = (
+        invite_chain.demo_step,
+        invite_chain.demo_gate,
+        invite_chain.demo_check,
+    )
+
+    def recording(real):
+        def wrapper(label, *a, **k):
+            labels.append(label)
+            return real(label, *a, **k)
+
+        return wrapper
+
+    with (
+        patch.object(invite_chain, "demo_step", recording(real_step)),
+        patch.object(invite_chain, "demo_gate", recording(real_gate)),
+        patch.object(invite_chain, "demo_check", recording(real_check)),
+    ):
+        _run(
+            expect_emitted_by=EmittedBy(case_actor_id="x", consequence="y"),
+        )
+
+    assert labels == [
+        "Coordinator invites Vendor with CVDRole.VENDOR",
+        "Vendor invite delivered to Vendor's DataLayer",
+        "Vendor invite was emitted as the CaseActor (PCR-08-008)",
+        "Vendor accepts the case invitation",
+        "Vendor's DataLayer received case replica",
+    ]
