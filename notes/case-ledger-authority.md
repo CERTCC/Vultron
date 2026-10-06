@@ -581,7 +581,7 @@ done.
 > (issue #2429, ADR-0039); the delegation mechanism was replaced by
 > `OFFER_CASE_PARTICIPANT_ROLE` (`Offer(CaseParticipantRole, target=Actor,
 > context=VulnerabilityCase)`) handled by `OfferCaseParticipantRoleReceivedUseCase`.
-> See SE-08-005.
+> SE-08-005 (retired; text in `plan/retired-specs/SE-08-005.md`) recorded this.
 
 ---
 

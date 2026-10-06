@@ -540,7 +540,7 @@ def test_rm_invite_projects_full_vulnerability_case_to_stub():
 
 
 # ---------------------------------------------------------------------------
-# CASE_MANAGER role delegation pattern tests (DEMOMA-08-002, DEMOMA-08-003)
+# CASE_MANAGER role delegation pattern tests (DEMOMA-08-003)
 # ---------------------------------------------------------------------------
 
 _VENDOR_URI = "https://example.org/actors/vendor"

@@ -130,3 +130,43 @@ groups:
       a silent default.
     scope:
     - production
+  - id: AKM-05-003
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      An implementation SHOULD support object dereference: fetching the full object named
+      by a URI through an API call to the actor or service that holds it.
+    rationale: >-
+      Several rules let a sender name an object by reference instead of inlining it, and
+      each is sound only where the receiver can resolve the reference. The CP-01-009
+      by-reference `actor` form is one. A prototype may inline everything and resolve
+      nothing, so the capability is a SHOULD there (AKM-05-004 makes it a MUST in
+      production).
+    scope:
+    - prototype
+    stories:
+    - story_2022_014
+    relationships:
+    - rel_type: constrains
+      spec_id: CP-01-009
+    note: >-
+      Until an implementation supports dereference, every refusal that stands in for it
+      is conditional on that gap and lapses once dereference exists: the bare-URI `actor`
+      on `Create(CaseProposal)` (CP-01-010) and the unreadable-record refusal of
+      EMB-18-003. The mechanism is tracked in #3258 and #3739.
+  - id: AKM-05-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A production implementation MUST support object dereference (AKM-05-003): given a URI
+      it has not seen, it MUST be able to fetch the object through an API call.
+    verification: >-
+      A production deployment is given a URI it holds no record for and fetches the
+      object it names through an API call; the fetch returns the typed object.
+    scope:
+    - production
+    relationships:
+    - rel_type: refines
+      spec_id: AKM-05-003
+    stories:
+    - story_2022_014

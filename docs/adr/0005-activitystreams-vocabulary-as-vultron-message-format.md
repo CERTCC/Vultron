@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2023-12-01
+created: 2023-12-01
+updated: 2023-12-01
+revision: 1
 deciders: adh
 informed: CERT/CC (CERT Coordination Center) Vulnerability Analysis Team
 stakeholder_type: [project-contributor]

@@ -14,6 +14,7 @@ related_notes:
   - notes/codebase-structure.md
   - notes/bt-integration.md
   - notes/lint-tooling.md
+  - notes/devcontainer-tooling.md
 ---
 
 # Structured Logging — Narrative Standard and Infrastructure Demotion Guide

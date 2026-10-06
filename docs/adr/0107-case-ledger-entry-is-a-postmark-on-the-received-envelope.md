@@ -1,6 +1,9 @@
 ---
 status: proposed
 date: 2026-09-25
+created: 2026-09-25
+updated: 2026-09-25
+revision: 1
 deciders: Allen D. Householder
 consulted: notes/wire-artifact-immutability.md, notes/case-ledger-authority.md, notes/datalayer-design.md, docs/adr/0074-wire-activity-artifact-immutability.md, docs/adr/0099-one-object-model-as2-is-a-serialization.md
 informed: CERT/CC Vultron protocol team

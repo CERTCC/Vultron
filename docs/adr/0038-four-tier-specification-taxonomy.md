@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-07-21
+created: 2026-07-21
+updated: 2026-07-21
+revision: 1
 deciders: Vultron maintainers
 consulted: Audio review of the Vultron specification corpus, July 2026
 stakeholder_type: [project-contributor]

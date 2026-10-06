@@ -72,6 +72,7 @@ def test_an_inline_embargo_is_stored_as_its_own_record(
 
 
 @pytest.mark.spec("EMB-18-003")
+@pytest.mark.spec("EMB-18-004")
 def test_an_inline_embargo_of_another_case_is_refused_unstored(
     dl: SqliteDataLayer,
 ) -> None:

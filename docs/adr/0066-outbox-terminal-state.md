@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-08-14
+created: 2026-08-14
+updated: 2026-08-14
+revision: 1
 deciders: Vultron maintainers
 consulted: CERT/CC CVD research team
 informed: Vultron contributors

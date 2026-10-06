@@ -160,24 +160,6 @@ groups:
 - id: IMPLTS-07
   title: Code Quality Tooling
   specs:
-  - id: IMPLTS-07-001
-    priority: MUST
-    kind: project
-    verification_debt: '#2575'
-    deprecated: true
-    superseded_by: IMPLTS-07-017
-    adr:
-    - ADR-0094
-    statement: >-
-      This requirement is superseded by IMPLTS-07-017; `ruff format` replaces Black as the
-      formatter.
-    rationale: >-
-      ADR-0094 replaced Black with `ruff format` so that formatting and linting are performed
-      by one tool. `[tool.black]` and the Black dependency are removed; the `line-length = 79`
-      setting carries over to `[tool.ruff]`.
-    relationships:
-    - rel_type: implements
-      spec_id: CS-01-001
   - id: IMPLTS-07-002
     priority: MUST
     kind: project
@@ -194,36 +176,6 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: CS-11-001
-  - id: IMPLTS-07-004
-    priority: MUST
-    kind: project
-    verification_debt: '#2575'
-    deprecated: true
-    superseded_by: IMPLTS-07-017
-    adr:
-    - ADR-0094
-    statement: >-
-      This requirement is superseded by IMPLTS-07-017; ruff replaces flake8 as the linter.
-    rationale: >-
-      ADR-0094 replaced flake8 with ruff, which covers flake8's rule set, subsumes isort's
-      import ordering, and gates several `CS-*` requirements flake8 could not see. `.flake8`
-      and the flake8 dependency are removed.
-    relationships:
-    - rel_type: implements
-      spec_id: CS-01-001
-  - id: IMPLTS-07-007
-    priority: MUST
-    kind: project
-    verification_debt: '#2575'
-    deprecated: true
-    superseded_by: IMPLTS-07-008
-    statement: This requirement is superseded by IMPLTS-07-008; the active cyclomatic complexity threshold is ≤ 10.
-    rationale: >-
-      The ≤ 15 threshold established here was an intermediate target. The active gate
-      is now ≤ 10 as specified in IMPLTS-07-008.
-    relationships:
-    - rel_type: refines
-      spec_id: IMPLTS-07-004
   - id: IMPLTS-07-008
     priority: MUST
     kind: project
@@ -241,10 +193,6 @@ groups:
       complexity gate — the competing `PLR09xx` counters are deliberately excluded so that
       two differently-calibrated gates cannot disagree.
     relationships:
-    - rel_type: refines
-      spec_id: IMPLTS-07-007
-    - rel_type: supersedes
-      spec_id: IMPLTS-07-007
   - id: IMPLTS-07-005
     priority: MUST
     kind: project
@@ -307,35 +255,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: IMPLTS-07-003
-  - id: IMPLTS-07-013
-    priority: MUST
-    kind: project
-    verification_debt: '#2575'
-    deprecated: true
-    superseded_by: IMPLTS-07-018
-    adr:
-    - ADR-0094
-    statement: >-
-      This requirement is superseded by IMPLTS-07-018; ruff, not flake8, is the linter that
-      runs in CI.
-    rationale: ADR-0094 retired flake8. The equivalent obligation for ruff is IMPLTS-07-018.
-    relationships:
-    - rel_type: refines
-      spec_id: IMPLTS-07-004
-  - id: IMPLTS-07-014
-    priority: MUST
-    kind: project
-    verification_debt: '#2575'
-    deprecated: true
-    superseded_by: IMPLTS-07-018
-    adr:
-    - ADR-0094
-    statement: >-
-      This requirement is superseded by IMPLTS-07-018; the zero-error gate applies to ruff.
-    rationale: ADR-0094 retired flake8. The equivalent obligation for ruff is IMPLTS-07-018.
-    relationships:
-    - rel_type: refines
-      spec_id: IMPLTS-07-004
   - id: IMPLTS-07-015
     priority: MUST
     kind: project
@@ -383,10 +302,6 @@ groups:
       dependency group; and `.pre-commit-config.yaml` defines a ruff hook and no black or
       flake8 hook.
     relationships:
-    - rel_type: supersedes
-      spec_id: IMPLTS-07-001
-    - rel_type: supersedes
-      spec_id: IMPLTS-07-004
     - rel_type: implements
       spec_id: CS-01-001
     - rel_type: implements
@@ -407,10 +322,6 @@ groups:
       The `lint-ruff` job in `.github/workflows/python-app.yml` runs both commands without an
       exit-code override and without path operands, and the `build` job lists it in `needs`.
     relationships:
-    - rel_type: supersedes
-      spec_id: IMPLTS-07-013
-    - rel_type: supersedes
-      spec_id: IMPLTS-07-014
     - rel_type: refines
       spec_id: IMPLTS-07-017
   - id: IMPLTS-07-019

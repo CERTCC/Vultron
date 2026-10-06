@@ -1,9 +1,12 @@
 ---
 status: accepted
 date: 2026-10-01
+created: 2026-10-01
+updated: 2026-10-01
+revision: 1
 deciders: Allen D. Householder
 consulted: >-
-  Claude Opus 5.5; CONCERN-4006; ADR-0070, ADR-0084, ADR-0093;
+  Claude Opus 5.5; CONCERN-4006; ADR-0070 and ADR-0084 (both superseded by ADR-0121), ADR-0093;
   specs/case-management.yaml CM-10, CM-11, CM-23;
   specs/participant-role-management.yaml PRM-06;
   specs/sync-ledger-replication.yaml SYNC-10, SYNC-14, SYNC-15;
@@ -34,7 +37,7 @@ how an actor joins a case:
    content from an actor that has not accepted the embargo (CM-10-004, VP-08-006)
    held only because a non-accepted actor was absent from the roster, not
    because any send site checked.
-3. **On-behalf status assertions created participants.** ADR-0084 scoped the
+3. **On-behalf status assertions created participants.** The original ADR-0084 scoped the
    on-behalf `v→V` to a vendor "not yet — or never — a participant", so the
    on-behalf tree minted a participant for an absent target. A status update is
    not a way to join a case.
@@ -54,7 +57,7 @@ The question: **how does an actor go from "invited" to "participating" in a
 case, what does the case record at each step, and what may it receive?**
 
 How the joined participant then judges the case — the full-case Invite and its
-three replies — is ADR-0070. The two decisions are one flow, split so that each
+three replies — is ADR-0121 (which replaces ADR-0070). The two decisions are one flow, split so that each
 ADR holds one decision.
 
 ## Decision Drivers
@@ -65,7 +68,7 @@ ADR holds one decision.
   accepted the invitation and, when an embargo is active, being party to it.
   Many cases have no active embargo — not yet established, or already exited —
   so entitlement cannot be "is SIGNATORY" alone.
-- A participant's status is self-declaratory (ADR-0084). No other party writes
+- A participant's status is self-declaratory (ADR-0121). No other party writes
   a judgement the participant has not made.
 - A receiver classifies an activity by its shape. Two messages that mean
   different things must differ in shape, not only in an ID a receiver would
@@ -150,7 +153,7 @@ The stub Invite has exactly two replies.
 
 `TentativeReject` is not a reply to a stub Invite. Accepting the stub is not a
 judgement of the case: the invitee has seen only the stub. The judgement comes
-after, in reply to the full-case Invite (ADR-0070).
+after, in reply to the full-case Invite (ADR-0121).
 
 Any reply at all is evidence the vendor is aware, so either reply sets VF `V`.
 
@@ -160,7 +163,7 @@ A stub Invite carries a reply deadline, as an embargo Invite does (CM-28). When
 the deadline passes unanswered, the **Invite** expires as an unanswered ask; the
 participant's state does not change. The record stays inert at `RECEIVED`,
 which records the truth: told, never answered. The CASE_MANAGER cannot close the
-invitee's RM for it — RM is the participant's own judgement (ADR-0084) — so a
+invitee's RM for it — RM is the participant's own judgement (ADR-0121) — so a
 timeout never stands in for one. That includes embargo consent: it stays
 `INVITED`. An expired embargo Invite moves the participant's consent to
 `EXPIRED`, not `DECLINED` (CM-28-004, ADR-0118), because silence is not a
@@ -230,7 +233,7 @@ A stub Invite and a full-case Invite therefore differ in shape and are classifie
 ### On-behalf status targets existing participants only
 
 A status update never creates a participant. The on-behalf assertions of
-ADR-0084 target a participant already in the case; an absent target is refused.
+ADR-0121 target a participant already in the case; an absent target is refused.
 For `v→V` that means an inert invitee the CASE_MANAGER or Case Owner has
 evidence is aware: the bump changes VF only, never RM.
 
@@ -252,7 +255,7 @@ C \to \epsilon
 $$
 
 The reply semantics need it: `Reject` means close, and is sent from *Received*
-(the stub's hard no, and the hard no to the full-case Invite in ADR-0070).
+(the stub's hard no, and the hard no to the full-case Invite in ADR-0121).
 
 *Valid* still has no close edge. VP-02-004 forbids closing from *Valid*: a
 participant that has found a report valid decides to engage or defer before it
@@ -347,10 +350,10 @@ outstanding, and rejected.
 
 - CONCERN-4006 — source; the on-behalf `d→D` refusal that exposed the join model.
 - VP-02-004 — no close from *Valid*; why `V → C` was not added.
-- ADR-0070 — how an active participant judges the case: the full-case Invite,
-  its three replies, and the ledger positions they carry.
-- ADR-0084 — participant assertion authority; on-behalf status scoped to
-  existing participants.
+- ADR-0121 — how an active participant judges the case (the full-case Invite,
+  its three replies, and the ledger positions they carry) and participant
+  assertion authority (on-behalf status scoped to existing participants). It
+  supersedes ADR-0070 and ADR-0084, whose 2026-10-01 rewrites it carries.
 - ADR-0089 — the single participant-status writer, through which the birth at
   Invite is written.
 - ADR-0093 — embargo consent and lapse.
@@ -358,3 +361,12 @@ outstanding, and rejected.
   a participant the Case Owner removed is inert.
 - `notes/case-joining.md` — what was misunderstood and why, for readers of the
   old model.
+
+## Ratification — 2026-10-02
+
+Ratified by Allen D. Householder on 2026-10-02, in the audit of unsupervised agent decisions (#4195).
+Confirmed: the participant record is created at the stub Invite and is inert until active; `Accept(stub)` is join plus consent and leaves RM at `RECEIVED`; and the RM table gains `R → C`, with `Leave` from *Valid* recorded as `V → D → C` and from *Start* as `S → R → C`.
+Also recorded from the audit: a replica is `case(t0)` plus the ledger entries, and applies recorded transitions rather than re-deriving them by walking the RM table (#4091; CM-23-001, SYNC).
+The closure semantics (CM-23-002, CM-23-013, CM-23-014; #4065, #4066) are a separate decision the maintainer has not yet made and are not ratified here.
+The stub's contents (CM-17-010) stand; the open Idea #4184 is linked from that requirement.
+The 2026-10-01 text of ADR-0070 and ADR-0084 that this ADR cites is now ADR-0121.

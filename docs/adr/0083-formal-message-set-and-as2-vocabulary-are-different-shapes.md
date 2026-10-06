@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-09-01
+created: 2026-09-01
+updated: 2026-09-01
+revision: 1
 deciders: sei-ahouseholder
 consulted: sei-ahouseholder
 informed: Vultron contributors

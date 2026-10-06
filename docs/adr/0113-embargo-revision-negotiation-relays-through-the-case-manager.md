@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-09-30
+created: 2026-09-30
+updated: 2026-09-30
+revision: 1
 deciders: Allen D. Householder
 consulted: >-
   Claude Fable 5.1; notes/embargo-lifecycle.md,
@@ -212,3 +215,11 @@ The trigger-side write gate depends on #3915's replay nodes for the same reason 
 Related decisions: ADR-0080 (an ask is a message, not a suspended behaviour), ADR-0093 (consent is per embargo; lapse fires at activation), ADR-0100 (no multi-candidate embargo poll), ADR-0108 (one move, one mover; amended here to withdraw the emit-side latitude for shared EM state), ADR-0109 (a container emits only as actors it hosts).
 
 Generated spec requirements: `embargo-policy.yaml` EP-09-001 through EP-09-010, EP-04-011, EP-08-004; `case-management.yaml` CM-28-012 through CM-28-014, CM-24-006; `protocol-asks.yaml` ASK-03-007, ASK-04-010; `em-behavior.yaml` EMB-01 and EMB-03 group descriptions; `multi-actor-demo.yaml` DEMOMA-20-002, -006, -007, -011, DEMOMA-21-002, -007, -008, -010.
+
+## Ratification — 2026-10-02
+
+Ratified by Allen D. Householder on 2026-10-02, in the audit of unsupervised agent decisions (#4195).
+The core of the decision is confirmed: embargo revisions and first proposals relay through the CASE_MANAGER, and the ledger announces status and never asks.
+The same-day rewrite of 2026-09-30 (Concern #3918) stands as the decision.
+One consequence is settled by the audit: the CASE_MANAGER's commit of `Add(EmbargoEvent, target=Case)`, fanned out as `Announce(CaseLedgerEntry)`, is the embargo knowledge (EK) event (MSM-02-009, EP-09-009); the EMB-03-001, EMB-04-001 and EMB-05-001 wording says the commit discharges EK.
+Implementation follow-ups stay with their own issues (#4180, #4179, #4181, #4131, #4132, #4183).

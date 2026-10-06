@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-06-18
+created: 2026-06-18
+updated: 2026-06-18
+revision: 1
 deciders: Vultron maintainers
 consulted: >-
   notes/bt-integration.md, notes/case-communication-model.md,

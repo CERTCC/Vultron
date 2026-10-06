@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-09-21
+created: 2026-09-21
+updated: 2026-09-21
+revision: 1
 deciders: Allen D. Householder
 consulted: notes/wire-core-boundary.md, notes/domain-model-separation.md
 stakeholder_type: [project-contributor]
@@ -756,3 +759,9 @@ defect behind `ARCH-23-006` is real and must be re-handled before inverting it â
 `VultronValidationError` is not a `ValueError` subclass, so a core-side guard
 firing while Pydantic resolves a union escapes the whole operation instead of
 being absorbed as a failed union branch.
+
+## Ratification â€” 2026-10-02
+
+Ratified by Allen D. Householder on 2026-10-02, in the audit of unsupervised agent decisions (#4195).
+The amendments of 2026-09-28 to 2026-09-30 to details 7 and 8 (#3888, #3900) were made without a human reviewing them; the audit confirmed the MV-11 strictness they describe: a near miss on a declared field spelling is refused with a 422 naming both spellings, `@id` and `@type` are refused, and no similarity measure is used.
+The receive-side half is still a defect to finish: the verbatim snapshot of a received activity is persisted by #3742.

@@ -47,7 +47,7 @@ rules (ISSUE-3058).
 - `participants.py` — predicates over `CaseParticipant` lists (e.g., RM
   convergence)
 - `roles.py` — role-membership and role-gated state invariant predicates
-  (CSB-15-001, CSB-15-002, CM-25-005, ADR-0057, ADR-0084)
+  (CSB-15-001, CSB-15-002, CM-25-005, ADR-0057, ADR-0121)
 - `embargo.py` — embargo-eligibility predicates (EMB-01-002, EMB-02-002)
 
 ## Auditing for One-Sided Invariants (Emit vs. Receive)

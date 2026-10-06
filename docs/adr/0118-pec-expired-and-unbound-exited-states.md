@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-10-02
+created: 2026-10-02
+updated: 2026-10-02
+revision: 1
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; Issue #4153, Concern #4133, Bug #4132, PR #4141;
