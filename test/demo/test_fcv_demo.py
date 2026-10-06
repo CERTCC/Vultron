@@ -31,9 +31,14 @@ from click.testing import CliRunner
 from fastapi.testclient import TestClient
 
 import vultron.demo.scenario.fcv_demo as demo
-from test.demo._helpers import make_client, make_testclient_call
+from test.demo._helpers import (
+    make_client,
+    make_testclient_call,
+    patch_chain_shared,
+)
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.cli import main
+from vultron.demo.helpers import invite_chain
 from vultron.demo.helpers.polling import find_case_invite_for_actor
 
 # ---------------------------------------------------------------------------
@@ -646,7 +651,7 @@ class TestFinderCaseReplicaWaitBeforeVendorTriage:
             call_order.append("triage")
 
         with (
-            patch.object(
+            patch_chain_shared(
                 demo, "wait_for_case_on_container", side_effect=_wait_for_case
             ),
             patch.object(
@@ -661,7 +666,7 @@ class TestFinderCaseReplicaWaitBeforeVendorTriage:
             ),
             patch.object(ActorSession, "accept_case_invite"),
             patch.object(demo, "wait_for_case_participants"),
-            patch.object(demo, "find_case_invite_for_actor"),
+            patch.object(invite_chain, "find_case_invite_for_actor"),
             patch.object(
                 demo, "get_actor_by_id", return_value=vendor_in_vendor
             ),
@@ -743,7 +748,9 @@ class TestFcvInviteChainSkipsDependents:
         vendor = self._actor("urn:test:vendor")
 
         with (
-            patch.object(demo, "wait_for_case_on_container") as replica_wait,
+            patch_chain_shared(
+                demo, "wait_for_case_on_container"
+            ) as replica_wait,
             patch.object(demo, "run_invite_path_rm_triage"),
             patch.object(
                 ActorSession, "invite_actor_to_case", **invite_trigger
@@ -751,7 +758,7 @@ class TestFcvInviteChainSkipsDependents:
             patch.object(ActorSession, "accept_case_invite") as accept_invite,
             patch.object(demo, "wait_for_case_participants"),
             patch.object(
-                demo, "find_case_invite_for_actor", **invite_lookup
+                invite_chain, "find_case_invite_for_actor", **invite_lookup
             ) as find_invite,
             patch.object(demo, "get_actor_by_id", return_value=vendor),
         ):

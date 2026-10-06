@@ -628,16 +628,15 @@ a second, unlinked case with no participants.
 **Pattern for exchange demo setup:**
 
 ```python
-def _find_canonical_case(client) -> dict:
-    cases = client.get("/datalayer/VulnerabilityCases/").json()
-    for case_id, case in cases.items():
-        if case.get("case_participants"):
-            return case
-    raise AssertionError("No canonical case found after validate-report")
+case = wait_for_initialized_case(client, report.id_)
 ```
 
-`GET /datalayer/VulnerabilityCases/` returns a `dict[str, dict]` keyed by object
-ID. The canonical case is the one with `case_participants` populated.
+`wait_for_initialized_case` polls the CaseActor's store (a `dict[str, dict]`
+keyed by object ID) for the case whose `vulnerability_reports` include the
+report and whose `case_participants` are populated.
+The CaseActor identity is constant per container, so its store can hold several
+cases; taking the first case with participants can return another report's case.
+Match on the report, as `case_references_report` does.
 
 A receiver-local case created by calling `create_case_activity` anyway is broken in
 three distinct ways, none of which raise:

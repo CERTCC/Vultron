@@ -819,6 +819,26 @@ groups:
       spec_id: ARCH-18-003
     lint_suppress:
     - phantom_path_ref
+  - id: ARCH-18-005
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      A baseline under `test/` is a **ratchet** when its terminal value is an empty set or a zero ceiling and an
+      `# owner: #N` issue drives it there; it is a **pinned exemption set** when it is an exact set with no terminal
+      value, kept equal to reality in both directions (ARCH-18-001, ARCH-18-002), whose entries are exempt by a recorded
+      decision rather than awaiting a fix. Only a ratchet counts as open debt. A pinned exemption set MUST carry the
+      `# permanent:` marker of ARCH-18-003, and its comment and module docstring MUST describe that constant as a
+      pinned exemption set, not as a ratchet or a backlog. A pinned set MUST contain only permanent entries: an
+      entry awaiting a fix MUST move to its own ratchet constant with an `# owner: #N` marker.
+    rationale: >-
+      Several exact sets began as shrinking backlogs and were later decided to be permanent design registers, but
+      their files still called them ratchets. A reader counting open debt over-counted, and the real debt was harder to
+      see. Both kinds use the same bidirectional equality check; what differs is whether an end state exists, so the
+      name and the marker carry that difference.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-18-003
 - id: ARCH-19
   title: Outbound Delivery Pipeline
   specs:

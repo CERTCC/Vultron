@@ -36,10 +36,13 @@ from test.demo._helpers import (
     make_testclient_call,
     mock_actor,
     mock_case,
+    patch_chain_shared,
     patched_report_submission,
 )
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.cli import main
+from vultron.demo.helpers import invite_chain
+from vultron.demo.helpers.polling import find_case_invite_for_actor
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -195,7 +198,7 @@ class TestFindCaseInviteForActor:
                 {"id": self.CASE_ID}, {"id": self.INVITEE_ID}
             )
         }
-        result = demo.find_case_invite_for_actor(
+        result = find_case_invite_for_actor(
             client=client,
             case_id=self.CASE_ID,
             invitee_id=self.INVITEE_ID,
@@ -209,7 +212,7 @@ class TestFindCaseInviteForActor:
         client.get.return_value = {
             "urn:uuid:invite-2": self._invite(self.CASE_ID, self.INVITEE_ID)
         }
-        result = demo.find_case_invite_for_actor(
+        result = find_case_invite_for_actor(
             client=client,
             case_id=self.CASE_ID,
             invitee_id=self.INVITEE_ID,
@@ -225,7 +228,7 @@ class TestFindCaseInviteForActor:
             )
         }
         with pytest.raises(AssertionError, match="Timed out waiting"):
-            demo.find_case_invite_for_actor(
+            find_case_invite_for_actor(
                 client=client,
                 case_id=self.CASE_ID,
                 invitee_id=self.INVITEE_ID,
@@ -241,7 +244,7 @@ class TestFindCaseInviteForActor:
             )
         }
         with pytest.raises(AssertionError, match="Timed out waiting"):
-            demo.find_case_invite_for_actor(
+            find_case_invite_for_actor(
                 client=client,
                 case_id=self.CASE_ID,
                 invitee_id=self.INVITEE_ID,
@@ -259,7 +262,7 @@ class TestFindCaseInviteForActor:
             }
         }
         with pytest.raises(AssertionError, match="Timed out waiting"):
-            demo.find_case_invite_for_actor(
+            find_case_invite_for_actor(
                 client=client,
                 case_id=self.CASE_ID,
                 invitee_id=self.INVITEE_ID,
@@ -468,8 +471,8 @@ class TestFvcvExtensionMilestoneAssertions:
             patch.object(ActorSession, "accept_case_invite"),
             patch.object(ActorSession, "suggest_actor_to_case"),
             patch.object(ActorSession, "accept_actor_recommendation"),
-            patch.object(demo, "find_case_invite_for_actor"),
-            patch.object(demo, "wait_for_case_on_container"),
+            patch.object(invite_chain, "find_case_invite_for_actor"),
+            patch_chain_shared(demo, "wait_for_case_on_container"),
             patch.object(demo, "as_VulnerabilityCase") as mock_vc,
             patch.object(demo, "run_invite_path_rm_triage"),
             patch.object(demo, "verify_case_active") as mock_m1,
@@ -819,7 +822,7 @@ class TestFinderCaseReplicaWaitBeforeVendor2Triage:
             call_order.append("triage")
 
         with (
-            patch.object(
+            patch_chain_shared(
                 demo,
                 "wait_for_case_on_container",
                 side_effect=_wait_for_case,
@@ -840,7 +843,7 @@ class TestFinderCaseReplicaWaitBeforeVendor2Triage:
                 return_value="urn:test:case-actor",
             ),
             patch.object(
-                demo,
+                invite_chain,
                 "find_case_invite_for_actor",
                 return_value="urn:test:invite",
             ),
@@ -946,11 +949,11 @@ class TestFvcvExtensionCausalGates:
                 mock_post_to_trigger,
             ),
             patch.object(
-                demo,
+                invite_chain,
                 "find_case_invite_for_actor",
                 return_value="urn:test:invite",
             ),
-            patch.object(demo, "wait_for_case_on_container"),
+            patch_chain_shared(demo, "wait_for_case_on_container"),
             patch.object(demo, "wait_for_case_participants"),
             patch.object(demo, "run_invite_path_rm_triage"),
         ):
@@ -1011,11 +1014,13 @@ class TestFvcvExtensionCausalGates:
                 return_value="urn:test:case-actor",
             ),
             patch.object(
-                demo,
+                invite_chain,
                 "find_case_invite_for_actor",
                 side_effect=AssertionError("timed out polling for Invite"),
             ),
-            patch.object(demo, "wait_for_case_on_container") as replica_wait,
+            patch_chain_shared(
+                demo, "wait_for_case_on_container"
+            ) as replica_wait,
             patch.object(demo, "wait_for_case_participants"),
             patch.object(demo, "run_invite_path_rm_triage"),
         ):
@@ -1115,8 +1120,8 @@ class TestFvcvExtensionRmTriageTimeout:
             patch.object(ActorSession, "accept_case_invite"),
             patch.object(ActorSession, "suggest_actor_to_case"),
             patch.object(ActorSession, "accept_actor_recommendation"),
-            patch.object(demo, "find_case_invite_for_actor"),
-            patch.object(demo, "wait_for_case_on_container"),
+            patch.object(invite_chain, "find_case_invite_for_actor"),
+            patch_chain_shared(demo, "wait_for_case_on_container"),
             patch.object(demo, "as_VulnerabilityCase") as mock_vc,
             patch.object(demo, "run_invite_path_rm_triage"),
             patch.object(demo, "verify_case_active"),
@@ -1214,9 +1219,11 @@ class TestFvcvExtensionInviteTriggerFailureSkipsDependents:
             patch.object(ActorSession, "suggest_actor_to_case"),
             patch.object(ActorSession, "accept_actor_recommendation"),
             patch.object(
-                demo, "find_case_invite_for_actor", **invite_lookup
+                invite_chain, "find_case_invite_for_actor", **invite_lookup
             ) as find_invite,
-            patch.object(demo, "wait_for_case_on_container") as replica_wait,
+            patch_chain_shared(
+                demo, "wait_for_case_on_container"
+            ) as replica_wait,
             patch.object(demo, "as_VulnerabilityCase") as mock_vc,
             patch.object(demo, "run_invite_path_rm_triage"),
             patch.object(demo, "verify_case_active"),

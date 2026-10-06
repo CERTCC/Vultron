@@ -29,7 +29,6 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderIsCaseManagerNode,
     SenderIsNamedActorNode,
-    exempt,
 )
 from vultron.core.behaviors.sync.announce_tree import (
     create_announce_log_entry_tree,
@@ -391,12 +390,13 @@ class RejectLedgerEntryReceivedUseCase:
     2. Replay all missing entries from after the last-accepted hash to the
        peer — ``SendMissingEntriesNode`` (SYNC-03-002).
 
-    Spec: SYNC-03-001, SYNC-03-002, SYNC-04-001, SYNC-04-002.
+    Only an active participant's rejection is acted on (SYNC-03-005).
+
+    Spec: SYNC-03-001, SYNC-03-002, SYNC-03-005, SYNC-04-001, SYNC-04-002.
     """
 
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4075",
-        "uses SenderIsNamedActorNode for echo detection, not real entitlement check — fix tracked by #4075",
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.ACTIVE_PARTICIPANT
     )
 
     def __init__(
