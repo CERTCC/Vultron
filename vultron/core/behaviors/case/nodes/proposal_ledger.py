@@ -47,6 +47,7 @@ from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.sync_helpers import _find_equivalent_recorded_entry
 
 logger = logging.getLogger(__name__)
 
@@ -131,6 +132,26 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
         """
         assert self.datalayer is not None
         assert self.actor_id is not None
+        if (
+            _find_equivalent_recorded_entry(
+                case_id=case_id,
+                object_id=object_id,
+                event_type=event_type,
+                payload_snapshot=snapshot,
+                dl=cast(CaseOutboxPersistence, self.datalayer),
+            )
+            is not None
+        ):
+            # Already committed and fanned out by an earlier delivery.  The
+            # commit tree would reuse the entry, but it would also fan it out
+            # to every recipient again (CP-05-008).
+            logger.debug(
+                "%s: '%s' entry for '%s' already committed — skipping",
+                self.name,
+                event_type,
+                object_id,
+            )
+            return True
         tree = create_commit_log_entry_tree(
             case_id=case_id,
             object_id=object_id,

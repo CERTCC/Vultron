@@ -17,6 +17,8 @@ Provides :func:`create_processing_fault_activity` for building the
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from typing import Any
+
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.objects.processing_fault import as_ProcessingFault
 
@@ -25,6 +27,7 @@ def create_processing_fault_activity(
     actor: str,
     fault: as_ProcessingFault,
     to: list[str] | None = None,
+    id_: str | None = None,
 ) -> as_Create:
     """Build a ``Create(ProcessingFault)`` NACK activity.
 
@@ -32,12 +35,11 @@ def create_processing_fault_activity(
         actor: URI of the receiving actor emitting the fault.
         fault: The ``as_ProcessingFault`` object describing the failure.
         to: Recipient URI list; SHOULD contain the original sender's URI.
+        id_: Activity id to use instead of a freshly minted one, so a caller
+            can derive it from the failed activity (ID-04-004).
 
     Returns:
         An ``as_Create`` activity wrapping the ``as_ProcessingFault``.
     """
-    return as_Create(
-        actor=actor,
-        object_=fault,
-        to=to,
-    )
+    id_kwargs: dict[str, Any] = {} if id_ is None else {"id_": id_}
+    return as_Create(actor=actor, object_=fault, to=to, **id_kwargs)

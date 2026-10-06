@@ -137,6 +137,7 @@ from vultron.core.behaviors.case.nodes.proposal_reporter import (
     AddReporterParticipantNode,
 )
 from vultron.core.behaviors.case.nodes.proposal_retry_marker import (
+    CheckCaseAlreadyAnnouncedNode,
     CheckMarkerExistsNode,
     ClearCreateCaseMarkerNode,
     WriteCreateCaseMarkerNode,
@@ -216,8 +217,9 @@ def create_case_proposal_received_tree(
       record, before any case exists.  Then a sub-Selector resolves which
       ``VulnerabilityCase`` to use:
 
-      * ``LoadExistingCaseNode`` (AC-1/AC-2): if a case already exists for
-        *report_id*, write its ID to the blackboard and succeed.
+      * ``LoadExistingCaseNode`` (AC-1/AC-2): if *proposer_uri* already owns a
+        case for *report_id*, write its ID to the blackboard and succeed
+        (CP-05-008); another proposer's case for the report is not reused.
       * ``CreateCaseFromProposalNode`` (normal path): create a new case,
         attributed to *proposer_uri*, which becomes the CASE_OWNER
         (CP-09-001).
@@ -313,7 +315,7 @@ def create_case_proposal_received_tree(
         name="ResolveCaseIdSelector",
         memory=False,
         children=[
-            LoadExistingCaseNode(report_id=report_id),
+            LoadExistingCaseNode(report_id=report_id, owner_id=proposer_uri),
             CreateCaseFromProposalNode(
                 report_id=report_id, owner_id=proposer_uri
             ),
@@ -376,14 +378,29 @@ def create_case_proposal_received_tree(
                 proposer_uri=proposer_uri,
                 proposal_dict=proposal_dict,
             ),
-            WriteCreateCaseMarkerNode(
-                proposal_id=proposal_id,
-                owner_uri=proposer_uri,
+            # A case the proposer already holds (CP-05-008) is not announced
+            # a second time; the Accept above is this proposal's whole answer.
+            py_trees.composites.Selector(
+                name="AnnounceCaseOnce",
+                memory=False,
+                children=[
+                    CheckCaseAlreadyAnnouncedNode(),
+                    py_trees.composites.Sequence(
+                        name="AnnounceCase",
+                        memory=False,
+                        children=[
+                            WriteCreateCaseMarkerNode(
+                                proposal_id=proposal_id,
+                                owner_uri=proposer_uri,
+                            ),
+                            EmitCreateVulnerabilityCaseNode(
+                                proposal_id=proposal_id,
+                            ),
+                            ClearCreateCaseMarkerNode(proposal_id=proposal_id),
+                        ],
+                    ),
+                ],
             ),
-            EmitCreateVulnerabilityCaseNode(
-                proposal_id=proposal_id,
-            ),
-            ClearCreateCaseMarkerNode(proposal_id=proposal_id),
             # ADR-0041 AC-4: commit canonical ledger entries natively — AFTER
             # the emits above, deliberately.  Each commit fans its entry out to
             # every participant, and the outbox is FIFO (OX-01-002), so a commit
