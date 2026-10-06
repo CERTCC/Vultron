@@ -21,6 +21,10 @@ from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.embargo import (
     InviteToEmbargoOnCaseReceivedEvent,
 )
+from vultron.core.models.fault_classes import (
+    VULTRON_FAILURE_EMBARGO_INVITE_WITHOUT_EMBARGO,
+    VULTRON_FAILURE_MISROUTED_EMBARGO_INVITE,
+)
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
@@ -151,6 +155,31 @@ class InviteToEmbargoOnCaseReceivedUseCase:
         self._trigger_activity = trigger_activity
         self._actor_config = actor_config
 
+    def _emit_fault(
+        self, failure_class: str, receiving_actor_id: str, case_id: str
+    ) -> None:
+        """Tell the sender its Invite was received but not understood.
+
+        A well-formed activity that breaks a protocol shape rule is answered
+        with ``Create(ProcessingFault)`` (MSM-05-001).  The fault id derives
+        from the Invite and the failure class, so a re-delivery emits nothing
+        new (ID-04-004).
+        """
+        if self._trigger_activity is None:
+            logger.warning(
+                "invite_to_embargo_on_case: trigger_activity unavailable —"
+                " ProcessingFault not emitted for invite '%s'",
+                self._request.activity_id,
+            )
+            return
+        self._trigger_activity.emit_processing_fault(
+            actor=receiving_actor_id,
+            failed_activity_id=self._request.activity_id,
+            failure_class=failure_class,
+            to=[self._request.actor_id],
+            case_id=case_id or None,
+        )
+
     def execute(self) -> HandlerResult:
         request = self._request
         receiving_actor_id = resolve_receiving_actor_id(
@@ -166,6 +195,11 @@ class InviteToEmbargoOnCaseReceivedUseCase:
             logger.warning(
                 "invite_to_embargo_on_case: invite '%s' names no embargo",
                 invite_id,
+            )
+            self._emit_fault(
+                VULTRON_FAILURE_EMBARGO_INVITE_WITHOUT_EMBARGO,
+                receiving_actor_id,
+                case_id,
             )
             return HandlerResult.refused(
                 f"Invite(EmbargoEvent) '{invite_id}' names no embargo"
@@ -186,6 +220,11 @@ class InviteToEmbargoOnCaseReceivedUseCase:
                 request.receiving_actor_id,
                 exc,
             )
+            self._emit_fault(
+                VULTRON_FAILURE_MISROUTED_EMBARGO_INVITE,
+                receiving_actor_id,
+                case_id,
+            )
             return HandlerResult.refused(str(exc))
 
         # Door check before any tree or write, after the shape checks
@@ -202,6 +241,8 @@ class InviteToEmbargoOnCaseReceivedUseCase:
             return refuse_pxa_invite(
                 self._dl,
                 self._trigger_activity,
+                self._wire_render_port,
+                self._sync_port,
                 request,
                 case_id=case_id,
                 invite_id=invite_id,
