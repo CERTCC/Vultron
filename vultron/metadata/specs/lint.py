@@ -26,6 +26,7 @@ from vultron.metadata.specs.registry import (
     SpecRegistry,
     load_registry,
 )
+from vultron.metadata.specs.retire import retired_spec_ids
 from vultron.metadata.specs.schema import (
     SPEC_ID_CITATION_RE,
     AdrStatus,
@@ -505,6 +506,38 @@ def _check_spec_id_prefix_consistency(registry: SpecRegistry) -> list[str]:
     return errors
 
 
+_LIFECYCLE_KEYS = ("deprecated", "superseded_by")
+
+
+def _check_retirement_rules(
+    registry: SpecRegistry, repo_root: Path
+) -> list[str]:
+    """Enforce the retirement rules (MS-09-001, MS-09-004).
+
+    A requirement that is no longer current is removed and archived in
+    ``plan/retired-specs/``, never marked ``deprecated:`` or
+    ``superseded_by:`` in place, and an ID in the archive is never declared
+    again.
+    """
+    errors: list[str] = []
+    retired = retired_spec_ids(repo_root)
+    for spec_id, spec in registry.all_specs.items():
+        for key in _LIFECYCLE_KEYS:
+            if key in spec.model_fields_set:
+                errors.append(
+                    f"Spec '{spec_id}' carries '{key}:'; remove the "
+                    f"requirement and archive it with `uv run spec-retire "
+                    f"{spec_id}` instead (MS-09-001)"
+                )
+        if spec_id in retired:
+            errors.append(
+                f"Spec '{spec_id}' is declared in specs/ but is in the "
+                f"retired archive plan/retired-specs/; a requirement ID is "
+                f"never reused, so give the new rule a new ID (MS-09-004)"
+            )
+    return errors
+
+
 def _adr_exists(adr_dir: Path, adr_number: str) -> bool:
     """Return True if an ADR file for ``adr_number`` exists in ``adr_dir``.
 
@@ -912,6 +945,7 @@ def lint(
     hard_errors.extend(_check_prefix_consistency(registry))
     hard_errors.extend(_check_spec_id_prefix_consistency(registry))
     hard_errors.extend(_check_scenario_start_groups(registry))
+    hard_errors.extend(_check_retirement_rules(registry, spec_dir.parent))
     hard_errors.extend(_check_phantom_paths(registry, spec_dir.parent))
     source_scan = _SourceScan(spec_dir.parent)
     hard_errors.extend(_check_phantom_spec_id_citations(registry, source_scan))
