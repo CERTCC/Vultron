@@ -44,8 +44,11 @@ class AdrFrontmatter(BaseModel):
 
     ``created`` (immutable), ``updated`` (material edits only) and ``revision``
     (an integer bumped by each material edit) carry the lifecycle of ADR-0120.
-    They are optional here; checking ``status`` against the epoch computed from
-    ``updated`` is the lint tracked by #4196.
+    All three are required (MS-14-008). ``date`` is the legacy spelling of
+    ``created`` and stays optional. ``status_override`` is a human's reason for
+    a ``status`` that disagrees with the epoch computed from ``updated``; it is
+    what :func:`vultron.metadata.adr.lifecycle.status_epoch_fault` (MS-14-007)
+    reads to let the disagreement stand.
 
     ``partially_superseded_by`` is distinct from ``superseded_by`` and does not
     retire the ADR: it marks one decision inside an otherwise live ADR as
@@ -69,9 +72,10 @@ class AdrFrontmatter(BaseModel):
 
     status: AdrStatus
     date: _dt.date | None = None
-    created: _dt.date | None = None
-    updated: _dt.date | None = None
-    revision: PositiveInt | None = None
+    created: _dt.date
+    updated: _dt.date
+    revision: PositiveInt
+    status_override: NonEmptyStr | None = None
     deciders: PersonField | None = None
     consulted: PersonField | None = None
     informed: PersonField | None = None
@@ -113,6 +117,16 @@ class AdrFrontmatter(BaseModel):
         if v is not None and isinstance(v, list) and len(v) == 0:
             raise ValueError("'lint_suppress' must be non-empty if present")
         return v
+
+    @model_validator(mode="after")
+    def updated_not_before_created(self) -> AdrFrontmatter:
+        """Reject ``updated`` earlier than ``created`` (MS-14-008)."""
+        if self.updated < self.created:
+            raise ValueError(
+                f"'updated' ({self.updated}) is before 'created' "
+                f"({self.created})"
+            )
+        return self
 
     @model_validator(mode="after")
     def superseded_by_required_when_retired(self) -> AdrFrontmatter:

@@ -45,7 +45,9 @@ class CanAnswerEmbargoInviteNode(DataLayerConditionWithPorts):
     the answer goes to the case's CASE_MANAGER (PCR-08-001), and the embargo the
     Invite proposes, since the answer carries the Invite whole.  An invitee
     missing either is a partial replica (Regime 2, ADR-0087): it keeps the
-    Invite and answers nothing, and the WARNING says so.
+    Invite and answers nothing, and the WARNING says so.  This is the accept
+    path: a refusal under P/X/A answers an Invite whose terms it does not hold
+    too, since the ER names the Invite by id (ADR-0123).
 
     A copy addressed to neither ``to`` nor ``cc`` of this actor never gets
     here: ``unaddressed_copy_refusal()`` refuses it at the door, before any
@@ -170,7 +172,9 @@ class SendEmbargoInviteAnswerNode(_SendEmbargoActivityBase):
     """Queue an ``Accept`` or ``Reject`` of a stored embargo Invite.
 
     Addressed to the case's CASE_MANAGER (EP-09-003, PCR-08-001) and built by
-    the trigger-activity port from the stored Invite.
+    the trigger-activity port from the stored Invite.  A ``recipient_id``
+    overrides the CASE_MANAGER for an answer that goes elsewhere: the
+    CASE_MANAGER's ER to the actor whose proposal or Accept it refuses.
 
     **Fails by raising, never by returning FAILURE.**  The node is the action
     of an arm in the EMB-15 response Selector, so a FAILURE from the accept
@@ -188,11 +192,13 @@ class SendEmbargoInviteAnswerNode(_SendEmbargoActivityBase):
         invite_id: str,
         *,
         accept: bool,
+        recipient_id: str | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(case_id=case_id, name=name)
         self._invite_id = invite_id
         self._accept = accept
+        self._recipient_id = recipient_id
 
     @property
     def _verb(self) -> str:
@@ -210,6 +216,8 @@ class SendEmbargoInviteAnswerNode(_SendEmbargoActivityBase):
         if failure is not None:
             return failure
         assert self.datalayer is not None
+        if self._recipient_id is not None:
+            return self._invite_id, self._recipient_id
         manager_id = resolve_case_manager_id(case, self.datalayer)
         if manager_id is None:
             self.feedback_message = (

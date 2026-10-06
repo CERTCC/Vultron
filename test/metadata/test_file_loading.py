@@ -337,6 +337,9 @@ _ADR = """\
 ---
 title: T
 status: accepted
+created: 2020-01-01
+updated: 2020-01-01
+revision: 1
 date: 2026-01-01
 ---
 # ADR-0001 T

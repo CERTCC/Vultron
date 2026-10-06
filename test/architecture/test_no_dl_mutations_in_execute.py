@@ -163,7 +163,6 @@ KNOWN_VIOLATIONS: frozenset[str] = frozenset(
         # #3872 — report, embargo, invite, ownership
         "vultron/core/use_cases/received/report.py",
         "vultron/core/use_cases/received/embargo/create_add_remove.py",
-        "vultron/core/use_cases/received/embargo/invite.py",
         "vultron/core/use_cases/received/actor/ownership.py",
         # #3874 — case create and engage/defer: embedded participants and
         # the case replica
