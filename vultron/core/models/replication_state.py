@@ -25,7 +25,7 @@ from typing import Any, Literal
 from pydantic import Field, model_validator
 
 from vultron.core.models._helpers import now_utc
-from vultron.core.models.base import CoreRecord, NonEmptyString
+from vultron.core.models.base import CoreRecord, NonEmptyString, with_record_id
 from vultron.core.models.wire_keys import input_keys
 
 
@@ -138,8 +138,7 @@ class VultronReplicationState(CoreRecord):
         peer_id = data.get("peer_id")
         if case_id is not None and peer_id is not None:
             slug = urllib.parse.quote(peer_id, safe="")
-            data = dict(data)
-            data["id"] = f"{case_id}/replication/{slug}"
+            data = with_record_id(data, f"{case_id}/replication/{slug}")
 
         # The input may spell a backfill field either way, so read each one
         # under every spelling its own ``validation_alias`` accepts instead of

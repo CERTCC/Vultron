@@ -95,12 +95,19 @@ grows the PR is simply `fix-now-file` (see the doctrine § "Clarity Over Size").
 
 ### Phase 3 — PR Body Format
 
-Check against `.claude/skills/shared/pr-body-guide.md`:
+Check against `.agents/skills/shared/pr-body-guide.md`:
 
 - Closing references at the **top**, one per bullet
 - Required sections present (Summary, Changes, Specs, Docs, Verification for
   impl PRs)
 - Test counts in Verification are real numbers, not placeholders
+- **`## Spec amended`** — run `bash .agents/skills/shared/spec-amendments.sh
+  origin/<base_ref>`. Exit `1` lists requirements whose `statement:` or
+  `priority:` the diff changed or removed; the body must carry a `## Spec amended`
+  section naming each (before, after, reason — `pr-body-guide.md` § "Spec
+  amended"). Missing section, omitted ID, or a leftover `<TODO>` → **FAIL**.
+  A change to what a requirement *obliges* with no recorded user approval →
+  **FAIL**. Applies to every PR type, docs-only included.
 
 The `Docs:` line itself is judged in Phase 9, against the diff.
 
@@ -132,6 +139,10 @@ checklist. Pay particular attention to:
 
 - AGENTS.md Common Pitfalls relevant to the changed code areas
 - Any spec IDs mentioned in the PR body or issue — confirm they are satisfied
+- Every new or changed `verification:` clause in `specs/` — ask "if this
+  requirement were violated, would the named check fail?" and record a **FAIL**
+  when it would not, including a named test that does not exist or a tool that
+  never inspects the property (MS-10-009)
 
 ### Phase 6 — ADR Check
 

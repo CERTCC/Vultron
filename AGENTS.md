@@ -248,7 +248,10 @@ Full doctrine: `.claude/skills/shared/completeness-doctrine.md` (loaded by
 - Done = all changed behaviors tested, edge cases handled, types/docs current,
   linters clean.
 - **FAIL** → fix before PR. **IMPROVE** → fix this session.
-  **DEFER** → create follow-up issue + user ack. No WARN-and-defer.
+  **DEFER** → create follow-up issue + user ack; unattended runs have no DEFER
+  (fix in the PR or hold it). Never merge on red; never skip a hook
+  (only the documented `actionlint` hang).
+  No WARN-and-defer.
 
 ---
 
@@ -302,7 +305,7 @@ linked file before touching that area. New pitfalls MUST be routed per
   [notes/architecture-adapters.md](notes/architecture-adapters.md); idempotency chain
   [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md); no `BaseModel` in ports
   [`vultron/core/ports/AGENTS.md`](vultron/core/ports/AGENTS.md); ledger commit before
-  outbox write [`vultron/core/behaviors/case/AGENTS.md`](vultron/core/behaviors/case/AGENTS.md).
+  outbox write (under review, ADR-0119) [`case/AGENTS.md`](vultron/core/behaviors/case/AGENTS.md).
 - **Logging**: bulk level refactors need a consistency grep; self-healing paths never
   log at ERROR — [notes/structured-logging.md](notes/structured-logging.md).
 - **Agent workflow**: archive superseded notes sections with `append-history note`

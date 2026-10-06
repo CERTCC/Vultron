@@ -1,6 +1,9 @@
 ---
 title: Architecture Ratchet Corpus
 status: active
+related_specs:
+  - specs/architecture.yaml
+  - specs/testability.yaml
 related_notes:
   - notes/wire-core-boundary.md
   - notes/spec-authoring-rules.md
@@ -117,3 +120,32 @@ requirement that mandates it. See ARCH-22-003 and
 [notes/wire-core-boundary.md](wire-core-boundary.md).
 
 Source: CONCERN-2830
+
+## Every Non-Empty Baseline Names an Owner
+
+A ratchet baseline records *what* is exempt, not *who* retires it. When the
+issue that created a baseline closes with entries left, the test stays green and
+the debt goes unseen (CONCERN-3927). ARCH-18-003 closes that gap with a comment
+beside each baseline:
+
+- `# owner: #N` — the open issue that drives the baseline to its terminal
+  value (empty set, or the ceiling's floor).
+- `# permanent: <reference>` — the issue, ADR, or spec requirement that made the
+  baseline permanent by design. A permanent marker that cites nothing fails. The
+  ratchet-versus-pinned-exemption-set split is defined by #3933.
+
+Two checks, split by what they need:
+
+- **Offline, in the unit suite.** Scans `test/` for ratchet-named constants and
+  fails when a non-empty one has neither marker. It never calls GitHub, so it
+  gives the same answer on every run.
+- **Online, outside the merge path (ARCH-18-004).** A scheduled CI job asks
+  GitHub whether each cited owner is still open and files or updates one tracking
+  issue when one is closed. It does not fail the build. A hard failure would turn
+  `main` red when an unrelated issue closes — the same race as a two-directional
+  count pin, where two pull requests that are each green land together and
+  `main` goes red (`plan/history/2609/learning/ISSUE-3828.md`).
+
+MS-10-006 is the precedent: the spec-corpus ceiling table in
+`vultron/metadata/specs/verification.py` already requires an owner per non-zero
+ceiling, but checks only that one is named, not that it is still open.

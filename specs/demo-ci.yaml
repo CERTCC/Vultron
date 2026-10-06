@@ -1801,8 +1801,15 @@ groups:
           what makes the zero-drift claim ADR-0098 records for this page true
           rather than aspirational.
         verification: >-
-          `mkdocs build --strict` renders the table, and a test asserts the
-          committed page contains no scenario table.
+          `test_index_page_commits_no_scenario_table` in
+          `test/metadata/test_demo_scenario_artifacts.py` asserts the committed
+          page contains no scenario table. The rendered table's links are checked
+          on the built site, not by `mkdocs build --strict`, which never sees a
+          link a build-time block prints: `uv run docs-links` (DOCBW-03-007) fails
+          when an internal reference in `site/` resolves to no built path, and
+          `test_narrative_links_are_built_site_urls` and
+          `test_mkdocs_keeps_directory_urls` in the same module pin the link form
+          and the `use_directory_urls` setting it depends on.
         adr:
           - ADR-0098
         relationships:

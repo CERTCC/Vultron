@@ -167,6 +167,11 @@ class AppConfig(BaseSettings):
             CBT-03-004).  Override via
             ``VULTRON_PRE_BOOTSTRAP_QUEUE_TIMEOUT_SECONDS``.  Defaults to
             300 (5 minutes).
+        max_inbox_retry_attempts: Maximum cumulative processing attempts for
+            a single inbox activity before it is moved to the dead-letter
+            store (IE-06-004).  Matches the outbox default of 12 so that
+            inbox and outbox share the same retry budget.  Override via
+            ``VULTRON_MAX_INBOX_RETRY_ATTEMPTS``.  Defaults to 12.
     """
 
     server: ServerConfig = ServerConfig()
@@ -175,6 +180,7 @@ class AppConfig(BaseSettings):
     ledger: LedgerConfig = LedgerConfig()
     mode: RunMode = RunMode.PROTOTYPE
     pre_bootstrap_queue_timeout_seconds: int = 300
+    max_inbox_retry_attempts: int = 12
 
     model_config = SettingsConfigDict(
         env_prefix="VULTRON_",

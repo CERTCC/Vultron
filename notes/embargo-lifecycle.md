@@ -114,14 +114,22 @@ class EmbargoLifecycle:
         self, *, case_id, embargo_id, actor_id=None, transition_mode=STRICT
     ) -> EmbargoLifecycleResult: ...
     def initialize_creation_embargo(
-        self, *, case_id, embargo_id, actor_id=None
-    ) -> EmbargoLifecycleResult: ...  # NONE → ACTIVE, one write (EP-04-002)
+        self, *, case_id, embargo, actor_id=None, revision=None
+    ) -> EmbargoLifecycleResult: ...  # NONE → ACTIVE, one write; stores embargo
     def record_participant_consent(
         self, *, case_id, actor_id, pec_trigger, embargo_id=None
     ) -> EmbargoLifecycleResult: ...
     def record_embargo_rejection(
         self, *, case_id, actor_id, embargo_id
     ) -> EmbargoLifecycleResult: ...
+    def record_embargo_invite(
+        self, *, case_id, invitee_id, rsvp_deadline=None
+    ) -> EmbargoLifecycleResult: ...  # PEC INVITE, EM unchanged
+    def detect_and_apply_lapse(
+        self, *, case_id, actor_id, now
+    ) -> EmbargoLifecycleResult: ...  # lazy RSVP-deadline DECLINE, idempotent
+    def assert_embargo_eligible(self, *, case_id, operation) -> None: ...
+        # raises unless P/X/A are all clear (propose_embargo's STRICT guard)
 ```
 
 `record_embargo_rejection` is the consent half of `reject_embargo_invite` for a
@@ -180,7 +188,10 @@ first:
   keeps the Invite, not A) raises `VultronNotFoundError` or
   `VultronNotAnEmbargoError` (a `VultronValidationError` that names the
   embargo id) in either `TransitionMode` and writes nothing. These
-  methods live in `embargo_lifecycle/activation_arm.py`.
+  methods live in `embargo_lifecycle/activation_arm.py`. The creation-time
+  writer takes the `EmbargoEvent` itself, not an id: it stages the event
+  first and stores it in the activating commit, so its read of the activated
+  record is of the staged one (#4182).
 
 So "a replica lacking the replaced embargo" is a broken invariant, not a
 replication lag, and no catch-up fetch, replay-on-store trigger, or

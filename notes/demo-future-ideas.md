@@ -69,8 +69,14 @@ register](#planned-scenario-register) when its spec group is written, and a
 
 | Scenario | Issue | Description | Status |
 |----------|-------|-------------|--------|
-| In-process fuzz | #1178 | FCV in-process; STOCHASTIC bundles; N configurable iterations; `vultron demo fuzz` CLI command | planned |
-| Multi-container fuzz | *(future Idea under "stochastic demos" Epic)* | Containerised variant of #1178; each actor in its own container; STOCHASTIC bundles configurable via environment; container state reset between iterations | idea-stage |
+| In-process fuzz | #1732 (planned under #1178) | FCV in-process; STOCHASTIC bundles; N configurable iterations; `vultron demo fuzz` CLI command | planned |
+| Multi-container fuzz | *(future Idea under "stochastic demos" Epic)* | Containerised variant of the in-process fuzz scenario; each actor in its own container; STOCHASTIC bundles configurable via environment; container state reset between iterations | idea-stage |
+
+The in-process fuzz scenario is misfiled here: it does have a spec group,
+DEMOMA-18, so DEMOCI-11-010 places it in the [planned scenario
+register](#planned-scenario-register). It cannot move there until DEMOMA-18
+carries the MS-13-003 `trigger: {type: scenario_start, value: <name>}` marker the
+partition check keys on.
 
 The multi-container variant is deferred until container reset and STOCHASTIC
 bundle configuration via environment variables are designed. See
@@ -129,16 +135,3 @@ Once #1221 is implemented, `ack_report` should be wired into the per-scenario
 `_FV_EXPECTED_EVENT_TYPES` in `test/ci/invariants/test_fv_invariants.py`,
 currently excluded; see the `test_invariant_5_expected_event_types_present`
 docstring citing #1133).
-
-## Deprecated / idea-mine only
-
-The following files exist but are based on much older code and no longer work.
-They may be useful as reference for future scenario development but should not
-be treated as working implementations.
-
-| Scenario | File | Notes |
-|----------|------|-------|
-| FCV | ~~`vultron/demo/scenario/three_actor_demo.py`~~ (deleted PR #1720) | Superseded by `fcv_demo.py` (PR #1623) |
-| FVCV (handoff) | ~~`vultron/demo/scenario/multi_vendor_demo.py`~~ (deleted PR #1720) | Superseded by `fvcv_handoff_demo.py`; see #1214 |
-
-See also: #1079 (multi-coordinator motivation from FIRSTCON 2026)

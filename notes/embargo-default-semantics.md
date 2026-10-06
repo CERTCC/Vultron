@@ -6,8 +6,8 @@ description: >
   versus protocol-default distinction and why the protocol default never
   competes under shortest-wins; default embargo duration and expiry semantics;
   the published-default / tacit-acceptance model that explains why the
-  happy-path embargo requires no explicit negotiation exchange; why there is no
-  pre-case embargo phase; why an RSVP deadline may not outlive its embargo; and
+  happy-path embargo requires no explicit negotiation exchange; why an RSVP
+  deadline may not outlive its embargo; and
   how EP-04-003's two-party shortest-wins relates to EP-08's general
   earliest-expiration ordering for N open proposals; why the creation-time
   revision's registration order no longer touches consent (ADR-0093); how
@@ -16,8 +16,9 @@ description: >
   and why the relay is a durable marker a later run retries (#4121);
   why creation-time initialization runs once per case with the EM state, not
   the active-embargo reference, as the evidence (EP-04-012); why a rerun on a
-  half-built case reuses the minted event's case-derived id; why everything
-  after activation commits with it in one `save_many`; and why the actor
+  half-built case leaves no event to orphan, because the event is written by the
+  activating commit; why everything after activation commits with it in one
+  `save_many`; and why the actor
   default is the CASE_OWNER's profile policy, carried inline on the case proposal
   (CP-01-009, CP-01-010).
 related_specs:
@@ -551,24 +552,24 @@ stages every save, answers every read from what it staged, refuses any query it
 could not answer faithfully, and flushes once. Any failure before or in that
 flush leaves the case at `NONE`, which this guard admits.
 
-A rerun at `NONE` must also not store a *second* creation-time event (#4117).
-A run can stop after `CreateEmbargoEventNode` stored its event and before EM
-leaves `NONE`; the guard rightly admits the rerun, and a minted event with a
-fresh random id would leave the first one an orphan. So the minted event's id
-is derived from the case (`creation_time_embargo_id`, a uuid5 of the case id),
-and a rerun that finds this case's own event under that id overwrites it in
-place with the terms the rerun resolved — nothing references it yet, because
-the case is still at `NONE`. The node checks that for itself rather than
-trusting the guard (CSB-16): it re-stamps only while the case is at `NONE`, has
-no active embargo and does not list the id as a proposal. Any other object
-under that id, or this case's event once something references it, is refused
-by `persist_creation_time_embargo`. The sender branch needs none of this: the
-Reporter's event keeps the Reporter's id, and the stored twin is accepted.
+A rerun at `NONE` must also not leave a *second* creation-time event (#4117 and
+issue 4182). The event is written by the same `save_many` that activates it:
+`CreateEmbargoEventNode` only builds it (the sender's own event with its
+`context` rewritten to the case, or a minted default) and hands it to
+`InitializeCreationEmbargoNode` on the blackboard, and
+`initialize_creation_embargo(embargo=...)` stages it first, so the read of the
+record being activated (EMB-18-003) sees it. A run that stops before the commit
+has therefore stored no event, and a rerun may resolve to either branch —
+default then sender, sender then default, or a different sender event — without
+an orphan to clean up. Storing it earlier, as the node used to, left the first
+attempt's event behind whenever the rerun took the other branch; re-stamping an
+event found under a derived id covered only default-then-default.
 
-Known limit: a redelivery that resolves to a different *branch* than the first
-attempt — the first minted a default, the rerun adopts the sender's event —
-still leaves the first default unreferenced. An exact redelivery (CP-05-006)
-resolves the same way, so this needs a changed proposal for the same report.
+The minted default still takes its id from the case
+(`creation_time_embargo_id`, a uuid5 of the case id), so the same case always
+names the same default. The sender branch keeps the Reporter's id, and an event
+the store already holds under the id is accepted only if it is the same embargo
+(same case, same `end_time`); `persist_creation_time_embargo` refuses any other.
 
 A run that stops *after* the PROPOSE trigger and before activation is a
 different gap: `propose_embargo` persists `PROPOSED`, which EP-04-002 forbids,
@@ -600,35 +601,6 @@ ownership on acceptance. **Do not build this.** ADR-0041 supersedes ADR-0015 for
 precisely this window, and ADR-0089 re-rejected the proto-case when deciding where
 pre-case RM state lives. The path was recorded here before either decision landed,
 which is why it read as a live option for so long.
-
-## No Pre-Case Embargo Phase
-
-CONCERN-2215 asked whether Vultron gets a protocol phase before a case exists, on
-the strength of `model_interactions/rm_em.md` stating that the EM process MAY begin
-before the report is sent. **ADR-0096 answered no**, and the reason is stronger
-than "not implemented":
-
-| Fact | Where |
-|---|---|
-| EM is defined as a global **per-case** state machine | `docs/reference/glossary.md` |
-| EM state exists only as `CaseStatus.em` (an `EmDimension`) | `vultron/core/models/dimensions.py` |
-| `EmbargoEvent.context` is required, and every core construction site set it to `case_id` | `case/nodes/embargo.py`, `triggers/embargo/{propose,revise}.py` |
-| `propose_embargo(case_id=…)` raises `VultronNotFoundError` when the case does not resolve | `vultron/core/services/embargo_lifecycle/proposals.py` |
-
-So the documented $q^{em} \in N \xrightarrow{p} P$ before any case exists named a
-machine instance that could not exist. `rm_em.md` has been corrected: its
-*motivation* survives (a sender may want terms fixed before disclosing), its
-*mechanism claim* is withdrawn.
-
-What replaces the phase is two rules, both above: the protocol default means a
-reporter never faces "no embargo at all", and the embedded proposal means they can
-always state the terms they want. Shortest-wins settles any disagreement at case
-creation.
-
-Note that EP-04-009's context widening does give pre-case embargo terms a
-legitimate home. What ADR-0096 declines is the *phase*, not the *representation* —
-so if a genuine pre-submission negotiation is ever wanted, the object it would
-negotiate over already exists.
 
 ## An RSVP Deadline May Not Outlive Its Embargo
 

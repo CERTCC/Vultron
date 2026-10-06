@@ -283,18 +283,6 @@ scripts for verification — they are read-only assertions, not puppeteering.
 
 ---
 
-## Relation to Priority 476 Bugs
-
-Issues #449–#454 were identified against earlier demo implementations.
-During implementation of the new demo, each bug must be either:
-
-- Resolved by the new implementation (close the issue with a reference), or
-- Confirmed still relevant and kept open with a cross-reference note.
-
-Do not close these issues before implementation confirms their status.
-
----
-
 ## Related Archived Notes
 
 - `archived_notes/demo-review-26042001.md` — archived; point-in-time bug analysis

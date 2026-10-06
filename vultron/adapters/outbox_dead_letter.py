@@ -1,20 +1,21 @@
-"""Outbox dead-letter model and adapter-level retry-store protocol.
+"""Retry-store protocol and dead-letter models for inbox and outbox delivery.
 
-The dead-letter concern is a delivery infrastructure artifact, not a domain
-concern.  ``OutboxDeadLetterEntry`` records an HTTP-transport failure that
-exhausted its retry budget; ``OutboxRetryStore`` is the adapter-level protocol
-that ``outbox_handler`` uses to track cumulative attempt counts and record
-exhausted activities.
+``DeadLetterEntry`` (outbox) and ``InboxDeadLetterEntry`` share the same
+adapter-layer pattern: both extend ``CoreRecord`` so they are stored via
+``dl.save()`` and recoverable by type string.  Neither is a domain object —
+they record transport-layer delivery failures.
 
-These types live in the adapter layer (not ``vultron/core/``) because:
-- The trigger is HTTP delivery failure — a transport-level event.
-- The data captured (retry counts, failed recipients) is delivery bookkeeping.
-- Core should be delivery-mechanism agnostic (hexagonal architecture).
+``RetryStore`` is the unified adapter-level protocol used by both the outbox
+handler (OX-13) and inbox handler (IE-06-004) to persist attempt counts and
+move exhausted activities to the dead-letter store.  ``SqliteDataLayer``
+satisfies ``RetryStore`` structurally.
 
-``SqliteDataLayer`` satisfies ``OutboxRetryStore`` structurally.
+``OutboxDeadLetterEntry`` and ``OutboxRetryStore`` are kept for backward
+compatibility with code written before #4168.  New code should use
+``RetryStore`` and the generic queue-aware methods.
 
-See ``specs/outbox.yaml`` OX-13-001 through OX-13-004 and OX-14-001 through
-OX-14-003.
+See ``specs/outbox.yaml`` OX-13-001 through OX-13-004, OX-14-001 through
+OX-14-003, and ``specs/inbox-endpoint.yaml`` IE-06-004.
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -76,6 +77,36 @@ class OutboxDeadLetterEntry(CoreRecord):
     recorded_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
+class InboxDeadLetterEntry(CoreRecord):
+    """Record of an inbox activity that exhausted its retry budget (IE-06-004).
+
+    Extends the same ``CoreRecord``-based pattern as ``OutboxDeadLetterEntry``
+    so that both inbox and outbox dead letters are stored and retrieved via
+    the same ``dl.save()`` / ``dl.by_type()`` mechanism.
+
+    Attributes:
+        type_: Fixed literal ``"InboxDeadLetterEntry"`` for DataLayer type lookup.
+        activity_id: The ID of the activity that could not be processed.
+        actor_id: The canonical ID of the actor whose inbox this came from.
+        reason: Short machine-readable reason code.
+        total_attempts: Cumulative processing attempt count at time of exhaustion.
+        last_error: String representation of the last exception raised.
+        recorded_at: UTC timestamp when the dead-letter was recorded.
+    """
+
+    type_: Literal["InboxDeadLetterEntry"] = Field(  # type: ignore[assignment]
+        default="InboxDeadLetterEntry",
+        validation_alias="type",
+        serialization_alias="type",
+    )
+    activity_id: NonEmptyString
+    actor_id: NonEmptyString
+    reason: NonEmptyString
+    total_attempts: int
+    last_error: str = ""
+    recorded_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
 class OutboxRetryStore(Protocol):
     """Adapter-level port for outbox delivery retry tracking and dead-lettering.
 
@@ -110,3 +141,33 @@ class OutboxRetryStore(Protocol):
     ) -> None: ...
 
     def dead_letter_list(self) -> list[OutboxDeadLetterEntry]: ...
+
+
+class RetryStore(OutboxRetryStore, Protocol):
+    """Unified retry-store protocol covering both inbox and outbox (IE-06-004).
+
+    Extends ``OutboxRetryStore`` with inbox-specific retry tracking and
+    dead-lettering.  ``SqliteDataLayer`` satisfies this protocol structurally.
+
+    The outbox methods are inherited from ``OutboxRetryStore``; this protocol
+    adds the inbox counterparts so a single cast from ``DataLayer`` suffices
+    for code that needs to track either queue's retry budget.
+    """
+
+    def get_inbox_attempt_count(self, activity_id: str) -> int: ...
+
+    def set_inbox_attempt_count(
+        self, activity_id: str, count: int
+    ) -> None: ...
+
+    def clear_inbox_attempt_count(self, activity_id: str) -> None: ...
+
+    def inbox_dead_letter_append(
+        self,
+        activity_id: str,
+        reason: str,
+        total_attempts: int,
+        last_error: str = "",
+    ) -> None: ...
+
+    def inbox_dead_letter_list(self) -> list[InboxDeadLetterEntry]: ...

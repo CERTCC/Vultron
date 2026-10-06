@@ -249,13 +249,13 @@ class TestInitializeCreationEmbargoNodePorts:
         with pytest.raises(NoDataAvailable):
             node.get_input("case_id")
 
-    def test_missing_default_embargo_id_raises_no_data_available(
+    def test_missing_default_embargo_raises_no_data_available(
         self,
     ) -> None:
         node = InitializeCreationEmbargoNode()
         node.setup_ports()
         with pytest.raises(NoDataAvailable):
-            node.get_input("default_embargo_id")
+            node.get_input("default_embargo")
 
 
 # ---------------------------------------------------------------------------

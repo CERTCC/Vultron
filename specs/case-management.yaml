@@ -2298,23 +2298,31 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A case stub that a sender emits MUST carry exactly its `id`, its `type` and the
-      `caseId` naming the case it stands for (CM-11-013), plus, when an embargo is
-      active, the embargo terms CM-17-002 requires (`activeEmbargo` and
-      `caseStatus.emState`). It MAY carry a `summary` (MV-10-001). The sender MUST NOT
-      put any other case content in it, and MUST NOT name the case's coordinator or
-      Case Owner in it: the Invite that carries it already identifies the inviter in
-      its `actor` and `attributedTo`. This constrains what is sent; the JSON-LD
-      `@context` is not content.
+      A case stub that a sender emits MUST carry exactly its `id`, its `type`, the
+      `caseId` naming the case it stands for (CM-11-013) and a non-empty `summary`
+      (MV-10-001), plus, when an embargo is active, the embargo terms CM-17-002
+      requires (`activeEmbargo` and `caseStatus.emState`). The sender chooses the
+      `summary`: it MAY be the case name, or a deliberately less revealing string,
+      and the sender MUST NOT assume the case name is safe to share with an invitee
+      not yet bound by the embargo. The sender MUST NOT put any other case content
+      in the stub, and MUST NOT name the case's coordinator or Case Owner in it: the
+      Invite that carries it already identifies the inviter in its `actor` and
+      `attributedTo`. This constrains what is sent; the JSON-LD `@context` is not
+      content.
     rationale: >-
-      An invitee is not yet an active participant and is entitled to no case content
-      (CM-10-004, CM-17-005). Informed consent to join needs only the case's identity
-      and the embargo terms (CM-17-002); the Invite envelope already says who is asking.
-      Anything more leaks case content to an actor that may decline (#3758).
+      An invitee is entitled to no case content yet (CM-10-004, CM-17-005). Informed
+      consent needs the case's identity, a human-readable account of what it is asked to
+      join, and the embargo terms (CM-17-002); the Invite envelope says who is asking.
+      The case name can itself be an opsec concern, so the summary is chosen for the
+      invitee, not copied from the case. #4165 owns emitting it.
     verification: >-
-      A stub projected from a full case serialises with only `id`, `type` and `caseId`
-      when no embargo is active, and adds only `activeEmbargo` and `caseStatus` when one
-      is.
+      `test/wire/as2/factories/test_case_factories.py::test_rm_invite_stub_carries_a_non_empty_summary`
+      is a strict xfail naming #4165 that asserts a stub projected from a full case
+      serialises with only `id`, `type`, `caseId` and a non-empty `summary`.
+      `test_rm_invite_stub_carries_no_case_content` and
+      `test_enriched_stub_carries_only_the_embargo_terms` in the same file assert the
+      stub carries no other case content, and that an embargo-active stub adds only
+      `activeEmbargo` and `caseStatus`.
     relationships:
     - rel_type: refines
       spec_id: CM-11-013
@@ -3229,19 +3237,40 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      RM case closure MUST flow through Leave(VulnerabilityCase) → CASE_MANAGER
-      ledger commit → broadcast → each replica advances the leaving participant's
-      RM state to RM.CLOSED on receipt of the Announce(CaseLedgerEntry).
+      RM case closure MUST be triggered by Leave(VulnerabilityCase), and the
+      CASE_MANAGER's ledger commits are the authority for it.  A participant-sent
       Add(ParticipantStatus, rm_state=RM.CLOSED) MUST NOT be used as a closure
-      trigger.
+      trigger.  The CASE_MANAGER MUST commit a close_case entry recording the
+      received Leave, and then, in the order it writes them, one
+      add_participant_status_to_participant entry for each RM transition it
+      writes for the leaving participant (CM-23-012; V → D → C is two entries).
+      These status entries are the Leave's recorded consequence, written by the
+      CASE_MANAGER as its own RM writes for the leaving participant (CLP-07-001,
+      CLP-07-002, CLP-07-003).  Each replica still receiving case content
+      (CM-23-004) advances the leaving participant's RM state to RM.CLOSED only by
+      applying those status entries, in ledger order, from the Announce(CaseLedgerEntry)
+      fan-out.  A replica
+      MUST NOT work out a closure path from its own stored state, and applying the
+      close_case entry MUST NOT change any participant's RM state.  A status entry
+      that cannot be committed is logged at WARNING and does not abort the
+      closure, as for the CASE_MANAGER's own closure (CM-23-005).
     rationale: >-
       The Leave round-trip makes the CASE_MANAGER the authority for closure and
       prevents ghost-departures from lost messages: a participant cannot
       silently reach RM.CLOSED on peers without the CASE_MANAGER having committed
-      and broadcast a ledger entry.  See ADR-0050.
+      and broadcast a ledger entry.  The ledger records each move as the
+      CASE_MANAGER makes it, so a replica applies moves and cannot invent a step
+      no entry backs (#4091).  See ADR-0050.
     verification: Integration tests in `test/demo/` confirm that RM closure flows through
       `Leave(VulnerabilityCase)` -> CASE_MANAGER ledger commit -> broadcast, and that
       `Add(ParticipantStatus, rm_state=RM.CLOSED)` is not used as a closure trigger.
+      Unit tests confirm that a Leave from RM.VALID commits the close_case entry and
+      then a VALID -> DEFERRED and a DEFERRED -> CLOSED status entry, in that order;
+      that a replica which accepts each of those entries ends with the same per-actor
+      status history as the CASE_MANAGER and writes no step the ledger lacks; that a
+      replica whose participant-status effect refuses an entry (RSH-05-021) logs a
+      WARNING and still writes no step of its own; and that applying the close_case
+      entry alone changes no participant's RM state.
     adr:
     - ADR-0050
     stories:
@@ -3253,27 +3282,35 @@ groups:
     statement: >-
       When the CASE_MANAGER receives Leave(VulnerabilityCase) from the Case Owner,
       it MUST execute the following sequence:
-      (1) advance the Case Owner participant to RM.CLOSED,
-      (2) advance the CASE_MANAGER's own CaseParticipant to RM.CLOSED,
+      (0) commit the close_case entry recording the Leave (CLP-10-006),
+      (1) advance the Case Owner participant to RM.CLOSED, committing one status
+          entry per RM transition it writes, in order (CM-23-001),
+      (2) advance the CASE_MANAGER's own CaseParticipant to RM.CLOSED, committing
+          one status entry per RM transition it writes, in order (CM-23-005),
       (3) emit a case_fully_closed CaseLedgerEntry marking the owner-close write
           boundary (ADR-0085),
-      (4) fan-out that entry to every active participant (CM-10-004).
+      (4) fan-out that entry to every active participant whose closure the ledger
+          does not already record (CM-10-004, CM-23-004).
+      Every entry of steps (0) to (2) MUST precede case_fully_closed, because no
+      later entry records an external participant's act (CM-23-013).
       The case_fully_closed entry is NOT a log-complete marker: it records that
       no later entry will record an external participant's act (CM-23-013), and
       consumers MUST NOT treat it as the highest logIndex of the case or as proof
       that a replica holds the complete ledger.
     rationale: >-
-      The Case Owner's departure is the authoritative termination event for a
-      case.  An earlier wording called case_fully_closed "the last ledger entry",
-      but ADR-0085's boundary refuses only external participants' appends, not
-      the CASE_MANAGER's own housekeeping, so a consumer that stopped reading
-      there would be wrong (CONCERN-3400).  The guarantee is the boundary, not
-      chain finality.  See ADR-0050, ADR-0051, ADR-0085.
+      The Case Owner's departure is the authoritative termination event for a case.
+      ADR-0085's boundary refuses external participants' appends, not the CASE_MANAGER's
+      own housekeeping, so a consumer that stopped reading at case_fully_closed could
+      miss an entry the CASE_MANAGER writes later. The guarantee is the boundary, not
+      chain finality. See ADR-0050, ADR-0051, ADR-0085.
     verification: >-
       Integration tests in `test/demo/` confirm that a Case Owner's
-      `Leave(VulnerabilityCase)` triggers the 4-step closure sequence: advance Case
-      Owner to RM.CLOSED, advance CASE_MANAGER to RM.CLOSED, emit `case_fully_closed`
-      entry, fan out to every active participant.
+      `Leave(VulnerabilityCase)` triggers the closure sequence: the `close_case`
+      entry, the Case Owner's status entries, the CASE_MANAGER's own status entries,
+      then the `case_fully_closed` entry, in that order, fanned out to every active
+      participant whose closure the ledger does not already record.  Unit tests
+      confirm that the ledger holds no entry for the Case Owner or the CASE_MANAGER
+      after `case_fully_closed`.
     relationships:
     - rel_type: refines
       spec_id: CM-23-001
@@ -3291,7 +3328,10 @@ groups:
     statement: >-
       When the CASE_MANAGER receives Leave(VulnerabilityCase) from a non-owner
       participant, it MUST advance only that participant's RM state to RM.CLOSED
-      and commit a CaseLedgerEntry recording the departure.  The case MUST remain
+      and commit a CaseLedgerEntry recording the departure (close_case), then one
+      status entry per RM transition it writes for that participant, in order
+      (CM-23-001).  The close_case entry is committed first, before any of those
+      writes (CLP-10-006).  The case MUST remain
       open for the remaining participants.  This applies only while the case is
       open; a non-owner Leave that arrives after owner close is governed by
       CM-23-013.
@@ -3302,7 +3342,10 @@ groups:
       case lifecycle.  See ADR-0050.
     verification: Integration tests in `test/demo/` confirm that a non-owner
       `Leave(VulnerabilityCase)` advances only that participant's RM state to RM.CLOSED and
-      leaves the case open for remaining participants.
+      leaves the case open for remaining participants. Unit tests confirm that the
+      `close_case` entry precedes one status entry per RM transition, that a replica
+      applying them writes no step of its own, and that a leaver at RM.RECEIVED or
+      RM.START (S -> R -> C) is recorded the same way.
     relationships:
     - rel_type: refines
       spec_id: CM-23-001
@@ -3315,18 +3358,55 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      CASE_MANAGER fan-out of CaseLedgerEntry MUST NOT send entries to participants
-      whose latest ParticipantStatus has rm_state=RM.CLOSED.
+      The CASE_MANAGER MUST NOT send a participant whose closure an earlier ledger
+      entry already records (its status entry with rm_state=RM.CLOSED) any case
+      content: no CaseLedgerEntry announcements, no Announce(VulnerabilityCase), no
+      status broadcasts and no embargo announcements.  The entries that record a
+      participant's own closure, the close_case entry and the status entries that
+      follow it (CM-23-001), are not withheld from that participant, so the leaving
+      participant's replica receives every step, the one that reaches RM.CLOSED
+      included.  Those entries are identified by their subject being the recipient,
+      not by the recipient's status, which is already RM.CLOSED when the last of
+      them is fanned out.  They never widen entitlement (CM-10-004): a participant
+      that is inert or removed when it leaves is not sent them.  The only other
+      message a closed participant receives is the direct embargo notice to a
+      SIGNATORY that CM-31-009 requires, which carries no other case content.  A
+      participant that has left stops at the entries that record its departure: it
+      does not receive later entries, case_fully_closed included.  A closing
+      participant waits for those entries and MUST NOT write its own RM.CLOSED to
+      its replica in place of them.  The CASE_MANAGER's own store, not any
+      participant's replica, is where every participant's closure is verified.
     rationale: >-
-      Once a participant reaches RM.CLOSED they have departed the case and no
-      longer need (or should receive) case updates.  Continuing to send them
+      RM.CLOSED is the participant's own declaration that it has stopped paying
+      attention to the case, made while the case may still be open, and its case
+      replication process is assumed to have exited, so nothing is there to receive
+      a later entry (the same assumption governs the CASE_MANAGER after
+      case_fully_closed, CM-23-013).  It receives no further content, so it does not
+      go on seeing embargoed material after it has left, and continuing to send it
       entries wastes bandwidth and may trigger erroneous processing on stale
-      replicas.
-    verification: Integration tests in `test/demo/` confirm that `Announce(CaseLedgerEntry)`
-      fan-out skips participants whose latest `ParticipantStatus` has `rm_state=RM.CLOSED`.
+      replicas.  The entries that record its own closure come before it exits, so it
+      still receives them (a replica is advanced only by the ledger, CM-23-001).  A
+      closed replica therefore does not converge on later closures; that is
+      intended.  Resolves CONCERN-4100.
+    verification: >-
+      Unit tests on the shared recipient selection assert a participant whose
+      closure the ledger records is left out of every case-content send except the
+      entries recording its own closure.  Integration tests in `test/demo/` confirm
+      that `Announce(CaseLedgerEntry)` fan-out skips a participant once a ledger
+      entry has recorded its `rm_state=RM.CLOSED`, that the leaving participant's
+      replica still receives the `close_case` entry and every status entry up to and
+      including the one that reaches `RM.CLOSED`, but not the later
+      `case_fully_closed` entry, and that the CASE_MANAGER's store holds every
+      participant at RM.CLOSED.
     relationships:
     - rel_type: refines
       spec_id: CM-23-001
+    - rel_type: refines
+      spec_id: CM-10-004
+    - rel_type: refines
+      spec_id: CM-31-009
+    adr:
+    - ADR-0114
     stories:
     - story_2022_068
   - id: CM-23-005
@@ -3476,12 +3556,13 @@ groups:
       emitted). The decline MUST suppress the receipt commit itself: a declined
       owner-close records NO `close_case` `CaseLedgerEntry` at all. Gating the
       receive-and-commit path behind the decline is required, not optional,
-      because that receipt commit IS the closure mechanism — it is committed
-      before any role-specific effect (CLP-10-006) and then fans out, and each
-      replica's replica-apply advances the departing participant to `RM.CLOSED`
-      (CLP-10-001, CM-23-003). Skipping only the local CM-23-002 steps while still
-      committing the receipt would therefore close the case everywhere via
-      fan-out, contradicting "no participant advances to `RM.CLOSED`" (ISSUE-3137).
+      because that receipt commit opens the closure — it is committed
+      before any role-specific effect (CLP-10-006), and the status entries
+      that follow it (CM-23-001) are what advance the departing participant to
+      `RM.CLOSED` on each replica (CLP-10-001, CM-23-003). Skipping only the local
+      CM-23-002 steps while still committing the receipt would leave a recorded
+      departure the case then declined, contradicting "no participant advances
+      to `RM.CLOSED`" (ISSUE-3137).
       The Case Owner MUST terminate the active embargo first, then
       re-issue the close. Declining the close does NOT itself terminate the
       embargo — the embargo remains active until terminated through the normal EM
@@ -3554,7 +3635,10 @@ groups:
       that was at RM.RECEIVED or RM.VALID at its prior RM state; that a leaving
       actor at RM.RECEIVED is advanced R → C; and that a leaving actor at
       RM.VALID is recorded V → D → C, with no write overriding the transition
-      table.
+      table.  The CASE_MANAGER writes every step of the leaving actor's path, the
+      S → R step of S → R → C included, and commits each as a status entry
+      (CM-23-001); a test confirms that a replica applying those entries ends with
+      the same per-actor status history and writes no step the ledger lacks.
     relationships:
     - rel_type: refines
       spec_id: CM-23-001
@@ -3571,26 +3655,32 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When the CASE_MANAGER receives Leave(VulnerabilityCase) from a non-owner
-      participant after the case_fully_closed entry has been committed, it MUST
-      decline the Leave with an `as:Reject` response ("received and understood but
-      declined", MSM-05-001) and MUST NOT commit any CaseLedgerEntry for it, the
-      receipt `close_case` entry included.  The sender's RM state on the
-      canonical ledger stays at its last rung (CM-23-012).
+      After the case_fully_closed entry has been committed, the CASE_MANAGER MUST
+      behave toward the case as if its process had exited: for any inbound
+      activity for the case — a non-owner participant's Leave(VulnerabilityCase)
+      included — it MUST NOT commit any CaseLedgerEntry, the receipt entry
+      included, and MUST NOT change any case or participant state. It MAY reply
+      with an `as:Reject` ("received and understood but declined", MSM-05-001),
+      or MAY drop the activity with no reply at all. A participant MUST NOT rely
+      on receiving a reply to an activity it sends after the case has closed.
+      The sender's RM state on the canonical ledger stays at its last rung
+      (CM-23-012).
     rationale: >-
-      ADR-0085 makes owner-close a hard write boundary, and a bystander's Leave is
-      an external append: committing it put a `close_case` entry after
-      `case_fully_closed` in every demo (CONCERN-3400).  The receipt commit itself
-      is suppressed because, as in CM-23-011, its fan-out is what closes the
-      sender on the replicas (CLP-10-006, CM-23-003).  A participant that wants its
-      departure recorded leaves before the Case Owner.
+      In a deployment the process managing a closed case can exit once closure has
+      fanned out, leaving nothing to receive a late message. This rule makes the
+      prototype's CASE_MANAGER behave the same way: nothing reaches the ledger, and a
+      reply is a courtesy. The receipt commit is suppressed because it opens the closure
+      whose status entries would close the sender on the replicas (CLP-10-006,
+      CM-23-001). A participant that wants its
+      departure recorded leaves first (CM-23-015). #4162 owns this.
     verification: >-
       A test confirms that after an owner Leave(VulnerabilityCase) has committed
-      `case_fully_closed`, a bystander's Leave(VulnerabilityCase) is refused with
-      an `as:Reject`, commits no CaseLedgerEntry, and leaves the bystander's RM
-      state unchanged; and that the demo scenarios close every non-owner
-      participant before the Case Owner, so each ledger records no participant
-      act after `case_fully_closed`.
+      `case_fully_closed`, a later inbound activity for the case — a bystander's
+      Leave(VulnerabilityCase) among them — commits no CaseLedgerEntry and changes no RM
+      or case state, and that the CASE_MANAGER either sends an `as:Reject` or sends
+      nothing:
+      `test/core/use_cases/received/test_close_case_role_semantics.py::TestPostCloseBoundary::test_bystander_leave_after_owner_close_is_refused`,
+      a strict `xfail` naming #4162 and #4065 until they land.
     relationships:
     - rel_type: refines
       spec_id: CM-23-003
@@ -3634,6 +3724,35 @@ groups:
       spec_id: CM-28-014
     adr:
     - ADR-0118
+    - ADR-0085
+    stories:
+    - story_2022_066
+  - id: CM-23-015
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      The Case Owner SHOULD leave a case last, or nearly last, after the other
+      participants have left, so that their departures are recorded before
+      case_fully_closed; a departure sent after closure is not recorded
+      (CM-23-013).
+    rationale: >-
+      The owner's Leave closes the case for everyone (CM-23-002), and nothing a
+      participant sends afterwards reaches the ledger. A participant that has
+      not left by then keeps its last RM state on every replica that receives it,
+      which is harmless but leaves the ledger without a record of its departure.
+      Leaving last is the owner's normal course, not a hard ordering: a
+      participant that never leaves cannot hold a case open. #4163 owns
+      reordering the demo scenarios, which today close the owner first.
+    verification: >-
+      `test/demo/test_fv_demo.py::TestFvMilestoneAssertions::test_phase_case_closure_closes_the_case_owner_last`
+      asserts the FV closure phase closes the Finder before the Vendor, the Case Owner;
+      it is a strict `xfail` naming #4163 until the demos are reordered.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-23-002
+    - rel_type: depends_on
+      spec_id: CM-23-013
+    adr:
     - ADR-0085
     stories:
     - story_2022_066
@@ -3764,23 +3883,36 @@ groups:
     - ADR-0109
   - id: CM-24-005
     priority: MUST
-    kind: architecture
+    kind: project
     statement: >-
-      All trigger use cases that emit delegated Activities MUST use a shared
-      helper (e.g. _prepare_delegated_context() or equivalent) that enforces
-      the CM-24-001 through CM-24-004 invariants.  No callsite may independently
-      reconstruct the delegated-authorship pattern without going through this
-      shared helper.
+      Every path that emits an Activity on another participant's behalf — a
+      trigger use case, or a received-side tree performing the CM-24-004
+      delegated emit — MUST obtain the Activity's `actor` and `attributed_to`
+      from one shared helper. The helper MUST set `actor` to the actor doing
+      what was asked (the CASE_MANAGER executing the gated tree) and
+      `attributed_to` to the actor that asked (the trigger's requesting actor,
+      or the sender of the activity the received tree acts on). It MUST live in
+      a module that both use cases and BT nodes may import (BTND-04-003). No
+      callsite may reconstruct the delegated-authorship pattern without it.
     rationale: >-
-      Independent reconstruction of the actor/attributed_to assignment at each
-      callsite is structurally fragile.  CONCERN-2170 documents two callsites
-      that deviated: SvcOfferCaseOwnershipTransferUseCase (wrong actor, no
-      attributed_to) proved the pattern is re-broken every time a new callsite
-      is added.  A shared helper eliminates the entire class of defect.
-
-    verification: Inspection of `vultron/core/` confirms that all trigger use cases emitting
-      delegated Activities share a single helper (e.g., `_prepare_delegated_context()`) that
-      enforces the actor/attributed_to/outbox invariants.
+      Rebuilding the actor/attributed_to assignment at each callsite drifted:
+      CONCERN-2170 found two wrong callsites. Neither value needs computing, since the
+      doer and the asker are known where the emit happens, and the received-side relay
+      is a delegated emit too (CM-24-004). Today the helper sits in the trigger layer,
+      which BT nodes may not import, and the relay rebuilds the pattern by hand; #4160
+      owns moving it.
+    verification: >-
+      Inspection of `vultron/core/` confirms that every trigger use case and
+      every received-side tree emitting a delegated Activity takes `actor` and
+      `attributed_to` from one shared helper importable from both
+      `vultron/core/use_cases/` and `vultron/core/behaviors/`; until #4160
+      lands, the trigger-side callsites satisfy this and the received-side
+      relay does not.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-24-004
+    - rel_type: depends_on
+      spec_id: BTND-04-003
   - id: CM-24-006
     priority: MUST
     kind: protocol

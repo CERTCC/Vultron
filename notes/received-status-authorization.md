@@ -448,7 +448,10 @@ in `_RECOGNIZED_OVERRIDE_PRODUCERS` per RSH-05-014.
 
 ## EmbargoTeardownAuthorizationGate + ThreatTerminationBranchNode
 
-**Location**: `add_case_status_tree`, after `AppendCaseStatusToCaseNode`
+**Location**: both received-status trees, inside a `TeardownEffectsOrSkip`
+sequence after the canonical write — `add_case_status_tree` (after
+`AppendCaseStatusToCaseNode`, shown below) and `add_participant_status_tree` (after
+`EmitCaseStatusUpdateNode`, on the adoption path)
 
 **Purpose**: decide whether to execute side-effects after a canonical write
 
@@ -546,18 +549,6 @@ STATUS_AUTHORIZATION_PERMISSIVE = StatusAuthorizationCallOutBundle(
 
 Placed in `vultron/core/behaviors/call_out/bundles/status_authorization.py`
 (core-owned, per ADR-0025 / module layout in `notes/call-out-configuration.md`).
-
----
-
-## Migration from PublicDisclosureBranchNode
-
-| Before | After |
-|---|---|
-| `PublicDisclosureBranchNode` in `add_participant_status_tree` | Deleted (#4154) |
-| Gates: CS.P AND CASE_OWNER sender | N/A |
-| Runs before canonical write | N/A |
-| `ThreatTerminationBranchNode` in `add_case_status_tree` | Added |
-| Gates: CS.P OR CS.X OR CS.A (no sender gate) | Correct tree, post-write |
 
 ---
 

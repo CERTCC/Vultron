@@ -2334,6 +2334,57 @@ class TestFvMilestoneAssertions:
             )
         mock_m7.assert_called()
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason="CM-23-015: the FV closure phase closes the Case Owner (Vendor)"
+        " before the Finder. Tracked by #4163.",
+    )
+    @pytest.mark.spec("CM-23-015")
+    def test_phase_case_closure_closes_the_case_owner_last(self):
+        """The Case Owner leaves after every other participant (CM-23-015).
+
+        A Leave sent after ``case_fully_closed`` is not recorded (CM-23-013),
+        so the Vendor, which owns the FV case, closes after the Finder.
+        """
+        import contextlib
+
+        vendor_in_vendor = self._actor("urn:test:vendor")
+        finder_in_finder = self._actor("urn:test:finder")
+        case = self._case()
+        closed_by: list[str] = []
+
+        def record_close(session: ActorSession) -> None:
+            closed_by.append(session.actor.id_)
+
+        with (
+            patch.object(
+                ActorSession,
+                "close_case",
+                autospec=True,
+                side_effect=record_close,
+            ),
+            patch.object(demo, "wait_for_all_participants_rm_closed"),
+            patch.object(demo, "verify_case_closed"),
+            patch.object(demo, "wait_for_event_type_in_ledger"),
+            patch.object(demo, "wait_for_replica_ledger_coverage"),
+            patch.object(
+                demo,
+                "demo_check",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+        ):
+            demo._phase_case_closure(
+                finder_client=self._client(),
+                vendor_client=self._client(),
+                vendor=self._actor("urn:test:vendor"),
+                vendor_in_vendor=vendor_in_vendor,
+                finder=self._actor("urn:test:finder"),
+                finder_in_finder=finder_in_finder,
+                case=case,
+            )
+
+        assert closed_by == [finder_in_finder.id_, vendor_in_vendor.id_]
+
 
 class TestFvCausalGates:
     """Verify that causal demo_gate sites skip dependent steps on timeout.

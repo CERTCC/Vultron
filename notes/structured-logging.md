@@ -291,21 +291,6 @@ grep -rn "logger\.info.*DataLayer stored\|logger\.info.*DataLayer saved\|logger\
 
 If any hits remain, they are regressions.
 
-### `discover_actors()` — trim to ID only
-
-```python
-# Before
-logger.info(f"Found finder actor: {logfmt(finder)}")
-# After
-logger.info("Found finder actor: %s", finder.get("id", "<unknown>"))
-```
-
-Full `logfmt()` actor object output belongs at DEBUG; only the actor ID is
-meaningful at INFO. The "after" form is also the SL-01-005 shape: a literal
-template with the value as a lazy argument.
-
----
-
 ## Relationship to SL specs
 
 | Spec | Rule |

@@ -217,6 +217,37 @@ groups:
       spec_id: IE-06-002
     - rel_type: depends_on
       spec_id: BT-11-004
+  - id: IE-06-004
+    priority: MUST
+    kind: project
+    statement: >-
+      The inbox background handler (`vultron/adapters/driving/fastapi/inbox_handler.py`)
+      MUST catch an exception raised while processing an inbox item and log it at ERROR
+      with the item's `activity_id` and `actor_id`. It MUST drop an item that raised
+      `VultronProtocolViolationError` as a permanent failure. It MUST re-queue an item
+      that raised any other exception at most a bounded, configurable number of
+      attempts, and MUST then move it to a dead-letter store, using the same persisted
+      retry and dead-letter mechanism as outbox delivery.
+    rationale: >-
+      The dispatcher lets handler exceptions propagate (DR-03-002), so this boundary
+      gives a failure its meaning. A protocol violation fails the same way every time,
+      so it is dropped. Any other exception may be transient, but may equally be a
+      deterministic bug, and an unbounded re-queue loops on it forever. One persisted
+      mechanism shared with the outbox (OX-13) keeps attempt counts across restarts.
+      #4168 owns it.
+    verification: >-
+      A test that an inbox item whose handler raises a non-protocol-violation
+      exception is re-queued until the configured attempt limit and then appears in
+      the dead-letter store with its last error, that the attempt count survives a
+      restart of the store, and that an item raising `VultronProtocolViolationError`
+      is dropped on the first attempt; each failure is logged at ERROR with
+      `activity_id` and `actor_id`. Not yet written; owned by #4168.
+    tracking_issue: '#4168'
+    relationships:
+    - rel_type: depends_on
+      spec_id: DR-03-002
+    - rel_type: refines
+      spec_id: IE-06-001
 - id: IE-07
   title: Error Responses
   specs:
