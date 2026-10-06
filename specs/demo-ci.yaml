@@ -1396,7 +1396,11 @@ groups:
           manifest MUST record `demoName`, `caseId`, `ledgerFileCount`,
           `targetCount`, an optional top-level `reason`, and one `actors[]` entry
           per dump target carrying `actorName`, `routeKey`, `captured`,
-          `entryCount`, `ledgerFile`, and `reason`.
+          `entryCount`, `ledgerFile`, and `reason`. It MUST also record an
+          `unreplicatedActors[]` list (empty when none), one `{actorName,
+          routeKey}` entry per actor that acted in the case but holds no ledger
+          replica to dump, so the invariant harness can resolve that actor's
+          entries to a name (DEMOMA-22-005).
         rationale: >-
           The `upload-artifact` step and the `invariant-harness` job's download
           both need the artifact to exist. An always-present manifest makes the
