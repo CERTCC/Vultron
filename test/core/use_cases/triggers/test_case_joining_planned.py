@@ -258,13 +258,6 @@ def _case_with_invitee_record(
     return case, record
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "CM-11-006: sending a stub Invite creates the invitee's inert"
-        " participant at RM RECEIVED. Tracked by #4048."
-    ),
-)
 @pytest.mark.spec("CM-11-006")
 def test_stub_invite_creates_inert_invitee_participant(actor_store) -> None:
     """The CASE_MANAGER records the invitee the moment it invites it.
@@ -787,14 +780,6 @@ def test_stub_invite_is_addressed_to_the_inert_invitee(actor_store) -> None:
     assert invitee.id_ in recipients
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "PRM-06-001: the participant's birth — one status at RM RECEIVED —"
-        " is the only write about it the CASE_MANAGER makes. "
-        "Tracked by #4048."
-    ),
-)
 @pytest.mark.spec("PRM-06-001")
 def test_stub_invite_writes_only_the_invitee_birth_status(
     actor_store,

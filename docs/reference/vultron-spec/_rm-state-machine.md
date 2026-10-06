@@ -86,12 +86,12 @@ Three consequences are worth stating, because each is a plausible assumption tha
 Each participant tracks its own RM state independently; a participant is the
 authority on its own RM state ([§5.4.1 Single-Writer Authority](layers.md#541-single-writer-authority)).
 
-Received is the entry state for a participant joining a case, reached by
-several paths:
+Received is the entry state for a participant joining a case, reached by several paths:
 
-- **Invited participant** — on `Accept(Invite)`. This records willingness to
-  join and, where an embargo is active, consent to it. It does **not** constitute
-  validation of the report: the invitee has seen only a case stub at that point.
+- **Invited participant** — the CASE_MANAGER creates an inert participant record at RM Received when it sends the stub `Invite` ([CM-11-006](../../reference/vultron-spec/../specs/protocol.md#cm-11-006)).
+  `Accept(Invite)` activates the inert record, recording willingness to join and, where an embargo is active, consent to it.
+  `Reject(Invite)` closes the record (RM Received → Closed) and retains it as history ([CM-11-007](../../reference/vultron-spec/../specs/protocol.md#cm-11-007)).
+  Neither transition constitutes validation of the report: the invitee has seen only a case stub at that point.
 - **Direct report recipient** — on receiving a report.
 - **Case proposal recipient** — on receiving a `CaseProposal`.
 
