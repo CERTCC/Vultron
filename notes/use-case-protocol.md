@@ -13,6 +13,7 @@ description: >
 related_specs:
   - specs/use-case-organization.yaml
   - specs/handler-protocol.yaml
+  - specs/case-ledger-processing.yaml
   - specs/inbox-orchestration.yaml
   - specs/triggerable-behaviors.yaml
 related_notes:
