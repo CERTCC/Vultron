@@ -40,6 +40,7 @@ os.environ.setdefault("VULTRON_DATABASE__DB_URL", "sqlite:///:memory:")
 import py_trees
 import pytest
 
+from test.support.xdist_workers import worker_count
 from vultron.adapters.driven.datalayer_sqlite import (
     reset_datalayer,
 )
@@ -86,6 +87,20 @@ def pytest_configure(config):
         "markers",
         "spec(spec_id): mark test as verifying a specific spec requirement ID",
     )
+
+
+@pytest.hookimpl(tryfirst=True, optionalhook=True)
+def pytest_xdist_auto_num_workers(config: pytest.Config) -> int | None:
+    """Size ``-n auto`` to the container's cgroup limits (``worker_count``).
+
+    ``PYTEST_XDIST_AUTO_NUM_WORKERS`` still wins: returning ``None`` hands the
+    decision back to xdist, which reads it.  ``-n logical`` is left to xdist.
+    """
+    if os.environ.get("PYTEST_XDIST_AUTO_NUM_WORKERS"):
+        return None
+    if config.option.numprocesses == "logical":
+        return None
+    return worker_count()
 
 
 def apply_integration_timeout(items):

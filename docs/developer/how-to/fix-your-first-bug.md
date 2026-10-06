@@ -187,7 +187,7 @@ a real app with test data; trigger a workflow; verify the result.
 **Run the test**:
 
 ```bash
-uv run pytest -m "" --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
+uv run pytest -m "" -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
 ```
 
 The `-m ""` flag includes integration tests (CI runs both).
@@ -249,14 +249,14 @@ If any checks fail, fix them and reformat.
 Run the **default unit test command**:
 
 ```bash
-uv run pytest --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
+uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
 ```
 
 If you touched any files under `vultron/demo/` or `test/demo/`, run the
 full suite including integration tests:
 
 ```bash
-uv run pytest -m "" --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
+uv run pytest -m "" -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
 ```
 
 Read the tail output. All tests should pass.
@@ -305,7 +305,7 @@ multi-layer scenario.
 **Solution**: Run the full suite locally before pushing:
 
 ```bash
-uv run pytest -m "" --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
+uv run pytest -m "" -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
 ```
 
 If tests still pass locally, check for timing or environment differences
