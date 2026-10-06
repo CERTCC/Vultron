@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-03-19
+created: 2026-03-19
+updated: 2026-03-19
+revision: 1
 deciders: ahouseholder
 consulted: notes/domain-model-separation.md, notes/architecture-adapters.md, vultron/core/ports/AGENTS.md
 informed: plan/IMPLEMENTATION_PLAN.md

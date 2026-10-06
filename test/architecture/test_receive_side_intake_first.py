@@ -193,10 +193,9 @@ def _composes_through_shared_factory(
 #: entry in the commit that moves the factory (ARCH-18-002).
 #: ADR-0111 detail 7 named the two that composed the CASE_MANAGER gate
 #: directly; those moved with #3870.  The rest were found by this ratchet and
-#: move with the handler migration that owns their area (#3871–#3874), or
-#: with #3935 for the sync and dead-letter trees.  Intake archives only the
-#: activity (ADR-0111 as amended), so the ``CaseLedgerEntry`` the sync trees
-#: carry stays the chain check's business.
+#: move with the handler migration that owns their area (#3871–#3874).
+#: ``create_commit_log_entry_tree`` is not in the set: it is the subtree the
+#: commit node runs, not a tree a received handler calls (#3935).
 KNOWN_FACTORIES_BYPASSING_INTAKE: frozenset[str] = frozenset(
     {
         # case
@@ -211,11 +210,6 @@ KNOWN_FACTORIES_BYPASSING_INTAKE: frozenset[str] = frozenset(
         "create_report_received_tree",
         # note
         "create_note_tree",
-        # sync — #3935
-        "create_announce_log_entry_tree",
-        "create_reject_log_entry_tree",
-        # dead_letter
-        "create_store_dead_letter_tree",
         # embargo — a CM-10-006 follow-on, not a receive-activity tree: it is
         # given no activity and runs after the EMB-17 honored late Accept, a
         # tree-less path in AcceptInviteToEmbargoOnCaseReceivedUseCase whose

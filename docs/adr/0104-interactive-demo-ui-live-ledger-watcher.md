@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-09-24
+created: 2026-09-24
+updated: 2026-09-24
+revision: 1
 deciders: Allen D. Householder
 consulted: Greg Strom
 informed: CERT/CC Vultron protocol team

@@ -220,8 +220,8 @@ from the existing CASE_OWNER transfer:
 | `OFFER_CASE_OWNERSHIP_TRANSFER` (existing) | Transfers CASE_OWNER role from one actor to another | The offering actor loses CASE_OWNER |
 | `OFFER_CASE_PARTICIPANT_ROLE` (ADR-0039) | Delegates a CVDRole to a target Actor within a VulnerabilityCase | The offering actor (Vendor) retains CASE_OWNER permanently |
 
-**Note**: `OFFER_CASE_MANAGER_ROLE` was removed in issue #2429 (ADR-0039,
-SE-08-005). The canonical replacement is `OFFER_CASE_PARTICIPANT_ROLE` —
+**Note**: `OFFER_CASE_MANAGER_ROLE` was removed in issue #2429 (ADR-0039;
+the retired SE-08-005 recorded it). The canonical replacement is `OFFER_CASE_PARTICIPANT_ROLE` —
 `Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)` — handled
 by `OfferCaseParticipantRoleReceivedUseCase` and the
 `offer_case_participant_role_received_tree`.

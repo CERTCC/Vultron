@@ -57,7 +57,7 @@ state whenever the target happens to equal the current state.
 
 ## Assertion Authority and On-Behalf Exceptions (PRM-06)
 
-Participant status is self-declaratory by default (PRM-06-001, ADR-0084). Two
+Participant status is self-declaratory by default (PRM-06-001, ADR-0121). Two
 narrow on-behalf exceptions exist:
 
 - **v→V** (`CS_vf.Vf`): a Case Manager or Case Owner MAY assert vendor awareness
@@ -72,7 +72,7 @@ narrow on-behalf exceptions exist:
 
 The two on-behalf exceptions target an **existing** participant only. An
 on-behalf assertion for an actor that is not a participant is refused before
-any write and never creates one (PRM-06-006, ADR-0084): a status update is
+any write and never creates one (PRM-06-006, ADR-0121): a status update is
 never a way into a case — joining is the Invite flow
 ([case-joining.md](case-joining.md), ADR-0114).
 `CheckOnBehalfTargetIsParticipantNode` enforces this as the second guard of the

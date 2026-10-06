@@ -1,6 +1,9 @@
 ---
 status: proposed
 date: 2026-06-16
+created: 2026-06-16
+updated: 2026-06-16
+revision: 1
 deciders:
   - vultron maintainers
 consulted:

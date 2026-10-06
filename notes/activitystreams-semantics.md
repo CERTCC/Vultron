@@ -219,7 +219,7 @@ responses are addressed to the original sender, and the work triggered by the
 response is the responsibility of the party that initiated the flow (the
 CASE_MANAGER). After a stub `Accept`, the CASE_MANAGER also sends a second,
 full-case `Invite(Actor, VulnerabilityCase)`, whose reply is the participant's
-judgement of the case (ADR-0070, CM-11-010/011); see
+judgement of the case (ADR-0121, CM-11-010/011); see
 [case-joining.md](case-joining.md).
 
 The same pattern applies to embargo Invite/Accept/Reject flows:

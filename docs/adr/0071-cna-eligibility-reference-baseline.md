@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-08-24
+created: 2026-08-24
+updated: 2026-08-24
+revision: 1
 deciders: Allen D. Householder
 consulted: plan-issue workflow (CONCERN-2108)
 informed: Vultron contributors

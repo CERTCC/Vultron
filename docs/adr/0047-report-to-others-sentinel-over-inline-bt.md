@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-07-30
+created: 2026-07-30
+updated: 2026-07-30
+revision: 1
 deciders: [adh]
 stakeholder_type: [project-contributor]
 ---

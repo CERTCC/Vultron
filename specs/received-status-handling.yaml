@@ -1075,7 +1075,7 @@ groups:
       emits the RSH-06-004 note, matching the `Add(ParticipantStatus)` behaviour.
     adr:
     - ADR-0108
-    - ADR-0070
+    - ADR-0121
 - id: RSH-07
   title: Conservative Default Authorization Policy for Status Gates
   description: >
@@ -1214,7 +1214,7 @@ groups:
       CM-16-006): its subject is the invitee.
     rationale: >
       A received activity is an assertion about the sender's state (HP-00-001)
-      and participant status is self-declaratory (ADR-0084). BT-17-006 chooses
+      and participant status is self-declaratory (ADR-0121). BT-17-006 chooses
       the store a received-side tree runs in; it says nothing about whose state
       the tree writes, and its own sender-ID clause presumes the two differ.
       Conflating them is the store-versus-subject error ADR-0089 named as bug

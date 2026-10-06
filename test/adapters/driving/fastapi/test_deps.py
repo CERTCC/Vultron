@@ -31,7 +31,7 @@ a short id or path segment:
 - The resolved store can read the outbox entries the same actor wrote
   (BUG-2026040901 regression).
 
-ARCH-13-004 is no longer covered here: it required the ``actor_id`` passed to
+The old actor-id match rule is no longer covered here: it required the ``actor_id`` passed to
 ``record_outbox_item`` to match the one the reading DataLayer was constructed
 with, and both that method and the mismatch it guarded against are gone
 (ADR-0073). ARCH-13-003's own wording still names ``ActorScopedDataLayer`` and

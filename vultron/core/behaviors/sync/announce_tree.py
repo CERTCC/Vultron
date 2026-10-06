@@ -9,6 +9,9 @@ from vultron.core.behaviors.case.nodes.close_case_effect import (
     ApplyCloseCaseFromLedgerNode,
 )
 from vultron.core.behaviors.case.nodes.conditions import CheckIsCaseManagerNode
+from vultron.core.behaviors.case.receive_activity_tree import (
+    create_receive_activity_tree,
+)
 from vultron.core.behaviors.embargo.nodes import (
     ApplyEmbargoAbandonmentFromLedgerNode,
     ApplyEmbargoAcceptanceFromLedgerNode,
@@ -313,8 +316,18 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
             entry_processing,
         ],
     )
-    return py_trees.composites.Selector(
+    # The replication envelope is never itself a canonical entry (CLP-10-004),
+    # so there is no commit stage (``case_id=None``); intake archives the
+    # received Announce only and leaves the inlined entry to the chain check.
+    return create_receive_activity_tree(
         name="AnnounceLogEntryReceivedBT",
-        memory=False,
-        children=[case_actor_subtree, participant_subtree],
+        case_id=None,
+        precondition_guards=[],
+        effect_nodes=[
+            py_trees.composites.Selector(
+                name="AnnounceLogEntryRoles",
+                memory=False,
+                children=[case_actor_subtree, participant_subtree],
+            )
+        ],
     )

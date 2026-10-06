@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-08-11
+created: 2026-08-11
+updated: 2026-08-11
+revision: 1
 deciders: Vultron maintainers
 consulted: CONCERN-2181, Epic #2136 bug triage history
 informed: Vultron contributors, demo scenario authors
