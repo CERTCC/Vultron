@@ -575,9 +575,9 @@ groups:
       `test/architecture/test_no_broad_except_outside_bt_update.py`: an AST scan
       that fails on any `except Exception` outside a node's `update()` method.
       Genuine framework boundaries are recorded in that test's
-      `_DECLARED_EXCLUSIONS` allow-list, one reason per entry, and the list can
-      only shrink. When it is genuinely unclear whether a broad catch is
-      load-bearing, apply the instrument-and-count method from #3217 (log the
+      `_DECLARED_EXCLUSIONS` allow-list, one reason per entry, held as an exact
+      pinned exemption set (ARCH-18-005). When it is genuinely unclear whether a
+      broad catch is load-bearing, apply the instrument-and-count method from #3217 (log the
       class, keys, and error reaching the handler; run the full suite; group by
       cause) before deciding to narrow, delete, or justify it.
     relationships:
