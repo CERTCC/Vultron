@@ -84,7 +84,10 @@ class VultronReportCaseLink(RetiredFieldsRecord):
         description=(
             "URI of the actor that the reporter sent the original report offer "
             "to.  Set at submission time; validated against the bootstrap "
-            "Create(VulnerabilityCase) sender (CBT-01-005, CBT-01-006)."
+            "Create(VulnerabilityCase) sender (CBT-01-005, CBT-01-006).  On a "
+            "vendor it is the actor the CaseProposal was addressed to; an "
+            "Accept or Reject of the proposal is acted on only from that "
+            "actor (CP-06-005)."
         ),
     )
     case_manager_id: UriString | None = Field(

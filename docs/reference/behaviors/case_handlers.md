@@ -22,7 +22,8 @@ The behavioral requirements for these trees are specified in the
 
 ## Accept Case Proposal Tree
 
-Handles acceptance of an incoming case proposal. Constructed from
+Handles acceptance of an incoming case proposal, acted on only when the sender is the actor the proposal was addressed to.
+Constructed from
 `vultron.core.behaviors.case.accept_case_proposal_received_tree.create_accept_case_proposal_received_tree`.
 
 ```python exec="true" idprefix=""
@@ -48,7 +49,8 @@ print("```")
 
 ## Reject Case Proposal Tree
 
-Handles rejection of an incoming case proposal. Constructed from
+Handles rejection of an incoming case proposal, acted on only when the sender is the actor the proposal was addressed to.
+Constructed from
 `vultron.core.behaviors.case.reject_case_proposal_received_tree.create_reject_case_proposal_received_tree`.
 
 ```python exec="true" idprefix=""
@@ -63,7 +65,10 @@ from vultron.core.behaviors.case.reject_case_proposal_received_tree import (
     create_reject_case_proposal_received_tree,
 )
 
-tree = create_reject_case_proposal_received_tree(report_id="urn:uuid:report-1")
+tree = create_reject_case_proposal_received_tree(
+    report_id="urn:uuid:report-1",
+    sender_actor_id="urn:uuid:actor-1",
+)
 print("```")
 print(py_trees.display.unicode_tree(tree))
 print("```")
