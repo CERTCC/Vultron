@@ -182,7 +182,7 @@ def make_universal_invariant_tests(  # noqa: C901  # C901 counts every nested te
     def test_invariant_9_participant_status_schema_completeness(
         request: pytest.FixtureRequest,
     ) -> None:
-        """Every ParticipantStatus snapshot includes emConsentState and cvdRole list."""
+        """Every ParticipantStatus snapshot includes a cvdRole list."""
         replicas = request.getfixturevalue(replicas_fixture)
         violations = check_participant_status_schema_completeness(replicas)
         assert not violations, (

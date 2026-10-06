@@ -22,7 +22,6 @@ from vultron.core.models.case_stub import CaseStubReference
 from vultron.core.models.dimensions import (
     DDimension,
     EmDimension,
-    PecDimension,
     PxaDimension,
     RmDimension,
     VfDimension,
@@ -41,7 +40,6 @@ from vultron.core.states.rm import RM
 from vultron.wire.as2.enums import as_ObjectType as AOtype
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.object_types import as_Event
-from vultron.wire.as2.vocab.objects.base import _coerce_pec_or_none
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCaseStub,
 )
@@ -593,8 +591,6 @@ def _build_participant_status_object(obj: object) -> dict[str, Any]:
                     published=_get_timestamp(wire_case_status, "published"),
                     updated=_get_timestamp(wire_case_status, "updated"),
                 )
-        raw_pec = getattr(obj, "em_consent_state", None)
-        pec_val = _coerce_pec_or_none(raw_pec)
         return {
             "object_": ParticipantStatus(
                 id_=object_id,
@@ -614,11 +610,6 @@ def _build_participant_status_object(obj: object) -> dict[str, Any]:
                     DDimension(state=_d)
                     if (_d := _coerce_d(getattr(obj, "d_state", None)))
                     is not None
-                    else None
-                ),
-                consent=(
-                    PecDimension(state=pec_val)
-                    if pec_val is not None
                     else None
                 ),
                 cvd_role=coerce_cvd_roles(

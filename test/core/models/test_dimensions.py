@@ -5,13 +5,11 @@ import pytest
 
 from vultron.core.models.dimensions import (
     EmDimension,
-    PecDimension,
     PxaDimension,
     RmDimension,
 )
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM, EM_Trigger
-from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 from vultron.core.states.rm import RM, RM_Trigger
 from vultron.errors import VultronInvalidStateTransitionError
 
@@ -136,56 +134,3 @@ class TestRmDimension:
         d = RmDimension(state=RM.ACCEPTED)
         d2 = RmDimension.model_validate_json(d.model_dump_json())
         assert d2.state == RM.ACCEPTED
-
-
-class TestPecDimension:
-    def test_default_state(self):
-        d = PecDimension()
-        assert d.state == PEC.UNBOUND
-
-    def test_construct_from_enum(self):
-        d = PecDimension(state=PEC.SIGNATORY)
-        assert d.state == PEC.SIGNATORY
-
-    def test_construct_from_string(self):
-        d = PecDimension.model_validate({"state": "INVITED"})
-        assert d.state == PEC.INVITED
-
-    def test_transition_returns_new_object(self):
-        d = PecDimension(state=PEC.UNBOUND)
-        d2 = d.transition(PEC_Trigger.INVITE)
-        assert d2 is not d
-        assert d.state == PEC.UNBOUND
-        assert d2.state == PEC.INVITED
-
-    def test_transition_invalid_raises(self):
-        # CM-18-004: SIGNATORY → INVITED is still invalid (ADR-0048)
-        d = PecDimension(state=PEC.SIGNATORY)
-        with pytest.raises(VultronInvalidStateTransitionError):
-            d.transition(PEC_Trigger.INVITE)
-
-    def test_is_signatory(self):
-        assert PecDimension(state=PEC.SIGNATORY).is_signatory()
-        assert not PecDimension(state=PEC.INVITED).is_signatory()
-
-    def test_is_declined(self):
-        assert PecDimension(state=PEC.DECLINED).is_declined()
-        assert not PecDimension(state=PEC.SIGNATORY).is_declined()
-
-    def test_is_invited(self):
-        assert PecDimension(state=PEC.INVITED).is_invited()
-        assert not PecDimension(state=PEC.SIGNATORY).is_invited()
-
-    def test_is_lapsed(self):
-        assert PecDimension(state=PEC.LAPSED).is_lapsed()
-        assert not PecDimension(state=PEC.SIGNATORY).is_lapsed()
-
-    def test_serialization_roundtrip(self):
-        d = PecDimension(state=PEC.SIGNATORY)
-        d2 = PecDimension.model_validate_json(d.model_dump_json())
-        assert d2.state == PEC.SIGNATORY
-
-    def test_no_embargo_legacy_string_coerces_to_unbound(self):
-        """ADR-0091 renamed NO_EMBARGO → UNBOUND; PecDimension must coerce stored legacy values (issue #3376)."""
-        d = PecDimension.model_validate({"state": "NO_EMBARGO"})
-        assert d.state == PEC.UNBOUND

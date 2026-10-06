@@ -243,6 +243,65 @@ def test_retired_name_on_inline_object_is_refused(retired: str) -> None:
     assert retired in str(exc_info.value)
 
 
+CONSENT_RETIRED_KEYS = [
+    ("emConsentState", "SIGNATORY"),
+    ("em_consent_state", "SIGNATORY"),
+    ("embargoAdherence", True),
+    ("embargo_adherence", True),
+    ("embargoConsentState", "SIGNATORY"),
+    ("embargo_consent_state", "SIGNATORY"),
+    ("acceptedEmbargoIds", ["https://example.org/embargoes/1"]),
+    ("accepted_embargo_ids", ["https://example.org/embargoes/1"]),
+]
+
+
+def _inline_participant_status(**extra: Any) -> dict[str, Any]:
+    return {
+        "type": "ParticipantStatus",
+        "id": "https://example.org/status/1",
+        "actor": SENDER,
+        "context": "https://example.org/cases/1",
+        "cvd_role": "VENDOR",
+        **extra,
+    }
+
+
+def _inline_case_participant(**extra: Any) -> dict[str, Any]:
+    return {
+        "type": "CaseParticipant",
+        "id": "https://example.org/participants/1",
+        "attributedTo": SENDER,
+        "context": "https://example.org/cases/1",
+        **extra,
+    }
+
+
+@pytest.mark.spec("MV-11-002")
+@pytest.mark.parametrize("retired,value", CONSENT_RETIRED_KEYS)
+@pytest.mark.parametrize(
+    "build",
+    [_inline_participant_status, _inline_case_participant],
+    ids=["ParticipantStatus", "CaseParticipant"],
+)
+def test_retired_scalar_consent_name_is_refused_with_adr_0120_message(
+    build: Callable[..., dict[str, Any]], retired: str, value: Any
+) -> None:
+    """The scalar consent names are retired by ADR-0122 (#4178).
+
+    Consent is per embargo and travels as ``embargoConsents`` rows; a sender
+    still using the scalar spelling (on a status or on a participant) has the
+    whole activity refused at the parse edge, naming the key and the ADR-0122
+    replacement, instead of being set aside and read as "never asked".
+    """
+    body = _with_inline_object(build(**{retired: value}))
+    with pytest.raises(VultronParseValidationError) as exc_info:
+        parse_activity(body)
+    message = str(exc_info.value)
+    assert retired in message
+    assert "ADR-0122" in message
+    assert "embargoConsents" in message
+
+
 @pytest.mark.spec("MV-11-002")
 def test_no_similarity_helper_in_the_parse_edge() -> None:
     """The near-miss test is normalisation plus a list; nothing fuzzier (MV-11-002).

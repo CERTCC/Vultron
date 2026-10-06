@@ -42,11 +42,14 @@ from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.core.use_cases.triggers.embargo import (
     SvcAcceptEmbargoUseCase,
     SvcProposeEmbargoRevisionUseCase,
@@ -109,7 +112,14 @@ class _Network:
             )
             manager_dl.save(
                 participant.model_copy(
-                    update={"embargo_consent_state": PEC.SIGNATORY}
+                    update={
+                        "embargo_consents": [
+                            EmbargoConsent(
+                                embargo_id=embargo.id_,
+                                state=EmbargoConsentState.ACCEPTED,
+                            )
+                        ]
+                    }
                 )
             )
         self.initial_embargo_id = embargo.id_
@@ -317,7 +327,7 @@ def test_a_participants_rejection_is_fanned_out_and_replayed():
     case = net.case(OWNER)
     bystander = replica.read(case.actor_participant_index[BYSTANDER])
     assert isinstance(bystander, CaseParticipant)
-    assert revision_id not in bystander.accepted_embargo_ids
+    assert bystander.consent_for(revision_id) != EmbargoConsentState.ACCEPTED
     assert case.current_status.em.state == EM.REVISE
     assert case.proposed_embargo_ids == [revision_id]
 
@@ -356,14 +366,27 @@ def _set_pxa(net: _Network, actor_id: str) -> None:
     net.stores[actor_id].save(case)
 
 
-def _consent_states(net: _Network, actor_id: str) -> dict[str, PEC]:
-    """Every participant's consent state as *actor_id*'s store holds it."""
+def _participant(net: _Network, store_of: str, member: str) -> CaseParticipant:
+    """*member*'s participant record as *store_of*'s store holds it."""
+    participant = net.stores[store_of].read(
+        net.case(store_of).actor_participant_index[member]
+    )
+    assert isinstance(participant, CaseParticipant)
+    return participant
+
+
+def _consent_states(
+    net: _Network, actor_id: str
+) -> dict[str, dict[str, EmbargoConsentState]]:
+    """Every participant's consent rows as *actor_id*'s store holds them."""
     case = net.case(actor_id)
-    states: dict[str, PEC] = {}
+    states: dict[str, dict[str, EmbargoConsentState]] = {}
     for member, participant_id in case.actor_participant_index.items():
         participant = net.stores[actor_id].read(participant_id)
         assert isinstance(participant, CaseParticipant)
-        states[member] = participant.embargo_consent_state
+        states[member] = {
+            row.embargo_id: row.state for row in participant.embargo_consents
+        }
     return states
 
 
@@ -727,7 +750,7 @@ def test_a_lapsed_bystander_gets_its_invite_but_no_ledger_entry():
 
     The managing owner activates a revision longer than the terms the
     bystander signed, before the bystander answers its Invite, so the
-    bystander lapses (ADR-0093).  The content gate then withholds every
+    bystander lapses (derived, ADR-0093, ADR-0122).  The content gate then withholds every
     ``Announce(CaseLedgerEntry)`` from it (CM-10-005), while its relayed
     Invite, which is embargo meta-protocol traffic, still reaches it
     directly.  Once it accepts, the paused stream is backfilled in log order
@@ -744,7 +767,9 @@ def test_a_lapsed_bystander_gets_its_invite_but_no_ledger_entry():
         **_manager_ports(net),
     ).execute()
 
-    assert _consent_states(net, MANAGER)[BYSTANDER] is PEC.LAPSED
+    bystander = _participant(net, MANAGER, BYSTANDER)
+    assert bystander.has_lapsed(revision_id)
+    assert not bystander.is_signatory(revision_id)
     assert net.deliver(MANAGER, to=BYSTANDER, type_="Announce") == []
     assert net.case(BYSTANDER).current_status.em.state == EM.REVISE
     (invite,) = net.queued(MANAGER, to=BYSTANDER, type_="Invite")
@@ -758,7 +783,7 @@ def test_a_lapsed_bystander_gets_its_invite_but_no_ledger_entry():
             type_,
             verdict.reason,
         )
-    assert _consent_states(net, MANAGER)[BYSTANDER] is PEC.SIGNATORY
+    assert _participant(net, MANAGER, BYSTANDER).is_signatory(revision_id)
     _replay_to_bystander(net)
 
     replica = net.case(BYSTANDER)
@@ -868,19 +893,16 @@ def test_a_replica_follows_the_managing_owners_termination_by_trigger():
 @pytest.mark.spec("MSM-07-006")
 @pytest.mark.spec("EMB-17-004")
 @pytest.mark.spec("TB-06-007")
-def test_termination_exits_every_participant_in_every_store():
-    """Every record reads UNBOUND_EXITED on the manager and on a replica.
+def test_termination_leaves_nobody_a_signatory_in_every_store():
+    """Termination writes no consent, yet no record is bound afterwards.
 
-    Termination ends the embargo for everyone, the owner included, so no
-    record is left able to sign it (ADR-0118).  UNBOUND_EXITED is terminal:
-    every record, in both stores, refuses a later ``INVITE`` trigger.
+    With no embargo in force nobody is a signatory or lapsed, on the manager
+    and on a replica alike (ADR-0122); the rows are as they were.
     """
-    from vultron.core.states.participant_embargo_consent import PEC_Trigger
-    from vultron.errors import VultronInvalidStateTransitionError
-
     net = _managing_owner_network(
         "https://example.org/cases/manager-owner-terminate-pec"
     )
+    rows_before = _consent_states(net, MANAGER)
     SvcTerminateEmbargoUseCase(
         net.stores[MANAGER],
         TerminateEmbargoTriggerRequest(actor_id=MANAGER, case_id=net.case_id),
@@ -891,15 +913,9 @@ def test_termination_exits_every_participant_in_every_store():
     for actor_id in (MANAGER, BYSTANDER):
         states = _consent_states(net, actor_id)
         assert set(states) == {MANAGER, PROPOSER, BYSTANDER}, actor_id
-        assert set(states.values()) == {PEC.UNBOUND_EXITED}, (
-            actor_id,
-            states,
-        )
-        for participant_id in net.case(
-            actor_id
-        ).actor_participant_index.values():
-            participant = net.stores[actor_id].read(participant_id)
-            assert isinstance(participant, CaseParticipant)
-            assert participant.accepts_pec_trigger(PEC_Trigger.INVITE) is False
-            with pytest.raises(VultronInvalidStateTransitionError):
-                participant.apply_pec_transition(PEC_Trigger.INVITE)
+        assert states == rows_before, actor_id
+        assert net.case(actor_id).active_embargo_id is None, actor_id
+        for member in states:
+            participant = _participant(net, actor_id, member)
+            assert not participant.is_signatory(None), (actor_id, member)
+            assert not participant.has_lapsed(None), (actor_id, member)

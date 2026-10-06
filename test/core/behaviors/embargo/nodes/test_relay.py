@@ -16,7 +16,7 @@
 """Relay nodes for an adjudicated embargo proposal (``nodes/relay.py``).
 
 The CASE_MANAGER relays a proposal to every participant except the proposer,
-committing each emission and applying the invitee's PEC ``INVITE`` where
+committing each emission and applying the invitee's consent ``INVITE`` where
 CM-18-003 allows it (EP-09-002, EP-09-004, ADR-0113).  These tests pin the
 leaves: the read-only EM guard, the recipient roster, and the per-recipient
 factory → commit → outbox → consent chain — including that a failure anywhere
@@ -48,8 +48,11 @@ from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
@@ -62,14 +65,30 @@ MANAGER = "https://example.org/actors/relay-manager"
 PROPOSER = "https://example.org/actors/relay-proposer"
 OTHER_A = "https://example.org/actors/relay-a"
 OTHER_B = "https://example.org/actors/relay-b"
+ACTIVE_ID = f"{CASE_ID}/embargo_events/active"
 
 
-def _participant(actor_id: str, pec: PEC = PEC.UNBOUND) -> CaseParticipant:
+def _participant(
+    actor_id: str,
+    consent: EmbargoConsentState | None = None,
+    *,
+    signatory: bool = False,
+) -> CaseParticipant:
+    """A roster record: a row for the relayed embargo (*consent*, ``None`` for
+    no row) and, for a *signatory*, an ACCEPTED row for the embargo in force."""
+    rows = [
+        EmbargoConsent(embargo_id=embargo_id, state=state)
+        for embargo_id, state in (
+            (EMBARGO_ID, consent),
+            (ACTIVE_ID, EmbargoConsentState.ACCEPTED if signatory else None),
+        )
+        if state is not None
+    ]
     return CaseParticipant(
         id_=f"{CASE_ID}/participants/{actor_id.rsplit('/', 1)[-1]}",
         attributed_to=actor_id,
         context=CASE_ID,
-        embargo_consent_state=pec,
+        embargo_consents=rows,
         case_roles=(
             [CVDRole.CASE_MANAGER] if actor_id == MANAGER else [CVDRole.VENDOR]
         ),
@@ -80,12 +99,24 @@ def _seed_case(
     scenario: BTTestScenario,
     *,
     em_state: EM = EM.ACTIVE,
-    participants: dict[str, PEC] | None = None,
+    participants: dict[str, EmbargoConsentState | None] | None = None,
+    signatories: tuple[str, ...] = (),
 ) -> VulnerabilityCase:
-    """A case at *em_state* with the manager, the proposer and *participants*."""
-    roster = {MANAGER: PEC.UNBOUND, PROPOSER: PEC.UNBOUND}
+    """A case at *em_state* with the manager, the proposer and *participants*.
+
+    *participants* maps an actor to its consent row for the relayed embargo
+    (``None`` for no row); *signatories* also hold an ACCEPTED row for the
+    embargo in force, ``ACTIVE_ID``.
+    """
+    roster: dict[str, EmbargoConsentState | None] = {
+        MANAGER: None,
+        PROPOSER: None,
+    }
     roster.update(participants or {})
-    records = [_participant(actor, pec) for actor, pec in roster.items()]
+    records = [
+        _participant(actor, consent, signatory=actor in signatories)
+        for actor, consent in roster.items()
+    ]
     case = VulnerabilityCase(
         id_=CASE_ID,
         name="Relay nodes",
@@ -99,15 +130,23 @@ def _seed_case(
     embargo = as_EmbargoEvent(
         id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now_utc(60)
     )
+    if signatories:
+        active = as_EmbargoEvent(
+            id_=ACTIVE_ID, context=CASE_ID, end_time=days_from_now_utc(30)
+        )
+        case.set_embargo(active.id_)
+        scenario.seed(active)
     scenario.seed(*records, case, embargo)
     return case
 
 
-def _pec(scenario: BTTestScenario, actor_id: str) -> PEC:
+def _consent(
+    scenario: BTTestScenario, actor_id: str, embargo_id: str = EMBARGO_ID
+) -> EmbargoConsentState | None:
     case = cast(VulnerabilityCase, scenario.dl.read(CASE_ID))
     participant = scenario.dl.read(case.actor_participant_index[actor_id])
     assert isinstance(participant, CaseParticipant)
-    return PEC(participant.embargo_consent_state)
+    return participant.consent_for(embargo_id)
 
 
 def _queued_invites(scenario: BTTestScenario) -> list[VultronActivity]:
@@ -181,7 +220,7 @@ class TestCaseManagerAdmitsProposalGuard:
         _seed_case(
             bt_scenario,
             em_state=EM.EXITED,
-            participants={OTHER_A: PEC.UNBOUND},
+            participants={OTHER_A: None},
         )
         result = bt_scenario.run(case_manager_admits_proposal_guard(CASE_ID))
         assert result.status == Status.SUCCESS
@@ -195,7 +234,8 @@ class TestCollectEmbargoInviteRecipientsNode:
     ) -> None:
         _seed_case(
             bt_scenario,
-            participants={OTHER_A: PEC.UNBOUND, OTHER_B: PEC.SIGNATORY},
+            participants={OTHER_A: None, OTHER_B: None},
+            signatories=(OTHER_B,),
         )
         node = CollectEmbargoInviteRecipientsNode(
             case_id=CASE_ID, proposer_id=PROPOSER
@@ -211,7 +251,7 @@ class TestCollectEmbargoInviteRecipientsNode:
     ) -> None:
         """An Invite asks for consent, so inert participants get it (#4046).
 
-        OTHER_A has not joined and OTHER_B is not SIGNATORY — both inert, both
+        OTHER_A has not joined and OTHER_B has not accepted the embargo — both inert, both
         invited.  A participant at RM.CLOSED receives nothing further.
         """
         from vultron.core.models.dimensions import RmDimension
@@ -221,7 +261,10 @@ class TestCollectEmbargoInviteRecipientsNode:
         closed_actor = "https://example.org/actors/relay-closed"
         case = _seed_case(
             bt_scenario,
-            participants={OTHER_A: PEC.UNBOUND, OTHER_B: PEC.INVITED},
+            participants={
+                OTHER_A: None,
+                OTHER_B: EmbargoConsentState.INVITED,
+            },
         )
         unjoined = _participant(OTHER_A).model_copy(update={"joined": False})
         closed = CaseParticipant(
@@ -253,7 +296,7 @@ class TestCollectEmbargoInviteRecipientsNode:
     def test_a_proposal_from_the_manager_itself_invites_everyone_else(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        _seed_case(bt_scenario, participants={OTHER_A: PEC.UNBOUND})
+        _seed_case(bt_scenario, participants={OTHER_A: None})
         node = CollectEmbargoInviteRecipientsNode(
             case_id=CASE_ID, proposer_id=MANAGER
         )
@@ -267,7 +310,7 @@ class TestCollectEmbargoInviteRecipientsNode:
         self, bt_scenario: BTTestScenario
     ) -> None:
         """The routing guard fails closed so the EM write never runs."""
-        _seed_case(bt_scenario, participants={OTHER_A: PEC.UNBOUND})
+        _seed_case(bt_scenario, participants={OTHER_A: None})
         bare = BTBridge(datalayer=bt_scenario.dl)
         result = bare.execute_with_setup(
             tree=CollectEmbargoInviteRecipientsNode(
@@ -311,7 +354,8 @@ class TestRelayEmbargoInviteToEachNode:
         """``endTime`` = ``published`` + the window, recorded as emitted."""
         _seed_case(
             bt_scenario,
-            participants={OTHER_A: PEC.UNBOUND, OTHER_B: PEC.SIGNATORY},
+            participants={OTHER_A: None, OTHER_B: None},
+            signatories=(OTHER_B,),
         )
         result = self._relay(bt_scenario, [OTHER_A, OTHER_B])
         bt_scenario.assert_success(result)
@@ -330,7 +374,7 @@ class TestRelayEmbargoInviteToEachNode:
     def test_the_configured_window_sets_the_deadline(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        _seed_case(bt_scenario, participants={OTHER_A: PEC.UNBOUND})
+        _seed_case(bt_scenario, participants={OTHER_A: None})
         result = self._relay(
             bt_scenario,
             [OTHER_A],
@@ -348,7 +392,7 @@ class TestRelayEmbargoInviteToEachNode:
         self, bt_scenario: BTTestScenario
     ) -> None:
         """A window longer than the embargo is capped at the embargo's end."""
-        _seed_case(bt_scenario, participants={OTHER_A: PEC.UNBOUND})
+        _seed_case(bt_scenario, participants={OTHER_A: None})
         result = self._relay(
             bt_scenario,
             [OTHER_A],
@@ -366,7 +410,7 @@ class TestRelayEmbargoInviteToEachNode:
         self, bt_scenario: BTTestScenario
     ) -> None:
         """A replica records the deadline from the entry, so it must be there."""
-        _seed_case(bt_scenario, participants={OTHER_A: PEC.UNBOUND})
+        _seed_case(bt_scenario, participants={OTHER_A: None})
         result = self._relay(bt_scenario, [OTHER_A])
         bt_scenario.assert_success(result)
         (invite,) = _queued_invites(bt_scenario)
@@ -390,7 +434,7 @@ class TestRelayEmbargoInviteToEachNode:
     ) -> None:
         _seed_case(
             bt_scenario,
-            participants={OTHER_A: PEC.UNBOUND, OTHER_B: PEC.UNBOUND},
+            participants={OTHER_A: None, OTHER_B: None},
         )
         result = self._relay(bt_scenario, [OTHER_A, OTHER_B])
         bt_scenario.assert_success(result)
@@ -408,7 +452,7 @@ class TestRelayEmbargoInviteToEachNode:
     ) -> None:
         _seed_case(
             bt_scenario,
-            participants={OTHER_A: PEC.UNBOUND, OTHER_B: PEC.UNBOUND},
+            participants={OTHER_A: None, OTHER_B: None},
         )
         result = self._relay(bt_scenario, [OTHER_A, OTHER_B])
         bt_scenario.assert_success(result)
@@ -419,33 +463,38 @@ class TestRelayEmbargoInviteToEachNode:
     @pytest.mark.executes_as(MANAGER)
     @pytest.mark.spec("EP-09-004")
     @pytest.mark.spec("CM-18-003")
-    def test_invite_moves_unbound_and_leaves_a_signatory_alone(
+    def test_invite_asks_an_unasked_participant_and_keeps_a_signatorys_acceptance(
         self, bt_scenario: BTTestScenario
     ) -> None:
         _seed_case(
             bt_scenario,
-            participants={
-                OTHER_A: PEC.UNBOUND,
-                OTHER_B: PEC.SIGNATORY,
-            },
+            participants={OTHER_A: None, OTHER_B: None},
+            signatories=(OTHER_B,),
         )
         result = self._relay(bt_scenario, [OTHER_A, OTHER_B])
         bt_scenario.assert_success(result)
-        assert _pec(bt_scenario, OTHER_A) is PEC.INVITED
-        assert _pec(bt_scenario, OTHER_B) is PEC.SIGNATORY
+        assert _consent(bt_scenario, OTHER_A) is EmbargoConsentState.INVITED
+        # A signatory is asked about the revision and keeps its acceptance of
+        # the embargo in force (EP-09-004).
+        assert _consent(bt_scenario, OTHER_B) is EmbargoConsentState.INVITED
+        assert _consent(bt_scenario, OTHER_B, ACTIVE_ID) is (
+            EmbargoConsentState.ACCEPTED
+        )
         # Both were still asked: consent state is not what decides the relay.
         assert len(_queued_invites(bt_scenario)) == 2
 
     @pytest.mark.executes_as(MANAGER)
     @pytest.mark.spec("CM-18-003")
-    @pytest.mark.parametrize("prior", [PEC.LAPSED, PEC.DECLINED])
-    def test_invite_re_invites_lapsed_and_declined(
-        self, bt_scenario: BTTestScenario, prior: PEC
+    @pytest.mark.parametrize(
+        "prior", [EmbargoConsentState.EXPIRED, EmbargoConsentState.DECLINED]
+    )
+    def test_invite_re_invites_expired_and_declined(
+        self, bt_scenario: BTTestScenario, prior: EmbargoConsentState
     ) -> None:
         _seed_case(bt_scenario, participants={OTHER_A: prior})
         result = self._relay(bt_scenario, [OTHER_A])
         bt_scenario.assert_success(result)
-        assert _pec(bt_scenario, OTHER_A) is PEC.INVITED
+        assert _consent(bt_scenario, OTHER_A) is EmbargoConsentState.INVITED
 
     @pytest.mark.executes_as(MANAGER)
     def test_no_recipients_is_a_successful_no_op(
@@ -463,7 +512,7 @@ class TestRelayEmbargoInviteToEachNode:
         self, bt_scenario: BTTestScenario
     ) -> None:
         """Not a refusal: the node catches nothing, so the bridge classifies it."""
-        _seed_case(bt_scenario, participants={OTHER_A: PEC.UNBOUND})
+        _seed_case(bt_scenario, participants={OTHER_A: None})
         factory = MagicMock()
         factory.propose_embargo.side_effect = RuntimeError("factory down")
         result = bt_scenario.run(
@@ -477,7 +526,7 @@ class TestRelayEmbargoInviteToEachNode:
         assert result.internal_error is True
         assert "factory down" in result.feedback_message
         assert bt_scenario.dl.outbox_list() == []
-        assert _pec(bt_scenario, OTHER_A) is PEC.UNBOUND
+        assert _consent(bt_scenario, OTHER_A) is None
 
     @pytest.mark.executes_as(MANAGER)
     @pytest.mark.spec("BT-14-001")
@@ -498,7 +547,7 @@ class TestRelayEmbargoInviteToEachNode:
         self, bt_scenario: BTTestScenario
     ) -> None:
         """The stamp's missing embargo is the manager's fault, never REFUSED."""
-        _seed_case(bt_scenario, participants={OTHER_A: PEC.UNBOUND})
+        _seed_case(bt_scenario, participants={OTHER_A: None})
         missing = f"{CASE_ID}/embargoes/relay-missing"
         result = bt_scenario.run(
             RelayEmbargoInviteToEachNode(
@@ -510,7 +559,7 @@ class TestRelayEmbargoInviteToEachNode:
         assert result.internal_error is True
         assert missing in result.feedback_message
         assert bt_scenario.dl.outbox_list() == []
-        assert _pec(bt_scenario, OTHER_A) is PEC.UNBOUND
+        assert _consent(bt_scenario, OTHER_A) is None
 
 
 class TestEmbargoProposalNotYetRecordedNode:

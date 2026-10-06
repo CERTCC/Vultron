@@ -35,17 +35,14 @@
             "attributedTo": "https://vultron.example/users/finndervul",
             "rmState": "START",
             "caseEngagement": true,
-            "emConsentState": "UNBOUND",
             "cvdRole": [
               "FINDER",
               "REPORTER"
             ],
-            "embargoAdherence": false,
             "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
           }
         ],
-        "acceptedEmbargoIds": [],
-        "embargoConsentState": "UNBOUND",
+        "embargoConsents": [],
         "joined": true,
         "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
       },
@@ -75,12 +72,10 @@
             "cvdRole": [
               "OBSERVER"
             ],
-            "embargoAdherence": false,
             "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
           }
         ],
-        "acceptedEmbargoIds": [],
-        "embargoConsentState": "UNBOUND",
+        "embargoConsents": [],
         "joined": true,
         "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
       }

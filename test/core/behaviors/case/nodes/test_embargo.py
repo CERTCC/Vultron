@@ -55,7 +55,9 @@ from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -218,7 +220,7 @@ class TestInitializeDefaultEmbargoNode:
         actor_id: str,
         case_obj: VulnerabilityCase,
     ) -> None:
-        """Owner participant is seeded as PEC.SIGNATORY (CM-14-003)."""
+        """Owner participant is seeded with an ACCEPTED row for the default embargo (CM-14-003)."""
         # First create an owner participant
         bt_scenario.run(
             CreateCaseOwnerParticipant(),
@@ -239,7 +241,7 @@ class TestInitializeDefaultEmbargoNode:
 
         participant = cast(Any, bt_scenario.dl.read(participant_id))
         assert participant is not None
-        assert participant.embargo_consent_state == PEC.SIGNATORY
+        assert participant.is_signatory(stored_case.active_embargo_id)
 
     def test_a_second_run_creates_no_orphan_embargo_event(
         self,
@@ -554,8 +556,11 @@ class TestCaseManagerInitializesTheOwnersEmbargo:
         assert stored_case.active_embargo is not None
         index = stored_case.actor_participant_index
         owner = cast(Any, scenario.dl.read(index[_OWNER_ID]))
-        assert owner.embargo_consent_state == PEC.SIGNATORY
-        assert stored_case.active_embargo in owner.accepted_embargo_ids
+        assert owner.is_signatory(stored_case.active_embargo_id)
+        assert (
+            owner.consent_for(stored_case.active_embargo_id)
+            == EmbargoConsentState.ACCEPTED
+        )
 
     def test_an_actor_neither_owner_nor_manager_cannot_activate(self) -> None:
         stranger = "https://example.org/actors/stranger"

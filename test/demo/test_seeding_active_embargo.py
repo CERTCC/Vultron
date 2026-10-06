@@ -40,7 +40,7 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import EmbargoConsentState
 from vultron.demo.helpers.seeding import seed_case_participants_for_demo
 from vultron.errors import VultronNotFoundError
 
@@ -198,5 +198,5 @@ def test_seeded_embargo_records_the_owners_consent(
     stored = cast(VulnerabilityCase, dl.read(embargo.context))
     participant = dl.read(stored.actor_participant_index[owner.id_])
     assert isinstance(participant, CaseParticipant)
-    assert participant.embargo_consent_state == PEC.SIGNATORY
-    assert embargo.id_ in participant.accepted_embargo_ids
+    assert participant.consent_for(embargo.id_) == EmbargoConsentState.ACCEPTED
+    assert participant.is_signatory(stored.active_embargo_id)

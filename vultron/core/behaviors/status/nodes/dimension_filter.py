@@ -17,8 +17,7 @@
 
 An inbound ``Add(ParticipantStatus, CaseParticipant)`` carries a snapshot of
 several *independent* state machines: ``rm`` (Report Management), ``vfd``
-(vendor fix path), ``pxa`` (public state), ``em`` (embargo) and ``consent``
-(participant embargo consent).  Because they are independent, a value that is
+(vendor fix path), ``pxa`` (public state) and ``em`` (embargo).  Because they are independent, a value that is
 unacceptable in one dimension says nothing about the others.
 
 Before RSH-05, one refused dimension discarded the entire snapshot: the Case
@@ -131,7 +130,6 @@ def _significant_state(status: ParticipantStatus) -> tuple:
         None if status.d is None else status.d.state,
         None if case_status is None else case_status.em.state,
         None if case_status is None else case_status.pxa.state,
-        None if status.consent is None else status.consent.state,
         status.case_engagement,
         tuple(sorted(str(role) for role in status.cvd_role)),
     )
@@ -169,7 +167,7 @@ class FilterParticipantStatusDimensionsNode(DataLayerConditionWithPorts):
     refused otherwise.  Refused dimensions carry forward the current value into
     a *filtered* status which is published on the blackboard for the append
     nodes and, as a serialized ``object`` override, for the canonical ledger
-    commit.  ``em``, ``consent``, ``case_engagement``, ``embargo_adherence``,
+    commit.  ``em``, ``case_engagement``,
     ``cvd_role`` and ``tracking_id`` pass through untouched — ``em`` in
     particular is EmbargoTeardownAuthorizationGate's to adjudicate (ADR-0046, ISSUE-2256).
 

@@ -1101,7 +1101,7 @@ groups:
       All participants (including Vendor2 after joining) MUST be subject to an active
       embargo that was established before the FVCV-handoff ownership transfer.
     rationale: >-
-      Ownership transfer does not alter PEC consent state; all prior signatories and
+      Ownership transfer does not alter PEC consent rows; all prior signatories and
       any late-joining participants remain bound by the active embargo.
   - id: DEMOMA-11-014
     priority: MUST
@@ -2972,8 +2972,8 @@ groups:
     the normal P-transition and closure sequence. This scenario is the first to
     exercise: (a) embargo proposal initiated after report submission (variation
     b), (b) the full EP→EA→ET arc (propose, activate, terminate without revision),
-    (c) PEC transitions from UNBOUND through INVITED → SIGNATORY for all three
-    parties.
+    (c) each party's consent row for the embargo passing through INVITED → ACCEPTED
+    (signatory to the active embargo) for all three parties.
   specs:
   - id: DEMOMA-20-001
     priority: MUST
@@ -3103,7 +3103,7 @@ groups:
       messages (EP, EA, ET) were recorded in the ledger — not just that the
       scenario ran without crashing. The PEC consent-state check verifies that
       participant embargo consent transitions were emitted and recorded, which
-      is the minimal proof that the PEC state machine was exercised. Requiring
+      is the minimal proof that the PEC consent rows were exercised. Requiring
       event-type confirmation from a first live run prevents the harness from
       silently passing with wrong or missing event type strings.
     lint_suppress:
@@ -3138,8 +3138,8 @@ groups:
         report_submission phase — POST submit-report trigger to the Coordinator,
         which engages the case and invites the Vendor
       expected: >-
-        the case exists on every replica; EM has no active embargo; PEC is
-        UNBOUND for all three participants
+        the case exists on every replica; EM has no active embargo; no
+        participant holds a consent row for an embargo
     - order: 2
       actor: reporter
       action: >-
@@ -3148,7 +3148,7 @@ groups:
         C and V answer the relayed Invites with trigger_accept_embargo
       expected: >-
         em_state == EM.ACTIVE on every replica after the ledger fan-out and
-        emConsentState == SIGNATORY for R, C and V (DEMOMA-20-009)
+        R, C and V are each a signatory to the active embargo (DEMOMA-20-009)
     - order: 3
       actor: demo-script
       action: fix_lifecycle phase — advance the Vendor through the fix lifecycle
@@ -3203,7 +3203,8 @@ groups:
     statement: >-
       After completing the propose-activate sequence, `demo_propose_and_activate_embargo`
       MUST assert `em_state == EM.ACTIVE` on the coordinator's case replica and
-      `emConsentState == SIGNATORY` for all three participants.
+      that R, C and V are each a signatory to the active embargo (their consent row for it
+      is `ACCEPTED`).
     rationale: >-
       These post-conditions confirm that all three parties successfully enrolled in
       the embargo before the scenario advances.
@@ -3263,8 +3264,8 @@ groups:
     SIGNATORY. Finally, R publishes (CS.P fires), triggering
     `ThreatTerminationBranchNode` which auto-terminates the embargo (EM→EXITED).
     This scenario is the first to exercise: (a) an embargo revision cycle
-    (EV→ER/EJ arc), (b) a late-invitee V2 joining an active embargo (PEC
-    INVITED→SIGNATORY after EM.ACTIVE), (c) accidental embargo collapse via
+    (EV→ER/EJ arc), (b) a late-invitee V2 joining an active embargo (consent
+    row INVITED→ACCEPTED after EM.ACTIVE), (c) accidental embargo collapse via
     external P-event rather than deliberate termination.
   specs:
   - id: DEMOMA-21-001
@@ -3332,7 +3333,7 @@ groups:
       The v2_late_invite phase of rcvv-embargo MUST invite V2 to the case only
       after the embargo revision (phase 3) is complete and `em_state` is confirmed
       ACTIVE; on receiving the case invite, V2 MUST accept the current embargo
-      event, reaching `emConsentState=SIGNATORY`.
+      event, becoming a signatory to it (its consent row for the embargo is `ACCEPTED`).
     rationale: >-
       Inviting V2 after the revision is complete — rather than before — is the
       defining characteristic of variation (f): the coordinator delays
@@ -3460,7 +3461,7 @@ groups:
         embargo_proposal phase — call demo_propose_and_activate_embargo: R posts
         trigger_propose_embargo, C posts trigger_accept_embargo
       expected: >-
-        em_state == EM.ACTIVE with emConsentState == SIGNATORY for R, C and V1
+        em_state == EM.ACTIVE with R, C and V1 each a signatory to the active embargo
     - order: 3
       actor: coordinator
       action: >-
@@ -3479,7 +3480,7 @@ groups:
         em_state is confirmed ACTIVE (DEMOMA-21-003)
       expected: >-
         V2 accepts the case invite and the current embargo event, reaching
-        emConsentState == SIGNATORY (DEMOMA-21-012)
+        becoming a signatory to it (DEMOMA-21-012)
     - order: 5
       actor: demo-script
       action: fix_lifecycle phase — advance V1 and V2 through the fix lifecycle
@@ -3553,8 +3554,8 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      The rcvv-embargo scenario MUST assert that V2's `emConsentState` is
-      SIGNATORY before proceeding to the fix_lifecycle phase.
+      The rcvv-embargo scenario MUST assert that V2 is a signatory to
+      the active embargo before proceeding to the fix_lifecycle phase.
     rationale: >-
       V2 must be fully enrolled in the embargo before it is accidentally
       collapsed by CS.P, making the ledger record unambiguous about V2's

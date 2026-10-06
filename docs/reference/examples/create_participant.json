@@ -28,16 +28,13 @@
         "attributedTo": "https://vultron.example/organizations/coordinator",
         "rmState": "START",
         "caseEngagement": true,
-        "emConsentState": "UNBOUND",
         "cvdRole": [
           "COORDINATOR"
         ],
-        "embargoAdherence": false,
         "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
       }
     ],
-    "acceptedEmbargoIds": [],
-    "embargoConsentState": "UNBOUND",
+    "embargoConsents": [],
     "joined": true,
     "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
   }

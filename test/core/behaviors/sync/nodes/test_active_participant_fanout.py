@@ -30,9 +30,12 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
+from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import rm_invite_to_case_activity
@@ -49,7 +52,8 @@ def _participant(
     actor_id: str,
     role: CVDRole,
     rm_state: RM,
-    consent: PEC,
+    embargo_id: str,
+    consent: EmbargoConsentState,
     *,
     joined: bool = True,
 ) -> CaseParticipant:
@@ -58,7 +62,9 @@ def _participant(
         attributed_to=actor_id,
         context=case_id,
         case_roles=[role],
-        embargo_consent_state=consent,
+        embargo_consents=[
+            EmbargoConsent(embargo_id=embargo_id, state=consent)
+        ],
         participant_statuses=[
             ParticipantStatus(
                 context=case_id,
@@ -74,7 +80,7 @@ def _participant(
 def test_ledger_fanout_reaches_only_active_participants() -> None:
     """Of three non-manager participants under an active embargo, one is active.
 
-    - a directly seated finder that is ``SIGNATORY`` — active;
+    - a directly seated finder that accepted the embargo (a signatory) — active;
     - a directly seated reporter whose consent is still ``INVITED`` — inert
       while the embargo is active;
     - a vendor with an outstanding stub Invite it never answered — inert.
@@ -92,24 +98,32 @@ def test_ledger_fanout_reaches_only_active_participants() -> None:
             MANAGER_ID,
             CVDRole.CASE_MANAGER,
             RM.ACCEPTED,
-            PEC.SIGNATORY,
+            embargo.id_,
+            EmbargoConsentState.ACCEPTED,
         ),
         SIGNATORY_ID: _participant(
-            case.id_, SIGNATORY_ID, CVDRole.FINDER, RM.ACCEPTED, PEC.SIGNATORY
+            case.id_,
+            SIGNATORY_ID,
+            CVDRole.FINDER,
+            RM.ACCEPTED,
+            embargo.id_,
+            EmbargoConsentState.ACCEPTED,
         ),
         UNCONSENTED_ID: _participant(
             case.id_,
             UNCONSENTED_ID,
             CVDRole.REPORTER,
             RM.ACCEPTED,
-            PEC.INVITED,
+            embargo.id_,
+            EmbargoConsentState.INVITED,
         ),
         INVITEE_ID: _participant(
             case.id_,
             INVITEE_ID,
             CVDRole.VENDOR,
             RM.RECEIVED,
-            PEC.INVITED,
+            embargo.id_,
+            EmbargoConsentState.INVITED,
             joined=False,
         ),
     }

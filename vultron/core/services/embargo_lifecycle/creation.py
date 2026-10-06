@@ -45,7 +45,7 @@ from vultron.core.services.embargo_lifecycle.proposals import (
 )
 from vultron.core.services.embargo_lifecycle.results import (
     EmbargoLifecycleResult,
-    ParticipantPECChange,
+    ParticipantConsentChange,
     TransitionMode,
 )
 from vultron.core.services.embargo_lifecycle.staged_persistence import (
@@ -155,9 +155,8 @@ class _CreationOperationsMixin(_ProposalOperationsMixin):
 
         The consent effects are those of ``propose_embargo`` followed by
         ``activate_embargo``: a proposing *actor_id* that is a participant
-        records the id in its ``accepted_embargo_ids`` (ADR-0093), then every
-        non-signatory already holding the id becomes ``SIGNATORY``
-        (``_consent_at_activation``).  The id never enters
+        marks its row for the id ``ACCEPTED`` (ADR-0093); being a signatory to
+        the active embargo is then just that lookup.  The id never enters
         ``proposed_embargoes``: activation decides the proposal that carried
         it, so a stale listing is discarded in the same write (EP-08-003).
         The case owner — ``attributed_to``, never the executing actor, which
@@ -255,17 +254,12 @@ class _CreationOperationsMixin(_ProposalOperationsMixin):
         )
 
         work._save_activation(case, em_after=em_after, embargo_id=embargo_id)
-        participant_changes: list[ParticipantPECChange] = (
+        participant_changes: list[ParticipantConsentChange] = (
             work._record_proposer_consent(case, actor_id, embargo_id)
-        )
-        participant_changes.extend(
-            work._consent_at_activation(
-                case, embargo_id=embargo_id, ends_no_later=None
-            )
         )
         # CM-14-003: the owner set these terms, so it is their signatory.
         participant_changes.extend(
-            work._record_actor_pec_acceptance(case, owner_id, embargo_id)
+            work._record_actor_acceptance(case, owner_id, embargo_id)
         )
         if revision is not None:
             # EP-04-011: the relay is owed in the commit that opens the

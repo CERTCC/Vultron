@@ -20,7 +20,8 @@ canonical case through ``EmbargoLifecycle`` and commits it, then relays one
 ``Invite(EmbargoEvent)`` per participant except the proposer, as the AS2
 ``actor`` with the proposer in ``attributedTo`` (EP-09-002, CM-24), committing
 each emission in this tree (ADR-0109).  At each commit the invitee's PEC
-``INVITE`` trigger is applied where CM-18-003 allows it (EP-09-004).
+``INVITE`` trigger is applied to its row for the embargo where CM-18-003
+allows it (EP-09-004).
 
 Two precondition guards and three leaf nodes, in the shape of the ledger
 fan-out (``sync/nodes/fanout.py``).  The collect node is a read-only routing
@@ -271,8 +272,8 @@ class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
     deadline as its ``endTime`` (CM-28-012, from ``actor_config``'s windows),
     commit the sealed blob as the canonical entry (VM-08-003) before the
     outbox write (ledger commit precedes outbox write), queue it, then apply
-    PEC ``INVITE`` to the invitee where legal, recording the deadline the
-    sealed Invite carries (CM-18-003, EP-09-004, CM-28-013).
+    PEC ``INVITE`` to the invitee's row for the embargo where legal, recording
+    the deadline the sealed Invite carries (CM-18-003, EP-09-004, CM-28-013).
 
     A step failing mid-relay is not a protocol refusal — the proposal is
     already committed and the EM state moved — so this node catches nothing:
@@ -287,7 +288,7 @@ class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
     proposal's own commit is deduplicated by the ledger and the EM write is a
     no-op counter-proposal, but this node relays to *every* recipient again —
     a recipient already invited in the failed run receives a second Invite
-    (a new activity and a new ledger entry) and its consent state, already
+    (a new activity and a new ledger entry) and its consent row, already
     ``INVITED``, is unchanged.  Per-recipient deduplication is deliberately
     not done here: the same terms re-proposed under a new Invite id are a
     counter-proposal that *is* relayed again, and telling that apart from a
@@ -444,7 +445,7 @@ class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
         recipient_id: str,
         rsvp_deadline: datetime | None,
     ) -> None:
-        """Apply PEC INVITE to *recipient_id* if CM-18-003 allows it (EP-09-004)."""
+        """Apply PEC INVITE to *recipient_id*'s row for this embargo where legal."""
         # Regime 1 (ADR-0087): the relay follows the manager's own EM write on
         # this case, so a missing case or invitee is an anomaly, not a lenient
         # skip.  ``record_embargo_invite`` raises a ``VultronNotFoundError``,
@@ -454,6 +455,7 @@ class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
             result = EmbargoLifecycle(persistence=dl).record_embargo_invite(
                 case_id=self._case_id,
                 invitee_id=recipient_id,
+                embargo_id=self._embargo_id,
                 rsvp_deadline=rsvp_deadline,
             )
         except VultronNotFoundError as exc:

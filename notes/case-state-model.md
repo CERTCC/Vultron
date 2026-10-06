@@ -259,7 +259,6 @@ The canonical Python implementation is in
 - `actor` — references the participant Actor
 - `context` — references the `VulnerabilityCase`
 - `case_engagement: bool` — whether participant is engaged
-- `embargo_adherence: bool` — whether participant respects the embargo
 - `tracking_id: str | None` — participant's local tracking ID for the case
 - `case_status: CaseStatus | None` — optionally embeds the shared case status
 

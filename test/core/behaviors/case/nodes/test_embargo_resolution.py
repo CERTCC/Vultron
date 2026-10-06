@@ -57,7 +57,9 @@ from vultron.core.models.report import VulnerabilityReport
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM, EM_Trigger
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.errors import (
     BtNodePreconditionError,
     VultronError,
@@ -132,6 +134,15 @@ def _set_pxa(bt_scenario: BTTestScenario) -> None:
     case = cast(Any, bt_scenario.dl.read(CASE_ID))
     case.append_case_status(pxa_state=CS_pxa.Pxa)
     bt_scenario.dl.save(case)
+
+
+def _accepted_ids(participant: CaseParticipant) -> list[str]:
+    """Ids of the embargoes *participant* holds an ACCEPTED row for."""
+    return [
+        row.embargo_id
+        for row in participant.embargo_consents
+        if row.state == EmbargoConsentState.ACCEPTED
+    ]
 
 
 def _run(
@@ -1319,7 +1330,7 @@ class TestCreationTimeEmbargoCommitsItsEffectsWithIt:
         assert status == Status.FAILURE
         assert _em_state(bt_scenario) == EM.NONE
         assert _active_embargo(bt_scenario) is None
-        assert _owner_participant(bt_scenario).accepted_embargo_ids == []
+        assert _accepted_ids(_owner_participant(bt_scenario)) == []
 
     @pytest.mark.spec("CM-14-003")
     def test_a_rerun_after_a_failed_owner_seed_seeds_the_owner(
@@ -1342,8 +1353,8 @@ class TestCreationTimeEmbargoCommitsItsEffectsWithIt:
         active = _active_embargo(bt_scenario)
         assert active is not None
         owner = _owner_participant(bt_scenario)
-        assert owner.embargo_consent_state == PEC.SIGNATORY
-        assert owner.accepted_embargo_ids == [active.id_]
+        assert owner.is_signatory(active.id_)
+        assert _accepted_ids(owner) == [active.id_]
 
     @pytest.mark.spec("EP-04-003")
     def test_a_failed_revision_write_leaves_the_case_at_none(
@@ -1368,7 +1379,7 @@ class TestCreationTimeEmbargoCommitsItsEffectsWithIt:
         assert _active_embargo(bt_scenario) is None
         case = cast(VulnerabilityCase, bt_scenario.dl.read(CASE_ID))
         assert case.proposed_embargoes == []
-        assert _owner_participant(bt_scenario).accepted_embargo_ids == []
+        assert _accepted_ids(_owner_participant(bt_scenario)) == []
 
     @pytest.mark.spec("EP-04-003")
     def test_a_rerun_after_a_failed_revision_write_registers_it(
@@ -1402,8 +1413,8 @@ class TestCreationTimeEmbargoCommitsItsEffectsWithIt:
         # active terms and the proposer of the revision (MSM-07-005): one
         # record carries both, through the one commit.
         owner = _owner_participant(bt_scenario)
-        assert owner.embargo_consent_state == PEC.SIGNATORY
-        assert set(owner.accepted_embargo_ids) == {
+        assert owner.is_signatory(self.SENDER_EVENT_ID)
+        assert set(_accepted_ids(owner)) == {
             self.SENDER_EVENT_ID,
             revision_id,
         }
@@ -1484,10 +1495,10 @@ class TestTheRevisionIsConsentedToByItsProposer:
         (revision_id,) = case.proposed_embargoes
         reporter = bt_scenario.dl.read(reporter_participant_id)
         assert isinstance(reporter, CaseParticipant)
-        assert reporter.accepted_embargo_ids == [revision_id]
+        assert _accepted_ids(reporter) == [revision_id]
         # The owner holds only the terms it set and is signatory of.
         owner = _owner_participant(bt_scenario)
-        assert owner.accepted_embargo_ids == [case.active_embargo_id]
+        assert _accepted_ids(owner) == [case.active_embargo_id]
 
     def test_a_contest_with_no_report_fails_before_the_commit(
         self, bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
@@ -1510,7 +1521,7 @@ class TestTheRevisionIsConsentedToByItsProposer:
 
         assert result.status == Status.FAILURE
         assert _em_state(bt_scenario) == EM.NONE
-        assert _owner_participant(bt_scenario).accepted_embargo_ids == []
+        assert _accepted_ids(_owner_participant(bt_scenario)) == []
         case = bt_scenario.dl.read(CASE_ID)
         assert isinstance(case, VulnerabilityCase)
         assert case.proposed_embargoes == []
