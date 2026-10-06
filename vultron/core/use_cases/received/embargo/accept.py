@@ -74,7 +74,7 @@ def _resolve_case_for_embargo_acceptance(
 
 class AcceptInviteToEmbargoOnCaseReceivedUseCase:
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4074", "no sender check for embargo accept"
+        "#4256", "no sender check for embargo accept"
     )
 
     def __init__(

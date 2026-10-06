@@ -47,7 +47,7 @@ logger = logging.getLogger(__name__)
 
 class RejectInviteToEmbargoOnCaseReceivedUseCase:
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4074", "no sender check for embargo reject"
+        "#4256", "no sender check for embargo reject"
     )
 
     def __init__(
