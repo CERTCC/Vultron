@@ -531,7 +531,10 @@ owns recovery; the duplicate is silently dropped.
 the *proposal id*. The case-actor re-sends the stored `Accept(as_CaseProposal)`
 unchanged, with its original id, so it reads as the first acceptance arriving
 late rather than a second decision, and it creates no second case
-(ASK-08-002). The reference implementation does not yet re-send it (#2890).
+(ASK-08-002). The reference implementation does this: the `Accept` id is derived
+from the proposal, and a duplicate queues the stored `Accept` again unless it is
+still pending in the outbox (#4215). The proposer-side deadline (CP-05-007) is
+still open (#2890).
 
 **Different proposal id, same report** (CP-05-008): a new request, because the
 requester tracks each proposal as its own ask (CP-05-007) and may already have
