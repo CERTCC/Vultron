@@ -78,7 +78,9 @@ class _Block:
 
 def _find_block(lines: list[str], spec_id: str) -> _Block | None:
     """Locate the ``- id: <spec_id>`` list item and its continuation lines."""
-    head = re.compile(rf"^(\s*)- id:\s*['\"]?{re.escape(spec_id)}['\"]?\s*$")
+    head = re.compile(
+        rf"^(\s*)- id:\s*['\"]?{re.escape(spec_id)}['\"]?\s*(#.*)?$"
+    )
     for i, line in enumerate(lines):
         m = head.match(line)
         if m is None:
@@ -221,24 +223,36 @@ def retire_spec(
         last_text="\n".join(block.slice(lines)),
     )
 
+    archive = retired_specs_dir(root)
+    archive_file = archive / f"{spec_id}.md"
+    archive_existed = archive.exists()
     path.write_text("\n".join(remaining) + "\n", encoding="utf-8")
     try:
-        load_registry(spec_dir)
-    except (ValidationError, ValueError) as exc:
+        try:
+            load_registry(spec_dir)
+        except (ValidationError, ValueError) as exc:
+            raise RetireError(
+                f"removing {spec_id} leaves {path.name} unloadable "
+                f"(is it the last item in its group?):\n{exc}"
+            ) from exc
+        archive.mkdir(parents=True, exist_ok=True)
+        archive_file.write_text(entry, encoding="utf-8")
+        if record_history:
+            _record_history(
+                root, spec_id, path, why, retired_by, replacement, today
+            )
+    except BaseException:
+        # Whole retirement, or none (MS-09-006): undo the spec edit and the
+        # archive entry on any failure.
         path.write_text(original, encoding="utf-8")
-        raise RetireError(
-            f"removing {spec_id} leaves {path.name} unloadable "
-            f"(is it the last item in its group?):\n{exc}"
-        ) from exc
-
-    archive = retired_specs_dir(root)
-    archive.mkdir(parents=True, exist_ok=True)
-    (archive / f"{spec_id}.md").write_text(entry, encoding="utf-8")
-
-    if record_history:
-        _record_history(
-            root, spec_id, path, why, retired_by, replacement, today
-        )
+        archive_file.unlink(missing_ok=True)
+        if (
+            not archive_existed
+            and archive.is_dir()
+            and not any(archive.iterdir())
+        ):
+            archive.rmdir()
+        raise
     return find_cross_references(root, spec_id)
 
 

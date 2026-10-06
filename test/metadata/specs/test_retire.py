@@ -156,3 +156,34 @@ def test_archive_is_outside_the_spec_loader_scope() -> None:
     loaded = {p.resolve() for p in (root / "specs").glob("*.yaml")}
     archive = (root / "plan/retired-specs").resolve()
     assert not any(archive in p.parents for p in loaded)
+
+
+def test_retire_rolls_back_when_history_write_fails(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failure after the spec edit leaves spec and archive untouched."""
+    import vultron.metadata.specs.retire as retire_mod
+
+    def boom(*args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(retire_mod, "append_history_entry", boom)
+    before = (repo / "specs/specs.yaml").read_text()
+
+    with pytest.raises(OSError):
+        _retire(repo)
+
+    assert (repo / "specs/specs.yaml").read_text() == before
+    assert not (repo / "plan/retired-specs").exists()
+
+
+def test_retire_finds_id_line_with_trailing_comment(repo: Path) -> None:
+    spec_file = repo / "specs/specs.yaml"
+    text = spec_file.read_text().replace(
+        "id: TST-01-001", "id: TST-01-001  # note", 1
+    )
+    spec_file.write_text(text)
+
+    _retire(repo)
+
+    assert retired_spec_ids(repo) == {"TST-01-001"}

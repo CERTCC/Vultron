@@ -463,7 +463,8 @@ The removed text is parked as one file per ID under `plan/retired-specs/`
 Retire with `uv run spec-retire <ID> --why ... --by '#N' [--replacement <ID>]`
 (MS-09-006): it moves the text, writes the history entry, and lists the
 citations still to repoint. `spec-lint` fails on `deprecated:`/`superseded_by:`
-and on a re-declared archived ID (MS-09-007). Spec-versus-code conflicts found in an implementation PR follow
+and on a re-declared archived ID (MS-09-007).
+Spec-versus-code conflicts found in an implementation PR follow
 the material test in
 [notes/agentic-workflow.md](agentic-workflow.md) § "Spec Text Conflicts With
 Code", and the PR body carries `## Spec amended`.
