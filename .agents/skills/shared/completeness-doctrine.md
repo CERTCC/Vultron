@@ -176,6 +176,17 @@ so the fix-now default stands. Silence is *never* consent to defer. (This
 overturns the older "silence → record as deferred and continue" behavior, which
 was the defer-by-default reflex in disguise.)
 
+**DEFER is unavailable to an unsupervised run.** A run with no human in the
+loop (a pipeline such as `pr-ship`, a scheduled or background agent, any session
+where the ask goes unanswered) cannot earn Gate 1, because there is nobody to
+give the approval. It has exactly two moves: **finish the item in the PR**, or
+**hold the PR** (draft, blocked, with the unfinished item stated). "File an issue
+and merge anyway" is not a third move. In the 2026-10-02 audit of 72 unsupervised
+PRs, about fifty small issues were filed as deferrals purely to get a PR merged.
+Filing is for genuinely separate scope (an "also" excursion this PR then closes,
+or a defect in code the PR does not touch), never a way to leave this PR's own
+work undone.
+
 ### Gate 2 — The inversion-ask
 
 You discovered that the work *inverts a premise* (per the inversion test
@@ -195,6 +206,26 @@ self-correcting: a mistaken halt lands in front of a human immediately and
 visibly ("that's not an inversion, proceed"), whereas a silent
 act-on-new-premise would ship an unreviewed foundation-change that surfaces only
 when it breaks something.
+
+## Never Merge on Red
+
+A PR with any failing check is not mergeable, and no label changes that:
+"pre-existing", "unrelated", "flaky" and "passed on rerun" are claims, not
+evidence. In the audit, #4034 merged with three red checks judged pre-existing,
+and #4087 re-ran a failed demo gate, saw it pass, and merged calling it flaky;
+the failure (#4113) was a real fan-out bug.
+
+- **Red `main`** gets one fix PR. Other PRs wait for it or rebase onto it; none
+  merges past it.
+- **Pre-commit hooks are never skipped** (`--no-verify`, `SKIP=`). A hook that
+  fails is fixed, not bypassed; #4033 and #4034 skipped the spec-lint hook. The
+  one documented environmental exception is the devcontainer `actionlint` hang in
+  `notes/devcontainer-tooling.md`.
+- **The one rerun exception:** a check that is *already tracked* as flaky, by an
+  open `flaky-test` issue that holds a reproduction, may be re-run **once**. The
+  PR body or verdict names that issue. A pass on rerun with no such issue is never
+  evidence of flakiness: file the issue with the reproduction first, and the PR
+  stays held until the check is green on its own or the issue's cause is fixed.
 
 ## Clarity Over Size, Always
 
@@ -234,7 +265,7 @@ One exceptional category for work genuinely left for later:
 
 | Category | Gate |
 |---|---|
-| **DEFER** | The full deferral-ask (Gate 1): file the record, present a *measured remainder* in plain language, and get **explicit** human approval. On silence, fix it now. No unilateral deferral, no attempt-count justification, no "silence counts as yes." |
+| **DEFER** | The full deferral-ask (Gate 1): file the record, present a *measured remainder* in plain language, and get **explicit** human approval. On silence, fix it now; if it cannot be finished, hold the PR. Unavailable to an unsupervised run. No unilateral deferral, no attempt-count justification, no "silence counts as yes." |
 
 **WARN** (flagged but no required action) does not exist in this project.
 If something is worth noting, it is worth fixing or DEFER-gating. Posting a
