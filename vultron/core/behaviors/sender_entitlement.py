@@ -47,6 +47,9 @@ Nodes
   CASE_MANAGER; merged from ``VerifySenderIsCaseActorNode``
 - ``SenderIsNamedActorNode`` — guards that the sender matches a named actor;
   merged from ``VerifySenderIsOwnIdNode``
+- ``SenderIsProposalAddresseeNode`` — guards that the sender is the actor the
+  vendor addressed a CaseProposal to, as recorded on the report case link
+  (``NAMED_ACTOR`` kind; CP-06-005)
 - ``SenderIsExecutingActorNode`` — guards that the sender equals the executing
   actor; merged from ``CheckSenderIsExecutingActorNode``
 - ``SenderIsCaseOwnerNode`` — guards that the sender holds CVDRole.CASE_OWNER;
@@ -75,6 +78,7 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.predicates.addressing import same_actor_id
 from vultron.core.predicates.roles import has_case_owner_role
@@ -452,6 +456,70 @@ class SenderIsNamedActorNode(SenderEntitlementConditionNode):
             sender_id,
             case_actor_id,
         )
+        return Status.FAILURE
+
+
+# ---------------------------------------------------------------------------
+# Condition node: NAMED_ACTOR (recorded proposal addressee)
+# ---------------------------------------------------------------------------
+
+
+class SenderIsProposalAddresseeNode(SenderEntitlementConditionNode):
+    """Guard: sender must be the actor the CaseProposal was addressed to.
+
+    The vendor records the addressee on its ``VultronReportCaseLink``
+    (``case_creator_id``) when it proposes the case.
+    This guard reads that record and returns ``SUCCESS`` only when the sender
+    is that actor.
+
+    - No link for the report (a relay, or a proposal this actor never made):
+      ``SUCCESS``, because there is nothing to protect and the effect node
+      reports the no-op as ``SKIPPED``.
+    - A link with no recorded addressee: ``FAILURE`` (nobody is entitled).
+    - Any other sender: ``FAILURE``, so the tree ends ``REFUSED`` with the
+      link unchanged.
+
+    Spec: CP-06-005, HP-01-006.
+    """
+
+    def __init__(
+        self,
+        report_id: str,
+        sender_actor_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.report_id = report_id
+        self.sender_actor_id = sender_actor_id
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        link = self.datalayer.read(
+            VultronReportCaseLink.build_id(self.report_id)
+        )
+        if not isinstance(link, VultronReportCaseLink):
+            self.logger.debug(
+                "%s: no report case link for '%s' — nothing to protect",
+                self.name,
+                self.report_id,
+            )
+            return Status.SUCCESS
+
+        addressee = link.case_creator_id
+        if addressee is not None and same_actor_id(
+            self.sender_actor_id, addressee
+        ):
+            return Status.SUCCESS
+
+        self.feedback_message = (
+            f"Sender '{self.sender_actor_id}' is not the actor the"
+            f" CaseProposal for report '{self.report_id}' was addressed to"
+            f" ('{addressee}') — REFUSED (CP-06-005, HP-01-006)"
+        )
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE
 
 

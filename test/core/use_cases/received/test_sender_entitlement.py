@@ -80,6 +80,7 @@ from vultron.core.use_cases.received.case.lifecycle import (
 )
 from vultron.core.use_cases.received.case_proposal import (
     AcceptCaseProposalReceivedUseCase,
+    RejectCaseProposalReceivedUseCase,
 )
 from vultron.core.use_cases.received.note import (
     RemoveNoteFromCaseReceivedUseCase,
@@ -99,6 +100,7 @@ from vultron.wire.as2.factories import (
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
+    as_Reject,
     as_Remove,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -315,11 +317,6 @@ def test_recommendation_accept_from_non_owner_is_refused():
     assert dl.outbox_list() == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="CP-06-005: Accept(CaseProposal) from a non-addressee is recorded. Tracked by #4072.",
-)
 @pytest.mark.spec("CP-06-005")
 def test_case_proposal_accept_from_non_addressee_is_refused(make_payload):
     """The vendor addressed the proposal to another case actor."""
@@ -341,6 +338,60 @@ def test_case_proposal_accept_from_non_addressee_is_refused(make_payload):
     assert isinstance(link, VultronReportCaseLink)
     assert link.case_manager_id is None
     assert dl.outbox_list() == []
+
+
+@pytest.mark.spec("CP-06-005")
+def test_case_proposal_reject_from_non_addressee_is_refused(make_payload):
+    """A Reject from an actor the proposal was not addressed to is refused."""
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_VENDOR_URI)
+    proposal = _make_proposal()
+    _seed_vendor_link(dl, proposal)
+    report = proposal.object_
+    assert report is not None
+    link_id = VultronReportCaseLink.build_id(_report_id(report))
+    event = make_payload(
+        as_Reject(actor=_IMPOSTOR_ID, object_=proposal, to=[_VENDOR_URI]),
+        receiving_actor_id=_VENDOR_URI,
+    )
+
+    result = RejectCaseProposalReceivedUseCase(dl, event).execute()
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    link = dl.read(link_id)
+    assert isinstance(link, VultronReportCaseLink)
+    assert link.proposal_rejected is False
+    assert link.rejection_reason is None
+    assert dl.outbox_list() == []
+
+
+@pytest.mark.spec("CP-06-005")
+def test_case_proposal_accept_after_case_established_keeps_case_manager(
+    make_payload,
+):
+    """Once a case is established, even the addressee's reply replaces nothing."""
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_VENDOR_URI)
+    proposal = _make_proposal()
+    _seed_vendor_link(dl, proposal)
+    report = proposal.object_
+    assert report is not None
+    link_id = VultronReportCaseLink.build_id(_report_id(report))
+    link = dl.read(link_id)
+    assert isinstance(link, VultronReportCaseLink)
+    link.case_id = "https://example.org/cases/established"
+    link.case_manager_id = _CASE_MANAGER_ID
+    dl.save(link)
+    event = make_payload(
+        as_Accept(
+            actor=link.case_creator_id, object_=proposal, to=[_VENDOR_URI]
+        ),
+        receiving_actor_id=_VENDOR_URI,
+    )
+
+    AcceptCaseProposalReceivedUseCase(dl, event).execute()
+
+    reloaded = dl.read(link_id)
+    assert isinstance(reloaded, VultronReportCaseLink)
+    assert reloaded.case_manager_id == _CASE_MANAGER_ID
 
 
 @pytest.mark.xfail(

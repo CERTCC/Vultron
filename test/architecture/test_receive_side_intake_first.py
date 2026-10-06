@@ -200,12 +200,10 @@ def _composes_through_shared_factory(
 KNOWN_FACTORIES_BYPASSING_INTAKE: frozenset[str] = frozenset(
     {
         # case
-        "create_accept_case_proposal_received_tree",
         "create_add_case_participant_received_tree",
         "create_announce_vulnerability_case_received_tree",
         "create_case_proposal_received_tree",
         "create_receive_report_case_tree",
-        "create_reject_case_proposal_received_tree",
         "create_remove_case_participant_received_tree",
         # report
         "create_close_report_received_tree",
