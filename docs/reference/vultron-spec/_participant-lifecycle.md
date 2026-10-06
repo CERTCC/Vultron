@@ -62,15 +62,17 @@ Full content follows only after the invitee accepts.
 Two paths bring an actor into a case, and they differ in who initiates:
 
 - **Direct invitation.** The CASE_MANAGER sends `Invite(Actor, target=VulnerabilityCaseStub)` to the actor.
+  At the same time, it records the invitee in the case as an *inert* participant at RM Received ([CM-11-006](../specs/protocol.md#cm-11-006)).
+  The inert record exists only in the CASE_MANAGER's store; it is not yet a case participant in the full sense — it does not receive case content and is not included in embargo fan-out until it accepts.
   The actor answers `Accept(Invite)` or `Reject(Invite)`.
-  `Accept(Invite)` admits the actor at RM Received and, where an embargo is in force, records its consent to those terms.
+  `Accept(Invite)` activates the inert record, admitting the actor at RM Received and, where an embargo is in force, recording its consent to those terms.
+  `Reject(Invite)` closes the inert record (RM Received → Closed) and keeps it as history, so the CASE_MANAGER can see that the invitation was extended and declined ([CM-11-007](../specs/protocol.md#cm-11-007)).
 - **Suggested actor.** An existing participant proposes a third party — "this vendor is also affected" — by sending `Offer(CaseParticipant)` to the CASE_MANAGER.
   The proposal is a recommendation, not an invitation: the Case Owner decides whether to act on it, and if it does, the CASE_MANAGER then sends the `Invite` above.
   An implementation MUST NOT treat `Offer(CaseParticipant)` as an invitation to the proposed actor.
 
-Both paths converge on `Accept(Invite)`. The suggested-actor path adds one
-round-trip, because the Case Owner's decision sits between the proposal and the
-invitation.
+Both paths converge on `Accept(Invite)`.
+The suggested-actor path adds one round-trip, because the Case Owner's decision sits between the proposal and the invitation.
 
 !!! note "Recall: report management states"
     {% include-markdown "./includes/_rm-states-table.md" %}

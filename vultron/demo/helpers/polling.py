@@ -28,9 +28,7 @@ from vultron.core.models.pending_case_inbox import (
 )
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import (
-    EmbargoConsentState,
-)
+from vultron.core.states.participant_embargo_consent import EmbargoConsentState
 from vultron.demo.helpers.verification import (
     _all_fetchable_participants_rm_closed,
     _fetch_participant,
@@ -1576,7 +1574,7 @@ def wait_for_participant_embargo_consent(
     poll_interval: float = 0.25,
     dl_actor_id: str | None = None,
 ) -> None:
-    """Poll until *actor_id*'s row for *embargo_id* is in consent state *expected*.
+    """Poll until *actor_id*'s consent for *embargo_id* reaches *expected*.
 
     Consent moves when the CASE_MANAGER commits the participant's answer, and
     a replica learns it from the ledger (EP-09-003), so it reads the new value
@@ -1586,8 +1584,8 @@ def wait_for_participant_embargo_consent(
         client: DataLayerClient for the target container.
         case_id: Full URI of the ``as_VulnerabilityCase``.
         actor_id: Full URI of the actor whose consent to check.
-        embargo_id: The embargo whose consent row to read (ADR-0122).
-        expected: The row state to wait for.
+        embargo_id: Full URI of the embargo being tracked.
+        expected: The :class:`~vultron.core.states.participant_embargo_consent.EmbargoConsentState` to wait for.
         timeout_seconds: Maximum time to wait.
         poll_interval: Seconds between DataLayer poll attempts.
         dl_actor_id: Full URI of the actor whose *store* to read, when that is
@@ -1602,7 +1600,7 @@ def wait_for_participant_embargo_consent(
         actor_id,
         lambda participant: participant.consent_for(embargo_id),
         lambda value: value == expected,
-        f"consent to embargo {embargo_id!r} to reach {expected.name}",
+        f"embargo consent to reach {expected.name}",
         timeout_seconds,
         poll_interval,
         dl_actor_id,
@@ -1618,10 +1616,10 @@ def wait_for_participant_embargo_accepted(
     poll_interval: float = 0.25,
     dl_actor_id: str | None = None,
 ) -> None:
-    """Poll until *actor_id*'s row for *embargo_id* is ``ACCEPTED``.
+    """Poll until *actor_id*'s participant record lists *embargo_id* as accepted.
 
-    A signatory's answer to a revision binds it to nothing new (EP-09-004), so
-    the trace of it is its row for the revised embargo becoming ``ACCEPTED``.
+    A signatory's answer to a revision changes no consent state (EP-09-004), so
+    the only trace of it is the revised embargo joining ``accepted_embargo_ids``.
     Read it where the CASE_MANAGER commits it: an owner that activates a longer
     revision first lapses every signatory that has not answered (EP-05-001).
 
@@ -1638,12 +1636,13 @@ def wait_for_participant_embargo_accepted(
     Raises:
         AssertionError: If the answer is not observed within *timeout_seconds*.
     """
-    wait_for_participant_embargo_consent(
+    _wait_for_participant_embargo_field(
         client,
         case_id,
         actor_id,
-        embargo_id,
-        EmbargoConsentState.ACCEPTED,
+        lambda participant: participant.consent_for(embargo_id),
+        lambda value: value == EmbargoConsentState.ACCEPTED,
+        f"consent for {embargo_id!r} to be ACCEPTED",
         timeout_seconds,
         poll_interval,
         dl_actor_id,

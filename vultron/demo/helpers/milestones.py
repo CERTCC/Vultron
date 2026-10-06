@@ -428,6 +428,10 @@ def verify_case_closed(
             if p_data is None:
                 continue  # remote container — not fetchable here
             p = as_CaseParticipant(**p_data)
+            if not p.joined:
+                continue  # unanswered invitee (CM-11-006) — not yet a full
+                # participant; excluded from the "all closed" check
+                # (parallel to _all_fetchable_participants_rm_closed)
             latest = p.participant_status
             if latest is None:
                 raise AssertionError(

@@ -439,10 +439,14 @@ def _run_late_joiner_sequence(
     # can resolve the invitee from owner's DataLayer (ADR-0081).
     _register_peer(owner_tc, owner_slug, lj_actor_id, "LateJoiner")
 
-    # Step 3: owner triggers invite-actor-to-case
+    # Step 3: owner triggers invite-actor-to-case (CM-11-019: roles required)
     resp = owner_tc.post(
         f"/api/v2/actors/{owner_slug}/trigger/invite-actor-to-case",
-        json={"case_id": case_id, "invitee_id": lj_actor_id},
+        json={
+            "case_id": case_id,
+            "invitee_id": lj_actor_id,
+            "roles": ["coordinator"],
+        },
     )
     assert resp.status_code == 202, (
         f"invite-actor-to-case trigger failed ({resp.status_code}): "

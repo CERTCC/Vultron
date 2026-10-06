@@ -32,6 +32,7 @@ Tree structure::
             ├── MaybeSignEmbargoConsentNode          — sign when an embargo is in force
             ├── PersistInviteeParticipantNode        — dl.create, attach, save case
             ├── AdvanceInviteeToReceivedNode         — advance to RM.RECEIVED via writer
+            ├── AdvanceInviteeVFToVendorAwareNode    — record VF Vf for VENDOR (CM-11-009)
             ├── EmitAnnounceCaseToInviteeNode        — queue Announce(VulnerabilityCase)
             ├── BackfillCanonicalLedgerToInviteeNode — send prior ledger to invitee
             └── EmitAddCaseParticipantNode           — emit Add(CaseParticipant), commit ledger
@@ -56,6 +57,9 @@ from vultron.core.behaviors.case.nodes.accept_invite import (
 from vultron.core.behaviors.case.nodes.invite_embargo_consent import (
     _CheckEmbargoActiveStateNode,
     _SignEmbargoConsentLeafNode,
+)
+from vultron.core.behaviors.case.nodes.invite_inert_participant import (
+    AdvanceInviteeVFToVendorAwareNode,
 )
 from vultron.core.behaviors.case.nodes.invite_ledger_backfill import (
     BackfillCanonicalLedgerToInviteeNode,
@@ -197,6 +201,9 @@ def create_accept_invite_actor_to_case_tree(
                         case_id=case_id, invitee_id=invitee_id
                     ),
                     AdvanceInviteeToReceivedNode(
+                        case_id=case_id, invitee_id=invitee_id
+                    ),
+                    AdvanceInviteeVFToVendorAwareNode(
                         case_id=case_id, invitee_id=invitee_id
                     ),
                     # CM-17-004 steps (5) and (6): seed the invitee's case,
