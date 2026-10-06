@@ -8,6 +8,7 @@ related_notes:
   - notes/wire-core-boundary.md
   - notes/spec-authoring-rules.md
   - notes/testing-pitfalls.md
+  - notes/domain-validation.md
 ---
 
 # Architecture Ratchet Corpus
@@ -136,7 +137,7 @@ beside each baseline:
   value (empty set, or the ceiling's floor).
 - `# permanent: <reference>` — the issue, ADR, or spec requirement that made the
   baseline permanent by design. A permanent marker that cites nothing fails. The
-  ratchet-versus-pinned-exemption-set split is defined by #3933.
+  ratchet-versus-pinned-exemption-set split is ARCH-18-005; see the next section.
 
 Two checks, split by what they need:
 
@@ -153,3 +154,39 @@ Two checks, split by what they need:
 MS-10-006 is the precedent: the spec-corpus ceiling table in
 `vultron/metadata/specs/verification.py` already requires an owner per non-zero
 ceiling, but checks only that one is named, not that it is still open.
+
+## Ratchets and Pinned Exemption Sets Are Different Things
+
+Both are exact sets checked with bidirectional equality (ARCH-18-001), so a
+reader cannot tell them apart from the assertion. What differs is whether an
+end state exists (ARCH-18-005):
+
+- A **ratchet** has a terminal value — an empty set or a zero ceiling — and an
+  `# owner: #N` issue that drives it there. Each entry is a defect awaiting a
+  fix. Only ratchets are open debt.
+- A **pinned exemption set** has no terminal value and no owner. Each entry is
+  exempt by a recorded decision, so the set grows when a new site falls under
+  that decision and shrinks when a site goes away. It carries
+  `# permanent: <reference>` (ARCH-18-003), and its module says "pinned
+  exemption set", not "ratchet" or "backlog".
+
+Several sets began as shrinking backlogs and were later decided to be permanent,
+but their files still called them ratchets, so a count of open debt included
+them (#3933). Their entries vary with the code, so this table names the
+decision rather than a count (MS-16-001):
+
+| Constant | File | Why it is a pin |
+|---|---|---|
+| `_RM_FORCE_QUARANTINE` | `test_participant_status_validation.py` | bootstrap writes of a first status, which has no predecessor for the RM adjacency rule (BTND-10-001); closure never forces (RMB-14-005) |
+| `_DECLARED_EXCLUSIONS` | `test_participant_status_validation.py` | ADR-0089 end state: two writer exclusions (receive and replica-apply paths) plus the permanent non-writer over-catch |
+| `_DECLARED_EXCLUSIONS` | `test_no_broad_except_outside_bt_update.py` | framework, bridge and persistence boundaries, each justified inline (CS-23-001) |
+| `KNOWN_ALLOWLIST` | `test_case_resolution_uses_helpers.py` | the ADR-0087 regime exceptions |
+| `AUDITED_SITES` | `test_vfd_rm_pxa_write_sites.py` | the list *is* the BTND-10-001 audit |
+| `BLANK_SENTINEL_FIELDS` | `test_core_reference_fields_reject_blank.py` | documented "not yet" sentinels (CS-08-001, #3877) |
+| `_SANCTIONED_SHADOWS` | `test_vocab_registry_keys.py` | the enumerated `as_Vultron*` exception (VM-01-008) |
+
+The writer exclusions in `test_participant_status_validation.py` looked like
+candidates for a separate ratchet. They are not: ADR-0089 names the receive path
+and the replica-apply path as its deliberate end state, dispositions the emit
+evaluator must not apply (ADR-0061, RSH-05-021). An entry that *is* awaiting a
+fix leaves the pinned set for its own ratchet constant with an owner.
