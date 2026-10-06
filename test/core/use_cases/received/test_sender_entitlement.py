@@ -401,11 +401,6 @@ def test_report_addition_by_non_owner_is_refused(
     assert cm_store.outbox_list() == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="SYNC-03-005: Reject(CaseLedgerEntry) from a non-participant replays. Tracked by #4075.",
-)
 @pytest.mark.spec("SYNC-03-005")
 def test_ledger_reject_from_non_participant_is_refused():
     """A stranger claims an empty ledger, asking for a replay from genesis."""
@@ -424,6 +419,26 @@ def test_ledger_reject_from_non_participant_is_refused():
     assert result.disposition is HandlerDisposition.REFUSED
     assert dl.outbox_list() == []
     assert not dl.by_type("Announce")
+    state_id = VultronReplicationState(
+        case_id=SYNC_CASE_ID, peer_id=_IMPOSTOR_ID
+    ).id_
+    assert dl.read(state_id) is None
+
+
+@pytest.mark.spec("SYNC-03-005")
+def test_ledger_reject_for_unknown_case_is_refused():
+    """With no case there is no participant, so nothing is written or sent."""
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=SYNC_CASE_MANAGER_ID)
+    entry0 = _make_entry(SYNC_CASE_ID, 0, "0" * 64)
+    dl.save(entry0)
+    event = _make_reject_event(entry0, "", _IMPOSTOR_ID)
+
+    result = RejectLedgerEntryReceivedUseCase(
+        dl, event, sync_port=SyncActivityAdapter(dl)
+    ).execute()
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert dl.outbox_list() == []
     state_id = VultronReplicationState(
         case_id=SYNC_CASE_ID, peer_id=_IMPOSTOR_ID
     ).id_

@@ -43,6 +43,8 @@ Nodes
 -----
 - ``SenderIsActiveParticipantNode`` — guards that the sender is a known case
   participant; merged from ``VerifySenderIsParticipantNode``
+- ``SenderIsActiveLedgerParticipantNode`` — guards that the sender is an active
+  participant of the case named by a ledger activity on the blackboard
 - ``SenderIsCaseManagerNode`` — guards that the sender is the case's
   CASE_MANAGER; merged from ``VerifySenderIsCaseActorNode``
 - ``SenderIsNamedActorNode`` — guards that the sender matches a named actor;
@@ -76,6 +78,7 @@ from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.participants.recipients import is_case_content_recipient
 from vultron.core.predicates.addressing import same_actor_id
 from vultron.core.predicates.roles import has_case_owner_role
 from vultron.enums.roles import CVDRole
@@ -300,6 +303,70 @@ class SenderIsActiveParticipantNode(FindParticipantByActorIdNode):
             self.sender_actor_id,
             case_id,
         )
+        return Status.SUCCESS
+
+
+# ---------------------------------------------------------------------------
+# Condition node: ACTIVE_PARTICIPANT (ledger activity on the blackboard)
+# ---------------------------------------------------------------------------
+
+
+class SenderIsActiveLedgerParticipantNode(SenderEntitlementConditionNode):
+    """Guard: sender must be an active participant of the ledger entry's case.
+
+    Reads ``activity`` from the blackboard and takes the case from the
+    ``CaseLedgerEntry`` it carries.
+    Returns ``SUCCESS`` only when the sender is an active participant of that
+    case (:func:`~vultron.core.participants.recipients.is_case_content_recipient`,
+    CM-10-004).
+    An unknown case, a missing sender, an unlisted sender and an inert
+    participant all return ``FAILURE``: there is nothing to replay to a sender
+    the case cannot vouch for, so there is no bootstrap pass-through here.
+
+    Spec: SYNC-03-005, CM-10-004, HP-01-006.
+    """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=True),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity": "/activity"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.activity = self.get_input("activity")
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        entry = getattr(self.activity, "rejected_entry", None)
+        if not isinstance(entry, CaseLedgerEntry):
+            try:
+                entry = _log_entry_from(self.activity, self.name)
+            except VultronError as exc:
+                self.logger.warning("%s: %s", self.name, exc)
+                return Status.FAILURE
+        sender_id = getattr(self.activity, "actor_id", None)
+        if not sender_id:
+            self.logger.warning("%s: activity has no actor_id", self.name)
+            return Status.FAILURE
+
+        # Regime 1: no case means no participant, so the sender is refused.
+        case, failure = self._require_case(entry.case_id)
+        if failure is not None:
+            return failure
+        if not is_case_content_recipient(case, self.datalayer, sender_id):
+            self.feedback_message = (
+                f"Sender '{sender_id}' is not an active participant in case"
+                f" '{entry.case_id}' — REFUSED (SYNC-03-005, CM-10-004)"
+            )
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
         return Status.SUCCESS
 
 
@@ -611,6 +678,7 @@ __all__ = [
     "SenderEntitlementConditionNode",
     # Condition nodes
     "SenderIsActiveParticipantNode",
+    "SenderIsActiveLedgerParticipantNode",
     "SenderIsCaseManagerNode",
     "SenderIsNamedActorNode",
     "SenderIsExecutingActorNode",

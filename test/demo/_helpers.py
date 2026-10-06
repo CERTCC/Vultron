@@ -23,7 +23,27 @@ import httpx2 as httpx
 from fastapi.testclient import TestClient
 
 from vultron.demo.actor_session import ActorSession
+from vultron.demo.helpers import invite_chain
 from vultron.demo.utils import DataLayerClient
+
+# Names the invite chain (``vultron.demo.helpers.invite_chain``) calls itself.
+_CHAIN_OWNED = frozenset({"find_case_invite_for_actor"})
+# Names both a scenario and the invite chain call, so both are stubbed.
+_CHAIN_SHARED = frozenset({"wait_for_case_on_container"})
+
+
+@contextlib.contextmanager
+def patch_chain_shared(
+    demo: ModuleType, name: str, **kwargs: Any
+) -> Iterator[MagicMock]:
+    """Stub *name* on *demo* and on the invite chain with one shared mock.
+
+    Both call it (:data:`_CHAIN_SHARED`), so a test asserting on the mock sees
+    the scenario's calls and the chain's alike.
+    """
+    with patch.object(demo, name, **kwargs) as mock:
+        with patch.object(invite_chain, name, new=mock):
+            yield mock
 
 
 def mock_actor(id_: str = "urn:test:actor") -> MagicMock:
@@ -90,9 +110,20 @@ def patched_report_submission(
             patch.object(demo, "run_direct_path_rm_triage", return_value=case)
         )
         for name, kwargs in demo_patches.items():
-            mocks[name] = stack.enter_context(
-                patch.object(demo, name, **kwargs)
-            )
+            # The invite chain owns the invite lookup and the invitee's
+            # replica wait (#4192); the scenario still owns its other waits.
+            if name in _CHAIN_OWNED:
+                mocks[name] = stack.enter_context(
+                    patch.object(invite_chain, name, **kwargs)
+                )
+            else:
+                mocks[name] = stack.enter_context(
+                    patch.object(demo, name, **kwargs)
+                )
+            if name in _CHAIN_SHARED:
+                stack.enter_context(
+                    patch.object(invite_chain, name, new=mocks[name])
+                )
         mocks["invite_actor_to_case"] = stack.enter_context(
             patch.object(
                 ActorSession,

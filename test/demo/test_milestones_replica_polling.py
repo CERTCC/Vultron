@@ -628,6 +628,7 @@ _IC_PARTICIPANT_ID = "urn:uuid:test-participant-ic-0001"
 _IC_INITIALIZED_CASE = {
     "id": _IC_CASE_ID,
     "type": "VulnerabilityCase",
+    "vulnerability_reports": [_IC_REPORT_ID],
     "case_participants": [
         {"id": _IC_PARTICIPANT_ID, "type": "CaseParticipant"}
     ],
@@ -635,6 +636,7 @@ _IC_INITIALIZED_CASE = {
 _IC_EMPTY_CASE = {
     "id": _IC_CASE_ID,
     "type": "VulnerabilityCase",
+    "vulnerability_reports": [_IC_REPORT_ID],
     "case_participants": [],
 }
 
@@ -645,12 +647,18 @@ class _LateInitializedCaseClient:
     def dl_path(self, key: str = "", actor_id: str | None = None) -> str:
         return _real_dl_path(self.base_url, actor_id or self.actor_id, key)
 
-    def __init__(self, delay: int, empty_before_init: bool = False) -> None:
+    def __init__(
+        self,
+        delay: int,
+        empty_before_init: bool = False,
+        store: dict | None = None,
+    ) -> None:
         self.base_url = "http://coordinator:7999/api/v2"
         self.actor_id = _IC_CASE_ACTOR_ID
         self._delay = delay
         self._empty_before_init = empty_before_init
         self.calls = 0
+        self.store = store
 
     def get(self, path: str) -> dict | None:
         expected = self.dl_path(
@@ -658,6 +666,8 @@ class _LateInitializedCaseClient:
         )
         if path == expected:
             self.calls += 1
+            if self.store is not None:
+                return self.store
             if self.calls <= self._delay:
                 if self._empty_before_init:
                     return {_IC_CASE_ID: _IC_EMPTY_CASE}
@@ -703,6 +713,54 @@ class TestWaitForInitializedCase:
         assert client.calls > 2, (
             "must have polled past the empty-participants case"
         )
+
+    def test_returns_the_case_for_each_report_in_a_shared_store(self):
+        """Two initialized cases on one CaseActor: each report gets its own (#3666)."""
+        other_report = "urn:uuid:test-report-ic-0002"
+        other_case = {
+            **_IC_INITIALIZED_CASE,
+            "id": "urn:uuid:test-case-ic-0002",
+            "vulnerability_reports": [other_report],
+        }
+        # The other report's case is listed first, so a first-found read
+        # would return it for _IC_REPORT_ID.
+        store = {
+            other_case["id"]: other_case,
+            _IC_CASE_ID: _IC_INITIALIZED_CASE,
+        }
+        client = _LateInitializedCaseClient(delay=0, store=store)
+        for report_id, expected in (
+            (_IC_REPORT_ID, _IC_CASE_ID),
+            (other_report, other_case["id"]),
+        ):
+            with patch(
+                "vultron.demo.helpers.polling.case_actor_id_for_report",
+                return_value=_IC_CASE_ACTOR_ID,
+            ):
+                result = wait_for_initialized_case(
+                    client=cast(DataLayerClient, client),
+                    report_id=report_id,
+                    timeout_seconds=5.0,
+                    poll_interval=0.05,
+                )
+            assert result.id_ == expected
+
+    def test_times_out_rather_than_return_another_reports_case(self):
+        """Only a different report's case is initialized: time out, don't return it (#3666)."""
+        client = _LateInitializedCaseClient(delay=0)
+        with (
+            patch(
+                "vultron.demo.helpers.polling.case_actor_id_for_report",
+                return_value=_IC_CASE_ACTOR_ID,
+            ),
+            pytest.raises(AssertionError, match="Timed out"),
+        ):
+            wait_for_initialized_case(
+                client=cast(DataLayerClient, client),
+                report_id="urn:uuid:some-other-report",
+                timeout_seconds=0.1,
+                poll_interval=0.05,
+            )
 
     def test_raises_on_timeout_when_no_initialized_case(self):
         """Raises AssertionError when no initialized case appears within timeout."""

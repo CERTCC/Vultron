@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Architecture ratchet: ParticipantStatus write validation is composed once.
+"""Architecture test: ParticipantStatus write validation is composed once.
 
 BTND-10-002 requires the per-dimension transition rules, the role gates and the
 cross-machine entailments applied to a ``ParticipantStatus`` write to be
@@ -21,7 +21,7 @@ composed into **one** evaluator that returns every violated rule, with every
 validating node calling that evaluator rather than the individual predicates.
 
 Sharing the individual predicates is not enough, which is the ISSUE-2906 lesson
-this ratchet encodes: before ADR-0086 both nodes called
+this test encodes: before ADR-0086 both nodes called
 ``is_valid_vf_transition()`` and friends directly, each enforced a subset the
 other did not, and the overlap was duplicated with byte-identical message text
 (ARCH-15-004).  Composing the *set* is what makes divergence impossible rather
@@ -29,9 +29,12 @@ than merely fixed — so the thing worth pinning is that no node reaches for a
 member of the set on its own.
 
 The population of validators is discovered structurally rather than from a
-hand-maintained list, so a new one has to be classified before CI passes.  The
-last section pins the ``force_rm_state`` quarantine so the enumerated exemption
-list can only shrink.
+hand-maintained list, so a new one has to be classified before CI passes.  Both
+exemption lists here are pinned exemption sets, not ratchets (ARCH-18-005): each
+entry is exempt by a recorded decision, so neither list has an empty end state.
+``_DECLARED_EXCLUSIONS`` is the ADR-0089 end state, and the last section pins
+the ``force_rm_state`` bootstrap writes, which BTND-10-001 permits because a
+first record has no predecessor.
 
 Per specs/behavior-tree-node-design.yaml BTND-10-002, BTND-10-003;
 specs/architecture.yaml ARCH-15-004.  ADR-0086.  Closes #3050 AC-9.
@@ -71,9 +74,12 @@ _VALIDATING_NODE_MODULES: tuple[str, ...] = (
 #      `case_status.py`, `cs_dimension_filter.py`).  These are declared
 #      permanently rather than narrowing the gate — a narrower gate keyed on the
 #      store site is exactly what a real writer could dodge, which is the
-#      failure mode this ratchet exists to remove.
+#      failure mode this test exists to remove.
 #
-# The divergence the WRITER exclusions record is tracked as type:Concern #3111.
+# Both kinds are permanent, so this is a pinned exemption set, not a ratchet
+# (ARCH-18-005).  CONCERN-3111, which asked whether to consolidate the writers,
+# was settled by ADR-0089 with these two as its end state.
+# permanent: ADR-0089 (two writer dispositions, permanent non-writer over-catch)
 _DECLARED_EXCLUSIONS: dict[str, str] = {
     # Receive path, not emit path.  It MUST NOT use the emit evaluator: it
     # adjudicates each dimension independently and carries the participant's
@@ -183,8 +189,11 @@ _SHARED_EVALUATOR = "participant_transition_violations"
 # three closure sites), and test/architecture/test_rm_closure_no_force.py pins
 # that no closure write carries the override.
 #
-# This list MUST only shrink.  Do not add entries.
+# A pinned exemption set, not a ratchet (ARCH-18-005): the bootstrap writes are
+# permanent, so the list has no empty end state.  It is exact in both
+# directions.  Do not add an entry that is not a first-status bootstrap write.
 # ---------------------------------------------------------------------------
+# permanent: BTND-10-001 (a first record has no predecessor), RMB-14-005
 _RM_FORCE_QUARANTINE: dict[str, int] = {
     # Bootstrap writes: initial participant status at non-adjacent states
     # (issue #3206 — routed through CreateParticipantStatusNode, bypassing
@@ -358,13 +367,14 @@ def test_no_undeclared_participant_status_validator() -> None:
     )
 
 
-def test_rm_force_quarantine_only_shrinks() -> None:
+def test_rm_force_sites_match_pinned_set() -> None:
     """``force_rm_state=True`` appears at exactly the enumerated call sites.
 
     A new site fails this test, which is the point: forcing an RM state past
-    the transition rule is a BTND-10-001 violation, and the protocol question
-    behind the existing ones is still open (type:Concern).  Removing a site
-    also fails, so the list stays honest — update ``_RM_FORCE_QUARANTINE``.
+    the transition rule is a BTND-10-001 violation everywhere except a
+    participant's first-status bootstrap write, which has no predecessor to
+    check.  Removing a site also fails, so the pinned set stays honest
+    (ARCH-18-005) — update ``_RM_FORCE_QUARANTINE``.
     """
     actual = _force_rm_state_sites()
 
@@ -382,9 +392,9 @@ def test_rm_force_quarantine_only_shrinks() -> None:
     messages: list[str] = []
     if added:
         messages.append(
-            "NEW force_rm_state=True call site(s) — the RM transition rule may"
-            " not be bypassed without settling the design question first"
-            " (see type:Concern #3106, referenced on `force_rm_state`):\n"
+            "NEW force_rm_state=True call site(s) — only a participant's"
+            " first-status bootstrap write may bypass the RM transition rule"
+            " (BTND-10-001); a closure never does (RMB-14-005):\n"
             + "\n".join(
                 f"  + {path} (now {count},"
                 f" quarantined {_RM_FORCE_QUARANTINE.get(path, 0)})"
@@ -394,7 +404,7 @@ def test_rm_force_quarantine_only_shrinks() -> None:
     if removed:
         messages.append(
             "Quarantined force_rm_state=True site(s) are gone — good news;"
-            " shrink _RM_FORCE_QUARANTINE to match:\n"
+            " update _RM_FORCE_QUARANTINE to match:\n"
             + "\n".join(
                 f"  - {path} (quarantined {count}, now {actual.get(path, 0)})"
                 for path, count in sorted(removed.items())
