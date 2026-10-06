@@ -397,7 +397,7 @@ def test_case_proposal_accept_after_case_established_keeps_case_manager(
 @pytest.mark.xfail(
     strict=True,
     raises=AssertionError,
-    reason="CM-30-001: Remove(Note) from neither author nor owner is applied. Tracked by #4074.",
+    reason="CM-30-001: Remove(Note) from neither author nor owner is applied. Tracked by #4230 (source #4074).",
 )
 @pytest.mark.spec("CM-30-001")
 def test_note_removal_by_stranger_is_refused(
@@ -429,7 +429,7 @@ def test_note_removal_by_stranger_is_refused(
 @pytest.mark.xfail(
     strict=True,
     raises=AssertionError,
-    reason="CM-30-002: Add(VulnerabilityReport) from a non-owner is applied. Tracked by #4074.",
+    reason="CM-30-002: Add(VulnerabilityReport) from a non-owner is applied. Tracked by #4230 (source #4074).",
 )
 @pytest.mark.spec("CM-30-002")
 def test_report_addition_by_non_owner_is_refused(

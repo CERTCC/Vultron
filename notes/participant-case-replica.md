@@ -360,6 +360,17 @@ against a different actor's case replica, producing incorrect state.
   - a `VultronPendingCaseInbox` invite anchor, written by
     `InviteActorToCaseReceivedUseCase` when this receiver processed the invite,
     which covers the late joiner before any replica exists (PCR-03-004 path b).
+    Three trust rules govern when and how the anchor is written
+    (`RecordInviteTrustAnchorNode`, issue #4185):
+    (1) the Invite's `object` must equal the receiving actor — a misaddressed
+    Invite is refused with no record written (AC-1);
+    (2) the anchor binds to the Invite's `actor` id (the named CaseActor), not
+    the transport-level delivering sender — the caller supplies the Invite's own
+    `actor` field (AC-2);
+    (3) a second Invite for the same case naming a *different* CaseActor is
+    refused at WARNING level and the existing anchor is left unchanged (AC-3).
+    Whether the named CaseActor is genuine cannot be verified until actor
+    identity and signatures are in place (#2841).
   Neither answering means **reject**, not accept. The lookup is idempotent and
   safe to call multiple times.
 - The late-joiner bootstrap node belongs in
