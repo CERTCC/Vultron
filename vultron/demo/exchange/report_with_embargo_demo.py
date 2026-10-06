@@ -94,7 +94,7 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     demo_check,
     demo_gate,
     demo_step,
-    seed_case_actor_for_report,
+    seed_case_actor,
     setup_demo_logging,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -121,12 +121,11 @@ def _provision_receivers_case_actor(client: DataLayerClient) -> as_Actor:
 
     A CaseActor is a role the container wears, one per node rather than one
     per report (#1872), so its id is known before any report exists and the
-    run can read the case from its store once it is created; the helper's
-    ``report_id`` only names the actor.  ``POST /actors/`` is idempotent, so
-    the later provisioning inside :func:`reporter_submits_report` returns
-    this same actor.
+    run can read the case from its store once it is created.  ``POST /actors/``
+    is idempotent, so the provisioning inside :func:`reporter_submits_report`
+    returns this same actor.
     """
-    return seed_case_actor_for_report(client, report_id="(pending)")
+    return seed_case_actor(client)
 
 
 # ---------------------------------------------------------------------------
