@@ -103,9 +103,10 @@ class CaseReferenceEditPendingNode(DataLayerConditionWithPorts):
     """Guard: the edit would change the case's list (it is not a duplicate).
 
     ``SUCCESS`` when attaching a reference the case lacks, or detaching one it
-    holds.  ``FAILURE`` is the duplicate delivery: a handler asks
-    :func:`~vultron.core.use_cases.received._bt_verdict.node_failed` and reports
-    ``SKIPPED``, with nothing committed.
+    holds.  ``FAILURE`` with ``is_duplicate`` set is the duplicate delivery: a
+    handler reports ``SKIPPED``, with nothing committed.
+    Any other ``FAILURE`` (no datalayer, unknown case) is not a duplicate and
+    stays a refusal.
     """
 
     def __init__(
@@ -121,6 +122,9 @@ class CaseReferenceEditPendingNode(DataLayerConditionWithPorts):
         self.case_id = case_id
         self.field = field
         self.attach = attach
+        #: True only after the edit was found to be a duplicate; a missing
+        #: datalayer or case also fails the node but is not a duplicate.
+        self.is_duplicate = False
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -132,6 +136,7 @@ class CaseReferenceEditPendingNode(DataLayerConditionWithPorts):
         present = self.ref_id in [_as_id(r) for r in getattr(case, self.field)]
         if present != self.attach:
             return Status.SUCCESS
+        self.is_duplicate = True
         self.feedback_message = (
             f"'{self.ref_id}' is already"
             f" {'in' if self.attach else 'absent from'} case"

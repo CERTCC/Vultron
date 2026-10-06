@@ -224,3 +224,52 @@ def test_late_joiner_receives_the_added_report_through_backfill(dl):
     assert applied.status == Status.SUCCESS
     joined = cast(as_VulnerabilityCase, replica.read(_CASE_ID))
     assert _report_ids(joined) == [report.id_]
+
+
+@pytest.mark.spec("CM-30-002")
+def test_report_at_replica_from_non_manager_is_refused(dl):
+    """At a replica only the CASE_MANAGER is an entitled sender."""
+    case = as_VulnerabilityCase(
+        id_=_CASE_ID, name="Lifecycle", attributed_to=_OWNER_ID
+    )
+    seed_case_manager_participant(dl, case, _OTHER_ID)
+    dl.create(case)
+
+    result = _add(dl, gen_report(), sender=_OWNER_ID)
+
+    assert result.disposition == HandlerDisposition.REFUSED
+    assert _reports(dl) == []
+    assert _entries(dl) == []
+
+
+@pytest.mark.spec("SYNC-12-003")
+def test_apply_report_entry_is_idempotent_and_tolerates_a_missing_case(dl):
+    """The replica apply node lists a report once and skips an unseeded case."""
+    report_id = "https://example.org/reports/replay"
+    entry = CaseLedgerEntry(
+        case_id=_CASE_ID,
+        log_index=0,
+        log_object_id="https://example.org/activities/add-report",
+        event_type="add_report_to_case",
+        payload_snapshot={"object": report_id},
+        prev_log_hash="0" * 64,
+        entry_hash="1" * 64,
+    )
+    activity = SimpleNamespace(log_entry=entry, actor_id=_MANAGER_ID)
+
+    def apply() -> Status:
+        return (
+            BTBridge(datalayer=dl, wire_render_port=As2WireRenderAdapter())
+            .execute_with_setup(
+                tree=ApplyOfferReportFromLedgerNode(name="ApplyReport"),
+                actor_id=_MANAGER_ID,
+                activity=activity,
+            )
+            .status
+        )
+
+    assert apply() == Status.SUCCESS  # no case replica yet: a no-op
+    dl.create(as_VulnerabilityCase(id_=_CASE_ID, name="Replica"))
+    assert apply() == Status.SUCCESS
+    assert apply() == Status.SUCCESS
+    assert _reports(dl) == [report_id]

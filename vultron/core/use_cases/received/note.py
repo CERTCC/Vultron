@@ -193,6 +193,9 @@ class RemoveNoteFromCaseReceivedUseCase:
     A note the case does not hold is ``SKIPPED``.
     """
 
+    # The declared kind names the floor; the tree's role-scoped sender guard
+    # (author or Case Owner at the manager, the CASE_MANAGER at a replica) is
+    # the full rule, and the only place it is defined (HP-01-006/007).
     sender_entitlement: ClassVar[SenderEntitlement] = (
         SenderEntitlementKind.ACTIVE_PARTICIPANT
     )
