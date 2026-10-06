@@ -73,6 +73,7 @@ def demo_env(client):
             demo.demo_reporter_proposes_longer,
             [
                 "Shortest-wins: active",
+                "Pending revision is the Reporter's proposed event",
             ],
         ),
         (
