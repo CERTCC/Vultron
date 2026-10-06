@@ -190,6 +190,7 @@ def joining_case() -> Any:
                 cvd_role=[CVDRole.VENDOR],
             )
         ],
+        joined=False,
     )
     dl.create(inert)
     case.case_participants.append(inert.id_)
@@ -233,13 +234,6 @@ def joining_case() -> Any:
     dl.close()
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "CM-11-007: Reject of a stub Invite moves the kept participant"
-        " record to RM CLOSED. Tracked by #4048."
-    ),
-)
 @pytest.mark.spec("CM-11-007")
 def test_stub_invite_reject_closes_and_keeps_the_record(joining_case) -> None:
     """A hard no to joining is ``R → C`` on the record the Invite created.
@@ -259,13 +253,6 @@ def test_stub_invite_reject_closes_and_keeps_the_record(joining_case) -> None:
     assert participant_status_rm_state(latest) == RM.CLOSED
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "CM-11-009: any stub-Invite reply from a VENDOR invitee sets VF V."
-        " Tracked by #4048."
-    ),
-)
 @pytest.mark.spec("CM-11-009")
 @pytest.mark.parametrize("reply", ["accept", "reject"])
 def test_stub_invite_reply_marks_vendor_aware(joining_case, reply) -> None:
@@ -282,14 +269,6 @@ def test_stub_invite_reply_marks_vendor_aware(joining_case, reply) -> None:
     assert participant_status_vf_state(latest) in {CS_vf.Vf, CS_vf.VF}
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "CM-11-008: accepting the stub Invite seeds the case with"
-        " Announce(VulnerabilityCase) before any ledger entry reaches the"
-        " participant. Tracked by #4050."
-    ),
-)
 @pytest.mark.spec("CM-11-008")
 def test_stub_invite_accept_seeds_case_then_replays_ledger(
     joining_case,

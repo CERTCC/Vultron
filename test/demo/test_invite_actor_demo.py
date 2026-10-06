@@ -71,9 +71,10 @@ def test_demo(demo_env, demo_fn, caplog):
 
     For the reject path, verifies:
     - Case initialized with report and finder participant
-    - Invite sent to coordinator inbox
+    - invite-actor-to-case trigger fired (creates inert participant, CM-11-006)
+    - Invite also delivered to coordinator inbox
     - Coordinator rejection sent to vendor inbox
-    - Participant list unchanged (coordinator not added)
+    - Coordinator in actor_participant_index at RM.CLOSED (DEMOMA-27-002)
     """
     import logging
 

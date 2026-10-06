@@ -44,9 +44,7 @@ from collections.abc import Callable
 from datetime import datetime, timedelta
 
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import (
-    EmbargoConsentState,
-)
+from vultron.core.states.participant_embargo_consent import EmbargoConsentState
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.polling import (
     LEDGER_COVERAGE_TIMEOUT,
@@ -173,7 +171,7 @@ def _await_consent_committed(
     """Gate on *answerer*'s consent being ``ACCEPTED`` in the CASE_MANAGER's store.
 
     Only meaningful for a first proposal, where the answer moves the answerer
-    from invited to signatory.  A signatory's answer to a revision changes no
+    from invited to accepted.  A signatory's answer to a revision changes no
     consent state (EP-09-004), so there is nothing to observe there.
     """
     wait_for_participant_embargo_consent(

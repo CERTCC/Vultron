@@ -26,9 +26,7 @@ from unittest.mock import MagicMock, create_autospec, patch
 import pytest
 
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import (
-    EmbargoConsentState,
-)
+from vultron.core.states.participant_embargo_consent import EmbargoConsentState
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.exchange import embargo_lifecycle as lifecycle
 from vultron.demo.utils import _demo_failures, reset_demo_failures
