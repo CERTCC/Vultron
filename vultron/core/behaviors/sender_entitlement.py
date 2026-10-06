@@ -333,6 +333,20 @@ class SenderIsCaseManagerNode(SenderEntitlementConditionNode):
         "activity": PortInformation(data_type=object, required=True),
     }
 
+    def __init__(
+        self, case_id: str | None = None, name: str | None = None
+    ) -> None:
+        """Create the guard.
+
+        Args:
+            case_id: The case whose CASE_MANAGER the sender must be.
+                Leave ``None`` for a ledger-entry activity, where the case is
+                read from the entry the activity carries.
+            name: Optional node name.
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self._case_id = case_id
+
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {"activity": "/activity"}
@@ -346,15 +360,17 @@ class SenderIsCaseManagerNode(SenderEntitlementConditionNode):
             return f
         assert self.datalayer is not None
 
-        try:
-            entry = _log_entry_from(self.activity, self.name)
-        except VultronError as exc:
-            self.logger.error(  # noqa: TRY400
-                "%s: %s", self.name, exc
-            )
-            return Status.FAILURE
-
-        case_id = entry.case_id
+        if self._case_id is not None:
+            case_id = self._case_id
+        else:
+            try:
+                entry = _log_entry_from(self.activity, self.name)
+            except VultronError as exc:
+                self.logger.error(  # noqa: TRY400
+                    "%s: %s", self.name, exc
+                )
+                return Status.FAILURE
+            case_id = entry.case_id
         sender_id = getattr(self.activity, "actor_id", None)
 
         if not sender_id:
@@ -571,11 +587,11 @@ class SenderIsCaseOwnerNode(SenderEntitlementConditionNode):
                 self._sender_actor_id,
                 case_id,
             )
-            return Status.FAILURE
+            return self._not_case_owner(case_id)
 
         participant = self.datalayer.read(participant_id)
         if not isinstance(participant, CaseParticipant):
-            return Status.FAILURE
+            return self._not_case_owner(case_id)
 
         roles: list[CVDRole] = (
             list(participant.roles) if participant.roles else []
@@ -595,6 +611,14 @@ class SenderIsCaseOwnerNode(SenderEntitlementConditionNode):
             self._sender_actor_id,
             case_id,
             roles,
+        )
+        return self._not_case_owner(case_id)
+
+    def _not_case_owner(self, case_id: str | None) -> Status:
+        """Record the missing entitlement by name and fail (HP-01-006)."""
+        self.feedback_message = (
+            f"Sender '{self._sender_actor_id}' is not the Case Owner of case"
+            f" '{case_id}' — REFUSED (HP-01-006)"
         )
         return Status.FAILURE
 
