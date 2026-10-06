@@ -137,6 +137,11 @@ its authority to *commit* comes from its role (CLP-09), not from being active.
   supersedes. `Accept` of a superseded stub is refused with the replacement
   named; `Reject` of it is honoured (CM-11-016). Without this, an invitee
   accepting stale longer terms would join lapsed.
+- **Joining while a proposal is open.** The joiner signs the embargo in force
+  (step 2a), but it was not on the roster when the CASE_MANAGER relayed any
+  open proposal. The admission therefore ends by inviting it to each open
+  proposal, attributed to the original proposer and committed to the ledger
+  (EP-09-011); without it a longer revision would lapse the joiner unasked.
 - **No `Undo`.** Retracting the superseded Invite was considered and rejected
   (ADR-0114): the refusal already prevents a stale join, and naming the
   superseded Invite in its replacement tells the invitee the same thing in
