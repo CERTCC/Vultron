@@ -590,7 +590,7 @@ def _make_adr_dir(tmp_path, adr_numbers=None):
         # Valid status frontmatter so the MS-14-001 status check (which runs
         # over every ADR in the dir) does not flag these reference stubs.
         (adr_dir / f"{num}-stub.md").write_text(
-            f"---\nstatus: accepted\n---\n# ADR-{num}\n"
+            f"---\nstatus: accepted\ncreated: 2020-01-01\nupdated: 2020-01-01\nrevision: 1\n---\n# ADR-{num}\n"
         )
     return adr_dir
 
@@ -772,7 +772,9 @@ def test_non_scenario_start_group_not_checked(tmp_path, capsys):
 def _write_adr(adr_dir, num, status=None, body=""):
     """Write an ADR file; omit the status line entirely when status is None."""
     fm = (
-        f"---\nstatus: {status}\n---\n" if status is not None else "---\n---\n"
+        f"---\nstatus: {status}\ncreated: 2020-01-01\nupdated: 2020-01-01\nrevision: 1\nstatus_override: test fixture\n---\n"
+        if status is not None
+        else "---\n---\n"
     )
     (adr_dir / f"{num}-stub.md").write_text(f"{fm}# ADR-{num}\n{body}\n")
 
@@ -805,7 +807,7 @@ def test_lint_adr_superseded_status_ok(tmp_path):
     write_yaml(tmp_path, _minimal_spec())
     adr_dir = _make_adr_dir(tmp_path, ["0100"])  # replacement exists
     (adr_dir / "0099-stub.md").write_text(
-        "---\nstatus: superseded\nsuperseded_by: 0100-stub.md\n---\n# x\n"
+        "---\nstatus: superseded\ncreated: 2020-01-01\nupdated: 2020-01-01\nrevision: 1\nsuperseded_by: 0100-stub.md\n---\n# x\n"
     )
     result = lint(tmp_path, adr_dir=adr_dir)
     assert result == 0
@@ -816,7 +818,7 @@ def test_lint_adr_superseded_inline_form_ok(tmp_path):
     write_yaml(tmp_path, _minimal_spec())
     adr_dir = _make_adr_dir(tmp_path, ["0100"])
     (adr_dir / "0099-stub.md").write_text(
-        "---\nstatus: superseded by 0100-stub.md\n---\n# x\n"
+        "---\nstatus: superseded by 0100-stub.md\ncreated: 2020-01-01\nupdated: 2020-01-01\nrevision: 1\n---\n# x\n"
     )
     result = lint(tmp_path, adr_dir=adr_dir)
     assert result == 0
@@ -827,7 +829,7 @@ def test_lint_adr_superseded_without_target_is_hard_error(tmp_path, capsys):
     write_yaml(tmp_path, _minimal_spec())
     adr_dir = _make_adr_dir(tmp_path)
     (adr_dir / "0099-stub.md").write_text(
-        "---\nstatus: superseded\n---\n# x\n"
+        "---\nstatus: superseded\ncreated: 2020-01-01\nupdated: 2020-01-01\nrevision: 1\n---\n# x\n"
     )
     result = lint(tmp_path, adr_dir=adr_dir)
     captured = capsys.readouterr()
@@ -901,9 +903,11 @@ def test_lint_structured_adr_ref_resolves_to_archived(tmp_path):
     archived = adr_dir / "archived"
     archived.mkdir()
     (archived / "0099-stub.md").write_text(
-        "---\nstatus: deprecated\nsuperseded_by: 0100-stub.md\n---\n# x\n"
+        "---\nstatus: deprecated\ncreated: 2020-01-01\nupdated: 2020-01-01\nrevision: 1\nsuperseded_by: 0100-stub.md\n---\n# x\n"
     )
-    (adr_dir / "0100-stub.md").write_text("---\nstatus: accepted\n---\n# x\n")
+    (adr_dir / "0100-stub.md").write_text(
+        "---\nstatus: accepted\ncreated: 2020-01-01\nupdated: 2020-01-01\nrevision: 1\n---\n# x\n"
+    )
     result = lint(tmp_path, adr_dir=adr_dir)
     assert result == 0
 
@@ -913,7 +917,7 @@ def test_lint_adr_status_prose_suppress(tmp_path, capsys):
     write_yaml(tmp_path, _minimal_spec())
     adr_dir = _make_adr_dir(tmp_path)
     (adr_dir / "0099-stub.md").write_text(
-        "---\nstatus: accepted\n"
+        "---\nstatus: accepted\ncreated: 2020-01-01\nupdated: 2020-01-01\nrevision: 1\n"
         "lint_suppress: [status_prose_contradiction]\n---\n"
         "# ADR-0099\nThis ADR is formed in sand.\n"
     )
@@ -2002,3 +2006,37 @@ def test_protocol_code_reference_in_statement_is_hard_error(tmp_path, capsys):
     assert result == 1
     assert "its statement" in line
     assert "'py_trees'" in line
+
+
+def _write_dated_adr(adr_dir, num, status, updated, override=""):
+    (adr_dir / f"{num}-stub.md").write_text(
+        f"---\nstatus: {status}\ncreated: {updated}\nupdated: {updated}\n"
+        f"revision: 1\n{override}---\n# ADR-{num}\n"
+    )
+
+
+def test_lint_adr_status_disagreeing_with_epoch_is_hard_error(
+    tmp_path, capsys
+):
+    """A proposed ADR last edited long ago fails the epoch check (MS-14-007)."""
+    write_yaml(tmp_path, _minimal_spec())
+    adr_dir = _make_adr_dir(tmp_path)
+    _write_dated_adr(adr_dir, "0099", "proposed", "2020-01-01")
+    assert lint(tmp_path, adr_dir=adr_dir) == 1
+    captured = capsys.readouterr()
+    assert "MS-14-007" in captured.err
+    assert "0099" in captured.err
+
+
+def test_lint_adr_status_override_silences_epoch_error(tmp_path):
+    """A status_override with a reason lets the disagreement stand."""
+    write_yaml(tmp_path, _minimal_spec())
+    adr_dir = _make_adr_dir(tmp_path)
+    _write_dated_adr(
+        adr_dir,
+        "0099",
+        "proposed",
+        "2020-01-01",
+        override="status_override: a human chose this\n",
+    )
+    assert lint(tmp_path, adr_dir=adr_dir) == 0

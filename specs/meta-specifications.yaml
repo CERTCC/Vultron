@@ -984,14 +984,19 @@ groups:
     statement: >-
       An ADR's `status` MUST agree with the lifecycle epoch computed from its `updated` date
       (ADR-0120): `proposed` under 72 hours, `accepted-provisional` from 72 hours to day 10, and
-      `accepted` from day 10 on. A human MAY override the computed value, and the override MUST be
-      visible in the ADR's frontmatter.
+      `accepted` from day 10 on. A human MAY override the computed value with a
+      `status_override:` field whose value is the reason, and `spec-lint` MUST fail an ADR whose
+      status disagrees with its epoch and carries no override.
     rationale: >-
       An ADR's status is the confidence signal agents read, and an unmaintained status drifts from
       how settled the decision really is. Computing the expected value from `updated` makes the
       drift mechanical to find; the override keeps a human's judgement (for example a merged
-      dependent implementation hardening an ADR early) above the clock. The lint itself is #4196.
-    verification_debt: '#2571'
+      dependent implementation hardening an ADR early) above the clock. Boundaries are counted in
+      whole days (3 and 10) because `updated` is a date.
+    verification: >-
+      `test/metadata/test_adr_lifecycle.py` checks the epoch boundaries and the status comparison,
+      and `test/metadata/specs/test_lint.py` checks that `spec-lint` fails a disagreeing status and
+      accepts an override.
     relationships:
     - rel_type: depends_on
       spec_id: MS-14-001
@@ -1003,7 +1008,10 @@ groups:
   - id: MS-14-008
     priority: MUST
     kind: process
-    verification_debt: '#2571'
+    verification: >-
+      `test/metadata/test_adr_lifecycle.py` checks that the ADR schema rejects an ADR without the
+      three fields; the real ADR registry loading in `test/metadata/test_adr_frontmatter.py` checks
+      the migration.
     statement: >-
       ADR frontmatter MUST carry `created` (set once, never changed), `updated` (changed only by a
       material edit), and `revision` (an integer incremented by each material edit). Existing ADRs
@@ -1015,6 +1023,52 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: MS-14-005
+    adr:
+    - ADR-0120
+    tags:
+    - documentation
+    - tooling
+  - id: MS-14-009
+    priority: MUST
+    kind: process
+    statement: >-
+      A pre-commit check (`adr-lifecycle-check`) MUST fail a diff that changes the Decision Outcome
+      or Considered Options section of an epoch-3 ADR without adding a dated Amendment block, and
+      MUST fail a diff that bumps `updated` on an ADR that was past epoch 1 unless the ADR carries
+      a `status_override`.
+    rationale: >-
+      ADR-0120 forbids rewriting an accepted ADR under its own number, and the audit that produced
+      it found exactly that done by agents. The rule is only as strong as the gate that refuses the
+      edit, and a reviewer reading a large diff does not reliably see a changed section. A heading
+      that names "Amendment" and a date is the mechanical mark of a dated Amendment block.
+    verification: >-
+      `test/metadata/test_adr_lifecycle.py` checks each refused and each permitted edit.
+    relationships:
+    - rel_type: depends_on
+      spec_id: MS-14-007
+    adr:
+    - ADR-0120
+    tags:
+    - documentation
+    - tooling
+  - id: MS-14-010
+    priority: SHOULD
+    kind: process
+    statement: >-
+      `spec-lint` SHOULD report, as information, each ADR still in epoch 1 or 2 that a spec
+      requirement cites in `adr:` and verifies with a test file that exists, so a human can promote
+      the ADR early.
+    rationale: >-
+      A dependent implementation that passes its test is evidence the decision held, which is what
+      the clock stands in for. Reporting it costs nothing and leaves the promotion to the human,
+      who records it with `status_override`. The check sees that the named test file exists, not
+      that it passes; a passing run is the human's to confirm.
+    verification: >-
+      `test/metadata/test_adr_lifecycle.py` checks that the dependents are found and that only an
+      unsettled ADR is reported.
+    relationships:
+    - rel_type: depends_on
+      spec_id: MS-14-007
     adr:
     - ADR-0120
     tags:
