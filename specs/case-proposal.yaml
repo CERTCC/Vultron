@@ -363,9 +363,9 @@ groups:
   - id: CP-05-006
     priority: MUST
     kind: protocol
-    statement: 'The case-actor service MUST handle duplicate `Create(as_CaseProposal)` idempotently: if a proposal for the
-      same report has already been accepted, it MUST re-send the stored `Accept(as_CaseProposal)` unchanged, with its
-      original identifier, and MUST NOT create a second `VulnerabilityCase`.'
+    statement: 'The case-actor service MUST handle duplicate `Create(as_CaseProposal)` idempotently: if the same proposal
+      (the same proposal identifier) has already been accepted, it MUST re-send the stored `Accept(as_CaseProposal)` unchanged,
+      with its original identifier, and MUST NOT create a second `VulnerabilityCase`.'
     rationale: >-
       A duplicate proposal is the only signal the case-actor gets that its acceptance
       was lost, so answering it is the recovery path CONCERN-2367 found missing.
@@ -374,7 +374,11 @@ groups:
       which CP-05-005's irrevocability rule precludes.
     note: >-
       Raised from SHOULD to MUST and changed from "a new Accept" to the stored original
-      by ADR-0080 (CONCERN-2367).
+      by ADR-0080 (CONCERN-2367). The duplicate is keyed on the proposal, not the report:
+      the report identifier is chosen by the sender, and a proposal under a new identifier
+      is a new ask the requester is tracking separately, so the stored `Accept` for the old
+      one would answer a proposal the requester may already have expired. A new proposal
+      that names an already-accepted report is governed by CP-05-008 (#3977).
     verification: A duplicate `Create(as_CaseProposal)` after acceptance produces an outbound `Accept(as_CaseProposal)`
       identical to the stored original including its `id`, and no second `VulnerabilityCase`.
     adr:
@@ -406,6 +410,32 @@ groups:
       spec_id: ASK-05-001
     lint_suppress:
     - missing_story_reference
+  - id: CP-05-008
+    priority: MUST
+    kind: protocol
+    statement: A `Create(as_CaseProposal)` under a new proposal identifier is a new request even when it names a report that
+      already has a case. The case-actor service MUST subject it to the admission decision (CP-05-002) and MUST answer it with
+      its own `Accept(as_CaseProposal)` or `Reject(as_CaseProposal)`. When the proposer is that case's owner it MUST reuse the
+      existing case and MUST NOT create a second `VulnerabilityCase`; for any other proposer it MUST create a separate case
+      and MUST NOT add that proposer to the existing case.
+    rationale: >-
+      The report identifier is chosen by the sender. A reuse keyed on the report alone lets a
+      proposer join another party's case by naming its report, and collapses the one-case-per-recipient
+      rule (CBT-06-002) into a shared case. The proposer is the second half of the key that
+      makes the reuse safe: the same proposer re-proposing after its first proposal expired
+      (CP-05-007) converges on its own case, and a different proposer gets its own.
+    verification: A second proposal from the case's owner, under a new identifier, yields a new `Accept` naming the existing
+      case and no second case. A proposal for the same report from a different proposer yields a separate case owned by that
+      proposer, and the first case gains no participant.
+    adr:
+    - ADR-0080
+    relationships:
+    - rel_type: refines
+      spec_id: CP-05-002
+    stories:
+    - story_2022_006
+    - story_2022_012
+    - story_2022_101
 - id: CP-06
   title: Protocol Flow — Receiving (Report-Receiver Side)
   specs:
