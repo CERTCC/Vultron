@@ -356,10 +356,11 @@ class SenderIsActiveLedgerParticipantNode(SenderEntitlementConditionNode):
             self.logger.warning("%s: activity has no actor_id", self.name)
             return Status.FAILURE
 
-        case = self.datalayer.read_case(entry.case_id)
-        if case is None or not is_case_content_recipient(
-            case, self.datalayer, sender_id
-        ):
+        # Regime 1: no case means no participant, so the sender is refused.
+        case, failure = self._require_case(entry.case_id)
+        if failure is not None:
+            return failure
+        if not is_case_content_recipient(case, self.datalayer, sender_id):
             self.feedback_message = (
                 f"Sender '{sender_id}' is not an active participant in case"
                 f" '{entry.case_id}' — REFUSED (SYNC-03-005, CM-10-004)"
