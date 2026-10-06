@@ -61,30 +61,6 @@ from test.ci.invariants.common import (
     load_narrative_edges,
 )
 
-#: Marker that makes the report greppable in a CI log (#4248).
-ACTOR_MISMATCH_MARKER = "CAUSAL-EDGE-ACTOR-MISMATCH"
-
-
-def _report_actor_mismatches(
-    request: pytest.FixtureRequest, narrative_path: str, mismatches: list[str]
-) -> None:
-    """Write each ``consequent_actor`` mismatch to the terminal; never fail.
-
-    Report-only stage of #4248: the count is always written so a clean run is
-    distinguishable from a run that did not check.
-    """
-    reporter = request.config.pluginmanager.get_plugin("terminalreporter")
-    lines = [
-        f"{ACTOR_MISMATCH_MARKER} {narrative_path}: "
-        f"{len(mismatches)} mismatch(es)",
-        *(f"{ACTOR_MISMATCH_MARKER}   {m}" for m in mismatches),
-    ]
-    for line in lines:
-        if reporter is not None:
-            reporter.write_line(line)
-        else:
-            print(line)
-
 
 def make_universal_invariant_tests(  # noqa: C901  # C901 counts every nested test closure; each is simple
     replicas_fixture: str,
@@ -445,18 +421,16 @@ def make_universal_invariant_tests(  # noqa: C901  # C901 counts every nested te
             machine-readable ``causal_edges:`` list, then verifies that for each
             observable edge (antecedent, consequent) there exists at least one
             antecedent entry that precedes at least one consequent entry in the
-            authoritative log.
+            authoritative log, and that the consequent entries considered are
+            those whose recorded actor is the edge's ``consequent_actor``.
             """
             replicas = request.getfixturevalue(replicas_fixture)
             edges = load_narrative_edges(_narrative_path)
-            mismatches: list[str] = []
             violations = check_causal_edges(
                 replicas,
                 edges,
                 load_actor_names(Path(_narrative_path).stem),
-                actor_mismatches=mismatches,
             )
-            _report_actor_mismatches(request, _narrative_path, mismatches)
             assert not violations, (
                 f"{len(violations)} causal-edge ordering violation(s):\n"
                 + "\n".join(violations)

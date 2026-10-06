@@ -1191,8 +1191,6 @@ def check_causal_edges(
     replicas: dict[str, list[dict]],
     edges: list[dict],
     actor_names: Mapping[str, str] | None = None,
-    *,
-    actor_mismatches: list[str] | None = None,
 ) -> list[str]:
     """Assert that each declared observable causal edge appears in log-index order.
 
@@ -1204,14 +1202,12 @@ def check_causal_edges(
     When *actor_names* is given (``{routeKey: actorName}`` from the dump
     manifest, see ``load_actor_names``) and the edge carries a
     ``consequent_actor`` tag, the consequent candidates are restricted to
-    entries whose recorded actor resolves to that tag (DEMOMA-22-004).  An edge
-    whose tag matches no recorded consequent entry, or whose consequent actor
-    is absent from the manifest, is an *actor mismatch*.  Mismatches are
-    appended to *actor_mismatches* and, for that edge, ordering falls back to
-    every consequent entry so the mismatch does not also fail the test.
+    entries whose recorded actor resolves to that tag (DEMOMA-22-004,
+    DEMOMA-22-005).  An edge whose tag matches no recorded consequent entry, or
+    whose consequent actor is absent from the manifest, is a violation.
     Passing ``None`` skips the actor check (structural callers with synthetic
     ledgers); passing ``{}`` means "no manifest", so every tagged edge is
-    unresolvable.
+    unresolvable and fails.
 
     Returns a list of violation strings (empty = all edges satisfied).
     Diagnostic output names the unsatisfied edge and the indices that were
@@ -1250,15 +1246,14 @@ def check_causal_edges(
                 if recorded_actor_name(e, actor_names)[0] == consequent_actor
             ]
             if not matching:
-                if actor_mismatches is not None:
-                    actor_mismatches.append(
-                        f"Edge [{antecedent!r} → {consequent!r}]: "
-                        f"consequent_actor {consequent_actor!r} matches no "
-                        f"recorded {consequent!r} entry; recorded actor(s): "
-                        f"{_describe_recorded_actors(con_entries, actor_names)}"
-                    )
-            else:
-                con_indices = [log_index(e) for e in matching]
+                violations.append(
+                    f"Edge [{antecedent!r} → {consequent!r}]: "
+                    f"consequent_actor {consequent_actor!r} matches no "
+                    f"recorded {consequent!r} entry; recorded actor(s): "
+                    f"{_describe_recorded_actors(con_entries, actor_names)}"
+                )
+                continue
+            con_indices = [log_index(e) for e in matching]
 
         if not ant_indices:
             violations.append(

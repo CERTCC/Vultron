@@ -1,5 +1,7 @@
 """Tests for the ``consequent_actor`` check in ``check_causal_edges`` (#4248).
 
+A tag that disagrees with the recorded ledger actor fails (DEMOMA-22-005).
+
 Synthetic ledgers and dump manifests only; no ``devlogs/`` needed.  Not tagged
 ``case_ledger_invariants``, so they run in the regular unit suite.
 """
@@ -53,47 +55,39 @@ def _run(
     replicas: dict[str, list[dict]],
     edges: list[dict],
     names: dict[str, str] | None,
-) -> tuple[list[str], list[str]]:
-    mismatches: list[str] = []
-    violations = check_causal_edges(
-        replicas, edges, names, actor_mismatches=mismatches
-    )
-    return violations, mismatches
+) -> list[str]:
+    return check_causal_edges(replicas, edges, names)
 
 
 def test_matching_tag_is_clean() -> None:
     ledger = _ledger(f"https://x.example/actors/{_VENDOR_KEY}")
-    assert _run(ledger, _edge("vendor"), _NAMES) == ([], [])
+    assert _run(ledger, _edge("vendor"), _NAMES) == []
 
 
-def test_mismatching_tag_is_reported_without_failing() -> None:
+def test_mismatching_tag_fails() -> None:
     ledger = _ledger(f"https://x.example/actors/{_VENDOR_KEY}")
-    violations, mismatches = _run(ledger, _edge("coordinator"), _NAMES)
-    assert violations == []
-    assert len(mismatches) == 1
-    assert "'coordinator'" in mismatches[0]
-    assert "'vendor'" in mismatches[0]
+    violations = _run(ledger, _edge("coordinator"), _NAMES)
+    assert len(violations) == 1
+    assert "'coordinator'" in violations[0]
+    assert "'vendor'" in violations[0]
 
 
-def test_actor_absent_from_manifest_is_reported() -> None:
+def test_actor_absent_from_manifest_fails() -> None:
     ledger = _ledger("https://x.example/actors/stranger-99")
-    violations, mismatches = _run(ledger, _edge("vendor"), _NAMES)
-    assert violations == []
-    assert len(mismatches) == 1
-    assert "unresolved: stranger-99" in mismatches[0]
+    violations = _run(ledger, _edge("vendor"), _NAMES)
+    assert len(violations) == 1
+    assert "unresolved: stranger-99" in violations[0]
 
 
-def test_entry_with_no_recorded_actor_is_reported() -> None:
-    violations, mismatches = _run(_ledger(None), _edge("vendor"), _NAMES)
-    assert violations == []
-    assert "no actor recorded" in mismatches[0]
+def test_entry_with_no_recorded_actor_fails() -> None:
+    violations = _run(_ledger(None), _edge("vendor"), _NAMES)
+    assert "no actor recorded" in violations[0]
 
 
 def test_no_manifest_leaves_every_tagged_edge_unresolvable() -> None:
     ledger = _ledger(f"https://x.example/actors/{_VENDOR_KEY}")
-    violations, mismatches = _run(ledger, _edge("vendor"), {})
-    assert violations == []
-    assert len(mismatches) == 1
+    violations = _run(ledger, _edge("vendor"), {})
+    assert len(violations) == 1
 
 
 def test_candidates_are_restricted_to_the_tagged_actor() -> None:
@@ -103,20 +97,20 @@ def test_candidates_are_restricted_to_the_tagged_actor() -> None:
         _entry(1, "engage_case", f"https://x.example/actors/{_VENDOR_KEY}"),
         _entry(2, "close_case", f"https://x.example/actors/{_CASE_ACTOR_KEY}"),
     )
-    violations, mismatches = _run(ledger, _edge("vendor"), _NAMES)
-    assert mismatches == []
-    assert violations, "ordering must use only the vendor's close_case"
+    violations = _run(ledger, _edge("vendor"), _NAMES)
+    assert violations
+    assert "no valid ordering" in violations[0], violations
 
 
 def test_none_names_skips_the_actor_check() -> None:
     ledger = _ledger("https://x.example/actors/stranger-99")
-    assert _run(ledger, _edge("vendor"), None) == ([], [])
+    assert _run(ledger, _edge("vendor"), None) == []
 
 
 def test_edge_without_a_tag_is_not_checked() -> None:
     edges = [{"antecedent": "engage_case", "consequent": "close_case"}]
     ledger = _ledger("https://x.example/actors/stranger-99")
-    assert _run(ledger, edges, _NAMES) == ([], [])
+    assert _run(ledger, edges, _NAMES) == []
 
 
 def test_recorded_actor_name_accepts_an_object_actor() -> None:
