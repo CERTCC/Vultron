@@ -28,7 +28,7 @@ from vultron.core.models.pending_case_inbox import (
 )
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import EmbargoConsentState
 from vultron.demo.helpers.verification import (
     _all_fetchable_participants_rm_closed,
     _fetch_participant,
@@ -1568,12 +1568,13 @@ def wait_for_participant_embargo_consent(
     client: DataLayerClient,
     case_id: str,
     actor_id: str,
-    expected: PEC,
+    embargo_id: str,
+    expected: EmbargoConsentState,
     timeout_seconds: float = 30.0,
     poll_interval: float = 0.25,
     dl_actor_id: str | None = None,
 ) -> None:
-    """Poll until *actor_id*'s participant record carries consent *expected*.
+    """Poll until *actor_id*'s consent for *embargo_id* reaches *expected*.
 
     Consent moves when the CASE_MANAGER commits the participant's answer, and
     a replica learns it from the ledger (EP-09-003), so it reads the new value
@@ -1583,7 +1584,8 @@ def wait_for_participant_embargo_consent(
         client: DataLayerClient for the target container.
         case_id: Full URI of the ``as_VulnerabilityCase``.
         actor_id: Full URI of the actor whose consent to check.
-        expected: The PEC state to wait for.
+        embargo_id: Full URI of the embargo being tracked.
+        expected: The :class:`~vultron.core.states.participant_embargo_consent.EmbargoConsentState` to wait for.
         timeout_seconds: Maximum time to wait.
         poll_interval: Seconds between DataLayer poll attempts.
         dl_actor_id: Full URI of the actor whose *store* to read, when that is
@@ -1596,7 +1598,7 @@ def wait_for_participant_embargo_consent(
         client,
         case_id,
         actor_id,
-        lambda participant: participant.embargo_consent_state,
+        lambda participant: participant.consent_for(embargo_id),
         lambda value: value == expected,
         f"embargo consent to reach {expected.name}",
         timeout_seconds,
@@ -1638,9 +1640,9 @@ def wait_for_participant_embargo_accepted(
         client,
         case_id,
         actor_id,
-        lambda participant: list(participant.accepted_embargo_ids),
-        lambda value: isinstance(value, list) and embargo_id in value,
-        f"accepted embargoes to include {embargo_id!r}",
+        lambda participant: participant.consent_for(embargo_id),
+        lambda value: value == EmbargoConsentState.ACCEPTED,
+        f"consent for {embargo_id!r} to be ACCEPTED",
         timeout_seconds,
         poll_interval,
         dl_actor_id,

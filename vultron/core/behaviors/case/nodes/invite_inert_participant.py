@@ -230,9 +230,11 @@ class CreateInertInviteeParticipantNode(DataLayerActionWithPorts):
         # Apply PEC INVITE if the case has an active embargo (CM-11-006)
         active_embargo_id = _as_id(case.active_embargo)
         if active_embargo_id and participant.accepts_pec_trigger(
-            PEC_Trigger.INVITE
+            active_embargo_id, PEC_Trigger.INVITE
         ):
-            participant.apply_pec_transition(PEC_Trigger.INVITE)
+            participant.apply_pec_transition(
+                active_embargo_id, PEC_Trigger.INVITE
+            )
             self.logger.info(
                 "%s: set PEC INVITED for invitee '%s' (active embargo '%s',"
                 " CM-11-006)",
@@ -428,9 +430,11 @@ class ApplyInviteRejectToParticipantNode(DataLayerActionWithPorts):
         case = self.datalayer.read_case(self.case_id)
         active_embargo_id = _as_id(getattr(case, "active_embargo", None))
         if active_embargo_id and participant.accepts_pec_trigger(
-            PEC_Trigger.DECLINE
+            active_embargo_id, PEC_Trigger.DECLINE
         ):
-            participant.apply_pec_transition(PEC_Trigger.DECLINE)
+            participant.apply_pec_transition(
+                active_embargo_id, PEC_Trigger.DECLINE
+            )
             self.datalayer.save(participant)
             self.logger.info(
                 "%s: applied PEC DECLINED for invitee '%s' (active embargo,"

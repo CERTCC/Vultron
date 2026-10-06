@@ -27,7 +27,7 @@ from test.support.received import archive_received
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import EmbargoConsentState
 from vultron.demo.helpers.polling import (
     CROSS_CONTAINER_TIMEOUT,
     LATE_JOINER_REPLICA_TIMEOUT,
@@ -861,9 +861,13 @@ class TestWaitForCaseEmState:
 
 class TestWaitForParticipantEmbargoConsent:
     @staticmethod
-    def _wait(consent: PEC, expected: PEC):
+    def _wait(
+        consent: EmbargoConsentState,
+        expected: EmbargoConsentState,
+        embargo_id: str = "urn:test-embargo",
+    ):
         participant = MagicMock()
-        participant.embargo_consent_state = consent
+        participant.consent_for.return_value = consent
         with patch(
             "vultron.demo.helpers.polling._fetch_participant",
             return_value=participant,
@@ -872,17 +876,20 @@ class TestWaitForParticipantEmbargoConsent:
                 MagicMock(base_url="http://vendor:7999", actor_id=ACTOR_B),
                 CASE_ID,
                 ACTOR_A,
+                embargo_id,
                 expected,
                 timeout_seconds=0.05,
                 poll_interval=0.01,
             )
 
     def test_returns_when_consent_matches(self):
-        self._wait(PEC.SIGNATORY, PEC.SIGNATORY)
+        self._wait(EmbargoConsentState.ACCEPTED, EmbargoConsentState.ACCEPTED)
 
     def test_times_out_naming_the_current_consent(self):
         with pytest.raises(AssertionError, match=r"current=.*INVITED"):
-            self._wait(PEC.INVITED, PEC.SIGNATORY)
+            self._wait(
+                EmbargoConsentState.INVITED, EmbargoConsentState.ACCEPTED
+            )
 
     def test_times_out_without_a_participant_record(self):
         with patch(
@@ -894,7 +901,8 @@ class TestWaitForParticipantEmbargoConsent:
                     MagicMock(base_url="http://vendor:7999", actor_id=ACTOR_B),
                     CASE_ID,
                     ACTOR_A,
-                    PEC.SIGNATORY,
+                    "urn:test-embargo",
+                    EmbargoConsentState.ACCEPTED,
                     timeout_seconds=0.05,
                     poll_interval=0.01,
                 )
@@ -911,7 +919,8 @@ class TestWaitForParticipantEmbargoConsent:
                     MagicMock(base_url="http://vendor:7999", actor_id=ACTOR_B),
                     CASE_ID,
                     ACTOR_A,
-                    PEC.SIGNATORY,
+                    "urn:test-embargo",
+                    EmbargoConsentState.ACCEPTED,
                     timeout_seconds=0.05,
                     poll_interval=0.01,
                 )
@@ -919,9 +928,13 @@ class TestWaitForParticipantEmbargoConsent:
 
 class TestWaitForParticipantEmbargoAccepted:
     @staticmethod
-    def _wait(accepted: list[str], embargo_id: str = "urn:revised"):
+    def _wait(accepted: bool, embargo_id: str = "urn:revised"):
         participant = MagicMock()
-        participant.accepted_embargo_ids = accepted
+        participant.consent_for.return_value = (
+            EmbargoConsentState.ACCEPTED
+            if accepted
+            else EmbargoConsentState.INVITED
+        )
         with patch(
             "vultron.demo.helpers.polling._fetch_participant",
             return_value=participant,
@@ -936,8 +949,8 @@ class TestWaitForParticipantEmbargoAccepted:
             )
 
     def test_returns_when_the_embargo_is_accepted(self):
-        self._wait(["urn:first", "urn:revised"])
+        self._wait(True)
 
     def test_times_out_naming_the_accepted_embargoes(self):
-        with pytest.raises(AssertionError, match=r"current=\['urn:first'\]"):
-            self._wait(["urn:first"])
+        with pytest.raises(AssertionError, match=r"current=.*INVITED"):
+            self._wait(False)
