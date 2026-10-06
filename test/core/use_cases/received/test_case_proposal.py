@@ -341,10 +341,17 @@ class TestCreateCaseProposalIdempotency:
             "Duplicate proposal must not create a second VulnerabilityCase (AC-1)"
         )
 
-    def test_duplicate_proposal_sends_accept_referencing_existing_case(
+    @pytest.mark.spec("CP-05-006")
+    @pytest.mark.spec("ID-04-004")
+    def test_duplicate_proposal_resends_the_original_accept(
         self, make_payload
     ):
-        """AC-2: Duplicate proposal triggers a new Accept referencing existing case."""
+        """AC-2: a duplicate proposal is answered with the stored Accept.
+
+        CP-05-006 says the stored ``Accept`` is re-sent unchanged under its
+        original identifier; no second ``Accept`` is created, and the one
+        re-sent still references the existing case.
+        """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id=_CASE_ACTOR_URI,
@@ -352,47 +359,31 @@ class TestCreateCaseProposalIdempotency:
         proposal = _make_proposal()
 
         _run_create_proposal(dl, proposal, make_payload)
-        first_accepts = list(dl.list_objects("Accept"))
-        assert first_accepts, "First proposal must produce an Accept"
-        first_accept_ids = {a.id_ for a in first_accepts}
+        (first_accept,) = list(dl.list_objects("Accept"))
         first_case_id = next(iter(dl.list_objects("VulnerabilityCase"))).id_
+        while dl.outbox_pop() is not None:  # the drain delivered everything
+            pass
 
         # Resend with the same proposal
         _run_create_proposal(dl, proposal, make_payload)
 
-        all_accepts = list(dl.list_objects("Accept"))
-        # A new Accept should have been added for the duplicate
-        assert len(all_accepts) >= 2, (
-            "Duplicate proposal should produce a second Accept (AC-2)"
+        (accept,) = list(dl.list_objects("Accept"))
+        assert accept.id_ == first_accept.id_, (
+            "Duplicate proposal must not create a second Accept (CP-05-006)"
         )
-
-        # Find the Accept added for the duplicate proposal
-        duplicate_accepts = [
-            a for a in all_accepts if a.id_ not in first_accept_ids
-        ]
-        assert duplicate_accepts, (
-            "Must have at least one new Accept for the duplicate proposal (AC-2)"
+        assert dl.outbox_list().count(first_accept.id_) == 1, (
+            "The original Accept must be re-queued exactly once (CP-05-006)"
         )
-
-        # The duplicate Accept must reference the existing case via result field.
-        dup_accept_obj = dl.read(duplicate_accepts[0].id_)
-        raw_result = getattr(dup_accept_obj, "result", None) or (
-            dup_accept_obj.get("result")
-            if isinstance(dup_accept_obj, dict)
-            else None
-        )
+        raw_result = getattr(accept, "result", None)
         # After DataLayer round-trip the result field may be deserialized to a
         # full domain object; extract the id_ in that case.
-        if isinstance(raw_result, str):
-            result_val = raw_result
-        elif raw_result is not None and hasattr(raw_result, "id_"):
-            result_val = raw_result.id_
-        elif isinstance(raw_result, dict):
-            result_val = raw_result.get("id_") or raw_result.get("id")
-        else:
-            result_val = None
+        result_val = (
+            raw_result
+            if isinstance(raw_result, str)
+            else getattr(raw_result, "id_", None)
+        )
         assert result_val == first_case_id, (
-            f"Duplicate Accept.result should be existing case '{first_case_id}'"
+            f"Accept.result should be existing case '{first_case_id}'"
             f", got {result_val!r} (AC-2, CP-05-006)"
         )
 
@@ -478,9 +469,10 @@ class TestCreateCaseProposalIdempotencyIntegration:
             "The surviving case must be the original one (AC-4)"
         )
 
-        all_accepts = list(dl.list_objects("Accept"))
-        assert len(all_accepts) >= 2, (
-            "Duplicate proposal should produce a second Accept (AC-4)"
+        # The duplicate is answered by the stored Accept, not a second one
+        # (CP-05-006, ID-04-004).
+        assert len(list(dl.list_objects("Accept"))) == 1, (
+            "Duplicate proposal must not create a second Accept (AC-4)"
         )
         dl.close()
 

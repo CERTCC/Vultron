@@ -544,7 +544,10 @@ owns recovery; the duplicate is silently dropped.
 the *proposal id*. The case-actor re-sends the stored `Accept(as_CaseProposal)`
 unchanged, with its original id, so it reads as the first acceptance arriving
 late rather than a second decision, and it creates no second case
-(ASK-08-002). The reference implementation does not yet re-send it (#2890).
+(ASK-08-002). The reference implementation does this: the `Accept` id is derived
+from the proposal, and a duplicate queues the stored `Accept` again unless it is
+still pending in the outbox (#4215). The proposer-side deadline (CP-05-007) is
+still open (#2890).
 
 **Different proposal id, same report** (CP-05-008): a new request, because the
 requester tracks each proposal as its own ask (CP-05-007) and may already have
@@ -556,13 +559,22 @@ below (`LoadExistingCaseNode` → `EmitAcceptCaseProposalNode`) is this path:
 - the existing case is reused only when the proposer owns it; a different
   proposer naming the same report gets a case of its own (CBT-06-002), because
   the report id is chosen by the sender and a report-only lookup would add the
-  second proposer to someone else's case. Today `LoadExistingCaseNode` looks up
-  by report alone, so this is not yet true (strict xfail,
-  `test_second_proposer_for_an_accepted_report_gets_its_own_case`, #3977);
+  second proposer to someone else's case. `LoadExistingCaseNode` takes the
+  proposer (`owner_id`) and succeeds only for a case whose `attributed_to` is
+  that proposer. The store may now hold several cases for one report, so
+  `find_case_by_report_id` is only its fast path; when that returns another
+  proposer's case the node scans the cases for the proposer's own
+  (`test_second_proposer_for_an_accepted_report_gets_its_own_case`);
 - `object_` = inline `as_CaseProposal` (CP-05-003);
 - **`result` = URI of the reused `VulnerabilityCase`**, so the requester can
   correlate it without waiting for a second `Create(VulnerabilityCase)`, which
-  the case-actor does not send again (CP-05-005, #4146).
+  the case-actor does not send again (CP-05-005, #4146). The tree enforces
+  that: `CheckCaseAlreadyAnnouncedNode` skips the marker/`Create` steps when a
+  `Create(VulnerabilityCase)` for the case is already stored, and
+  `CommitNativeLedgerEntriesNode` skips every entry already recorded. Without
+  the second skip the commit tree reused each recorded entry (logging "log entry
+  already exists" at INFO, not raising) but fanned it out to every recipient
+  again (`test_new_proposal_id_from_the_owner_reuses_its_case`).
 
 For first-time proposals, `EmitAcceptCaseProposalNode` also sets
 `result=case_id` (the newly-created case URI). This is consistent: the
@@ -597,16 +609,14 @@ report that describes the same vulnerability; that is a report-management questi
 - The reuse branch must leave the existing case's state alone, including its
   embargo whatever EM state it is in (EP-04-012;
   `notes/embargo-default-semantics.md` § "Initialization Runs Once Per Case").
-- `LoadExistingCaseNode` keys on the *report*, which is the wrong key for both of
-  the branch's real jobs: answering the same proposal again, and finishing the
-  same proposal's half-built case. Those two belong on the *proposal*. The
-  per-proposal `CaseProposalAdmissionRecord` is the place to carry the case it
-  made and the id of the `Accept` it queued, the way `CaseProposalDeclineRecord`
-  carries `reject_activity_id`: one indexed read, in place of the scan of every
-  stored `Accept` that `find_activity_for_proposal` does today.
-- A report-only lookup is also wrong for a *different* proposer, who is owed a
-  case of its own (CBT-06-002), so a lookup by report has to take the proposer
-  into account (CP-05-008).
+- `LoadExistingCaseNode` keys on the proposer and the report, which fixes the
+  different-proposer case (CP-05-008). It does not key on the *proposal*, which
+  the same-proposal jobs need: answering the same proposal again, and finishing
+  the same proposal's half-built case (#2890). The per-proposal
+  `CaseProposalAdmissionRecord` is the place to carry the case it made and the
+  id of the `Accept` it queued, the way `CaseProposalDeclineRecord` carries
+  `reject_activity_id`: one indexed read, in place of the scan of every stored
+  `Accept` that `find_activity_for_proposal` does today.
 
 ### Implementation: `VultronAccept.result`
 

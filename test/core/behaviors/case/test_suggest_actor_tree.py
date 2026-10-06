@@ -44,10 +44,13 @@ from vultron.core.behaviors.case.suggest_actor_tree import (
     InviteInFlightNode,
     PendingOfferCaseParticipantNode,
     create_accept_actor_recommendation_received_tree,
+    create_receive_offer_case_participant_tree,
     create_recommend_actor_to_case_received_tree,
     create_reject_actor_recommendation_received_tree,
 )
 from vultron.core.behaviors.sender_entitlement import (
+    SenderIsActiveParticipantNode,
+    SenderIsCaseManagerNode,
     SenderIsCaseOwnerNode,
 )
 from vultron.core.models.protocol_pair import (
@@ -61,6 +64,7 @@ _REC_ID = "https://example.org/recommendations/rec-1"
 _RECOMMENDER = "https://example.org/actors/recommender"
 _RECOMMENDED = "https://example.org/actors/recommended"
 _CASE_ID = "https://example.org/cases/case-1"
+_SENDER = "https://example.org/actors/sender"
 
 
 class TestEvaluateDefaultRolesNode:
@@ -417,6 +421,7 @@ class TestAcceptActorRecommendationReceivedTree:
             recommender_id=_RECOMMENDER,
             invitee_id=_RECOMMENDED,
             case_id=_CASE_ID,
+            sender_id=_SENDER,
         )
 
     def test_root_is_sequence(self):
@@ -466,6 +471,7 @@ class TestRejectActorRecommendationReceivedTree:
             recommender_id=_RECOMMENDER,
             recommended_id=_RECOMMENDED,
             case_id=_CASE_ID,
+            sender_id=_SENDER,
         )
 
     def test_root_is_sequence(self):
@@ -1057,6 +1063,7 @@ def _effect_nodes(tree: py_trees.behaviour.Behaviour) -> list:
                 recommender_id=_RECOMMENDER,
                 invitee_id=_RECOMMENDED,
                 case_id=_CASE_ID,
+                sender_id=_SENDER,
             ),
             "AcceptActorRecommendationIfCaseManager",
         ),
@@ -1067,6 +1074,7 @@ def _effect_nodes(tree: py_trees.behaviour.Behaviour) -> list:
                 recommender_id=_RECOMMENDER,
                 recommended_id=_RECOMMENDED,
                 case_id=_CASE_ID,
+                sender_id=_SENDER,
             ),
             "RejectActorRecommendationIfCaseManager",
         ),
@@ -1105,3 +1113,64 @@ def test_every_effect_is_inside_the_case_manager_gate(
     assert children.index(gate) > commit_index
     # And it is the role check that guards it.
     assert any(isinstance(n, CheckIsCaseManagerNode) for n in gate.iterate())
+
+
+@pytest.mark.spec("HP-01-006")
+@pytest.mark.parametrize(
+    ("factory", "kwargs", "guard_type"),
+    [
+        (
+            create_recommend_actor_to_case_received_tree,
+            dict(
+                recommendation_id=_REC_ID,
+                recommender_id=_RECOMMENDER,
+                recommended_id=_RECOMMENDED,
+                case_id=_CASE_ID,
+            ),
+            SenderIsActiveParticipantNode,
+        ),
+        (
+            create_receive_offer_case_participant_tree,
+            dict(case_id=_CASE_ID),
+            SenderIsCaseManagerNode,
+        ),
+        (
+            create_accept_actor_recommendation_received_tree,
+            dict(
+                recommendation_id=_REC_ID,
+                recommender_id=_RECOMMENDER,
+                invitee_id=_RECOMMENDED,
+                case_id=_CASE_ID,
+                sender_id=_SENDER,
+            ),
+            SenderIsCaseOwnerNode,
+        ),
+        (
+            create_reject_actor_recommendation_received_tree,
+            dict(
+                recommendation_id=_REC_ID,
+                recommender_id=_RECOMMENDER,
+                recommended_id=_RECOMMENDED,
+                case_id=_CASE_ID,
+                sender_id=_SENDER,
+            ),
+            SenderIsCaseOwnerNode,
+        ),
+    ],
+    ids=["recommend", "offer", "accept", "reject"],
+)
+def test_sender_guard_follows_intake_and_precedes_the_commit(
+    factory, kwargs, guard_type
+):
+    """The sender guard sits between intake and the receipt commit.
+
+    A refused sender therefore writes and sends nothing (ADR-0115).
+    """
+    children = list(factory(**kwargs).children)
+    names = [c.name for c in children]
+    guard_index = next(
+        i for i, c in enumerate(children) if isinstance(c, guard_type)
+    )
+    commit_index = names.index("GuardedCommitCaseLedgerEntryBT")
+    assert guard_index == 1, "the sender guard must come right after intake"
+    assert guard_index < commit_index

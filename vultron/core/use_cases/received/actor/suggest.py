@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlement,
-    exempt,
+    SenderEntitlementKind,
 )
 
 logger = logging.getLogger(__name__)
@@ -50,10 +50,14 @@ class OfferActorToCaseReceivedUseCase:
     Every effect is gated on the receiving actor holding
     ``CVDRole.CASE_MANAGER`` for the case (BT-17-001).  Any other receiver of
     a copy does nothing and refuses (HP-01-005, #3752).
+
+    Only a participant of the case may suggest an actor (CM-16-001): an Offer
+    from anyone else is refused before the case ledger is written, so nothing is
+    forwarded to the Case Owner (HP-01-006, #3668).
     """
 
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#3668", "actor suggestion sender check pending"
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.ACTIVE_PARTICIPANT
     )
 
     def __init__(

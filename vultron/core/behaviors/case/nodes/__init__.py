@@ -173,6 +173,7 @@ from vultron.core.behaviors.case.nodes.proposal_reporter import (
     AddReporterParticipantNode,
 )
 from vultron.core.behaviors.case.nodes.proposal_retry_marker import (
+    CheckCaseAlreadyAnnouncedNode,
     CheckMarkerExistsNode,
     ClearCreateCaseMarkerNode,
     WriteCreateCaseMarkerNode,
@@ -296,6 +297,7 @@ __all__ = [
     # proposal_ledger (leaf node)
     "CommitNativeLedgerEntriesNode",
     # proposal_retry_marker (leaf nodes)
+    "CheckCaseAlreadyAnnouncedNode",
     "CheckMarkerExistsNode",
     "WriteCreateCaseMarkerNode",
     "ClearCreateCaseMarkerNode",
