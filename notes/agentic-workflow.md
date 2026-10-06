@@ -266,3 +266,34 @@ findings show the check can pass without ever examining its subject:
   is not evidence.
 
 Source: ISSUE-3192, ISSUE-2505, CONCERN-3156
+
+---
+
+## Spec Text Conflicts With Code
+
+An implementation PR sometimes finds that the spec and the code disagree. The
+tempting fix is to edit the spec to match the code inside the same PR. In the
+2026-10-02 audit of 72 unsupervised PRs, 17 statements were changed that way,
+with no single place a reviewer could see them.
+
+**The material test.** Ask: *would something built on the old text now be
+wrong?*
+
+- **No** — a clarification, a corrected reference, a fixed typo or a renamed
+  symbol. The agent may edit the statement in the PR.
+- **Yes** — the change alters what the requirement *obliges*: a priority moves
+  (`SHOULD` to `MAY`), a condition is added or dropped, a behavior is permitted
+  that was forbidden. The agent MUST ask the user **in situ**, in the session,
+  before editing, and record the answer in the PR. Silence is not approval:
+  an unsupervised run holds the PR rather than editing the obligation.
+
+**The record.** Every PR whose diff changes or removes a `statement:` or
+`priority:` in `specs/` carries a `## Spec amended` section: per requirement ID,
+the before text, the after text and the reason
+(`.agents/skills/shared/pr-body-guide.md` § "Spec amended").
+`bash .agents/skills/shared/spec-amendments.sh origin/main` lists the IDs by
+comparing parsed YAML, so a mid-sentence edit of a folded statement is found.
+`create-pr` writes the placeholder, `pr-triage` FAILs a diff without the
+section, and `pr-verify` blocks on it. New requirements are not amendments.
+
+Source: ISSUE-4189
