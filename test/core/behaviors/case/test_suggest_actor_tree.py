@@ -74,10 +74,14 @@ class TestEvaluateDefaultRolesNode:
 
     def setup_method(self):
         py_trees.blackboard.Blackboard.enable_activity_stream()
+        # Inject explicit roles so the default path does not interfere with
+        # tests that only check the node's structural properties. Tests that
+        # cover the no-roles failure path create their own node without roles.
         self.node = EvaluateDefaultRolesNode(
             suggested_actor_id=_RECOMMENDED,
             case_id=_CASE_ID,
             recommendation_id=_REC_ID,
+            injected_roles=["vendor"],
         )
         self.node.setup()
         self.node.initialise()
@@ -103,8 +107,8 @@ class TestEvaluateDefaultRolesNode:
         """AC-1: EvaluateDefaultRolesNode accepts recommendation_id."""
         assert self.node.recommendation_id == _REC_ID
 
-    def test_returns_success_unconditionally(self):
-        """returns SUCCESS unconditionally in the prototype."""
+    def test_returns_success_when_roles_injected(self):
+        """Returns SUCCESS when injected roles are provided."""
         result = self.node.update()
         assert result == Status.SUCCESS
 
@@ -143,6 +147,7 @@ class TestEvaluateDefaultRolesNode:
             suggested_actor_id=_RECOMMENDED,
             case_id=_CASE_ID,
             recommendation_id=rec_id_2,
+            injected_roles=["vendor"],
         )
         node2.setup()
         node2.initialise()
@@ -193,6 +198,37 @@ class TestEvaluateDefaultRolesNode:
         assert raw is None, (
             f"Blackboard key '{expected_key}' must not be written when "
             f"_compute_roles() returns empty list, got {raw!r}"
+        )
+
+    @pytest.mark.spec("CM-11-019")
+    def test_returns_failure_when_no_roles_given(self):
+        """CM-11-019: returns FAILURE with clear reason when no roles are given.
+
+        The default _compute_roles() returns [] so a node with no injected
+        roles fails rather than defaulting to VENDOR (CM-11-019: inviter MUST
+        give the invitee's roles).
+        """
+        node = EvaluateDefaultRolesNode(
+            suggested_actor_id=_RECOMMENDED,
+            case_id=_CASE_ID,
+            recommendation_id=_REC_ID,
+        )
+        node.setup()
+        node.initialise()
+        result = node.update()
+        assert result == Status.FAILURE
+        assert node.feedback_message, "feedback_message must be set on FAILURE"
+        assert "inviter must give" in node.feedback_message, (
+            f"Expected 'inviter must give' in message, got: {node.feedback_message!r}"
+        )
+        # Blackboard key must not be written
+        expected_key = (
+            f"/suggested_roles_{_REC_ID.rsplit('/', maxsplit=1)[-1]}"
+        )
+        raw = py_trees.blackboard.Blackboard.storage.get(expected_key)
+        assert raw is None, (
+            f"Blackboard key '{expected_key}' must not be written when no"
+            f" roles are given, got {raw!r}"
         )
 
 

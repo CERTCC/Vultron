@@ -439,8 +439,14 @@ class EvaluateDefaultRolesNode(BehaviourWithPorts):
         )
 
     def _compute_roles(self) -> list[CVDRole]:
-        """Return roles for the suggested actor; override for custom policy."""
-        return [CVDRole.VENDOR]
+        """Return roles for the suggested actor; override for custom policy.
+
+        The base implementation returns an empty list, which causes FAILURE
+        in ``update()`` (CM-11-019). Subclasses that have domain knowledge to
+        assign a default role MUST override this method; callers that know the
+        intended roles SHOULD inject them via ``injected_roles``.
+        """
+        return []
 
     def update(self) -> Status:
         roles = (
@@ -449,10 +455,18 @@ class EvaluateDefaultRolesNode(BehaviourWithPorts):
             else self._compute_roles()
         )
         if not roles:
-            self.feedback_message = (
-                f"{self.name}: _compute_roles() returned an empty list "
-                f"for actor '{self.suggested_actor_id}' — cannot assign roles"
-            )
+            if self._injected_roles is None:
+                self.feedback_message = (
+                    f"{self.name}: no roles specified for actor"
+                    f" '{self.suggested_actor_id}'"
+                    f" — inviter must give the invitee's roles (CM-11-019)"
+                )
+            else:
+                self.feedback_message = (
+                    f"{self.name}: _compute_roles() returned an empty list"
+                    f" for actor '{self.suggested_actor_id}'"
+                    f" — cannot assign roles"
+                )
             self.logger.error("%s", self.feedback_message)
             return Status.FAILURE
         self._set_output("suggested_roles", roles)

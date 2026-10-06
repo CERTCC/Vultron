@@ -261,3 +261,18 @@ message is designed: we accept offers and invitations, never bare objects.
 - **Resolve the case from the stub's `caseId`, never its ID.** Since #4045 the
   stub-Invite reply patterns match only a `VulnerabilityCaseStub` target, so a
   reply to a full-case Invite matches no pattern until #4050 adds its own.
+- **`Reject(Invite(stub))` with no participant record must be REFUSED, not
+  treated as a no-op (CM-11-018).** The CASE_MANAGER must hold an inert
+  participant record (created at invite-send time, ADR-0114) before it can
+  apply the Reject. If no such record exists the result is REFUSED with the
+  reason "no invited participant record". Silently succeeding hides protocol
+  violations: either the original stub Invite was never sent, or the inert
+  record was lost. Both are errors.
+- **A stub Invite with no roles must be refused at emit time; never default to
+  VENDOR (CM-11-019).** `EvaluateDefaultRolesNode` returns `[]` — not
+  `[CVDRole.VENDOR]` — when no roles are specified. An empty list propagates to
+  `Status.FAILURE`, which the trigger path converts to REFUSED with a message
+  saying "inviter must give the invitee's roles". Defaulting to VENDOR was the
+  original lenient choice; it has been overruled. A second guard in
+  `CreateInertInviteeParticipantNode` enforces the same rule as
+  defence-in-depth at inert-record creation time.

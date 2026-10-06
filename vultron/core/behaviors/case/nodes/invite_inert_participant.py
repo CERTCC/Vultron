@@ -201,6 +201,19 @@ class CreateInertInviteeParticipantNode(DataLayerActionWithPorts):
                 return Status.SUCCESS
 
         roles = self._resolve_roles()
+        if not roles:
+            self.feedback_message = (
+                f"{self.name}: no roles resolved for invitee '{self.invitee_id}'"
+                f" — inviter must specify the invitee's roles (CM-11-019)"
+            )
+            self.logger.error(
+                "%s: no roles resolved for invitee '%s' in case '%s'"
+                " — refusing inert-participant creation (CM-11-019)",
+                self.name,
+                self.invitee_id,
+                self.case_id,
+            )
+            return Status.FAILURE
         status = self._build_initial_status(roles, self.case_id)
         participant_id = (
             f"{self.case_id}/participants/{self.invitee_id.split('/')[-1]}"
@@ -358,13 +371,19 @@ class ApplyInviteRejectToParticipantNode(DataLayerActionWithPorts):
         )
         participant = self.datalayer.read(participant_id)
         if not isinstance(participant, CaseParticipant):
-            self.logger.warning(
-                "%s: invitee participant '%s' not found — no inert record to"
-                " close; reject effects skipped (CM-11-007)",
-                self.name,
-                participant_id,
+            self.feedback_message = (
+                f"no invited participant record for '{self.invitee_id}'"
+                f" in case '{self.case_id}'"
+                f" — Reject refused (CM-11-018)"
             )
-            return Status.SUCCESS
+            self.logger.warning(
+                "%s: no invited participant record for invitee '%s'"
+                " in case '%s' — refusing Reject(Invite) (CM-11-018)",
+                self.name,
+                self.invitee_id,
+                self.case_id,
+            )
+            return Status.FAILURE
 
         # RM RECEIVED → CLOSED + VF Vf (for VENDOR) via the status writer.
         # Run as the receiving actor (case manager), not the invitee —

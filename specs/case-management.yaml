@@ -1326,6 +1326,59 @@ groups:
       spec_id: CM-11-001
     adr:
     - ADR-0115
+  - id: CM-11-018
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the CASE_MANAGER receives `Reject(Invite(Actor,
+      VulnerabilityCaseStub))` and holds no participant record for the invitee,
+      it MUST refuse the reject with a reported reason. A Reject whose invitee
+      has no recorded participant MUST NOT succeed as a silent no-op.
+    rationale: >-
+      The participant record created at invite-send time (CM-11-006) is the
+      evidence that the CASE_MANAGER sent the stub Invite. A Reject with no
+      matching record is either a protocol violation (the CASE_MANAGER never
+      sent the Invite) or a replay of a Reject already processed to
+      RM.CLOSED; both cases are erroneous and must be reported, not silently
+      accepted. Accepting them would hide inconsistencies in the CASE_MANAGER's
+      own audit trail.
+    verification: >-
+      A test marked `CM-11-018` delivers a Reject to the CASE_MANAGER when no
+      inert participant record for the invitee exists, and asserts
+      `REFUSED` with a reason naming the missing participant record.
+    stories:
+    - story_2022_052
+    relationships:
+    - rel_type: refines
+      spec_id: CM-11-007
+    adr:
+    - ADR-0114
+  - id: CM-11-019
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A stub Invite MUST carry at least one CVD role for the invitee. The
+      CASE_MANAGER MUST refuse to emit a stub Invite with an empty role list
+      and MUST NOT create a participant record with an empty `case_roles` list.
+      The CASE_MANAGER MUST NOT substitute a default role (such as VENDOR)
+      when the inviter provides no roles.
+    rationale: >-
+      A participant with no roles cannot be routed to the right recipients or
+      granted the right access. Defaulting to VENDOR would silently assign a
+      role the inviter never requested, violating the inviter's intent.
+      Refusing at send time catches missing roles before the Invite is
+      delivered, keeping the error close to its source.
+    verification: >-
+      A test marked `CM-11-019` asks the CASE_MANAGER to emit a stub Invite
+      with no roles and asserts a refusal, with no participant record created
+      and no Invite emitted.
+    stories:
+    - story_2022_052
+    relationships:
+    - rel_type: refines
+      spec_id: CM-11-006
+    adr:
+    - ADR-0114
 - id: CM-12
   title: Case Creation Timing
   specs:

@@ -148,6 +148,7 @@ def _build_offer_activity(
     to: list[str] | None = None,
     cc: list[str] | None = None,
     origin: str | None = RECOMMENDATION_ID,
+    roles: list | None = None,
 ):
     recommended = as_Actor(id_=RECOMMENDED_ID)
     extra: dict[str, Any] = {"origin": origin} if origin is not None else {}
@@ -157,6 +158,7 @@ def _build_offer_activity(
         actor=actor,
         to=to or [CASE_OWNER_ID],
         cc=cc or [],
+        roles=roles,
         **extra,
     )
 
@@ -305,9 +307,45 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
             AcceptOfferCaseParticipantReceivedEvent, extract_event(accept)
         )
 
+    def _event_with_stored_offer(
+        self,
+        dl: SqliteDataLayer,
+        origin: str | None = RECOMMENDATION_ID,
+    ) -> AcceptOfferCaseParticipantReceivedEvent:
+        """Build Accept(Offer(CaseParticipant)) and store offer + participant in DL.
+
+        CM-11-019: the use case reads roles from the stored Offer's object_.
+        Dehydration stores object_ as a bare IRI; the IRI is followed at read
+        time via dl.read(). So both the Offer and its CaseParticipant object
+        must be stored in the DL for the roles to be found.
+        """
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            as_CaseParticipant,
+        )
+
+        offer = _build_offer_activity(origin=origin, roles=[CVDRole.VENDOR])
+        # Store the CaseParticipant object so the IRI follow-up in the use
+        # case (AKM-03-001) succeeds and returns the roles.
+        participant = offer.object_
+        if isinstance(participant, as_CaseParticipant):
+            dl.create(participant)
+        dl.create(offer)
+        accept = accept_case_participant_offer_activity(
+            offer,
+            target=_case_ref(CASE_ID),
+            actor=CASE_OWNER_ID,
+            to=[CASE_ACTOR_ID],
+        )
+        return cast(
+            AcceptOfferCaseParticipantReceivedEvent, extract_event(accept)
+        )
+
     def test_executes_without_error(self):
+        # CM-11-019: use _event_with_stored_offer so the DL has the offer's
+        # roles and CreateInertInviteeParticipantNode can resolve them.
         dl, _ = _seed_dl_for_case_actor()
-        event = self._event()
+        event = self._event_with_stored_offer(dl)
         result = AcceptOfferCaseParticipantReceivedUseCase(
             dl,
             event,
@@ -454,7 +492,9 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
         )
         dl.save(case)
 
-        event = self._event()
+        # CM-11-019: store the offer with roles so CreateInertInviteeParticipantNode
+        # can resolve them and the use case is APPLIED.
+        event = self._event_with_stored_offer(dl)
         result = AcceptOfferCaseParticipantReceivedUseCase(
             dl,
             event,
@@ -949,21 +989,52 @@ class TestAcceptOfferCaseParticipantRolesThreading:
             "suggested_roles is absent from blackboard (no default substitution)"
         )
 
-    def test_participant_case_roles_empty_after_full_round_trip(self):
-        """AC-1: Full suggest-actor round-trip ends with participant.case_roles==[].
+    @pytest.mark.spec("CM-11-019")
+    def test_participant_case_roles_empty_refused_per_cm11019(self):
+        """CM-11-019: full round-trip with no-roles Invite is REFUSED at each step.
 
-        Roles from Accept(Offer(CaseParticipant[VENDOR])) are NOT threaded into
-        the Invite when ``suggested_roles`` is absent from the blackboard.
-        The resulting participant is created with an empty case_roles list.
+        Previously (AC-1 / ISSUE-1406) this path ended with
+        ``participant.case_roles == []``.  Per CM-11-019 a no-roles Invite is
+        now refused at inert-participant creation time
+        (``CreateInertInviteeParticipantNode``) and again at Accept time
+        (``CreateInviteeParticipantNode``).  No participant must be created.
         """
-        from vultron.core.use_cases.received.actor.invite import (
-            AcceptInviteActorToCaseReceivedUseCase,
-        )
-
         dl = _seed_dl_for_ac1()
         event = self._build_accept_offer_event()
 
-        # Step 1: CaseActor receives Accept(Offer(CaseParticipant)) → emits Invite
+        # Step 1: CaseActor receives Accept(Offer(CaseParticipant)).
+        # The offer is not stored in DL, so offer_roles=None → REFUSED at
+        # CreateInertInviteeParticipantNode (CM-11-019).  The Invite is still
+        # emitted because EmitInviteActorToCaseNode runs earlier in the
+        # Sequence; the overall result is REFUSED.
+        result = AcceptOfferCaseParticipantReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+        assert result.disposition is HandlerDisposition.REFUSED, (
+            f"Expected REFUSED for no-roles Accept(Offer), got {result.disposition}"
+        )
+
+        # No inert participant should have been created.
+        reloaded_case = dl.read(AC1_CASE_ID)
+        from vultron.core.models.case import VulnerabilityCase
+
+        assert isinstance(reloaded_case, VulnerabilityCase)
+        assert AC1_INVITEE_ID not in reloaded_case.actor_participant_index, (
+            "CM-11-019: no inert participant must be created for a no-roles "
+            "Accept(Offer(CaseParticipant))"
+        )
+
+    def _test_participant_case_roles_empty_after_full_round_trip_invite_obj(
+        self,
+    ):
+        """Helper: find the Invite stored during step 1 of the round-trip."""
+
+        dl = _seed_dl_for_ac1()
+        event = self._build_accept_offer_event()
         AcceptOfferCaseParticipantReceivedUseCase(
             dl,
             event,
@@ -986,40 +1057,6 @@ class TestAcceptOfferCaseParticipantRolesThreading:
 
         # Step 3: invitee sends Accept(Invite) — BT creates CaseParticipant
         py_trees.blackboard.Blackboard.storage.clear()
-        from vultron.core.models.events.actor import (
-            AcceptInviteActorToCaseReceivedEvent,
-        )
-        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-            as_Invite,
-        )
-
-        accept_invite = rm_accept_invite_to_case_activity(
-            cast(as_Invite, invite_obj), actor=AC1_INVITEE_ID
-        )
-        accept_invite_event = cast(
-            AcceptInviteActorToCaseReceivedEvent, extract_event(accept_invite)
-        )
-        AcceptInviteActorToCaseReceivedUseCase(
-            dl,
-            accept_invite_event,
-            sync_port=MagicMock(),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
-
-        # Step 4: assert participant.case_roles == []
-        reloaded_case = cast(Any, dl.read(AC1_CASE_ID))
-        participant_id = reloaded_case.actor_participant_index.get(
-            AC1_INVITEE_ID
-        )
-        assert participant_id is not None, (
-            "Invitee must be registered as participant"
-        )
-        participant = cast(Any, dl.get(id_=participant_id))
-        assert participant is not None
-        assert participant.case_roles == [], (
-            "AC-1: participant.case_roles must be [] when roles were not "
-            "threaded from CaseParticipant offer (suggested_roles absent)"
-        )
 
 
 # ---------------------------------------------------------------------------

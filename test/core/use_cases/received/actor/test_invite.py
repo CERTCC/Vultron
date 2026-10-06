@@ -151,6 +151,7 @@ def _seed_late_joiner_case() -> dict[str, Any]:
         invitee,
         target=case.id_,
         actor=case_actor_id,
+        roles=[CVDRole.VENDOR],
         id_=f"{case.id_}/invitations/1",
     )
     dl.create(invitee)
@@ -628,11 +629,18 @@ class TestInviteActorUseCases:
         Invite's ``target`` field (``inner_target_id``), not the top-level
         ``target`` of the Reject.  CM-11-003: use ``request.case_id`` which
         reads ``inner_target_id``.
+
+        An inert participant record for the invitee must exist (CM-11-018);
+        the test seeds one so the reject applies its effects.
         """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.models.case_ledger_entry import (
             CaseLedgerEntry as WireCaseLedgerEntry,
         )
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.core.models.dimensions import RmDimension
+        from vultron.core.models.participant_status import ParticipantStatus
+        from vultron.core.states.rm import RM
         from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.objects.case_participant import (
             as_CaseParticipant,
@@ -669,7 +677,30 @@ class TestInviteActorUseCases:
             actor=case_actor_id,
             id_=f"{case_id}/invitations/1",
         )
+
+        # Seed the inert participant record the reject will close (CM-11-018).
+        # CreateInertInviteeParticipantNode would create this at invite-send
+        # time; we seed it directly for the received-side test.
+        inert_participant_id = f"{case_id}/participants/coordinator"
+        inert_status = ParticipantStatus(
+            context=case_id,
+            attributed_to=invitee_id,
+            rm=RmDimension(state=RM.RECEIVED),
+            cvd_role=[CVDRole.VENDOR],
+        )
+        inert_participant = CaseParticipant(
+            id_=inert_participant_id,
+            attributed_to=invitee_id,
+            context=case_id,
+            case_roles=[CVDRole.VENDOR],
+            participant_statuses=[inert_status],
+            joined=False,
+        )
+        case.case_participants.append(inert_participant.id_)
+        case.actor_participant_index[invitee_id] = inert_participant.id_
+
         dl.create(case_manager_participant)
+        dl.create(inert_participant)
         dl.create(case)
         dl.create(invite)
 
@@ -710,6 +741,7 @@ class TestInviteActorUseCases:
     ):
         """AcceptInviteActorToCaseReceivedUseCase creates a as_CaseParticipant and adds them to the case."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.base.objects.actors import as_Organization
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             as_VulnerabilityCase,
@@ -731,6 +763,7 @@ class TestInviteActorUseCases:
             invitee,
             target=case.id_,
             actor="https://example.org/users/owner",
+            roles=[CVDRole.VENDOR],
             id_="https://example.org/cases/caseIA1/invitations/1",
         )
         dl.create(invitee)
@@ -763,6 +796,7 @@ class TestInviteActorUseCases:
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.models.case import VulnerabilityCase
         from vultron.core.states.em import EM
+        from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.base.objects.actors import as_Organization
         from vultron.wire.as2.vocab.objects.embargo_event import (
             as_EmbargoEvent,
@@ -792,6 +826,7 @@ class TestInviteActorUseCases:
             invitee,
             target=case.id_,
             actor="https://example.org/users/owner",
+            roles=[CVDRole.VENDOR],
             id_="https://example.org/cases/caseIA2/invitations/1",
         )
         dl.create(invitee)
@@ -836,6 +871,7 @@ class TestInviteActorUseCases:
 
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.states.rm import RM
+        from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.base.objects.actors import as_Organization
 
         dl = SqliteDataLayer(
@@ -855,6 +891,7 @@ class TestInviteActorUseCases:
             invitee,
             target=case.id_,
             actor=owner_id,
+            roles=[CVDRole.VENDOR],
             id_="https://example.org/cases/caseRM001/invitations/1",
         )
         dl.create(invitee)
@@ -933,6 +970,7 @@ class TestInviteActorUseCases:
             invitee,
             target=case.id_,
             actor=owner_id,
+            roles=[CVDRole.VENDOR],
             id_="https://example.org/cases/caseRM002/invitations/1",
         )
         dl.create(invitee)
@@ -1010,6 +1048,9 @@ class TestInviteActorUseCases:
         )
         invitee_id = "https://example.org/users/coordinator"
         case_actor_id = "https://example.org/cases/caseIA3/actor"
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.base.objects.actors import as_Service
+
         invitee = as_Organization(id_=invitee_id)
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/caseIA3",
@@ -1020,12 +1061,11 @@ class TestInviteActorUseCases:
             invitee,
             target=case.id_,
             actor="https://example.org/users/owner",
+            roles=[CVDRole.VENDOR],
             id_="https://example.org/cases/caseIA3/invitations/1",
         )
         dl.create(invitee)
         dl.create(case)
-        from vultron.enums.roles import CVDRole
-        from vultron.wire.as2.vocab.base.objects.actors import as_Service
         from vultron.wire.as2.vocab.objects.case_participant import (
             as_CaseParticipant,
         )
@@ -1469,16 +1509,18 @@ class TestInviteActorUseCases:
             attributed_to=case_actor_id,
         )
         object.__setattr__(case_actor, "context", case.id_)
+        from vultron.enums.roles import CVDRole
+
         invite = rm_invite_to_case_activity(
             invitee,
             target=case.id_,
             actor=case_actor_id,
+            roles=[CVDRole.VENDOR],
             id_=f"{case.id_}/invitations/1",
         )
         dl.create(invitee)
         dl.create(case_actor)
         dl.create(case)
-        from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.objects.case_participant import (
             as_CaseParticipant,
         )
@@ -1594,8 +1636,15 @@ class TestAcceptInviteRolesAC4:
             "AC-4: participant case_roles must include VENDOR from Invite"
         )
 
-    def test_no_roles_invite_gives_empty_case_roles(self, make_payload):
-        """AC-4 negative: Invite without roles gives participant case_roles=[]."""
+    @pytest.mark.spec("CM-11-019")
+    def test_no_roles_invite_refused_not_applied(self, make_payload):
+        """CM-11-019: Accept of a no-roles Invite is REFUSED, no participant created.
+
+        A stub Invite with no roles must be refused at send time
+        (EvaluateDefaultRolesNode) and again at Accept time as defence-in-depth
+        (CreateInviteeParticipantNode).  A participant with empty case_roles must
+        never be created.
+        """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.base.objects.actors import as_Organization
 
@@ -1623,19 +1672,21 @@ class TestAcceptInviteRolesAC4:
 
         accept = rm_accept_invite_to_case_activity(invite, actor=invitee_id)
         event = make_payload(accept)
-        AcceptInviteActorToCaseReceivedUseCase(
+        result = AcceptInviteActorToCaseReceivedUseCase(
             dl,
             event,
             sync_port=MagicMock(),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
+        assert result.disposition == HandlerDisposition.REFUSED, (
+            f"Expected REFUSED for no-roles invite, got {result.disposition}"
+        )
+        # No participant should have been created
         reloaded_case = cast(Any, dl.read(case.id_))
         participant_id = reloaded_case.actor_participant_index.get(invitee_id)
-        participant = cast(Any, dl.get(id_=participant_id))
-        assert participant is not None
-        assert participant.case_roles == [], (
-            "Participant with no-roles invite must have empty case_roles"
+        assert participant_id is None, (
+            "No participant record should be created for a no-roles invite"
         )
 
 
@@ -1653,11 +1704,14 @@ class TestInviteDispositions:
         return SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
 
     def _invite(self, case_id: str):
+        from vultron.enums.roles import CVDRole
+
         return rm_invite_to_case_activity(
             as_Actor(id_=self._INVITEE),
             target=case_id,
             actor=self._OWNER,
             id_=f"{case_id}/invitations/1",
+            roles=[CVDRole.VENDOR],
         )
 
     def _seed_case(self, dl, case_id: str, manager_id: str | None = None):
@@ -1794,11 +1848,83 @@ class TestInviteDispositions:
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None and "unknown case" in result.reason
 
-    @pytest.mark.spec("HP-01-003")
-    def test_reject_invite_at_case_manager_is_applied(self, make_payload):
+    @pytest.mark.spec("CM-11-018")
+    def test_reject_invite_at_case_manager_refused_when_no_inert_record(
+        self, make_payload
+    ):
+        """CM-11-018: Reject refused when no inert participant record exists.
+
+        The CASE_MANAGER must refuse a Reject(Invite) when it holds no
+        participant record for the invitee — a silent no-op is not allowed.
+        The refusal must carry a reason naming the missing record.
+        """
         case_id = "https://example.org/cases/d-rj2"
         dl = self._dl(actor_id=self._OWNER)
         self._seed_case(dl, case_id, manager_id=self._OWNER)
+        event = make_payload(
+            rm_reject_invite_to_case_activity(
+                self._invite(case_id), actor=self._INVITEE
+            ),
+            receiving_actor_id=self._OWNER,
+        )
+
+        result = RejectInviteActorToCaseReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED, (
+            f"Expected REFUSED when no inert record, got {result.disposition}"
+        )
+        assert result.reason is not None
+        assert "participant" in result.reason.lower(), (
+            f"Refusal reason should mention participant record, got: {result.reason!r}"
+        )
+
+    @pytest.mark.spec("HP-01-003")
+    def test_reject_invite_at_case_manager_is_applied_with_inert_record(
+        self, make_payload
+    ):
+        """With an inert record present, Reject(Invite) is APPLIED (CM-11-007).
+
+        This is the normal path: invite was sent → inert record created →
+        invitee rejects → record closed to RM.CLOSED.
+        """
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.core.models.dimensions import RmDimension
+        from vultron.core.models.participant_status import ParticipantStatus
+        from vultron.core.states.rm import RM
+        from vultron.enums.roles import CVDRole
+
+        case_id = "https://example.org/cases/d-rj2-with-record"
+        dl = self._dl(actor_id=self._OWNER)
+        self._seed_case(dl, case_id, manager_id=self._OWNER)
+
+        # Seed the inert participant record the reject will close.
+        inert_id = f"{case_id}/participants/{self._INVITEE.split('/')[-1]}"
+        inert_status = ParticipantStatus(
+            context=case_id,
+            attributed_to=self._INVITEE,
+            rm=RmDimension(state=RM.RECEIVED),
+            cvd_role=[CVDRole.VENDOR],
+        )
+        inert = CaseParticipant(
+            id_=inert_id,
+            attributed_to=self._INVITEE,
+            context=case_id,
+            case_roles=[CVDRole.VENDOR],
+            participant_statuses=[inert_status],
+            joined=False,
+        )
+        _case = dl.read(case_id)
+        assert isinstance(_case, VulnerabilityCase)
+        _case.case_participants.append(inert.id_)
+        _case.actor_participant_index[self._INVITEE] = inert.id_
+        dl.create(inert)
+        dl.save(_case)
+
         event = make_payload(
             rm_reject_invite_to_case_activity(
                 self._invite(case_id), actor=self._INVITEE

@@ -364,6 +364,22 @@ class CreateInviteeParticipantNode(DataLayerActionWithPorts):
             return Status.SUCCESS
 
         roles = self._read_invite_roles()
+        if not roles:
+            # CM-11-019: never create a participant with an empty role list.
+            # The Invite should have been refused at send time, but guard here
+            # too in case a malformed Invite arrives (defence in depth).
+            self.feedback_message = (
+                f"{self.name}: no roles in Accept(Invite) for invitee"
+                f" '{self.invitee_id}' — invite must carry roles (CM-11-019)"
+            )
+            self.logger.error(
+                "%s: no roles in invite for invitee '%s' in case '%s'"
+                " — refusing participant creation (CM-11-019)",
+                self.name,
+                self.invitee_id,
+                self.case_id,
+            )
+            return Status.FAILURE
         # ADR-0089 birth step 1 (construct): build the participant auto-seeded
         # at RM.START. PersistInviteeParticipantNode attaches it and
         # AdvanceInviteeToReceivedNode advances it to RM.RECEIVED through the
@@ -375,7 +391,7 @@ class CreateInviteeParticipantNode(DataLayerActionWithPorts):
             ),
             attributed_to=self.invitee_id,
             context=self.case_id,
-            case_roles=roles or [],
+            case_roles=roles,
         )
         if roles:
             self.logger.info(
