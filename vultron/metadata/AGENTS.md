@@ -7,7 +7,7 @@ metadata files and validates them. It backs the `spec-dump`, `spec-lint`,
 `spec-coverage`, `adr-index`, `demo-scenarios`, `append-history`,
 `show-history`, `bundle-fit`, `pr-size`, `wire-context`, `docs-withheld`,
 `docs-links`, `docs-legacy-urls`, `glossary-index`, `learnings-index`, and
-`spec-backstop` console entry points, plus several pre-commit hooks.
+`spec-backstop`, and `spec-retire` console entry points, plus several pre-commit hooks.
 
 Two exceptions to "reads the repository's metadata files". `planning/` reads a
 GitHub GraphQL payload piped in on **stdin** rather than files on disk, so its

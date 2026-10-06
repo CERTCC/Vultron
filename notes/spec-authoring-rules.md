@@ -459,8 +459,11 @@ in `specs/` is a violation. Its ID is never reused (MS-09-004); a replacement
 rule gets a new ID, and citations are repointed (MS-09-003). CM-11-005 was reused
 with the opposite force, so every citation of it pointed at a rule it never meant.
 The removed text is parked as one file per ID under `plan/retired-specs/`
-(MS-09-005), outside `specs/` so it is never loaded into agent context; the
-tooling is #4197. Spec-versus-code conflicts found in an implementation PR follow
+(MS-09-005), outside `specs/` so it is never loaded into agent context.
+Retire with `uv run spec-retire <ID> --why ... --by '#N' [--replacement <ID>]`
+(MS-09-006): it moves the text, writes the history entry, and lists the
+citations still to repoint. `spec-lint` fails on `deprecated:`/`superseded_by:`
+and on a re-declared archived ID (MS-09-007). Spec-versus-code conflicts found in an implementation PR follow
 the material test in
 [notes/agentic-workflow.md](agentic-workflow.md) § "Spec Text Conflicts With
 Code", and the PR body carries `## Spec amended`.
