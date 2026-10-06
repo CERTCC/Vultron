@@ -322,6 +322,12 @@ def _phase_report_submission(
                 case_id=case.id_,
             )
 
+        # Seed stub_summary on C1's DataLayer copy so the invite BT can build
+        # the stub Invite (CM-17-010, MV-10-001, #4165).
+        ActorSession(client=c1_client, actor=c1_in_c1).with_case(
+            case
+        ).quiet().set_stub_summary("Vulnerability report")
+
         # C1 invites V1 with CVDRole.VENDOR.  Everything that depends on the
         # invite — the delivery gate, V1's accept, the replica waits and V1's
         # RM triage — is nested inside the block that produces what it needs,

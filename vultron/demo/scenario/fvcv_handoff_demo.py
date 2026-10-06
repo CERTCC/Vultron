@@ -337,6 +337,12 @@ def _phase_ownership_handoff(
     )
     logger.info("─" * 80)
 
+    # Seed stub_summary on Vendor1's DataLayer copy so the invite BT can build
+    # the stub Invite (CM-17-010, MV-10-001, #4165).
+    ActorSession(client=vendor_client, actor=vendor_in_vendor).with_case(
+        case
+    ).quiet().set_stub_summary("Vulnerability report from Finder")
+
     # Vendor1 invites Coordinator with COORDINATOR role.
     # Every step that depends on the invite — the delivery gate, the accept
     # and the replica wait — is nested inside the block that produces what it
@@ -583,6 +589,15 @@ def _phase_coordinator_invites_vendor2(
     # and the replica wait — is nested inside the block that produces what it
     # needs, so a failed trigger or lookup skips its dependents instead of
     # handing them ``None`` (ADR-0058 nested-block model, EDF-06-005, #3038).
+
+    # Seed stub_summary on Coordinator's DataLayer copy so the invite BT can
+    # build the stub Invite (CM-17-010, MV-10-001, #4165).
+    ActorSession(
+        client=coordinator_client, actor=coordinator_in_coordinator
+    ).with_case(case).quiet().set_stub_summary(
+        "Vulnerability report from Finder"
+    )
+
     with demo_step("Coordinator invites Vendor2 to the case"):
         invite_offer = (
             ActorSession(

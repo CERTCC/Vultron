@@ -50,6 +50,7 @@ from vultron.core.use_cases.triggers.request_bodies import (
     NotifyPublishedRequest,
     OfferCaseOwnershipTransferRequest,
     RejectCaseInviteRequest,
+    SetStubSummaryRequest,
     SubmitReportRequest,
     SuggestActorToCaseRequest,
     SyncLogEntryRequest,
@@ -80,6 +81,7 @@ METHOD_TO_MODEL = {
     "notify_fix_deployed": NotifyFixDeployedRequest,
     "notify_published": NotifyPublishedRequest,
     "close_case": CloseCaseRequest,
+    "set_stub_summary": SetStubSummaryRequest,
     "sync_log_entry": SyncLogEntryRequest,
 }
 

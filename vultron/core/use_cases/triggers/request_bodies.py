@@ -481,3 +481,16 @@ class SyncLogEntryRequest(CaseTriggerRequest):
 
     object_id: UriString
     event_type: NonEmptyString
+
+
+class SetStubSummaryRequest(CaseTriggerRequest):
+    """Request body for the demo set-stub-summary trigger.
+
+    Seeds ``stub_summary`` on the actor's local DataLayer copy of the case so
+    that a subsequent ``invite-actor-to-case`` trigger can build the stub
+    Invite (CM-17-010, MV-10-001, #4165).
+
+    TRIG-03-002: Unknown fields are silently ignored.
+    """
+
+    stub_summary: NonEmptyString

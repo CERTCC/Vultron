@@ -307,6 +307,12 @@ def _phase_invite_vendor_reject(
 
     vendor_in_vendor = get_actor_by_id(vendor_client, vendor.id_)
 
+    # Seed stub_summary on Coordinator's DataLayer copy so the invite BT can
+    # build the stub Invite (CM-17-010, MV-10-001, #4165).
+    ActorSession(
+        client=coordinator_client, actor=coordinator_in_coordinator
+    ).with_case(case).quiet().set_stub_summary("Vulnerability report")
+
     # The delivery gate and Vendor's reject are nested inside the invite step
     # so a failed trigger or lookup skips them instead of handing them
     # ``None`` (ADR-0058 nested-block model, EDF-06-005, #3038).
