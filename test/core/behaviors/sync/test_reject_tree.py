@@ -15,9 +15,13 @@ from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.behaviors.sync.reject_tree import (
     create_reject_log_entry_tree,
 )
+from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
+)
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.errors import VultronValidationError
@@ -126,13 +130,23 @@ def _make_event(
         actor=PEER_ID,
         to=[OWNER_ACTOR_ID],
     )
-    return cast(RejectLogEntryReceivedEvent, extract_event(activity))
+    event = cast(RejectLogEntryReceivedEvent, extract_event(activity))
+    # The inbox pipeline attaches the core wire activity; intake archives it.
+    event.activity = VultronActivity(
+        id_=event.activity_id,
+        type_="Reject",
+        actor=PEER_ID,
+        object_=entry,
+    )
+    return event
 
 
 def test_create_reject_log_entry_tree_returns_sequence():
     tree = create_reject_log_entry_tree()
     assert tree.name == "RejectLogEntryReceivedBT"
-    assert len(tree.children) == 5
+    # Intake first (CLP-10-017), then the five existing stages.
+    assert tree.children[0].name == "IntakeReceivedActivityNode"
+    assert len(tree.children) == 6
 
 
 @pytest.mark.spec("SYNC-03-001")
@@ -166,6 +180,10 @@ def test_reject_tree_updates_replication_state_and_replays_entries(
     assert state is not None
     assert state.last_acknowledged_hash == first_entry.entry_hash
     sync_port.send_announce_log_entry.assert_called_once()
+    assert isinstance(
+        datalayer.read(ReceivedActivityRecord.build_id(event.activity_id)),
+        ReceivedActivityRecord,
+    )
     call_kwargs = sync_port.send_announce_log_entry.call_args.kwargs
     assert call_kwargs["entry"].id_ == second_entry.id_
     # The CASE_MANAGER and the executing actor are necessarily the same id here:
@@ -553,7 +571,19 @@ def test_reject_from_stranger_halts_before_any_write(
         ),
     )
 
+    event.activity = VultronActivity(
+        id_=event.activity_id,
+        type_="Reject",
+        actor=stranger,
+        object_=entry,
+    )
+
     assert _sender_refused(datalayer, event) == Status.FAILURE
+    # A refused sender still leaves the archive of what arrived (CLP-10-018).
+    assert isinstance(
+        datalayer.read(ReceivedActivityRecord.build_id(event.activity_id)),
+        ReceivedActivityRecord,
+    )
 
 
 @pytest.mark.spec("SYNC-03-005")
