@@ -231,6 +231,35 @@ class TestEvaluateDefaultRolesNode:
             f"Expected VENDOR default at '{expected_key}', got {raw!r}"
         )
 
+    @pytest.mark.spec("CM-11-019")
+    def test_require_explicit_roles_fails_when_no_roles_given(self):
+        """CM-11-019: require_explicit_roles=True → FAILURE when no roles.
+
+        The owner-direct invite path sets require_explicit_roles=True so the
+        Case Owner must supply roles explicitly; no VENDOR default is applied.
+        """
+        node = EvaluateDefaultRolesNode(
+            suggested_actor_id=_RECOMMENDED,
+            case_id=_CASE_ID,
+            recommendation_id=_REC_ID,
+            require_explicit_roles=True,
+        )
+        node.setup()
+        node.initialise()
+        result = node.update()
+        assert result == Status.FAILURE
+        assert node.feedback_message, "feedback_message must be set on FAILURE"
+        assert "inviter must give" in node.feedback_message, (
+            f"Expected CM-11-019 message, got: {node.feedback_message!r}"
+        )
+        expected_key = (
+            f"/suggested_roles_{_REC_ID.rsplit('/', maxsplit=1)[-1]}"
+        )
+        raw = py_trees.blackboard.Blackboard.storage.get(expected_key)
+        assert raw is None, (
+            f"Blackboard key must not be written when FAILURE, got {raw!r}"
+        )
+
 
 class TestRecommendActorToCaseReceivedTree:
     """Structural tests for create_recommend_actor_to_case_received_tree."""

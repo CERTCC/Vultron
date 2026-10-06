@@ -247,6 +247,9 @@ def create_recommend_actor_to_case_received_tree(
                 case_id=case_id,
                 recommendation_id=recommendation_id,
                 injected_roles=suggested_roles,
+                # CM-11-019: the Case Owner's direct invite MUST give explicit
+                # roles; no VENDOR default for the owner-direct path.
+                require_explicit_roles=True,
             ),
             EmitInviteActorToCaseNode(
                 invitee_id=recommended_id,
