@@ -197,7 +197,9 @@ class AddCaseStatusToCaseReceivedUseCase:
 
 class CreateParticipantStatusReceivedUseCase:
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4069", "no sender check defined for participant status creation"
+        "#3871",
+        "store-only intake of Create(ParticipantStatus); no sender check "
+        "until the handler moves onto the shared intake tree",
     )
 
     def __init__(

@@ -132,7 +132,9 @@ class CreateCaseProposalReceivedUseCase:
     """
 
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4072", "no sender check for case proposals"
+        "#812",
+        "prototype admits a Create(CaseProposal) from any sender (CP-05-002); "
+        "sender must be the report receiver once CaseActors are spawned",
     )
 
     def __init__(
