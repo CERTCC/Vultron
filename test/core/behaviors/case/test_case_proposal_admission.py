@@ -53,6 +53,9 @@ from vultron.core.behaviors.call_out.bundles.case_proposal import (
 from vultron.core.behaviors.case.case_proposal_received_tree import (
     create_case_proposal_received_tree,
 )
+from vultron.core.behaviors.case.nodes.proposal_retry_marker import (
+    case_is_announced,
+)
 from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_proposal_decline import (
@@ -907,15 +910,6 @@ class TestTheGateIsKeyedOnTheProposalNotTheReport:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "CP-05-008: LoadExistingCaseNode resolves the case by the "
-        "sender-chosen report id alone, so a second proposer naming the report "
-        "joins the first proposer's case instead of getting its own (#3977). "
-        "The build task that keys the reuse on the proposer removes this xfail."
-    ),
-)
 @pytest.mark.spec("CP-05-008")
 def test_second_proposer_for_an_accepted_report_gets_its_own_case(dl):
     """Reuse is keyed on (report, proposer), never on the report alone.
@@ -950,3 +944,68 @@ def test_second_proposer_for_an_accepted_report_gets_its_own_case(dl):
     assert on_first_roster == [], (
         "the second proposer must not join the first proposer's case"
     )
+
+
+@pytest.mark.spec("CP-05-008")
+def test_new_proposal_id_from_the_owner_reuses_its_case(dl):
+    """The owner's second proposal for its own report is answered, not re-created.
+
+    It gets its own ``Accept`` (a new proposal is a new request) whose result
+    names the existing case; no second case is created, and committing the
+    canonical ledger entries again does not raise "log entry already exists".
+    """
+    second_proposal_uri = "https://vendor.example.org/proposals/p-002"
+
+    assert _run_tree(dl) == Status.SUCCESS
+    (first_case,) = _cases(dl)
+    ledger_before = len(list(dl.list_objects("CaseLedgerEntry")))
+    types_before = _types_in_outbox(dl)
+
+    status = _run_tree(dl, proposal_uri=second_proposal_uri)
+
+    assert status == Status.SUCCESS
+    assert [c.id_ for c in _cases(dl)] == [first_case.id_], (
+        "the owner's case is reused, never duplicated"
+    )
+    all_accepts = list(dl.list_objects("Accept"))
+    assert len(all_accepts) == 2, "each proposal is answered by its own Accept"
+    assert len({a.id_ for a in all_accepts}) == 2
+    assert {str(getattr(a.result, "id_", a.result)) for a in all_accepts} == {
+        str(first_case.id_)
+    }, "both Accepts name the one case"
+    creates = [
+        c
+        for c in dl.list_objects("Create")
+        if str(first_case.id_) in str(getattr(c, "object_", ""))
+    ]
+    assert len(creates) == 1, "no second Create(VulnerabilityCase)"
+    # The native ledger commits are skipped, not re-run: a re-run reuses each
+    # recorded entry but fans it out to every recipient a second time.
+    assert len(list(dl.list_objects("CaseLedgerEntry"))) == ledger_before
+    new_types = _types_in_outbox(dl)[len(types_before) :]
+    assert new_types == ["Accept"], (
+        "the new proposal is answered with its Accept and nothing else"
+    )
+
+
+@pytest.mark.spec("CP-05-008")
+def test_an_unannounced_owner_case_is_completed_not_skipped(dl):
+    """A case no ``Create`` has announced yet still gets its ``Create``.
+
+    The reuse path skips the announcement only for a case already announced; a
+    half-built case left by a failed earlier delivery must still be finished.
+    """
+    assert _run_tree(dl) == Status.SUCCESS
+    (case,) = _cases(dl)
+    for create in list(dl.list_objects("Create")):
+        if str(getattr(create, "context", "")) == str(case.id_):
+            dl.delete("Create", create.id_)
+    assert not case_is_announced(dl, str(case.id_))
+
+    status = _run_tree(
+        dl, proposal_uri="https://vendor.example.org/proposals/p-002"
+    )
+
+    assert status == Status.SUCCESS
+    assert case_is_announced(dl, str(case.id_))
+    assert len(_cases(dl)) == 1

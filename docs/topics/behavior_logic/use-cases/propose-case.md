@@ -129,6 +129,12 @@ A duplicate delivery of the *same* proposal reuses the existing case rather than
 CP-05-006 goes further: the stored `Accept` must be re-sent unchanged, with its original identifier, so a proposer whose copy was lost converges rather than waiting forever.
 The reference implementation reuses the case but does not yet re-send ([#2890](https://github.com/CERTCC/Vultron/issues/2890)).
 
+A proposal under a *new* identifier is a new request, even when it names a report that already has a case (CP-05-008).
+It goes through the admission decision and gets its own `Accept` or `Reject`, not the earlier proposal's stored answer.
+What happens to the case depends on who asks.
+The proposer that owns the case gets that case back: the `Accept`'s `result` names it, no second case is created, and the case is not announced or recorded in the ledger a second time.
+Any other proposer gets a separate case of its own and is not added to the first one, because the report identifier is chosen by the sender and does not say whose case it is.
+
 ---
 
 ## What the case learns

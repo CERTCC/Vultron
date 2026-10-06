@@ -31,6 +31,7 @@ from py_trees.common import Status
 from py_trees.ports import PortInformation
 
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.models.case import VulnerabilityCase
 
 
 class RequireCaseForReport(DataLayerActionWithPorts):
@@ -78,6 +79,17 @@ class RequireCaseForReport(DataLayerActionWithPorts):
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {"case_id": "/case_id"}
 
+    def _find_case(self, report_id: str) -> "VulnerabilityCase | None":
+        """The lookup subclasses narrow; the rest of ``update`` is shared."""
+        assert self.datalayer is not None
+        return self.datalayer.find_case_by_report_id(report_id)
+
+    def _absence_message(self, report_id: str) -> str:
+        return (
+            f"no VulnerabilityCase for report '{report_id}' in this"
+            " actor's store"
+        )
+
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
@@ -88,12 +100,9 @@ class RequireCaseForReport(DataLayerActionWithPorts):
             self.logger.debug("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
-        case = self.datalayer.find_case_by_report_id(self._report_id)
+        case = self._find_case(self._report_id)
         if case is None:
-            self.feedback_message = (
-                f"no VulnerabilityCase for report '{self._report_id}' in this"
-                " actor's store"
-            )
+            self.feedback_message = self._absence_message(self._report_id)
             # INFO, not WARNING: pre-replica is a legitimate transient state on
             # the receiving side, and the normal "no duplicate case yet" path in
             # the case-proposal tree lands here too.
