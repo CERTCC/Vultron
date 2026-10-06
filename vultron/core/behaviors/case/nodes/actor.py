@@ -50,6 +50,7 @@ from vultron.core.behaviors.case.nodes.participant.roles import (
     suggested_roles_key,
 )
 from vultron.core.behaviors.case.offer_provenance import find_offer_for_report
+from vultron.core.behaviors.delegated_authorship import delegated_authorship
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     _EmitSingleActivityBase,
@@ -163,13 +164,23 @@ class EmitInviteActorToCaseNode(_EmitSingleActivityBase):
         # missing local case therefore emits a bare stub rather than failing;
         # this read is deliberately unguarded (conformance allowlist).
         case = self.datalayer.read_case(self.case_id)
+        # ``None`` is the manager's own invitation; otherwise the participant
+        # who asked for it is the attributed author (PCR-08-007, CM-24-005).
+        authorship = (
+            delegated_authorship(
+                doing_actor_id=self.actor_id,
+                requesting_actor_id=self.attributed_to,
+            )
+            if self.attributed_to is not None
+            else None
+        )
         activity_id, activity_blob = (
             self.trigger_activity_factory.invite_actor_to_case(
                 invitee_id=self.invitee_id,
                 case_id=self.case_id,
-                actor=self.actor_id,
+                actor=authorship.actor if authorship else self.actor_id,
                 to=[self.invitee_id],
-                attributed_to=self.attributed_to,
+                attributed_to=authorship.attributed_to if authorship else None,
                 roles=roles,
                 target=case,
             )

@@ -270,10 +270,9 @@ def invite_to_embargo_on_case_tree(
     it (EP-09-004).  A case whose EM state admits no proposal (``EXITED``) is
     refused by a read-only guard ahead of the commit (CLP-10-009); the P/X/A
     refusal with ER (EMB-01-002, EMB-03-003) is the use case's pre-flight.
-    The CM-24 authorship invariants hold structurally — the relay runs only
-    under the role gate, so ``actor`` is the role holder — rather than through
-    the trigger-side ``_prepare_delegated_context()`` helper, which a BT node
-    may not import (BTND-04-003) and whose fallback arm ADR-0113 retires.
+    The CM-24 authorship pair comes from the shared ``delegated_authorship``
+    helper (CM-24-005): the relay runs only under the role gate, so ``actor``
+    is the role holder, and ``attributedTo`` is the proposer.
 
     **Either arm is preceded by an idempotency guard**: the same Invite
     delivered again (``pending_embargo_proposal_index`` already maps the

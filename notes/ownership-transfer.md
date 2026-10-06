@@ -41,7 +41,7 @@ Both activities MUST flow through the CASE_MANAGER.
 Offering actor calls trigger: offer-case-ownership-transfer
   → SvcOfferCaseOwnershipTransferUseCase._prepare() sets:
       self._actor_id      = case_actor_id      ← CASE_MANAGER sends (CM-24-001)
-      self._attributed_to = offering_actor_id  ← attribution (CM-24-002)
+      self._requesting_actor_id = offering_actor_id  ← attribution (CM-24-002)
   → EmitOfferCaseOwnershipTransferNode
       constructs: Offer(VulnerabilityCase, target=transferee_id)
       actor:      case_actor_id                ← delegated-message contract
@@ -91,18 +91,19 @@ the statement of what each component must preserve, not as open work.
 ### SvcOfferCaseOwnershipTransferUseCase._prepare()
 
 - MUST set `self._actor_id` to the CASE_MANAGER's ID (CM-24-001) and
-  `self._attributed_to` to the offering actor (CM-24-002), through the shared
-  delegated-authorship helper (`_prepare_delegated_context()` today; #4160 moves
-  it below the use-case layer, CM-24-005).
+  `self._requesting_actor_id` to the offering actor (CM-24-002), through the
+  shared `delegated_authorship()` helper (`core/behaviors/`, CM-24-005).
 - A case always has a CASE_MANAGER holder (CM-24-006); when the resolver finds
-  none the helper fails rather than falling back to the offering actor (the
-  CM-24-003 fallback is retired by #3964).
-- Pass `attributed_to` through to the BT builder (CM-24-004).
+  none the use case fails rather than falling back to the offering actor (the
+  CM-24-003 fallback is retired).
+- Pass `requesting_actor_id` through to the BT builder; the emit node derives
+  `attributed_to` from the helper again (CM-24-004).
 
 ### EmitOfferCaseOwnershipTransferNode
 
-- `_call_factory()` MUST use `actor=self.actor_id` (the CASE_MANAGER's ID) and pass
-  `attributed_to=self.attributed_to` to the factory call. (Renamed from `_emit()` by #2881.)
+- `_call_factory()` MUST take `actor` and `attributed_to` from
+  `delegated_authorship(doing_actor_id=self.actor_id, requesting_actor_id=self.requesting_actor_id)`
+  (the CASE_MANAGER's ID and the offering actor).
 - `to` MUST be `[case_actor_id]` — the Offer routes through the CASE_MANAGER
   (CM-21-005); the CASE_MANAGER processes it and forwards to the transferee.
 - The `target` field of the Offer carries `transferee_id` (as before).
