@@ -418,6 +418,64 @@ def test_case_proposal_accept_after_case_established_keeps_case_manager(
     assert reloaded.case_manager_id == _CASE_MANAGER_ID
 
 
+@pytest.mark.spec("CP-06-005")
+def test_case_proposal_reject_after_case_established_leaves_link_unchanged(
+    make_payload,
+):
+    """A late Reject from the addressee must not re-open the proposal."""
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_VENDOR_URI)
+    proposal = _make_proposal()
+    _seed_vendor_link(dl, proposal)
+    report = proposal.object_
+    assert report is not None
+    link_id = VultronReportCaseLink.build_id(_report_id(report))
+    link = dl.read(link_id)
+    assert isinstance(link, VultronReportCaseLink)
+    link.case_id = "https://example.org/cases/established"
+    dl.save(link)
+    event = make_payload(
+        as_Reject(
+            actor=link.case_creator_id, object_=proposal, to=[_VENDOR_URI]
+        ),
+        receiving_actor_id=_VENDOR_URI,
+    )
+
+    RejectCaseProposalReceivedUseCase(dl, event).execute()
+
+    reloaded = dl.read(link_id)
+    assert isinstance(reloaded, VultronReportCaseLink)
+    assert reloaded.proposal_rejected is False
+    assert reloaded.rejection_reason is None
+
+
+@pytest.mark.spec("CP-06-005")
+def test_case_proposal_accept_from_addressee_with_trailing_slash_is_applied(
+    make_payload,
+):
+    """The addressee is recognised whichever way the id is written."""
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_VENDOR_URI)
+    proposal = _make_proposal()
+    _seed_vendor_link(dl, proposal)
+    report = proposal.object_
+    assert report is not None
+    link_id = VultronReportCaseLink.build_id(_report_id(report))
+    link = dl.read(link_id)
+    assert isinstance(link, VultronReportCaseLink)
+    assert link.case_creator_id is not None
+    sender = link.case_creator_id + "/"
+    event = make_payload(
+        as_Accept(actor=sender, object_=proposal, to=[_VENDOR_URI]),
+        receiving_actor_id=_VENDOR_URI,
+    )
+
+    result = AcceptCaseProposalReceivedUseCase(dl, event).execute()
+
+    assert result.disposition is HandlerDisposition.APPLIED
+    reloaded = dl.read(link_id)
+    assert isinstance(reloaded, VultronReportCaseLink)
+    assert reloaded.case_manager_id == sender
+
+
 @pytest.mark.xfail(
     strict=True,
     raises=AssertionError,

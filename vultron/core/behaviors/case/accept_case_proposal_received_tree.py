@@ -124,7 +124,8 @@ def create_accept_case_proposal_received_tree(
             proposal (the ``actor`` of the inbound ``Accept`` activity).
 
     Returns:
-        A py_trees Sequence behaviour (sender guard, then the record) ready for ``BTBridge.execute_with_setup``.
+        A py_trees Sequence behaviour (sender guard, then the record)
+        ready for ``BTBridge.execute_with_setup``.
     """
     return create_receive_activity_tree(
         name="AcceptCaseProposalReceivedBT",

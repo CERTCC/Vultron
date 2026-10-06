@@ -21,6 +21,7 @@ related_notes:
   - notes/demo-scenario-authoring.md
   - notes/case-ledger-authority.md
   - notes/datalayer-design.md
+  - notes/case-bootstrap-trust.md
 relevant_packages:
   - vultron/wire/as2/vocab/objects
   - vultron/core/models/events
@@ -132,6 +133,18 @@ When the case-actor service declines, it sends:
 **`Reject(as_CaseProposal)`** — `object_` embeds the `as_CaseProposal`
 inline (consistent with the Accept pattern; inline is preferred over URI-only
 for rejection so the receiver has the full proposal context without a round-trip).
+
+### Step 2c: Who may answer (CP-06-005)
+
+The vendor records the actor it addressed the proposal to on its
+`VultronReportCaseLink.case_creator_id` when it sends `Create(as_CaseProposal)`.
+It acts on an `Accept` or `Reject` only when the sender is that actor
+(`SenderIsProposalAddresseeNode`, declared `NAMED_ACTOR` per ADR-0115).
+A reply from anyone else ends `REFUSED` with the link unchanged.
+Once a case is established for the report (`case_id` is set), even the
+addressee's reply replaces nothing: the trusted CASE_MANAGER
+(`case_manager_id`) stays, and a late `Reject` does not set `proposal_rejected`.
+A reply for a report the vendor never proposed (no link) is `SKIPPED`.
 
 What *decides* the refusal is the `EvaluateCaseProposal` call-out point — see
 [Admission Decision](#admission-decision-cp-05-002).
