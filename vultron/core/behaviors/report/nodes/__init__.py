@@ -35,9 +35,6 @@ Submodules:
 """
 
 from vultron.core.behaviors.helpers import UpdateActorOutbox
-from vultron.core.behaviors.report.nodes.ack_conditions import (
-    CheckSenderIsExecutingActorNode,
-)
 from vultron.core.behaviors.report.nodes.case_creation import (
     CreateCaseActivity,
     CreateCaseNode,
@@ -92,8 +89,6 @@ from vultron.core.behaviors.report.nodes.storage import (
 )
 
 __all__ = [
-    # ack_conditions
-    "CheckSenderIsExecutingActorNode",
     # conditions
     "_CheckParticipantRMStateBase",
     "_CheckReportPhaseRMStateBase",

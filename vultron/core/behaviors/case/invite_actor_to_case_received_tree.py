@@ -107,7 +107,9 @@ def create_invite_actor_to_case_received_tree(
                         sender_id=inviter_id,
                     ),
                     RecordInviteTrustAnchorNode(
-                        case_id=case_id, case_actor_id=inviter_id
+                        case_id=case_id,
+                        invitee_id=invitee_id,
+                        case_actor_id=inviter_id,
                     ),
                 ],
                 case_may_be_absent=True,

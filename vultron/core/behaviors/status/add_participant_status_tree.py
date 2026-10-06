@@ -28,7 +28,8 @@ the inbox seam (RSH-04-004).  Side-effects (embargo teardown) belong in
 ``add_case_status_tree``; this tree does not execute them directly (RSH-01-004).
 
     AddParticipantStatusBT (Sequence)
-    ├─ VerifySenderIsParticipantNode          # Step 1: sender must be known participant
+    ├─ [IntakeReceivedActivityNode]           # Always first (CLP-10-017)
+    ├─ SenderIsActiveParticipantNode          # Sender guard: must be known participant (ADR-0115)
     ├─ FilterParticipantStatusDimensionsNode  # Guard: adjudicate rm/vfd/pxa separately (RSH-05)
     ├─ GuardedCommitOrSkip (Selector, only if case_id)  # Record receipt first (CLP-10-006)
     │   ├─ Sequence("SkipIfNotCaseManager")
@@ -67,14 +68,15 @@ from vultron.core.behaviors.call_out.bundles.status_authorization import (
     STATUS_AUTHORIZATION_DETERMINISTIC,
     StatusAuthorizationCallOutBundle,
 )
-from vultron.core.behaviors.case.nodes.vfd_role_guards import (
-    CheckIsCaseOwnerNode,
-)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
 from vultron.core.behaviors.case_status_snapshot import (
     EmitCaseStatusUpdateNode,
+)
+from vultron.core.behaviors.sender_entitlement import (
+    SenderIsActiveParticipantNode,
+    SenderIsCaseOwnerNode,
 )
 from vultron.core.behaviors.status.append_participant_status_tree import (
     append_participant_status_tree,
@@ -82,7 +84,6 @@ from vultron.core.behaviors.status.append_participant_status_tree import (
 from vultron.core.behaviors.status.nodes import (
     EmitRMGapNoteNode,
     FilterParticipantStatusDimensionsNode,
-    VerifySenderIsParticipantNode,
 )
 from vultron.core.behaviors.status.nodes.threat_termination import (
     ThreatTerminationBranchNode,
@@ -170,10 +171,10 @@ def add_participant_status_tree(
         name="StatusAdoptionGate",
         memory=False,
         children=[
-            CheckIsCaseOwnerNode(
+            SenderIsCaseOwnerNode(
                 sender_actor_id=actor_id,
                 case_id=tree_case_id,
-                name="CheckIsCaseOwner",
+                name="SenderIsCaseOwner",
             ),
             call_out.status_adoption_gate_factory(
                 "CaseOwnerApprovesStatusUpdate"
@@ -184,12 +185,12 @@ def add_participant_status_tree(
     root = create_receive_activity_tree(
         name="AddParticipantStatusBT",
         case_id=tree_case_id,
+        sender_guard=SenderIsActiveParticipantNode(
+            status_id=status_id,
+            sender_actor_id=actor_id,
+            case_id=tree_case_id,
+        ),
         precondition_guards=[
-            VerifySenderIsParticipantNode(
-                status_id=status_id,
-                sender_actor_id=actor_id,
-                case_id=tree_case_id,
-            ),
             FilterParticipantStatusDimensionsNode(
                 participant_id=participant_id,
                 status_id=status_id,

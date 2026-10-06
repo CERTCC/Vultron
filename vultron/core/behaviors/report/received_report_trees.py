@@ -44,9 +44,6 @@ from vultron.core.behaviors.case.nodes.participant.status import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
-from vultron.core.behaviors.report.nodes.ack_conditions import (
-    CheckSenderIsExecutingActorNode,
-)
 from vultron.core.behaviors.report.nodes.emit import EmitAckReportActivity
 from vultron.core.behaviors.report.nodes.storage import (
     StoreActivityNode,
@@ -54,6 +51,9 @@ from vultron.core.behaviors.report.nodes.storage import (
 )
 from vultron.core.behaviors.report.validate_tree import (
     create_validate_report_subtree,
+)
+from vultron.core.behaviors.sender_entitlement import (
+    SenderIsExecutingActorNode,
 )
 from vultron.core.models.events.report import (
     AckReportReceivedEvent,
@@ -244,7 +244,7 @@ def create_ack_report_received_tree(
         children=[
             py_trees.decorators.Inverter(
                 name="SkipIfAckFromAnotherActor",
-                child=CheckSenderIsExecutingActorNode(
+                child=SenderIsExecutingActorNode(
                     sender_actor_id=request.actor_id
                 ),
             ),

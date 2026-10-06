@@ -1,7 +1,7 @@
 """Received ``Announce(EmbargoEvent)``."""
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 if TYPE_CHECKING:
     from vultron.core.ports.wire_render import WireRenderPort
@@ -17,6 +17,10 @@ from vultron.core.ports.case_persistence import CasePersistence
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
 
+from vultron.core.behaviors.sender_entitlement import (
+    SenderEntitlement,
+    exempt,
+)
 from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
     unaddressed_copy_refusal,
@@ -26,6 +30,10 @@ logger = logging.getLogger(__name__)
 
 
 class AnnounceEmbargoEventToCaseReceivedUseCase:
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4074", "no sender check for embargo announce"
+    )
+
     def __init__(
         self,
         dl: CasePersistence,

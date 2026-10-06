@@ -242,8 +242,8 @@ KNOWN_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         # it reads leniently instead of via Regime 1 _require_case. Authority is
         # still resolved role-based via resolve_case_manager_id (ADR-0088).
         (
-            "vultron/core/behaviors/sync/nodes/conditions.py",
-            "VerifySenderIsCaseActorNode.update",
+            "vultron/core/behaviors/sender_entitlement.py",
+            "SenderIsCaseManagerNode.update",
         ),
     }
 )

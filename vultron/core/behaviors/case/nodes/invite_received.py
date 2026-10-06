@@ -30,6 +30,7 @@ from py_trees.common import Status
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.behaviors.narrative_log import log_invite_received
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
+from vultron.core.predicates.addressing import same_actor_id
 
 logger = logging.getLogger(__name__)
 
@@ -69,19 +70,35 @@ class RecordInviteTrustAnchorNode(DataLayerAction):
     ``AnnounceVulnerabilityCaseReceivedUseCase`` admits a later Announce from
     the same actor before the local case replica exists (PCR-03-004 path b).
 
-    First invite wins: a record that already names a ``case_actor_id`` is kept
-    unchanged.  A record with ``case_actor_id=None`` — created by the
-    pre-bootstrap queue for an earlier ledger entry — gains the sender.
+    Trust rules (PCR-03-004, issue #4185):
+
+    - **AC-1**: Refuses when the Invite's ``object`` (``invitee_id``) is not
+      the receiving actor (``self.actor_id``); no record is written.
+    - **AC-2**: The anchor is bound to the Invite's ``actor`` id
+      (``case_actor_id``); the transport-level delivering sender is never
+      consulted — the caller must supply the Invite's own ``actor`` field.
+    - **AC-3**: A later Invite for the same case naming a *different*
+      CaseActor is REFUSED: the existing anchor is unchanged and a WARNING
+      names both ids.
+
+    Idempotent on an exact duplicate (same ``case_actor_id``).  A record with
+    ``case_actor_id=None`` — created by the pre-bootstrap queue for an earlier
+    ledger entry — gains the sender (first-write semantics).
+
+    Note: whether the named CaseActor is genuine cannot be verified until
+    actor identity and signatures are in place (#2841).
     """
 
     def __init__(
         self,
         case_id: str,
+        invitee_id: str,
         case_actor_id: str,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
+        self.invitee_id = invitee_id
         self.case_actor_id = case_actor_id
 
     def update(self) -> Status:
@@ -89,30 +106,62 @@ class RecordInviteTrustAnchorNode(DataLayerAction):
             return f
         assert self.datalayer is not None
 
+        # AC-1: The Invite's object must be the receiving actor.
+        if not same_actor_id(self.invitee_id, self.actor_id or ""):
+            self.feedback_message = (
+                f"Invite object '{self.invitee_id}' is not the receiving"
+                f" actor '{self.actor_id}' — refusing trust anchor"
+                f" (PCR-03-004 path b)"
+            )
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
         existing = self.datalayer.read(
             VultronPendingCaseInbox.build_id(self.case_id)
         )
         if not isinstance(existing, VultronPendingCaseInbox):
+            # First Invite for this case: write the anchor.
             self.datalayer.save(
                 VultronPendingCaseInbox(
                     case_id=self.case_id,
                     case_actor_id=self.case_actor_id,
                 )
             )
-            self.logger.debug(
-                "%s: trust anchor recorded for case '%s'",
+            self.logger.info(
+                "%s: trust anchor recorded for case '%s' (CaseActor '%s')",
                 self.name,
                 self.case_id,
+                self.case_actor_id,
             )
         elif existing.case_actor_id is None:
+            # Pre-bootstrap queue had no actor yet — fill it in.
             self.datalayer.save(
                 existing.model_copy(
                     update={"case_actor_id": self.case_actor_id}
                 )
             )
+            self.logger.info(
+                "%s: trust anchor filled in for case '%s' (CaseActor '%s')",
+                self.name,
+                self.case_id,
+                self.case_actor_id,
+            )
+        elif same_actor_id(existing.case_actor_id, self.case_actor_id):
+            # Idempotent re-delivery of the same Invite — no action.
             self.logger.debug(
-                "%s: trust anchor added to the pending record for case '%s'",
+                "%s: trust anchor already set for case '%s' (idempotent)",
                 self.name,
                 self.case_id,
             )
+        else:
+            # AC-3: Conflicting anchor — refuse and leave the existing one.
+            self.feedback_message = (
+                f"Trust anchor conflict for case '{self.case_id}':"
+                f" existing CaseActor '{existing.case_actor_id}',"
+                f" new Invite's actor '{self.case_actor_id}'"
+                f" — refusing (PCR-03-004 path b)"
+            )
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
         return Status.SUCCESS

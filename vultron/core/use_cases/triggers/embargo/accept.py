@@ -24,10 +24,12 @@ import py_trees.behaviour
 from vultron.core.behaviors.embargo.trigger_tree import (
     accept_embargo_trigger_bt,
 )
+from vultron.core.behaviors.sender_entitlement import (
+    is_case_owner as _is_case_owner,
+)
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.use_cases.triggers._base import SvcEmbargoTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
-    _is_case_owner,
     _resolve_embargo_id_from_proposal_id,
     _resolve_embargo_proposal,
     resolve_actor,

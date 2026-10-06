@@ -63,11 +63,11 @@ from vultron.core.behaviors.case.nodes.suggest_actor import (
     PendingOfferCaseParticipantNode,
     RecordRecommendationRecommenderNode,
 )
-from vultron.core.behaviors.case.nodes.vfd_role_guards import (
-    CheckIsCaseOwnerNode,
-)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
+)
+from vultron.core.behaviors.sender_entitlement import (
+    SenderIsCaseOwnerNode,
 )
 
 logger = logging.getLogger(__name__)
@@ -137,10 +137,10 @@ def create_recommend_actor_to_case_received_tree(
                     │                   EmitAcceptActorRecommendationNode)
                     ├── AC-6:  Sequence(PendingOfferCaseParticipantNode,
                     │                   EmitNoteDuplicateRecommendationToOwnerNode)
-                    ├── Owner: Sequence(CheckIsCaseOwnerNode(recommender),
+                    ├── Owner: Sequence(SenderIsCaseOwnerNode(recommender),
                     │                   EvaluateDefaultRolesNode,
                     │                   EmitInviteActorToCaseNode)
-                    └── Fresh: Sequence(Inverter(CheckIsCaseOwnerNode),
+                    └── Fresh: Sequence(Inverter(SenderIsCaseOwnerNode),
                                         EvaluateDefaultRolesNode,
                                         EmitOfferCaseParticipantToOwnerNode)
 
@@ -220,7 +220,7 @@ def create_recommend_actor_to_case_received_tree(
         name="OwnerDirectInvite",
         memory=False,
         children=[
-            CheckIsCaseOwnerNode(
+            SenderIsCaseOwnerNode(
                 sender_actor_id=recommender_id,
                 case_id=case_id,
                 name="RecommenderIsCaseOwner",
@@ -249,7 +249,7 @@ def create_recommend_actor_to_case_received_tree(
         children=[
             py_trees.decorators.Inverter(
                 name="RecommenderIsNotCaseOwner",
-                child=CheckIsCaseOwnerNode(
+                child=SenderIsCaseOwnerNode(
                     sender_actor_id=recommender_id,
                     case_id=case_id,
                 ),

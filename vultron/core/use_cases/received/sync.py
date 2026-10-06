@@ -18,11 +18,19 @@ Spec: SYNC-02-003, SYNC-03-001 through SYNC-03-003, SYNC-04-001, SYNC-04-002.
 """
 
 import logging
+from typing import ClassVar
 
 import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
+from vultron.core.behaviors.sender_entitlement import (
+    SenderEntitlement,
+    SenderEntitlementKind,
+    SenderIsCaseManagerNode,
+    SenderIsNamedActorNode,
+    exempt,
+)
 from vultron.core.behaviors.sync.announce_tree import (
     create_announce_log_entry_tree,
 )
@@ -33,8 +41,6 @@ from vultron.core.behaviors.sync.nodes import (
     CheckLedgerEntryAlreadyStoredNode,
     ReconstructChainTailNode,
     SendRejectLogEntryNode,
-    VerifySenderIsCaseActorNode,
-    VerifySenderIsOwnIdNode,
 )
 from vultron.core.behaviors.sync.reject_tree import (
     create_reject_log_entry_tree,
@@ -115,7 +121,7 @@ def _announce_verdict(
     """
     verdict = verdict_from_bt(tree, result, label="AnnounceLogEntryReceivedBT")
     if verdict.disposition is HandlerDisposition.APPLIED:
-        if node_succeeded(tree, VerifySenderIsOwnIdNode):
+        if node_succeeded(tree, SenderIsNamedActorNode):
             return HandlerResult.skipped(
                 f"own announcement of ledger entry '{entry.id_}' echoed back;"
                 " delivery confirmed"
@@ -146,12 +152,12 @@ def _refused_announce_verdict(
             f"ledger entry '{entry.id_}' buffered until case"
             f" '{entry.case_id}' is seeded (SYNC-15-004)"
         )
-    if node_failed(tree, VerifySenderIsOwnIdNode):
+    if node_failed(tree, SenderIsNamedActorNode):
         return HandlerResult.refused(
             f"CASE_MANAGER does not accept an announcement of ledger entry"
             f" '{entry.id_}' from '{request.actor_id}'"
         )
-    if node_failed(tree, VerifySenderIsCaseActorNode):
+    if node_failed(tree, SenderIsCaseManagerNode):
         return HandlerResult.refused(
             f"sender '{request.actor_id}' is not the CaseActor for case"
             f" '{entry.case_id}' (SYNC-13-006)"
@@ -272,6 +278,10 @@ class AnnounceLedgerEntryReceivedUseCase:
     SYNC-11-003, SYNC-12-001.
     """
 
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.CASE_MANAGER
+    )
+
     def __init__(
         self,
         dl: CaseOutboxPersistence,
@@ -383,6 +393,11 @@ class RejectLedgerEntryReceivedUseCase:
 
     Spec: SYNC-03-001, SYNC-03-002, SYNC-04-001, SYNC-04-002.
     """
+
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4075",
+        "uses SenderIsNamedActorNode for echo detection, not real entitlement check — fix tracked by #4075",
+    )
 
     def __init__(
         self,

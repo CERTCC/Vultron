@@ -1,0 +1,618 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""One sender-entitlement module: predicates, condition nodes, and declarations.
+
+This is the single home for every sender predicate and its condition node
+(ADR-0115, HP-01-006, HP-01-007).
+No sender check may be defined elsewhere; the architecture ratchet in
+``test/architecture/test_sender_entitlement_ratchet.py`` enforces this.
+
+Entitlement kinds
+-----------------
+- ``CASE_MANAGER`` — sender must be the case's ``CVDRole.CASE_MANAGER``
+  (PCR-03-001, SYNC-13-006)
+- ``CASE_OWNER`` — sender must hold ``CVDRole.CASE_OWNER``
+- ``ACTIVE_PARTICIPANT`` — sender must be an active participant per CM-10-004
+  (full active-participant predicate tracked by #2257)
+- ``NAMED_ACTOR`` — sender must match a specific named actor ID (e.g. a
+  blackboard-resolved CaseActor identity)
+- ``EXECUTING_ACTOR`` — sender must equal the executing actor itself (ack echo
+  path, ISSUE-2667)
+
+Exemption
+---------
+``exempt(tracking_issue, reason)`` declares a received use case as not yet
+checked, naming the tracking issue that owns the fix.
+The ratchet accepts an exemption as a valid declaration; it only fails on a
+missing attribute.
+
+Nodes
+-----
+- ``SenderIsActiveParticipantNode`` — guards that the sender is a known case
+  participant; merged from ``VerifySenderIsParticipantNode``
+- ``SenderIsCaseManagerNode`` — guards that the sender is the case's
+  CASE_MANAGER; merged from ``VerifySenderIsCaseActorNode``
+- ``SenderIsNamedActorNode`` — guards that the sender matches a named actor;
+  merged from ``VerifySenderIsOwnIdNode``
+- ``SenderIsExecutingActorNode`` — guards that the sender equals the executing
+  actor; merged from ``CheckSenderIsExecutingActorNode``
+- ``SenderIsCaseOwnerNode`` — guards that the sender holds CVDRole.CASE_OWNER;
+  merged from ``CheckIsCaseOwnerNode``
+
+Helper predicate
+----------------
+``is_case_owner(case, actor_id)`` — pure boolean predicate; merged from
+``_is_case_owner`` in ``vultron.core.use_cases.triggers._helpers``.
+
+Spec: HP-01-006, HP-01-007, CM-10-004, PCR-03-001.
+"""
+
+import logging
+from dataclasses import dataclass
+from enum import Enum, auto
+from typing import Any
+
+from py_trees.common import Status
+from py_trees.ports import NoDataAvailable, PortInformation
+
+from vultron.core.behaviors.helpers import (
+    DataLayerConditionWithPorts,
+    FindParticipantByActorIdNode,
+)
+from vultron.core.models._helpers import _as_id
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.predicates.addressing import same_actor_id
+from vultron.core.predicates.roles import has_case_owner_role
+from vultron.enums.roles import CVDRole
+from vultron.errors import VultronError
+
+logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Shared helper (inlined to avoid cross-module private import)
+# ---------------------------------------------------------------------------
+
+
+def _log_entry_from(activity: Any, node_name: str) -> CaseLedgerEntry:
+    """Return the ``CaseLedgerEntry`` from *activity*, or raise.
+
+    Checks ``activity.log_entry`` first, then ``activity.object_``.
+    Raises :class:`~vultron.errors.VultronError` when neither carries a
+    :class:`~vultron.core.models.case_ledger_entry.CaseLedgerEntry`.
+    """
+    entry = getattr(activity, "log_entry", None)
+    if entry is None:
+        entry = getattr(activity, "object_", None)
+    if isinstance(entry, CaseLedgerEntry):
+        return entry
+    raise VultronError(
+        f"{node_name}: activity did not carry a CaseLedgerEntry"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Declaration types
+# ---------------------------------------------------------------------------
+
+
+class SenderEntitlementKind(Enum):
+    """The required sender role for a received activity.
+
+    Each kind corresponds to one condition node in this module.
+    """
+
+    CASE_MANAGER = auto()
+    """Sender must be the case's ``CVDRole.CASE_MANAGER``."""
+
+    CASE_OWNER = auto()
+    """Sender must hold ``CVDRole.CASE_OWNER``."""
+
+    ACTIVE_PARTICIPANT = auto()
+    """Sender must be an active participant per CM-10-004."""
+
+    NAMED_ACTOR = auto()
+    """Sender must match a specific named actor ID."""
+
+    EXECUTING_ACTOR = auto()
+    """Sender must equal the executing actor (ack echo path)."""
+
+
+@dataclass(frozen=True)
+class SenderExemption:
+    """Declaration that a received use case is not yet sender-checked.
+
+    The ``tracking_issue`` names the sibling issue that will add the real
+    check.
+    The ratchet accepts this as a valid declaration.
+
+    Attributes:
+        tracking_issue: GitHub issue reference, e.g. ``"#4072"``.
+        reason: Human-readable reason the check is deferred.
+    """
+
+    tracking_issue: str
+    reason: str = ""
+
+
+#: Union type for the per-use-case ``sender_entitlement`` class variable.
+SenderEntitlement = SenderEntitlementKind | SenderExemption
+
+
+def exempt(tracking_issue: str, reason: str = "") -> SenderExemption:
+    """Declare a received use case as not yet sender-checked.
+
+    Usage on a received use-case class::
+
+        class MyReceivedUseCase:
+            sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+                "#4072", "pending fix for accept/reject case proposal"
+            )
+
+    Args:
+        tracking_issue: GitHub issue that owns the fix, e.g. ``"#4072"``.
+        reason: Short rationale for the deferral.
+
+    Returns:
+        A :class:`SenderExemption` instance.
+    """
+    return SenderExemption(tracking_issue=tracking_issue, reason=reason)
+
+
+# ---------------------------------------------------------------------------
+# Pure-predicate helper
+# ---------------------------------------------------------------------------
+
+
+def is_case_owner(case: object | None, actor_id: str) -> bool:
+    """Return ``True`` when *actor_id* matches the case's attributed owner.
+
+    Consolidated from ``_is_case_owner`` in
+    ``vultron.core.use_cases.triggers._helpers`` (ADR-0115, AC-2).
+
+    Args:
+        case: The ``VulnerabilityCase`` object (or ``None``).
+        actor_id: The actor ID to test.
+
+    Returns:
+        ``True`` when the case's ``attributed_to`` matches *actor_id*;
+        ``False`` when the case is ``None`` or the owner does not match.
+    """
+    if case is None:
+        return False
+    owner_id = _as_id(getattr(case, "attributed_to", None))
+    return owner_id is not None and owner_id == actor_id
+
+
+# ---------------------------------------------------------------------------
+# Base class: marks nodes as sender-entitlement checks for the ratchet
+# ---------------------------------------------------------------------------
+
+
+class SenderEntitlementConditionNode(DataLayerConditionWithPorts):
+    """Base class for all sender-entitlement condition nodes.
+
+    Subclasses of this class are the *only* permitted sender predicate nodes
+    in the codebase; the architecture ratchet fails on any subclass defined
+    outside this module (HP-01-007).
+    This class adds no new behaviour — it is a marker for the ratchet.
+    """
+
+
+# ---------------------------------------------------------------------------
+# Condition node: ACTIVE_PARTICIPANT
+# ---------------------------------------------------------------------------
+
+
+class SenderIsActiveParticipantNode(FindParticipantByActorIdNode):
+    """Guard: sender must be a known case participant.
+
+    Returns ``SUCCESS`` when the sender's actor ID is registered in
+    ``case.actor_participant_index``.
+    Returns ``FAILURE`` otherwise, halting the parent ``Sequence`` with a
+    REFUSED outcome.
+
+    Falls back to a DataLayer lookup via ``status_id`` when ``case_id`` is
+    ``None``, preserving the DEMOMA-07-003 step-1 behaviour for the status
+    path.
+
+    Merged from ``VerifySenderIsParticipantNode`` (ADR-0115, AC-2).
+
+    Spec: CM-10-004, HP-01-006, DEMOMA-07-003.
+    """
+
+    def __init__(
+        self,
+        status_id: str,
+        sender_actor_id: str,
+        case_id: str | None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(
+            case_id=case_id or "",
+            target_actor_id=sender_actor_id,
+            participant_key="sender_participant",
+            name=name or self.__class__.__name__,
+        )
+        self.status_id = status_id
+        self.sender_actor_id = sender_actor_id
+        self._case_id_hint = case_id
+
+    def _resolve_case_id(self) -> str | None:
+        if self._case_id_hint:
+            return self._case_id_hint
+        assert self.datalayer is not None
+        status_raw = self.datalayer.read(self.status_id)
+        if status_raw is None:
+            return None
+        context = getattr(status_raw, "context", None)
+        return str(context) if context else None
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+
+        case_id = self._resolve_case_id()
+        if case_id is None:
+            self.feedback_message = (
+                f"Cannot determine case_id for status '{self.status_id}'"
+            )
+            self.logger.warning(
+                "%s: %s (HP-01-006, DEMOMA-07-003 step 1)",
+                self.name,
+                self.feedback_message,
+            )
+            return Status.FAILURE
+
+        self.case_id = case_id
+        result = super().update()
+        if result == Status.FAILURE:
+            self.feedback_message = (
+                f"Sender '{self.sender_actor_id}' is not a known"
+                " participant — REFUSED (HP-01-006, CM-10-004)"
+            )
+            self.logger.warning(
+                "%s: %s (DEMOMA-07-003 step 1)",
+                self.name,
+                self.feedback_message,
+            )
+            return Status.FAILURE
+
+        self.logger.debug(
+            "%s: sender '%s' is a known participant in case '%s'"
+            " (HP-01-006, DEMOMA-07-003 step 1)",
+            self.name,
+            self.sender_actor_id,
+            case_id,
+        )
+        return Status.SUCCESS
+
+
+# ---------------------------------------------------------------------------
+# Condition node: CASE_MANAGER
+# ---------------------------------------------------------------------------
+
+
+class SenderIsCaseManagerNode(SenderEntitlementConditionNode):
+    """Guard: sender must be the case's CASE_MANAGER.
+
+    Resolves the case's authoritative CaseActor via
+    :func:`~vultron.core.participants.authority.resolve_case_manager_id`
+    and returns ``SUCCESS`` only when the announce ``actor_id`` equals that
+    resolved CaseActor id.
+
+    Passes through (``SUCCESS``) during the bootstrap window — when the case
+    replica is not seeded yet, or no CASE_MANAGER is known — so downstream
+    reject-on-missing-case / pre-genesis buffering (SYNC-15-001,
+    SYNC-15-004) handles the entry rather than this gate dropping it.
+
+    Reads ``activity`` from the blackboard via INPUT_PORTS.
+
+    Merged from ``VerifySenderIsCaseActorNode`` (ADR-0115, AC-2).
+
+    Spec: CLP-01-003, SYNC-13-006, HP-01-006.
+    """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=True),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity": "/activity"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.activity = self.get_input("activity")
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        try:
+            entry = _log_entry_from(self.activity, self.name)
+        except VultronError as exc:
+            self.logger.error(  # noqa: TRY400
+                "%s: %s", self.name, exc
+            )
+            return Status.FAILURE
+
+        case_id = entry.case_id
+        sender_id = getattr(self.activity, "actor_id", None)
+
+        if not sender_id:
+            self.logger.warning("%s: announce has no actor_id", self.name)
+            return Status.FAILURE
+
+        # Lenient read: a missing case is the bootstrap window (Regime 3,
+        # ADR-0087) — pass through rather than starving buffer/reject paths.
+        case = self.datalayer.read_case(case_id)
+        case_actor_id = (
+            resolve_case_manager_id(case, self.datalayer)
+            if case is not None
+            else None
+        )
+
+        if case_actor_id is None:
+            self.logger.debug(
+                "%s: no CaseActor known for case '%s'"
+                " — passing through for bootstrap handling",
+                self.name,
+                case_id,
+            )
+            return Status.SUCCESS
+
+        if sender_id == case_actor_id:
+            self.logger.debug(
+                "%s: sender '%s' matches CaseActor for case '%s'",
+                self.name,
+                sender_id,
+                case_id,
+            )
+            return Status.SUCCESS
+
+        self.feedback_message = (
+            f"Sender '{sender_id}' is not the CASE_MANAGER for case"
+            f" '{case_id}' — REFUSED (HP-01-006)"
+        )
+        self.logger.warning(
+            "%s: rejected announce from '%s' for case '%s' (expected '%s')",
+            self.name,
+            sender_id,
+            case_id,
+            case_actor_id,
+        )
+        return Status.FAILURE
+
+
+# ---------------------------------------------------------------------------
+# Condition node: NAMED_ACTOR
+# ---------------------------------------------------------------------------
+
+
+class SenderIsNamedActorNode(SenderEntitlementConditionNode):
+    """Guard: sender must match a specific named actor ID.
+
+    Reads ``activity`` and ``case_actor_id`` from the blackboard and returns
+    ``SUCCESS`` only when ``activity.actor_id == case_actor_id``.
+
+    Used in the sync reject path to verify that the actor who sent the
+    ``Reject(CaseLedgerEntry)`` is indeed the local CaseActor identity.
+
+    Merged from ``VerifySenderIsOwnIdNode`` (ADR-0115, AC-2).
+
+    Spec: HP-01-006.
+    """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=True),
+        "case_actor_id": PortInformation(data_type=str, required=True),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity": "/activity", "case_actor_id": "/case_actor_id"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.activity = self.get_input("activity")
+        self.case_actor_id = self.get_input("case_actor_id")
+
+    def update(self) -> Status:
+        sender_id = getattr(self.activity, "actor_id", None)
+        case_actor_id = self.case_actor_id
+        if sender_id == case_actor_id:
+            return Status.SUCCESS
+
+        self.feedback_message = (
+            f"Sender '{sender_id}' is not the named actor"
+            f" '{case_actor_id}' — REFUSED (HP-01-006)"
+        )
+        self.logger.warning(
+            "%s: rejected spoofed sender '%s' for CaseActor '%s'",
+            self.name,
+            sender_id,
+            case_actor_id,
+        )
+        return Status.FAILURE
+
+
+# ---------------------------------------------------------------------------
+# Condition node: EXECUTING_ACTOR
+# ---------------------------------------------------------------------------
+
+
+class SenderIsExecutingActorNode(SenderEntitlementConditionNode):
+    """Guard: sender must equal the executing actor.
+
+    Comparison uses :func:`~vultron.core.predicates.addressing.same_actor_id`,
+    so ids differing only by a trailing slash are considered equal.
+
+    Used to guard the ack echo path: the ``Read(Offer(Report))`` must have
+    been sent by the actor executing the tree (ISSUE-2667).
+
+    Merged from ``CheckSenderIsExecutingActorNode`` (ADR-0115, AC-2).
+
+    Spec: HP-01-006.
+    """
+
+    def __init__(self, sender_actor_id: str, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.sender_actor_id = sender_actor_id
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.actor_id is not None
+
+        if same_actor_id(self.sender_actor_id, self.actor_id):
+            return Status.SUCCESS
+
+        self.feedback_message = (
+            f"Sender '{self.sender_actor_id}' is not the executing actor"
+            f" '{self.actor_id}' — REFUSED (HP-01-006)"
+        )
+        self.logger.debug(
+            "%s: sender '%s' is not the executing actor '%s'",
+            self.name,
+            self.sender_actor_id,
+            self.actor_id,
+        )
+        return Status.FAILURE
+
+
+# ---------------------------------------------------------------------------
+# Condition node: CASE_OWNER
+# ---------------------------------------------------------------------------
+
+
+class SenderIsCaseOwnerNode(SenderEntitlementConditionNode):
+    """Guard: sender must hold ``CVDRole.CASE_OWNER``.
+
+    Returns ``SUCCESS`` when the sender's participant record carries
+    ``CVDRole.CASE_OWNER``.
+    Returns ``FAILURE`` for any actor that is not a known CASE_OWNER,
+    including unknown actors or those holding other roles.
+
+    Used as the hard-bypass child of ``StatusAdoptionGate`` (RSH-01-002):
+    a CASE_OWNER's status reports are authoritative ("gospel") and do not
+    require approval by the ``CaseOwnerApprovesStatusUpdate`` call-out.
+
+    Reads ``case_id`` from constructor or from the blackboard input port.
+
+    Merged from ``CheckIsCaseOwnerNode`` (ADR-0115, AC-2).
+
+    Spec: RSH-01-002, HP-01-006.
+    """
+
+    def __init__(
+        self,
+        sender_actor_id: str,
+        case_id: str | None = None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._sender_actor_id = sender_actor_id
+        self._case_id = case_id
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        "case_id": PortInformation(data_type=str, required=False),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"case_id": "/case_id"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._case_id_bb: str | None = None
+        try:
+            self._case_id_bb = self.get_input("case_id")
+        except (NoDataAvailable, NotImplementedError):
+            pass
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        case_id = self._case_id or self._case_id_bb
+
+        case, failure = self._require_case(case_id)
+        if failure is not None:
+            return failure  # Regime 1: CASE_OWNER role gate needs the case
+
+        participant_id = case.actor_participant_index.get(
+            self._sender_actor_id
+        )
+        if participant_id is None:
+            self.logger.debug(
+                "%s: sender '%s' not in actor_participant_index for case '%s'",
+                self.name,
+                self._sender_actor_id,
+                case_id,
+            )
+            return Status.FAILURE
+
+        participant = self.datalayer.read(participant_id)
+        if not isinstance(participant, CaseParticipant):
+            return Status.FAILURE
+
+        roles: list[CVDRole] = (
+            list(participant.roles) if participant.roles else []
+        )
+        if has_case_owner_role(roles):
+            self.logger.debug(
+                "%s: sender '%s' IS CASE_OWNER for case '%s'",
+                self.name,
+                self._sender_actor_id,
+                case_id,
+            )
+            return Status.SUCCESS
+
+        self.logger.debug(
+            "%s: sender '%s' is NOT CASE_OWNER for case '%s' (roles=%s)",
+            self.name,
+            self._sender_actor_id,
+            case_id,
+            roles,
+        )
+        return Status.FAILURE
+
+
+__all__ = [
+    # Declaration types
+    "SenderEntitlementKind",
+    "SenderExemption",
+    "SenderEntitlement",
+    "exempt",
+    # Helper predicate
+    "is_case_owner",
+    # Base / marker class
+    "SenderEntitlementConditionNode",
+    # Condition nodes
+    "SenderIsActiveParticipantNode",
+    "SenderIsCaseManagerNode",
+    "SenderIsNamedActorNode",
+    "SenderIsExecutingActorNode",
+    "SenderIsCaseOwnerNode",
+]

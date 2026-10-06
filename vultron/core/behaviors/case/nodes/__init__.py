@@ -198,7 +198,6 @@ from vultron.core.behaviors.case.nodes.update import (
     CheckCaseUpdateOwnerNode,
 )
 from vultron.core.behaviors.case.nodes.vfd_role_guards import (
-    CheckIsCaseOwnerNode,
     CheckNotSoleObserverVfdNode,
 )
 from vultron.core.behaviors.helpers import UpdateActorOutbox
@@ -224,7 +223,6 @@ __all__ = [
     "CheckCaseAlreadyExists",
     "CheckCaseExistsForReport",
     "CheckIsCaseManagerNode",
-    "CheckIsCaseOwnerNode",
     "CheckProposalAlreadySentForReport",
     "RequireCaseForReport",
     "WritePendingReportCaseLinkNode",

@@ -19,7 +19,12 @@ issue #2883 (outstanding-request register).
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
+from typing import ClassVar
 
+from vultron.core.behaviors.sender_entitlement import (
+    SenderEntitlement,
+    exempt,
+)
 from vultron.core.models.events.fault import CreateProcessingFaultReceivedEvent
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import CasePersistence
@@ -34,6 +39,10 @@ class CreateProcessingFaultReceivedUseCase:
 
     Full ask-register correlation (AC-8) is deferred to issue #2883.
     """
+
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4070", "no sender check for fault handling"
+    )
 
     def __init__(
         self,

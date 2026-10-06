@@ -1,7 +1,7 @@
 """Received Create, Add and Remove of an ``EmbargoEvent``."""
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 if TYPE_CHECKING:
     from vultron.core.ports.wire_render import WireRenderPort
@@ -34,10 +34,19 @@ from vultron.core.use_cases.received._bt_verdict import (
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
 
+from vultron.core.behaviors.sender_entitlement import (
+    SenderEntitlement,
+    exempt,
+)
+
 logger = logging.getLogger(__name__)
 
 
 class CreateEmbargoEventReceivedUseCase:
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4074", "no sender check for embargo create"
+    )
+
     def __init__(
         self,
         dl: CasePersistence,
@@ -74,6 +83,10 @@ class CreateEmbargoEventReceivedUseCase:
 
 
 class AddEmbargoEventToCaseReceivedUseCase:
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4074", "no sender check for embargo add"
+    )
+
     def __init__(
         self,
         dl: CaseOutboxPersistence,
@@ -143,6 +156,10 @@ class AddEmbargoEventToCaseReceivedUseCase:
 
 
 class RemoveEmbargoEventFromCaseReceivedUseCase:
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4074", "no sender check for embargo remove"
+    )
+
     def __init__(
         self,
         dl: CaseOutboxPersistence,
