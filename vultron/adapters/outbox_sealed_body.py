@@ -36,6 +36,7 @@ holds the same text as the ``activity_blob`` the trigger port returned.
 
 import json
 import logging
+import uuid
 from typing import Any, Literal, Protocol
 
 from pydantic import BaseModel, Field
@@ -104,6 +105,28 @@ class SealedOutboundBody(CoreRecord):
 def sealed_body_id(activity_id: str) -> str:
     """Return the record id under which *activity_id*'s sealed body is stored."""
     return f"{activity_id}{_SEALED_BODY_SUFFIX}"
+
+
+def derived_activity_id(*parts: str) -> str:
+    """Return a stable ``urn:uuid`` id derived from *parts*.
+
+    An outbound activity that answers one inbound activity takes its id from
+    what it answers, not from a fresh UUID, so a redelivery of the inbound
+    activity names the response its first delivery emitted (ID-04-004).
+    Parts are joined with a separator no IRI can contain, so distinct part lists
+    never collide; callers put a kind label first so two kinds
+    of response to one activity do not share an id.
+    """
+    return f"urn:uuid:{uuid.uuid5(uuid.NAMESPACE_URL, '\x1f'.join(parts))}"
+
+
+def is_sealed(dl: SealStore, activity_id: str) -> bool:
+    """Whether *activity_id* was already emitted by an earlier call.
+
+    The sealed body outlives the outbox entry, so unlike the queue it still
+    answers "was this sent?" after delivery has popped it.
+    """
+    return read_sealed_body(dl, activity_id) is not None
 
 
 def dump_outbound_body(activity: BaseModel) -> str:

@@ -94,6 +94,55 @@ def seed_case_manager_participant(
     return participant
 
 
+def seed_case_owner_participant(
+    dl: SqliteDataLayer,
+    case: as_VulnerabilityCase,
+    owner_actor_id: str,
+) -> CaseParticipant:
+    """Give *case* a ``CVDRole.CASE_OWNER`` participant for *owner_actor_id*.
+
+    A sender check for the Case Owner reads the role off the roster, so a
+    received-side test whose sender is the owner must seed it as one.
+    The participant is created in *dl* and attached to *case* in memory; the
+    caller persists *case* afterwards.
+    """
+    participant = CaseParticipant(
+        id_=f"{case.id_}/participants/case-owner",
+        attributed_to=owner_actor_id,
+        context=case.id_,
+        case_roles=[CVDRole.CASE_OWNER],
+    )
+    dl.create(participant)
+    case.case_participants.append(participant.id_)
+    case.actor_participant_index[owner_actor_id] = participant.id_
+    return participant
+
+
+def seed_case_participant(
+    dl: SqliteDataLayer,
+    case: as_VulnerabilityCase,
+    actor_id: str,
+    roles: list[CVDRole] | None = None,
+) -> CaseParticipant:
+    """Give *case* an ordinary participant record for *actor_id*.
+
+    A received message whose sender must be a participant (CM-16-001) needs
+    the sender on the roster.
+    The participant is created in *dl* and attached to *case* in memory; the
+    caller persists *case* afterwards.
+    """
+    participant = CaseParticipant(
+        id_=f"{case.id_}/participants/{actor_id.rsplit('/', 1)[-1]}",
+        attributed_to=actor_id,
+        context=case.id_,
+        case_roles=roles or [CVDRole.FINDER],
+    )
+    dl.create(participant)
+    case.case_participants.append(participant.id_)
+    case.actor_participant_index[actor_id] = participant.id_
+    return participant
+
+
 def seed_store_owner_as_case_manager(
     dl: SqliteDataLayer, case: as_VulnerabilityCase
 ) -> CaseParticipant:

@@ -26,6 +26,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from vultron.adapters.outbox_sealed_body import derived_activity_id
 from vultron.core.models.activity import VultronCreateCaseActivity
 from vultron.core.models.actor import CoreActor
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
@@ -258,6 +259,10 @@ class _ProposalsMixin:
         and *result* carries the URI of the case the Accept ties to — the
         existing case for a duplicate proposal (CP-05-006), the new one
         otherwise.
+
+        The Accept's id is derived from the proposal, so a duplicate proposal
+        is answered with the stored Accept under its original id and sealed
+        body, never a second Accept (CP-05-006, ID-04-004).
         """
         try:
             wire_proposal = as_CaseProposal.model_validate(proposal)
@@ -285,12 +290,15 @@ class _ProposalsMixin:
             actor_id=actor,
             proposal=wire_proposal,
             to=to,
+            id_=derived_activity_id(
+                "accept-case-proposal", actor, wire_proposal.id_
+            ),
             **extra,
         )
         try:
             self._dl.create(activity)
         except VultronAlreadyExistsError:
-            logger.warning(
+            logger.info(
                 "accept_case_proposal: activity '%s' already exists — skipping",
                 activity.id_,
             )

@@ -67,6 +67,8 @@ from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
 from vultron.core.behaviors.sender_entitlement import (
+    SenderIsActiveParticipantNode,
+    SenderIsCaseManagerNode,
     SenderIsCaseOwnerNode,
 )
 
@@ -83,6 +85,10 @@ def create_receive_offer_case_participant_tree(
     nodes are added here — the Case Owner's decision to Accept or Reject is
     a separate outbound activity.
 
+    The Offer is the CASE_MANAGER's to send (CM-16-004), so the sender guard
+    refuses one from any other actor before anything is recorded (HP-01-006,
+    PCR-03-001).
+
     Args:
         case_id: ID of the VulnerabilityCase.
 
@@ -92,6 +98,7 @@ def create_receive_offer_case_participant_tree(
     return create_receive_activity_tree(
         name="ReceiveOfferCaseParticipantBT",
         case_id=case_id,
+        sender_guard=SenderIsCaseManagerNode(case_id=case_id),
         precondition_guards=[],
         effect_nodes=[],
     )
@@ -146,6 +153,10 @@ def create_recommend_actor_to_case_received_tree(
 
     A receiver that is not the case's CASE_MANAGER passes the gate's skip arm
     and does nothing: no recommender index write, no emit (#3752).
+
+    Only a participant may suggest an actor (CM-16-001): the sender guard
+    refuses a suggestion from anyone the case does not list, before the
+    case ledger is written or anything is forwarded (HP-01-006, #3668).
 
     Args:
         recommendation_id: ID of the incoming ``Offer(Actor, Case)`` activity.
@@ -284,6 +295,12 @@ def create_recommend_actor_to_case_received_tree(
     return create_receive_activity_tree(
         name="RecommendActorToCaseBT",
         case_id=case_id,
+        sender_guard=SenderIsActiveParticipantNode(
+            status_id="",
+            sender_actor_id=recommender_id,
+            case_id=case_id,
+            name="RecommenderIsParticipant",
+        ),
         precondition_guards=[],
         effect_nodes=[
             create_case_manager_gated_tree(
@@ -308,6 +325,7 @@ def create_accept_actor_recommendation_received_tree(
     recommender_id: str,
     invitee_id: str,
     case_id: str,
+    sender_id: str,
     roles: list[str] | None = None,
 ) -> py_trees.composites.Sequence:
     """Received-side BT for Accept(Offer(CaseParticipant)) on the CASE_MANAGER's inbox.
@@ -330,17 +348,23 @@ def create_accept_actor_recommendation_received_tree(
     Both emits are the CASE_MANAGER's (CM-16-006, PCR-08-007); a receiver
     that is not it does nothing (#3752).
 
-    ``roles`` must come from the stored ``Offer(CaseParticipant)`` in the
-    DataLayer (ISSUE-1745): the blackboard is empty in this separate BT
-    execution, so the use case is responsible for reading the trusted roles
-    from the stored Offer before calling this factory.
+    ``roles`` and ``invitee_id`` must come from the stored
+    ``Offer(CaseParticipant)`` in the DataLayer (ISSUE-1745, CM-16-019): the
+    blackboard is empty in this separate BT execution, so the use case is
+    responsible for reading them from the stored Offer before calling this
+    factory, never from the Accept.
+
+    Only the Case Owner may accept (CM-16-019): the sender guard refuses any
+    other sender before the case ledger is written or anything is sent.
 
     Args:
         recommendation_id: ID of the original ``Offer(Actor, Case)`` from the
             recommender (carried in the ``origin`` field of the transformed Offer).
         recommender_id: Actor ID of the original recommender.
-        invitee_id: Actor ID of the suggested new participant.
+        invitee_id: Actor ID of the suggested new participant, from the
+            recorded ``Offer(CaseParticipant)``.
         case_id: ID of the VulnerabilityCase.
+        sender_id: Actor ID of the Accept's sender, who must be the Case Owner.
         roles: Serialized CVD role strings from the stored
             ``Offer(CaseParticipant)``; passed directly to
             ``EmitInviteActorToCaseNode`` so the Invite carries the correct
@@ -352,6 +376,9 @@ def create_accept_actor_recommendation_received_tree(
     return create_receive_activity_tree(
         name="AcceptActorRecommendationBT",
         case_id=case_id,
+        sender_guard=SenderIsCaseOwnerNode(
+            sender_actor_id=sender_id, case_id=case_id
+        ),
         precondition_guards=[],
         effect_nodes=[
             create_case_manager_gated_tree(
@@ -381,6 +408,7 @@ def create_reject_actor_recommendation_received_tree(
     recommender_id: str,
     recommended_id: str,
     case_id: str,
+    sender_id: str,
 ) -> py_trees.composites.Sequence:
     """Received-side BT for Reject(Offer(CaseParticipant)) on the CASE_MANAGER's inbox.
 
@@ -398,13 +426,17 @@ def create_reject_actor_recommendation_received_tree(
 
     The emit is the CASE_MANAGER's (CM-16-007); a receiver that is not it
     does nothing (#3752).
+    Only the Case Owner may reject (CM-16-019): the sender guard refuses any
+    other sender before the case ledger is written or anything is sent.
 
     Args:
         recommendation_id: ID of the original ``Offer(Actor, Case)`` from the
             recommender (carried in the ``origin`` field of the transformed Offer).
         recommender_id: Actor ID of the original recommender.
-        recommended_id: Actor ID of the suggested new participant.
+        recommended_id: Actor ID of the suggested new participant, from the
+            recorded ``Offer(CaseParticipant)``.
         case_id: ID of the VulnerabilityCase.
+        sender_id: Actor ID of the Reject's sender, who must be the Case Owner.
 
     Returns:
         Root ``RejectActorRecommendationBT`` Sequence node.
@@ -412,6 +444,9 @@ def create_reject_actor_recommendation_received_tree(
     return create_receive_activity_tree(
         name="RejectActorRecommendationBT",
         case_id=case_id,
+        sender_guard=SenderIsCaseOwnerNode(
+            sender_actor_id=sender_id, case_id=case_id
+        ),
         precondition_guards=[],
         effect_nodes=[
             create_case_manager_gated_tree(

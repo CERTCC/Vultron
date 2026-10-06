@@ -2530,6 +2530,15 @@ def _announced_case_creates(dl: SqliteDataLayer) -> list[str]:
     ]
 
 
+def _queued_accepts(dl: SqliteDataLayer) -> list[str]:
+    """Ids of the ``Accept`` activities queued to *dl*'s outbox."""
+    return [
+        activity_id
+        for activity_id in dl.outbox_list()
+        if getattr(dl.read(activity_id), "type_", None) == "Accept"
+    ]
+
+
 class TestARedeliveryAnnouncesTheCaseOnce:
     """A redelivered proposal announces its case once (CP-05-005, #4146).
 
@@ -2584,6 +2593,26 @@ class TestARedeliveryAnnouncesTheCaseOnce:
 
         assert result.disposition == HandlerDisposition.APPLIED
         assert _announced_case_creates(dl) == [first]
+
+    @pytest.mark.spec("ID-04-004")
+    @pytest.mark.spec("CP-05-006")
+    def test_a_redelivered_proposal_resends_the_same_accept(
+        self, make_payload
+    ):
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        _seed_report(dl)
+        _run_full_bt(make_payload, dl)
+        (first,) = _queued_accepts(dl)
+
+        # Still queued: the redelivery adds nothing to the queue.
+        _run_full_bt(make_payload, dl)
+        assert _queued_accepts(dl) == [first]
+
+        # Delivered: the redelivery re-queues the same Accept, not a new one.
+        while dl.outbox_pop() is not None:
+            pass
+        _run_full_bt(make_payload, dl)
+        assert _queued_accepts(dl) == [first]
 
 
 class TestADR0041GenesisCommitFailure:

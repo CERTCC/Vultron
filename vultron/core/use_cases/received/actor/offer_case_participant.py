@@ -46,6 +46,7 @@ from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
 )
+from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.use_cases._helpers import (
     is_recipient,
@@ -65,7 +66,7 @@ if TYPE_CHECKING:
 
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlement,
-    exempt,
+    SenderEntitlementKind,
 )
 
 logger = logging.getLogger(__name__)
@@ -88,8 +89,8 @@ class OfferCaseParticipantReceivedUseCase:
     (HP-01-005, #3752).
     """
 
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#3668", "no sender check for case participant offer"
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.CASE_MANAGER
     )
 
     def __init__(
@@ -217,6 +218,83 @@ def _require_recorded_recommendation(
     return recommendation_id, recommender_id
 
 
+def _require_recorded_offer(
+    dl: CasePersistence,
+    inner_offer: object,
+    case_id: str,
+    *,
+    verb: str,
+    activity_id: str,
+) -> tuple[str, list | None] | HandlerResult:
+    """``(invitee_id, roles)`` from the recorded Offer, or a refusal.
+
+    The actor to invite and its roles come from the ``Offer(CaseParticipant)``
+    this CASE_MANAGER recorded when it forwarded the recommendation, found by
+    the id the reply names, never from the reply's own copy of the Offer: the
+    sender may have altered that copy or sent a bare reference (ISSUE-1745,
+    CM-16-019).
+    A reply naming an Offer this store never recorded has no invitee to act
+    on and is refused.
+    Intake archives every inbound activity, refused ones included, so a stored
+    object is "recorded" only when the case's CASE_MANAGER sent it about this
+    case: an archived Offer from any other actor is not a record (CM-16-019).
+    ``roles`` is ``None`` when the recorded Offer carries none.
+    """
+    raw_offer_id = getattr(inner_offer, "id_", None)
+    stored_offer = (
+        dl.read(raw_offer_id)
+        if isinstance(raw_offer_id, str) and raw_offer_id
+        else None
+    )
+    if not _is_managers_offer_about(dl, stored_offer, case_id):
+        return _unrecorded_recommendation_refusal(
+            verb,
+            activity_id,
+            f"an Offer(CaseParticipant) this CASE_MANAGER never recorded"
+            f" ({raw_offer_id})",
+        )
+    stored_participant = getattr(stored_offer, "object_", None)
+    # AKM-03-001: dehydration stores object_ as a bare ID string;
+    # follow the reference to retrieve the full as_CaseParticipant.
+    if isinstance(stored_participant, str):
+        stored_participant = dl.read(stored_participant)
+    raw_invitee = getattr(stored_participant, "attributed_to", None)
+    invitee_id = getattr(raw_invitee, "id_", raw_invitee)
+    if not isinstance(invitee_id, str) or not invitee_id:
+        return _unrecorded_recommendation_refusal(
+            verb,
+            activity_id,
+            f"an Offer(CaseParticipant) this CASE_MANAGER never recorded"
+            f" ({raw_offer_id})",
+        )
+    raw_roles = getattr(stored_participant, "roles", None)
+    roles = (
+        serialize_roles(raw_roles)
+        if isinstance(raw_roles, list) and raw_roles
+        else None
+    )
+    return invitee_id, roles
+
+
+def _is_managers_offer_about(
+    dl: CasePersistence, stored_offer: object, case_id: str
+) -> bool:
+    """True when *stored_offer* was sent by *case_id*'s CASE_MANAGER about it."""
+    if stored_offer is None:
+        return False
+    case = dl.read_case(case_id)
+    manager_id = resolve_case_manager_id(case, dl) if case else None
+    raw_actor = getattr(stored_offer, "actor", None)
+    actor_id = getattr(raw_actor, "id_", raw_actor)
+    raw_target = getattr(stored_offer, "target", None)
+    target_id = getattr(raw_target, "id_", raw_target)
+    return (
+        manager_id is not None
+        and actor_id == manager_id
+        and target_id == case_id
+    )
+
+
 def _unrecorded_recommendation_refusal(
     verb: str, activity_id: str, what: str
 ) -> HandlerResult:
@@ -242,8 +320,8 @@ class AcceptOfferCaseParticipantReceivedUseCase:
     receiver refuses (HP-01-005, #3752).
     """
 
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4073", "no sender check for accept case participant offer"
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.CASE_OWNER
     )
 
     def __init__(
@@ -265,37 +343,29 @@ class AcceptOfferCaseParticipantReceivedUseCase:
         activity_id = request.activity_id
         case_id = request.target_id or request.inner_target_id
         inner_offer = getattr(request.activity, "object_", None)
-        participant_obj = getattr(inner_offer, "object_", None)
-        raw_invitee = getattr(participant_obj, "attributed_to", None)
-        invitee_id = getattr(raw_invitee, "id_", raw_invitee)
-        # Read the stored Offer (written by offer_actor_to_case()) to get the
-        # trusted roles. Do NOT use the embedded CaseParticipant from the
-        # received Accept — the accepting actor may have modified it or may
-        # have sent only a bare ID reference (ISSUE-1745).
-        offer_roles: list | None = None
-        raw_offer_id = getattr(inner_offer, "id_", None)
-        offer_id = raw_offer_id if isinstance(raw_offer_id, str) else None
-        if offer_id:
-            stored_offer = self._dl.read(offer_id)
-            stored_participant = getattr(stored_offer, "object_", None)
-            # AKM-03-001: dehydration stores object_ as a bare ID string;
-            # follow the reference to retrieve the full as_CaseParticipant.
-            if isinstance(stored_participant, str):
-                stored_participant = self._dl.read(stored_participant)
-            raw_roles = getattr(stored_participant, "roles", None)
-            if isinstance(raw_roles, list) and raw_roles:
-                offer_roles = serialize_roles(raw_roles)
 
-        if not case_id or not invitee_id:
+        if not case_id:
             logger.warning(
-                "AcceptOfferCaseParticipantReceived: missing case_id or"
-                " invitee_id in event '%s' — refusing",
+                "AcceptOfferCaseParticipantReceived: missing case_id in"
+                " event '%s' — refusing",
                 activity_id,
             )
             return HandlerResult.refused(
-                "Accept(Offer(CaseParticipant)) is missing its case id or"
-                " invitee id"
+                "Accept(Offer(CaseParticipant)) is missing its case id"
             )
+
+        # The invitee and roles are the recorded Offer's, not the Accept's
+        # (CM-16-019, ISSUE-1745).
+        recorded = _require_recorded_offer(
+            self._dl,
+            inner_offer,
+            case_id,
+            verb="Accept",
+            activity_id=activity_id,
+        )
+        if isinstance(recorded, HandlerResult):
+            return recorded
+        invitee_id, offer_roles = recorded
 
         resolved = _require_recorded_recommendation(
             self._dl,
@@ -317,6 +387,7 @@ class AcceptOfferCaseParticipantReceivedUseCase:
             recommender_id=recommender_id,
             invitee_id=invitee_id,
             case_id=case_id,
+            sender_id=request.actor_id,
             roles=offer_roles,
         )
         bridge = BTBridge(
@@ -354,8 +425,8 @@ class RejectOfferCaseParticipantReceivedUseCase:
     (HP-01-005, #3752).
     """
 
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4073", "no sender check for reject case participant offer"
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.CASE_OWNER
     )
 
     def __init__(
@@ -377,9 +448,6 @@ class RejectOfferCaseParticipantReceivedUseCase:
         activity_id = request.activity_id
         case_id = request.target_id
         inner_offer = getattr(request.activity, "object_", None)
-        participant_obj = getattr(inner_offer, "object_", None)
-        raw_invitee = getattr(participant_obj, "attributed_to", None)
-        recommended_id = getattr(raw_invitee, "id_", None) or request.object_id
         if not case_id:
             logger.warning(
                 "RejectOfferCaseParticipantReceived: missing case_id in"
@@ -400,15 +468,18 @@ class RejectOfferCaseParticipantReceivedUseCase:
         if isinstance(resolved, HandlerResult):
             return resolved
         recommendation_id, recommender_id = resolved
-        if not recommended_id:
-            logger.warning(
-                "RejectOfferCaseParticipantReceived: missing recommended"
-                " actor in event '%s' — refusing",
-                activity_id,
-            )
-            return HandlerResult.refused(
-                "Reject(Offer(CaseParticipant)) names no recommended actor"
-            )
+        # The recommended actor is the recorded Offer's, not the Reject's
+        # (CM-16-019).
+        recorded = _require_recorded_offer(
+            self._dl,
+            inner_offer,
+            case_id,
+            verb="Reject",
+            activity_id=activity_id,
+        )
+        if isinstance(recorded, HandlerResult):
+            return recorded
+        recommended_id, _roles = recorded
 
         local_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
@@ -419,6 +490,7 @@ class RejectOfferCaseParticipantReceivedUseCase:
             recommender_id=recommender_id,
             recommended_id=recommended_id,
             case_id=case_id,
+            sender_id=request.actor_id,
         )
         bridge = BTBridge(
             datalayer=self._dl,
