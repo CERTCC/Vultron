@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-10-02
+created: 2026-10-02
+updated: 2026-10-02
+revision: 1
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; Issue #4067; PR #4087; specs/case-ledger-processing.yaml CLP-08;

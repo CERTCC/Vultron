@@ -908,7 +908,7 @@ groups:
       spec_id: VP-02-009
       note: Proceed only after validating received reports
     adr:
-    - ADR-0070
+    - ADR-0121
 
   - id: RMB-09-002
     priority: MAY

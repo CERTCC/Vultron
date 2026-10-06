@@ -510,7 +510,7 @@ Work genuinely happens in both stages, and participants exist in both.
 
 Participants who join a case via the invite path sit at **RM.RECEIVED** until
 they judge the case, never RM.ACCEPTED. This is a protocol-correctness
-requirement, not merely a demo-visibility gap. ADR-0114 and ADR-0070 refine it
+requirement, not merely a demo-visibility gap. ADR-0114 and ADR-0121 refine it
 into two Invites; the full flow is in [case-joining.md](case-joining.md).
 
 ### Why Accept(Invite(stub)) ≠ RM.ACCEPTED
@@ -545,7 +545,7 @@ incorrect, because both are judgements of a case the actor has not yet seen.
    `Accept` → **RM.VALID**, `TentativeReject` → **RM.INVALID**, `Reject` →
    **RM.CLOSED**; the reply carries its own ledger position (CM-11-011,
    CM-11-012). It never answers the original `Offer(VulnerabilityReport)`
-   (CM-11-005).
+   (CM-11-018).
 5. If valid, the participant decides to engage or defer with
    `Join(VulnerabilityCase)` (**RM.ACCEPTED**) or `Ignore(VulnerabilityCase)`
    (**RM.DEFERRED**) (CM-11-002, CM-11-004).
@@ -639,3 +639,13 @@ therefore unmet and #1912 resolves to "no change." See
 **See**: `docs/adr/0033-lifecycle-staged-case-types.md`,
 `docs/adr/0036-status-dimension-objects.md`,
 `docs/adr/0075-split-vfd-state-machine.md`; `vultron/core/states/cs.py`.
+
+## Replica Principle (2026-10-02 audit, CM-23-016)
+
+A participant's replica of a case is `case(t0)` plus the ledger entries that
+followed it. A replica applies the transitions the ledger records; it never
+re-derives a transition by walking the RM table (#4091). The RM table (including
+the `R → C` row, `Leave` from V as `V → D → C`, and from S as `S → R → C`,
+ratified in ADR-0114) governs what the CASE_MANAGER may commit, not what a
+replica may infer. Closure semantics (CM-23-002/013/014, #4065/#4066) await a
+separate maintainer decision and are unchanged here.

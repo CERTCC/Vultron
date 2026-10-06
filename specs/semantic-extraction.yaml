@@ -464,29 +464,3 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: SE-08-001
-  - id: SE-08-005
-    priority: MUST
-    kind: project
-    deprecated: true
-    statement: >-
-      The `OFFER_CASE_MANAGER_ROLE` semantic and its wire format
-      `Offer(VulnerabilityCase, target=CaseParticipant)` have been **removed**.
-      Use `OFFER_CASE_PARTICIPANT_ROLE` (`Offer(CaseParticipantRole, target=Actor,
-      context=VulnerabilityCase)`) introduced by ADR-0039.
-    rationale: >-
-      ADR-0039 resolved the wire ambiguity identified in CONCERN-1674 by introducing a
-      self-describing `as_CaseParticipantRole` object type. The deprecated backward-compat
-      entry was removed by CONCERN-2322 since its wire format was never emitted by any
-      supported actor implementation and its presence was a source of registry-ordering
-      fragility documented in SE-08-004.
-    verification: >-
-      Inspection of `vultron/wire/` confirms that `OFFER_CASE_MANAGER_ROLE` is
-      absent from `MessageSemantics` and `SEMANTIC_REGISTRY`, and that
-      `OFFER_CASE_PARTICIPANT_ROLE` using
-      `Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)` is
-      present.
-    relationships:
-    - rel_type: refines
-      spec_id: SE-08-003
-    lint_suppress:
-    - phantom_symbol_ref

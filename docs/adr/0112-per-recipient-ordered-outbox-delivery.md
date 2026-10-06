@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-09-29
+created: 2026-09-29
+updated: 2026-09-29
+revision: 1
 deciders: Allen D. Householder
 consulted: >-
   notes/outbox-delivery-reliability.md, notes/sync-ledger-replication.md,

@@ -1,6 +1,9 @@
 ---
 status: proposed
 date: 2026-09-25
+created: 2026-09-25
+updated: 2026-09-25
+revision: 1
 deciders: Allen D. Householder
 consulted: []
 informed: CERT/CC Vultron protocol team

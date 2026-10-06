@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-09-02
+created: 2026-09-02
+updated: 2026-09-02
+revision: 1
 deciders: Allen D. Householder
 consulted: Vultron protocol maintainers
 informed: Vultron contributors

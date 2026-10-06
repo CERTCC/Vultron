@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-08-25
+created: 2026-08-25
+updated: 2026-08-25
+revision: 1
 deciders: Allen D. Householder
 consulted: Claude Sonnet 4.6
 informed: CERTCC Vultron team

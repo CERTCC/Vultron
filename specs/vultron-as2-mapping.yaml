@@ -164,7 +164,7 @@ groups:
       spec_id: MSM-01-003
       note: RV shorthand → VALIDATE_REPORT → this wire form
     adr:
-    - ADR-0070
+    - ADR-0121
     stories:
     - story_2022_012
   - id: VAM-02-005
@@ -183,7 +183,7 @@ groups:
       spec_id: MSM-01-002
       note: RI shorthand → INVALIDATE_REPORT → this wire form
     adr:
-    - ADR-0070
+    - ADR-0121
     stories:
     - story_2022_101
     - story_2022_006
@@ -202,7 +202,7 @@ groups:
       spec_id: MSM-01-006
       note: RC shorthand → CLOSE_REPORT → this wire form
     adr:
-    - ADR-0070
+    - ADR-0121
     stories:
     - story_2022_066
     - story_2022_006
@@ -428,7 +428,7 @@ groups:
       matches the full-case Invite pattern and not the stub Invite pattern, and that one
       whose `target` is a `VulnerabilityCaseStub` matches only the stub Invite pattern.
     adr:
-    - ADR-0070
+    - ADR-0121
     - ADR-0114
     stories:
     - story_2022_013
@@ -445,7 +445,7 @@ groups:
       matches the full-case Invite's RV pattern and not the stub Invite's `Accept`
       pattern (VAM-04-005).
     adr:
-    - ADR-0070
+    - ADR-0121
     stories:
     - story_2022_012
     - story_2022_054
@@ -462,7 +462,7 @@ groups:
       Invite's RI pattern, and that a `TentativeReject` of a stub Invite matches no
       pattern (CM-11-007).
     adr:
-    - ADR-0070
+    - ADR-0121
     stories:
     - story_2022_101
     - story_2022_006
@@ -478,7 +478,7 @@ groups:
       matches the full-case Invite's RC pattern and not the stub Invite's `Reject`
       pattern (VAM-04-006).
     adr:
-    - ADR-0070
+    - ADR-0121
     stories:
     - story_2022_066
     - story_2022_006

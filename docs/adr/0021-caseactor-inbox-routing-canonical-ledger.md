@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-06-17
+created: 2026-06-17
+updated: 2026-06-17
+revision: 1
 deciders: Vultron maintainers
 consulted: >-
   notes/case-communication-model.md, notes/case-ledger-authority.md,

@@ -16,6 +16,7 @@ related_notes:
   - notes/activitystreams-semantics.md
   - notes/actor-knowledge-model.md
   - notes/datalayer-design.md
+  - notes/devcontainer-tooling.md
   - notes/case-proposal.md
 relevant_packages:
   - vultron/core/use_cases/received

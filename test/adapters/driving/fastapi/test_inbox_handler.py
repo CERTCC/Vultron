@@ -596,8 +596,8 @@ def test_inbox_handler_uses_actor_dl_for_queue_pop_and_shared_dl_for_dispatch(
     When ``actor_dl`` is passed as a separate actor-scoped instance (distinct
     from the shared ``dl``), queue operations (``inbox_list``, ``inbox_pop``)
     must use ``actor_dl`` while rehydration and dispatch must receive the
-    shared ``dl`` (ARCH-13-003; ARCH-13-004 was retired by DL-07-001, which
-    removed the second identity it required to agree with the first).
+    shared ``dl`` (ARCH-13-003; DL-07-001 removed the second identity, so
+    there is no mismatch to test).
     """
     actor_id = "https://example.org/actors/participant"
     activity_id = "https://example.org/activities/act-dual-dl"

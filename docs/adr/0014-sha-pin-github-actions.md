@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-03-30
+created: 2026-03-30
+updated: 2026-03-30
+revision: 1
 deciders: ahouseholder
 consulted: specs/ci-security.yaml
 informed: plan/IMPLEMENTATION_PLAN.md

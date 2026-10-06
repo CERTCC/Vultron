@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-03-20
+created: 2026-03-20
+updated: 2026-03-20
+revision: 1
 deciders: ahouseholder
 consulted: []
 informed: []

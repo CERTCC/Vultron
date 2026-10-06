@@ -24,6 +24,7 @@ related_notes:
   - notes/behavioral-conformance-specs.md
   - notes/testing-pitfalls.md
   - notes/architecture-ratchet-corpus.md
+  - notes/agentic-workflow.md
 ---
 
 # Spec Authoring Rules — Field Values, Lint Traps, and Coverage Gates
@@ -436,6 +437,35 @@ points to. And do not describe a verification test that does not exist: write it
 or describe the one that does.
 
 Source: ISSUE-2982
+
+## `protocol` Means RFC Content
+
+`protocol` is for what an RFC would contain: wire messages, the behaviours that
+lead to them, and state machines (MS-12-003). The TCP analogy is the test: TCP
+fixes what two implementations exchange, not how one implementation structures
+its endpoints or stores. A MUST about an internal endpoint is `project` however
+firm it reads; EP-02-004 (compare-and-set on the policy PUT) is the worked
+example. MS-12-006 scans the `statement` only, so a `verification:` that names a
+test file does not by itself make a spec `project`. The roughly ninety relabels
+to `protocol` made in #3944 are reverted (#3943); the `missing_story_reference`
+suppressions get their own down-only ceiling (MS-12-007).
+
+Source: ISSUE-4195
+
+## Removed Requirements: Never Reuse an ID, Archive the Text
+
+A removed requirement is removed, not deprecated (MS-09-001): `deprecated: true`
+in `specs/` is a violation. Its ID is never reused (MS-09-004); a replacement
+rule gets a new ID, and citations are repointed (MS-09-003). CM-11-005 was reused
+with the opposite force, so every citation of it pointed at a rule it never meant.
+The removed text is parked as one file per ID under `plan/retired-specs/`
+(MS-09-005), outside `specs/` so it is never loaded into agent context; the
+tooling is #4197. Spec-versus-code conflicts found in an implementation PR follow
+the material test in
+[notes/agentic-workflow.md](agentic-workflow.md) § "Spec Text Conflicts With
+Code", and the PR body carries `## Spec amended`.
+
+Source: ISSUE-4195
 
 ## A Verification Clause Is a Claim About the Suite
 

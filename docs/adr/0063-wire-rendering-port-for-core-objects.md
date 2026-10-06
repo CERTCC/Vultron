@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-08-13
+created: 2026-08-13
+updated: 2026-08-13
+revision: 1
 deciders: Allen Householder
 consulted: Claude Code (planning agent for CONCERN-2260)
 informed: Vultron contributors

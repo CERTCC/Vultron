@@ -15,7 +15,7 @@
 Both creation paths register a holder at birth and delegation hands it on, so a
 roster with no ``CVDRole.CASE_MANAGER`` is corrupt, not a topology.  A trigger
 that must emit as the CASE_MANAGER fails on such a roster rather than sending
-directly as the requester (which CM-24-003 once allowed).
+directly as the requester (a fallback an earlier, now retired, requirement allowed).
 """
 
 import pytest

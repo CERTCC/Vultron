@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2024-04-22
+created: 2024-04-22
+updated: 2024-04-22
+revision: 1
 amended: "2026-09-28"
 deciders: Allen D. Householder
 stakeholder_type: [project-contributor]

@@ -6,6 +6,7 @@ related_specs:
 related_notes:
   - notes/bt-pitfalls.md
   - notes/spec-authoring-rules.md
+  - notes/agentic-workflow.md
 ---
 
 # Specs vs. ADRs — Delineation Guidelines
@@ -188,6 +189,31 @@ MS-14). The `decision-audit` skill hunts for exactly this contradiction.
 > a status field that agents read; a parallel confidence field would be one
 > more thing to keep in sync and one more source of drift. Expanding the status
 > vocabulary keeps a single source of truth. See ADR-0043.
+
+### ADR Lifecycle: Epochs and Edit Tiers
+
+ADR-0120 ties `status` to age. Frontmatter carries `created` (immutable),
+`updated` (material edits only) and `revision` (integer, bumped per material
+edit). Epochs are measured from `updated`:
+
+| Epoch | Age | `status` | Editing |
+|---|---|---|---|
+| 1 | under 72 hours | `proposed` | edit in place freely |
+| 2 | 72 hours to day 10 | `accepted-provisional` | ask the human: edit in place or supersede |
+| 3 | day 10 onward | `accepted` | supersede (below) |
+
+A merged dependent implementation may harden an ADR to epoch 3 early, and a
+human may override the computed status. Agents implement against `proposed`
+ADRs; the mandatory human touch is the epoch-2 ask.
+
+**Edit tiers.** Editorial fixes and append-only annotations are allowed in any
+epoch and change neither `updated` nor `revision`. A clarification after epoch 1
+is appended as a dated note. A material change (*would something built on the old
+text now be wrong?*) bumps `updated` and `revision`. In epoch 3, a material
+change to one detail with the chosen option intact is a dated Amendment quoting
+the replaced text; a change of chosen option is a new ADR that supersedes the
+old one, whose original text is restored. Never rewrite an accepted ADR under its
+own number. The status-against-epoch lint is #4196 (MS-14-007).
 
 ### A Provisional ADR Must Phrase an Unbuilt Contract in the Future Tense
 

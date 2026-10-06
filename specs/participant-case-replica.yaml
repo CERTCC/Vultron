@@ -532,7 +532,7 @@ groups:
       spec_id: PCR-08-003
     adr:
     - ADR-0114
-    - ADR-0070
+    - ADR-0121
     stories:
     - story_2022_054
     - story_2022_088

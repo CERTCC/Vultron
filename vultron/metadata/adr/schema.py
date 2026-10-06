@@ -14,7 +14,7 @@ from __future__ import annotations
 import datetime as _dt
 from enum import StrEnum
 
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, PositiveInt, field_validator, model_validator
 
 from vultron.metadata.base import NonEmptyStr
 from vultron.metadata.docs.page_schema import WorkingRecordStakeholderTypes
@@ -42,6 +42,11 @@ class AdrFrontmatter(BaseModel):
     ADR (``superseded`` or ``deprecated``) MUST carry a ``superseded_by`` link.
     All other fields are optional but must be non-empty when present.
 
+    ``created`` (immutable), ``updated`` (material edits only) and ``revision``
+    (an integer bumped by each material edit) carry the lifecycle of ADR-0120.
+    They are optional here; checking ``status`` against the epoch computed from
+    ``updated`` is the lint tracked by #4196.
+
     ``partially_superseded_by`` is distinct from ``superseded_by`` and does not
     retire the ADR: it marks one decision inside an otherwise live ADR as
     replaced, so the ADR keeps ``status: accepted`` and stays in the accepted
@@ -64,6 +69,9 @@ class AdrFrontmatter(BaseModel):
 
     status: AdrStatus
     date: _dt.date | None = None
+    created: _dt.date | None = None
+    updated: _dt.date | None = None
+    revision: PositiveInt | None = None
     deciders: PersonField | None = None
     consulted: PersonField | None = None
     informed: PersonField | None = None

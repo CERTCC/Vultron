@@ -431,7 +431,7 @@ groups:
       spec_id: CM-11-001
     adr:
     - ADR-0114
-    - ADR-0070
+    - ADR-0121
 - id: BT-12
   title: VFD/PXA State Machine Usage
   specs:
