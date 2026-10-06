@@ -1,4 +1,4 @@
-"""Ratchet: the two wire vocabulary registries keep their declared key forms.
+"""Architecture test: the two wire vocabulary registries keep their declared key forms.
 
 ``VOCABULARY`` is keyed by wire class name (``as_VultronPerson``), ``WIRE_TYPE_MAP``
 by the emitted wire ``type`` value (``Person``). The forms are deliberately
@@ -15,6 +15,9 @@ their ``type`` values (``Person``), and ``as_VulnerabilityCaseStub`` registered
 under ``VulnerabilityCaseStub`` while emitting ``type: "VulnerabilityCase"``.
 Since #4045 the stub emits ``type: "VulnerabilityCaseStub"`` and owns that key
 (CM-11-013, ADR-0114).
+
+``_SANCTIONED_SHADOWS`` is a pinned exemption set, not a ratchet (ARCH-18-005): the
+``as_Vultron*`` actor exception is enumerated by design and has no empty end state.
 
 Spec: `specs/vocabulary-model.yaml` VM-01-004, VM-01-008.
 See: GitHub issue #2982.
@@ -62,6 +65,10 @@ _MIN_REGISTERED_TYPES = 50
 #: inbound actor keeps its extension fields. Maps each value to the class that
 #: MUST win the key.  Under ADR-0099 detail 3 the winners are the core actor
 #: classes themselves; ``as_VultronPerson`` and friends are aliases of them.
+#: A pinned exemption set (ARCH-18-005), not a ratchet: the exception is
+#: enumerated by design and has no empty end state.
+#:
+#: permanent: VM-01-008
 _SANCTIONED_SHADOWS = {
     "Person": "VultronPerson",
     "Organization": "VultronOrganization",
