@@ -33,6 +33,7 @@ groups:
   - id: CLP-01-002
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: The protocol MUST NOT require a separate "asserted mode" marker on
       ordinary participant activities for case/proto-case flows
   - id: CLP-01-003
@@ -49,6 +50,7 @@ groups:
   - id: CLP-01-004
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: Participant replicas MUST NOT project shared case state directly from
       peer assertions
 - id: CLP-02
@@ -101,6 +103,7 @@ groups:
   - id: CLP-02-005
     priority: MUST
     kind: protocol
+    verification_debt: '#3612'
     statement: When the CASE_MANAGER rejects an incoming assertion, the rejection
       outcome MUST be emitted as a `Reject` protocol activity directed at the
       asserting participant; it MUST NOT be written to the canonical case ledger.
@@ -134,6 +137,7 @@ groups:
   - id: CLP-02-009
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: The `log_index` field of a `CaseLedgerEntry` MUST NOT be assigned by
       external parties.
     rationale: Allowing external parties to set log_index would enable index spoofing,
@@ -298,12 +302,14 @@ groups:
   - id: CLP-05-002
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: Rejection outcomes MUST NOT be recorded as entries in the canonical
       case ledger; the canonical ledger contains only accepted protocol-significant
       assertions (see CLP-04-007).
   - id: CLP-05-003
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: Implementations MUST NOT write local-only tracking markers or
       duplicate-detection markers as `CaseLedgerEntry` objects of any kind; such
       markers belong in ephemeral per-actor stores (e.g., `PendingAssertionStore`),
@@ -320,6 +326,7 @@ groups:
   - id: CLP-06-002
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: Pending assertion state MUST NOT be treated as canonical case history
       and MUST NOT be used as the authoritative source for participant membership
       or case state reconstruction
@@ -347,6 +354,7 @@ groups:
   - id: CLP-06-005
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: Pending assertion timeout handling MUST NOT automatically retry assertion
       emission; follow-up emission decisions MUST be made by subsequent behavior evaluation
   - id: CLP-06-006
@@ -392,6 +400,7 @@ groups:
   - id: CLP-07-012
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: The `payloadSnapshot` of a `CaseLedgerEntry` MUST NOT be empty for
       non-rejection entries.
     rationale: An empty payload snapshot for a recorded entry breaks deterministic
@@ -453,6 +462,7 @@ groups:
   - id: CLP-07-004
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: The canonical case ledger MUST NOT contain runtime diagnostics, demo
       checkpoints, synthetic verification markers, troubleshooting events, or any
       per-actor observability content; such content belongs in the per-actor process
@@ -498,6 +508,7 @@ groups:
   - id: CLP-07-008
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: If a canonicalization path resolves an ID-string nested reference for
       `payloadSnapshot` inlining, it MUST verify that the resolved object's context
       matches the parent snapshot context before replacement. On context mismatch,
@@ -655,6 +666,7 @@ groups:
   - id: CLP-08-007
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: Implementations MUST NOT use sequentially predictable or human-chosen
       path segments in the case URI when origin-binding integrity is required.
     rationale: Predictable or human-chosen path segments allow an attacker to pre-compute
@@ -973,6 +985,7 @@ groups:
   - id: CLP-10-009
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: In a receive-side BT composed via `create_receive_activity_tree`, every
       node that can return FAILURE to refuse an inbound assertion (a rejection validator)
       MUST appear in `precondition_guards`; a rejection validator placed in `effect_nodes`
@@ -981,6 +994,7 @@ groups:
   - id: CLP-10-012
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: A separate `ValidateRMTransitionNode` in `effect_nodes` MUST NOT be
       used in the receive-side path; `FilterParticipantStatusDimensionsNode` satisfies
       the per-dimension adjudication requirement for an inbound `ParticipantStatus`
@@ -1304,6 +1318,7 @@ groups:
   - id: CLP-11-002
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: '`find_protocol_pair()` (durable, DataLayer-backed) and `PendingAssertionStore`
       (ephemeral, in-memory suppression) MUST NOT be unified. They serve distinct
       purposes: `find_protocol_pair` determines canonical open/closed state from the
@@ -1347,6 +1362,7 @@ groups:
   - id: CLP-12-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: '`Add(CaseStatus)` ledger entries authored by the CASE_MANAGER MUST be
       accepted as canonical entries by the ledger validation step.'
     rationale: 'Issue #1767: `("Add", "CaseStatus")` appeared in `_CANONICAL_PAYLOAD_SIGNATURES`
@@ -1361,6 +1377,7 @@ groups:
   - id: CLP-12-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: '`_CASE_AUTHORED_SIGNATURES` MUST be a complete superset of all `("verb",
       "object-type")` pairs emitted by the CASE_MANAGER during native case initialization
       (create_case, add_report_to_case, add_participant_status_to_participant × N,
@@ -1386,6 +1403,7 @@ groups:
   - id: CLP-13-001
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: A BT idempotency guard that detects a duplicate and returns ``Status.FAILURE``
       to abort processing MUST NOT write a ``CaseLedgerEntry`` of any disposition
       (``"recorded"`` or ``"rejected"``).
@@ -1405,6 +1423,7 @@ groups:
   - id: CLP-13-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: Idempotency guard behaviour MUST be encapsulated in a reusable ``SilentIdempotencyGuardMixin``
       (or equivalent composable BT pattern) so that the silent-failure-on-duplicate
       invariant is expressed once and tested once, not re-implemented per call site.
@@ -1417,6 +1436,7 @@ groups:
   - id: CLP-13-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: When an idempotency guard fires and returns ``Status.FAILURE``, it
       MUST emit a Python ``logger.info`` or ``logger.debug`` message recording the
       duplicate detection.  No other observable side effect (ledger write, outbox
@@ -1438,6 +1458,7 @@ groups:
   - id: CLP-14-001
     priority: MUST
     kind: protocol
+    verification_debt: '#3612'
     statement: 'The CaseLedger MUST record entries in causal order from the CASE_MANAGER''s
       observation perspective: if the CASE_MANAGER observes event A before event B, then
       log_index(A) MUST be less than log_index(B). The log_index sequence is the authoritative
@@ -1458,6 +1479,7 @@ groups:
   - id: CLP-14-002
     priority: MUST
     kind: protocol
+    verification_debt: '#3612'
     statement: The `published` timestamp on the `CaseLedgerEntry` envelope — the
       CASE_MANAGER's commit stamp, as distinct from the claimed `payloadSnapshot.published`
       — MUST be non-null. The CASE_MANAGER MUST stamp each entry with its own authoritative
@@ -1499,6 +1521,7 @@ groups:
   - id: CLP-14-004
     priority: MUST
     kind: protocol
+    verification_debt: '#3612'
     statement: All entries in a single case ledger MUST share the same case_id. An
       entry whose case_id does not match the ledger's case_id MUST be treated as malformed
       and rejected.
@@ -1511,6 +1534,7 @@ groups:
   - id: CLP-14-005
     priority: MUST
     kind: protocol
+    verification_debt: '#3612'
     statement: log_index values MUST be unique within a single case ledger. No two
       entries for the same case_id may share a log_index value.
     rationale: Duplicate indices would make it impossible to identify which entry
@@ -1736,6 +1760,7 @@ groups:
   - id: CLP-15-005
     priority: MUST
     kind: protocol
+    verification_debt: '#3612'
     statement: The CASE_MANAGER's ledger is authoritative for what the CASE_MANAGER observed
       from its own perspective. It is NOT a guarantee of real-world causal fidelity
       when external participants self-report events. The CASE_MANAGER MUST record the

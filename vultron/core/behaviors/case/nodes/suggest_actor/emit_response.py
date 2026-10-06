@@ -31,16 +31,14 @@ from typing import cast
 from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.helpers import (
-    DataLayerActionWithPorts,
-)
+from vultron.core.behaviors.helpers import _EmitSingleActivityBase
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 
 
-class EmitAcceptActorRecommendationNode(DataLayerActionWithPorts):
+class EmitAcceptActorRecommendationNode(_EmitSingleActivityBase):
     """Queue AcceptActorRecommendation to the original recommender.
 
     Used after the Case Owner accepts Offer(CaseParticipant) (CM-16-006 step 3).
@@ -103,9 +101,8 @@ class EmitAcceptActorRecommendationNode(DataLayerActionWithPorts):
                     f"ledger commit failed for "
                     f"accept_actor_recommendation/{self.recommended_id}"
                 )
-            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
-                activity_id
-            )
+            # Route through the shared emit seam (OX-14-001, ASK-04-008).
+            self._emit_through_seam(activity_id, "")
             self.logger.info(
                 "%s: queued AcceptActorRecommendation to '%s' for case '%s'",
                 self.name,
@@ -121,7 +118,7 @@ class EmitAcceptActorRecommendationNode(DataLayerActionWithPorts):
             return Status.FAILURE
 
 
-class EmitRejectActorRecommendationNode(DataLayerActionWithPorts):
+class EmitRejectActorRecommendationNode(_EmitSingleActivityBase):
     """Queue RejectActorRecommendation to the original recommender.
 
     Used after the Case Owner rejects Offer(CaseParticipant) (CM-16-007 step 3).
@@ -181,9 +178,8 @@ class EmitRejectActorRecommendationNode(DataLayerActionWithPorts):
                     f"ledger commit failed for "
                     f"reject_actor_recommendation/{self.recommended_id}"
                 )
-            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
-                activity_id
-            )
+            # Route through the shared emit seam (OX-14-001, ASK-04-008).
+            self._emit_through_seam(activity_id, "")
             self.logger.info(
                 "%s: queued RejectActorRecommendation to '%s' for case '%s'",
                 self.name,

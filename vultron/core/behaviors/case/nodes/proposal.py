@@ -38,7 +38,7 @@ from vultron.core.behaviors.case.case_actor_identity import (
 from vultron.core.behaviors.case.offer_provenance import find_offer_for_report
 from vultron.core.behaviors.helpers import (
     DataLayerAction,
-    DataLayerActionWithPorts,
+    _EmitSingleActivityBase,
 )
 from vultron.core.models.pending_create_case_activity import (
     PendingCreateCaseActivity,
@@ -46,7 +46,7 @@ from vultron.core.models.pending_create_case_activity import (
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 
 
-class ProposeReportCaseToActorNode(DataLayerActionWithPorts):
+class ProposeReportCaseToActorNode(_EmitSingleActivityBase):
     """Send ``Create(as_CaseProposal)`` from ``report_id`` without a prior case.
 
     Used by the slimmed ``receive_report_case_tree`` (ADR-0041).  Unlike
@@ -118,9 +118,8 @@ class ProposeReportCaseToActorNode(DataLayerActionWithPorts):
                     offer_actor_id=offer_actor_id,
                 )
             )
-            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
-                activity_id
-            )
+            # Route through the shared emit seam (OX-14-001, ASK-04-008).
+            self._emit_through_seam(activity_id, "")
         except Exception as exc:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = f"create_case_proposal failed: {exc}"
             self.logger.warning("%s: %s", self.name, self.feedback_message)

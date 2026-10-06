@@ -8,12 +8,14 @@ description: >
   `filterwarnings` precedence, fixture and blackboard isolation, py_trees test
   patterns, CoreObject subclass isolation, assertion-quality traps (vacuous
   asserts, "falls back to" tests, bare MagicMock), and test layout rules for
-  module splits. `test/AGENTS.md` keeps the short index and the rules you need
-  on every run.
+  module splits, and why a two-sided count pin races concurrent PRs (keep a
+  per-item record instead). `test/AGENTS.md` keeps the short index and the
+  rules you need on every run.
 related_specs:
   - specs/testability.yaml
   - specs/behavior-tree-integration.yaml
   - specs/spec-registry.yaml
+  - specs/meta-specifications.yaml
 related_notes:
   - notes/flaky-tests.md
   - notes/configuration.md
@@ -23,6 +25,8 @@ related_notes:
   - notes/triggers-test-coverage.md
   - notes/demo-ci-invariants.md
   - notes/wire-artifact-immutability.md
+  - notes/spec-authoring-rules.md
+  - notes/architecture-ratchet-corpus.md
 relevant_packages:
   - pytest
   - py_trees
@@ -731,3 +735,35 @@ uv run pytest -m "new_mark_name" --collect-only > /tmp/collect.log 2>&1; rc=$?; 
 
 Incidental coverage via `test_trignotify.py` is insufficient. See
 [notes/triggers-test-coverage.md](triggers-test-coverage.md).
+
+---
+
+## Ratchets
+
+### A Two-Sided Count Pin Races Every Concurrent PR
+
+A ratchet that asserts `live_count == PINNED` fails in both directions: above
+the pin means new debt, below means a fix that forgot to lower the pin. That
+is correct on the PR that sets the pin and wrong on every other PR in flight.
+If a sibling PR moves the count by one (verifying a requirement, adding a
+marker), each PR is green on its own base and the merge is red on `main`, and
+then on every branch rooted at it, through no change of their own. Each
+affected session then does a clean-base proof, finds the cause, and applies the
+same one-line fix. That fix collides on the next sync. Two PRs that make the
+*identical* edit to the pin merge cleanly, to the wrong number.
+
+MS-10-006's `VERIFICATION_CEILINGS` table was this shape. It turned `main`
+red twice: #3974/#3975 pinned project at 1004 while a sibling lowered it to
+1003, and #4031 repeated it with the MS-12 kind gates. Nor is a one-sided pin
+the fix, because it collects silent slack instead (#3959).
+
+**Keep a per-item record instead of a shared number.** Mark each item that is
+still in debt (`verification_debt: '#N'` on the requirement itself) and check
+each item on its own. Then two PRs conflict only when they edit the same item,
+and git reports that as a real conflict. The count is still printed, computed
+from the markers, so progress stays visible without being committed. Hold back
+growth with a one-way, PR-only diff guard (#4200), not a pinned total. Where a
+committed baseline is unavoidable, make it a named set (`KNOWN_VIOLATIONS`,
+ARCH-18), never a bare number. A set entry names what it exempts, and a
+concurrent PR that removes a different entry merges cleanly to the right
+answer.

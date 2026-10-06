@@ -15,6 +15,7 @@ groups:
   - id: IO-01-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The inbox orchestration module MUST define an InboxOutcome Pydantic model as the sole return type of process_payload.
     rationale: A typed return model makes outcome inspection safe and self-documenting for all callers (FastAPI, CLI, tests).
     tags:
@@ -41,6 +42,7 @@ groups:
   - id: IO-01-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: InboxOutcome MUST include a context_id field (nullable string) carrying the case or activity context identifier,
       when available.
     rationale: Callers need context identity for logging, telemetry, and pending-queue management.
@@ -49,6 +51,7 @@ groups:
   - id: IO-01-004
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: InboxOutcome MUST include a failure_reason field (nullable string) carrying a human-readable explanation when
       status is rejected or deferred. When a handler returns REFUSED, failure_reason MUST be the handler's HandlerResult reason.
     rationale: Explicit failure reasons support triage without log scraping. A REFUSED HandlerResult always carries a reason
@@ -62,6 +65,7 @@ groups:
   - id: IO-02-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The inbox orchestration module MUST be located at `vultron/core/behaviors/inbox/`.
     rationale: Placement in core/ satisfies the hexagonal architecture constraint (ADR-0009 Rule 1) and enables the module
       to be used by FastAPI, CLI, and test adapters equally.
@@ -75,6 +79,7 @@ groups:
   - id: IO-02-001b
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: The inbox orchestration module MUST NOT import from `vultron/adapters/` or any web framework package.
     relationships:
     - rel_type: refines
@@ -86,6 +91,7 @@ groups:
   - id: IO-02-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: 'The BT implementation MUST enforce the following fixed node ordering via BT Sequence nodes: (1) parse inbound
       payload, (2) rehydrate Activity, (3) extract MessageSemantics, (4) defer-eligibility check, (5) dispatch to use-case
       path, (6) build typed outcome.'
@@ -97,6 +103,7 @@ groups:
   - id: IO-02-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The `process_payload` function MUST be the sole caller-facing entry point of the inbox orchestration module.
     rationale: Encapsulating intermediate steps preserves depth and prevents shallow reimplementations of parts of the pipeline.
     tags:
@@ -104,6 +111,7 @@ groups:
   - id: IO-02-003b
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: >-
       Intermediate behavior-tree nodes used internally by `process_payload` MUST NOT be exported as
       public API symbols.
@@ -115,6 +123,7 @@ groups:
   - id: IO-02-004
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: The inbox orchestration module MUST NOT instantiate or call a use-case class directly inside a behavior-tree node `update()` method.
     rationale: Use cases create BTs; BT nodes are leaves. Calling a use case from a node creates a prohibited BT-UseCase-BT
       chain (BT-06-006).
@@ -127,6 +136,7 @@ groups:
   - id: IO-03-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: 'process_payload MUST accept exactly two injected adapters: an ingress payload adapter (raw input to as_Activity)
       and a dispatch adapter (VultronEvent to use-case execution). The dispatch adapter MUST return the handler''s HandlerResult
       (UCORG-05-010), which is the only channel by which the verdict reaches InboxOutcome.'
@@ -143,6 +153,7 @@ groups:
   - id: IO-03-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: Pending-queue management MUST be provided to the inbox orchestration module via an injected port dependency.
     rationale: Injecting the pending-queue port keeps core/ free of adapter dependencies and aligns with hexagonal architecture.
     tags:
@@ -151,6 +162,7 @@ groups:
   - id: IO-03-002b
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: The inbox orchestration module MUST NOT access pending-queue storage directly from `vultron/adapters/`.
     relationships:
     - rel_type: refines
@@ -161,6 +173,7 @@ groups:
   - id: IO-03-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The FastAPI inbox path MUST supply adapter implementations to `process_payload` at construction time.
     rationale: Policy logic in the router violates ADR-0009 Rule 1 and makes the orchestration untestable without a running
       FastAPI app.
@@ -171,6 +184,7 @@ groups:
   - id: IO-03-003b
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: >-
       The FastAPI inbox path MUST NOT contain inbox policy logic; all such logic MUST reside in the
       core inbox orchestration module. Exception: a synchronous guard that refuses an inbound
@@ -195,6 +209,7 @@ groups:
   - id: IO-04-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       `process_payload` MUST always return an `InboxOutcome` instance, regardless of payload
       validity.
@@ -206,6 +221,7 @@ groups:
   - id: IO-04-001b
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: >-
       `process_payload` MUST NOT raise an exception for protocol-invalid payloads; all error
       conditions MUST be encoded in the returned `InboxOutcome`.
@@ -218,6 +234,7 @@ groups:
   - id: IO-04-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       Tests for `process_payload` MUST assert on `InboxOutcome.status` and
       `InboxOutcome.failure_reason` fields.
@@ -228,6 +245,7 @@ groups:
   - id: IO-04-002b
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: >-
       Tests for `process_payload` MUST NOT patch internal behavior-tree node helper methods to
       verify pipeline behavior.

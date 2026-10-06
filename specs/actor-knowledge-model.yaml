@@ -20,12 +20,14 @@ groups:
   - id: AKM-01-001
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       Each Actor's DataLayer is private to that Actor and MUST NOT be accessible to any other
       Actor.
   - id: AKM-01-002
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       Actors that are co-located on the same server or within the same process MUST still
       interact via the wire protocol and MUST NOT communicate via direct DataLayer access
@@ -36,6 +38,7 @@ groups:
   - id: AKM-02-001
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       An Actor MUST NOT assume that a recipient has knowledge of any object that has not been
       explicitly included in a prior activity sent to that recipient.
@@ -44,6 +47,7 @@ groups:
   - id: AKM-02-002
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       Actors MUST NOT use object references in place of full inline objects when the recipient
       cannot be expected to have the referenced object in its own DataLayer.
@@ -109,6 +113,7 @@ groups:
   - id: AKM-05-001
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       The absence of a local `CoreActor` record for a peer MUST NOT prevent an actor from
       addressing an outbound activity to that peer. A deliverable http(s) URI is sufficient

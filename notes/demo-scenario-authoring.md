@@ -113,6 +113,19 @@ mechanism; there is no second container for the transport to cross. This rule
 governs `vultron/demo/scenario/`, where actors live in separate containers and
 the delivery path is the thing under test.
 
+**Scope reaches the helpers a scenario calls.** The rule binds
+`vultron/demo/helpers/` code that a scenario runs on its behalf, not only the
+scenario module. A helper that carries mail is the same violation one call
+removed. `reporter_submits_report`'s `reporter_client` arm did so for every
+scenario: it POSTed the Offer to the Receiver's inbox after the `submit-report`
+trigger's own outbox drain had already delivered it, so each run double-delivered
+the report (#3980). The hand delivery dated from #1872, when the CaseActor's
+per-case slug was derived after the trigger returned and the outbox delivery
+404'd. The CaseActor is now one stable identity per container, known before any
+report exists, so provision it *before* the trigger and wait on the Receiver's
+own store for the effect. The Offer lands asynchronously, so a one-shot read is
+not a gate (EDF-06-003).
+
 **No self-delivery exception.** An actor does not need to POST to its own inbox
 to update its own replica either — activities route through the CASE_MANAGER, which
 broadcasts the `Announce` that every replica consumes. See

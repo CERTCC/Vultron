@@ -48,6 +48,14 @@ StoryIdStr = Annotated[
     StringConstraints(pattern=r"^story_\d{4}_\d{3}$"),
 ]
 
+#: The issue that owns verifying an unverified MUST-tier requirement
+#: (MS-10-006): one GitHub reference in ``#N`` form. Quote it in YAML —
+#: ``verification_debt: #12`` is a comment and loads as null.
+IssueRefStr = Annotated[
+    str,
+    StringConstraints(pattern=r"^#[1-9]\d*$"),
+]
+
 
 class RFC2119Tier(StrEnum):
     """The three strengths RFC 2119 defines, each pairing a keyword with its
@@ -250,7 +258,6 @@ class LintWarningCode(StrEnum):
     DANGLING_ADR_REF = "dangling_adr_ref"
     PHANTOM_PATH_REF = "phantom_path_ref"
     PHANTOM_SYMBOL_REF = "phantom_symbol_ref"
-    MUST_WITHOUT_VERIFICATION = "must_without_verification"
     MISSING_STORY_REFERENCE = "missing_story_reference"
     PROTOCOL_KIND_WITH_CODE_REFERENCE = "protocol_kind_with_code_reference"
 
@@ -290,6 +297,9 @@ class StatementSpec(BaseModel):
     deprecated: bool = False
     superseded_by: SpecIdStr | None = None
     verification: NonEmptyStr | None = None
+    #: Set only on a MUST-tier item with no ``verification:`` (MS-10-006).
+    #: Distinct from ``tracking_issue``, which tracks planned implementation.
+    verification_debt: IssueRefStr | None = None
     note: NonEmptyStr | None = None
     tracking_issue: str | None = None
     trigger: Trigger | None = None

@@ -20,6 +20,7 @@ groups:
       - id: BW-01-001
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           `plan/incoming/learnings/` MUST contain only implementation
           observations, open questions, constraints, and insights discovered
@@ -39,6 +40,7 @@ groups:
       - id: BW-01-002
         priority: MUST_NOT
         kind: process
+        verification_debt: '#2571'
         statement: >-
           The `build` and `bugfix` skills MUST NOT write completion summaries
           or task-status narratives to `plan/incoming/learnings/`.
@@ -48,6 +50,7 @@ groups:
       - id: BW-01-005
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           Completion summaries from the `build` and `bugfix` skills MUST be
           archived exclusively via `uv run append-history implementation`.
@@ -57,6 +60,7 @@ groups:
       - id: BW-01-003
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           Each incoming learning file MUST be named `YYYYMMDD-SLUG.md`
           where `YYYYMMDD` is the creation date and `SLUG` is a short
@@ -80,6 +84,7 @@ groups:
       - id: BW-01-006
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           Incoming learning files MUST be committed as part of the
           originating PR so the learning is permanently linked to the
@@ -90,6 +95,7 @@ groups:
       - id: BW-01-004
         priority: MUST_NOT
         kind: process
+        verification_debt: '#2571'
         statement: >-
           Skills other than `build` and `bugfix` MUST NOT create files in
           `plan/incoming/learnings/`.
@@ -101,6 +107,7 @@ groups:
       - id: BW-01-007
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           The `update-plan` skill MUST write observations and open questions
           to the `notes/*.md` file whose topic matches the content. It MUST NOT use
@@ -260,6 +267,7 @@ groups:
       - id: BW-03-001
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           When the `learn` skill processes `plan/incoming/learnings/`, each
           file MUST be promoted to the durable destination matching the content
@@ -272,6 +280,7 @@ groups:
       - id: BW-03-002
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           `uv run append-history --from-file <path>` MUST be used to
           archive each processed incoming learning file. This command
@@ -298,6 +307,7 @@ groups:
       - id: BW-04-001
         priority: MUST
         kind: project
+        verification_debt: '#2575'
         statement: >-
           The `learning` entry type MUST exist in `HistoryEntryType` in
           `vultron/metadata/history/types.py`.
@@ -307,6 +317,7 @@ groups:
       - id: BW-04-003
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           The `learn` skill MUST use `uv run append-history --from-file`
           to archive each processed incoming learning file.
@@ -316,6 +327,7 @@ groups:
       - id: BW-04-002
         priority: MUST
         kind: project
+        verification_debt: '#2575'
         statement: >-
           History entries of type `learning` MUST follow the same
           frontmatter and body format as all other `append-history` entry
@@ -330,6 +342,7 @@ groups:
       - id: BW-05-001
         priority: MUST
         kind: project
+        verification_debt: '#2575'
         statement: >-
           `uv run append-history --from-file <path>` MUST read the
           complete file content (frontmatter + body), parse the
@@ -340,6 +353,7 @@ groups:
       - id: BW-05-002
         priority: MUST
         kind: project
+        verification_debt: '#2575'
         statement: >-
           `uv run append-history --from-file` MUST be mutually exclusive
           with the positional `type` argument, `--title`, `--source`,
@@ -348,6 +362,7 @@ groups:
       - id: BW-05-003
         priority: MUST
         kind: project
+        verification_debt: '#2575'
         statement: >-
           `uv run append-history --from-file` MUST reject files whose
           frontmatter `timestamp` is more than 60 seconds in the future
@@ -359,6 +374,7 @@ groups:
       - id: BW-06-001
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           The `build` skill documentation MUST distinguish between
           learnings (observations and constraints recorded as individual
@@ -368,6 +384,7 @@ groups:
       - id: BW-06-002
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           The `learn` skill documentation MUST reference
           `plan/incoming/learnings/` as its primary input source and MUST
@@ -375,6 +392,7 @@ groups:
       - id: BW-06-003
         priority: MUST_NOT
         kind: process
+        verification_debt: '#2571'
         statement: >-
           The `update-plan` skill MUST NOT instruct agents to write to
           `plan/incoming/learnings/`. Observations discovered during gap
@@ -385,6 +403,7 @@ groups:
       - id: BW-07-001
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           Before completing a `build` or `bugfix` session, the agent MUST
           run an upward-reflection checklist that explicitly asks whether
@@ -428,6 +447,7 @@ groups:
       - id: BW-07-003
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           The `learn` skill MUST process learning files tagged
           `signal: spec-gap`, `signal: spec-contradiction`, or
@@ -441,6 +461,7 @@ groups:
       - id: BW-07-004
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           Each triggered checklist item MUST be routed at discovery to
           exactly one destination. Something that exists but is wrong → a
@@ -464,6 +485,7 @@ groups:
       - id: BW-07-005
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           The `learn` skill MUST NOT promote a claim to `notes/` or
           `AGENTS.md` on the strength of a single learning file. Promotion
@@ -478,6 +500,7 @@ groups:
       - id: BW-07-006
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           When a session produces a finding that corroborates an existing
           queued `signal: theme-candidate` entry, the agent MUST file or
@@ -513,6 +536,7 @@ groups:
       - id: BW-07-008
         priority: MUST_NOT
         kind: process
+        verification_debt: '#2571'
         statement: >-
           A decision that was made, applied, and shipped within the
           session — leaving no open question and asking nothing of any
@@ -532,6 +556,7 @@ groups:
       - id: BW-07-009
         priority: MUST
         kind: process
+        verification_debt: '#2571'
         statement: >-
           Code-review findings in files the current change did not touch
           (pre-existing findings, and findings deferred as out of scope)

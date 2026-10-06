@@ -289,9 +289,10 @@ later) are separate decisions. Apply
   (`- Closes #N`, one-line "why"). Filing is not deferring.
 - Genuinely too big to finish now → defer only via Gate 1: file, present a
   **measured remainder** in plain language, and get explicit approval. On
-  silence (unattended), **fix it now** — do not defer, and do not park the
-  rationale in a learning file as a substitute for doing or tracking the work.
-  Only second-order findings are eligible.
+  silence (unattended), **DEFER is unavailable**: finish it in this PR, or hold
+  the PR (draft, blocked, the unfinished item stated). Never file an issue as the
+  way to get the PR merged, and do not park the rationale in a learning file as a
+  substitute for doing the work. Only second-order findings are eligible.
 - Inverts a premise the issue or its specs/ADRs rested on → Gate 2: explain the
   overturned premise, ask if/what to file. On silence (unattended), **halt** —
   leave the PR blocked rather than acting on the new premise unreviewed.
@@ -322,10 +323,14 @@ later) are separate decisions. Apply
    goes into the PR body. Exit 0 is a floor, not proof of completeness — read
    the `no deterministic signal` and `no Python source in the diff` notes as
    "this part rests on your judgment".
-3. Do not skip or delegate validation.
+3. Do not skip or delegate validation. Never bypass a pre-commit hook
+   (`--no-verify`, `SKIP=`); fix what it reports. The sole exception is the
+   devcontainer `actionlint` hang (`notes/devcontainer-tooling.md`).
 4. Apply branch-ownership and pre-existing-failure rules from
    `completeness-doctrine.md` § "Finding Severity".
-5. If pre-existing is proven: create/update a Bug issue via `manage-github-issue`
+5. If pre-existing is proven, the PR is still held: a failing check blocks the
+   PR whatever its cause (`completeness-doctrine.md` § "Never Merge on Red"). Do
+   not open or merge it past the red. Create/update a Bug issue via `manage-github-issue`
    with evidence (failing command/output, clean-base proof, causality check,
    blocked/unblocked impact), wire structured blockers, add a handoff comment,
    and record the Bug link as a learning file in `plan/incoming/learnings/`.
@@ -345,11 +350,12 @@ Findings use the three-category system from
 - **IMPROVE** — correct but incomplete → fix in this session, document in the
   PR body
 - **DEFER** — genuinely out of scope → requires creating a follow-up GitHub
-  issue immediately; surface to the user for acknowledgment; do not defer
-  unilaterally
+  issue immediately **and** explicit user approval (Gate 1). Unattended, there
+  is no approval: fix it in this PR or hold the PR. Do not defer unilaterally
 
 There is no "ADVISORY" category that can be logged and forgotten. Every
-finding is either fixed here or gated via DEFER.
+finding is either fixed here or gated via DEFER; an unattended run never
+reaches the DEFER outcome.
 
 Because this phase runs before the final commit, `git diff main...HEAD` may
 be empty if changes are unstaged. Stage all changed files first (`git add`),

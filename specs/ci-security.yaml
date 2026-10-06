@@ -15,6 +15,7 @@ groups:
   - id: CISEC-01-001
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: All `uses:` references to third-party or external actions in `.github/workflows/*.yml` MUST be pinned to a
       specific commit SHA rather than a version tag or branch name. Local path references to actions within this repository
       (e.g. `./.github/actions/<name>`) are exempt — they are already pinned to the commit being checked out and have no
@@ -22,6 +23,7 @@ groups:
   - id: CISEC-01-002
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: Each SHA-pinned `uses:` reference MUST carry an inline comment identifying the corresponding human-readable
       version tag (e.g., `# v4.1.0`) to aid maintainability
   - id: CISEC-01-003
@@ -36,10 +38,12 @@ groups:
   - id: CISEC-02-001
     priority: MUST_NOT
     kind: process
+    verification_debt: '#2571'
     statement: Workflow secrets and tokens MUST be stored in GitHub Secrets and MUST NOT appear in repository files
   - id: CISEC-02-002
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: The minimal set of permissions required MUST be declared explicitly via `permissions:` at the job or workflow
       level
 - id: CISEC-03
@@ -48,6 +52,7 @@ groups:
   - id: CISEC-03-001
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: CI workflows that download third-party artifacts or tools MUST verify signatures or checksums before using
       them
     rationale: Prevents supply-chain attacks via compromised artifacts
@@ -62,6 +67,7 @@ groups:
   - id: CISEC-04-002
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: When adding a new workflow step or action, the SHA pin and version annotation MUST be included before the step
       is merged to `main`
 - id: CISEC-05
@@ -70,6 +76,7 @@ groups:
   - id: CISEC-05-001
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Every workflow triggered by push to `main` or by a `schedule` event MUST
       include a step conditioned on failure that files or updates a GitHub Issue.
@@ -111,6 +118,7 @@ groups:
   - id: CISEC-05-003
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: Each failure notification issue MUST be tagged with the `ci:main-failure` label and a workflow-specific
       label (e.g., `ci:workflow-python-app`). The combination of both labels MUST uniquely identify the open failure issue
       for a specific workflow, enabling the composite action to find and update rather than duplicate.

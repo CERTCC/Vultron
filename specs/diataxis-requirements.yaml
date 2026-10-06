@@ -20,6 +20,7 @@ groups:
   - id: DF-01-002
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Ensure each documentation page maps to exactly one of the four user needs (Learning,
       Goals, Information, or Understanding).
@@ -58,50 +59,59 @@ groups:
   - id: DF-03-001
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Author tutorials as practical lessons that help learners acquire new skills through
       guided, hands-on experience.
   - id: DF-03-002
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: Require that each tutorial is an activity where the learner learns by doing.
   - id: DF-03-003
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Ensure tutorials produce visible results early and often to maintain learner confidence.
   - id: DF-03-004
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Use first-person plural ("we") in the tutorial narrative to establish tutor/learner
       rapport.
   - id: DF-03-005
     priority: MUST_NOT
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Forbid alternative learning paths within a single tutorial's primary flow; present a
       single prescribed learning path.
   - id: DF-03-006
     priority: MUST_NOT
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Exclude in-depth explanations and theoretical discussions from the body of tutorials;
       link to explanatory pages for background.
   - id: DF-03-007
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Require every tutorial step to produce a comprehensible result that gives immediate
       feedback.
   - id: DF-03-008
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       State at the start of each tutorial exactly what the learner will have accomplished.
   - id: DF-03-009
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Point out specific signs or changes the learner should notice during the tutorial.
   - id: DF-03-010
@@ -113,6 +123,7 @@ groups:
   - id: DF-03-011
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Tutorials MUST reserve first-person plural ("we") for the shared journey and use second
       person ("you") for the learner's own actions, possessions, and state.
@@ -128,28 +139,33 @@ groups:
   - id: DF-04-001
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Present how-to guides as goal-oriented directions that resolve a specific real-world
       task or problem.
   - id: DF-04-002
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Assume the reader is a competent user with required basic skills; surface prerequisites
       explicitly rather than embedding lessons.
   - id: DF-04-003
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Require how-to titles to state exactly what the guide shows the user how to do (e.g.,
       start with "How to ...").
   - id: DF-04-004
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: Use conditional imperatives (e.g., "If you want X, do Y") when the step applies only under a specific condition.
   - id: DF-04-005
     priority: MUST_NOT
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Exclude pedagogical teaching, background history, and extended lessons from how-to bodies.
   - id: DF-04-006
@@ -160,6 +176,7 @@ groups:
   - id: DF-04-007
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: Omit unnecessary steps that do not contribute directly to the specified goal.
   - id: DF-04-008
     priority: SHOULD
@@ -212,24 +229,29 @@ groups:
   - id: DF-05-001
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: Produce reference material that is neutral, objective, and technical in tone.
   - id: DF-05-002
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Structure reference content to mirror the physical or logical architecture of the system
       or code being described.
   - id: DF-05-003
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: Keep reference content dry and free from instruction, discussion, or opinion.
   - id: DF-05-004
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: State facts about behaviors, commands, parameters, versions, and limitations.
   - id: DF-05-005
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Use consistent, standard patterns and formatting in reference documents to make information
       easy to find.
@@ -242,6 +264,7 @@ groups:
   - id: DF-05-007
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Reference material MUST make the system, not the reader, the grammatical subject of its
       descriptive sentences.
@@ -257,11 +280,13 @@ groups:
   - id: DF-06-001
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Provide explanatory material that focuses on understanding and context for a topic.
   - id: DF-06-002
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Address "Why?" questions by discussing history, design decisions, or technical constraints.
   - id: DF-06-003
@@ -272,6 +297,7 @@ groups:
   - id: DF-06-004
     priority: MUST_NOT
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Exclude practical instructions and dry technical descriptions that belong in Tutorials,
       How-to, or Reference.
@@ -282,6 +308,7 @@ groups:
   - id: DF-06-006
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: Weave connections to related topics to build a web of understanding.
   - id: DF-06-007
     priority: MAY

@@ -555,6 +555,7 @@ class TestNoteIsExported:
             "deprecated",
             "superseded_by",
             "tracking_issue",
+            "verification_debt",
             "lint_suppress",
             "stories",
             "references",

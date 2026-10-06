@@ -160,6 +160,36 @@ with one of the final forms in `.agents/skills/shared/pr-body-guide.md`
 § "Implementation PR rules". A `docs` PR that closes no Task, Feature, or
 Bug issue carries no `Docs:` line.
 
+### 1d — Spec-amended placeholder (any PR type)
+
+```bash
+bash .agents/skills/shared/spec-amendments.sh origin/main
+```
+
+Exit `2` is a load error (bad ref, unreadable spec file): stop and report it;
+it is not "no amendment". Exit `0`: add nothing. Exit `1`: the diff changed or
+removed a `statement:` or
+`priority:` in `specs/`, so the body MUST carry a `## Spec amended` section
+(`.agents/skills/shared/pr-body-guide.md` § "Spec amended"). If the body has
+none, insert this placeholder immediately after `## Specs` (after `## Changes`
+on a docs PR), one `### <ID>` block per ID the script listed:
+
+```markdown
+## Spec amended
+
+### <SPEC-ID>
+
+- Before: <TODO — the statement or priority as it stood on main>
+- After: <TODO — the statement or priority as now written>
+- Reason: <TODO — why; and whether it changes what the requirement obliges>
+```
+
+The placeholder is not a final value. The caller fills every `<TODO>` from the
+diff (`git diff origin/main..HEAD -- specs/`) before the session ends;
+`pr-triage` FAILs a body that still contains one. A change to what a requirement
+obliges needs the user's approval first (see `notes/agentic-workflow.md`
+§ "Spec Text Conflicts With Code"), not a filled-in section alone.
+
 ---
 
 ## Phase 2 — Freshen Branch
