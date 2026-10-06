@@ -351,10 +351,15 @@ class ApplyInviteRejectToParticipantNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
         self.invitee_id = invitee_id
-        self._close_node = CreateParticipantStatusNode(
-            actor_id=invitee_id,
+
+    def _make_close_node(
+        self, is_vendor: bool
+    ) -> "CreateParticipantStatusNode":
+        """Return a close node that sets VF only for VENDOR invitees (CM-11-009)."""
+        return CreateParticipantStatusNode(
+            actor_id=self.invitee_id,
             rm_state=RM.CLOSED,
-            vf_state=CS_vf.Vf,
+            vf_state=CS_vf.Vf if is_vendor else None,
             d_state=None,
             pxa_state=None,
         )
@@ -385,12 +390,18 @@ class ApplyInviteRejectToParticipantNode(DataLayerActionWithPorts):
             )
             return Status.FAILURE
 
-        # RM RECEIVED → CLOSED + VF Vf (for VENDOR) via the status writer.
+        # CM-11-009: advance VF to Vf only for VENDOR invitees.  For other
+        # roles the VF dimension is absent and the transition would violate
+        # the VF role gate, so pass vf_state=None for non-VENDOR participants.
+        is_vendor = CVDRole.VENDOR in participant.roles
+        close_node = self._make_close_node(is_vendor)
+
+        # RM RECEIVED → CLOSED (+ VF Vf for VENDOR) via the status writer.
         # Run as the receiving actor (case manager), not the invitee —
         # _store_for_actor resolves the DL from actor_id, and the invitee
         # has no store here (same pattern as AdvanceInviteeToReceivedNode).
         result = BTBridge(datalayer=self.datalayer).execute_with_setup(
-            self._close_node,
+            close_node,
             actor_id=self.actor_id,
             case_id=self.case_id,
         )

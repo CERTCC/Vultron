@@ -155,6 +155,7 @@ def demo_invite_actor_accept(
             target=case.id_,
             to=[coordinator.id_],
             attributed_to=vendor.id_,
+            roles=[CVDRole.COORDINATOR],
             content=f"We're inviting you to participate in {case.name}.",
         )
         logger.info("Sending invite: %s", logfmt(invite))
@@ -249,7 +250,7 @@ def demo_invite_actor_reject(
         ActorSession(client=client, actor=vendor).with_case(
             case
         ).quiet().invite_actor_to_case(
-            invitee_id=str(coordinator.id_), roles=[]
+            invitee_id=str(coordinator.id_), roles=[CVDRole.COORDINATOR]
         )
         # Also post the invite directly to coordinator's inbox (exchange-demo
         # delivery pattern) so coordinator has an invite to reject in Step 3.
@@ -259,6 +260,7 @@ def demo_invite_actor_reject(
             target=case.id_,
             to=[coordinator.id_],
             attributed_to=vendor.id_,
+            roles=[CVDRole.COORDINATOR],
             content=f"We're inviting you to participate in {case.name}.",
         )
         logger.info("Sending invite: %s", logfmt(invite))
