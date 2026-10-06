@@ -202,8 +202,8 @@ docstrings called it the RV message and `Reject(Invite)` the RI message. Both
 were half right: there are two Invites. Accepting the stub is joining (no RM
 move); accepting the full-case Invite is RV.
 
-**Status updates created participants.** the original ADR-0084 scoped on-behalf `v→V` to a
-vendor "not yet — or never — a participant", so the on-behalf tree minted a
+**Status updates created participants.** The original ADR-0084 scoped
+on-behalf `v→V` to a vendor "not yet — or never — a participant", so the on-behalf tree minted a
 participant for an absent target, saved it, and then — for `d→D` — had the RM↔D
 entailment refuse the write, leaving a stray record behind. A status update is
 never a way into a case.

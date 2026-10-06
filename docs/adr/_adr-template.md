@@ -12,6 +12,11 @@ date: {YYYY-MM-DD the ADR was first written; never changed}
 # material edit (editorial edits and annotations leave it alone). revision is an
 # integer bumped by each material edit. A new ADR has created = updated = date
 # and revision = 1.
+# Epochs, measured from updated: under 72 hours `proposed` (edit in place freely);
+# 72 hours to day 10 `accepted-provisional` (ask the human: edit or supersede);
+# day 10 on `accepted` (supersede; one detail changed with the option intact is a
+# dated Amendment quoting the replaced text). Editorial edits and append-only
+# annotations are allowed in any epoch without bumping updated.
 created: {YYYY-MM-DD}
 updated: {YYYY-MM-DD}
 revision: 1

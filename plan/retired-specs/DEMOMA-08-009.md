@@ -1,7 +1,8 @@
 # DEMOMA-08-009 (retired)
 
 - **Retired**: 2026-10 (audit of unsupervised decisions, #4195)
-- **Why**: Carried `deprecated: true`, which MS-09-001 forbids; removed rather than marked. The entry's own rationale names its replacement.
+- **Why**: Carried `deprecated: true`, which MS-09-001 forbids; removed rather than
+  marked. The entry's own rationale names its replacement.
 - **Last text**:
 
 ```yaml

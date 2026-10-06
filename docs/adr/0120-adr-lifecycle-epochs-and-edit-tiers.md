@@ -16,7 +16,7 @@ stakeholder_type: [project-contributor]
 
 ## Context and Problem Statement
 
-The 2026-10-02 audit of 72 pull requests merged without human review found ADRs edited in place after acceptance: ADR-0041 and ADR-0096 by #4025, and ADR-0070 and ADR-0084 rewritten wholesale under their own numbers, their chosen option replaced weeks after acceptance.
+The 2026-10-02 audit of pull requests merged without human review found ADRs edited in place after acceptance: ADR-0041 and ADR-0096 by #4025, and ADR-0070 and ADR-0084 rewritten wholesale under their own numbers, their chosen option replaced weeks after acceptance.
 An agent, or a human, who cites an ADR by number then cites text that never said what the citation meant.
 The opposite failure also exists: superseding an ADR within hours of writing it leaves a trail of dead records for a decision that was never settled.
 

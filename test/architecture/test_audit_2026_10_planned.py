@@ -26,8 +26,11 @@ import vultron.core.ports as ports_pkg
 from vultron.core.behaviors.case.nodes import close_case_effect
 
 
-def _port_module_names() -> list[str]:
-    return [m.name for m in pkgutil.iter_modules(ports_pkg.__path__)]
+def _has_dereference_port() -> bool:
+    return any(
+        "dereference" in m.name
+        for m in pkgutil.iter_modules(ports_pkg.__path__)
+    )
 
 
 @pytest.mark.spec("AKM-05-003")
@@ -36,7 +39,7 @@ def _port_module_names() -> list[str]:
     reason="AKM-05-003: no object-dereference port exists yet. #3258, #3739.",
 )
 def test_a_port_dereferences_an_actor_by_reference():
-    assert any("dereference" in name for name in _port_module_names())
+    assert _has_dereference_port()
 
 
 @pytest.mark.spec("AKM-05-004")
@@ -45,7 +48,7 @@ def test_a_port_dereferences_an_actor_by_reference():
     reason="AKM-05-004: production needs object dereference by API call. #3258, #3739.",
 )
 def test_production_dereferences_an_object_by_api_call():
-    assert any("dereference" in name for name in _port_module_names())
+    assert _has_dereference_port()
 
 
 @pytest.mark.spec("CM-23-016")

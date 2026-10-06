@@ -446,8 +446,9 @@ CASE_MANAGER".
 
 **There is no "no CASE_MANAGER" arm.** Both case-creation paths register a
 holder at birth and delegation hands the role on, so the resolver finding nobody
-means a corrupt roster, not a topology. The retired CM-24-003 "send directly" fallback is
-superseded by CM-24-006; a resolver that finds no holder fails.
+means a corrupt roster, not a topology. The retired CM-24-003 "send
+directly" fallback is superseded by CM-24-006; a resolver that finds no
+holder fails.
 
 ---
 
