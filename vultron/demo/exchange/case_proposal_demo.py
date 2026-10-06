@@ -53,6 +53,7 @@ import logging
 import sys
 from collections.abc import Callable, Sequence
 
+from vultron.demo.helpers.polling import wait_for_initialized_case
 from vultron.demo.utils import (  # BASE_URL needed for test monkeypatching
     BASE_URL,
     DataLayerClient,
@@ -91,15 +92,16 @@ def demo_case_proposal_round_trip(
         vendor: The vendor actor (receives the report, hosts the
             case-actor service).
     """
+    report = as_VulnerabilityReport(
+        attributed_to=finder.id_,
+        name="CP-07-003 demo report",
+        content=(
+            "A buffer-overflow vulnerability discovered during testing "
+            "of the CaseProposal protocol round-trip demo."
+        ),
+    )
+
     with demo_step("Step 1: Finder submits vulnerability report to vendor"):
-        report = as_VulnerabilityReport(
-            attributed_to=finder.id_,
-            name="CP-07-003 demo report",
-            content=(
-                "A buffer-overflow vulnerability discovered during testing "
-                "of the CaseProposal protocol round-trip demo."
-            ),
-        )
         offer = rm_submit_report_activity(
             report,
             actor=finder.id_,
@@ -130,15 +132,18 @@ def demo_case_proposal_round_trip(
             logger.info("Accept activities found: %d", len(accept_activities))
 
         with demo_check(
-            "VulnerabilityCase exists — case-actor created the case"
+            "VulnerabilityCase for this report exists — case-actor created"
+            " the case"
         ):
-            cases = client.get("/VulnerabilityCases/")
-            assert isinstance(cases, dict) and cases, (
-                "Expected at least one VulnerabilityCase in the DataLayer "
-                "after the CaseProposal round-trip (CP-05-003).  "
-                "The case-actor may not have emitted Create(VulnerabilityCase)."
+            # Nothing after this check reads the case, so a timeout cannot
+            # leave a later step on unestablished state: demo_check, not
+            # demo_gate.
+            case = wait_for_initialized_case(client, report.id_)
+            logger.info(
+                "VulnerabilityCase %s created for report %s",
+                case.id_,
+                report.id_,
             )
-            logger.info("VulnerabilityCase records found: %d", len(cases))
 
 
 def main(
