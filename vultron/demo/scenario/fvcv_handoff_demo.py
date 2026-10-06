@@ -342,10 +342,13 @@ def _phase_ownership_handoff(
     # can build the stub Invite (CM-17-010, MV-10-001, #4165).
     # EmitInviteActorToCaseNode runs in the CASE_MANAGER's received tree and
     # reads from the CASE_MANAGER's store, not the inviting actor's.
+    # Before the handoff, Vendor1 is the CASE_OWNER and CASE_MANAGER; its
+    # case-actor lives on vendor_client (VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL
+    # points to the vendor container itself, ADR-0041).
     _case_actor = get_actor_by_id(
-        case_actor_client, case_actor_id_on(case_actor_client.base_url)
+        vendor_client, case_actor_id_on(vendor_client.base_url)
     )
-    ActorSession(client=case_actor_client, actor=_case_actor).with_case(
+    ActorSession(client=vendor_client, actor=_case_actor).with_case(
         case
     ).quiet().set_stub_summary("Vulnerability report from Finder")
 
@@ -570,10 +573,13 @@ def _phase_coordinator_invites_vendor2(
     # can build the stub Invite (CM-17-010, MV-10-001, #4165).
     # EmitInviteActorToCaseNode runs in the CASE_MANAGER's received tree and
     # reads from the CASE_MANAGER's store, not the inviting actor's.
+    # After the handoff, Coordinator is the CASE_OWNER and CASE_MANAGER; its
+    # case-actor lives on coordinator_client (VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL
+    # points to the coordinator container itself, ADR-0041).
     _case_actor = get_actor_by_id(
-        case_actor_client, case_actor_id_on(case_actor_client.base_url)
+        coordinator_client, case_actor_id_on(coordinator_client.base_url)
     )
-    ActorSession(client=case_actor_client, actor=_case_actor).with_case(
+    ActorSession(client=coordinator_client, actor=_case_actor).with_case(
         case
     ).quiet().set_stub_summary("Vulnerability report from Finder")
 
