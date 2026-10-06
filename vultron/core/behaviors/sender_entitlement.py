@@ -31,6 +31,13 @@ Entitlement kinds
   blackboard-resolved CaseActor identity)
 - ``EXECUTING_ACTOR`` — sender must equal the executing actor itself (ack echo
   path, ISSUE-2667)
+- ``INVITEE`` — sender must be the sole ``to`` recipient of the recorded Invite
+  it answers (EP-09-010, CM-11-017)
+
+A kind names the entitlement at the CASE_MANAGER, where the assertion is
+adjudicated.
+For the embargo messages a replica other than the CASE_MANAGER accepts the
+same message only from the CASE_MANAGER (PCR-03-001), whatever the kind.
 
 Exemption
 ---------
@@ -52,6 +59,12 @@ Nodes
 - ``SenderIsProposalAddresseeNode`` — guards that the sender is the actor the
   vendor addressed a CaseProposal to, as recorded on the report case link
   (``NAMED_ACTOR`` kind; CP-06-005)
+- ``SenderMayAssertEmbargoNode`` — guards an embargo activity: at the
+  CASE_MANAGER the sender must hold the standing the activity needs (an active
+  participant, or the Case Owner); at any other replica it must be the
+  CASE_MANAGER (EP-09-003, EP-09-010, PCR-03-001, PCR-08)
+- ``SenderIsInviteeNode`` — guards that the sender is the sole ``to``
+  recipient of the recorded Invite it answers (EP-09-010)
 - ``SenderIsExecutingActorNode`` — guards that the sender equals the executing
   actor; merged from ``CheckSenderIsExecutingActorNode``
 - ``SenderIsCaseOwnerNode`` — guards that the sender holds CVDRole.CASE_OWNER;
@@ -78,14 +91,18 @@ from vultron.core.behaviors.helpers import (
     FindParticipantByActorIdNode,
 )
 from vultron.core.models._helpers import _as_id
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.participants.recipients import is_case_content_recipient
-from vultron.core.predicates.addressing import same_actor_id
+from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.predicates.addressing import (
+    normalise_actor_id,
+    same_actor_id,
+)
 from vultron.core.predicates.roles import has_case_owner_role
-from vultron.enums.roles import CVDRole
 from vultron.errors import VultronError
 
 logger = logging.getLogger(__name__)
@@ -138,6 +155,9 @@ class SenderEntitlementKind(Enum):
 
     EXECUTING_ACTOR = auto()
     """Sender must equal the executing actor (ack echo path)."""
+
+    INVITEE = auto()
+    """Sender must be the sole ``to`` recipient of the recorded Invite."""
 
 
 @dataclass(frozen=True)
@@ -204,6 +224,21 @@ def is_case_owner(case: object | None, actor_id: str) -> bool:
         return False
     owner_id = _as_id(getattr(case, "attributed_to", None))
     return owner_id is not None and owner_id == actor_id
+
+
+def _holds_case_owner_role(
+    datalayer: CasePersistence, case: VulnerabilityCase, actor_id: str
+) -> bool:
+    """Return ``True`` when *actor_id*'s participant record holds CASE_OWNER."""
+    participant_id = case.actor_participant_index.get(actor_id)
+    if participant_id is None:
+        return False
+    participant = datalayer.read(participant_id)
+    if not isinstance(participant, CaseParticipant):
+        return False
+    return has_case_owner_role(
+        list(participant.roles) if participant.roles else []
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -607,6 +642,185 @@ class SenderIsProposalAddresseeNode(SenderEntitlementConditionNode):
 
 
 # ---------------------------------------------------------------------------
+# Condition node: embargo activity (CASE_MANAGER arm / replica arm)
+# ---------------------------------------------------------------------------
+
+
+class SenderMayAssertEmbargoNode(SenderEntitlementConditionNode):
+    """Guard: sender may assert this embargo activity to this receiver.
+
+    The entitlement depends on who receives the activity (EP-09-003,
+    PCR-03-001, PCR-08):
+
+    - The **CASE_MANAGER** is always an entitled sender: it authors the relay
+      and the teardown, and a delegated termination reaches it from itself.
+    - At the **CASE_MANAGER**, ``manager_arm`` names the standing any other
+      sender needs: ``ACTIVE_PARTICIPANT`` (CM-10-004, a proposal) or
+      ``CASE_OWNER`` (the owner decides the embargo, EP-09-005).
+      ``None`` admits no one but the CASE_MANAGER itself.
+    - At **any other replica** the sender must be the CASE_MANAGER: a
+      participant takes case state from it alone.
+
+    A case this store does not hold, or one that names no CASE_MANAGER,
+    leaves nothing to establish the sender's standing against, so the sender
+    is refused (Regime 1, ADR-0087).
+
+    Spec: EP-09-003, EP-09-005, EP-09-010, CM-10-004, PCR-08, HP-01-006.
+    """
+
+    def __init__(
+        self,
+        case_id: str | None,
+        sender_actor_id: str,
+        manager_arm: SenderEntitlementKind | None = None,
+        name: str | None = None,
+    ) -> None:
+        """Create the guard.
+
+        Args:
+            case_id: The case the activity concerns (``None`` when the
+                activity names none, which refuses).
+            sender_actor_id: The activity's sender.
+            manager_arm: The standing a non-manager sender needs at the
+                CASE_MANAGER: ``ACTIVE_PARTICIPANT``, ``CASE_OWNER`` or
+                ``None`` (CASE_MANAGER only).
+            name: Optional node name.
+        """
+        if manager_arm not in (
+            None,
+            SenderEntitlementKind.ACTIVE_PARTICIPANT,
+            SenderEntitlementKind.CASE_OWNER,
+        ):
+            raise ValueError(
+                f"manager_arm must be ACTIVE_PARTICIPANT, CASE_OWNER or"
+                f" None, got {manager_arm!r}"
+            )
+        super().__init__(name=name or self.__class__.__name__)
+        self._case_id = case_id
+        self._sender_actor_id = sender_actor_id
+        self._manager_arm = manager_arm
+
+    def _refuse(self, reason: str) -> Status:
+        self.feedback_message = f"{reason} — REFUSED (HP-01-006)"
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None and self.actor_id is not None
+
+        sender = self._sender_actor_id
+        case, failure = self._require_case(self._case_id)
+        if failure is not None:
+            return failure  # Regime 1: no case, so no standing to check
+
+        manager_id = resolve_case_manager_id(case, self.datalayer)
+        if manager_id is None:
+            return self._refuse(
+                f"Sender '{sender}' has no standing: case '{self._case_id}'"
+                " names no CASE_MANAGER"
+            )
+        if same_actor_id(sender, manager_id):
+            return Status.SUCCESS
+
+        if not same_actor_id(self.actor_id, manager_id):
+            return self._refuse(
+                f"Sender '{sender}' is not the CASE_MANAGER of case"
+                f" '{self._case_id}', the only actor a participant takes"
+                " this from"
+            )
+        if (
+            self._manager_arm is SenderEntitlementKind.ACTIVE_PARTICIPANT
+            and is_case_content_recipient(case, self.datalayer, sender)
+        ):
+            return Status.SUCCESS
+        if (
+            self._manager_arm is SenderEntitlementKind.CASE_OWNER
+            and _holds_case_owner_role(self.datalayer, case, sender)
+        ):
+            return Status.SUCCESS
+        if self._manager_arm is SenderEntitlementKind.ACTIVE_PARTICIPANT:
+            needed = "an active participant"
+        elif self._manager_arm is SenderEntitlementKind.CASE_OWNER:
+            needed = "the Case Owner"
+        else:
+            needed = "the CASE_MANAGER"
+        return self._refuse(
+            f"Sender '{sender}' is not {needed} of case '{self._case_id}'"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Condition node: INVITEE (the recorded Invite being answered)
+# ---------------------------------------------------------------------------
+
+
+class SenderIsInviteeNode(SenderEntitlementConditionNode):
+    """Guard: sender must be the sole ``to`` recipient of the recorded Invite.
+
+    The answer to an Invite is the invitee's to give, and the invitee is the
+    Invite's sole ``to`` recipient (EP-09-010).
+    The Invite is read from this store, never from the copy the reply embeds,
+    which the sender wrote.
+    An Invite this store never recorded, or one that names no recipient or
+    several, names no invitee, so the sender is refused.
+
+    Spec: EP-09-010, CM-11-017, HP-01-006.
+    """
+
+    def __init__(
+        self,
+        invite_id: str | None,
+        sender_actor_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._invite_id = invite_id
+        self._sender_actor_id = sender_actor_id
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        sender = self._sender_actor_id
+        invite = (
+            self.datalayer.read(self._invite_id) if self._invite_id else None
+        )
+        recipients = list(
+            dict.fromkeys(
+                normalise_actor_id(rid)
+                for rid in (
+                    _as_id(r) for r in (getattr(invite, "to", None) or [])
+                )
+                if rid
+            )
+        )
+        if len(recipients) == 1 and same_actor_id(sender, recipients[0]):
+            return Status.SUCCESS
+
+        if invite is None:
+            why = f"Invite '{self._invite_id}' was never recorded here"
+        elif len(recipients) != 1:
+            why = (
+                f"Invite '{self._invite_id}' names {len(recipients)}"
+                " recipients, so it has no invitee"
+            )
+        else:
+            why = (
+                f"Invite '{self._invite_id}' was addressed to"
+                f" '{recipients[0]}'"
+            )
+        self.feedback_message = (
+            f"Sender '{sender}' is not the invitee: {why}"
+            " — REFUSED (EP-09-010, HP-01-006)"
+        )
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
+
+# ---------------------------------------------------------------------------
 # Condition node: EXECUTING_ACTOR
 # ---------------------------------------------------------------------------
 
@@ -712,26 +926,7 @@ class SenderIsCaseOwnerNode(SenderEntitlementConditionNode):
         if failure is not None:
             return failure  # Regime 1: CASE_OWNER role gate needs the case
 
-        participant_id = case.actor_participant_index.get(
-            self._sender_actor_id
-        )
-        if participant_id is None:
-            self.logger.debug(
-                "%s: sender '%s' not in actor_participant_index for case '%s'",
-                self.name,
-                self._sender_actor_id,
-                case_id,
-            )
-            return self._not_case_owner(case_id)
-
-        participant = self.datalayer.read(participant_id)
-        if not isinstance(participant, CaseParticipant):
-            return self._not_case_owner(case_id)
-
-        roles: list[CVDRole] = (
-            list(participant.roles) if participant.roles else []
-        )
-        if has_case_owner_role(roles):
+        if _holds_case_owner_role(self.datalayer, case, self._sender_actor_id):
             self.logger.debug(
                 "%s: sender '%s' IS CASE_OWNER for case '%s'",
                 self.name,
@@ -741,11 +936,10 @@ class SenderIsCaseOwnerNode(SenderEntitlementConditionNode):
             return Status.SUCCESS
 
         self.logger.debug(
-            "%s: sender '%s' is NOT CASE_OWNER for case '%s' (roles=%s)",
+            "%s: sender '%s' is NOT CASE_OWNER for case '%s'",
             self.name,
             self._sender_actor_id,
             case_id,
-            roles,
         )
         return self._not_case_owner(case_id)
 
@@ -773,6 +967,8 @@ __all__ = [
     "SenderIsActiveLedgerParticipantNode",
     "SenderIsCaseManagerNode",
     "SenderIsNamedActorNode",
+    "SenderMayAssertEmbargoNode",
+    "SenderIsInviteeNode",
     "SenderIsExecutingActorNode",
     "SenderIsCaseOwnerNode",
 ]

@@ -470,20 +470,17 @@ def _paused_replica_receives_ending_notice(
 def test_paused_replica_applies_the_managers_ending_notice() -> None:
     """A paused replica takes the CASE_MANAGER's notice; nothing else reaches it.
 
-    Passes today because no replica is gated yet. It guards the CM-31-010
-    exception: the RSH-08-003 replica gate (#3814) must leave it applying.
+    The sender check admits the CASE_MANAGER's notice at a replica (ADR-0115).
+    It guards the CM-31-010 exception: the RSH-08-003 replica gate (#3814)
+    must leave it applying.
     """
     case = _paused_replica_receives_ending_notice(MANAGER)
 
     assert case.active_embargo is None
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="RSH-08-003: replicas ignore a non-manager's direct notice."
-    f" Tracked by #{_TRACKED_BY['RSH-08-003']}.",
-)
 @pytest.mark.spec("CM-31-010")
+@pytest.mark.spec("EP-09-003")
 def test_paused_replica_ignores_an_ending_notice_from_a_non_manager() -> None:
     """Only the CASE_MANAGER's notice moves a paused replica's embargo."""
     case = _paused_replica_receives_ending_notice(OTHER)

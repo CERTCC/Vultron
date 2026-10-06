@@ -33,8 +33,22 @@ def demo_env(client):
         mp.setattr(
             demo.DataLayerClient, "call", make_testclient_call(client, base)
         )
+        # Patch the default base_url so DataLayerClient() (no args) in
+        # runner.py picks up the TestClient URL. _assert_client_hosts_actor
+        # compares client.base_url against actor.id_, so the authorities must
+        # match for trigger-endpoint calls to pass. Requires model_rebuild to
+        # take effect (Pydantic v2 bakes defaults into compiled validators).
+        _original_base_url_default = demo.DataLayerClient.model_fields[
+            "base_url"
+        ].default
+        demo.DataLayerClient.model_fields["base_url"].default = base
+        demo.DataLayerClient.model_rebuild(force=True)
         yield
     finally:
+        demo.DataLayerClient.model_fields[
+            "base_url"
+        ].default = _original_base_url_default
+        demo.DataLayerClient.model_rebuild(force=True)
         mp.undo()
         importlib.reload(demo)
         importlib.reload(init_demo)

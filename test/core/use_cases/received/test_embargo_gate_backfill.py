@@ -90,17 +90,25 @@ class _GateScenario:
         self.dl.save(stored)
         self.embargo = embargo
 
-        self.invite = em_propose_embargo_activity(
-            embargo,
+    def _invite_to(self, actor_id: str):
+        """The Invite the CASE_MANAGER relayed to *actor_id* alone (EP-09-010)."""
+        invite = em_propose_embargo_activity(
+            self.embargo,
             context=CASE_ID,
             actor=MANAGER_ID,
-            id_=f"{CASE_ID}/embargo_proposals/1",
+            to=[actor_id],
+            id_=f"{CASE_ID}/embargo_invites/{actor_id.rsplit('/', 1)[-1]}",
         )
-        self.dl.create(self.invite)
+        if self.dl.read(invite.id_) is None:
+            self.dl.create(invite)
+        return invite
 
     def receive_accept(self, actor_id: str) -> None:
         accept = em_accept_embargo_activity(
-            self.invite, context=CASE_ID, actor=actor_id, to=[MANAGER_ID]
+            self._invite_to(actor_id),
+            context=CASE_ID,
+            actor=actor_id,
+            to=[MANAGER_ID],
         )
         AcceptInviteToEmbargoOnCaseReceivedUseCase(
             self.dl,

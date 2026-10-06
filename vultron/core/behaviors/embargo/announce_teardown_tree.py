@@ -89,7 +89,11 @@ from vultron.core.behaviors.embargo.nodes import (
 from vultron.core.behaviors.embargo.response_decision_tree import (
     create_embargo_response_decision_tree,
 )
-from vultron.core.behaviors.sender_entitlement import SenderIsCaseOwnerNode
+from vultron.core.behaviors.sender_entitlement import (
+    SenderEntitlementKind,
+    SenderIsCaseOwnerNode,
+    SenderMayAssertEmbargoNode,
+)
 from vultron.core.behaviors.sync.nodes.embargo_backfill import (
     BackfillAdmittedParticipantsNode,
 )
@@ -119,6 +123,7 @@ def embargo_admission_backfill_tree(
 def remove_embargo_from_case_tree(
     case_id: str,
     embargo_id: str,
+    sender_actor_id: str,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for receiver-side embargo removal (protocol ET).
 
@@ -144,6 +149,9 @@ def remove_embargo_from_case_tree(
     Args:
         case_id: ID of the VulnerabilityCase to update.
         embargo_id: ID of the EmbargoEvent being removed.
+        sender_actor_id: Sender of the ``Remove``; the Case Owner (or the
+            CASE_MANAGER) at the CASE_MANAGER, the CASE_MANAGER elsewhere
+            (ADR-0115, EP-09-005, PCR-03-001).
 
     Returns:
         Root node of the ``RemoveEmbargoFromCaseBT`` Sequence.
@@ -179,6 +187,11 @@ def remove_embargo_from_case_tree(
     root = create_receive_activity_tree(
         name="RemoveEmbargoFromCaseBT",
         case_id=case_id,
+        sender_guard=SenderMayAssertEmbargoNode(
+            case_id=case_id,
+            sender_actor_id=sender_actor_id,
+            manager_arm=SenderEntitlementKind.CASE_OWNER,
+        ),
         precondition_guards=[ValidateCaseExistsNode(case_id=case_id)],
         effect_nodes=[
             RemoveFromProposedEmbargoesNode(
@@ -198,6 +211,7 @@ def remove_embargo_from_case_tree(
 def add_embargo_to_case_tree(
     case_id: str,
     embargo_id: str,
+    sender_actor_id: str,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for receiver-side embargo activation (protocol EA).
 
@@ -212,6 +226,9 @@ def add_embargo_to_case_tree(
     Args:
         case_id: ID of the VulnerabilityCase to update.
         embargo_id: ID of the EmbargoEvent being activated.
+        sender_actor_id: Sender of the ``Add``; the Case Owner (or the
+            CASE_MANAGER) at the CASE_MANAGER, the CASE_MANAGER elsewhere
+            (ADR-0115, EP-09-005, PCR-03-001).
 
     Returns:
         Root node of the ``AddEmbargoToCaseBT`` Sequence.
@@ -219,6 +236,11 @@ def add_embargo_to_case_tree(
     root = create_receive_activity_tree(
         name="AddEmbargoToCaseBT",
         case_id=case_id,
+        sender_guard=SenderMayAssertEmbargoNode(
+            case_id=case_id,
+            sender_actor_id=sender_actor_id,
+            manager_arm=SenderEntitlementKind.CASE_OWNER,
+        ),
         precondition_guards=[ValidateCaseExistsNode(case_id=case_id)],
         effect_nodes=[
             SetEmbargoActiveNode(
@@ -246,6 +268,7 @@ def invite_to_embargo_on_case_tree(
     *,
     embargo_id: str,
     proposer_id: str,
+    sender_actor_id: str,
     embargo: EmbargoEvent | None = None,
     actor_config: ActorConfig | None = None,
 ) -> py_trees.behaviour.Behaviour:
@@ -299,6 +322,10 @@ def invite_to_embargo_on_case_tree(
         embargo_id: ID of the proposed ``EmbargoEvent`` (the Invite's object).
         proposer_id: Actor whose terms these are — the Invite's ``actor``, or
             its ``attributedTo`` when the proposal was itself relayed.
+        sender_actor_id: The Invite's ``actor``: an active participant at the
+            CASE_MANAGER (CM-10-004), the CASE_MANAGER at a participant
+            replica (EP-09-003, PCR-08; ADR-0115).  Not ``proposer_id``, which
+            a relay's ``attributedTo`` may name.
         embargo: The inline ``EmbargoEvent`` the message carries, persisted
             by the intake in whichever store receives the Invite (CLP-10-017);
             ``None`` when the message named its object by bare URI.
@@ -336,6 +363,11 @@ def invite_to_embargo_on_case_tree(
     root = create_receive_activity_tree(
         name="InviteToEmbargoOnCaseBT",
         case_id=case_id,
+        sender_guard=SenderMayAssertEmbargoNode(
+            case_id=case_id,
+            sender_actor_id=sender_actor_id,
+            manager_arm=SenderEntitlementKind.ACTIVE_PARTICIPANT,
+        ),
         precondition_guards=[
             EmbargoProposalNotYetRecordedNode(
                 case_id=case_id, embargo_id=embargo_id, invite_id=invite_id

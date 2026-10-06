@@ -45,6 +45,7 @@ from vultron.core.use_cases.received._embargo_pxa import (
     pxa_embargo_ineligible,
     queue_pxa_reject,
 )
+from vultron.core.use_cases.received._sender_preflight import sender_refusal
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -52,7 +53,8 @@ if TYPE_CHECKING:
 
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlement,
-    exempt,
+    SenderEntitlementKind,
+    SenderIsInviteeNode,
 )
 
 logger = logging.getLogger(__name__)
@@ -73,8 +75,8 @@ def _resolve_case_for_embargo_acceptance(
 
 
 class AcceptInviteToEmbargoOnCaseReceivedUseCase:
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4256", "no sender check for embargo accept"
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.INVITEE
     )
 
     def __init__(
@@ -377,6 +379,23 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
                 receiving_actor_id,
                 request,
                 label="Accept(Invite(EmbargoEvent))",
+            )
+        ) is not None:
+            return refusal
+
+        # The sender must be the recorded Invite's invitee before anything is
+        # written or sent: the P/X/A rejection, the expiry commit and the
+        # EMB-17 routing all write (EP-09-010, HP-01-006, ADR-0115).
+        if (
+            refusal := sender_refusal(
+                self._dl,
+                receiving_actor_id,
+                SenderIsInviteeNode(
+                    invite_id=request.invite_id,
+                    sender_actor_id=accepting_actor_id,
+                ),
+                label="Accept(Invite(EmbargoEvent))",
+                sync_port=self._sync_port,
             )
         ) is not None:
             return refusal

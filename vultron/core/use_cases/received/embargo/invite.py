@@ -40,6 +40,7 @@ from vultron.core.use_cases.received._embargo_pxa import (
     pxa_embargo_ineligible,
     refuse_pxa_invite,
 )
+from vultron.core.use_cases.received._sender_preflight import sender_refusal
 from vultron.errors import (
     VultronNotFoundError,
     VultronProtocolViolationError,
@@ -51,7 +52,8 @@ if TYPE_CHECKING:
 
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlement,
-    exempt,
+    SenderEntitlementKind,
+    SenderMayAssertEmbargoNode,
 )
 
 logger = logging.getLogger(__name__)
@@ -131,8 +133,8 @@ def resolve_proposer_id(
 
 
 class InviteToEmbargoOnCaseReceivedUseCase:
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4256", "no sender check for embargo invite"
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.ACTIVE_PARTICIPANT
     )
 
     def __init__(
@@ -198,6 +200,25 @@ class InviteToEmbargoOnCaseReceivedUseCase:
         ) is not None:
             return refusal
 
+        # The sender must have standing before anything is written or sent,
+        # the P/X/A refusal included: an active participant at the
+        # CASE_MANAGER, the CASE_MANAGER at a participant (CM-10-004,
+        # EP-09-003, PCR-08, ADR-0115).
+        if (
+            refusal := sender_refusal(
+                self._dl,
+                receiving_actor_id,
+                SenderMayAssertEmbargoNode(
+                    case_id=case_id or None,
+                    sender_actor_id=request.actor_id,
+                    manager_arm=SenderEntitlementKind.ACTIVE_PARTICIPANT,
+                ),
+                label="Invite(EmbargoEvent)",
+                sync_port=self._sync_port,
+            )
+        ) is not None:
+            return refusal
+
         if case_id and pxa_embargo_ineligible(self._dl, case_id):
             return refuse_pxa_invite(
                 self._dl,
@@ -224,6 +245,7 @@ class InviteToEmbargoOnCaseReceivedUseCase:
             invite_id=invite_id,
             embargo_id=embargo_id,
             proposer_id=resolve_proposer_id(request, self._dl),
+            sender_actor_id=request.actor_id,
             embargo=(
                 request.object_
                 if isinstance(request.object_, EmbargoEvent)

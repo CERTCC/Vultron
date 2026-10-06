@@ -32,6 +32,7 @@ from vultron.core.use_cases.received._bt_verdict import (
 from vultron.core.use_cases.received._pending_refusal import (
     close_refused_embargo_proposal,
 )
+from vultron.core.use_cases.received._sender_preflight import sender_refusal
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -39,15 +40,16 @@ if TYPE_CHECKING:
 
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlement,
-    exempt,
+    SenderEntitlementKind,
+    SenderIsInviteeNode,
 )
 
 logger = logging.getLogger(__name__)
 
 
 class RejectInviteToEmbargoOnCaseReceivedUseCase:
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4256", "no sender check for embargo reject"
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.INVITEE
     )
 
     def __init__(
@@ -87,7 +89,6 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
         logger.info(
             "'%s' rejected embargo '%s'", rejecting_actor_id, invite_id
         )
-        close_refused_embargo_proposal(self._dl, request)  # EP-09-008
         case_id, embargo_id = request.case_id, request.embargo_id
 
         if not case_id:
@@ -106,6 +107,24 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
             return HandlerResult.refused(
                 "Reject(Invite(EmbargoEvent)) does not name an embargo"
             )
+
+        # The sender must be the recorded Invite's invitee before anything is
+        # written, closing the pending ask included (EP-09-010, HP-01-006,
+        # ADR-0115).
+        if (
+            refusal := sender_refusal(
+                self._dl,
+                receiving_actor_id,
+                SenderIsInviteeNode(
+                    invite_id=invite_id, sender_actor_id=rejecting_actor_id
+                ),
+                label="Reject(Invite(EmbargoEvent))",
+                sync_port=self._sync_port,
+            )
+        ) is not None:
+            return refusal
+
+        close_refused_embargo_proposal(self._dl, request)  # EP-09-008
 
         tree = reject_invite_to_embargo_tree(
             case_id=case_id,

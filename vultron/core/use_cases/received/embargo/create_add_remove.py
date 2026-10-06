@@ -30,21 +30,23 @@ from vultron.core.use_cases._helpers import (
 from vultron.core.use_cases.received._bt_verdict import (
     verdict_from_bt,
 )
+from vultron.core.use_cases.received._sender_preflight import sender_refusal
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
 
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlement,
-    exempt,
+    SenderEntitlementKind,
+    SenderMayAssertEmbargoNode,
 )
 
 logger = logging.getLogger(__name__)
 
 
 class CreateEmbargoEventReceivedUseCase:
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4256", "no sender check for embargo create"
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.CASE_OWNER
     )
 
     def __init__(
@@ -72,6 +74,23 @@ class CreateEmbargoEventReceivedUseCase:
             )
         ) is not None:
             return refusal
+        # No tree runs for a Create, so the sender guard runs ahead of the
+        # write: the Case Owner at the CASE_MANAGER, the CASE_MANAGER at any
+        # other replica (EP-09-005, PCR-03-001, ADR-0115).
+        if (
+            refusal := sender_refusal(
+                self._dl,
+                receiving_actor_id,
+                SenderMayAssertEmbargoNode(
+                    case_id=request.context_id,
+                    sender_actor_id=request.actor_id,
+                    manager_arm=SenderEntitlementKind.CASE_OWNER,
+                ),
+                label="Create(EmbargoEvent)",
+                sync_port=self._sync_port,
+            )
+        ) is not None:
+            return refusal
         return _idempotent_create(
             self._dl,
             request.object_type,
@@ -83,8 +102,8 @@ class CreateEmbargoEventReceivedUseCase:
 
 
 class AddEmbargoEventToCaseReceivedUseCase:
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4256", "no sender check for embargo add"
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.CASE_OWNER
     )
 
     def __init__(
@@ -127,6 +146,7 @@ class AddEmbargoEventToCaseReceivedUseCase:
         tree = add_embargo_to_case_tree(
             case_id=case_id,
             embargo_id=embargo_id,
+            sender_actor_id=request.actor_id,
         )
         bridge = BTBridge(
             datalayer=self._dl,
@@ -156,8 +176,8 @@ class AddEmbargoEventToCaseReceivedUseCase:
 
 
 class RemoveEmbargoEventFromCaseReceivedUseCase:
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4256", "no sender check for embargo remove"
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.CASE_OWNER
     )
 
     def __init__(
@@ -202,7 +222,9 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
         # means CheckIsCaseManagerNode naturally fires only when the receiving
         # actor holds the CASE_MANAGER role — no identity comparison in Python.
         tree = remove_embargo_from_case_tree(
-            case_id=case_id, embargo_id=embargo_id
+            case_id=case_id,
+            embargo_id=embargo_id,
+            sender_actor_id=request.actor_id,
         )
         bridge = BTBridge(
             datalayer=self._dl,

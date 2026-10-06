@@ -18,6 +18,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from test.core.use_cases.received.conftest import (
+    seed_case_manager_participant,
+)
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import HandlerDisposition
@@ -61,6 +64,10 @@ class TestAnnounceEmbargoEventToCaseReceivedUseCase:
         )
         case.active_embargo = embargo.id_
         case.append_case_status(em_state=EM.ACTIVE)
+        # Only the CASE_MANAGER announces canonical embargo state (ADR-0115).
+        seed_case_manager_participant(
+            dl, case, "https://example.org/users/vendor"
+        )
         dl.create(case)
 
         activity = announce_embargo_activity(
@@ -82,20 +89,86 @@ class TestAnnounceEmbargoEventToCaseReceivedUseCase:
 
     def test_announce_embargo_logs_info(self, make_payload, caplog):
         """execute() logs receipt at INFO level."""
-        dl = MagicMock()
-        mock_event = MagicMock()
-        mock_event.activity_id = "https://example.org/activities/ann1"
-        mock_event.receiving_actor_id = "https://example.org/users/finder"
-        mock_event.activity.to = ["https://example.org/users/finder"]
-        mock_event.activity.cc = []
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.wire.as2.vocab.objects.embargo_event import (
+            as_EmbargoEvent,
+        )
+
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://example.org/users/finder",
+        )
+        case = VulnerabilityCase(
+            id_="https://example.org/cases/case_aem2",
+            name="Announce Embargo Log Test",
+            attributed_to="https://example.org/users/finder",
+        )
+        embargo = as_EmbargoEvent(
+            id_="https://example.org/cases/case_aem2/embargo_events/e1",
+            context=case.id_,
+            end_time=days_from_now_utc(45),
+        )
+        seed_case_manager_participant(
+            dl, case, "https://example.org/users/vendor"
+        )
+        dl.create(case)
+        event = make_payload(
+            announce_embargo_activity(
+                embargo=embargo,
+                context=case.id_,
+                actor="https://example.org/users/vendor",
+                to=["https://example.org/users/finder"],
+            )
+        )
 
         with caplog.at_level(logging.INFO):
-            AnnounceEmbargoEventToCaseReceivedUseCase(dl, mock_event).execute()
+            AnnounceEmbargoEventToCaseReceivedUseCase(dl, event).execute()
 
         assert any(
             "no receiver-side state change required" in r.message
             for r in caplog.records
         )
+
+    def test_announce_embargo_from_a_non_manager_is_refused(
+        self, make_payload
+    ):
+        """Only the CASE_MANAGER announces canonical embargo state."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.wire.as2.vocab.objects.embargo_event import (
+            as_EmbargoEvent,
+        )
+
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://example.org/users/finder",
+        )
+        case = VulnerabilityCase(
+            id_="https://example.org/cases/case_aem3",
+            name="Announce Embargo Sender Test",
+            attributed_to="https://example.org/users/finder",
+        )
+        embargo = as_EmbargoEvent(
+            id_="https://example.org/cases/case_aem3/embargo_events/e1",
+            context=case.id_,
+            end_time=days_from_now_utc(45),
+        )
+        seed_case_manager_participant(
+            dl, case, "https://example.org/users/vendor"
+        )
+        dl.create(case)
+        event = make_payload(
+            announce_embargo_activity(
+                embargo=embargo,
+                context=case.id_,
+                actor="https://example.org/users/impostor",
+                to=["https://example.org/users/finder"],
+            )
+        )
+
+        result = AnnounceEmbargoEventToCaseReceivedUseCase(dl, event).execute()
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "CASE_MANAGER" in (result.reason or "")
 
 
 class TestResetEmbargoConsentWithInlineParticipants:
@@ -163,12 +236,15 @@ class TestResetEmbargoConsentWithInlineParticipants:
         case.append_case_status(em_state=EM.ACTIVE)
         case.case_participants.append(participant)  # type: ignore[arg-type]  # inline wire object (regression test for #609)
         case.actor_participant_index[actor_id] = participant_id
+        case_manager_id = "https://example.org/users/case-manager"
+        seed_case_manager_participant(dl, case, case_manager_id)
         dl.create(case)
 
         activity = remove_embargo_from_case_activity(
             embargo,
             origin=case.id_,
-            actor=actor_id,
+            actor=case_manager_id,
+            to=[actor_id],
         )
         event = make_payload(activity, receiving_actor_id=actor_id)
 
@@ -310,7 +386,7 @@ class TestPxaEmbargoIneligible:
         return False (fail-open) so that processing continues normally
         when no materialized CaseStatus exists.
         """
-        from unittest.mock import MagicMock, PropertyMock
+        from unittest.mock import PropertyMock
 
         mock_case = MagicMock()
         mock_case.type_ = "VulnerabilityCase"

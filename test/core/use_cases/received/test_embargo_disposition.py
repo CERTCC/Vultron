@@ -22,7 +22,13 @@ from unittest.mock import MagicMock
 import pytest
 from py_trees.common import Status
 
+from test.core.use_cases.received.conftest import (
+    seed_case_manager_participant,
+    seed_case_owner_participant,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import HandlerDisposition
@@ -190,6 +196,8 @@ class TestFailedTeardownIsRefused:
         )
         case.active_embargo = embargo.id_
         case.append_case_status(em_state=EM.ACTIVE)
+        seed_case_manager_participant(dl, case, _COORD)
+        seed_case_owner_participant(dl, case, _VENDOR)
         dl.create(case)
         dl.create(embargo)
 
@@ -201,6 +209,11 @@ class TestFailedTeardownIsRefused:
         )
         event = make_payload(activity, receiving_actor_id=_COORD)
 
-        result = RemoveEmbargoEventFromCaseReceivedUseCase(dl, event).execute()
+        result = RemoveEmbargoEventFromCaseReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
 
         _assert_refused(result, "could not clear active embargo")

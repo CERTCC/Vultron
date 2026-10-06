@@ -94,6 +94,14 @@ def _active_case_with_revision(
     case_read.current_status.em.state = EM.ACTIVE
     case_read.active_embargo = embargo_a.id_
     dl.save(case_read)
+    # Under an active embargo only a signatory is an active participant
+    # (CM-10-004), and only an active participant's proposal is acted on
+    # (ADR-0115), so the proposer is bound to embargo A.
+    proposer_record_id = case_read.actor_participant_index.get(PROPOSER)
+    if proposer_record_id is not None:
+        proposer_record = cast(CaseParticipant, dl.read(proposer_record_id))
+        proposer_record.embargo_consent_state = PEC.SIGNATORY
+        dl.save(proposer_record)
 
     revision = as_EmbargoEvent(
         id_=f"{case_id}/embargo_events/revision",
@@ -554,6 +562,10 @@ def test_counter_revision_at_revise_commits_without_a_transition(make_payload):
         end_time=days_from_now_utc(75),
     )
     dl.create(counter)
+    # OTHER_A is bound to the active embargo, so its counter is admissible.
+    other_a = _participant_of(dl, case_id, OTHER_A)
+    other_a.embargo_consent_state = PEC.SIGNATORY
+    dl.save(other_a)
 
     verdict = _deliver(
         dl,
@@ -675,8 +687,11 @@ def test_invitees_move_to_invited_at_the_managers_commit(make_payload):
         store_actor=MANAGER,
         participants=[PROPOSER, OTHER_A, OTHER_B],
     )
-    for actor in (MANAGER, PROPOSER, OTHER_A, OTHER_B):
+    for actor in (MANAGER, OTHER_A, OTHER_B):
         assert _pec_of(dl, case_id, actor) is PEC.UNBOUND
+    # The proposer is bound to the active embargo, which is what makes its
+    # proposal admissible (CM-10-004, ADR-0115).
+    assert _pec_of(dl, case_id, PROPOSER) is PEC.SIGNATORY
 
     verdict = _deliver(dl, _proposal(revision, case_id), make_payload, MANAGER)
 
@@ -684,7 +699,7 @@ def test_invitees_move_to_invited_at_the_managers_commit(make_payload):
     assert _pec_of(dl, case_id, OTHER_A) is PEC.INVITED
     assert _pec_of(dl, case_id, OTHER_B) is PEC.INVITED
     # Neither the proposer nor the manager is asked (EP-09-002, ADR-0109) ...
-    assert _pec_of(dl, case_id, PROPOSER) is PEC.UNBOUND
+    assert _pec_of(dl, case_id, PROPOSER) is PEC.SIGNATORY
     assert _pec_of(dl, case_id, MANAGER) is PEC.UNBOUND
     assert MANAGER not in {r for a in _relayed_invites(dl) for r in a.to or []}
     # ... and proposing terms is consenting to them (ADR-0093), list only.

@@ -18,7 +18,8 @@ description: >
   with ER any proposal it receives at P/X/A (EMB-01-002), and the replica that
   leaves a CASE_MANAGER-declared teardown to its entry (RSH-03-004); a
   non-manager replica's cascade teardown ask is a pending assertion, so a
-  repeat P/X/A signal queues no second ask (SYNC-11-002).
+  repeat P/X/A signal queues no second ask (SYNC-11-002); and who may send
+  each received embargo message (ADR-0115, HP-01-006).
 related_specs:
   - specs/case-management.yaml
   - specs/embargo-policy.yaml
@@ -672,3 +673,38 @@ RSH-04-002's text says so (#4103).
 
 The creation-time revision from shortest-wins follows the same relay
 (EP-04-011) — see `notes/embargo-default-semantics.md`.
+
+## Who May Send Each Embargo Message (ADR-0115, HP-01-006)
+
+A received embargo activity is an assertion about its sender's standing, so
+each handler asks who sent it before it writes, sends or commits anything.
+The rule depends on who receives it, because the embargo is adjudicated at the
+CASE_MANAGER and a participant takes case state from the CASE_MANAGER alone
+(PCR-03-001, PCR-08-001):
+
+| Message | At the CASE_MANAGER | At any other replica |
+|---|---|---|
+| `Invite(EmbargoEvent)` | an active participant (CM-10-004) | the CASE_MANAGER (EP-09-003) |
+| `Accept` / `Reject(Invite)` | the recorded Invite's sole `to` recipient (EP-09-010) | the same; the answer is then refused by the role gate |
+| `Create` / `Add` / `Remove(EmbargoEvent)` | the Case Owner, or the CASE_MANAGER itself | the CASE_MANAGER |
+| `Announce(EmbargoEvent)` | the CASE_MANAGER | the CASE_MANAGER |
+
+The two shared nodes are `SenderMayAssertEmbargoNode` and `SenderIsInviteeNode`
+in `vultron/core/behaviors/sender_entitlement.py`.
+Two things are easy to get wrong:
+
+- **The invitee comes from the store, never from the reply.**
+  `SenderIsInviteeNode` reads the Invite this store recorded, so a reply that
+  embeds a doctored copy of its Invite cannot name itself the invitee.
+  An Invite this store never recorded names no invitee and is refused.
+- **A handler that writes before its tree runs checks first.**
+  Accept (the P/X/A rejection, the expiry commit), Reject (closing the pending
+  ask), Invite (the P/X/A rejection), Create and Announce (no tree) run the same
+  guard through `sender_refusal()` ahead of that write.
+  The tree carries the guard as well, in the factory's sender stage.
+
+The specs do not say who may send `Create`, `Add` or `Remove(EmbargoEvent)` at
+the CASE_MANAGER.
+The rule above follows EP-09-005 (the owner decides the embargo) and the
+termination rule in § "A participant answers a revision on a P/X/A case with
+ER, never ET" (the owner, or the CASE_MANAGER when delegated).

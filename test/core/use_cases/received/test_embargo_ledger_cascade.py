@@ -236,7 +236,8 @@ class TestEmbargoLogEntryCascade:
         proposal = em_propose_embargo_activity(
             embargo,
             context=case.id_,
-            actor=vendor_id,
+            actor=coordinator_id,
+            to=[vendor_id],
             id_=f"{case_id}/embargo_proposals/1",
         )
         dl.create(proposal)
@@ -289,7 +290,8 @@ class TestEmbargoLogEntryCascade:
         proposal = em_propose_embargo_activity(
             embargo,
             context=case_id,
-            actor=vendor_id,
+            actor=coordinator_id,
+            to=[vendor_id],
             id_=f"{case_id}/embargo_proposals/1",
         )
         dl.create(proposal)

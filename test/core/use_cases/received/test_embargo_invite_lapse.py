@@ -1817,6 +1817,7 @@ class TestLateAcceptHandling:
             embargo=stale_embargo,
             context=case.id_,
             actor=_COORD,
+            to=[_INVITEE],
             id_=f"{case_id}/proposals/stale",
         )
         dl.create(stale_proposal)
@@ -1908,6 +1909,7 @@ class TestLateAcceptHandling:
             embargo=embargo,
             context=case.id_,
             actor=_COORD,
+            to=[_INVITEE],
             id_=f"{case_id}/proposals/p3",
         )
         dl.create(proposal)
@@ -1961,6 +1963,7 @@ class TestLateAcceptHandling:
             embargo=embargo,
             context=case.id_,
             actor=_COORD,
+            to=[_INVITEE],
             id_=f"{case_id}/proposals/p1",
         )
         dl.create(proposal)
@@ -2071,6 +2074,7 @@ class TestLateAcceptHandling:
             embargo=embargo,
             context=case.id_,
             actor=_INVITEE,
+            to=[_COORD],
             id_=f"{case_id}/proposals/p4",
         )
         dl.create(proposal)
@@ -2125,6 +2129,7 @@ class TestLateAcceptHandling:
             embargo=embargo,
             context=case.id_,
             actor=_INVITEE,
+            to=[_COORD],
             id_=f"{case_id}/proposals/p5",
         )
         dl.create(proposal)
@@ -2291,6 +2296,7 @@ class TestLateAcceptHandling:
             embargo=stale_embargo,
             context=case.id_,
             actor=_COORD,
+            to=[_INVITEE],
             id_=f"{case_id}/proposals/stale-sig",
         )
         dl.create(stale_proposal)

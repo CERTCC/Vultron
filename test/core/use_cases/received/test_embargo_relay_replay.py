@@ -554,21 +554,24 @@ def test_an_invite_answered_before_pxa_is_not_contradicted_on_redelivery():
 @pytest.mark.spec("EMB-01-002")
 @pytest.mark.spec("EP-09-003")
 @pytest.mark.spec("PCR-08-001")
-def test_a_participant_answers_a_peers_invite_with_pxa_set_to_the_case_manager():
-    """The ER goes to the CASE_MANAGER, never to the peer that sent it."""
+@pytest.mark.spec("HP-01-006")
+def test_a_participant_refuses_a_peers_invite_and_answers_nobody():
+    """A peer is no CASE_MANAGER: its Invite is refused and draws no ER.
+
+    A participant takes an Invite from the CASE_MANAGER alone (EP-09-003,
+    PCR-08-001, ADR-0115), so the peer's Invite is refused before the P/X/A
+    check and neither the peer nor the CASE_MANAGER is sent anything.
+    """
     net = _Network("https://example.org/cases/relay-replay-pxa-peer")
     _set_pxa(net, OWNER)
-    invite_id, body = _pxa_invite_body(net, BYSTANDER, OWNER, "peer")
+    _invite_id, body = _pxa_invite_body(net, BYSTANDER, OWNER, "peer")
 
     verdict = net.receive(OWNER, body)
 
     assert verdict.disposition is HandlerDisposition.REFUSED
+    assert "CASE_MANAGER" in (verdict.reason or "")
     assert net.queued(OWNER, to=BYSTANDER) == []
-    (reject,) = net.queued(OWNER, to=MANAGER, type_="Reject")
-    assert reject.to == [MANAGER]
-    sealed = read_sealed_body_dict(net.stores[OWNER], reject.id_)
-    assert sealed is not None
-    assert sealed["object"]["id"] == invite_id
+    assert net.queued(OWNER, to=MANAGER) == []
 
 
 @pytest.mark.spec("EMB-01-002")

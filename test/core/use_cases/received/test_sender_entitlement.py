@@ -41,6 +41,7 @@ from test.core.use_cases.received.actor.test_offer_case_participant import (
 )
 from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
+    seed_case_owner_participant,
     seed_case_participant,
     seed_store_owner_as_case_manager,
 )
@@ -61,6 +62,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.actor import (
@@ -71,6 +73,7 @@ from vultron.core.models.events.actor import (
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.states.em import EM
 from vultron.core.use_cases.received.actor.invite import (
     AcceptInviteActorToCaseReceivedUseCase,
 )
@@ -89,6 +92,15 @@ from vultron.core.use_cases.received.case_proposal import (
     AcceptCaseProposalReceivedUseCase,
     RejectCaseProposalReceivedUseCase,
 )
+from vultron.core.use_cases.received.embargo import (
+    AcceptInviteToEmbargoOnCaseReceivedUseCase,
+    AddEmbargoEventToCaseReceivedUseCase,
+    AnnounceEmbargoEventToCaseReceivedUseCase,
+    CreateEmbargoEventReceivedUseCase,
+    InviteToEmbargoOnCaseReceivedUseCase,
+    RejectInviteToEmbargoOnCaseReceivedUseCase,
+    RemoveEmbargoEventFromCaseReceivedUseCase,
+)
 from vultron.core.use_cases.received.note import (
     RemoveNoteFromCaseReceivedUseCase,
 )
@@ -100,20 +112,28 @@ from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
     accept_case_ownership_transfer_activity,
     accept_case_participant_offer_activity,
+    add_embargo_to_case_activity,
     add_report_to_case_activity,
+    announce_embargo_activity,
+    em_accept_embargo_activity,
+    em_propose_embargo_activity,
+    em_reject_embargo_activity,
     offer_case_ownership_transfer_activity,
     reject_case_participant_offer_activity,
+    remove_embargo_from_case_activity,
     rm_accept_invite_to_case_activity,
     rm_invite_to_case_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
+    as_Create,
     as_Reject,
     as_Remove,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.examples._base import gen_report
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
     as_VulnerabilityCaseStub,
@@ -125,6 +145,9 @@ _CASE_MANAGER_ID = "https://example.org/actors/case-manager"
 _OWNER_ID = "https://example.org/actors/case-owner"
 #: An actor with no standing for any of the assertions below.
 _IMPOSTOR_ID = "https://example.org/actors/impostor"
+#: A plain participant: on the roster, but with no standing for the embargo
+#: activities that need the Case Owner or the CASE_MANAGER.
+_BYSTANDER_ID = "https://example.org/actors/bystander"
 
 
 @pytest.fixture
@@ -648,3 +671,438 @@ def test_ledger_reject_for_unknown_case_is_refused():
         case_id=SYNC_CASE_ID, peer_id=_IMPOSTOR_ID
     ).id_
     assert dl.read(state_id) is None
+
+
+# ---------------------------------------------------------------------------
+# Embargo activities (EP-09, CM-10-004; #4256)
+# ---------------------------------------------------------------------------
+
+_INVITEE_ID = "https://example.org/actors/embargo-invitee"
+
+
+def _embargo_case(
+    cm_store: SqliteDataLayer,
+    case: as_VulnerabilityCase,
+    *,
+    em_state: EM,
+    active: bool = False,
+) -> as_EmbargoEvent:
+    """Seed *case* at *em_state* with one embargo, the owner and a bystander.
+
+    The bystander is a plain participant and the impostor is on no roster, so
+    each refusal below is about the sender's standing, not its membership.
+    """
+    embargo = as_EmbargoEvent(
+        id_=f"{case.id_}/embargo_events/e1",
+        content="Embargo",
+        context=case.id_,
+        end_time=days_from_now_utc(45),
+    )
+    seed_case_owner_participant(cm_store, case, _OWNER_ID)
+    seed_case_participant(cm_store, case, _BYSTANDER_ID, [CVDRole.VENDOR])
+    seed_case_participant(cm_store, case, _INVITEE_ID, [CVDRole.VENDOR])
+    case.append_case_status(em_state=em_state)
+    if active:
+        case.active_embargo = embargo.id_
+    else:
+        case.proposed_embargoes.append(embargo.id_)
+    cm_store.create(case)
+    cm_store.create(embargo)
+    return embargo
+
+
+def _assert_embargo_untouched(
+    store: SqliteDataLayer,
+    case_id: str,
+    *,
+    em_state: EM,
+    embargo_id: str,
+    active: bool,
+) -> None:
+    """The refused activity changed no EM, consent or ledger state."""
+    case = _reload_case(store, case_id)
+    assert case.current_status.em.state == em_state
+    if active:
+        assert case.active_embargo_id == embargo_id
+    else:
+        assert case.active_embargo_id is None
+        assert case.proposed_embargo_ids == [embargo_id]
+    for participant_id in case.actor_participant_index.values():
+        participant = store.read(participant_id)
+        assert isinstance(participant, CaseParticipant)
+        assert embargo_id not in participant.accepted_embargo_ids
+    assert store.list_objects("CaseLedgerEntry") == []
+    assert store.outbox_list() == []
+
+
+def _embargo_ports(store: SqliteDataLayer) -> dict[str, Any]:
+    return {
+        "sync_port": SyncActivityAdapter(store),
+        "wire_render_port": As2WireRenderAdapter(),
+    }
+
+
+@pytest.mark.spec("CM-10-004")
+@pytest.mark.spec("HP-01-006")
+def test_embargo_invite_from_a_stranger_is_refused(
+    cm_store, owned_case, make_payload
+):
+    """A proposal from an actor on no roster is not adjudicated or relayed."""
+    embargo = _embargo_case(cm_store, owned_case, em_state=EM.NONE)
+    cm_store.save(cm_store.read(owned_case.id_))
+    proposal = em_propose_embargo_activity(
+        embargo,
+        context=owned_case.id_,
+        actor=_IMPOSTOR_ID,
+        to=[_CASE_MANAGER_ID],
+        id_=f"{owned_case.id_}/embargo_proposals/forged",
+    )
+    event = make_payload(proposal, receiving_actor_id=_CASE_MANAGER_ID)
+
+    result = InviteToEmbargoOnCaseReceivedUseCase(
+        cm_store,
+        event,
+        trigger_activity=TriggerActivityAdapter(cm_store),
+        **_embargo_ports(cm_store),
+    ).execute()
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert "active participant" in (result.reason or "")
+    case = _reload_case(cm_store, owned_case.id_)
+    assert case.current_status.em.state == EM.NONE
+    assert case.pending_embargo_proposal_index == {}
+    assert cm_store.list_objects("CaseLedgerEntry") == []
+    assert cm_store.outbox_list() == []
+
+
+@pytest.mark.spec("EP-09-003")
+@pytest.mark.spec("PCR-08-001")
+@pytest.mark.spec("HP-01-006")
+def test_embargo_invite_at_a_participant_from_a_peer_is_refused(
+    make_payload,
+):
+    """A participant takes an Invite from the CASE_MANAGER alone."""
+    replica = SqliteDataLayer("sqlite:///:memory:", actor_id=_INVITEE_ID)
+    case = as_VulnerabilityCase(
+        id_="https://example.org/cases/sender-entitlement-replica",
+        name="Replica",
+        attributed_to=_OWNER_ID,
+    )
+    seed_case_manager_participant(replica, case, _CASE_MANAGER_ID)
+    seed_case_participant(replica, case, _INVITEE_ID, [CVDRole.VENDOR])
+    seed_case_participant(replica, case, _BYSTANDER_ID, [CVDRole.VENDOR])
+    replica.create(case)
+    embargo = as_EmbargoEvent(
+        id_=f"{case.id_}/embargo_events/e1",
+        context=case.id_,
+        end_time=days_from_now_utc(45),
+    )
+    replica.create(embargo)
+    invite = em_propose_embargo_activity(
+        embargo,
+        context=case.id_,
+        actor=_BYSTANDER_ID,
+        to=[_INVITEE_ID],
+        id_=f"{case.id_}/embargo_invites/peer",
+    )
+    event = make_payload(invite, receiving_actor_id=_INVITEE_ID)
+
+    result = InviteToEmbargoOnCaseReceivedUseCase(
+        replica,
+        event,
+        trigger_activity=TriggerActivityAdapter(replica),
+        **_embargo_ports(replica),
+    ).execute()
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert "CASE_MANAGER" in (result.reason or "")
+    assert replica.outbox_list() == []
+    assert replica.read(invite.id_) is None
+
+
+@pytest.mark.spec("EP-09-010")
+@pytest.mark.spec("HP-01-006")
+def test_embargo_accept_from_a_non_invitee_is_refused(
+    cm_store, owned_case, make_payload
+):
+    """An Accept of an Invite addressed to another actor records no consent."""
+    embargo = _embargo_case(cm_store, owned_case, em_state=EM.PROPOSED)
+    invite = em_propose_embargo_activity(
+        embargo,
+        context=owned_case.id_,
+        actor=_CASE_MANAGER_ID,
+        attributed_to=_OWNER_ID,
+        to=[_INVITEE_ID],
+        id_=f"{owned_case.id_}/embargo_invites/invitee",
+    )
+    cm_store.create(invite)
+    event = make_payload(
+        em_accept_embargo_activity(
+            invite,
+            context=owned_case.id_,
+            actor=_BYSTANDER_ID,
+            to=[_CASE_MANAGER_ID],
+        ),
+        receiving_actor_id=_CASE_MANAGER_ID,
+    )
+
+    result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
+        cm_store,
+        event,
+        trigger_activity=TriggerActivityAdapter(cm_store),
+        **_embargo_ports(cm_store),
+    ).execute()
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert "invitee" in (result.reason or "")
+    _assert_embargo_untouched(
+        cm_store,
+        owned_case.id_,
+        em_state=EM.PROPOSED,
+        embargo_id=embargo.id_,
+        active=False,
+    )
+
+
+@pytest.mark.spec("EP-09-010")
+@pytest.mark.spec("HP-01-006")
+def test_embargo_accept_of_an_unrecorded_invite_is_refused(
+    cm_store, owned_case, make_payload
+):
+    """No recorded Invite names no invitee, so the sender is refused."""
+    embargo = _embargo_case(cm_store, owned_case, em_state=EM.PROPOSED)
+    forged = em_propose_embargo_activity(
+        embargo,
+        context=owned_case.id_,
+        actor=_CASE_MANAGER_ID,
+        to=[_BYSTANDER_ID],
+        id_=f"{owned_case.id_}/embargo_invites/never-sent",
+    )
+    event = make_payload(
+        em_accept_embargo_activity(
+            forged,
+            context=owned_case.id_,
+            actor=_BYSTANDER_ID,
+            to=[_CASE_MANAGER_ID],
+        ),
+        receiving_actor_id=_CASE_MANAGER_ID,
+    )
+
+    result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
+        cm_store,
+        event,
+        trigger_activity=TriggerActivityAdapter(cm_store),
+        **_embargo_ports(cm_store),
+    ).execute()
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert "never recorded" in (result.reason or "")
+    _assert_embargo_untouched(
+        cm_store,
+        owned_case.id_,
+        em_state=EM.PROPOSED,
+        embargo_id=embargo.id_,
+        active=False,
+    )
+
+
+@pytest.mark.spec("EP-09-010")
+@pytest.mark.spec("HP-01-006")
+def test_embargo_reject_from_a_non_invitee_is_refused(
+    cm_store, owned_case, make_payload
+):
+    """A Reject of another actor's Invite declines nothing and closes nothing."""
+    embargo = _embargo_case(cm_store, owned_case, em_state=EM.PROPOSED)
+    invite = em_propose_embargo_activity(
+        embargo,
+        context=owned_case.id_,
+        actor=_CASE_MANAGER_ID,
+        attributed_to=_OWNER_ID,
+        to=[_INVITEE_ID],
+        id_=f"{owned_case.id_}/embargo_invites/invitee",
+    )
+    cm_store.create(invite)
+    event = make_payload(
+        em_reject_embargo_activity(
+            invite,
+            context=owned_case.id_,
+            actor=_OWNER_ID,
+            to=[_CASE_MANAGER_ID],
+        ),
+        receiving_actor_id=_CASE_MANAGER_ID,
+    )
+
+    result = RejectInviteToEmbargoOnCaseReceivedUseCase(
+        cm_store,
+        event,
+        trigger_activity=TriggerActivityAdapter(cm_store),
+        **_embargo_ports(cm_store),
+    ).execute()
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert "invitee" in (result.reason or "")
+    _assert_embargo_untouched(
+        cm_store,
+        owned_case.id_,
+        em_state=EM.PROPOSED,
+        embargo_id=embargo.id_,
+        active=False,
+    )
+
+
+@pytest.mark.spec("EP-09-005")
+@pytest.mark.spec("HP-01-006")
+def test_embargo_create_from_a_non_owner_is_refused(
+    cm_store, owned_case, make_payload
+):
+    """A participant that is not the Case Owner stores no EmbargoEvent."""
+    embargo = as_EmbargoEvent(
+        id_=f"{owned_case.id_}/embargo_events/created",
+        context=owned_case.id_,
+        end_time=days_from_now_utc(45),
+    )
+    seed_case_participant(
+        cm_store, owned_case, _BYSTANDER_ID, [CVDRole.VENDOR]
+    )
+    cm_store.create(owned_case)
+    event = make_payload(
+        as_Create(
+            actor=_BYSTANDER_ID,
+            object_=embargo,
+            context=owned_case,
+            to=[_CASE_MANAGER_ID],
+        ),
+        receiving_actor_id=_CASE_MANAGER_ID,
+    )
+
+    result = CreateEmbargoEventReceivedUseCase(
+        cm_store, event, **_embargo_ports(cm_store)
+    ).execute()
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert "Case Owner" in (result.reason or "")
+    assert cm_store.get(embargo.type_, embargo.id_) is None
+
+
+@pytest.mark.spec("EP-09-005")
+@pytest.mark.spec("HP-01-006")
+def test_embargo_add_from_a_non_owner_is_refused(
+    cm_store, owned_case, make_payload
+):
+    """A participant that is not the Case Owner cannot activate an embargo."""
+    embargo = _embargo_case(cm_store, owned_case, em_state=EM.PROPOSED)
+    event = make_payload(
+        add_embargo_to_case_activity(
+            embargo,
+            target=as_VulnerabilityCase(id_=owned_case.id_),
+            actor=_BYSTANDER_ID,
+            to=[_CASE_MANAGER_ID],
+        ),
+        receiving_actor_id=_CASE_MANAGER_ID,
+    )
+
+    result = AddEmbargoEventToCaseReceivedUseCase(
+        cm_store, event, **_embargo_ports(cm_store)
+    ).execute()
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert "Case Owner" in (result.reason or "")
+    _assert_embargo_untouched(
+        cm_store,
+        owned_case.id_,
+        em_state=EM.PROPOSED,
+        embargo_id=embargo.id_,
+        active=False,
+    )
+
+
+@pytest.mark.spec("EP-09-005")
+@pytest.mark.spec("HP-01-006")
+def test_embargo_remove_from_a_non_owner_is_refused(
+    cm_store, owned_case, make_payload
+):
+    """A participant that is not the Case Owner cannot terminate the embargo."""
+    embargo = _embargo_case(
+        cm_store, owned_case, em_state=EM.ACTIVE, active=True
+    )
+    event = make_payload(
+        remove_embargo_from_case_activity(
+            embargo,
+            origin=owned_case.id_,
+            actor=_BYSTANDER_ID,
+            to=[_CASE_MANAGER_ID],
+        ),
+        receiving_actor_id=_CASE_MANAGER_ID,
+    )
+
+    result = RemoveEmbargoEventFromCaseReceivedUseCase(
+        cm_store, event, **_embargo_ports(cm_store)
+    ).execute()
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert "Case Owner" in (result.reason or "")
+    _assert_embargo_untouched(
+        cm_store,
+        owned_case.id_,
+        em_state=EM.ACTIVE,
+        embargo_id=embargo.id_,
+        active=True,
+    )
+
+
+@pytest.mark.spec("EP-09-005")
+@pytest.mark.spec("HP-01-006")
+def test_embargo_remove_from_the_owner_is_applied(
+    cm_store, owned_case, make_payload
+):
+    """The Case Owner's termination still reaches the CASE_MANAGER's tree."""
+    embargo = _embargo_case(
+        cm_store, owned_case, em_state=EM.ACTIVE, active=True
+    )
+    event = make_payload(
+        remove_embargo_from_case_activity(
+            embargo,
+            origin=owned_case.id_,
+            context=owned_case.id_,
+            actor=_OWNER_ID,
+            to=[_CASE_MANAGER_ID],
+        ),
+        receiving_actor_id=_CASE_MANAGER_ID,
+    )
+
+    result = RemoveEmbargoEventFromCaseReceivedUseCase(
+        cm_store, event, **_embargo_ports(cm_store)
+    ).execute()
+
+    assert result.disposition is HandlerDisposition.APPLIED
+    assert (
+        _reload_case(cm_store, owned_case.id_).current_status.em.state
+        == EM.EXITED
+    )
+
+
+@pytest.mark.spec("EP-09-003")
+@pytest.mark.spec("HP-01-006")
+def test_embargo_announce_from_a_non_manager_is_refused(
+    cm_store, owned_case, make_payload
+):
+    """Only the CASE_MANAGER announces canonical embargo state."""
+    embargo = _embargo_case(
+        cm_store, owned_case, em_state=EM.ACTIVE, active=True
+    )
+    event = make_payload(
+        announce_embargo_activity(
+            embargo=embargo,
+            context=owned_case.id_,
+            actor=_OWNER_ID,
+            to=[_CASE_MANAGER_ID],
+        ),
+        receiving_actor_id=_CASE_MANAGER_ID,
+    )
+
+    result = AnnounceEmbargoEventToCaseReceivedUseCase(
+        cm_store, event, sync_port=SyncActivityAdapter(cm_store)
+    ).execute()
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert "CASE_MANAGER" in (result.reason or "")
