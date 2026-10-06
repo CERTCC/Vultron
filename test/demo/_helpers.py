@@ -74,11 +74,19 @@ def patched_report_submission(
         stack.enter_context(
             patch.object(demo, seed_fn, return_value=tuple(seeded_actors))
         )
+        # Append a placeholder for the case-actor lookup added in #4165: the
+        # CASE_MANAGER actor looked up to call set-stub-summary before each
+        # invite in _phase_report_submission.
         stack.enter_context(
             patch.object(
-                demo, "get_actor_by_id", side_effect=list(actor_lookups)
+                demo,
+                "get_actor_by_id",
+                side_effect=[*list(actor_lookups), MagicMock()],
             )
         )
+        # set_stub_summary is seeding infrastructure not under test here;
+        # stub it so tests do not fail on Pydantic validation of a MagicMock.
+        stack.enter_context(patch.object(ActorSession, "set_stub_summary"))
         stack.enter_context(
             patch.object(
                 demo,

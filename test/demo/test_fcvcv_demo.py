@@ -100,7 +100,7 @@ class TestFinderCaseReplicaWaitBeforeV1Triage(_Helpers):
             patch.object(
                 demo,
                 "get_actor_by_id",
-                side_effect=[c1_in_c1, v1_in_v1, c2_in_c2],
+                side_effect=[c1_in_c1, v1_in_v1, c2_in_c2, MagicMock()],
             ),
             patch.object(
                 demo, "reporter_submits_report", return_value=(report, offer)
@@ -117,6 +117,8 @@ class TestFinderCaseReplicaWaitBeforeV1Triage(_Helpers):
                 ),
             ),
             patch.object(ActorSession, "accept_case_invite"),
+            # set_stub_summary is seeding infrastructure not under test here.
+            patch.object(ActorSession, "set_stub_summary"),
             patch.object(demo, "post_to_inbox_and_wait"),
             patch.object(demo, "verify_object_stored"),
             patch.object(
@@ -358,7 +360,7 @@ class TestFinderCaseReplicaGenesisWaitInReportSubmission(_Helpers):
             patch.object(
                 demo,
                 "get_actor_by_id",
-                side_effect=[c1_in_c1, v1_in_v1, c2_in_c2],
+                side_effect=[c1_in_c1, v1_in_v1, c2_in_c2, MagicMock()],
             ),
             patch.object(
                 demo, "reporter_submits_report", return_value=(report, offer)
@@ -377,6 +379,8 @@ class TestFinderCaseReplicaGenesisWaitInReportSubmission(_Helpers):
                 autospec=True,
             ),
             patch.object(ActorSession, "accept_case_invite"),
+            # set_stub_summary is seeding infrastructure not under test here.
+            patch.object(ActorSession, "set_stub_summary"),
             patch.object(demo, "post_to_inbox_and_wait"),
             patch.object(demo, "verify_object_stored"),
             patch.object(demo, "run_invite_path_rm_triage"),
@@ -539,7 +543,9 @@ class TestFcvcvCausalGates(_Helpers):
                 "seed_containers_fcvcv",
                 return_value=(finder, c1, v1, c2, v2),
             ),
-            patch.object(demo, "get_actor_by_id", side_effect=[c1, v1, c2]),
+            patch.object(
+                demo, "get_actor_by_id", side_effect=[c1, v1, c2, MagicMock()]
+            ),
             patch.object(
                 demo,
                 "reporter_submits_report",
@@ -559,6 +565,8 @@ class TestFcvcvCausalGates(_Helpers):
                 ),
             ),
             patch.object(ActorSession, "accept_case_invite", accept_invite),
+            # set_stub_summary is seeding infrastructure not under test here.
+            patch.object(ActorSession, "set_stub_summary"),
             patch.object(
                 demo,
                 "find_case_invite_for_actor",
@@ -700,7 +708,7 @@ class TestFcvcvRmTriageTimeout(_Helpers):
             patch.object(
                 demo,
                 "get_actor_by_id",
-                side_effect=[c1_in_c1, v1_in_v1, c2_in_c2],
+                side_effect=[c1_in_c1, v1_in_v1, c2_in_c2, MagicMock()],
             ),
             patch.object(
                 demo, "reporter_submits_report", return_value=(report, offer)
@@ -717,6 +725,8 @@ class TestFcvcvRmTriageTimeout(_Helpers):
                 return_value=SimpleNamespace(activity=invite),
             ),
             patch.object(ActorSession, "accept_case_invite"),
+            # set_stub_summary is seeding infrastructure not under test here.
+            patch.object(ActorSession, "set_stub_summary"),
             patch.object(demo, "post_to_inbox_and_wait"),
             patch.object(demo, "verify_object_stored"),
             patch.object(demo, "wait_for_case_on_container"),
@@ -794,7 +804,9 @@ class TestFcvcvInviteTriggerFailureSkipsDependents(_Helpers):
                 "seed_containers_fcvcv",
                 return_value=(finder, c1, v1, c2, v2),
             ),
-            patch.object(demo, "get_actor_by_id", side_effect=[c1, v1, c2]),
+            patch.object(
+                demo, "get_actor_by_id", side_effect=[c1, v1, c2, MagicMock()]
+            ),
             patch.object(
                 demo,
                 "reporter_submits_report",
@@ -812,6 +824,8 @@ class TestFcvcvInviteTriggerFailureSkipsDependents(_Helpers):
                 side_effect=RuntimeError("invite trigger failed"),
             ),
             patch.object(ActorSession, "accept_case_invite") as accept_invite,
+            # set_stub_summary is seeding infrastructure not under test here.
+            patch.object(ActorSession, "set_stub_summary"),
             patch.object(demo, "find_case_invite_for_actor") as find_invite,
             patch.object(demo, "as_VulnerabilityCase") as mock_vc,
         ):
