@@ -27,7 +27,8 @@ from vultron.core.models.pending_case_inbox import (
     VultronPendingCaseInbox,
 )
 from vultron.core.states.cs import CS_pxa
-from vultron.core.states.em import is_em_exited
+from vultron.core.states.em import EM
+from vultron.core.states.participant_embargo_consent import PEC
 from vultron.demo.helpers.verification import (
     _all_fetchable_participants_rm_closed,
     _fetch_participant,
@@ -1411,6 +1412,64 @@ def wait_for_participant_d_state(
     )
 
 
+def wait_for_case_em_state(
+    client: DataLayerClient,
+    case_id: str,
+    expected: EM,
+    timeout_seconds: float = 30.0,
+    poll_interval: float = 0.25,
+    dl_actor_id: str | None = None,
+    active_embargo_id: str | None = None,
+) -> None:
+    """Poll until the case EM state is *expected*.
+
+    EM moves when the CASE_MANAGER commits a transition and the ledger entry
+    reaches the replica, so a replica reads the new state some time after the
+    trigger returned (ADR-0058).
+
+    Args:
+        client: DataLayerClient for the target container.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        expected: The EM state to wait for.
+        timeout_seconds: Maximum time to wait.
+        poll_interval: Seconds between DataLayer poll attempts.
+        dl_actor_id: Full URI of the actor whose *store* to read, when that is
+            not the client's own actor — the CASE_MANAGER's canonical case, for
+            instance (see :func:`resolve_case_actor_store_id`).
+        active_embargo_id: When given, the case must also name this embargo as
+            its active one.  A revised embargo leaves ``EM.ACTIVE`` and comes
+            back to it, so EM alone cannot tell a replica that has applied the
+            revision from one that has not yet heard of it.
+
+    Raises:
+        AssertionError: If *expected* is not observed within *timeout_seconds*.
+    """
+
+    def _check() -> bool:
+        case_data = client.get(client.dl_path(case_id, actor_id=dl_actor_id))
+        case = as_VulnerabilityCase.model_validate(case_data)
+        return case.current_status.em_state == expected and (
+            active_embargo_id is None
+            or case.active_embargo_id == active_embargo_id
+        )
+
+    store = dl_actor_id or client.actor_id
+    _poll_until(
+        _check,
+        timeout_seconds,
+        poll_interval,
+        f"Timed out waiting for case '{case_id}' EM state to reach"
+        f" {expected.name}"
+        + (
+            f" with active embargo {active_embargo_id!r}"
+            if active_embargo_id is not None
+            else ""
+        )
+        + f" in the store of {store!r} at {client.base_url}",
+        swallow_exceptions=True,
+    )
+
+
 def wait_for_case_em_terminated(
     client: DataLayerClient,
     case_id: str,
@@ -1432,20 +1491,133 @@ def wait_for_case_em_terminated(
     Raises:
         AssertionError: If EM.EXITED is not observed within *timeout_seconds*.
     """
+    wait_for_case_em_state(
+        client, case_id, EM.EXITED, timeout_seconds, poll_interval
+    )
+
+
+def _is_embargo_invite_for(
+    obj_data: dict, embargo_id: str, invitee_id: str
+) -> bool:
+    """Return True if *obj_data* holds an ``Invite`` of *embargo_id* to *invitee_id*.
+
+    The relayed Invite names its embargo in ``object`` (inline or by id) and its
+    invitee as the sole ``to`` recipient (EP-09-010).
+    """
+    invite = _received_activity(obj_data)
+    if invite.get("type") != "Invite":
+        return False
+    inner = invite.get("object")
+    inner_id = inner.get("id") if isinstance(inner, dict) else inner
+    if inner_id != embargo_id:
+        return False
+    recipients = invite.get("to")
+    if not isinstance(recipients, list):
+        recipients = [recipients]
+    return invitee_id in [
+        r.get("id") if isinstance(r, dict) else r for r in recipients
+    ]
+
+
+def find_embargo_invite_for_actor(
+    client: DataLayerClient,
+    embargo_id: str,
+    invitee_id: str,
+    timeout_seconds: float = 15.0,
+    poll_interval: float = 0.5,
+) -> str:
+    """Poll until the CASE_MANAGER's relayed ``Invite(EmbargoEvent)`` arrives.
+
+    The CASE_MANAGER relays every embargo proposal, first or revised, to each
+    participant but the proposer (EP-09-002).  The invitee answers only an
+    Invite addressed to it (EP-09-003), so a demo polls the invitee's own
+    DataLayer for it rather than reading another participant's mail.
+
+    Args:
+        client: DataLayerClient connected to the invitee's container.
+        embargo_id: Full URI of the proposed ``EmbargoEvent``.
+        invitee_id: Full URI of the invited actor.
+        timeout_seconds: Maximum time to wait before raising.
+        poll_interval: Seconds between DataLayer poll attempts.
+
+    Returns:
+        The relayed Invite's activity ID.
+
+    Raises:
+        AssertionError: If no matching Invite is found within *timeout_seconds*.
+    """
+    return _poll_datalayer_for(
+        client=client,
+        discriminator_fn=lambda obj: _is_embargo_invite_for(
+            obj, embargo_id, invitee_id
+        ),
+        id_fn=_received_activity_id,
+        timeout_seconds=timeout_seconds,
+        poll_interval=poll_interval,
+        log_msg=f"Found Invite of embargo {embargo_id} for {invitee_id}: %s",
+        error_msg=(
+            f"Timed out waiting for the relayed Invite of embargo"
+            f" {embargo_id!r} to actor {invitee_id!r} to appear in the"
+            f" DataLayer at {client.base_url}"
+        ),
+    )
+
+
+def wait_for_participant_embargo_consent(
+    client: DataLayerClient,
+    case_id: str,
+    actor_id: str,
+    expected: PEC,
+    timeout_seconds: float = 30.0,
+    poll_interval: float = 0.25,
+    dl_actor_id: str | None = None,
+) -> None:
+    """Poll until *actor_id*'s participant record carries consent *expected*.
+
+    Consent moves when the CASE_MANAGER commits the participant's answer, and
+    a replica learns it from the ledger (EP-09-003), so it reads the new value
+    some time after the answer's trigger returned.
+
+    Args:
+        client: DataLayerClient for the target container.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        actor_id: Full URI of the actor whose consent to check.
+        expected: The PEC state to wait for.
+        timeout_seconds: Maximum time to wait.
+        poll_interval: Seconds between DataLayer poll attempts.
+        dl_actor_id: Full URI of the actor whose *store* to read, when that is
+            not the client's own actor — see :func:`_fetch_participant`.
+
+    Raises:
+        AssertionError: If *expected* is not observed within *timeout_seconds*.
+    """
+    current: list[object] = ["no participant record"]
 
     def _check() -> bool:
-        case_data = client.get(client.dl_path(case_id))
-        case = as_VulnerabilityCase.model_validate(case_data)
-        return is_em_exited(case.current_status.em_state)
+        participant = _fetch_participant(
+            client, case_id, actor_id, dl_actor_id=dl_actor_id
+        )
+        if participant is None:
+            return False
+        current[0] = participant.embargo_consent_state
+        return participant.embargo_consent_state == expected
 
-    _poll_until(
-        _check,
-        timeout_seconds,
-        poll_interval,
-        f"Timed out waiting for case '{case_id}' EM state to reach EXITED"
-        " — embargo teardown may not have completed",
-        swallow_exceptions=True,
-    )
+    store = dl_actor_id or client.actor_id
+    try:
+        _poll_until(
+            _check,
+            timeout_seconds,
+            poll_interval,
+            "unused",
+            swallow_exceptions=True,
+        )
+    except AssertionError as exc:
+        # Built after the wait: ``current`` is what the last poll read.
+        raise AssertionError(
+            f"Timed out waiting for actor '{actor_id}' embargo consent to"
+            f" reach {expected.name}; current={current[0]!r} (polled"
+            f" {client.base_url}, store of {store!r})"
+        ) from exc
 
 
 def wait_for_participant_rm_state(

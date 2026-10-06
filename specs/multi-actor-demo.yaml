@@ -3004,8 +3004,10 @@ groups:
     verification_debt: '#2573'
     statement: >-
       An exchange helper function `demo_propose_and_activate_embargo` MUST be
-      added to `vultron/demo/exchange/` accepting `(reporter_client,
-      coordinator_client, vendor_client, case_id)` arguments; it MUST execute
+      added to `vultron/demo/exchange/` accepting `(reporter, coordinator,
+      vendor, case)` arguments — each an `ActorSession` (DEMOMA-26-001), because a
+      trigger addresses an actor as well as its container, and `case` the
+      `VulnerabilityCase`; it MUST execute
       the relayed propose-and-activate sequence (EP-09): the reporter posts
       `trigger_propose_embargo`, which sends the proposal to the CASE_MANAGER;
       the coordinator and the vendor each poll their own replica for the
@@ -3035,9 +3037,9 @@ groups:
     verification_debt: '#2573'
     statement: >-
       An exchange helper function `demo_terminate_embargo` MUST be added to
-      `vultron/demo/exchange/` accepting `(terminating_client, case_id)` arguments
-      — where `terminating_client` is any SIGNATORY participant authorized to
-      terminate — and posting `trigger_terminate_embargo`.
+      `vultron/demo/exchange/` accepting `(terminating, case)` arguments — where
+      `terminating` is the `ActorSession` of any SIGNATORY participant authorized
+      to terminate (DEMOMA-26-001) — and posting `trigger_terminate_embargo`.
     rationale: >-
       The terminate-embargo exchange is a single-actor trigger that can be
       reused by any scenario exercising variation (e). Keeping it in
@@ -3296,15 +3298,16 @@ groups:
     verification_debt: '#2573'
     statement: >-
       An exchange helper function `demo_propose_embargo_revision` MUST be added
-      to `vultron/demo/exchange/` accepting `(proposing_client, accepting_client,
-      owner_client, case_id)` arguments, where `owner_client` MAY be the same
-      client as `proposing_client`; it MUST execute the relayed revision
-      sequence (EP-09): `proposing_client` posts
+      to `vultron/demo/exchange/` accepting `(proposing, accepting, owner,
+      case)` arguments — each of the first three an `ActorSession`
+      (DEMOMA-26-001) — where `owner` MAY be the same session as `proposing`; it
+      MUST execute the relayed
+      revision sequence (EP-09): `proposing` posts
       `trigger_propose_embargo_revision`, which sends the proposal to the
       CASE_MANAGER (canonical `em_state: ACTIVE → REVISE` at the manager);
-      `accepting_client` polls its own replica for the relayed
+      `accepting` polls its own replica for the relayed
       `Invite(EmbargoEvent)` and posts `trigger_accept_embargo`, which records
-      its consent and moves no EM state; `owner_client` posts
+      its consent and moves no EM state; `owner` posts
       `trigger_accept_embargo`, which as the case owner's answer activates the
       revision (canonical `em_state: REVISE → ACTIVE`); the helper then polls
       every replica for `em_state == EM.ACTIVE`.
