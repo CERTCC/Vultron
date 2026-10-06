@@ -186,8 +186,9 @@ The implementation landed in CERTCC/Vultron#4168:
   Attempt counts in an existing store's old table are **not migrated**: they are
   dropped, which resets in-flight outbox retry budgets to zero on upgrade.
   The cost is bounded (at most one extra retry budget per undelivered activity),
-  and such a store is already orphaned by the per-actor store layout change
-  (ADR-0073, #2551), so no separate counter migration is warranted.
+  and a reset only widens the retry window, so no counter migration is warranted.
+  Stores that predate the per-actor layout are orphaned regardless (ADR-0073,
+  #2551), which is a separate upgrade path.
   `create_all` neither reads nor drops the leftover table in old files.
 - `InboxDeadLetterEntry(CoreRecord)` mirrors `OutboxDeadLetterEntry` and is
   stored via `dl.save()` / `dl.by_type()`.
