@@ -41,6 +41,7 @@ See also:
     - ``vultron/wire/as2/factories/AGENTS.md``
 """
 
+from datetime import datetime, timedelta
 from typing import Any, Protocol
 
 from vultron.core.models.case import VulnerabilityCase
@@ -612,6 +613,9 @@ class TriggerActivityPort(Protocol):
         to: list[str] | None = None,
         attributed_to: str | None = None,
         activity_id: str | None = None,
+        rsvp_deadline: datetime | None = None,
+        published: datetime | None = None,
+        min_rsvp_window: timedelta | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Invite(EmbargoEvent, Case)`` proposal.
 
@@ -623,6 +627,10 @@ class TriggerActivityPort(Protocol):
         the emission — the creation-time revision is indexed under its
         Invite's id at registration and relayed only after the initialization
         sequence completes (EP-04-011, CM-14-007).  ``None`` mints a fresh id.
+        ``rsvp_deadline`` becomes the Invite's ``endTime`` (CM-28-012,
+        ASK-03-004); ``published`` is the instant it was measured from and
+        ``min_rsvp_window`` the configured floor the factory checks it against
+        (EP-07-002).  Each is forwarded only when given.
         Returns ``(activity_id, activity_dict)``.
         """
         ...

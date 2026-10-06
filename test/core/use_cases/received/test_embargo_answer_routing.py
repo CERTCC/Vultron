@@ -21,31 +21,36 @@ SYNC-14-001).
 """
 
 import json
+from datetime import UTC, datetime, timedelta
 from typing import cast
 
 import pytest
 
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
-    embargo as adapter_embargo,
 )
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.behaviors.embargo.nodes.relay import invite_rsvp_deadline
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.rsvp_deadline import (
+    INVITE_EXPIRED_NOOP_EVENT_TYPE,
+)
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
 )
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
+from vultron.core.states.participant_embargo_consent import PEC
 
 from .test_embargo_relay_replay import (
     BYSTANDER,
     MANAGER,
     OWNER,
     _Network,
+    _owner_answers,
     _propose,
     _replay_to_bystander,
 )
@@ -179,21 +184,14 @@ def test_a_participant_handed_an_answer_refuses_it_and_writes_nothing(answer):
 
 @pytest.mark.spec("CM-28-013")
 @pytest.mark.spec("EP-09-007")
-def test_the_relay_and_its_replay_record_the_same_rsvp_deadline(monkeypatch):
+@pytest.mark.spec("CM-28-012")
+def test_the_relay_and_its_replay_record_the_same_rsvp_deadline():
     """The invitee's deadline is the relayed Invite's ``endTime`` everywhere.
 
-    The relay does not stamp a deadline yet (#3961), so the factory the relay
-    calls is wrapped to stamp one, the way CM-28-012 will.
+    The CASE_MANAGER stamps it as the Invite's ``published`` plus its default
+    window (CM-28-012), records it at commit, and the replica records the same
+    value from the committed entry (CM-28-013).
     """
-    stamped = days_from_now_utc(30)
-    factory = adapter_embargo.em_propose_embargo_activity
-
-    def stamping_factory(*args, **kwargs):
-        return factory(*args, rsvp_deadline=stamped, **kwargs)
-
-    monkeypatch.setattr(
-        adapter_embargo, "em_propose_embargo_activity", stamping_factory
-    )
     net = _Network("https://example.org/cases/answer-rsvp-deadline")
     _propose(net, "deadline", 90)
     (invite,) = net.queued(MANAGER, to=BYSTANDER, type_="Invite")
@@ -201,6 +199,9 @@ def test_the_relay_and_its_replay_record_the_same_rsvp_deadline(monkeypatch):
     assert body is not None
     deadline = invite_rsvp_deadline(body)
     assert deadline is not None
+    assert deadline - datetime.fromisoformat(body["published"]) == timedelta(
+        days=7
+    )
     _replay_to_bystander(net)
 
     for actor_id in (MANAGER, BYSTANDER):
@@ -209,3 +210,176 @@ def test_the_relay_and_its_replay_record_the_same_rsvp_deadline(monkeypatch):
         participant = dl.read(index[BYSTANDER])
         assert isinstance(participant, CaseParticipant)
         assert participant.invite_rsvp_deadline == deadline, actor_id
+
+
+@pytest.mark.spec("CM-28-014")
+@pytest.mark.spec("CM-28-009")
+@pytest.mark.spec("TB-06-007")
+def test_the_managers_expiry_is_committed_and_replayed_by_a_replica():
+    """A late Accept expires in the manager's store; a replica replays it.
+
+    The replica never evaluates the deadline — its own record still holds the
+    relayed 7-day one — it applies the CASE_MANAGER's committed expiry entry
+    (CM-28-014, ADR-0118), an entry distinct from the Accept (CM-28-009).
+    """
+    net = _Network("https://example.org/cases/answer-lapse-replay")
+    _propose(net, "lapse", 90)
+    bystander_pid = net.case(MANAGER).actor_participant_index[BYSTANDER]
+    # A signatory's consent survives a revision Invite (EP-09-004), so seed an
+    # invitee that has not yet signed, everywhere; only the manager's record
+    # holds a passed deadline.
+    for actor_id in (MANAGER, OWNER):
+        dl = net.stores[actor_id]
+        participant = cast(CaseParticipant, dl.read(bystander_pid))
+        update: dict[str, object] = {"embargo_consent_state": PEC.INVITED}
+        if actor_id == MANAGER:
+            update["invite_rsvp_deadline"] = datetime.now(tz=UTC) - timedelta(
+                hours=1
+            )
+        dl.save(participant.model_copy(update=update))
+    _replay_to_bystander(net)
+    net.deliver(MANAGER, to=BYSTANDER, type_="Invite")
+    (accept,) = net.queued(BYSTANDER, to=MANAGER, type_="Accept")
+    body = read_sealed_body_dict(net.stores[BYSTANDER], accept.id_)
+    assert body is not None
+
+    net.receive(MANAGER, body)
+    _deliver_all(net, OWNER)
+
+    replayed = cast(CaseParticipant, net.stores[OWNER].read(bystander_pid))
+    assert replayed.embargo_consent_state == PEC.EXPIRED
+    assert replayed.invite_rsvp_deadline is not None
+    assert replayed.invite_rsvp_deadline > datetime.now(tz=UTC)
+
+
+@pytest.mark.spec("EMB-17-001")
+@pytest.mark.spec("EMB-17-009")
+@pytest.mark.spec("RSH-08-004")
+@pytest.mark.spec("TB-06-007")
+def test_the_managers_honour_decision_is_committed_and_replayed_by_a_replica():
+    """Late Accept honours into SIGNATORY when the embargo is still active.
+
+    When the invitee's RSVP deadline has passed and the embargo is still
+    active and matching, the CASE_MANAGER commits an expiry entry
+    (``INVITED → EXPIRED``, CM-28-009) and then a honour entry
+    (``EXPIRED → SIGNATORY``, EMB-17-001, EMB-17-009).
+    The replica replays both entries from the ledger broadcast without
+    re-evaluating the deadline (RSH-08-004, ADR-0118).
+
+    OWNER answers first so that ``active_embargo_id == embargo_id`` when
+    BYSTANDER's late Accept arrives — that is the condition that routes to the
+    honour branch rather than re-invite (EMB-17-002).
+    """
+    net = _Network("https://example.org/cases/answer-honour-late-accept")
+    _propose(net, "honour", 90)
+    bystander_pid = net.case(MANAGER).actor_participant_index[BYSTANDER]
+
+    # Deliver proposal entries and the Invite to BYSTANDER so BYSTANDER can
+    # generate its Accept for the revision embargo.
+    # Capture the body before OWNER answers so we can submit it late.
+    _replay_to_bystander(net)
+    net.deliver(MANAGER, to=BYSTANDER, type_="Invite")
+    (accept,) = net.queued(BYSTANDER, to=MANAGER, type_="Accept")
+    body = read_sealed_body_dict(net.stores[BYSTANDER], accept.id_)
+    assert body is not None
+
+    # OWNER answers: EM REVISE → ACTIVE, active_embargo = revision.
+    # Now active_embargo_id == embargo_id (both are the revision), so the
+    # CASE_MANAGER takes the honour branch when the late Accept arrives
+    # (EMB-17-001), not the re-invite branch (EMB-17-002).
+    _owner_answers(net)
+
+    # Seed BYSTANDER as INVITED with a passed deadline on MANAGER's store so
+    # the expiry tree fires (NEEDS_APPLY=True → expiry entry committed).
+    # OWNER's store holds INVITED with no deadline: the relay-entry Announces
+    # replayed by _deliver_all sequence BYSTANDER correctly
+    # (INVITED → EXPIRED via expiry, EXPIRED → SIGNATORY via honour).
+    # Pre-seeding EXPIRED would cause the relay-invite replay to revert it to
+    # INVITED (INVITE is legal from EXPIRED), creating an ordering hazard.
+    for actor_id in (MANAGER, OWNER):
+        dl = net.stores[actor_id]
+        participant = cast(CaseParticipant, dl.read(bystander_pid))
+        update: dict[str, object] = {"embargo_consent_state": PEC.INVITED}
+        if actor_id == MANAGER:
+            update["invite_rsvp_deadline"] = datetime.now(tz=UTC) - timedelta(
+                hours=1
+            )
+        dl.save(participant.model_copy(update=update))
+
+    net.receive(MANAGER, body)
+    _deliver_all(net, OWNER)
+
+    replayed = cast(CaseParticipant, net.stores[OWNER].read(bystander_pid))
+    assert replayed.embargo_consent_state == PEC.SIGNATORY
+
+
+@pytest.mark.spec("EMB-17-004")
+@pytest.mark.spec("EMB-17-010")
+@pytest.mark.spec("RSH-08-004")
+@pytest.mark.spec("TB-06-007")
+def test_the_managers_noop_decision_is_committed_and_replayed_by_a_replica():
+    """Late Accept on exited embargo: no-op entry replayed, PEC ends EXPIRED.
+
+    When a late Accept arrives with EM EXITED on the CASE_MANAGER's store,
+    the CASE_MANAGER commits an expiry entry (``INVITED → EXPIRED``,
+    CM-28-009) and then ``INVITE_EXPIRED_NOOP_EVENT_TYPE`` without any
+    further PEC transition (EMB-17-004, EMB-17-010).
+    After delivery the replica store's ledger has replayed past the no-op
+    entry (asserting on the entry's presence so a silently skipped slot
+    fails), and the participant PEC is ``EXPIRED`` (RSH-08-004, ADR-0118).
+    """
+    net = _Network("https://example.org/cases/answer-noop-late-accept")
+    _propose(net, "noop", 90)
+    bystander_pid = net.case(MANAGER).actor_participant_index[BYSTANDER]
+
+    # Deliver proposal entries and the Invite to BYSTANDER so an Accept is
+    # queued in BYSTANDER's outbox before we force EM to EXITED.
+    _replay_to_bystander(net)
+    net.deliver(MANAGER, to=BYSTANDER, type_="Invite")
+    (accept,) = net.queued(BYSTANDER, to=MANAGER, type_="Accept")
+    body = read_sealed_body_dict(net.stores[BYSTANDER], accept.id_)
+    assert body is not None
+
+    # Force EM EXITED on MANAGER's store so the noop branch fires (EMB-17-004).
+    # Only MANAGER's store needs EXITED: the fan-out uses MANAGER's embargo
+    # state (embargo_in_force=False → all participants are recipients), and
+    # the expiry/noop replay nodes on OWNER's store have no EM dependency.
+    # BYSTANDER's store keeps the original state — it is the sender, not the judge.
+    dl_mgr = net.stores[MANAGER]
+    case_mgr = net.case(MANAGER)
+    case_mgr.current_status.em.state = EM.EXITED
+    dl_mgr.save(case_mgr)
+
+    # Seed BYSTANDER as INVITED with a passed deadline on MANAGER's store so
+    # the expiry tree fires (NEEDS_APPLY=True → expiry entry committed).
+    # OWNER's store holds INVITED with no deadline: the relay-entry Announces
+    # replayed by _deliver_all sequence BYSTANDER correctly
+    # (INVITED → EXPIRED via expiry; noop entry makes no further change).
+    # Pre-seeding EXPIRED would cause the relay-invite replay to revert it to
+    # INVITED (INVITE is legal from EXPIRED), creating an ordering hazard.
+    for actor_id in (MANAGER, OWNER):
+        dl = net.stores[actor_id]
+        participant = cast(CaseParticipant, dl.read(bystander_pid))
+        update: dict[str, object] = {"embargo_consent_state": PEC.INVITED}
+        if actor_id == MANAGER:
+            update["invite_rsvp_deadline"] = datetime.now(tz=UTC) - timedelta(
+                hours=1
+            )
+        dl.save(participant.model_copy(update=update))
+
+    net.receive(MANAGER, body)
+    _deliver_all(net, OWNER)
+
+    # The replica's participant PEC is EXPIRED: the expiry entry fired
+    # (INVITED → EXPIRED) and the no-op entry made no further change.
+    replayed = cast(CaseParticipant, net.stores[OWNER].read(bystander_pid))
+    assert replayed.embargo_consent_state == PEC.EXPIRED
+    # The replica's ledger contains the no-op entry, proving the replay slot
+    # fired rather than silently skipping it (SYNC-12-001, RSH-08-004).
+    noop_entries = [
+        obj
+        for obj in net.stores[OWNER].list_objects("CaseLedgerEntry")
+        if isinstance(obj, CaseLedgerEntry)
+        and str(obj.event_type) == INVITE_EXPIRED_NOOP_EVENT_TYPE
+    ]
+    assert len(noop_entries) == 1
