@@ -1009,3 +1009,36 @@ def test_an_unannounced_owner_case_is_completed_not_skipped(dl):
     assert status == Status.SUCCESS
     assert case_is_announced(dl, str(case.id_))
     assert len(_cases(dl)) == 1
+
+
+@pytest.mark.spec("CP-05-008")
+@pytest.mark.spec("CBT-06-002")
+def test_second_proposer_re_proposing_reuses_its_own_case(dl):
+    """The report-only fast path returns the first proposer's case; the second
+    proposer's own case is still found, not duplicated.
+    """
+    second_proposer_uri = "https://other.example.org/actors/other-vendor"
+
+    assert _run_tree(dl) == Status.SUCCESS
+    assert (
+        _run_tree(
+            dl,
+            proposal_uri="https://other.example.org/proposals/p-002",
+            proposer_uri=second_proposer_uri,
+        )
+        == Status.SUCCESS
+    )
+    assert len(_cases(dl)) == 2
+
+    status = _run_tree(
+        dl,
+        proposal_uri="https://other.example.org/proposals/p-003",
+        proposer_uri=second_proposer_uri,
+    )
+
+    assert status == Status.SUCCESS
+    cases = _cases(dl)
+    assert len(cases) == 2, "the second proposer's own case is reused"
+    assert sorted(str(c.attributed_to) for c in cases) == sorted(
+        [_VENDOR_URI, second_proposer_uri]
+    )
