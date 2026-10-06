@@ -401,11 +401,6 @@ def test_report_addition_by_non_owner_is_refused(
     assert cm_store.outbox_list() == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="SYNC-03-005: Reject(CaseLedgerEntry) from a non-participant replays. Tracked by #4075.",
-)
 @pytest.mark.spec("SYNC-03-005")
 def test_ledger_reject_from_non_participant_is_refused():
     """A stranger claims an empty ledger, asking for a replay from genesis."""

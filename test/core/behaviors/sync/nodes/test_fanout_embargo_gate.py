@@ -335,7 +335,9 @@ def test_genesis_reject_from_non_signatory_seeds_no_case(datalayer) -> None:
         sync_port=sync_port,
     )
 
-    assert result.status == Status.SUCCESS
+    # The sender guard (SYNC-03-005) now halts the tree before anything is
+    # written or sent, so the withheld peer gets nothing.
+    assert result.status == Status.FAILURE
     trigger_activity.announce_vulnerability_case.assert_not_called()
     sync_port.send_announce_log_entry.assert_not_called()
 

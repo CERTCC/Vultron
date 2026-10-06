@@ -132,7 +132,7 @@ def _make_event(
 def test_create_reject_log_entry_tree_returns_sequence():
     tree = create_reject_log_entry_tree()
     assert tree.name == "RejectLogEntryReceivedBT"
-    assert len(tree.children) == 4
+    assert len(tree.children) == 5
 
 
 @pytest.mark.spec("SYNC-03-001")
