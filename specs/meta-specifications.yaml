@@ -312,8 +312,8 @@ groups:
       MS-09-001 keeps retired text out of the specs so it cannot be mistaken for current
       obligation, but git history is a poor place to look up what a cited ID used to say. One file
       per ID gives a citation something to resolve to without putting retired text into agent
-      context. The archive tooling and the loader exclusion are tracked in #4197; until they
-      land, files are written by hand.
+      context. The archive sits outside `specs/`, which is the only
+      directory the spec loaders read, so no loader can see it.
     relationships:
     - rel_type: depends_on
       spec_id: MS-09-001
@@ -321,6 +321,50 @@ groups:
       spec_id: MS-09-002
     tags:
     - documentation
+  - id: MS-09-006
+    priority: MUST
+    kind: process
+    statement: >-
+      `uv run spec-retire <ID>` MUST move the item's final text from its spec file to
+      `plan/retired-specs/<ID>.md` with the retiring issue or PR, the date and the replacement
+      ID if any, MUST record the removal in the implementation history (MS-09-002), and MUST
+      list every remaining citation of the ID that MS-09-003 requires repointing. It MUST
+      change nothing when the ID is already archived, is not declared, or the spec files
+      would no longer load without it.
+    rationale: >-
+      Doing a retirement by hand means three separate edits, and the one that gets skipped is
+      the one that leaves the audit trail or a stale citation behind. One command makes the
+      whole retirement, or none of it.
+    verification: >-
+      `test/metadata/specs/test_retire.py` retires an item in a scratch repository and checks
+      the archive file, the history entry, the listed citations and the refusals.
+    relationships:
+    - rel_type: implements
+      spec_id: MS-09-005
+    tags:
+    - documentation
+    - tooling
+  - id: MS-09-007
+    priority: MUST
+    kind: process
+    statement: >-
+      `spec-lint` MUST fail on a `deprecated:` or `superseded_by:` key on any requirement in
+      `specs/`, and on any requirement ID that is both declared in `specs/` and present in
+      `plan/retired-specs/`.
+    rationale: >-
+      MS-09-001 and MS-09-004 are rules a human forgets; the corpus already held both
+      violations (deprecated-in-place entries, and CM-11-005 reused with the opposite force)
+      before anything checked for them.
+    verification: >-
+      `test/metadata/specs/test_retire.py` lints a scratch corpus carrying each key and a
+      re-declared archived ID and expects exit 1; `test_live_specs_do_not_reuse_or_deprecate`
+      holds the real corpus to the same rule.
+    relationships:
+    - rel_type: implements
+      spec_id: MS-09-004
+    tags:
+    - documentation
+    - tooling
   - id: MS-09-003
     priority: MUST
     kind: process
