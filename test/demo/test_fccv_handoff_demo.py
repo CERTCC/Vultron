@@ -33,9 +33,14 @@ from click.testing import CliRunner
 from fastapi.testclient import TestClient
 
 import vultron.demo.scenario.fccv_handoff_demo as demo
-from test.demo._helpers import make_client, make_testclient_call
+from test.demo._helpers import (
+    make_client,
+    make_testclient_call,
+    patch_chain_shared,
+)
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.cli import main
+from vultron.demo.helpers import invite_chain
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -931,7 +936,7 @@ class TestFinderCaseReplicaWaitBeforeVendorTriage:
             call_order.append("triage")
 
         with (
-            patch.object(
+            patch_chain_shared(
                 demo,
                 "wait_for_case_on_container",
                 side_effect=_wait_for_case,
@@ -956,7 +961,7 @@ class TestFinderCaseReplicaWaitBeforeVendorTriage:
                     }
                 ),
             ),
-            patch.object(demo, "find_case_invite_for_actor"),
+            patch.object(invite_chain, "find_case_invite_for_actor"),
             patch.object(demo, "wait_for_case_participants"),
             patch.object(
                 demo,
@@ -1066,7 +1071,7 @@ class TestFccvHandoffCausalGates:
 
         with (
             patch.object(demo, "wait_for_case_participants"),
-            patch.object(demo, "wait_for_case_on_container"),
+            patch_chain_shared(demo, "wait_for_case_on_container"),
             patch.object(demo, "wait_for_case_attributed_to"),
             patch.object(demo, "wait_for_event_type_in_ledger"),
             patch.object(
@@ -1080,7 +1085,7 @@ class TestFccvHandoffCausalGates:
                 ActorSession, "accept_case_ownership_transfer", accept_transfer
             ),
             patch.object(
-                demo, "find_case_invite_for_actor", **invite_lookup
+                invite_chain, "find_case_invite_for_actor", **invite_lookup
             ) as find_invite,
             patch.object(
                 demo, "find_ownership_transfer_offer_for_actor", **offer_lookup
@@ -1276,14 +1281,16 @@ class TestFccvHandoffVendorInviteChainSkipsDependents:
         case = self._case()
 
         with (
-            patch.object(demo, "wait_for_case_on_container") as replica_wait,
+            patch_chain_shared(
+                demo, "wait_for_case_on_container"
+            ) as replica_wait,
             patch.object(demo, "run_invite_path_rm_triage") as rm_triage,
             patch.object(
                 ActorSession, "invite_actor_to_case", **invite_trigger
             ),
             patch.object(ActorSession, "accept_case_invite") as accept_invite,
             patch.object(
-                demo, "find_case_invite_for_actor", **invite_lookup
+                invite_chain, "find_case_invite_for_actor", **invite_lookup
             ) as find_invite,
             patch.object(demo, "wait_for_case_participants"),
         ):

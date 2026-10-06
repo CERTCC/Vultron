@@ -94,8 +94,8 @@ sub-issues were this one defect in different scenarios.
 2. **Never gate on a synchronously-available proxy** — it proves the cause
    *started* (EDF-06-003, bug #2134).
 3. **Discover a caused object by its properties, not its cause's ID** — a
-   forwarded activity has a new identity; use a discriminator scan such as
-   `find_case_invite_for_actor` (EDF-06-004, bug #2178).
+   forwarded activity has a new identity; scan by discriminator (EDF-06-004, #2178)
+   via `run_case_invite_chain` (DEMOMA-17-001).
 4. **Use `demo_gate` for a precondition, `demo_check` for a verification**
    (DEMOCI-01-007, EDF-06-005) — see the next rule.
 5. **Put the gate in `vultron/demo/helpers/`** — scenario modules MUST NOT define

@@ -29,10 +29,11 @@ from click.testing import CliRunner
 from fastapi.testclient import TestClient
 
 import vultron.demo.scenario.fvcv_handoff_demo as demo
-from test.demo._helpers import make_testclient_call
+from test.demo._helpers import make_testclient_call, patch_chain_shared
 from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.cli import main
+from vultron.demo.helpers import invite_chain
 
 
 @pytest.fixture(scope="module")
@@ -274,7 +275,7 @@ class TestFvcvHandoffMilestoneAssertions:
             ),
             patch.object(demo, "run_direct_path_rm_triage", return_value=case),
             patch.object(demo, "wait_for_case_participants"),
-            patch.object(demo, "wait_for_case_on_container"),
+            patch_chain_shared(demo, "wait_for_case_on_container"),
             patch.object(demo, "as_VulnerabilityCase") as mock_vc,
             patch.object(
                 demo,
@@ -1031,7 +1032,7 @@ class TestFinderCaseReplicaGenesisWaitInReportSubmission:
                 "wait_for_case_participants",
                 side_effect=_wait_for_case_participants,
             ),
-            patch.object(
+            patch_chain_shared(
                 demo, "wait_for_case_on_container", side_effect=_wait_for_case
             ),
             patch("vultron.demo.actor_session.post_to_trigger"),
@@ -1155,7 +1156,7 @@ class TestFinderCaseReplicaWaitBeforeVendor2Triage:
             call_order.append("triage")
 
         with (
-            patch.object(
+            patch_chain_shared(
                 demo, "wait_for_case_on_container", side_effect=_wait_for_case
             ),
             patch.object(
@@ -1184,7 +1185,7 @@ class TestFinderCaseReplicaWaitBeforeVendor2Triage:
                     }
                 ),
             ),
-            patch.object(demo, "find_case_invite_for_actor"),
+            patch.object(invite_chain, "find_case_invite_for_actor"),
             patch.object(demo, "wait_for_case_participants"),
             patch.object(
                 demo,
@@ -1341,8 +1342,8 @@ class TestPhaseOwnershipHandoffForwardedOfferId:
                 "find_ownership_transfer_offer_for_actor",
                 return_value=forwarded_offer_id,
             ) as mock_find,
-            patch.object(demo, "find_case_invite_for_actor"),
-            patch.object(demo, "wait_for_case_on_container"),
+            patch.object(invite_chain, "find_case_invite_for_actor"),
+            patch_chain_shared(demo, "wait_for_case_on_container"),
             patch.object(demo, "wait_for_case_participants"),
             patch.object(demo, "wait_for_case_attributed_to"),
             patch.object(demo, "wait_for_case_actor_ledger_event"),
@@ -1523,7 +1524,7 @@ class TestFvcvHandoffCausalGates:
                     "timed out waiting for participants"
                 ),
             ),
-            patch.object(
+            patch_chain_shared(
                 demo,
                 "wait_for_case_on_container",
                 side_effect=case_on_container_called,
@@ -1610,7 +1611,7 @@ class TestFvcvHandoffRmTriageTimeout:
                 demo, "run_direct_path_rm_triage", return_value=case
             ) as mock_rm_triage,
             patch.object(demo, "wait_for_case_participants"),
-            patch.object(demo, "wait_for_case_on_container"),
+            patch_chain_shared(demo, "wait_for_case_on_container"),
             patch.object(demo, "as_VulnerabilityCase") as mock_vc,
             patch.object(
                 demo,
@@ -1734,8 +1735,8 @@ class TestPhaseOwnershipHandoffGatesOnCaseActorCommit:
                 "find_ownership_transfer_offer_for_actor",
                 return_value="urn:test:forwarded-offer",
             ),
-            patch.object(demo, "find_case_invite_for_actor"),
-            patch.object(demo, "wait_for_case_on_container"),
+            patch.object(invite_chain, "find_case_invite_for_actor"),
+            patch_chain_shared(demo, "wait_for_case_on_container"),
             patch.object(demo, "wait_for_case_participants"),
             patch.object(
                 demo,
@@ -1846,8 +1847,8 @@ class TestPhaseOwnershipHandoffGatesOnCaseActorCommit:
                 "find_ownership_transfer_offer_for_actor",
                 return_value="urn:test:forwarded-offer",
             ),
-            patch.object(demo, "find_case_invite_for_actor"),
-            patch.object(demo, "wait_for_case_on_container"),
+            patch.object(invite_chain, "find_case_invite_for_actor"),
+            patch_chain_shared(demo, "wait_for_case_on_container"),
             patch.object(demo, "wait_for_case_participants"),
             patch.object(demo, "wait_for_case_actor_ledger_event"),
             patch.object(
@@ -1938,7 +1939,9 @@ class TestFvcvHandoffOwnershipHandoffSkipsDependents:
 
         with (
             patch.object(demo, "wait_for_case_participants"),
-            patch.object(demo, "wait_for_case_on_container") as replica_wait,
+            patch_chain_shared(
+                demo, "wait_for_case_on_container"
+            ) as replica_wait,
             patch.object(demo, "wait_for_case_actor_ledger_event"),
             patch.object(demo, "wait_for_case_attributed_to"),
             patch.object(demo, "wait_for_event_type_in_ledger"),
@@ -1953,7 +1956,7 @@ class TestFvcvHandoffOwnershipHandoffSkipsDependents:
                 ActorSession, "accept_case_ownership_transfer"
             ) as accept_transfer,
             patch.object(
-                demo, "find_case_invite_for_actor", **invite_lookup
+                invite_chain, "find_case_invite_for_actor", **invite_lookup
             ) as find_invite,
             patch.object(
                 demo, "find_ownership_transfer_offer_for_actor", **offer_lookup
@@ -2049,14 +2052,16 @@ class TestFvcvHandoffVendor2InviteChainSkipsDependents:
         case = self._case()
 
         with (
-            patch.object(demo, "wait_for_case_on_container") as replica_wait,
+            patch_chain_shared(
+                demo, "wait_for_case_on_container"
+            ) as replica_wait,
             patch.object(demo, "run_invite_path_rm_triage"),
             patch.object(
                 ActorSession, "invite_actor_to_case", **invite_trigger
             ),
             patch.object(ActorSession, "accept_case_invite") as accept_invite,
             patch.object(
-                demo, "find_case_invite_for_actor", **invite_lookup
+                invite_chain, "find_case_invite_for_actor", **invite_lookup
             ) as find_invite,
             patch.object(demo, "wait_for_case_participants"),
         ):
