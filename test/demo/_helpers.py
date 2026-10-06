@@ -208,7 +208,7 @@ def make_client(base: str, actor_id: str | None = None) -> DataLayerClient:
 
 @contextlib.contextmanager
 def route_exchange_demo_at_testclient(
-    client: TestClient, demo: ModuleType
+    client: TestClient, demo: ModuleType, *also: ModuleType
 ) -> Iterator[str]:
     """Route an exchange demo's clients at the in-process *client*; yield the base.
 
@@ -219,13 +219,18 @@ def route_exchange_demo_at_testclient(
     whose base URL is not the authority that hosts the actor (DEMOMA-26-002).
     So the runner's client is also *built* at the test server's base.
 
-    Every patch is undone on exit and *demo* is reloaded, so nothing leaks into
-    later modules.
+    *also* names further demo modules (e.g. ``initialize_case_demo``) whose
+    ``BASE_URL`` must point at the same server; each is patched like *demo* and
+    reloaded on exit.
+
+    Every patch is undone on exit and *demo* and each of *also* is reloaded, so
+    nothing leaks into later modules.
     """
     mp = MonkeyPatch()
     base = str(client.base_url).rstrip("/") + "/api/v2"
     try:
-        mp.setattr(demo, "BASE_URL", base, raising=False)
+        for module in (demo, *also):
+            mp.setattr(module, "BASE_URL", base, raising=False)
         mp.setattr(
             demo.DataLayerClient, "call", make_testclient_call(client, base)
         )
@@ -233,7 +238,8 @@ def route_exchange_demo_at_testclient(
         yield base
     finally:
         mp.undo()
-        importlib.reload(demo)
+        for module in (demo, *also):
+            importlib.reload(module)
 
 
 def seed_case_replica_for_actor(
