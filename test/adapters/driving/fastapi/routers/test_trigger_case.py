@@ -685,7 +685,12 @@ def test_trigger_create_case_short_actor_id_updates_outbox_without_warning(
     with caplog.at_level(logging.WARNING):
         resp = short_id_env.client.post(
             f"/actors/{short_id_env.segment}/trigger/create-case",
-            json={"name": "Case-001", "content": "Case content"},
+            json={
+                "name": "Case-001",
+                "content": "Case content",
+                # A recipient, so the Create is queued (OX-08-001).
+                "to": ["https://example.org/actors/finder"],
+            },
         )
 
     assert resp.status_code == status.HTTP_202_ACCEPTED

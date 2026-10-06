@@ -524,6 +524,26 @@ def _no_outbox_row_is_dropped(caplog):
 
 
 @pytest.fixture(autouse=True)
+def _no_outbox_row_is_dead_lettered(caplog):
+    """Fail any demo test during which the outbox dead-lettered a row.
+
+    A scenario that runs to completion can still have left an activity
+    undelivered: the outbox dead-letters it with an ERROR and carries on
+    (OX-13-002, OX-13-013).  A recipient-less ``create-case`` ``Create`` went
+    unnoticed this way, retried on backoff in every scenario built on
+    ``setup_initialized_case``, until this guard.
+    """
+    yield
+    dead = [
+        r.getMessage()
+        for r in caplog.get_records("call")
+        if r.levelno >= logging.ERROR
+        and "moved to dead letter" in r.getMessage().lower()
+    ]
+    assert not dead, "the outbox dead-lettered a row:\n" + "\n".join(dead)
+
+
+@pytest.fixture(autouse=True)
 def restore_case_actor_url_after_each_test():
     """Restore the session's CaseActor/server config after every demo test.
 

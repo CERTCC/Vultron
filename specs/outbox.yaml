@@ -685,6 +685,30 @@ groups:
       spec_id: OX-01-005
     adr:
     - ADR-0112
+  - id: OX-13-013
+    priority: MUST
+    kind: project
+    statement: >-
+      When the outbox refuses an activity's sealed body before any delivery attempt (a
+      `to:` naming no recipient, OX-08-003, or an `object` that is not inline,
+      OX-07-001), the activity MUST be moved to the dead-letter store on that first
+      refusal, with reason `undeliverable_body`, and MUST NOT be retried.
+    rationale: >-
+      The sealed body never changes (VM-08-003), so every retry is refused the same way.
+      Retrying it spent the whole attempt budget on exponential backoff — about 24 seconds
+      of sleep per such row — while hiding a deterministic defect behind the transient
+      retry path. This is the local counterpart of the 4xx rule (OX-13-005).
+    verification: >-
+      `test/adapters/driving/fastapi/test_outbox_handler.py` queues a body with no
+      recipient and a body whose `object` is a bare URI, and asserts each is
+      dead-lettered with reason `undeliverable_body` after one attempt, with no backoff.
+    relationships:
+    - rel_type: refines
+      spec_id: OX-13-008
+    - rel_type: refines
+      spec_id: OX-13-005
+    adr:
+    - ADR-0066
 - id: OX-14
   title: Undelivered-Activity Correlation
   description: >
