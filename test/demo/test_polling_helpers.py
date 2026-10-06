@@ -18,12 +18,16 @@ and negative cases (timeout → AssertionError).
 """
 
 import inspect
-from unittest.mock import MagicMock
+from datetime import UTC, datetime, timedelta
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from test.support.received import archive_received
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.models.case_status import CaseStatus
+from vultron.core.states.em import EM
+from vultron.core.states.participant_embargo_consent import PEC
 from vultron.demo.helpers.polling import (
     CROSS_CONTAINER_TIMEOUT,
     LATE_JOINER_REPLICA_TIMEOUT,
@@ -33,13 +37,19 @@ from vultron.demo.helpers.polling import (
     _received_activity_id,
     assert_received_from,
     find_case_invite_for_actor,
+    find_embargo_invite_for_actor,
     wait_for_case_attributed_to,
+    wait_for_case_em_state,
     wait_for_case_participants,
     wait_for_ledger_event,
+    wait_for_participant_embargo_accepted,
+    wait_for_participant_embargo_consent,
     wait_for_pending_inbox_quiescent,
 )
 from vultron.wire.as2.factories.case import rm_invite_to_case_activity
+from vultron.wire.as2.factories.embargo import em_propose_embargo_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -694,3 +704,240 @@ class TestMalformedReceivedRecord:
         assert _received_activity_id("urn:uuid:a", {"type": "Invite"}) == (
             "urn:uuid:a"
         )
+
+
+# ---------------------------------------------------------------------------
+# Embargo polling (#2070): the relayed Invite(EmbargoEvent), the EM state, and
+# a participant's consent, each read where the cause commits (EDF-06-002).
+# ---------------------------------------------------------------------------
+
+_EMBARGO_ID = f"{CASE_ID}/embargo_events/90d"
+_RELAYED_ID = "http://example.com/activities/embargo-invite-1"
+
+
+def _relayed_embargo_invite(
+    invitee_id: str = ACTOR_B, embargo_id: str = _EMBARGO_ID
+) -> tuple[str, dict]:
+    """The CASE_MANAGER's relayed Invite as the invitee's store holds it."""
+    invite = em_propose_embargo_activity(
+        as_EmbargoEvent(
+            id_=embargo_id,
+            context=CASE_ID,
+            end_time=datetime.now(UTC) + timedelta(days=90),
+        ),
+        context=CASE_ID,
+        actor=_MANAGER,
+        to=[invitee_id],
+        id_=_RELAYED_ID,
+    )
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=invitee_id)
+    record = archive_received(dl, invite)
+    return record.id_, record.model_dump(
+        mode="json", exclude_none=True, by_alias=True
+    )
+
+
+class TestFindEmbargoInviteForActor:
+    @pytest.mark.spec("EP-09-002")
+    def test_finds_the_invite_addressed_to_the_invitee(self):
+        record_id, record = _relayed_embargo_invite()
+        client = _dl_client({record_id: record})
+
+        found = find_embargo_invite_for_actor(
+            client,
+            _EMBARGO_ID,
+            ACTOR_B,
+            timeout_seconds=1.0,
+            poll_interval=0.01,
+        )
+
+        assert found == _RELAYED_ID
+
+    @pytest.mark.spec("EP-09-010")
+    @pytest.mark.parametrize(
+        ("embargo_id", "invitee_id"),
+        [
+            (f"{CASE_ID}/embargo_events/other", ACTOR_B),
+            (_EMBARGO_ID, ACTOR_A),
+        ],
+    )
+    def test_an_invite_of_another_embargo_or_invitee_does_not_match(
+        self, embargo_id, invitee_id
+    ):
+        record_id, record = _relayed_embargo_invite(invitee_id, embargo_id)
+        client = _dl_client({record_id: record})
+
+        with pytest.raises(AssertionError, match="Timed out"):
+            find_embargo_invite_for_actor(
+                client,
+                _EMBARGO_ID,
+                ACTOR_B,
+                timeout_seconds=0.05,
+                poll_interval=0.01,
+            )
+
+    def test_a_case_invite_is_not_an_embargo_invite(self):
+        record_id, record = _archived_invite_entry()
+        client = _dl_client({record_id: record})
+
+        with pytest.raises(AssertionError, match="Timed out"):
+            find_embargo_invite_for_actor(
+                client,
+                CASE_ID,
+                ACTOR_B,
+                timeout_seconds=0.05,
+                poll_interval=0.01,
+            )
+
+
+def _case_client(em: EM, active_embargo_id: str | None) -> MagicMock:
+    client = MagicMock()
+    client.base_url = "http://vendor:7999"
+    client.actor_id = ACTOR_B
+    case = as_VulnerabilityCase(
+        id_=CASE_ID,
+        active_embargo=active_embargo_id,
+        case_statuses=[CaseStatus(em_state=em, context=CASE_ID)],  # type: ignore[arg-type,call-arg]
+    )
+    client.get.return_value = case.model_dump(
+        mode="json", by_alias=True, exclude_none=True
+    )
+    return client
+
+
+class TestWaitForCaseEmState:
+    def test_returns_when_em_matches(self):
+        wait_for_case_em_state(
+            _case_client(EM.ACTIVE, None),
+            CASE_ID,
+            EM.ACTIVE,
+            timeout_seconds=1.0,
+            poll_interval=0.01,
+        )
+
+    def test_times_out_on_another_state(self):
+        with pytest.raises(AssertionError, match="reach REVISE"):
+            wait_for_case_em_state(
+                _case_client(EM.ACTIVE, None),
+                CASE_ID,
+                EM.REVISE,
+                timeout_seconds=0.05,
+                poll_interval=0.01,
+            )
+
+    def test_reads_the_named_actors_store(self):
+        client = _case_client(EM.ACTIVE, None)
+        wait_for_case_em_state(
+            client,
+            CASE_ID,
+            EM.ACTIVE,
+            timeout_seconds=1.0,
+            dl_actor_id=_MANAGER,
+        )
+        client.dl_path.assert_called_with(CASE_ID, actor_id=_MANAGER)
+
+    def test_a_stale_active_embargo_does_not_satisfy_the_wait(self):
+        """ACTIVE before and after a revision: only the embargo id tells."""
+        with pytest.raises(AssertionError, match="active embargo"):
+            wait_for_case_em_state(
+                _case_client(EM.ACTIVE, "urn:old"),
+                CASE_ID,
+                EM.ACTIVE,
+                timeout_seconds=0.05,
+                poll_interval=0.01,
+                active_embargo_id="urn:revised",
+            )
+
+    def test_the_revised_embargo_satisfies_the_wait(self):
+        wait_for_case_em_state(
+            _case_client(EM.ACTIVE, "urn:revised"),
+            CASE_ID,
+            EM.ACTIVE,
+            timeout_seconds=1.0,
+            poll_interval=0.01,
+            active_embargo_id="urn:revised",
+        )
+
+
+class TestWaitForParticipantEmbargoConsent:
+    @staticmethod
+    def _wait(consent: PEC, expected: PEC):
+        participant = MagicMock()
+        participant.embargo_consent_state = consent
+        with patch(
+            "vultron.demo.helpers.polling._fetch_participant",
+            return_value=participant,
+        ):
+            wait_for_participant_embargo_consent(
+                MagicMock(base_url="http://vendor:7999", actor_id=ACTOR_B),
+                CASE_ID,
+                ACTOR_A,
+                expected,
+                timeout_seconds=0.05,
+                poll_interval=0.01,
+            )
+
+    def test_returns_when_consent_matches(self):
+        self._wait(PEC.SIGNATORY, PEC.SIGNATORY)
+
+    def test_times_out_naming_the_current_consent(self):
+        with pytest.raises(AssertionError, match=r"current=.*INVITED"):
+            self._wait(PEC.INVITED, PEC.SIGNATORY)
+
+    def test_times_out_without_a_participant_record(self):
+        with patch(
+            "vultron.demo.helpers.polling._fetch_participant",
+            return_value=None,
+        ):
+            with pytest.raises(AssertionError, match="no participant record"):
+                wait_for_participant_embargo_consent(
+                    MagicMock(base_url="http://vendor:7999", actor_id=ACTOR_B),
+                    CASE_ID,
+                    ACTOR_A,
+                    PEC.SIGNATORY,
+                    timeout_seconds=0.05,
+                    poll_interval=0.01,
+                )
+
+    def test_timeout_names_the_read_error_when_no_poll_completed(self):
+        with patch(
+            "vultron.demo.helpers.polling._fetch_participant",
+            side_effect=ConnectionError("refused"),
+        ):
+            with pytest.raises(
+                AssertionError, match="ConnectionError: refused"
+            ):
+                wait_for_participant_embargo_consent(
+                    MagicMock(base_url="http://vendor:7999", actor_id=ACTOR_B),
+                    CASE_ID,
+                    ACTOR_A,
+                    PEC.SIGNATORY,
+                    timeout_seconds=0.05,
+                    poll_interval=0.01,
+                )
+
+
+class TestWaitForParticipantEmbargoAccepted:
+    @staticmethod
+    def _wait(accepted: list[str], embargo_id: str = "urn:revised"):
+        participant = MagicMock()
+        participant.accepted_embargo_ids = accepted
+        with patch(
+            "vultron.demo.helpers.polling._fetch_participant",
+            return_value=participant,
+        ):
+            wait_for_participant_embargo_accepted(
+                MagicMock(base_url="http://vendor:7999", actor_id=ACTOR_B),
+                CASE_ID,
+                ACTOR_A,
+                embargo_id,
+                timeout_seconds=0.05,
+                poll_interval=0.01,
+            )
+
+    def test_returns_when_the_embargo_is_accepted(self):
+        self._wait(["urn:first", "urn:revised"])
+
+    def test_times_out_naming_the_accepted_embargoes(self):
+        with pytest.raises(AssertionError, match=r"current=\['urn:first'\]"):
+            self._wait(["urn:first"])
