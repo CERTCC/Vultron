@@ -31,7 +31,7 @@ from vultron.core.services.embargo_lifecycle.pec_activation import (
 )
 from vultron.core.services.embargo_lifecycle.results import (
     EmbargoLifecycleResult,
-    ParticipantPECChange,
+    ParticipantConsentChange,
     TransitionMode,
 )
 from vultron.core.states.em import EM, EM_Trigger
@@ -56,21 +56,17 @@ class _AnswerOperationsMixin(_PecActivationMixin):
         If *actor_id* is the case owner (``attributed_to``), drives the EM
         state machine ``PROPOSED → ACTIVE`` (or ``REVISE → ACTIVE``) and
         activates the embargo via ``case.set_embargo(embargo_id)``.  When
-        that replaces active embargo A with revision B, every participant's
-        consent is re-evaluated against B (EP-05-001, MSM-07-005): a B that
-        ends no later than A carries every signatory over, a B that ends
-        later lapses the signatories whose ``accepted_embargo_ids`` lack it,
-        and in either arm a non-signatory whose list already holds B becomes
-        ``SIGNATORY``.  The cascade runs in ``STRICT`` and ``OBSERVED`` modes
-        alike.
+        that replaces active embargo A with revision B, the consent rows are
+        settled against B (EP-05-001, MSM-07-005): a B that ends no later than
+        A carries every signatory over, and under a longer B the signatories
+        who have not accepted it have lapsed by derivation (CM-18-001).  The
+        carry-over runs in ``STRICT`` and ``OBSERVED`` modes alike.
 
-        For any actor (owner or not) *embargo_id* is added idempotently to the
-        actor's ``accepted_embargo_ids``.  The PEC ``ACCEPT`` trigger is
-        applied only when the accepted embargo is (or, for the owner, is now)
-        the case's active embargo; accepting a *proposed* revision while
-        another embargo is in force records the id with no state change
-        (MSM-07-003) — a ``SIGNATORY`` was and remains a signatory to the
-        embargo in force, and a non-signatory advances when B activates.
+        For any actor (owner or not) the PEC ``ACCEPT`` trigger marks the row
+        for *embargo_id* ``ACCEPTED`` (MSM-07-003).  There is one rule whether
+        *embargo_id* is the embargo in force, a proposed revision, or the
+        actor's own proposal: the row is written, and being a signatory is the
+        lookup of the active embargo's row (ADR-0120).
 
         Args:
             case_id: ID of the ``VulnerabilityCase`` to update.
@@ -79,10 +75,6 @@ class _AnswerOperationsMixin(_PecActivationMixin):
             transition_mode: ``STRICT`` (default) or ``OBSERVED``.
             em_before: When provided, the service uses this value directly
                 instead of reading it from the case.
-            record_consent: ``False`` when the caller has already recorded
-                the rejecting actor's consent effect through
-                :meth:`record_embargo_rejection` (the received Reject tree
-                and its ledger replay), so it is applied once.
 
         Returns:
             :class:`EmbargoLifecycleResult` describing what changed.
@@ -108,16 +100,12 @@ class _AnswerOperationsMixin(_PecActivationMixin):
         em_after = em_before
         case_mutated = False
         case_embargo_changed = False
-        participant_changes: list[ParticipantPECChange] = []
+        participant_changes: list[ParticipantConsentChange] = []
 
         is_owner = _as_id(case.attributed_to) == actor_id
         active_embargo_id = case.active_embargo_id
         already_active = (
             em_before == EM.ACTIVE and active_embargo_id == embargo_id
-        )
-        # B is a proposed revision of an embargo A still in force.
-        is_revision_of_active = (
-            active_embargo_id is not None and active_embargo_id != embargo_id
         )
 
         # The owner's accept activates B: read B (and any embargo A it
@@ -168,25 +156,22 @@ class _AnswerOperationsMixin(_PecActivationMixin):
         if case_mutated:
             self._persistence.save(case)
 
-        # The actor's own consent.  The owner has just made B the active
-        # embargo, so its ACCEPT advances; a non-owner accepting a proposed
-        # revision records the id only (MSM-07-003).
+        # The actor's own consent: this embargo's row, whichever embargo it
+        # is (MSM-07-003).
         participant_changes.extend(
-            self._record_actor_pec_acceptance(
-                case,
-                actor_id,
-                embargo_id,
-                advance=is_owner or not is_revision_of_active,
-            )
+            self._record_actor_acceptance(case, actor_id, embargo_id)
         )
 
         if is_owner and not already_active:
-            # B is now the embargo in force: re-evaluate everyone's consent
-            # (EP-05-001) and advance the non-signatories that already hold
-            # B.  The owner's record already holds B, so it is never lapsed.
+            # B is now the embargo in force: carry A's signatories over to it
+            # when it ends no later (EP-05-001).  The owner's row already
+            # holds B, so it is never lapsed.
             participant_changes.extend(
                 self._consent_at_activation(
-                    case, embargo_id=embargo_id, ends_no_later=ends_no_later
+                    case,
+                    embargo_id=embargo_id,
+                    previous_embargo_id=active_embargo_id,
+                    ends_no_later=ends_no_later,
                 )
             )
 
@@ -215,7 +200,6 @@ class _AnswerOperationsMixin(_PecActivationMixin):
             em_after=em_after,
             case_changed=case_mutated or bool(participant_changes),
             case_embargo_changed=case_embargo_changed,
-            pec_exited=False,
             participant_changes=participant_changes,
         )
 
@@ -249,13 +233,13 @@ class _AnswerOperationsMixin(_PecActivationMixin):
         The consent effect depends on which embargo the Reject names
         (MSM-07-004, ADR-0093):
 
-        - the case's *active* embargo: ``DECLINE`` from any state including
-          ``SIGNATORY`` — consent withdrawal — and the id leaves the actor's
-          ``accepted_embargo_ids``;
-        - a *proposed* embargo that is not active: the id leaves the list and
-          ``DECLINE`` applies only to an actor not yet ``SIGNATORY``; a
-          signatory's refusal of proposed terms is not withdrawal from the
-          embargo in force;
+        - the case's *active* embargo: ``DECLINE`` marks the actor's row for
+          it ``DECLINED`` — consent withdrawal, a signatory's included — and
+          every open proposal the actor had accepted is declined with it;
+        - a *proposed* embargo that is not active: ``DECLINE`` marks that
+          embargo's row only; the actor's row for the embargo in force is
+          untouched, so a signatory's refusal of proposed terms is not
+          withdrawal from it;
         - the owner's EJ (``REVISE → ACTIVE``) changes no participant record,
           the owner's included — the owner is keeping the prior terms, not
           declining them.
@@ -360,6 +344,5 @@ class _AnswerOperationsMixin(_PecActivationMixin):
             em_after=em_after,
             case_changed=case_mutated or bool(participant_changes),
             case_embargo_changed=False,
-            pec_exited=False,
             participant_changes=participant_changes,
         )

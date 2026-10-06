@@ -49,7 +49,9 @@ from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
@@ -322,13 +324,19 @@ class TestTerminateEmbargoBT:
         factory.terminate_embargo.assert_not_called()
 
     @pytest.mark.spec("EMB-13-001")
-    def test_resets_participant_pec_state(self):
-        """Shared BT resets participant embargo_consent_state to UNBOUND."""
+    def test_leaves_consent_rows_untouched_and_nobody_a_signatory(self):
+        """Termination writes no consent; with no active embargo nobody signs."""
         case, dl, _factory = self._run_as_manager("teb5", em_state=EM.ACTIVE)
 
+        updated_case = cast(VulnerabilityCase, dl.read(case.id_))
+        assert updated_case.active_embargo_id is None
+        embargo_id = _embargo_id(case)
         for participant_id in case.actor_participant_index.values():
             updated_p = cast(as_CaseParticipant, dl.read(participant_id))
-            assert updated_p.embargo_consent_state == PEC.UNBOUND_EXITED.value
+            assert updated_p.consent_for(embargo_id) is (
+                EmbargoConsentState.ACCEPTED
+            )
+            assert not updated_p.is_signatory(updated_case.active_embargo_id)
 
     def test_cascade_path_no_builder_returns_failure_when_no_factory(self):
         """Without activity_builder, FAILURE when no trigger_activity_factory set.
@@ -782,7 +790,6 @@ class TestSetEmbargoActiveNode:
             em_after=EM.ACTIVE,
             case_changed=True,
             case_embargo_changed=True,
-            pec_exited=False,
         )
         with patch.object(
             EmbargoLifecycle,
@@ -824,7 +831,6 @@ class TestSetEmbargoActiveNode:
             em_after=EM.ACTIVE,
             case_changed=True,
             case_embargo_changed=False,
-            pec_exited=False,
         )
         with patch.object(
             EmbargoLifecycle,
@@ -943,7 +949,6 @@ class TestSetEmbargoActiveNode:
             em_after=EM.ACTIVE,
             case_changed=True,
             case_embargo_changed=True,
-            pec_exited=False,
         )
         with patch.object(
             EmbargoLifecycle,
@@ -1003,7 +1008,14 @@ class TestProposeEmbargoLifecycleNodeOnBehalfOfAProposer:
         case = cast(VulnerabilityCase, dl.read(case_id))
         participant = dl.read(case.actor_participant_index[actor])
         assert isinstance(participant, CaseParticipant)
-        return participant.accepted_embargo_ids
+        return [
+            embargo_id
+            for embargo_id in (
+                row.embargo_id for row in participant.embargo_consents
+            )
+            if participant.consent_for(embargo_id)
+            is EmbargoConsentState.ACCEPTED
+        ]
 
     @pytest.mark.spec("EP-09-001")
     def test_the_proposers_consent_is_recorded_not_the_managers(self):

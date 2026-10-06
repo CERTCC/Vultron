@@ -33,6 +33,7 @@ model validators:
 from __future__ import annotations
 
 import logging
+from collections.abc import Collection
 from datetime import datetime
 from typing import Any, ClassVar, Literal
 
@@ -40,23 +41,22 @@ from pydantic import Field, field_serializer, field_validator, model_validator
 
 from vultron.core.models._helpers import _new_urn
 from vultron.core.models.base import CoreObject, NonEmptyString
-from vultron.core.models.dimensions import (
-    PecDimension,
-    RmDimension,
-)
+from vultron.core.models.dimensions import RmDimension
+from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.participant_status import (
     ParticipantStatus,
     coerce_cvd_roles,
-    coerce_em_consent_state,
     participant_status_rm_state,
 )
-from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+    PEC_Trigger,
+    consent_after,
+    consent_trigger_is_legal,
+)
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole, serialize_roles, validate_roles
-from vultron.errors import (
-    VultronInvalidStateTransitionError,
-    VultronValidationError,
-)
+from vultron.errors import VultronValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -88,8 +88,11 @@ class CaseParticipant(CoreObject):
     )
     case_roles: list[CVDRole] = Field(default_factory=list)
     participant_statuses: list[ParticipantStatus] = Field(default_factory=list)
-    accepted_embargo_ids: list[NonEmptyString] = Field(default_factory=list)
-    embargo_consent_state: PEC = Field(default=PEC.UNBOUND)
+    # Consent is per (participant, embargo) (ADR-0120, CM-10-001, CM-18-001):
+    # one row for each embargo this participant was asked about, and the only
+    # record of consent.  Bound-by-the-active-embargo and lapsed are lookups
+    # over these rows (``is_signatory``, ``has_lapsed``), never stored.
+    embargo_consents: list[EmbargoConsent] = Field(default_factory=list)
     # The participant has joined the case: it was seated by the case
     # initialization sequence (CM-14-001) or it accepted its stub Invite
     # (CM-10-004, ADR-0114).  One input to the case-level active check
@@ -140,18 +143,10 @@ class CaseParticipant(CoreObject):
         if not data.get("id") and not data.get("id_"):
             data["id"] = _new_urn()
         id_val = data.get("id") or data.get("id_")
-        _consent_state = coerce_em_consent_state(
-            data.get("embargo_consent_state", PEC.UNBOUND)
-        )
         data["participant_statuses"] = [
             ParticipantStatus(
                 context=data.get("context") or id_val,
                 attributed_to=data.get("attributed_to"),
-                consent=(
-                    PecDimension(state=_consent_state)
-                    if _consent_state is not None
-                    else None
-                ),
                 cvd_role=coerce_cvd_roles(data.get("case_roles") or []),
             ),
         ]
@@ -162,106 +157,124 @@ class CaseParticipant(CoreObject):
             return
         latest = self.participant_statuses[-1]
         latest.cvd_role = coerce_cvd_roles(self.case_roles)
-        _consent_state = coerce_em_consent_state(self.embargo_consent_state)
-        latest.consent = (
-            PecDimension(state=_consent_state)
-            if _consent_state is not None
-            else None
-        )
 
-    def apply_pec_transition(self, trigger: PEC_Trigger) -> None:
-        """Apply *trigger* to the PEC state machine and sync ParticipantStatus.
+    def consent_for(self, embargo_id: str) -> EmbargoConsentState | None:
+        """This participant's consent to *embargo_id*; ``None`` when never asked."""
+        for row in self.embargo_consents:
+            if row.embargo_id == embargo_id:
+                return row.state
+        return None
 
-        Uses ``PecDimension.transition()`` for fail-closed FSM validation
-        (raises ``VultronInvalidStateTransitionError`` on an illegal trigger),
-        then updates ``embargo_consent_state`` and syncs the latest
-        ``ParticipantStatus.consent`` via ``_sync_latest_status_metadata()``.
+    def accepts_pec_trigger(
+        self, embargo_id: str, trigger: PEC_Trigger
+    ) -> bool:
+        """True when *trigger* is legal from the current row for *embargo_id*.
 
-        This is the single authoritative consent-write path (CM-18-005,
-        CM-18-006, ADR-0048).  All sites that record a PEC change MUST call
-        this method instead of assigning ``embargo_consent_state`` directly.
-        """
-        current_pec = coerce_em_consent_state(self.embargo_consent_state)
-        if current_pec is None:
-            current_pec = PEC.UNBOUND
-        new_dim = PecDimension(state=current_pec).transition(trigger)
-        self.embargo_consent_state = new_dim.state
-        self._sync_latest_status_metadata()
-
-    def accepts_pec_trigger(self, trigger: PEC_Trigger) -> bool:
-        """True when *trigger* is legal from the current consent state.
-
-        The read-only twin of :meth:`apply_pec_transition`, for a caller that
-        applies a trigger only where CM-18-003 allows it — a relayed embargo
-        Invite moves a participant to ``INVITED`` from ``UNBOUND``, ``LAPSED``,
-        ``DECLINED`` or ``EXPIRED`` and leaves a ``SIGNATORY`` or an already-``INVITED``
-        participant untouched (EP-09-004).  Asking first, rather than catching
-        the machine's refusal, keeps the write path fail-closed for every
+        The read-only twin of :meth:`apply_pec_transition`, for a caller that applies
+        a trigger only where CM-18-003 allows it.  Asking first, rather than
+        catching the refusal, keeps the write path fail-closed for every
         caller that does not opt into the no-op.
         """
-        current_pec = coerce_em_consent_state(self.embargo_consent_state)
-        if current_pec is None:
-            current_pec = PEC.UNBOUND
-        try:
-            PecDimension(state=current_pec).transition(trigger)
-        except VultronInvalidStateTransitionError:
-            return False
-        return True
+        return consent_trigger_is_legal(self.consent_for(embargo_id), trigger)
 
-    def apply_pec_transition_if_legal(self, trigger: PEC_Trigger) -> bool:
-        """Apply *trigger* when CM-18-003 allows it; True when the state moved.
+    def apply_pec_transition(
+        self, embargo_id: str, trigger: PEC_Trigger
+    ) -> None:
+        """Apply *trigger* to the consent row for *embargo_id*.
+
+        The single authoritative consent-write path (CM-18-005, CM-18-006,
+        ADR-0120): fail-closed against the transition table, creating the row
+        on first contact.  Raises
+        :exc:`~vultron.errors.VultronInvalidStateTransitionError` on an
+        illegal trigger.  The caller persists the record.
+        """
+        new_state = consent_after(self.consent_for(embargo_id), trigger)
+        self._set_consent(embargo_id, new_state)
+
+    def apply_pec_transition_if_legal(
+        self, embargo_id: str, trigger: PEC_Trigger
+    ) -> bool:
+        """Apply *trigger* when CM-18-003 allows it; True when the row moved.
 
         The one "apply where legal" shape for every caller that treats an
-        illegal trigger as a recorded no-op rather than a fault — the relayed
-        embargo Invite, which leaves a ``SIGNATORY`` or an already-``INVITED``
-        participant untouched (EP-09-004).  The caller persists the record;
-        this method only moves the machine.
+        illegal trigger as a recorded no-op rather than a fault.  The caller
+        persists the record.
         """
-        if not self.accepts_pec_trigger(trigger):
+        if not self.accepts_pec_trigger(embargo_id, trigger):
             return False
-        self.apply_pec_transition(trigger)
+        self.apply_pec_transition(embargo_id, trigger)
         return True
 
+    def _set_consent(
+        self, embargo_id: str, state: EmbargoConsentState
+    ) -> None:
+        rows = [r for r in self.embargo_consents if r.embargo_id != embargo_id]
+        self.embargo_consents = [
+            *rows,
+            EmbargoConsent(embargo_id=embargo_id, state=state),
+        ]
+
+    def invited_embargo_ids(self) -> list[str]:
+        """Ids of the embargoes this participant was invited to and has not answered."""
+        return [
+            r.embargo_id
+            for r in self.embargo_consents
+            if r.state == EmbargoConsentState.INVITED
+        ]
+
+    def is_signatory(self, active_embargo_id: str | None) -> bool:
+        """True when this participant has accepted the embargo in force.
+
+        "Signatory" is a lookup, not a state: the row for the active embargo
+        says ``ACCEPTED`` (CM-18-001).  With no embargo in force nobody is a
+        signatory.
+        """
+        return (
+            active_embargo_id is not None
+            and self.consent_for(active_embargo_id)
+            == EmbargoConsentState.ACCEPTED
+        )
+
+    def has_lapsed(
+        self,
+        active_embargo_id: str | None,
+        open_proposal_ids: Collection[str] = (),
+    ) -> bool:
+        """True when it accepted an earlier embargo but not the one in force.
+
+        Derived (CM-18-001): the participant holds an ``ACCEPTED`` row for
+        some other embargo and has no accepting row for the active one.  An
+        ``ACCEPTED`` row for one of *open_proposal_ids* does not count: the
+        participant accepted a revision it was never bound by, so it has
+        nothing to lapse from.  A ``DECLINED`` row for the active embargo is a
+        refusal, not a lapse; a participant that was never bound by anything
+        has not lapsed either.
+        """
+        if active_embargo_id is None:
+            return False
+        if self.consent_for(active_embargo_id) in (
+            EmbargoConsentState.ACCEPTED,
+            EmbargoConsentState.DECLINED,
+        ):
+            return False
+        return any(
+            r.state == EmbargoConsentState.ACCEPTED
+            and r.embargo_id not in open_proposal_ids
+            for r in self.embargo_consents
+        )
+
     def sign_embargo(self, embargo_id: str) -> bool:
-        """Sign *embargo_id*, the embargo in force; True when now SIGNATORY.
+        """Sign *embargo_id*, the embargo in force; True when now ACCEPTED.
 
         The one seeding shape for a participant that consents to the active
         embargo without an answer of its own (CM-14-005, CM-10-001): apply
-        ``ACCEPT`` where CM-18-003 allows it, and record *embargo_id* only when
-        the participant is ``SIGNATORY`` afterwards.  A ``DECLINED`` or
-        terminal ``UNBOUND_EXITED`` participant is left unsigned and gains no
-        id, so the content gate (CM-10-004) never admits an actor whose state
-        says it is not bound (ADR-0118).  The caller persists the record.
+        ``ACCEPT`` where CM-18-003 allows it.  A participant that declined
+        this embargo is left as it is, so the content gate (CM-10-004) never
+        admits an actor whose row says it is not bound.  The caller persists
+        the record.
         """
-        self.apply_pec_transition_if_legal(PEC_Trigger.ACCEPT)
-        if self.embargo_consent_state != PEC.SIGNATORY.value:
-            return False
-        self.add_accepted_embargo(embargo_id)
-        return True
-
-    def add_accepted_embargo(self, embargo_id: str) -> bool:
-        """Record *embargo_id* as accepted (CM-10-001); True if it was new.
-
-        The list is the per-embargo consent record; the scalar PEC state is
-        not touched here (consent to proposed terms changes no state,
-        MSM-07-003).  Idempotent; writes by validated assignment.
-        """
-        if embargo_id in self.accepted_embargo_ids:
-            return False
-        self.accepted_embargo_ids = [*self.accepted_embargo_ids, embargo_id]
-        return True
-
-    def remove_accepted_embargo(self, embargo_id: str) -> bool:
-        """Forget *embargo_id* as accepted; True if it was there.
-
-        Idempotent; writes by validated assignment.
-        """
-        if embargo_id not in self.accepted_embargo_ids:
-            return False
-        self.accepted_embargo_ids = [
-            e for e in self.accepted_embargo_ids if e != embargo_id
-        ]
-        return True
+        self.apply_pec_transition_if_legal(embargo_id, PEC_Trigger.ACCEPT)
+        return self.consent_for(embargo_id) == EmbargoConsentState.ACCEPTED
 
     @property
     def rm_closed(self) -> bool:
@@ -404,19 +417,11 @@ def _seed_accepted_status(data: Any) -> Any:
     if not data.get("id") and not data.get("id_"):
         data["id"] = _new_urn()
     id_val = data.get("id") or data.get("id_")
-    _consent_state = coerce_em_consent_state(
-        data.get("embargo_consent_state", PEC.UNBOUND)
-    )
     data["participant_statuses"] = [
         ParticipantStatus(
             context=data.get("context") or id_val,
             attributed_to=data.get("attributed_to"),
             rm=RmDimension(state=RM.ACCEPTED),
-            consent=(
-                PecDimension(state=_consent_state)
-                if _consent_state is not None
-                else None
-            ),
             cvd_role=coerce_cvd_roles(data.get("case_roles") or []),
         )
     ]

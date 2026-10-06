@@ -150,60 +150,71 @@ def test_round_trip_is_exact_for_every_core_vocabulary_entry() -> None:
         assert restored == obj, f"{name} did not round-trip exactly"
 
 
-def test_participant_status_signatory_round_trips() -> None:
-    """AC-1 corner: a SIGNATORY ParticipantStatus whose embargo_adherence is
-    True round-trips exactly (ARCH-23-005).
+def _sealed_class() -> type[CoreObject]:
+    """A test-local ``CoreObject`` whose ``is_sealed`` is a computed bool.
 
-    The vocabulary ratchet builds minimal objects whose consent is absent, so
-    their derived embargo_adherence is False.  This test explicitly exercises
-    the True side so the comparison inside _check_computed_field_inputs cannot
-    be an inverted equality that passes vacuously.
+    No production class has a computed field (ARCH-23-005), so the bool
+    contract — including the True side, which a vocabulary of minimal objects
+    never reaches — is exercised on a local subclass.  Callers request
+    ``isolated_core_registries`` so the class stays out of the global
+    registries.
     """
-    from vultron.core.models.dimensions import PecDimension
-    from vultron.core.models.participant_status import ParticipantStatus
-    from vultron.core.states.participant_embargo_consent import PEC
+    from typing import Literal
 
-    signatory = ParticipantStatus(
-        context="urn:uuid:case-signatory",
-        consent=PecDimension(state=PEC.SIGNATORY),
-    )
-    assert signatory.embargo_adherence is True
+    from pydantic import computed_field
 
-    restored = ParticipantStatus.model_validate(
-        signatory.model_dump(mode="json")
-    )
-    assert restored == signatory
+    class _Sealed(CoreObject):
+        type_: Literal["_Sealed"] = "_Sealed"
+        sealed_by: str | None = None
+
+        @computed_field  # type: ignore[misc]
+        @property
+        def is_sealed(self) -> bool:
+            return self.sealed_by is not None
+
+    return _Sealed
 
 
-def test_contradicted_embargo_adherence_raises_protocol_violation() -> None:
-    """AC-2: a supplied embargo_adherence that contradicts the derived value
+def test_true_computed_bool_round_trips(isolated_core_registries) -> None:
+    """A computed bool that is True round-trips exactly (ARCH-23-005).
+
+    Exercises the True side so the comparison inside
+    ``_check_computed_field_inputs`` cannot be an inverted equality that
+    passes vacuously.
+    """
+    sealed = _sealed_class().model_validate({"sealed_by": "urn:uuid:actor"})
+    assert sealed.model_dump()["is_sealed"] is True
+
+    cls = type(sealed)
+    assert cls.model_validate(sealed.model_dump(mode="json")) == sealed
+    # The camelCase wire form parses too; compared by dump because a parsed
+    # document keeps ``@context`` in ``context_``, which the local object
+    # never set.
+    wire = sealed.model_dump(mode="json", by_alias=True)
+    assert wire["isSealed"] is True
+    assert cls.model_validate(wire).model_dump() == sealed.model_dump()
+
+
+def test_contradicted_computed_bool_raises_protocol_violation(
+    isolated_core_registries,
+) -> None:
+    """AC-2: a supplied computed value that contradicts the derived value
     raises VultronProtocolViolationError for both snake_case and camelCase
     spellings (ARCH-23-005, EH-07-001).
     """
-    import pytest
-    from pydantic import ValidationError
-
-    from vultron.core.models.participant_status import ParticipantStatus
-
-    for spelling in ("embargo_adherence", "embargoAdherence"):
+    cls = _sealed_class()
+    for spelling in ("is_sealed", "isSealed"):
         with pytest.raises(ValidationError) as exc_info:
-            ParticipantStatus.model_validate(
-                {
-                    "context": "urn:uuid:case-contradict",
-                    spelling: True,
-                }
-            )
+            cls.model_validate({spelling: True})
         msg = str(exc_info.value)
-        assert "embargo_adherence" in msg, (
+        assert "is_sealed" in msg, (
             f"Error for spelling {spelling!r} did not name the field: {msg}"
         )
         assert "supplied True" in msg, (
             f"Error for spelling {spelling!r} did not include supplied value: {msg}"
         )
         error = _protocol_violation(exc_info.value)
-        assert [v.dimensions for v in error.violations] == [
-            ("embargo_adherence",)
-        ]
+        assert [v.dimensions for v in error.violations] == [("is_sealed",)]
 
 
 def _protocol_violation(exc: ValidationError) -> VultronProtocolViolationError:
@@ -217,33 +228,22 @@ def _protocol_violation(exc: ValidationError) -> VultronProtocolViolationError:
     ("data", "expected_spelling"),
     [
         # camelCase agrees with derived (False); snake_case contradicts.
-        (
-            {"embargo_adherence": True, "embargoAdherence": False},
-            "embargo_adherence",
-        ),
+        ({"is_sealed": True, "isSealed": False}, "is_sealed"),
         # snake_case agrees; camelCase contradicts.
-        (
-            {"embargo_adherence": False, "embargoAdherence": True},
-            "embargoAdherence",
-        ),
+        ({"is_sealed": False, "isSealed": True}, "isSealed"),
     ],
 )
 def test_disagreeing_duplicate_spellings_cannot_mask_a_contradiction(
-    data: dict[str, bool], expected_spelling: str
+    data: dict[str, bool], expected_spelling: str, isolated_core_registries
 ) -> None:
     """Both spellings supplied with different values: the contradicting one is
     refused whichever spelling carries it (ARCH-23-005, EH-07-001).
 
     Keying supplied values by canonical field name let the last-iterated
-    spelling win, so ``{embargo_adherence: True, embargoAdherence: False}`` was
-    accepted while the reverse ordering was refused.
+    spelling win, so one ordering was accepted while the reverse was refused.
     """
-    from vultron.core.models.participant_status import ParticipantStatus
-
     with pytest.raises(ValidationError) as exc_info:
-        ParticipantStatus.model_validate(
-            {"context": "urn:uuid:case-two-spellings", **data}
-        )
+        _sealed_class().model_validate(data)
     error = _protocol_violation(exc_info.value)
     assert len(error.violations) == 1
     assert repr(expected_spelling) in error.violations[0].message
@@ -255,9 +255,8 @@ def test_all_computed_field_contradictions_named_in_one_error(
     """AC-2: every contradicted computed field is carried in one error as
     structured ``Violation`` data (EH-07-001, EH-07-003).
 
-    Because embargo_adherence is the only production computed field, a
-    test-local CoreObject subclass with two computed fields is used to prove
-    the multi-violation contract.  ``isolated_core_registries`` keeps that subclass out
+    A test-local CoreObject subclass with two computed fields is used to
+    prove the multi-violation contract.  ``isolated_core_registries`` keeps that subclass out
     of the process-global core registries.
     """
     from typing import Literal
@@ -298,9 +297,8 @@ def test_json_mode_dump_round_trips_for_non_bool_computed_field(
     """A ``mode="json"`` dump of a computed field of any type round-trips
     (ARCH-23-005).
 
-    The production computed field is a bool, whose JSON form equals its Python
-    form, so the vocabulary ratchet cannot see a comparison that only accepts
-    the Python value.  A ``datetime`` computed field arrives from a JSON dump as
+    A bool's JSON form equals its Python form, so a comparison that only
+    accepts the Python value would go unseen.  A ``datetime`` computed field arrives from a JSON dump as
     a string and must still be recognised as matching.
     """
     from datetime import datetime
@@ -327,9 +325,9 @@ def test_json_mode_dump_round_trips_for_non_bool_computed_field(
     ] == [("when",)]
 
 
-def test_contradicted_embargo_adherence_refused_at_parse() -> None:
-    """AC-4: an inbound ParticipantStatus with a contradicted embargoAdherence
-    is refused at parse, not accepted with the value normalised away.
+def test_retired_embargo_adherence_refused_at_parse() -> None:
+    """An inbound ParticipantStatus carrying the retired embargoAdherence key
+    is refused at parse (ADR-0120), not accepted with the value set aside.
     """
     import pytest
 
@@ -348,7 +346,7 @@ def test_contradicted_embargo_adherence_refused_at_parse() -> None:
         },
         "published": "2026-01-01T00:00:00+00:00",
     }
-    with pytest.raises(VultronParseValidationError):
+    with pytest.raises(VultronParseValidationError, match="ADR-0120"):
         parse_activity(body)
 
 

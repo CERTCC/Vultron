@@ -217,52 +217,50 @@ def test_update_wire_shaped_storable_record_reads_back_as_core(dl):
     assert stored.rm is not None and stored.rm.state == RM.RECEIVED
 
 
-def test_contradicted_embargo_adherence_row_does_not_read_back_as_clean_core(
+def test_retired_embargo_adherence_row_does_not_read_back_as_clean_core(
     dl, caplog
 ):
-    """A stored row whose embargo_adherence contradicts its consent state
-    does not read back as a clean core ParticipantStatus (AC-3, ARCH-23-005).
+    """A stored row still carrying the retired embargo_adherence key does not
+    read back as a clean core ParticipantStatus (ADR-0120, ARCH-12-003).
 
-    Pins the observed dl.read() behaviour for a self-contradicting row so
-    that a future change to the read path cannot silently change it, and
-    that the row is not *silently* dark: hydration logs a WARNING naming the
-    row and the cause, so an unreadable row stays distinguishable from a
+    Pins the observed dl.read() behaviour for a row written before consent
+    left the status, so that a future change to the read path cannot silently
+    change it, and that the row is not *silently* dark: hydration logs a
+    WARNING naming the row, so an unreadable row stays distinguishable from a
     missing one.
     """
     import logging
 
     from vultron.core.ports.datalayer import StorableRecord
 
-    # No consent field → embargo_adherence derives as False; stored True
-    # contradicts that derived value.
-    contradicting_data = {
-        "id_": "urn:uuid:ps-contradict-001",
+    retired_data = {
+        "id_": "urn:uuid:ps-retired-001",
         "type_": "ParticipantStatus",
-        "context": "urn:uuid:test-case-contradict",
+        "context": "urn:uuid:test-case-retired",
         "embargo_adherence": True,
     }
     storable = StorableRecord(
-        id_="urn:uuid:ps-contradict-001",
+        id_="urn:uuid:ps-retired-001",
         type_="ParticipantStatus",
-        data_=contradicting_data,
+        data_=retired_data,
     )
     dl.create(storable)
 
     with caplog.at_level(
         logging.WARNING, logger="vultron.adapters.driven.datalayer_sqlite"
     ):
-        result = dl.read("urn:uuid:ps-contradict-001")
-    # A self-contradicting row cannot be reconstructed as a clean core object;
-    # the read path returns None rather than handing back a lying object.
+        result = dl.read("urn:uuid:ps-retired-001")
+    # extra="forbid" refuses the retired key; the read path returns None
+    # rather than handing back an object that silently dropped it.
     assert result is None
     warnings = [
         r
         for r in caplog.records
-        if "urn:uuid:ps-contradict-001" in r.getMessage()
+        if "urn:uuid:ps-retired-001" in r.getMessage()
     ]
     assert warnings, caplog.text
     assert all(r.levelno == logging.WARNING for r in warnings)
-    assert "ARCH-23-005" in warnings[0].getMessage()
+    assert "embargo_adherence" in warnings[0].getMessage()
 
 
 def test_save_inserts_new_object(dl):

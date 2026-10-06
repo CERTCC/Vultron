@@ -61,10 +61,6 @@ from vultron.core.behaviors.sync.nodes._helpers import (
 )
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
-from vultron.core.services.embargo_lifecycle.results import (
-    ParticipantPECChange,
-)
-from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 from vultron.errors import VultronNotFoundError
 
 IS_EXPIRED_KEY = "is_expired"
@@ -90,7 +86,7 @@ class EvaluateInviteExpiryNode(DataLayerActionWithPorts):
     and writes its outcome to *result_out*:
 
     * :data:`IS_EXPIRED_KEY` — ``True`` when the deadline passed and the
-      participant is not ``SIGNATORY``.  Used by EMB-17 routing.
+      participant is not a signatory to the active embargo.  Used by EMB-17 routing.
     * :data:`NEEDS_APPLY_KEY` — ``True`` when the invitee is still ``INVITED``
       and the commit + effect nodes need to run.
 
@@ -203,7 +199,7 @@ class RecordInviteExpiryNode(DataLayerActionWithPorts):
         self.feedback_message = (
             f"Applied invite expiry of '{self._invitee_id}'"
             f" on case '{self._case_id}'"
-            f" ({len(result.participant_changes)} PEC state change(s))"
+            f" ({len(result.participant_changes)} consent row change(s))"
         )
         if result.participant_changes:
             self.logger.info("%s: %s", self.name, self.feedback_message)
@@ -257,21 +253,16 @@ class ApplyInviteExpiryFromLedgerNode(_LedgerEffectNode):
             )
             self.logger.debug("%s: %s", self.name, self.feedback_message)
             return Status.SUCCESS
-        changes: list[ParticipantPECChange] = []
-        if participant.embargo_consent_state == PEC.INVITED.value:
-            pec_before = participant.embargo_consent_state
-            participant.apply_pec_transition(PEC_Trigger.EXPIRE)
-            self.datalayer.save(participant)
-            changes.append(
-                ParticipantPECChange(
-                    participant_id=participant_id,
-                    pec_before=pec_before,
-                    pec_after=participant.embargo_consent_state,
-                )
-            )
+        # The same operation the CASE_MANAGER ran after its commit: every row
+        # still INVITED expires, and nothing else moves.
+        changes = (
+            EmbargoLifecycle(persistence=self.datalayer)
+            .record_invite_expiry(case_id=case.id_, actor_id=invitee_id)
+            .participant_changes
+        )
         self.feedback_message = (
             f"Replayed invite expiry of '{invitee_id}' on case '{case.id_}'"
-            f" ({len(changes)} PEC state change(s))"
+            f" ({len(changes)} consent row change(s))"
         )
         if changes:
             self.logger.info("%s: %s", self.name, self.feedback_message)
@@ -317,7 +308,7 @@ class HonourLateAcceptNode(DataLayerActionWithPorts):
     This is the **effect** node in
     :func:`~vultron.core.behaviors.embargo.expiry_tree.create_honour_late_accept_tree`.
     Called after the ledger entry is committed, it applies
-    ``EXPIRED → SIGNATORY`` (or ``DECLINED → INVITED → SIGNATORY``) by
+    ``EXPIRED → ACCEPTED`` (or ``DECLINED → INVITED → ACCEPTED``) by
     delegating to
     :meth:`~vultron.core.services.embargo_lifecycle.EmbargoLifecycle.honour_late_accept`
     (CLP-10-006, BT-06-006, EMB-17-001, ADR-0118).
@@ -354,7 +345,7 @@ class HonourLateAcceptNode(DataLayerActionWithPorts):
         self.feedback_message = (
             f"Honoured late Accept for '{self._actor_id}'"
             f" on case '{self._case_id}' (embargo '{self._embargo_id}',"
-            f" {len(result.participant_changes)} PEC state change(s))"
+            f" {len(result.participant_changes)} consent row change(s))"
         )
         self.logger.info("%s: %s", self.name, self.feedback_message)
         return Status.SUCCESS
@@ -365,7 +356,7 @@ class ApplyHonourLateAcceptFromLedgerNode(_LedgerEffectNode):
 
     The entry's ``actor`` is the accepted participant; the entry's ``object``
     carries the Invite's id and the embargo's id.  The replica applies
-    ``EXPIRED → SIGNATORY`` (or ``DECLINED → INVITED → SIGNATORY``) by
+    ``EXPIRED → ACCEPTED`` (or ``DECLINED → INVITED → ACCEPTED``) by
     calling
     :meth:`~vultron.core.services.embargo_lifecycle.EmbargoLifecycle.honour_late_accept`.
     Regime 2 (ADR-0087): a replica holding no copy of the case skips with
@@ -415,7 +406,7 @@ class ApplyHonourLateAcceptFromLedgerNode(_LedgerEffectNode):
         self.feedback_message = (
             f"Replayed honour-late-accept for '{actor_id}'"
             f" on case '{case.id_}' (embargo '{embargo_id}',"
-            f" {len(result.participant_changes)} PEC state change(s))"
+            f" {len(result.participant_changes)} consent row change(s))"
         )
         if result.participant_changes:
             self.logger.info("%s: %s", self.name, self.feedback_message)

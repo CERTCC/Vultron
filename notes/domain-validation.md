@@ -472,11 +472,11 @@ write node ticks.
 
 The composed evaluator covers the four `ParticipantStatus` dimensions (RM, VF,
 D and the case-level P/X/A) and nothing else. Embargo consent (PEC) is not one
-of them: `ParticipantStatus.consent` is a copy of the participant's
-`embargo_consent_state`, taken when the status is built, and the consent state
-itself moves only through `CaseParticipant.apply_pec_transition()` and
-`PecDimension.transition` (CM-18-005), which refuse an illegal trigger on
-their own. A PEC arm in the evaluator would check a value no write produces.
+of them: `ParticipantStatus` carries no consent at all (ADR-0120): consent is the
+participant's per-embargo rows, and they move only through
+`CaseParticipant.apply_pec_transition()` (CM-18-005), which refuses an illegal
+trigger on its own. A PEC arm in the evaluator would check a value no status
+write produces.
 
 The composed evaluator is `participant_transition_violations()` in
 `vultron/core/states/participant_transitions.py`; both nodes reach it through

@@ -1,9 +1,16 @@
 ---
-status: accepted
+status: superseded
 date: 2026-08-11
 deciders: [adh, Claude Sonnet 4.6]
+superseded_by: 0120-per-embargo-participant-consent.md
 stakeholder_type: [project-contributor]
 ---
+
+> **Superseded by [ADR-0120](../0120-per-embargo-participant-consent.md).**
+> Consent is now recorded per (participant, embargo), so there is no scalar PEC state
+> for `embargo_adherence` to derive from, and the field is removed.
+> The diagnosis below (a stored projection can drift from the state it projects) is the
+> same argument ADR-0120 applies one level down.
 
 # ADR-0056: `embargo_adherence` Is a Computed Property Derived from PEC State
 

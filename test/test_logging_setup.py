@@ -16,7 +16,7 @@
 """Tests for third-party log-noise suppression (SL-04-007).
 
 The ``transitions`` library logs ``"<Machine> Finished processing state X
-enter/exit callbacks."`` at INFO on every RM/EM/CS/PEC state machine step.
+enter/exit callbacks."`` at INFO on every RM/EM/CS state machine step.
 Those are FSM internals, so SL-04-007 requires they stay off the INFO channel.
 """
 

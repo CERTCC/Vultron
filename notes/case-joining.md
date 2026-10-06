@@ -71,7 +71,7 @@ no active embargo: one not yet established, or one already exited.
 
 One predicate decides it: `VulnerabilityCase.is_active_participant()`, read
 from the replicated `CaseParticipant` record (`joined`,
-`embargo_consent_state`, and the removal fact once #4079 lands) and the case's
+its consent rows for the active embargo, and the removal fact once #4079 lands) and the case's
 `active_embargo`, so a replica reaches the same answer as the CASE_MANAGER.
 Being active is computed, never stored (CM-31-002): whether an embargo is
 active is case state the record cannot see, and a participant-level "joined"
@@ -136,7 +136,7 @@ its authority to *commit* comes from its role (CLP-09), not from being active.
   the stub Invite with current terms; the replacement names the Invite it
   supersedes. `Accept` of a superseded stub is refused with the replacement
   named; `Reject` of it is honoured (CM-11-016). Without this, an invitee
-  accepting stale longer terms would join already `LAPSED`.
+  accepting stale longer terms would join lapsed.
 - **No `Undo`.** Retracting the superseded Invite was considered and rejected
   (ADR-0114): the refusal already prevents a stale join, and naming the
   superseded Invite in its replacement tells the invitee the same thing in

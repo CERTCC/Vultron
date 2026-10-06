@@ -2,6 +2,7 @@
 status: accepted
 date: 2026-09-17
 deciders: [adh, Claude Sonnet 4.6]
+partially_superseded_by: docs/adr/0120-per-embargo-participant-consent.md
 stakeholder_type: [project-contributor]
 ---
 

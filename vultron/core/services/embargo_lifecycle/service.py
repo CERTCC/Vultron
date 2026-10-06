@@ -48,7 +48,8 @@ class EmbargoLifecycle(
     state transition logic.  Hides ``create_em_machine()``, ``EMAdapter``,
     ``MachineError`` handling, actor-to-participant lookup via
     ``actor_participant_index``, PEC trigger application, and idempotent
-    ``proposed_embargoes`` / ``accepted_embargo_ids`` management.
+    ``proposed_embargoes`` management and the per-embargo consent rows
+    (ADR-0120).
 
     Callers inject a :class:`~vultron.core.ports.case_persistence.CasePersistence`
     instance once at construction.  ``SqliteDataLayer`` satisfies the protocol
@@ -66,6 +67,5 @@ class EmbargoLifecycle(
         - :meth:`record_embargo_rejection` (no EM transition; no mode param)
         - :meth:`record_embargo_invite` (no EM transition; no mode param)
         - :meth:`detect_and_apply_expiry` (no EM transition; no mode param)
-        - :meth:`exit_participant_consent` (no EM transition; no mode param)
         - :meth:`assert_embargo_eligible` (guard only; no mode param)
     """

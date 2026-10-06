@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Tests for as_CaseParticipant model, focusing on accepted_embargo_ids field (CM-10-003)."""
+"""Tests for as_CaseParticipant model, focusing on the embargo_consents rows (CM-10-001)."""
 
 import unittest
 from typing import cast
@@ -29,6 +29,10 @@ from vultron.core.models.dimensions import (
     RmDimension,
     VfDimension,
 )
+from vultron.core.models.embargo_consent import EmbargoConsent
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.wire.as2.vocab.objects.case_participant import (
     CoordinatorParticipant,
     FinderParticipant,
@@ -37,8 +41,8 @@ from vultron.wire.as2.vocab.objects.case_participant import (
 )
 
 
-class TestCaseParticipantAcceptedEmbargoIds(unittest.TestCase):
-    """Tests for as_CaseParticipant.accepted_embargo_ids (CM-10-001, CM-10-003)."""
+class TestCaseParticipantEmbargoConsents(unittest.TestCase):
+    """Tests for as_CaseParticipant.embargo_consents (CM-10-001, ADR-0120)."""
 
     def setUp(self):
         self.actor_id = "https://example.org/actors/alice"
@@ -50,71 +54,103 @@ class TestCaseParticipantAcceptedEmbargoIds(unittest.TestCase):
             context=self.case_id,
         )
 
-    def test_accepted_embargo_ids_default_empty(self):
-        """New as_CaseParticipant has empty accepted_embargo_ids by default (CM-10-003)."""
-        self.assertEqual([], self.participant.accepted_embargo_ids)
+    def _rows(self) -> list[EmbargoConsent]:
+        return [
+            EmbargoConsent(
+                embargo_id=self.embargo_id_1,
+                state=EmbargoConsentState.ACCEPTED,
+            ),
+            EmbargoConsent(
+                embargo_id=self.embargo_id_2,
+                state=EmbargoConsentState.INVITED,
+            ),
+        ]
 
-    def test_accepted_embargo_ids_can_be_set_at_creation(self):
-        """accepted_embargo_ids can be populated at creation time."""
+    def test_embargo_consents_default_empty(self):
+        """A new as_CaseParticipant has never been asked about any embargo."""
+        self.assertEqual([], self.participant.embargo_consents)
+        self.assertIsNone(self.participant.consent_for(self.embargo_id_1))
+
+    def test_embargo_consents_can_be_set_at_creation(self):
         participant = as_CaseParticipant(
             attributed_to=self.actor_id,
             context=self.case_id,
-            accepted_embargo_ids=[self.embargo_id_1],
+            embargo_consents=self._rows(),
         )
-        self.assertEqual([self.embargo_id_1], participant.accepted_embargo_ids)
-
-    def test_accepted_embargo_ids_can_be_appended(self):
-        """accepted_embargo_ids can be extended after creation."""
-        self.participant.accepted_embargo_ids.append(self.embargo_id_1)
-        self.assertIn(self.embargo_id_1, self.participant.accepted_embargo_ids)
-
-    def test_accepted_embargo_ids_tracks_multiple_embargoes(self):
-        """accepted_embargo_ids tracks multiple accepted embargoes."""
-        participant = as_CaseParticipant(
-            attributed_to=self.actor_id,
-            context=self.case_id,
-            accepted_embargo_ids=[self.embargo_id_1, self.embargo_id_2],
-        )
-        self.assertIn(self.embargo_id_1, participant.accepted_embargo_ids)
-        self.assertIn(self.embargo_id_2, participant.accepted_embargo_ids)
-        self.assertEqual(2, len(participant.accepted_embargo_ids))
-
-    def test_accepted_embargo_ids_round_trip_json(self):
-        """accepted_embargo_ids survives JSON serialization round-trip."""
-        participant = as_CaseParticipant(
-            attributed_to=self.actor_id,
-            context=self.case_id,
-            accepted_embargo_ids=[self.embargo_id_1, self.embargo_id_2],
-        )
-        # ``to_json`` was an as_VultronObject convenience; the promoted core
-        # class serialises through Pydantic directly.
-        json_str = participant.model_dump_json(by_alias=True)
-        restored = as_CaseParticipant.model_validate_json(json_str)
         self.assertEqual(
-            participant.accepted_embargo_ids, restored.accepted_embargo_ids
+            EmbargoConsentState.ACCEPTED,
+            participant.consent_for(self.embargo_id_1),
+        )
+        self.assertEqual(
+            EmbargoConsentState.INVITED,
+            participant.consent_for(self.embargo_id_2),
         )
 
-    def test_accepted_embargo_ids_round_trip_object_to_record(self):
-        """accepted_embargo_ids survives object_to_record/record_to_object round-trip."""
+    def test_embargo_consents_serialize_as_camel_case_rows(self):
         participant = as_CaseParticipant(
             attributed_to=self.actor_id,
             context=self.case_id,
-            accepted_embargo_ids=[self.embargo_id_1, self.embargo_id_2],
+            embargo_consents=self._rows(),
+        )
+        dumped = participant.model_dump(by_alias=True, mode="json")
+        self.assertEqual(
+            [
+                {"embargoId": self.embargo_id_1, "state": "ACCEPTED"},
+                {"embargoId": self.embargo_id_2, "state": "INVITED"},
+            ],
+            dumped["embargoConsents"],
+        )
+        for retired in (
+            "acceptedEmbargoIds",
+            "embargoConsentState",
+            "embargoAdherence",
+        ):
+            self.assertNotIn(retired, dumped)
+
+    def test_embargo_consents_round_trip_json(self):
+        participant = as_CaseParticipant(
+            attributed_to=self.actor_id,
+            context=self.case_id,
+            embargo_consents=self._rows(),
+        )
+        restored = as_CaseParticipant.model_validate_json(
+            participant.model_dump_json(by_alias=True)
+        )
+        self.assertEqual(
+            participant.embargo_consents, restored.embargo_consents
+        )
+
+    def test_embargo_consents_round_trip_object_to_record(self):
+        participant = as_CaseParticipant(
+            attributed_to=self.actor_id,
+            context=self.case_id,
+            embargo_consents=self._rows(),
         )
         record = object_to_record(participant)
         restored = cast(as_CaseParticipant, record_to_object(record))
         self.assertEqual(
-            participant.accepted_embargo_ids, restored.accepted_embargo_ids
+            participant.embargo_consents, restored.embargo_consents
         )
 
-    def test_accepted_embargo_ids_empty_round_trip(self):
-        """Empty accepted_embargo_ids survives object_to_record/record_to_object round-trip."""
+    def test_empty_embargo_consents_round_trip_object_to_record(self):
         record = object_to_record(self.participant)
         restored = cast(as_CaseParticipant, record_to_object(record))
-        self.assertEqual([], restored.accepted_embargo_ids)
+        self.assertEqual([], restored.embargo_consents)
 
-    def test_accepted_embargo_ids_present_in_subclasses(self):
-        """accepted_embargo_ids field is inherited by as_CaseParticipant subclasses."""
+    def test_retired_scalar_fields_are_refused(self):
+        for key, value in (
+            ("accepted_embargo_ids", [self.embargo_id_1]),
+            ("embargo_consent_state", "SIGNATORY"),
+        ):
+            with pytest.raises(ValidationError):
+                as_CaseParticipant(
+                    attributed_to=self.actor_id,
+                    context=self.case_id,
+                    **{key: value},  # type: ignore[arg-type]
+                )
+
+    def test_embargo_consents_present_in_subclasses(self):
+        """embargo_consents is inherited by as_CaseParticipant subclasses."""
         for cls in [
             FinderParticipant,
             VendorParticipant,
@@ -123,26 +159,24 @@ class TestCaseParticipantAcceptedEmbargoIds(unittest.TestCase):
             participant = cls(
                 attributed_to=self.actor_id,
                 context=self.case_id,
-                accepted_embargo_ids=[self.embargo_id_1],
+                embargo_consents=self._rows(),
             )
             self.assertEqual(
-                [self.embargo_id_1],
-                participant.accepted_embargo_ids,
-                f"{cls.__name__} should inherit accepted_embargo_ids",
+                EmbargoConsentState.ACCEPTED,
+                participant.consent_for(self.embargo_id_1),
+                f"{cls.__name__} should inherit embargo_consents",
             )
 
-    def test_accepted_embargo_ids_subclass_round_trip(self):
-        """accepted_embargo_ids survives round-trip for a subclass (VendorParticipant)."""
+    def test_embargo_consents_subclass_round_trip(self):
+        """embargo_consents survive the record round-trip for a subclass."""
         vendor = VendorParticipant(
             attributed_to=self.actor_id,
             context=self.case_id,
-            accepted_embargo_ids=[self.embargo_id_1],
+            embargo_consents=self._rows(),
         )
         record = object_to_record(vendor)
         restored = cast(VendorParticipant, record_to_object(record))
-        self.assertEqual(
-            vendor.accepted_embargo_ids, restored.accepted_embargo_ids
-        )
+        self.assertEqual(vendor.embargo_consents, restored.embargo_consents)
 
 
 class TestCaseParticipantNameField(unittest.TestCase):

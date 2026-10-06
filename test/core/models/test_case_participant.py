@@ -1,6 +1,7 @@
 """Unit tests for core CaseParticipant and role subclasses (issue #728)."""
 
 import pytest
+from pydantic import ValidationError
 
 from vultron.core.models.case_participant import (
     CaseActorParticipant,
@@ -14,8 +15,12 @@ from vultron.core.models.case_participant import (
     VendorParticipant,
 )
 from vultron.core.models.dimensions import RmDimension
+from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+    PEC_Trigger,
+)
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole, validate_roles
 from vultron.errors import VultronValidationError
@@ -52,12 +57,11 @@ class TestCaseParticipantConstruction:
         p = _make()
         assert p.case_roles == []
 
-    def test_default_embargo_consent_state(self):
-        """Default embargo_consent_state is PEC.UNBOUND."""
-        from vultron.core.states.participant_embargo_consent import PEC
-
+    def test_default_embargo_consents_empty(self):
+        """A fresh participant has never been asked about any embargo."""
         p = _make()
-        assert p.embargo_consent_state == PEC.UNBOUND
+        assert p.embargo_consents == []
+        assert p.consent_for("urn:e1") is None
 
     def test_participant_case_name_default_none(self):
         """participant_case_name defaults to None."""
@@ -330,217 +334,267 @@ class TestCNARoleOnParticipant:
 
 
 # ---------------------------------------------------------------------------
-# apply_pec_transition — CM-18-005 / CM-18-006 / ADR-0048
+# Per-embargo consent rows (ADR-0120, CM-10-001, CM-18-001, CM-18-005)
 # ---------------------------------------------------------------------------
+
+_EMBARGO = "https://example.org/embargoes/em-001"
+_OTHER = "https://example.org/embargoes/em-002"
+
+S = EmbargoConsentState
+T = PEC_Trigger
+
+
+def _with_rows(**rows: EmbargoConsentState) -> CaseParticipant:
+    """A participant holding one row per ``{embargo_id: state}`` pair."""
+    return _make(
+        embargo_consents=[
+            EmbargoConsent(embargo_id=eid, state=state)
+            for eid, state in rows.items()
+        ]
+    )
+
+
+class TestConsentFor:
+    def test_absent_row_is_none(self):
+        assert _make().consent_for(_EMBARGO) is None
+
+    def test_reads_the_row_for_that_embargo_only(self):
+        p = _with_rows(**{_EMBARGO: S.ACCEPTED, _OTHER: S.DECLINED})
+        assert p.consent_for(_EMBARGO) is S.ACCEPTED
+        assert p.consent_for(_OTHER) is S.DECLINED
+        assert p.consent_for("urn:unknown") is None
+
+    def test_rows_round_trip_serialization(self):
+        p = _with_rows(**{_EMBARGO: S.ACCEPTED, _OTHER: S.INVITED})
+        restored = CaseParticipant.model_validate(p.model_dump(by_alias=True))
+        assert restored.consent_for(_EMBARGO) is S.ACCEPTED
+        assert restored.consent_for(_OTHER) is S.INVITED
+
+    def test_retired_scalar_fields_are_refused(self):
+        with pytest.raises(ValidationError):
+            CaseParticipant.model_validate(
+                {
+                    "attributed_to": _ACTOR,
+                    "context": _CONTEXT,
+                    "embargo_consent_state": "SIGNATORY",
+                }
+            )
+        with pytest.raises(ValidationError):
+            CaseParticipant.model_validate(
+                {
+                    "attributed_to": _ACTOR,
+                    "context": _CONTEXT,
+                    "accepted_embargo_ids": [_EMBARGO],
+                }
+            )
+
+    def test_status_no_longer_carries_consent(self):
+        p = _make()
+        status = p.participant_status
+        assert status is not None
+        assert not hasattr(status, "consent")
+        assert not hasattr(status, "embargo_adherence")
 
 
 class TestApplyPecTransition:
     """apply_pec_transition() is the single authoritative consent-write path."""
 
-    def test_ac3_snapshot_em_consent_state_agrees_with_scalar(self):
-        """AC-3: participant_status.consent.state agrees with embargo_consent_state.
-
-        After apply_pec_transition(ACCEPT), the snapshot emConsentState MUST
-        equal SIGNATORY — it must not be the stale UNBOUND pre-fix value
-        (CM-18-006).
-        """
-        from vultron.core.states.participant_embargo_consent import PEC_Trigger
-
+    @pytest.mark.spec("CM-18-005")
+    def test_first_contact_creates_the_row(self):
         p = _make()
-        assert p.embargo_consent_state == PEC.UNBOUND
-        p.apply_pec_transition(PEC_Trigger.ACCEPT)
-        assert p.embargo_consent_state == PEC.SIGNATORY
-        status = p.participant_status
-        assert status is not None
-        assert status.consent is not None
-        assert status.consent.state == PEC.SIGNATORY
+        p.apply_pec_transition(_EMBARGO, T.INVITE)
+        assert p.consent_for(_EMBARGO) is S.INVITED
+        assert len(p.embargo_consents) == 1
 
-    def test_ac4_embargo_adherence_true_iff_signatory(self):
-        """AC-4: no contradictory (embargoAdherence=true, emConsentState≠SIGNATORY) pair.
-
-        embargo_adherence is a @computed_field derived from consent.state
-        (ADR-0056, CM-18-008) — True iff consent.state == SIGNATORY.
-        Once a participant is set to SIGNATORY via apply_pec_transition,
-        the snapshot's emConsentState and embargo_adherence are coherent.
-        """
-        from vultron.core.states.participant_embargo_consent import PEC_Trigger
-
+    @pytest.mark.spec("CM-18-005", "CM-18-003")
+    def test_transition_replaces_the_row_without_duplicating(self):
         p = _make()
-        p.apply_pec_transition(PEC_Trigger.ACCEPT)
-        status = p.participant_status
-        assert status is not None
-        assert status.consent is not None
-        assert status.consent.state == PEC.SIGNATORY
-        assert status.embargo_adherence is True
+        p.apply_pec_transition(_EMBARGO, T.INVITE)
+        p.apply_pec_transition(_EMBARGO, T.ACCEPT)
+        assert p.consent_for(_EMBARGO) is S.ACCEPTED
+        assert [r.embargo_id for r in p.embargo_consents] == [_EMBARGO]
 
-    @pytest.mark.spec("CM-18-008", "CM-18-003")
-    @pytest.mark.parametrize("state", list(PEC))
-    def test_embargo_adherence_is_true_only_at_signatory(self, state):
-        """embargo_adherence reads SIGNATORY alone; UNBOUND_EXITED is False.
+    @pytest.mark.spec("CM-18-005")
+    def test_one_embargo_does_not_touch_another(self):
+        p = _with_rows(**{_EMBARGO: S.ACCEPTED})
+        p.apply_pec_transition(_OTHER, T.INVITE)
+        assert p.consent_for(_EMBARGO) is S.ACCEPTED
+        assert p.consent_for(_OTHER) is S.INVITED
 
-        A participant whose embargo was terminated sits at the terminal
-        UNBOUND_EXITED (ADR-0118) and is bound by nothing, exactly like
-        EXPIRED, LAPSED and DECLINED.
-        """
-        p = _make(embargo_consent_state=state)
-        status = p.participant_status
-        assert status is not None
-        assert status.embargo_adherence is (state is PEC.SIGNATORY)
-
-    def test_ac4_non_signatory_consent_state_preserved(self):
-        """AC-4: DECLINED state is faithfully preserved in the snapshot.
-
-        Ensures the consent snapshot never reads SIGNATORY when the FSM
-        is in a non-signatory state.
-        """
-        from vultron.core.states.participant_embargo_consent import PEC_Trigger
-
-        p = _make()
-        p.apply_pec_transition(PEC_Trigger.DECLINE)
-        status = p.participant_status
-        assert status is not None
-        assert status.consent is not None
-        assert status.consent.state == PEC.DECLINED
-        assert status.consent.state != PEC.SIGNATORY
-
-    def test_ac5_illegal_trigger_raises(self):
-        """AC-5: illegal trigger raises VultronInvalidStateTransitionError.
-
-        ACCEPT from SIGNATORY is not a valid PEC transition; it must raise
-        rather than silently returning the current state.
-        """
-        from vultron.core.states.participant_embargo_consent import PEC_Trigger
+    @pytest.mark.spec("CM-18-003")
+    def test_illegal_trigger_raises_and_leaves_rows_unchanged(self):
         from vultron.errors import VultronInvalidStateTransitionError
 
-        p = _make(embargo_consent_state=PEC.SIGNATORY)
+        p = _with_rows(**{_EMBARGO: S.ACCEPTED})
         with pytest.raises(VultronInvalidStateTransitionError):
-            p.apply_pec_transition(PEC_Trigger.ACCEPT)
+            p.apply_pec_transition(_EMBARGO, T.ACCEPT)
+        assert p.consent_for(_EMBARGO) is S.ACCEPTED
+        assert len(p.embargo_consents) == 1
 
-    def test_ac5_state_unchanged_after_raise(self):
-        """AC-5: state is not mutated when an illegal trigger raises."""
-        from vultron.core.states.participant_embargo_consent import PEC_Trigger
+    @pytest.mark.spec("CM-18-003")
+    def test_illegal_trigger_with_no_row_creates_no_row(self):
         from vultron.errors import VultronInvalidStateTransitionError
 
-        p = _make(embargo_consent_state=PEC.SIGNATORY)
-        with pytest.raises(VultronInvalidStateTransitionError):
-            p.apply_pec_transition(PEC_Trigger.ACCEPT)
-        assert p.embargo_consent_state == PEC.SIGNATORY
-
-    def test_multiple_transitions_keep_snapshot_in_sync(self):
-        """Snapshot stays in sync across a chain of valid transitions."""
-        from vultron.core.states.participant_embargo_consent import PEC_Trigger
-
         p = _make()
-        p.apply_pec_transition(PEC_Trigger.ACCEPT)
-        p.apply_pec_transition(PEC_Trigger.REVISE)
-        assert p.embargo_consent_state == PEC.LAPSED
-        status = p.participant_status
-        assert status is not None
-        assert status.consent is not None
-        assert status.consent.state == PEC.LAPSED
+        with pytest.raises(VultronInvalidStateTransitionError):
+            p.apply_pec_transition(_EMBARGO, T.EXPIRE)
+        assert p.embargo_consents == []
 
-
-class TestAcceptedEmbargoList:
-    """``add_accepted_embargo`` / ``remove_accepted_embargo`` (CM-10-001)."""
-
-    def test_add_is_idempotent_and_reports_whether_the_id_was_new(self):
-        from vultron.core.models.case_participant import CaseParticipant
-        from vultron.core.states.participant_embargo_consent import PEC
-
-        participant = CaseParticipant(
-            attributed_to="urn:actor", context="urn:case"
-        )
-        assert participant.add_accepted_embargo("urn:e1") is True
-        assert participant.add_accepted_embargo("urn:e1") is False
-        assert participant.accepted_embargo_ids == ["urn:e1"]
-        # The list is the per-embargo record; the scalar state is untouched.
-        assert participant.embargo_consent_state == PEC.UNBOUND
-
-    def test_remove_is_idempotent_and_reports_whether_the_id_was_there(self):
-        from vultron.core.models.case_participant import CaseParticipant
-
-        participant = CaseParticipant(
-            attributed_to="urn:actor",
-            context="urn:case",
-            accepted_embargo_ids=["urn:e1", "urn:e2"],
-        )
-        assert participant.remove_accepted_embargo("urn:e1") is True
-        assert participant.remove_accepted_embargo("urn:e1") is False
-        assert participant.accepted_embargo_ids == ["urn:e2"]
+    def test_if_legal_reports_whether_the_row_moved(self):
+        p = _with_rows(**{_EMBARGO: S.ACCEPTED})
+        assert p.apply_pec_transition_if_legal(_EMBARGO, T.ACCEPT) is False
+        assert p.apply_pec_transition_if_legal(_EMBARGO, T.DECLINE) is True
+        assert p.consent_for(_EMBARGO) is S.DECLINED
+        assert p.apply_pec_transition_if_legal(_EMBARGO, T.EXPIRE) is False
+        assert p.consent_for(_EMBARGO) is S.DECLINED
 
 
 class TestAcceptsPecTrigger:
-    """accepts_pec_trigger() is the read-only twin of apply_pec_transition()."""
+    """``accepts_pec_trigger`` is the read-only twin of the write path."""
 
     @pytest.mark.spec("CM-18-003")
     @pytest.mark.parametrize(
-        "state, accepts",
+        ("state", "accepts"),
         [
-            (PEC.UNBOUND, True),
-            (PEC.LAPSED, True),
-            (PEC.DECLINED, True),
-            (PEC.EXPIRED, True),
-            (PEC.INVITED, False),
-            (PEC.SIGNATORY, False),
-            (PEC.UNBOUND_EXITED, False),
+            (None, True),
+            (S.DECLINED, True),
+            (S.EXPIRED, True),
+            (S.INVITED, False),
+            (S.ACCEPTED, False),
         ],
     )
-    def test_invite_is_legal_only_from_unbound_lapsed_declined_or_expired(
-        self, state, accepts
-    ):
-        from vultron.core.states.participant_embargo_consent import PEC_Trigger
-
-        p = _make(embargo_consent_state=state)
-        assert p.accepts_pec_trigger(PEC_Trigger.INVITE) is accepts
+    def test_invite_legality_by_row(self, state, accepts):
+        p = _make() if state is None else _with_rows(**{_EMBARGO: state})
+        assert p.accepts_pec_trigger(_EMBARGO, T.INVITE) is accepts
 
     def test_asking_changes_nothing(self):
-        from vultron.core.states.participant_embargo_consent import PEC_Trigger
+        p = _with_rows(**{_EMBARGO: S.ACCEPTED})
+        p.accepts_pec_trigger(_EMBARGO, T.INVITE)
+        p.accepts_pec_trigger(_EMBARGO, T.DECLINE)
+        assert p.consent_for(_EMBARGO) is S.ACCEPTED
 
-        p = _make(embargo_consent_state=PEC.SIGNATORY)
-        p.accepts_pec_trigger(PEC_Trigger.INVITE)
-        p.accepts_pec_trigger(PEC_Trigger.DECLINE)
-        assert p.embargo_consent_state == PEC.SIGNATORY
+    def test_asking_about_an_unasked_embargo_creates_no_row(self):
+        p = _make()
+        assert p.accepts_pec_trigger(_EMBARGO, T.ACCEPT) is True
+        assert p.embargo_consents == []
 
-    def test_an_unset_consent_state_reads_as_unbound(self):
-        """The None prelude mirrors apply_pec_transition(): unset is UNBOUND.
 
-        Validation never admits ``None`` (the before-validator seeds UNBOUND),
-        so the branch is reachable only on a record built without validation.
-        """
-        from vultron.core.states.participant_embargo_consent import PEC_Trigger
-
-        p = CaseParticipant.model_construct(
-            attributed_to=_ACTOR, context=_CONTEXT, embargo_consent_state=None
+class TestInvitedEmbargoIds:
+    def test_lists_only_unanswered_invitations(self):
+        p = _with_rows(
+            **{
+                "urn:a": S.INVITED,
+                "urn:b": S.ACCEPTED,
+                "urn:c": S.DECLINED,
+                "urn:d": S.EXPIRED,
+                "urn:e": S.INVITED,
+            }
         )
-        assert p.accepts_pec_trigger(PEC_Trigger.INVITE) is True
-        assert p.accepts_pec_trigger(PEC_Trigger.REVISE) is False
+        assert sorted(p.invited_embargo_ids()) == ["urn:a", "urn:e"]
+
+    def test_empty_when_never_asked(self):
+        assert _make().invited_embargo_ids() == []
 
 
-# ---------------------------------------------------------------------------
-# sign_embargo (CM-14-005, CM-10-001, ADR-0118)
-# ---------------------------------------------------------------------------
+class TestIsSignatory:
+    """Signatory is a lookup on the embargo in force (CM-18-001)."""
 
-_EMBARGO = "https://example.org/embargoes/em-001"
+    @pytest.mark.spec("CM-18-001")
+    def test_no_embargo_in_force_nobody_is_signatory(self):
+        p = _with_rows(**{_EMBARGO: S.ACCEPTED})
+        assert p.is_signatory(None) is False
+
+    @pytest.mark.spec("CM-18-001")
+    @pytest.mark.parametrize(
+        ("state", "expected"),
+        [
+            (None, False),
+            (S.INVITED, False),
+            (S.ACCEPTED, True),
+            (S.DECLINED, False),
+            (S.EXPIRED, False),
+        ],
+    )
+    def test_signatory_iff_active_row_is_accepted(self, state, expected):
+        p = _make() if state is None else _with_rows(**{_EMBARGO: state})
+        assert p.is_signatory(_EMBARGO) is expected
+
+    @pytest.mark.spec("CM-18-001")
+    def test_acceptance_of_another_embargo_does_not_make_a_signatory(self):
+        p = _with_rows(**{_OTHER: S.ACCEPTED})
+        assert p.is_signatory(_EMBARGO) is False
 
 
-@pytest.mark.parametrize(
-    "start",
-    [PEC.UNBOUND, PEC.INVITED, PEC.LAPSED, PEC.EXPIRED, PEC.SIGNATORY],
-)
-def test_sign_embargo_signs_and_records_the_id(start):
-    p = _make(embargo_consent_state=start)
+class TestHasLapsed:
+    """Lapsed is derived, never stored (CM-18-001, CM-18-016)."""
 
-    assert p.sign_embargo(_EMBARGO) is True
+    @pytest.mark.spec("CM-18-001")
+    def test_no_embargo_in_force_nobody_has_lapsed(self):
+        assert _with_rows(**{_OTHER: S.ACCEPTED}).has_lapsed(None) is False
 
-    assert p.embargo_consent_state == PEC.SIGNATORY
-    assert p.accepted_embargo_ids == [_EMBARGO]
+    @pytest.mark.spec("CM-18-001")
+    @pytest.mark.parametrize("active_row", [None, S.INVITED, S.EXPIRED])
+    def test_accepted_earlier_but_not_the_active_one_is_lapsed(
+        self, active_row
+    ):
+        rows = {_OTHER: S.ACCEPTED}
+        if active_row is not None:
+            rows[_EMBARGO] = active_row
+        assert _with_rows(**rows).has_lapsed(_EMBARGO) is True
+
+    @pytest.mark.spec("CM-18-001")
+    def test_a_signatory_has_not_lapsed(self):
+        p = _with_rows(**{_OTHER: S.ACCEPTED, _EMBARGO: S.ACCEPTED})
+        assert p.has_lapsed(_EMBARGO) is False
+
+    @pytest.mark.spec("CM-18-001")
+    def test_declining_the_active_embargo_is_a_refusal_not_a_lapse(self):
+        p = _with_rows(**{_OTHER: S.ACCEPTED, _EMBARGO: S.DECLINED})
+        assert p.has_lapsed(_EMBARGO) is False
+
+    @pytest.mark.spec("CM-18-001")
+    def test_never_bound_participant_has_not_lapsed(self):
+        assert _make().has_lapsed(_EMBARGO) is False
+        p = _with_rows(**{_OTHER: S.DECLINED, "urn:x": S.INVITED})
+        assert p.has_lapsed(_EMBARGO) is False
+
+    @pytest.mark.spec("CM-18-001")
+    def test_accepting_only_an_open_proposal_is_not_a_lapse(self):
+        """An early acceptor of a revision was never bound, so has not lapsed."""
+        p = _with_rows(**{_OTHER: S.ACCEPTED})
+        assert p.has_lapsed(_EMBARGO) is True
+        assert p.has_lapsed(_EMBARGO, open_proposal_ids=[_OTHER]) is False
+
+    @pytest.mark.spec("CM-18-001")
+    def test_lapse_is_read_not_written(self):
+        p = _with_rows(**{_OTHER: S.ACCEPTED})
+        before = list(p.embargo_consents)
+        assert p.has_lapsed(_EMBARGO) is True
+        assert p.embargo_consents == before
 
 
-@pytest.mark.parametrize("start", [PEC.DECLINED, PEC.UNBOUND_EXITED])
-def test_sign_embargo_leaves_an_unsignable_participant_without_the_id(start):
-    p = _make(embargo_consent_state=start)
+class TestSignEmbargo:
+    """``sign_embargo`` seeding (CM-14-005, CM-10-001, ADR-0120)."""
 
-    assert p.sign_embargo(_EMBARGO) is False
+    @pytest.mark.parametrize("start", [None, S.INVITED, S.EXPIRED, S.ACCEPTED])
+    def test_signs_where_accept_is_legal(self, start):
+        p = _make() if start is None else _with_rows(**{_EMBARGO: start})
 
-    assert p.embargo_consent_state == start
-    assert p.accepted_embargo_ids == []
+        assert p.sign_embargo(_EMBARGO) is True
+
+        assert p.consent_for(_EMBARGO) is S.ACCEPTED
+        assert p.is_signatory(_EMBARGO)
+        assert len(p.embargo_consents) == 1
+
+    def test_a_declined_participant_is_left_unsigned(self):
+        p = _with_rows(**{_EMBARGO: S.DECLINED})
+
+        assert p.sign_embargo(_EMBARGO) is False
+
+        assert p.consent_for(_EMBARGO) is S.DECLINED
+        assert not p.is_signatory(_EMBARGO)
+
+    def test_signing_leaves_other_embargo_rows_alone(self):
+        p = _with_rows(**{_OTHER: S.DECLINED})
+        p.sign_embargo(_EMBARGO)
+        assert p.consent_for(_OTHER) is S.DECLINED

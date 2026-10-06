@@ -44,7 +44,7 @@ effect::
     HonourLateAcceptBT (CASE_MANAGER-gated Sequence)
     └─ HonourLateAccept (Sequence)
        ├─ CommitLogEntryBT             # commit HONOUR_LATE_ACCEPT_EVENT_TYPE
-       └─ HonourLateAcceptNode         # EFFECT: apply EXPIRED/DECLINED → SIGNATORY
+       └─ HonourLateAcceptNode         # EFFECT: apply EXPIRED/DECLINED → ACCEPTED
 
 The re-invite of a stale accepter (EMB-17-003) is a CASE_MANAGER-gated commit →
 effect node of the relay's frame::
@@ -241,7 +241,7 @@ def create_honour_late_accept_tree(
     the commit node persists the :data:`HONOUR_LATE_ACCEPT_EVENT_TYPE` entry,
     and only then
     :class:`~vultron.core.behaviors.embargo.nodes.expiry.HonourLateAcceptNode`
-    applies ``EXPIRED → SIGNATORY`` (or ``DECLINED → INVITED → SIGNATORY``).
+    applies ``EXPIRED → ACCEPTED`` (or ``DECLINED → INVITED → ACCEPTED``).
 
     Replicas learn the honour decision via
     :class:`~vultron.core.behaviors.embargo.nodes.expiry.ApplyHonourLateAcceptFromLedgerNode`

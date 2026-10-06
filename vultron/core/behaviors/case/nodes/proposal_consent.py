@@ -35,7 +35,6 @@ from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.states.participant_embargo_consent import PEC_Trigger
 from vultron.errors import BtNodePreconditionError, VultronNotFoundError
 
 logger = logging.getLogger(__name__)
@@ -51,19 +50,19 @@ def _seed_participant_as_signatory(
     """Seed *participant* as embargo SIGNATORY on *stored_case*'s active embargo.
 
     Used by ``SeedReporterSignatoryNode`` (CM-14-005). Uses
-    :meth:`CaseParticipant.sign_embargo` — ``ACCEPT`` through the
-    authoritative consent-write path (CM-18-005, ADR-0048) where CM-18-003
-    allows it — so a retry against a ``SIGNATORY`` changes nothing, and a
-    ``DECLINED`` or terminal ``UNBOUND_EXITED`` participant is neither
-    signed nor given the id (ADR-0118).
+    :meth:`CaseParticipant.sign_embargo` — ``ACCEPT`` on the participant's
+    row for the embargo through the authoritative consent-write path
+    (CM-18-005, ADR-0048) where CM-18-003 allows it — so a retry against an
+    ``ACCEPTED`` row changes nothing, and a participant that declined the
+    embargo is not signed (ADR-0118).  With no embargo in force there is
+    nothing to sign and nothing is written (ADR-0120).
     """
     # `active_embargo_id`, not the field: it may hold the whole EmbargoEvent
-    # when a received case carried one (AKM-03-001), and this list holds ids.
+    # when a received case carried one (AKM-03-001), and the rows hold ids.
     embargo_id = stored_case.active_embargo_id
-    if embargo_id:
-        participant.sign_embargo(embargo_id)
-    else:
-        participant.apply_pec_transition_if_legal(PEC_Trigger.ACCEPT)
+    if not embargo_id:
+        return
+    participant.sign_embargo(embargo_id)
     datalayer.save(participant)
     logger.info(
         "Seeded %s as embargo SIGNATORY in case '%s' (%s)",
@@ -85,9 +84,9 @@ class SeedReporterSignatoryNode(DataLayerActionWithPorts):
     already ACTIVE) and after ``AddReporterParticipantNode`` (so the
     participant record exists).  It resolves the reporter URI from the report
     in the DataLayer, looks up the participant, and calls
-    ``apply_pec_transition(PEC_Trigger.ACCEPT)`` via the shared helper so that
-    both the PEC state machine and the ``ParticipantStatus.consent`` dimension
-    are updated atomically (CM-18-005, CM-18-006, ADR-0048).
+    ``participant.sign_embargo`` via the shared helper, so the participant's
+    row for the active embargo is marked ``ACCEPTED`` through the one
+    consent-write path (CM-18-005, CM-18-006, ADR-0048).
 
     Best-effort: if the report, reporter URI, or participant cannot be
     resolved, or if there is no active embargo, the node logs a warning and

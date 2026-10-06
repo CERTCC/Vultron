@@ -34,8 +34,8 @@ from vultron.core.behaviors.embargo.trigger_tree import (
     reject_proposed_embargo_bt,
 )
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
 
 from .test_embargo_relay_replay import (
     BYSTANDER,
@@ -46,11 +46,11 @@ from .test_embargo_relay_replay import (
 )
 
 
-def _consents(net: _Network, actor_id: str) -> dict[str, PEC]:
+def _consents(net: _Network, actor_id: str) -> dict[str, list[EmbargoConsent]]:
     """Every participant's consent as *actor_id*'s store records it."""
     dl = net.stores[actor_id]
     return {
-        actor: cast(CaseParticipant, dl.read(pid)).embargo_consent_state
+        actor: list(cast(CaseParticipant, dl.read(pid)).embargo_consents)
         for actor, pid in net.case(actor_id).actor_participant_index.items()
     }
 

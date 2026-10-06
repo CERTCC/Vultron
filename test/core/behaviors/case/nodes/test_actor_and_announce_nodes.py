@@ -1005,7 +1005,7 @@ class TestEmitAddCaseParticipantNode:
 
         The announce is case content, so it reaches active participants only
         (#4046): a participant that never joined gets nothing, and under an
-        active embargo neither does one that is not SIGNATORY.
+        active embargo neither does one that is not a signatory.
         """
         from unittest.mock import MagicMock
 
@@ -1017,7 +1017,10 @@ class TestEmitAddCaseParticipantNode:
         )
         from vultron.core.models.case import VulnerabilityCase
         from vultron.core.models.case_participant import CaseParticipant
-        from vultron.core.states.participant_embargo_consent import PEC
+        from vultron.core.models.embargo_consent import EmbargoConsent
+        from vultron.core.states.participant_embargo_consent import (
+            EmbargoConsentState,
+        )
 
         # Two existing participants stored as bare UUID strings in case_participants
         # (matching production DataLayer storage format).
@@ -1046,16 +1049,36 @@ class TestEmitAddCaseParticipantNode:
         # The recipient selection reads each roster entry's record (CM-10-007).
         # existing_actor_2 has been invited to the embargo but not accepted.
         for actor_id, pid, consent, joined in (
-            (existing_actor_1, existing_p1_id, PEC.SIGNATORY, True),
-            (existing_actor_2, existing_p2_id, PEC.INVITED, True),
-            (unjoined_actor, unjoined_p_id, PEC.SIGNATORY, False),
+            (
+                existing_actor_1,
+                existing_p1_id,
+                EmbargoConsentState.ACCEPTED,
+                True,
+            ),
+            (
+                existing_actor_2,
+                existing_p2_id,
+                EmbargoConsentState.INVITED,
+                True,
+            ),
+            (
+                unjoined_actor,
+                unjoined_p_id,
+                EmbargoConsentState.ACCEPTED,
+                False,
+            ),
         ):
             dl.create(
                 CaseParticipant(
                     id_=pid,
                     attributed_to=actor_id,
                     context=EMIT_ADD_CASE_ID,
-                    embargo_consent_state=consent,
+                    embargo_consents=[
+                        EmbargoConsent(
+                            embargo_id=f"{EMIT_ADD_CASE_ID}/embargoes/e1",
+                            state=consent,
+                        )
+                    ],
                     joined=joined,
                 )
             )

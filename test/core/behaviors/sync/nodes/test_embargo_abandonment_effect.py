@@ -43,7 +43,6 @@ from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
 from vultron.enums.roles import CVDRole
 
 FIRST_ID = f"{CASE_ID}/embargo_events/p1"
@@ -68,7 +67,6 @@ def proposed_case(datalayer) -> VulnerabilityCase:
         datalayer,
         case,
         MANAGER_ACTOR_ID,
-        PEC.UNBOUND,
         case_roles=[CVDRole.CASE_MANAGER],
     )
     datalayer.save(case)

@@ -34,11 +34,15 @@ from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.rsvp_deadline import INVITE_EXPIRED_EVENT_TYPE
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+    PEC_Trigger,
+)
 from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
     InviteToEmbargoOnCaseReceivedUseCase,
@@ -109,6 +113,17 @@ def _relayed_deadline_to(dl: SqliteDataLayer, invitee_id: str) -> datetime:
     return deadline
 
 
+def _rows(
+    consents: dict[str, EmbargoConsentState | None],
+) -> list[EmbargoConsent]:
+    """Consent rows for the embargoes in *consents*; a ``None`` state is no row."""
+    return [
+        EmbargoConsent(embargo_id=embargo_id, state=state)
+        for embargo_id, state in consents.items()
+        if state is not None
+    ]
+
+
 def _make_dl(actor_id: str = _COORD) -> SqliteDataLayer:
     return SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
 
@@ -117,7 +132,7 @@ def _make_active_embargo_case(
     dl: SqliteDataLayer,
     case_id: str,
     embargo_id: str,
-    invitee_pec: PEC = PEC.INVITED,
+    invitee_consent: EmbargoConsentState | None = EmbargoConsentState.INVITED,
     invitee_deadline: datetime | None = None,
 ):
     """Create and persist a case with an active embargo and one invitee participant.
@@ -141,7 +156,7 @@ def _make_active_embargo_case(
     invitee_cp = WireCP(
         attributed_to=_INVITEE,
         context=case_id,
-        embargo_consent_state=invitee_pec,
+        embargo_consents=_rows({embargo_id: invitee_consent}),
         case_roles=[CVDRole.VENDOR],
     )
     invitee_cp_core = invitee_cp
@@ -176,7 +191,7 @@ class TestDetectAndApplyExpiry:
             dl,
             case_id,
             embargo_id,
-            invitee_pec=PEC.INVITED,
+            invitee_consent=EmbargoConsentState.INVITED,
             invitee_deadline=_PAST,
         )
 
@@ -190,8 +205,9 @@ class TestDetectAndApplyExpiry:
         assert result.is_expired is True
         assert len(result.participant_changes) == 1
         change = result.participant_changes[0]
-        assert change.pec_before == PEC.INVITED.value
-        assert change.pec_after == PEC.EXPIRED.value
+        assert change.embargo_id == embargo_id
+        assert change.consent_before == EmbargoConsentState.INVITED.value
+        assert change.consent_after == EmbargoConsentState.EXPIRED.value
 
         # Verify persistence
         case = dl.read(case_id)
@@ -199,7 +215,9 @@ class TestDetectAndApplyExpiry:
         participant_id = case.actor_participant_index[_INVITEE]
         participant = dl.read(participant_id)
         assert isinstance(participant, CaseParticipant)
-        assert participant.embargo_consent_state == PEC.EXPIRED
+        assert (
+            participant.consent_for(embargo_id) == EmbargoConsentState.EXPIRED
+        )
 
     def test_no_expiry_future_deadline(self):
         """Participant does NOT expire when deadline is in the future."""
@@ -210,7 +228,7 @@ class TestDetectAndApplyExpiry:
             dl,
             case_id,
             embargo_id,
-            invitee_pec=PEC.INVITED,
+            invitee_consent=EmbargoConsentState.INVITED,
             invitee_deadline=_FUTURE,
         )
 
@@ -229,7 +247,9 @@ class TestDetectAndApplyExpiry:
         participant_id = case.actor_participant_index[_INVITEE]
         participant = dl.read(participant_id)
         assert isinstance(participant, CaseParticipant)
-        assert participant.embargo_consent_state == PEC.INVITED
+        assert (
+            participant.consent_for(embargo_id) == EmbargoConsentState.INVITED
+        )
 
     def test_no_expiry_no_deadline(self):
         """Participant never expires when no invite_rsvp_deadline is set."""
@@ -240,7 +260,7 @@ class TestDetectAndApplyExpiry:
             dl,
             case_id,
             embargo_id,
-            invitee_pec=PEC.INVITED,
+            invitee_consent=EmbargoConsentState.INVITED,
             invitee_deadline=None,
         )
 
@@ -254,7 +274,9 @@ class TestDetectAndApplyExpiry:
         assert result.is_expired is False
         assert result.participant_changes == []
 
-    @pytest.mark.parametrize("settled", [PEC.DECLINED, PEC.EXPIRED])
+    @pytest.mark.parametrize(
+        "settled", [EmbargoConsentState.DECLINED, EmbargoConsentState.EXPIRED]
+    )
     def test_expiry_idempotent_once_settled(self, settled):
         """detect_and_apply_expiry changes nothing once DECLINED or EXPIRED."""
         dl = _make_dl()
@@ -264,7 +286,7 @@ class TestDetectAndApplyExpiry:
             dl,
             case_id,
             embargo_id,
-            invitee_pec=settled,
+            invitee_consent=settled,
             invitee_deadline=_PAST,
         )
 
@@ -275,7 +297,7 @@ class TestDetectAndApplyExpiry:
             now=_NOW,
         )
 
-        # Deadline passed, so is_expired=True, but no PEC change (settled).
+        # Deadline passed, so is_expired=True, but no consent change (settled).
         assert result.is_expired is True
         assert result.participant_changes == []
 
@@ -288,7 +310,7 @@ class TestDetectAndApplyExpiry:
             dl,
             case_id,
             embargo_id,
-            invitee_pec=PEC.INVITED,
+            invitee_consent=EmbargoConsentState.INVITED,
             invitee_deadline=_PAST,
         )
 
@@ -301,9 +323,9 @@ class TestDetectAndApplyExpiry:
         )
 
         assert result.is_expired is True
-        # PEC changed without any background task.
+        # The row changed without any background task.
         assert any(
-            c.pec_after == PEC.EXPIRED.value
+            c.consent_after == EmbargoConsentState.EXPIRED.value
             for c in result.participant_changes
         )
 
@@ -393,7 +415,7 @@ class TestInviteeIsTheAddressee:
     ``receiving_actor_id`` answers "whose replica is this?"; the Invite's
     ``to:`` field answers "who is being invited?".  ADR-0022 requires the
     second to be threaded into the tree as leaf-node data rather than reused
-    as the BT execution identity.  Conflating them writes the PEC transition
+    as the BT execution identity.  Conflating them writes the consent row
     and the RSVP deadline (CM-28-001, CM-28-003) onto the wrong participant
     record, so the CaseActor records an invitation it never received and the
     real invitee is left with no deadline for expiry detection to find.
@@ -404,7 +426,7 @@ class TestInviteeIsTheAddressee:
         dl,
         case_id: str,
         embargo_id: str,
-        invitee_pec: PEC = PEC.UNBOUND,
+        invitee_consent: EmbargoConsentState | None = None,
         extra_actors: tuple[str, ...] = (),
         *,
         embargo_is: Literal["proposed", "active", "unknown"] = "proposed",
@@ -413,13 +435,13 @@ class TestInviteeIsTheAddressee:
         """Case with the coordinator as CASE_MANAGER and a separate invitee.
 
         ``extra_actors`` seeds additional VENDOR participants at
-        ``PEC.UNBOUND``; their participant IDs are returned in a dict keyed
+        no consent row; their participant IDs are returned in a dict keyed
         by actor ID so multi-recipient tests can assert on them.
 
         ``embargo_is`` places the embargo on the case: ``"proposed"`` (EM
         PROPOSED, an open proposal), ``"active"`` (EM ACTIVE, the embargo
         in force) or ``"unknown"`` (EM PROPOSED, the case has never seen
-        it).  ``invitee_accepted`` seeds the invitee's ``accepted_embargo_ids``.
+        it).  ``invitee_accepted`` seeds ACCEPTED rows for the invitee.
         """
         case = VulnerabilityCase(
             id_=case_id, name="Addressee Test", attributed_to=_COORD
@@ -443,9 +465,20 @@ class TestInviteeIsTheAddressee:
         invitee_cp = WireCP(
             attributed_to=_INVITEE,
             context=case_id,
-            embargo_consent_state=invitee_pec,
+            embargo_consents=_rows(
+                {
+                    **dict.fromkeys(
+                        invitee_accepted, EmbargoConsentState.ACCEPTED
+                    ),
+                    embargo_id: invitee_consent
+                    or (
+                        EmbargoConsentState.ACCEPTED
+                        if embargo_id in invitee_accepted
+                        else None
+                    ),
+                }
+            ),
             case_roles=[CVDRole.VENDOR],
-            accepted_embargo_ids=list(invitee_accepted),
         )
 
         dl.create(case)
@@ -460,7 +493,6 @@ class TestInviteeIsTheAddressee:
             extra_cp = WireCP(
                 attributed_to=actor,
                 context=case_id,
-                embargo_consent_state=PEC.UNBOUND,
                 case_roles=[CVDRole.VENDOR],
             )
             dl.create(extra_cp)
@@ -507,15 +539,16 @@ class TestInviteeIsTheAddressee:
 
         # The CASE_MANAGER adjudicates its own proposal and relays it: the
         # invitee's INVITED is written at the manager's commit of the relayed
-        # Invite (EP-09-002, AC-3), the proposer records only its consent.
+        # Invite (EP-09-002, AC-3); the proposer records only its own ACCEPTED
+        # row (proposing is consenting).
         invitee = self._read_participant(dl, invitee_p_id)
-        assert invitee.embargo_consent_state == PEC.INVITED
+        assert invitee.consent_for(embargo_id) == EmbargoConsentState.INVITED
         assert invitee.invite_rsvp_deadline == _relayed_deadline_to(
             dl, _INVITEE
         )
 
         coord = self._read_participant(dl, coord_p_id)
-        assert coord.embargo_consent_state == PEC.UNBOUND
+        assert coord.consent_for(embargo_id) == EmbargoConsentState.ACCEPTED
         assert coord.invite_rsvp_deadline is None
 
     def test_absent_receiving_actor_targets_the_addressee(self, make_payload):
@@ -546,13 +579,13 @@ class TestInviteeIsTheAddressee:
         ).execute()
 
         invitee = self._read_participant(dl, invitee_p_id)
-        assert invitee.embargo_consent_state == PEC.INVITED
+        assert invitee.consent_for(embargo_id) == EmbargoConsentState.INVITED
         assert invitee.invite_rsvp_deadline == _relayed_deadline_to(
             dl, _INVITEE
         )
 
         coord = self._read_participant(dl, coord_p_id)
-        assert coord.embargo_consent_state == PEC.UNBOUND
+        assert coord.consent_for(embargo_id) == EmbargoConsentState.ACCEPTED
         assert coord.invite_rsvp_deadline is None
 
     @pytest.mark.spec("EP-09-010")
@@ -591,7 +624,7 @@ class TestInviteeIsTheAddressee:
         assert "names 0 'to' recipients" in (result.reason or "")
         assert dl.read(invite.id_) is None
         invitee = self._read_participant(dl, invitee_p_id)
-        assert invitee.embargo_consent_state == PEC.UNBOUND
+        assert invitee.consent_for(embargo_id) is None
         assert invitee.invite_rsvp_deadline is None
         assert _answers_in_outbox(dl, _INVITEE) == []
 
@@ -609,7 +642,10 @@ class TestInviteeIsTheAddressee:
         case_id = "https://example.org/cases/addressee4"
         embargo_id = "https://example.org/cases/addressee4/embargos/e4"
         case, embargo, coord_p_id, invitee_p_id = self._seed_case(
-            dl, case_id, embargo_id, invitee_pec=PEC.INVITED
+            dl,
+            case_id,
+            embargo_id,
+            invitee_consent=EmbargoConsentState.INVITED,
         )
 
         proposal = em_propose_embargo_activity(
@@ -633,10 +669,10 @@ class TestInviteeIsTheAddressee:
         ).execute()
 
         invitee = self._read_participant(dl, invitee_p_id)
-        assert invitee.embargo_consent_state == PEC.DECLINED
+        assert invitee.consent_for(embargo_id) == EmbargoConsentState.DECLINED
 
         coord = self._read_participant(dl, coord_p_id)
-        assert coord.embargo_consent_state == PEC.UNBOUND
+        assert coord.consent_for(embargo_id) is None
 
     @pytest.mark.spec("EP-09-010")
     @pytest.mark.spec("HP-01-005")
@@ -684,7 +720,7 @@ class TestInviteeIsTheAddressee:
         assert _answers_in_outbox(dl, _INVITEE) == []
         for participant_id in (invitee_p_id, other_p_id, coord_p_id):
             participant = self._read_participant(dl, participant_id)
-            assert participant.embargo_consent_state == PEC.UNBOUND
+            assert participant.consent_for(embargo_id) is None
             assert participant.invite_rsvp_deadline is None
 
     def test_trailing_slash_recipient_is_this_replica(self, make_payload):
@@ -719,7 +755,7 @@ class TestInviteeIsTheAddressee:
         ).execute()
 
         invitee = self._read_participant(dl, invitee_p_id)
-        assert invitee.embargo_consent_state == PEC.UNBOUND
+        assert invitee.consent_for(embargo_id) is None
         assert (
             invitee.invite_rsvp_deadline is None
         )  # receipt stores none (CM-28-013)
@@ -767,7 +803,7 @@ class TestInviteeIsTheAddressee:
         assert dl.outbox_list() == []
         for participant_id in (invitee_p_id, other_p_id, coord_p_id):
             participant = self._read_participant(dl, participant_id)
-            assert participant.embargo_consent_state == PEC.UNBOUND
+            assert participant.consent_for(embargo_id) is None
 
     @pytest.mark.spec("EP-09-010")
     @pytest.mark.spec("CM-28-003")
@@ -856,14 +892,14 @@ class TestInviteeIsTheAddressee:
         assert dl.read(invite.id_) is None
         assert _answers_in_outbox(dl, _OTHER) == []
         invitee = self._read_participant(dl, invitee_p_id)
-        assert invitee.embargo_consent_state == PEC.UNBOUND
+        assert invitee.consent_for(embargo_id) is None
         assert invitee.invite_rsvp_deadline is None
         other = self._read_participant(dl, self.extra_participant_ids[_OTHER])
-        assert other.embargo_consent_state == PEC.UNBOUND
+        assert other.consent_for(embargo_id) is None
         coord = self._read_participant(dl, coord_p_id)
-        assert coord.embargo_consent_state == PEC.UNBOUND
+        assert coord.consent_for(embargo_id) is None
         other = self._read_participant(dl, self.extra_participant_ids[_OTHER])
-        assert other.embargo_consent_state == PEC.UNBOUND
+        assert other.consent_for(embargo_id) is None
 
     def test_reject_tree_threads_subject_to_participant_lookup(self):
         """``reject_invite_to_embargo_tree`` wires its subject to the node.
@@ -912,7 +948,7 @@ class TestInviteeIsTheAddressee:
             dl,
             case_id,
             embargo_id,
-            invitee_pec=PEC.SIGNATORY,
+            invitee_consent=EmbargoConsentState.ACCEPTED,
             embargo_is="active",
             invitee_accepted=(embargo_id,),
         )
@@ -940,11 +976,11 @@ class TestInviteeIsTheAddressee:
 
         # Invitee's consent withdrawal is recorded as DECLINED.
         invitee = self._read_participant(dl, invitee_p_id)
-        assert invitee.embargo_consent_state == PEC.DECLINED
-        assert embargo_id not in invitee.accepted_embargo_ids
-        # CASE_MANAGER's own PEC is unaffected.
+        assert invitee.consent_for(embargo_id) == EmbargoConsentState.DECLINED
+        assert not invitee.is_signatory(embargo_id)
+        # CASE_MANAGER's own consent is unaffected.
         coord = self._read_participant(dl, coord_p_id)
-        assert coord.embargo_consent_state == PEC.UNBOUND
+        assert coord.consent_for(embargo_id) is None
         assert (
             cast(VulnerabilityCase, dl.read(case_id)).current_status.em.state
             == EM.ACTIVE
@@ -967,7 +1003,7 @@ class TestInviteeIsTheAddressee:
             dl,
             case_id,
             active_id,
-            invitee_pec=PEC.SIGNATORY,
+            invitee_consent=EmbargoConsentState.ACCEPTED,
             embargo_is="active",
         )
         revision = as_EmbargoEvent(
@@ -980,7 +1016,7 @@ class TestInviteeIsTheAddressee:
         case_obj.proposed_embargoes = [revision.id_]
         dl.save(case_obj)
         invitee = self._read_participant(dl, invitee_p_id)
-        invitee.accepted_embargo_ids = [active_id, revision.id_]
+        invitee.apply_pec_transition(revision.id_, PEC_Trigger.ACCEPT)
         dl.save(invitee)
 
         proposal = em_propose_embargo_activity(
@@ -1005,8 +1041,11 @@ class TestInviteeIsTheAddressee:
 
         assert result.disposition is HandlerDisposition.APPLIED
         invitee = self._read_participant(dl, invitee_p_id)
-        assert invitee.embargo_consent_state == PEC.SIGNATORY
-        assert invitee.accepted_embargo_ids == [active_id]
+        assert invitee.is_signatory(active_id)
+        assert invitee.consent_for(active_id) == EmbargoConsentState.ACCEPTED
+        assert (
+            invitee.consent_for(revision.id_) == EmbargoConsentState.DECLINED
+        )
         # A participant's Reject is consent, not a decision (EP-08-003).
         case_after = cast(VulnerabilityCase, dl.read(case_id))
         assert case_after.proposed_embargoes == [revision.id_]
@@ -1029,7 +1068,7 @@ class TestInviteeIsTheAddressee:
             dl,
             case_id,
             active_id,
-            invitee_pec=PEC.SIGNATORY,
+            invitee_consent=EmbargoConsentState.ACCEPTED,
             embargo_is="active",
             invitee_accepted=(active_id,),
         )
@@ -1048,8 +1087,7 @@ class TestInviteeIsTheAddressee:
         }
         dl.save(case_obj)
         coord = self._read_participant(dl, coord_p_id)
-        coord.apply_pec_transition(PEC_Trigger.ACCEPT)
-        coord.accepted_embargo_ids = [active_id]
+        coord.apply_pec_transition(active_id, PEC_Trigger.ACCEPT)
         dl.save(coord)
 
         proposal = em_propose_embargo_activity(
@@ -1074,11 +1112,17 @@ class TestInviteeIsTheAddressee:
 
         assert result.disposition is HandlerDisposition.APPLIED
         coord = self._read_participant(dl, coord_p_id)
-        assert coord.embargo_consent_state == PEC.SIGNATORY
-        assert coord.accepted_embargo_ids == [active_id]
+        assert coord.embargo_consents == [
+            EmbargoConsent(
+                embargo_id=active_id, state=EmbargoConsentState.ACCEPTED
+            )
+        ]
         invitee = self._read_participant(dl, invitee_p_id)
-        assert invitee.embargo_consent_state == PEC.SIGNATORY
-        assert invitee.accepted_embargo_ids == [active_id]
+        assert invitee.embargo_consents == [
+            EmbargoConsent(
+                embargo_id=active_id, state=EmbargoConsentState.ACCEPTED
+            )
+        ]
         case_after = cast(VulnerabilityCase, dl.read(case_id))
         assert case_after.proposed_embargoes == []
         assert case_after.pending_embargo_proposal_index == {}
@@ -1099,7 +1143,7 @@ class TestInviteeIsTheAddressee:
             dl,
             case_id,
             embargo_id,
-            invitee_pec=PEC.INVITED,
+            invitee_consent=EmbargoConsentState.INVITED,
             embargo_is="unknown",
         )
 
@@ -1126,7 +1170,7 @@ class TestInviteeIsTheAddressee:
         assert result.disposition is HandlerDisposition.REFUSED
         assert "neither the active" in (result.reason or "")
         invitee = self._read_participant(dl, invitee_p_id)
-        assert invitee.embargo_consent_state == PEC.INVITED
+        assert invitee.consent_for(embargo_id) == EmbargoConsentState.INVITED
 
     @pytest.mark.spec("HP-01-003")
     def test_reject_of_an_unknown_embargo_from_a_declined_invitee_is_still_refused(
@@ -1144,7 +1188,7 @@ class TestInviteeIsTheAddressee:
             dl,
             case_id,
             embargo_id,
-            invitee_pec=PEC.DECLINED,
+            invitee_consent=EmbargoConsentState.DECLINED,
             embargo_is="unknown",
         )
 
@@ -1171,20 +1215,23 @@ class TestInviteeIsTheAddressee:
         assert result.disposition is HandlerDisposition.REFUSED
         assert "neither the active" in (result.reason or "")
         invitee = self._read_participant(dl, invitee_p_id)
-        assert invitee.embargo_consent_state == PEC.DECLINED
+        assert invitee.consent_for(embargo_id) == EmbargoConsentState.DECLINED
 
     @pytest.mark.spec("HP-01-003")
     def test_reject_from_declined_is_skipped(self, make_payload):
         """A second Reject from an already-DECLINED invitee changes nothing.
 
-        DECLINE is not a legal PEC trigger from DECLINED, so the tree fails.
+        DECLINE is not a legal consent trigger from DECLINED, so the tree fails.
         That failure is a duplicate, not a refusal of the message (#2255).
         """
         dl = _make_dl(actor_id=_COORD)
         case_id = "https://example.org/cases/addressee9"
         embargo_id = "https://example.org/cases/addressee9/embargos/e9"
         case, embargo, _, invitee_p_id = self._seed_case(
-            dl, case_id, embargo_id, invitee_pec=PEC.DECLINED
+            dl,
+            case_id,
+            embargo_id,
+            invitee_consent=EmbargoConsentState.DECLINED,
         )
 
         proposal = em_propose_embargo_activity(
@@ -1210,7 +1257,7 @@ class TestInviteeIsTheAddressee:
         assert result.disposition is HandlerDisposition.SKIPPED
         assert "already declined" in (result.reason or "")
         invitee = self._read_participant(dl, invitee_p_id)
-        assert invitee.embargo_consent_state == PEC.DECLINED
+        assert invitee.consent_for(embargo_id) == EmbargoConsentState.DECLINED
 
     @pytest.mark.spec("HP-01-003")
     @pytest.mark.spec("EP-09-003")
@@ -1230,7 +1277,10 @@ class TestInviteeIsTheAddressee:
         case_id = "https://example.org/cases/addressee10"
         embargo_id = "https://example.org/cases/addressee10/embargos/e10"
         case, embargo, _, invitee_p_id = self._seed_case(
-            dl, case_id, embargo_id, invitee_pec=PEC.INVITED
+            dl,
+            case_id,
+            embargo_id,
+            invitee_consent=EmbargoConsentState.INVITED,
         )
 
         invite = em_propose_embargo_activity(
@@ -1252,7 +1302,7 @@ class TestInviteeIsTheAddressee:
 
         assert result.disposition is HandlerDisposition.APPLIED
         invitee = self._read_participant(dl, invitee_p_id)
-        assert invitee.embargo_consent_state == PEC.INVITED
+        assert invitee.consent_for(embargo_id) == EmbargoConsentState.INVITED
         assert _answers_in_outbox(dl, _INVITEE) == ["Accept"]
 
         again = InviteToEmbargoOnCaseReceivedUseCase(
@@ -1389,9 +1439,8 @@ class TestAcceptWhenTheReplacedEmbargoIsUnreadable:
         coord_cp = WireCP(
             attributed_to=_COORD,
             context=case_id,
-            embargo_consent_state=PEC.SIGNATORY,
+            embargo_consents=_rows({missing_id: EmbargoConsentState.ACCEPTED}),
             case_roles=[CVDRole.CASE_MANAGER],
-            accepted_embargo_ids=[missing_id],
         )
         dl.create(case)
         dl.create(revision)
@@ -1453,7 +1502,7 @@ class TestAssessAndRecordInviteExpiry:
             dl,
             case_id,
             embargo_id,
-            invitee_pec=PEC.INVITED,
+            invitee_consent=EmbargoConsentState.INVITED,
             invitee_deadline=_PAST,
         )
         is_expired, needs_apply = EmbargoLifecycle(
@@ -1466,7 +1515,9 @@ class TestAssessAndRecordInviteExpiry:
         assert isinstance(case, CoreCase)
         p = dl.read(case.actor_participant_index[_INVITEE])
         assert isinstance(p, CaseParticipant)
-        assert p.embargo_consent_state == PEC.INVITED  # unchanged
+        assert (
+            p.consent_for(embargo_id) == EmbargoConsentState.INVITED
+        )  # unchanged
 
     @pytest.mark.spec("CLP-10-006", "BT-06-006")
     def test_assess_returns_is_expired_false_for_invited_future_deadline(self):
@@ -1478,7 +1529,7 @@ class TestAssessAndRecordInviteExpiry:
             dl,
             case_id,
             embargo_id,
-            invitee_pec=PEC.INVITED,
+            invitee_consent=EmbargoConsentState.INVITED,
             invitee_deadline=_FUTURE,
         )
         is_expired, needs_apply = EmbargoLifecycle(
@@ -1499,7 +1550,7 @@ class TestAssessAndRecordInviteExpiry:
             dl,
             case_id,
             embargo_id,
-            invitee_pec=PEC.EXPIRED,
+            invitee_consent=EmbargoConsentState.EXPIRED,
             invitee_deadline=_PAST,
         )
         is_expired, needs_apply = EmbargoLifecycle(
@@ -1518,21 +1569,23 @@ class TestAssessAndRecordInviteExpiry:
             dl,
             case_id,
             embargo_id,
-            invitee_pec=PEC.INVITED,
+            invitee_consent=EmbargoConsentState.INVITED,
             invitee_deadline=_PAST,
         )
         svc = EmbargoLifecycle(persistence=dl)
         result = svc.record_invite_expiry(case_id=case_id, actor_id=_INVITEE)
         assert result.is_expired is True
         assert len(result.participant_changes) == 1
-        assert result.participant_changes[0].pec_before == PEC.INVITED.value
-        assert result.participant_changes[0].pec_after == PEC.EXPIRED.value
+        change = result.participant_changes[0]
+        assert change.embargo_id == embargo_id
+        assert change.consent_before == EmbargoConsentState.INVITED.value
+        assert change.consent_after == EmbargoConsentState.EXPIRED.value
         # Persisted
         case = dl.read(case_id)
         assert isinstance(case, CoreCase)
         p = dl.read(case.actor_participant_index[_INVITEE])
         assert isinstance(p, CaseParticipant)
-        assert p.embargo_consent_state == PEC.EXPIRED
+        assert p.consent_for(embargo_id) == EmbargoConsentState.EXPIRED
 
     @pytest.mark.spec("CLP-10-006", "BT-06-006")
     def test_failed_commit_leaves_invitee_invited(self, monkeypatch):
@@ -1556,7 +1609,7 @@ class TestAssessAndRecordInviteExpiry:
             dl,
             case_id,
             embargo_id,
-            invitee_pec=PEC.INVITED,
+            invitee_consent=EmbargoConsentState.INVITED,
             invitee_deadline=_PAST,
         )
 
@@ -1596,17 +1649,17 @@ class TestAssessAndRecordInviteExpiry:
         assert isinstance(case2, CoreCase)
         p = dl.read(case2.actor_participant_index[_INVITEE])
         assert isinstance(p, CaseParticipant)
-        assert p.embargo_consent_state == PEC.INVITED, (
+        assert p.consent_for(embargo_id) == EmbargoConsentState.INVITED, (
             "Failed commit must leave invitee INVITED, not EXPIRED (CLP-10-006)"
         )
 
 
 class TestHonourLateAcceptService:
-    """``honour_late_accept`` applies EXPIRED/DECLINED → SIGNATORY via the service."""
+    """``honour_late_accept`` applies EXPIRED/DECLINED → ACCEPTED via the service."""
 
     @pytest.mark.spec("EMB-17-001", "ADR-0118")
     def test_expired_participant_becomes_signatory(self):
-        """EXPIRED → SIGNATORY in a single step (ADR-0118)."""
+        """EXPIRED → ACCEPTED in a single step; the invitee is then a signatory."""
         dl = _make_dl()
         case_id = "https://example.org/cases/honour-expired"
         embargo_id = f"{case_id}/embargos/e1"
@@ -1614,21 +1667,22 @@ class TestHonourLateAcceptService:
             dl,
             case_id,
             embargo_id,
-            invitee_pec=PEC.EXPIRED,
+            invitee_consent=EmbargoConsentState.EXPIRED,
             invitee_deadline=_PAST,
         )
         result = EmbargoLifecycle(persistence=dl).honour_late_accept(
             case_id=case_id, actor_id=_INVITEE, embargo_id=embargo_id
         )
         assert any(
-            c.pec_after == PEC.SIGNATORY.value
+            c.embargo_id == embargo_id
+            and c.consent_after == EmbargoConsentState.ACCEPTED.value
             for c in result.participant_changes
         )
         case = dl.read(case_id)
         assert isinstance(case, CoreCase)
         p = dl.read(case.actor_participant_index[_INVITEE])
         assert isinstance(p, CaseParticipant)
-        assert p.embargo_consent_state == PEC.SIGNATORY
+        assert p.consent_for(embargo_id) == EmbargoConsentState.ACCEPTED
 
     @pytest.mark.spec("EMB-17-001", "CM-18-003", "ADR-0118")
     def test_declined_participant_becomes_signatory_via_invite(self):
@@ -1640,21 +1694,21 @@ class TestHonourLateAcceptService:
             dl,
             case_id,
             embargo_id,
-            invitee_pec=PEC.DECLINED,
+            invitee_consent=EmbargoConsentState.DECLINED,
             invitee_deadline=_PAST,
         )
         result = EmbargoLifecycle(persistence=dl).honour_late_accept(
             case_id=case_id, actor_id=_INVITEE, embargo_id=embargo_id
         )
-        pec_states = [c.pec_before for c in result.participant_changes] + [
-            c.pec_after for c in result.participant_changes
-        ]
-        assert PEC.DECLINED.value in pec_states
+        consent_states = [
+            c.consent_before for c in result.participant_changes
+        ] + [c.consent_after for c in result.participant_changes]
+        assert EmbargoConsentState.DECLINED.value in consent_states
         case = dl.read(case_id)
         assert isinstance(case, CoreCase)
         p = dl.read(case.actor_participant_index[_INVITEE])
         assert isinstance(p, CaseParticipant)
-        assert p.embargo_consent_state == PEC.SIGNATORY
+        assert p.consent_for(embargo_id) == EmbargoConsentState.ACCEPTED
 
     @pytest.mark.spec("EMB-17-001", "ADR-0118")
     def test_signatory_is_unchanged_idempotent(self):
@@ -1663,7 +1717,10 @@ class TestHonourLateAcceptService:
         case_id = "https://example.org/cases/honour-signatory"
         embargo_id = f"{case_id}/embargos/e1"
         _make_active_embargo_case(
-            dl, case_id, embargo_id, invitee_pec=PEC.SIGNATORY
+            dl,
+            case_id,
+            embargo_id,
+            invitee_consent=EmbargoConsentState.ACCEPTED,
         )
         result = EmbargoLifecycle(persistence=dl).honour_late_accept(
             case_id=case_id, actor_id=_INVITEE, embargo_id=embargo_id
@@ -1674,14 +1731,14 @@ class TestHonourLateAcceptService:
         assert isinstance(case, CoreCase)
         p = dl.read(case.actor_participant_index[_INVITEE])
         assert isinstance(p, CaseParticipant)
-        assert p.embargo_consent_state == PEC.SIGNATORY
+        assert p.consent_for(embargo_id) == EmbargoConsentState.ACCEPTED
 
 
 class TestLateAcceptHandling:
     """EMB-17: late-Accept compatibility routing."""
 
     def test_late_accept_honored_when_embargo_current(self, make_payload):
-        """Late Accept with matching active embargo → PEC SIGNATORY (AC-2 #2213)."""
+        """Late Accept with matching active embargo → the invitee a signatory (AC-2 #2213)."""
         dl = _make_dl(actor_id=_COORD)
         case_id = "https://example.org/cases/ea1"
         embargo_id = "https://example.org/cases/ea1/embargos/e1"
@@ -1690,7 +1747,7 @@ class TestLateAcceptHandling:
             dl,
             case_id,
             embargo_id,
-            invitee_pec=PEC.INVITED,
+            invitee_consent=EmbargoConsentState.INVITED,
             invitee_deadline=_PAST,
         )
 
@@ -1716,14 +1773,19 @@ class TestLateAcceptHandling:
         p_id = fresh_case.actor_participant_index[_INVITEE]
         participant = dl.read(p_id)
         assert isinstance(participant, CaseParticipant)
-        assert participant.embargo_consent_state == PEC.SIGNATORY
+        assert (
+            participant.consent_for(embargo_id) == EmbargoConsentState.ACCEPTED
+        )
 
     @pytest.mark.spec("EMB-17-002", "CM-18-003")
     @pytest.mark.parametrize(
         "start, triggers",
         [
-            (PEC.EXPIRED, [PEC_Trigger.ACCEPT]),
-            (PEC.DECLINED, [PEC_Trigger.INVITE, PEC_Trigger.ACCEPT]),
+            (EmbargoConsentState.EXPIRED, [PEC_Trigger.ACCEPT]),
+            (
+                EmbargoConsentState.DECLINED,
+                [PEC_Trigger.INVITE, PEC_Trigger.ACCEPT],
+            ),
         ],
         ids=["expired-accepts-directly", "declined-is-reinvited-first"],
     )
@@ -1743,9 +1805,9 @@ class TestLateAcceptHandling:
         applied: list[PEC_Trigger] = []
         original = _CoreParticipant.apply_pec_transition
 
-        def _spy(self, trigger, *args, **kwargs):
+        def _spy(self, embargo_id, trigger, *args, **kwargs):
             applied.append(trigger)
-            return original(self, trigger, *args, **kwargs)
+            return original(self, embargo_id, trigger, *args, **kwargs)
 
         monkeypatch.setattr(_CoreParticipant, "apply_pec_transition", _spy)
 
@@ -1756,7 +1818,7 @@ class TestLateAcceptHandling:
             dl,
             case_id,
             embargo_id,
-            invitee_pec=start,
+            invitee_consent=start,
             invitee_deadline=_PAST,
         )
         proposal = em_propose_embargo_activity(
@@ -1781,9 +1843,11 @@ class TestLateAcceptHandling:
         assert isinstance(fresh_case, CoreCase)
         participant = dl.read(fresh_case.actor_participant_index[_INVITEE])
         assert isinstance(participant, CaseParticipant)
-        assert participant.embargo_consent_state == PEC.SIGNATORY
+        assert (
+            participant.consent_for(embargo_id) == EmbargoConsentState.ACCEPTED
+        )
         assert [t for t in applied if t in triggers] == triggers
-        if start is PEC.EXPIRED:
+        if start is EmbargoConsentState.EXPIRED:
             assert PEC_Trigger.INVITE not in applied
 
     def test_late_accept_reinvite_when_stale_embargo(self, make_payload):
@@ -1800,7 +1864,7 @@ class TestLateAcceptHandling:
             dl,
             case_id,
             current_embargo_id,
-            invitee_pec=PEC.INVITED,
+            invitee_consent=EmbargoConsentState.INVITED,
             invitee_deadline=_PAST,
         )
 
@@ -1871,22 +1935,26 @@ class TestLateAcceptHandling:
         assert isinstance(published, datetime)
         assert stamped - published == timedelta(days=7)
 
-        # Invitee PEC should be INVITED (re-invited to current embargo), and
+        # Invitee consent should be INVITED (re-invited to current embargo), and
         # its record takes the re-invite's deadline, not the lapsed one.
         fresh_case = dl.read(case_id)
         assert isinstance(fresh_case, CoreCase)
         p_id = fresh_case.actor_participant_index[_INVITEE]
         participant = dl.read(p_id)
         assert isinstance(participant, CaseParticipant)
-        assert participant.embargo_consent_state == PEC.INVITED
+        assert (
+            participant.consent_for(current_embargo_id)
+            == EmbargoConsentState.INVITED
+        )
         assert participant.invite_rsvp_deadline == stamped
 
     @pytest.mark.spec("EMB-17-004")
     def test_late_accept_noop_when_em_exited(self, make_payload):
         """Late Accept after EM EXITED → ack no-op, actor stays in case (AC-4 #2213).
 
-        Termination moved every record to the terminal UNBOUND_EXITED
-        (ADR-0118); the late Accept changes no consent state.
+        Termination writes no consent (ADR-0120) and, with no embargo in
+        force, nobody is a signatory; once EM is EXITED a late Accept records
+        no acceptance, so the invitee never becomes a signatory.
         """
         dl = _make_dl(actor_id=_COORD)
         case_id = "https://example.org/cases/ea3"
@@ -1896,10 +1964,10 @@ class TestLateAcceptHandling:
             dl,
             case_id,
             embargo_id,
-            invitee_pec=PEC.UNBOUND_EXITED,
+            invitee_consent=EmbargoConsentState.INVITED,
             invitee_deadline=_PAST,
         )
-        # Simulate EM EXITED (embargo terminated, PEC exited)
+        # Simulate EM EXITED (embargo terminated)
         case.append_case_status(em_state=EM.EXITED)
         case.set_embargo(None)
         dl.save(case)
@@ -1925,11 +1993,16 @@ class TestLateAcceptHandling:
         assert isinstance(fresh_case, CoreCase)
         assert _INVITEE in fresh_case.actor_participant_index
 
-        # PEC is unchanged: UNBOUND_EXITED is terminal (ADR-0118)
+        # Consent is unchanged and nobody is bound (no embargo in force).
         p_id = fresh_case.actor_participant_index[_INVITEE]
         participant = dl.read(p_id)
         assert isinstance(participant, CaseParticipant)
-        assert participant.embargo_consent_state == PEC.UNBOUND_EXITED
+        # The overdue invitation is recorded as lapsed-unanswered (EXPIRED), not
+        # honoured: the late Accept signs nothing, and nobody is bound.
+        assert (
+            participant.consent_for(embargo_id) == EmbargoConsentState.EXPIRED
+        )
+        assert not participant.is_signatory(fresh_case.active_embargo_id)
 
     @pytest.mark.spec("EMB-17-004")
     @pytest.mark.spec("CM-28-004")
@@ -1950,7 +2023,7 @@ class TestLateAcceptHandling:
             dl,
             case_id,
             embargo_id,
-            invitee_pec=PEC.INVITED,
+            invitee_consent=EmbargoConsentState.INVITED,
             invitee_deadline=_PAST,
         )
         case.append_case_status(em_state=EM.NONE)
@@ -1977,7 +2050,9 @@ class TestLateAcceptHandling:
         assert isinstance(fresh_case, CoreCase)
         participant = dl.read(fresh_case.actor_participant_index[_INVITEE])
         assert isinstance(participant, CaseParticipant)
-        assert participant.embargo_consent_state == PEC.EXPIRED
+        assert (
+            participant.consent_for(embargo_id) == EmbargoConsentState.EXPIRED
+        )
         expiry_entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
@@ -1990,7 +2065,7 @@ class TestLateAcceptHandling:
     def test_late_accept_honored_when_em_revise_with_matching_embargo(
         self, make_payload
     ):
-        """Late Accept with matching embargo in EM.REVISE → PEC SIGNATORY (EMB-17-001/issue #2875).
+        """Late Accept with matching embargo in EM.REVISE → the invitee a signatory (EMB-17-001/issue #2875).
 
         When the active embargo ID matches and EM is REVISE (renegotiation in
         progress), the late Accept must be honored (consent recorded, actor
@@ -2004,7 +2079,7 @@ class TestLateAcceptHandling:
             dl,
             case_id,
             embargo_id,
-            invitee_pec=PEC.INVITED,
+            invitee_consent=EmbargoConsentState.INVITED,
             invitee_deadline=_PAST,
         )
         # Transition EM to REVISE while keeping the same active embargo
@@ -2033,10 +2108,12 @@ class TestLateAcceptHandling:
         p_id = fresh_case.actor_participant_index[_INVITEE]
         participant = dl.read(p_id)
         assert isinstance(participant, CaseParticipant)
-        assert participant.embargo_consent_state == PEC.SIGNATORY
+        assert (
+            participant.consent_for(embargo_id) == EmbargoConsentState.ACCEPTED
+        )
 
     def test_accept_within_deadline_uses_normal_path(self, make_payload):
-        """Accept before deadline → normal BT path, PEC SIGNATORY without expiry."""
+        """Accept before deadline → normal BT path, signatory without expiry."""
         dl = _make_dl(actor_id=_COORD)
         case_id = "https://example.org/cases/ea4"
         embargo_id = "https://example.org/cases/ea4/embargos/e4"
@@ -2053,7 +2130,7 @@ class TestLateAcceptHandling:
         invitee_cp = WireCP(
             attributed_to=_INVITEE,
             context=case_id,
-            embargo_consent_state=PEC.INVITED,
+            embargo_consents=_rows({embargo_id: EmbargoConsentState.INVITED}),
             case_roles=[CVDRole.VENDOR],
         )
         invitee_cp_core = invitee_cp
@@ -2107,7 +2184,7 @@ class TestLateAcceptHandling:
         invitee_cp = WireCP(
             attributed_to=_INVITEE,
             context=case_id,
-            embargo_consent_state=PEC.INVITED,
+            embargo_consents=_rows({embargo_id: EmbargoConsentState.INVITED}),
             case_roles=[CVDRole.VENDOR],
         )
         invitee_cp_core = invitee_cp
@@ -2155,7 +2232,7 @@ class TestLateAcceptHandling:
             dl,
             case_id,
             embargo_id,
-            invitee_pec=PEC.INVITED,
+            invitee_consent=EmbargoConsentState.INVITED,
             invitee_deadline=_PAST,
         )
 
@@ -2219,7 +2296,7 @@ class TestLateAcceptHandling:
             dl,
             case_id,
             embargo_id,
-            invitee_pec=PEC.SIGNATORY,
+            invitee_consent=EmbargoConsentState.ACCEPTED,
             invitee_deadline=_PAST,
         )
 
@@ -2247,7 +2324,9 @@ class TestLateAcceptHandling:
         participant = dl.read(p_id)
         assert isinstance(participant, CaseParticipant)
         # Idempotent: still SIGNATORY (no state change for already-consenting actor).
-        assert participant.embargo_consent_state == PEC.SIGNATORY
+        assert (
+            participant.consent_for(embargo_id) == EmbargoConsentState.ACCEPTED
+        )
 
     def test_late_accept_ac3_signatory_participant_no_crash(
         self, make_payload
@@ -2276,7 +2355,7 @@ class TestLateAcceptHandling:
             dl,
             case_id,
             current_embargo_id,
-            invitee_pec=PEC.SIGNATORY,
+            invitee_consent=EmbargoConsentState.ACCEPTED,
             invitee_deadline=_PAST,
         )
 
@@ -2319,7 +2398,10 @@ class TestLateAcceptHandling:
         participant = dl.read(p_id)
         assert isinstance(participant, CaseParticipant)
         # Already SIGNATORY for current embargo — no re-invite needed.
-        assert participant.embargo_consent_state == PEC.SIGNATORY
+        assert (
+            participant.consent_for(current_embargo_id)
+            == EmbargoConsentState.ACCEPTED
+        )
 
 
 class TestExpiryIsTheManagersAlone:
@@ -2336,7 +2418,7 @@ class TestExpiryIsTheManagersAlone:
             dl,
             case_id,
             embargo_id,
-            invitee_pec=PEC.INVITED,
+            invitee_consent=EmbargoConsentState.INVITED,
             invitee_deadline=_PAST,
         )
 
@@ -2377,5 +2459,111 @@ class TestExpiryIsTheManagersAlone:
         # and the answer is refused as the manager's to adjudicate (HP-01-005).
         participant = dl.read(_participant_id)
         assert isinstance(participant, CaseParticipant)
-        assert participant.embargo_consent_state == PEC.INVITED
+        assert (
+            participant.consent_for(embargo_id) == EmbargoConsentState.INVITED
+        )
         assert result.disposition is HandlerDisposition.REFUSED
+
+
+class TestLapseIsDerived:
+    """A lapse is read from the rows and the case, never stored (CM-18-016).
+
+    A signatory to embargo A that holds no ACCEPTED row for the longer
+    embargo B activated after it has lapsed: ``has_lapsed`` says so and the
+    content gate (``is_active_participant``) excludes it.  Asking it again
+    (INVITE) and its acceptance (ACCEPT) make it a signatory to B.
+    """
+
+    @staticmethod
+    def _case_with_signatory(dl: SqliteDataLayer, active_id: str, a_id: str):
+        case_id = "https://example.org/cases/derived-lapse"
+        case = VulnerabilityCase(
+            id_=case_id, name="Derived lapse", attributed_to=_COORD
+        )
+        case.append_case_status(em_state=EM.ACTIVE)
+        case.set_embargo(active_id)
+        signatory = WireCP(
+            attributed_to=_INVITEE,
+            context=case_id,
+            case_roles=[CVDRole.VENDOR],
+            embargo_consents=_rows({a_id: EmbargoConsentState.ACCEPTED}),
+        )
+        dl.create(case)
+        dl.create(signatory)
+        case.actor_participant_index[_INVITEE] = signatory.id_
+        case.case_participants.append(signatory.id_)
+        dl.save(case)
+        return case, signatory.id_
+
+    @pytest.mark.spec("CM-18-001")
+    @pytest.mark.spec("CM-18-016")
+    def test_activating_a_longer_embargo_lapses_the_silent_signatory(self):
+        """No row for B is written, yet the signatory to A has lapsed and is inert."""
+        dl = _make_dl()
+        a_id = "https://example.org/cases/derived-lapse/embargos/a"
+        b_id = "https://example.org/cases/derived-lapse/embargos/b"
+        case, participant_id = self._case_with_signatory(dl, a_id, a_id)
+        participant = cast(CaseParticipant, dl.read(participant_id))
+        assert participant.is_signatory(case.active_embargo_id)
+        assert case.is_active_participant(participant)
+
+        # B is activated; nothing is written for the silent signatory.
+        case.set_embargo(b_id)
+        before = list(participant.embargo_consents)
+
+        assert participant.embargo_consents == before
+        assert participant.consent_for(b_id) is None
+        assert participant.has_lapsed(case.active_embargo_id)
+        assert not participant.is_signatory(case.active_embargo_id)
+        assert not case.is_active_participant(participant)
+
+    @pytest.mark.spec("CM-18-001")
+    @pytest.mark.spec("EP-09-004")
+    def test_reinvite_keeps_the_old_row_and_accept_makes_it_signatory_again(
+        self,
+    ):
+        """INVITE to B keeps ACCEPTED(A); ACCEPT of B ends the lapse."""
+        dl = _make_dl()
+        a_id = "https://example.org/cases/derived-lapse/embargos/a"
+        b_id = "https://example.org/cases/derived-lapse/embargos/b"
+        case, participant_id = self._case_with_signatory(dl, a_id, a_id)
+        case.set_embargo(b_id)
+        dl.save(case)
+
+        change = EmbargoLifecycle(persistence=dl).record_embargo_invite(
+            case_id=case.id_,
+            invitee_id=_INVITEE,
+            embargo_id=b_id,
+        )
+        participant = cast(CaseParticipant, dl.read(participant_id))
+        assert participant.consent_for(a_id) == EmbargoConsentState.ACCEPTED
+        assert participant.consent_for(b_id) == EmbargoConsentState.INVITED
+        assert [
+            (c.embargo_id, c.consent_before, c.consent_after)
+            for c in change.participant_changes
+        ] == [(b_id, None, EmbargoConsentState.INVITED.value)]
+        # Asked but not yet answered: still lapsed, still inert.
+        assert participant.has_lapsed(b_id)
+        assert not case.is_active_participant(participant)
+
+        assert participant.sign_embargo(b_id) is True
+        assert not participant.has_lapsed(b_id)
+        assert participant.is_signatory(b_id)
+        assert case.is_active_participant(participant)
+        # The earlier acceptance is history, not undone.
+        assert participant.consent_for(a_id) == EmbargoConsentState.ACCEPTED
+
+    @pytest.mark.spec("CM-18-001")
+    def test_declining_the_longer_embargo_is_a_refusal_not_a_lapse(self):
+        """A DECLINED row for B is an answer: not lapsed, but inert all the same."""
+        dl = _make_dl()
+        a_id = "https://example.org/cases/derived-lapse/embargos/a"
+        b_id = "https://example.org/cases/derived-lapse/embargos/b"
+        case, participant_id = self._case_with_signatory(dl, a_id, a_id)
+        case.set_embargo(b_id)
+        participant = cast(CaseParticipant, dl.read(participant_id))
+        participant.apply_pec_transition(b_id, PEC_Trigger.DECLINE)
+
+        assert not participant.has_lapsed(b_id)
+        assert not participant.is_signatory(b_id)
+        assert not case.is_active_participant(participant)

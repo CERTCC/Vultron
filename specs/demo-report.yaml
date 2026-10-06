@@ -163,26 +163,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DRPT-02-004
-  - id: DRPT-02-008
-    priority: MUST
-    kind: project
-    verification_debt: '#2573'
-    statement: >-
-      Each distilled event MUST carry the per-participant Embargo Consent state
-      (`pec_state`) extracted from the `ParticipantStatus` payload snapshot,
-      where present.
-    rationale: >-
-      The case-level EM column shows only the shared embargo state (NONE,
-      PROPOSED, ACTIVE, REVISE, EXITED).  Per-participant embargo consent
-      (UNBOUND, INVITED, SIGNATORY, LAPSED, DECLINED, EXPIRED, UNBOUND_EXITED)
-      is a distinct seven-state machine tracked on `ParticipantStatus`
-      (ADR-0118); without a dedicated
-      PEC column, embargo acceptance and lapse events are invisible in the
-      report.
-    relationships:
-    - rel_type: extends
-      spec_id: DRPT-02-002
-
   - id: DRPT-02-009
     priority: MUST
     kind: project
@@ -241,34 +221,6 @@ groups:
       Separate per-case sections make case boundaries visible to the reader
       and prevent misinterpretation of per-case metadata such as time range
       and replica presence.
-    testable: true
-
-  - id: DRPT-02-014
-    priority: MUST
-    kind: project
-    verification_debt: '#2573'
-    statement: >-
-      The `pec_state` extractor MUST handle the ADR-0036 dimension-object
-      shape (`{"consent": {"state": "SIGNATORY"}}`), the legacy flat camelCase
-      alias (`emConsentState`), the legacy flat snake_case alias
-      (`em_consent_state`), the camelCase long form (`embargoConsentState`),
-      and the snake_case long form (`embargo_consent_state`).
-    rationale: >-
-      Multiple field shapes exist due to evolving serialisation conventions;
-      tolerating all known aliases ensures correct extraction across ledger
-      files produced by different protocol versions.
-    testable: true
-
-  - id: DRPT-02-015
-    priority: MUST
-    kind: project
-    verification_debt: '#2573'
-    statement: >-
-      Both renderers MUST include a `PEC` column in the event table and
-      populate it from `pec_state`.
-    rationale: >-
-      A dedicated PEC column makes per-participant embargo consent transitions
-      visible in rendered output.
     testable: true
 
 - id: DRPT-03

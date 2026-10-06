@@ -55,9 +55,9 @@ class _ActivationOperationsMixin(_PecActivationMixin):
         ``case.active_embargo``, forgets **every** open proposal in both
         records (EP-08-004, ADR-0113: one active embargo makes every open
         proposal a revision of it, and a revision of an embargo that no
-        longer exists cannot be accepted), and exits all participants' PEC
-        state to the terminal ``UNBOUND_EXITED`` via :meth:`_cascade_pec_exit`
-        (ADR-0118).  The teardown
+        longer exists cannot be accepted).  No participant's consent is
+        written: with EM ``EXITED`` and no active embargo nobody is bound, and
+        nothing more can be consented to (ADR-0118, ADR-0120).  The teardown
         replay node runs this in ``OBSERVED`` mode, so the rule holds on
         every replica.
 
@@ -70,7 +70,6 @@ class _ActivationOperationsMixin(_PecActivationMixin):
 
         Returns:
             :class:`EmbargoLifecycleResult` describing what changed.
-            ``pec_exited`` is always ``True`` when this method succeeds.
 
         Raises:
             VultronNotFoundError: If *case_id* does not resolve to a case.
@@ -106,8 +105,6 @@ class _ActivationOperationsMixin(_PecActivationMixin):
         # embargo's own entry (EP-08-004).
         case.discard_all_proposed_embargoes()
 
-        participant_changes = self._cascade_pec_exit(case)
-
         self._persistence.save(case)
 
         logger.info(
@@ -124,8 +121,6 @@ class _ActivationOperationsMixin(_PecActivationMixin):
             em_after=em_after,
             case_changed=True,
             case_embargo_changed=True,
-            pec_exited=True,
-            participant_changes=participant_changes,
         )
 
     def activate_embargo(
@@ -146,14 +141,14 @@ class _ActivationOperationsMixin(_PecActivationMixin):
         When this replaces an active embargo A with *embargo_id* (B), the
         case owner's acceptance of B is recorded (activation is the owner's
         decision, so the owner is never lapsed by it) and every participant's
-        consent is re-evaluated against B (EP-05-001, MSM-07-005) exactly as
+        consent rows are settled against B (EP-05-001, MSM-07-005) exactly as
         the owner's ``accept_embargo_invite`` does:
-        a shorter-or-equal B carries every signatory over, a longer B lapses
-        the signatories whose ``accepted_embargo_ids`` lack it.  On every
-        activation, first or replacement, a non-signatory that already holds
-        B (its proposer, for one) becomes ``SIGNATORY``.  The cascade runs in
-        both modes, so a replica syncing an announced activation keeps its
-        consent records in step with the CASE_MANAGER.
+        a shorter-or-equal B carries every signatory over, and under a longer B
+        the signatories who have not accepted it have lapsed by derivation
+        (CM-18-001).  Whoever holds an ``ACCEPTED`` row for B — its proposer,
+        for one — is a signatory by lookup, with nothing to advance.  The
+        carry-over runs in both modes, so a replica syncing an announced
+        activation keeps its consent rows in step with the CASE_MANAGER.
 
         Args:
             case_id: ID of the ``VulnerabilityCase`` to update.
@@ -202,7 +197,10 @@ class _ActivationOperationsMixin(_PecActivationMixin):
         # owner's acceptance of B is recorded first, so the owner is never
         # lapsed by its own activation).
         participant_changes = self._consent_at_activation(
-            case, embargo_id=embargo_id, ends_no_later=ends_no_later
+            case,
+            embargo_id=embargo_id,
+            previous_embargo_id=previous_embargo_id,
+            ends_no_later=ends_no_later,
         )
 
         logger.info(

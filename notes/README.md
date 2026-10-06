@@ -626,18 +626,16 @@ relationship to AppendOnlyLedger/LedgerFanout implementation phases.
 `Announce(CaseLedgerEntry)` inbound handler.
 
 **`participant-embargo-consent.md`**
-Design decisions for per-participant embargo acceptance tracking: a 7-state
-consent machine (`UNBOUND`, `INVITED`, `SIGNATORY`, `LAPSED`, `DECLINED`,
-`EXPIRED`, terminal `UNBOUND_EXITED`; ADR-0118),
-embargo meta-protocol delivery to `DECLINED`/`LAPSED` participants, and the
-`Accept(Invite(case))` → implicit consent rule. Records why `UNBOUND` means
-*not bound by any embargo terms* rather than pre-consent (ADR-0048, ADR-0091),
-so `ACCEPT`/`DECLINE` are valid directly from it, and the direct-assignment
-pitfall that silently desyncs `ParticipantStatus.consent` from the emitted
-ledger snapshot.
+Design decisions for per-participant embargo consent, recorded as one row per
+(participant, embargo) — `INVITED`, `ACCEPTED`, `DECLINED`, `EXPIRED` (ADR-0120) —
+with "signatory" and "lapsed" derived from the rows and the active embargo,
+embargo meta-protocol delivery to non-signatories, and the
+`Accept(Invite(case))` → implicit consent rule. Records why a missing row means
+*not bound by any embargo terms* rather than pre-consent (ADR-0048), so
+`ACCEPT`/`DECLINE` are valid directly from it, and the direct-assignment pitfall.
 **Load when**: implementing per-participant EM state tracking, working on the
-embargo consent state machine in `vultron/core/states/`, writing any PEC state
-change, or debugging `embargo_adherence` / `emConsentState` semantics.
+consent transition table in `vultron/core/states/`, writing any PEC change, or
+debugging signatory / lapsed semantics.
 
 **`embargo-lifecycle.md`**
 Architecture of EM state management: the `EmbargoLifecycle` service

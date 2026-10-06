@@ -16,6 +16,9 @@ from vultron.core.behaviors.embargo.nodes import EMBARGO_INVITE_EVENT_TYPE
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.em import EM
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.core.use_cases.triggers.embargo import (
     SvcProposeEmbargoRevisionUseCase,
 )
@@ -149,10 +152,10 @@ def test_propose_embargo_revision_in_revise_state_succeeds(
     """SvcProposeEmbargoRevisionUseCase succeeds when EM is already REVISE.
 
     Guards against a regression where EM.REVISE → EM.REVISE counter-revision
-    is incorrectly blocked.  Participant PEC states MUST NOT change on this
+    is incorrectly blocked.  Existing participant consent rows MUST NOT change on this
     path — nor on ACTIVE → REVISE: a revision *proposal* changes nobody's
-    consent (EP-05-002, ADR-0093); the REVISE cascade fires only when the
-    owner activates longer terms a signatory has not accepted.
+    consent (EP-05-002, ADR-0093); a signatory lapses (derived, nothing stored) only when the
+    owner activates longer terms it has not accepted.
     """
     actor, dl = finder_actor_and_dl
 
@@ -162,7 +165,7 @@ def test_propose_embargo_revision_in_revise_state_succeeds(
 
     participant_id = case.actor_participant_index[actor.id_]
     participant_before = cast(as_CaseParticipant, dl.read(participant_id))
-    pec_before = participant_before.embargo_consent_state
+    consents_before = list(participant_before.embargo_consents)
 
     request = ProposeEmbargoRevisionTriggerRequest(
         actor_id=actor.id_,
@@ -184,4 +187,15 @@ def test_propose_embargo_revision_in_revise_state_succeeds(
     assert len(updated_case.proposed_embargoes) == 2
 
     participant_after = cast(as_CaseParticipant, dl.read(participant_id))
-    assert participant_after.embargo_consent_state == pec_before
+    # The proposer's row for the embargo in force is untouched; proposing adds
+    # only an ACCEPTED row for the proposed revision (ADR-0120).
+    proposed_id = updated_case.proposed_embargoes[-1]
+    assert [
+        r
+        for r in participant_after.embargo_consents
+        if r.embargo_id != proposed_id
+    ] == consents_before
+    assert (
+        participant_after.consent_for(proposed_id)
+        == EmbargoConsentState.ACCEPTED
+    )

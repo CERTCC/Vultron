@@ -36,7 +36,6 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.pending_assertion import get_pending_assertion_store
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.use_cases.triggers.embargo import (
     SvcAcceptEmbargoUseCase,
     SvcProposeEmbargoRevisionUseCase,
@@ -76,13 +75,11 @@ def _case_managed_by_someone_else(
     manager = VendorParticipant(
         attributed_to=MANAGER,
         context=case.id_,
-        embargo_consent_state=PEC.UNBOUND,
     )
     manager.add_role(CVDRole.CASE_MANAGER)
     finder = FinderParticipant(
         attributed_to=finder_id,
         context=case.id_,
-        embargo_consent_state=PEC.UNBOUND,
     )
     case.case_participants = [manager.id_, finder.id_]
     case.actor_participant_index = {

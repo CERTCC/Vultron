@@ -55,8 +55,7 @@ Defined in `vultron/core/models/case_participant.py`.
 | `attributed_to` | The actor this record stands for; `actor_participant_index` is keyed on it |
 | `case_roles` | `list[CVDRole]` — the roles this actor holds in this case |
 | `participant_statuses` | Append-only history of `ParticipantStatus` snapshots |
-| `embargo_consent_state` | This participant's current Participant Embargo Consent (PEC) state |
-| `accepted_embargo_ids` | URIs of embargoes the participant has accepted |
+| `embargo_consents` | `list[EmbargoConsent]` — one Participant Embargo Consent (PEC) row for each embargo this participant was asked about, each holding the embargo URI and `INVITED`, `ACCEPTED`, `DECLINED` or `EXPIRED` (ADR-0120). "Signatory" and "lapsed" are read from these rows and the case's active embargo, never stored |
 | `joined` | Whether the participant has joined the case: it was seated by case initialization or accepted its stub Invite. Defaults to `true`. One input to `VulnerabilityCase.is_active_participant`, which decides whether the participant is sent case content (CM-10-004, ADR-0114) |
 | `participant_case_name` | Optional human-readable name for this participant in this case |
 | `invite_rsvp_deadline` | The RSVP deadline the CASE_MANAGER stamped as `Invite.end_time` on this participant's `Invite(EmbargoEvent)`; recorded at the manager's commit of that Invite and reaching replicas through the ledger, never derived on receipt (CM-28-012, CM-28-013) |
@@ -87,12 +86,10 @@ Stored in `CaseParticipant.participant_statuses`.
 | `rm` | `RmDimension` — the participant's Report Management (RM) state (Start → Received → … → Closed) |
 | `vf` | `VfDimension` — Vendor-awareness / Fix-readiness state (vf → Vf → VF); present only for VENDOR participants |
 | `d` | `DDimension` — Fix-deployment state (d → D); present only for DEPLOYER participants |
-| `consent` | `PecDimension` — this participant's Participant Embargo Consent (PEC) state |
 | `cvd_role` | The CVD roles this participant held at the time of the snapshot |
 | `case_engagement` | Whether this participant is actively engaged |
 | `tracking_id` | Optional identifier this participant uses for the case in its own tracker |
 | `case_status` | Optional `CaseStatus` the participant believes the case to be in |
-| `embargo_adherence` | Computed `True` iff `consent.state == SIGNATORY` (ADR-0056); never set directly |
 
 ## Dimension objects
 
@@ -105,7 +102,6 @@ Defined in `vultron/core/models/dimensions.py` (ADR-0036).
 | `RmDimension` | Report Management (RM) | Start → Received → … → Closed | `ParticipantStatus` |
 | `VfDimension` | Vendor-awareness / Fix-readiness (VF) | vf → Vf → VF | `ParticipantStatus` (VENDOR only) |
 | `DDimension` | Fix-deployment (D) | d → D | `ParticipantStatus` (DEPLOYER only) |
-| `PecDimension` | Participant Embargo Consent (PEC) | UNBOUND / INVITED / SIGNATORY / LAPSED / DECLINED / EXPIRED / UNBOUND_EXITED | `ParticipantStatus` |
 
 ## `CVDRole`
 
@@ -153,7 +149,7 @@ classDiagram
         id_ URI
         case_roles list~CVDRole~
         participant_statuses list~ParticipantStatus~
-        embargo_consent_state PEC
+        embargo_consents list~EmbargoConsent~
     }
 
     class CaseStatus {
@@ -166,8 +162,6 @@ classDiagram
         rm RmDimension
         vf VfDimension
         d DDimension
-        consent PecDimension
-        embargo_adherence bool
     }
 
     class CVDRole {
@@ -196,6 +190,6 @@ classDiagram
 - [The CASE_MANAGER and the Case Ledger](../topics/case_lifecycle/case_manager_and_ledger.md) — who writes the case history
 - ADR-0036: Per-Machine Dimension Objects for `CaseStatus` and `ParticipantStatus`
 - ADR-0051: CaseActor Has Its Own RM Lifecycle Tracked via CaseParticipant
-- ADR-0056: `embargo_adherence` is derived from consent
+- ADR-0120: Participant embargo consent is recorded per (participant, embargo)
 - ADR-0057: Observer role (`CVDRole.OBSERVER`)
 - ADR-0078: Retire `CVDRole.FINDER` — Reporter Is the Protocol-Salient Role

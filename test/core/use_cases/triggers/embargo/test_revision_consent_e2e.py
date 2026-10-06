@@ -17,10 +17,10 @@ cases (ADR-0093 as revised for #3884; EP-05, MSM-07).
 ``ACTIVE → REVISE → ACTIVE`` three ways — an accepted shorter revision, an
 accepted longer revision, a rejected revision — on a case with an owner, a
 proposer and a silent third signatory, asserting after every step each
-participant's PEC state, ``embargo_adherence``, ``accepted_embargo_ids``,
-and that ``find_excluded_actor_ids`` (the CM-10-004 content gate, which
-reads the list) agrees with the scalar state about who is a signatory to
-the active embargo.
+participant's consent rows (one per embargo, ADR-0120), and that
+``find_excluded_actor_ids`` (the CM-10-004 content gate) agrees with the
+derived ``is_signatory`` / ``has_lapsed`` answers about who is bound by the
+active embargo.
 
 One store, three actors.  Every trigger here runs against the case's
 canonical store, whose owner is the CASE_MANAGER.  The proposer is not, so
@@ -54,9 +54,12 @@ from vultron.core.behaviors.case.update_support import find_excluded_actor_ids
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.core.use_cases.triggers.embargo import (
     SvcAcceptEmbargoUseCase,
     SvcProposeEmbargoRevisionUseCase,
@@ -105,21 +108,33 @@ class _Revision:
         owner_p = VendorParticipant(
             attributed_to=OWNER,
             context=self.case.id_,
-            embargo_consent_state=PEC.SIGNATORY,
-            accepted_embargo_ids=[self.active.id_],
+            embargo_consents=[
+                EmbargoConsent(
+                    embargo_id=self.active.id_,
+                    state=EmbargoConsentState.ACCEPTED,
+                )
+            ],
         )
         owner_p.add_role(CVDRole.CASE_MANAGER)
         proposer_p = FinderParticipant(
             attributed_to=PROPOSER,
             context=self.case.id_,
-            embargo_consent_state=PEC.SIGNATORY,
-            accepted_embargo_ids=[self.active.id_],
+            embargo_consents=[
+                EmbargoConsent(
+                    embargo_id=self.active.id_,
+                    state=EmbargoConsentState.ACCEPTED,
+                )
+            ],
         )
         third_p = VendorParticipant(
             attributed_to=THIRD,
             context=self.case.id_,
-            embargo_consent_state=PEC.SIGNATORY,
-            accepted_embargo_ids=[self.active.id_],
+            embargo_consents=[
+                EmbargoConsent(
+                    embargo_id=self.active.id_,
+                    state=EmbargoConsentState.ACCEPTED,
+                )
+            ],
         )
         self.participants = {
             OWNER: owner_p.id_,
@@ -221,34 +236,39 @@ class _Revision:
     def read_case(self) -> VulnerabilityCase:
         return cast(VulnerabilityCase, self.dl.read(self.case.id_))
 
-    def consent(self) -> dict[str, tuple[str, bool, list[str]]]:
-        """``{actor: (pec_state, embargo_adherence, accepted_embargo_ids)}``."""
-        out: dict[str, tuple[str, bool, list[str]]] = {}
-        for actor_id, participant_id in self.participants.items():
-            p = cast(CaseParticipant, self.dl.read(participant_id))
-            status = p.participant_status
-            assert status is not None
-            out[actor_id] = (
-                p.embargo_consent_state,
-                status.embargo_adherence,
-                list(p.accepted_embargo_ids),
-            )
-        return out
+    def consent(self) -> dict[str, dict[str, EmbargoConsentState]]:
+        """``{actor: {embargo_id: row state}}`` for every participant."""
+        return {
+            actor_id: {
+                row.embargo_id: row.state
+                for row in cast(
+                    CaseParticipant, self.dl.read(participant_id)
+                ).embargo_consents
+            }
+            for actor_id, participant_id in self.participants.items()
+        }
 
-    def assert_gate_agrees_with_state(self) -> None:
-        """``find_excluded_actor_ids`` (list-based) matches the scalar state.
+    def participant(self, actor_id: str) -> CaseParticipant:
+        return cast(CaseParticipant, self.dl.read(self.participants[actor_id]))
 
-        The content gate excludes an actor whose list lacks the active
-        embargo; the scalar says an actor is bound iff SIGNATORY.  The two
-        must name the same actors (the disagreement was Concern #3884).
+    def signatories(self) -> set[str]:
+        """Actors whose row for the active embargo is ACCEPTED."""
+        active_id = self.read_case().active_embargo_id
+        return {
+            actor
+            for actor in self.participants
+            if self.participant(actor).is_signatory(active_id)
+        }
+
+    def assert_gate_agrees_with_rows(self) -> None:
+        """``find_excluded_actor_ids`` names exactly the non-signatories.
+
+        The content gate and the derived signatory lookup both read the
+        consent row for the active embargo, so they cannot disagree (the
+        disagreement between a list and a scalar was Concern #3884).
         """
         excluded = find_excluded_actor_ids(self.read_case(), self.dl)
-        not_signatory = {
-            actor
-            for actor, (state, _adherence, _ids) in self.consent().items()
-            if state != PEC.SIGNATORY.value
-        }
-        assert excluded == not_signatory
+        assert excluded == set(self.participants) - self.signatories()
 
 
 @pytest.fixture()
@@ -260,30 +280,33 @@ def revision():
         scenario.close()
 
 
-def _assert_all_signatories_to(
-    revision: _Revision, embargo_id: str, *, extra_ids: dict[str, list[str]]
-) -> None:
-    for actor, (state, adherence, ids) in revision.consent().items():
-        assert state == PEC.SIGNATORY.value, actor
-        assert adherence is True, actor
-        assert embargo_id in ids, actor
-        for extra in extra_ids.get(actor, []):
-            assert extra in ids, (actor, extra)
+def _assert_all_signatories_to(revision: _Revision, embargo_id: str) -> None:
+    assert revision.read_case().active_embargo_id == embargo_id
+    assert revision.signatories() == set(ACTORS)
+    for actor, rows in revision.consent().items():
+        assert rows[embargo_id] == EmbargoConsentState.ACCEPTED, actor
+        assert not revision.participant(actor).has_lapsed(embargo_id), actor
+
+
+_ACCEPTED = EmbargoConsentState.ACCEPTED
+_INVITED = EmbargoConsentState.INVITED
 
 
 @pytest.mark.spec("EP-05-002")
 @pytest.mark.spec("MSM-07-005")
 def test_proposing_a_revision_changes_nobodys_consent(revision: _Revision):
-    """ACTIVE → REVISE: everyone stays a signatory to A; the proposer's list gains B."""
+    """ACTIVE -> REVISE: everyone stays a signatory to A; the proposer gains an ACCEPTED row for B and
+    the asked signatory an INVITED one (its row for A is kept, EP-09-004)."""
     a = revision.active.id_
     b = revision.propose_revision(days=90)
 
     assert revision.read_case().current_status.em.state == EM.REVISE
     consent = revision.consent()
-    assert consent[OWNER] == (PEC.SIGNATORY.value, True, [a])
-    assert consent[PROPOSER] == (PEC.SIGNATORY.value, True, [a, b])
-    assert consent[THIRD] == (PEC.SIGNATORY.value, True, [a])
-    revision.assert_gate_agrees_with_state()
+    assert consent[OWNER] == {a: _ACCEPTED}
+    assert consent[PROPOSER] == {a: _ACCEPTED, b: _ACCEPTED}
+    assert consent[THIRD] == {a: _ACCEPTED, b: _INVITED}
+    assert revision.signatories() == set(ACTORS)
+    revision.assert_gate_agrees_with_rows()
 
 
 @pytest.mark.spec("EP-05-001")
@@ -293,10 +316,10 @@ def test_proposing_a_revision_changes_nobodys_consent(revision: _Revision):
 def test_accepted_shorter_revision_carries_every_signatory_over(
     revision: _Revision,
 ):
-    """ACTIVE → REVISE → ACTIVE under shorter B: nobody lapses, everyone holds B."""
+    """ACTIVE -> REVISE -> ACTIVE under shorter B: nobody lapses, everyone holds B."""
     a = revision.active.id_
     b = revision.propose_revision(days=30)
-    revision.assert_gate_agrees_with_state()
+    revision.assert_gate_agrees_with_rows()
 
     revision.owner_accepts(b)
 
@@ -305,8 +328,10 @@ def test_accepted_shorter_revision_carries_every_signatory_over(
     assert case.active_embargo_id == b
     assert case.proposed_embargoes == []
     assert case.pending_embargo_proposal_index == {}
-    _assert_all_signatories_to(revision, b, extra_ids={OWNER: [a], THIRD: [a]})
-    revision.assert_gate_agrees_with_state()
+    _assert_all_signatories_to(revision, b)
+    for rows in revision.consent().values():
+        assert rows[a] == _ACCEPTED
+    revision.assert_gate_agrees_with_rows()
 
 
 @pytest.mark.spec("EP-05-001")
@@ -316,9 +341,10 @@ def test_accepted_shorter_revision_carries_every_signatory_over(
 def test_accepted_longer_revision_lapses_only_the_silent_signatory(
     revision: _Revision,
 ):
-    """ACTIVE → REVISE → ACTIVE under longer B: the third party, who never
-    answered, lapses; the proposer (consented by proposing) and the owner
-    (consented by accepting) stay signatories."""
+    """ACTIVE -> REVISE -> ACTIVE under longer B: the third party, who never
+    answered, lapses (derived: an ACCEPTED row for A, none for B); the proposer
+    (consented by proposing) and the owner (consented by accepting) stay
+    signatories."""
     a = revision.active.id_
     b = revision.propose_revision(days=90)
 
@@ -328,18 +354,21 @@ def test_accepted_longer_revision_lapses_only_the_silent_signatory(
     assert case.current_status.em.state == EM.ACTIVE
     assert case.active_embargo_id == b
     consent = revision.consent()
-    assert consent[OWNER] == (PEC.SIGNATORY.value, True, [a, b])
-    assert consent[PROPOSER] == (PEC.SIGNATORY.value, True, [a, b])
-    assert consent[THIRD] == (PEC.LAPSED.value, False, [a])
-    # The gate excludes exactly the lapsed party: its list lacks B.
+    assert consent[OWNER] == {a: _ACCEPTED, b: _ACCEPTED}
+    assert consent[PROPOSER] == {a: _ACCEPTED, b: _ACCEPTED}
+    assert consent[THIRD] == {a: _ACCEPTED, b: _INVITED}
+    assert revision.participant(THIRD).has_lapsed(b)
+    assert not revision.participant(THIRD).is_signatory(b)
+    assert revision.signatories() == {OWNER, PROPOSER}
+    # The gate excludes exactly the lapsed party: it has no accepting row for B.
     assert find_excluded_actor_ids(case, revision.dl) == {THIRD}
-    revision.assert_gate_agrees_with_state()
+    revision.assert_gate_agrees_with_rows()
 
 
 @pytest.mark.spec("MSM-07-004")
 @pytest.mark.spec("EP-05-002")
 def test_rejected_revision_strands_nobody(revision: _Revision):
-    """ACTIVE → REVISE → ACTIVE by EJ: A stays in force; no record changes."""
+    """ACTIVE -> REVISE -> ACTIVE by EJ: A stays in force; no signatory is lost."""
     a = revision.active.id_
     b = revision.propose_revision(days=90)
     before = revision.consent()
@@ -351,9 +380,11 @@ def test_rejected_revision_strands_nobody(revision: _Revision):
     assert case.active_embargo_id == a
     assert case.proposed_embargoes == []
     assert case.pending_embargo_proposal_index == {}
-    assert revision.consent() == before
-    for actor, (state, adherence, _ids) in before.items():
-        assert state == PEC.SIGNATORY.value, actor
-        assert adherence is True, actor
+    # Every row for A is untouched; the owner's rejection of a proposal while
+    # A is in force writes nothing (ADR-0120).
+    after = revision.consent()
+    for actor in ACTORS:
+        assert after[actor][a] == before[actor][a] == _ACCEPTED, actor
+    assert revision.signatories() == set(ACTORS)
     assert find_excluded_actor_ids(case, revision.dl) == set()
-    revision.assert_gate_agrees_with_state()
+    revision.assert_gate_agrees_with_rows()
