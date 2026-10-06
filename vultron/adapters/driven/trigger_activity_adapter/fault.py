@@ -15,6 +15,7 @@
 
 import logging
 
+from vultron.adapters.outbox_sealed_body import derived_activity_id, is_sealed
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.wire.as2.factories.fault import create_processing_fault_activity
 from vultron.wire.as2.vocab.objects.processing_fault import as_ProcessingFault
@@ -50,9 +51,31 @@ class _FaultMixin:
             case_id: Optional case context URI (not included in the fault per
                 ASK-07-006, but available for logging).
 
+        The activity id is derived from the failed activity and failure
+        class, so a redelivery of the same failed activity emits nothing new
+        and returns the id of the fault its first delivery sent (ID-04-004).
+        The sealed body is written before the queue append, so a sealed fault
+        that is no longer pending may have been delivered or may never have
+        been queued; the queue cannot say which.  It is queued again under the
+        same id and body, which the receiver deduplicates, so a crash between
+        the two writes never loses the NACK (ID-04-005).
+
         Returns:
             The activity ID.
         """
+        fault_id = derived_activity_id(
+            "processing-fault", actor, failed_activity_id, failure_class
+        )
+        if is_sealed(self._dl, fault_id):
+            if fault_id not in self._dl.outbox_list():
+                self._dl.outbox_append(fault_id)
+            logger.info(
+                "ProcessingFault %s for failed activity %s was already"
+                " emitted; not building it again",
+                fault_id,
+                failed_activity_id,
+            )
+            return fault_id
         fault = as_ProcessingFault(
             failure_class=failure_class,
             in_reply_to=failed_activity_id,
@@ -61,6 +84,7 @@ class _FaultMixin:
             actor=actor,
             fault=fault,
             to=to,
+            id_=fault_id,
         )
         self._dl.create(activity)
         activity_id, _body = _seal(self._dl, activity)

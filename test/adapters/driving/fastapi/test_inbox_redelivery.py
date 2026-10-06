@@ -295,23 +295,13 @@ def test_second_delivery_logged_at_info_no_warning(
 # Build the corpus once at module load, same as test_vocab_examples_dispatchable.
 _EXAMPLES: dict[str, Any] = activity_examples()
 
-# Handlers confirmed non-idempotent pending fix in issue #4215.  Each entry
-# carries a strict xfail so the exemption is forced out once the handler
-# becomes idempotent.  A name absent from _EXAMPLES triggers
+# Handlers known to be non-idempotent.  Empty: every dispatchable example is
+# idempotent (#3867, #4215).  A new entry MUST name an open issue that owns
+# the fix; each carries a strict xfail so the exemption is forced out once the
+# handler becomes idempotent.  A name absent from _EXAMPLES triggers
 # test_known_non_idempotent_names_are_collected (same guard as in
 # test_vocab_examples_dispatchable.py).
-_KNOWN_NON_IDEMPOTENT: dict[str, str] = {
-    # Both runs refuse (missing case) but a fresh Reject activity is sealed on
-    # every invocation rather than only the first.  #4215.
-    "add_status_to_case": "non-idempotent refuse path — emits new Reject on redelivery (follow-up #4215)",
-    "add_status_to_participant": "non-idempotent refuse path — emits new Reject on redelivery (follow-up #4215)",
-    # SendRejectLogEntryNode creates a new Reject(CaseLedgerEntry) on every
-    # delivery instead of suppressing duplicates.  #4215.
-    "announce_case_ledger_entry": "non-idempotent deferred path — SendRejectLogEntryNode emits new Reject on redelivery (follow-up #4215)",
-    # CreateCaseProposalReceivedUseCase emits a trigger-response activity on
-    # both the first and second delivery; second delivery is not a no-op.  #4215.
-    "create_case_proposal": "non-idempotent processed path — CreateCaseProposalReceivedUseCase emits new activity on redelivery (follow-up #4215)",
-}
+_KNOWN_NON_IDEMPOTENT: dict[str, str] = {}
 
 
 def _sweep_params() -> list[Any]:
