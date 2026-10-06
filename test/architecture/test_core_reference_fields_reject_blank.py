@@ -157,7 +157,7 @@ def test_every_core_string_field_rejects_a_blank() -> None:
 
 
 def test_the_scan_covers_the_fields_3877_named() -> None:
-    """The fields the issue enumerated are in scope, so the ratchet is not vacuous."""
+    """The fields the issue enumerated are in scope, so the check is not vacuous."""
     classes = core_model_classes()
     assert {"context", "in_reply_to"} <= set(
         string_fields(classes["VultronCreateCaseActivity"])

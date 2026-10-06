@@ -108,7 +108,7 @@ def _declared_type_wire_classes() -> list[type[as_Base]]:
 
 
 def test_registries_are_populated() -> None:
-    """The ratchets below are only meaningful against populated registries."""
+    """The checks below are only meaningful against populated registries."""
     _force_full_registration()
     for name, registry in (
         ("VOCABULARY", VOCABULARY),
@@ -116,7 +116,7 @@ def test_registries_are_populated() -> None:
     ):
         assert len(registry) >= _MIN_REGISTERED_TYPES, (
             f"{name} has only {len(registry)} entries; dynamic discovery did "
-            "not run, so the key-form ratchets would pass vacuously."
+            "not run, so the key-form checks would pass vacuously."
         )
 
 

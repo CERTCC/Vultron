@@ -177,7 +177,7 @@ decision rather than a count (MS-16-001):
 
 | Constant | File | Why it is a pin |
 |---|---|---|
-| `_RM_FORCE_QUARANTINE` | `test_participant_status_validation.py` | bootstrap writes of a first status, which has no predecessor for the RM adjacency rule (BTND-10-001); closure never forces (RMB-14-005, #3106) |
+| `_RM_FORCE_QUARANTINE` | `test_participant_status_validation.py` | bootstrap writes of a first status, which has no predecessor for the RM adjacency rule (BTND-10-001); closure never forces (RMB-14-005) |
 | `_DECLARED_EXCLUSIONS` | `test_participant_status_validation.py` | ADR-0089 end state: two writer exclusions (receive and replica-apply paths) plus the permanent non-writer over-catch |
 | `_DECLARED_EXCLUSIONS` | `test_no_broad_except_outside_bt_update.py` | framework, bridge and persistence boundaries, each justified inline (CS-23-001) |
 | `KNOWN_ALLOWLIST` | `test_case_resolution_uses_helpers.py` | the ADR-0087 regime exceptions |
@@ -188,5 +188,5 @@ decision rather than a count (MS-16-001):
 The writer exclusions in `test_participant_status_validation.py` looked like
 candidates for a separate ratchet. They are not: ADR-0089 names the receive path
 and the replica-apply path as its deliberate end state, dispositions the emit
-evaluator must not apply (ADR-0061, RSH-05-021). An entry that *is* awaiting a fix leaves the pinned set
-for its own ratchet constant with an owner.
+evaluator must not apply (ADR-0061, RSH-05-021). An entry that *is* awaiting a
+fix leaves the pinned set for its own ratchet constant with an owner.

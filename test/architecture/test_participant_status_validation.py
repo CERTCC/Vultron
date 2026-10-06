@@ -404,7 +404,7 @@ def test_rm_force_sites_match_pinned_set() -> None:
     if removed:
         messages.append(
             "Quarantined force_rm_state=True site(s) are gone — good news;"
-            " shrink _RM_FORCE_QUARANTINE to match:\n"
+            " update _RM_FORCE_QUARANTINE to match:\n"
             + "\n".join(
                 f"  - {path} (quarantined {count}, now {actual.get(path, 0)})"
                 for path, count in sorted(removed.items())
