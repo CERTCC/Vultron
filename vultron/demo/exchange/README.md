@@ -39,6 +39,14 @@ actor's own outbox. This is appropriate for exchange demos because:
 | `manage-participants`    | `manage_participants_demo.py`    | Adding and removing case participants           |
 | `trigger`                | `trigger_demo.py`                | Triggerable behavior endpoint walkthrough       |
 
+## Shared exchange helpers
+
+`embargo_lifecycle.py` is not a demo and has no sub-command.
+It holds the embargo helpers that multi-actor scenarios share:
+`demo_propose_and_activate_embargo`, `demo_propose_embargo_revision` and `demo_terminate_embargo`.
+Unlike the demos above, these puppeteer real actors through their trigger endpoints
+(`ActorSession`) and wait for the relayed `Invite(EmbargoEvent)` to arrive in each actor's own DataLayer.
+
 ## Running exchange demos
 
 All exchange demos are accessible through the unified CLI:

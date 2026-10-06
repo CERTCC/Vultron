@@ -16,6 +16,7 @@
 """Unit tests for :class:`vultron.demo.actor_session.ActorSession`."""
 
 import dataclasses
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -180,3 +181,87 @@ def test_optional_note_omitted_from_body_when_absent():
     ) as post:
         session.quiet().validate_report(offer_id="offer-1")
     assert post.call_args.kwargs["body"] == {"offer_id": "offer-1"}
+
+
+# -- embargo verbs -------------------------------------------------------
+
+_END = datetime(2030, 1, 2, 3, 4, 5, tzinfo=UTC)
+_EMBARGO_ID = f"{_CASE_ID}/embargo_events/90d"
+#: What a proposal trigger answers: the proposer's own Invite(EmbargoEvent).
+_PROPOSAL = {
+    "activity": {
+        "type": "Invite",
+        "id": "http://vendor:7999/api/v2/Invites/9",
+        "actor": _ACTOR_ID,
+        "object": _EMBARGO_ID,
+    }
+}
+
+
+@pytest.mark.parametrize(
+    ("verb", "behavior"),
+    [
+        ("propose_embargo", "propose-embargo"),
+        ("propose_embargo_revision", "propose-embargo-revision"),
+    ],
+)
+def test_embargo_proposal_verbs_post_the_end_time_and_note(verb, behavior):
+    session = _session().with_case(_case())
+    with patch(
+        "vultron.demo.actor_session.post_to_trigger", return_value=_PROPOSAL
+    ) as post:
+        result = getattr(session, verb)(end_time=_END, note="why")
+    assert result.activity.object_ == _EMBARGO_ID
+    assert post.call_args.kwargs["behavior"] == behavior
+    assert post.call_args.kwargs["body"] == {
+        "case_id": _CASE_ID,
+        "end_time": _END.isoformat(),
+        "note": "why",
+    }
+
+
+def test_embargo_proposal_omits_an_absent_note():
+    session = _session().with_case(_case())
+    with patch(
+        "vultron.demo.actor_session.post_to_trigger", return_value=_PROPOSAL
+    ) as post:
+        session.propose_embargo(end_time=_END)
+    assert "note" not in post.call_args.kwargs["body"]
+
+
+def test_accept_embargo_names_the_proposal_only_when_given():
+    session = _session().with_case(_case())
+    with patch(
+        "vultron.demo.actor_session.post_to_trigger", return_value={}
+    ) as post:
+        session.accept_embargo()
+        assert post.call_args.kwargs["body"] == {"case_id": _CASE_ID}
+        session.accept_embargo(proposal_id="urn:p")
+        assert post.call_args.kwargs["body"] == {
+            "case_id": _CASE_ID,
+            "proposal_id": "urn:p",
+        }
+
+
+def test_terminate_embargo_posts_the_case():
+    session = _session().with_case(_case())
+    with patch(
+        "vultron.demo.actor_session.post_to_trigger", return_value={}
+    ) as post:
+        session.terminate_embargo()
+    assert post.call_args.kwargs["behavior"] == "terminate-embargo"
+    assert post.call_args.kwargs["body"] == {"case_id": _CASE_ID}
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        lambda s: s.propose_embargo(end_time=_END),
+        lambda s: s.propose_embargo_revision(end_time=_END),
+        lambda s: s.accept_embargo(),
+        lambda s: s.terminate_embargo(),
+    ],
+)
+def test_embargo_verbs_are_case_scoped(call):
+    with pytest.raises(ValueError, match="case-scoped"):
+        call(_session())

@@ -69,6 +69,13 @@ repos:
         exclude: ^docs/adr/(index|README)\.md$
         pass_filenames: false
 
+      - id: adr-lifecycle-check
+        name: ADR edits respect the lifecycle epochs
+        entry: uv run python -m vultron.metadata.adr.lifecycle
+        language: system
+        files: ^docs/adr/.*\.md$
+        exclude: ^docs/adr/(index|README)\.md$
+
       - id: validate-docs-page-frontmatter
         name: Validate docs page stakeholder_type and level
         entry: uv run python -m vultron.metadata.docs.page_frontmatter
@@ -166,5 +173,5 @@ repos:
         name: Spec registry linter
         entry: uv run python -m vultron.metadata.specs.lint specs/
         language: system
-        files: ^specs/.*\.yaml$
+        files: ^(specs/.*\.yaml|docs/adr/.*\.md|vultron/metadata/adr/.*\.py)$
         pass_filenames: false

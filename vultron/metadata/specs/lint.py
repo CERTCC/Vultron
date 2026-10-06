@@ -10,6 +10,7 @@ Usage::
 from __future__ import annotations
 
 import argparse
+import datetime as _dt
 import os
 import re
 import sys
@@ -18,7 +19,14 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
+from vultron.metadata.adr.lifecycle import (
+    hardened_adrs,
+    status_epoch_fault,
+    today_utc,
+    verified_dependents,
+)
 from vultron.metadata.adr.loader import load_adr_registry
+from vultron.metadata.adr.schema import AdrFrontmatter
 from vultron.metadata.specs.kind_classification import (
     check_protocol_kind_code_references,
 )
@@ -62,8 +70,30 @@ _ADR_PROVISIONAL_MARKERS = (
 )
 
 
+def _hardened_adr_notes(
+    adr_registry: Mapping[str, AdrFrontmatter],
+    registry: SpecRegistry,
+    root: Path,
+    today: _dt.date,
+) -> list[str]:
+    """Report ADRs a tested dependent spec has hardened early (MS-14-010)."""
+    hardened = hardened_adrs(
+        dict(adr_registry),
+        verified_dependents(registry.all_specs, root),
+        today,
+    )
+    return [
+        f"[INFO] {Path(rel_path).name}: hardened early (MS-14-010); tested "
+        f"dependents {', '.join(sorted(spec_ids))} can justify a human "
+        f"promoting it to 'accepted' with a 'status_override:'"
+        for rel_path, spec_ids in sorted(hardened.items())
+    ]
+
+
 def _check_adr_status(
     adr_dir: Path | None,
+    registry: SpecRegistry | None = None,
+    today: _dt.date | None = None,
 ) -> tuple[list[str], list[str]]:
     """Validate ADR frontmatter (MS-14-001 hard, MS-14-002 advisory).
 
@@ -80,25 +110,35 @@ def _check_adr_status(
       surfaces ``decision-audit`` candidates rather than blocking CI; an ADR may
       opt out with ``lint_suppress: [status_prose_contradiction]``.
 
+    - **Hard (MS-14-007)**: ``status`` MUST agree with the epoch computed from
+      ``updated`` and ``today`` unless the ADR carries a ``status_override``.
+    - **Informational (MS-14-007)**: with a spec ``registry``, an ADR still in
+      epoch 1 or 2 that a tested spec requirement depends on is reported as
+      hardened, so a human can promote it early.
+
     Degrades to empty lists when ``adr_dir`` is missing so the check is a no-op
     in environments without a docs/ tree.
     """
     if adr_dir is None or not adr_dir.is_dir():
         return [], []
+    today = today or today_utc()
 
     errors: list[str] = []
     warnings: list[str] = []
 
     try:
-        registry = load_adr_registry(adr_dir.parent.parent)
+        adr_registry = load_adr_registry(adr_dir.parent.parent)
     except ValueError as exc:
         # A single malformed ADR aborts registry load; surface it as the error.
         return [f"ADR frontmatter invalid (MS-14-001): {exc}"], []
     except FileNotFoundError:
         return [], []
 
-    for rel_path, fm in registry.items():
+    for rel_path, fm in adr_registry.items():
         name = Path(rel_path).name
+        fault = status_epoch_fault(name, fm, today)
+        if fault:
+            errors.append(fault)
         if fm.status is not AdrStatus.ACCEPTED:
             continue
         if fm.lint_suppress and any(
@@ -122,6 +162,13 @@ def _check_adr_status(
                 f"provisional-ness with "
                 f"'lint_suppress: [status_prose_contradiction]'."
             )
+
+    if registry is not None:
+        warnings.extend(
+            _hardened_adr_notes(
+                adr_registry, registry, adr_dir.parent.parent, today
+            )
+        )
     return errors, warnings
 
 
@@ -970,7 +1017,9 @@ def lint(
     hard_errors.extend(adr_ref_errors)
     warnings.extend(adr_ref_warnings)
     hard_errors.extend(_check_missing_kind(registry))
-    adr_status_errors, adr_status_warnings = _check_adr_status(adr_dir)
+    adr_status_errors, adr_status_warnings = _check_adr_status(
+        adr_dir, registry
+    )
     hard_errors.extend(adr_status_errors)
     warnings.extend(adr_status_warnings)
 

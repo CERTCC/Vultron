@@ -213,7 +213,30 @@ text now be wrong?*) bumps `updated` and `revision`. In epoch 3, a material
 change to one detail with the chosen option intact is a dated Amendment quoting
 the replaced text; a change of chosen option is a new ADR that supersedes the
 old one, whose original text is restored. Never rewrite an accepted ADR under its
-own number. The status-against-epoch lint is #4196 (MS-14-007).
+own number.
+
+**What is checked (MS-14-007, MS-14-009, MS-14-010).** Three fields are required on
+every ADR (MS-14-008); `date` is the older spelling of `created` and may stay.
+Epochs are counted in whole days (3 and 10) because `updated` is a date.
+
+- `spec-lint` fails an ADR whose `status` differs from its epoch, unless the ADR
+  carries `status_override:` with the human's reason. Retired and rejected ADRs
+  have no epoch. Because the epoch moves with the calendar, an ADR that nobody
+  touches fails on the day it crosses a boundary; promoting it, or recording an
+  override, is the human touch.
+- The `adr-lifecycle-check` pre-commit hook compares an edited ADR with `HEAD`.
+  It fails a changed Decision Outcome or Considered Options section on an
+  epoch-3 ADR unless the edit adds a heading naming "Amendment" and a
+  `YYYY-MM-DD` date. It also fails a bump of `updated` on an ADR that was past
+  epoch 1, unless `status_override:` is present.
+- `spec-lint` prints an `[INFO]` line for an ADR in epoch 1 or 2 that a spec
+  requirement cites in `adr:` and verifies with an existing `test/` file: the
+  hardened signal that a human may promote it early. It checks that the file
+  exists, not that it passes.
+- `uv run adr-index --epochs` prints each live ADR's epoch, status and revision.
+  The generated `index.md` shows only the revision (`*(revision N)*`, when above
+  1), because the epoch depends on today's date and the index is compared byte
+  for byte.
 
 ### A Provisional ADR Must Phrase an Unbuilt Contract in the Future Tense
 
