@@ -43,8 +43,11 @@ Proceed to Phase 6.
    context is in hand. If yes, fix it now — a pre-existing failure you can
    resolve is still a failure worth resolving. Only proceed to step 5 if the
    fix is genuinely non-trivial or requires design work outside this PR's scope.
-5. If deferral is warranted: create/update a Bug issue with evidence via
-   `manage-github-issue`; wire structured blockers; post a handoff comment.
+5. If a fix is not possible in this PR: create/update a Bug issue with evidence
+   via `manage-github-issue`; wire structured blockers; post a handoff comment.
+   The PR stays held — a proven pre-existing failure is a blocker, not a
+   license to merge on red. Record `outcome: skipped` with `skip_reason`; CI
+   stays `failing`, so `pr-verify` returns `GAPS-FOUND`.
 6. If evidence is incomplete: treat as PR-owned and continue debugging.
 
 ### Integration Tests Fail ❌
@@ -59,8 +62,9 @@ Proceed to Phase 6.
 4. If pre-existing is proven: assess whether a fix is straightforward and
    context is in hand. If yes, fix it now. Only proceed to step 5 if the fix
    is genuinely non-trivial or requires design work outside this PR's scope.
-5. If deferral is warranted: create/update a Bug issue with evidence; wire
-   blockers via `manage-github-issue`; add a handoff comment.
+5. If a fix is not possible in this PR: create/update a Bug issue with evidence;
+   wire blockers via `manage-github-issue`; add a handoff comment. The PR stays
+   held, not merged on red: record `outcome: skipped` with `skip_reason`.
 6. Stop only after recording blocked/unblocked status with linked evidence.
 
 Integration tests can fail due to: missing environment setup, timing issues
@@ -348,7 +352,7 @@ File: `.claude/pr-{number}-execute.json`
 |---|---|
 | `fixed` | Applied inline; commit_ref recorded. `issue_number` is `null` for a plain `fix-now`, or set for a `fix-now-file` excursion the PR closes |
 | `deferred-ask` | Gate 1: issue filed, a measured remainder presented, and the user **explicitly approved** deferral. Silence does not produce this outcome — silence produces `fixed` |
-| `halted` | Gate 2: an inversion the user did not resolve; PR set to draft/blocked; pipeline stopped |
+| `halted` | PR held: a Gate 2 inversion the user did not resolve, or a Gate 1 item that could not be finished and has no approval to defer; PR set to draft/blocked; pipeline stopped |
 | `skipped` | Could not address (e.g., unresolved conflict, pre-existing failure filed with evidence); skip_reason explains why |
 
 `fix_kind` is `"code"` (the default when absent) or `"pr-body"`. A

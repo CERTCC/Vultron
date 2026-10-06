@@ -248,7 +248,10 @@ Full doctrine: `.claude/skills/shared/completeness-doctrine.md` (loaded by
 - Done = all changed behaviors tested, edge cases handled, types/docs current,
   linters clean.
 - **FAIL** → fix before PR. **IMPROVE** → fix this session.
-  **DEFER** → create follow-up issue + user ack. No WARN-and-defer.
+  **DEFER** → create follow-up issue + user ack; unattended runs have no DEFER
+  (fix in the PR or hold it). Never merge on red; never skip a hook
+  (only the documented `actionlint` hang).
+  No WARN-and-defer.
 
 ---
 
@@ -279,9 +282,9 @@ linked file before touching that area. New pitfalls MUST be routed per
 | Spec/notes/ADR/history tooling | [`vultron/metadata/AGENTS.md`](vultron/metadata/AGENTS.md), [agentic-workflow](notes/agentic-workflow.md) | learning filename slug ≠ `source` (BW-01-003, #1857); loaders name failing files `path:line:col` via `file_loading.py` (MS-17) — YAML errors aren't `ValueError`; pre-code spec needs `lint_suppress: [phantom_path_ref]` |
 | git / branches / PRs | [git-workflow-pitfalls](notes/git-workflow-pitfalls.md) | false-positive rebase "local changes"; conflict-free ≠ working merge; integration branches for related fixes; re-check ADR numbers; verify ACs on `origin/main`, always `Closes #N`, prose ACs skip the pre-claim gate (#1907) |
 | GH Actions / CI YAML | [ci-workflow-authoring](notes/ci-workflow-authoring.md) | red job ≠ assertions ran, all-skipped = green; `notify-failure` mandatory (CISEC-05); bare `on:` → `True`; matrix booleans job vs. step; `python3 -c` breaks `actionlint`; YAML apostrophes |
-| Spec authoring | [spec-authoring-rules](notes/spec-authoring-rules.md) | strict `kind`/`priority`/`rel_type` enums; `adr:` not `references:`; `kind: protocol` needs marker test or strict `xfail`; CASE_MANAGER not "CaseActor" (ADR-0088); item format = field presence, not `isinstance` (ADR-0101); advisories need a ceiling |
+| Spec authoring | [spec-authoring-rules](notes/spec-authoring-rules.md) | strict `kind`/`priority`/`rel_type` enums; `adr:` not `references:`; `kind: protocol` needs marker test or strict `xfail`; CASE_MANAGER not "CaseActor" (ADR-0088); item format = field presence, not `isinstance` (ADR-0101); advisories need an owner and a terminal state |
 | Specs vs. ADRs, doc drift | [specs-vs-adrs](notes/specs-vs-adrs.md), [documentation-sweeps](notes/documentation-sweeps.md) | ADR "what is removed" is scoped to one use; no counts in long-lived docs (MS-16-001); moving a claim ≠ verifying it, share by `include-markdown` fragment (DF-10-001/002) |
-| Tests | [testing-pitfalls](notes/testing-pitfalls.md), [`test/AGENTS.md`](test/AGENTS.md) | killed run reads exit 0 under `tail -5`; vacuous assertions; "falls back to" on malformed input asserts a bug; process-global blackboard/registries (`isolated_core_registries`); `caplog` catches fixture setup; timeout method vs. ceiling (#3603); directory-hook markers need a `trylast` probe (#3604) |
+| Tests | [testing-pitfalls](notes/testing-pitfalls.md), [`test/AGENTS.md`](test/AGENTS.md) | killed run reads exit 0 under `tail -5`; vacuous assertions; "falls back to" on malformed input asserts a bug; process-global blackboard/registries; `caplog` catches fixture setup; timeout method vs. ceiling (#3603); directory-hook markers need a `trylast` probe (#3604); a two-sided count pin races concurrent PRs, keep a per-item record (#3984) |
 | Demo scenarios | [`vultron/demo/AGENTS.md`](vultron/demo/AGENTS.md), [demo-scenario-authoring](notes/demo-scenario-authoring.md), [demo-scenario-registry](notes/demo-scenario-registry.md) | puppeteer via triggers, never inbox injection or mail-carrying; gate steps on their cause (EDF-06, ADR-0058); protocol activity lives in `helpers/workflow.py` ([demo-ci-diagnostics](notes/demo-ci-diagnostics.md)); declare a scenario once with `@scenario`, all inventories generated, no `@main.command`, unbuilt ones go in `demo-future-ideas.md` (ADR-0098, DEMOCI-11) |
 | Inbox / outbox | [inbox-orchestration](notes/inbox-orchestration.md), [inbox-pipeline](notes/inbox-pipeline.md), [outbox-delivery-reliability](notes/outbox-delivery-reliability.md), [`vultron/adapters/AGENTS.md`](vultron/adapters/AGENTS.md) | inbox policy in `core/behaviors/inbox/`, `process_payload` sole entry (IO-02-001/003); catch `UnroutableActivityError` inside `_handle`; retry caps composing to `4 × ∞` (OX-13); inbox has no read surface (IE-02-003/004, #3141); outbox relays the sealed body, never a re-read (OX-07-001, VM-08-003) |
 | Call-out points | [call-out-configuration](notes/call-out-configuration.md) | automation potential ≠ call-out shape (ADR-0024); an externally-versioned capability is **one** call-out unit (BTND-05-007) |

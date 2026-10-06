@@ -20,21 +20,21 @@ from typing import cast
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.helpers import _EmitSingleActivityBase
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import _find_case_actor_id
 
 
-class _EmitCaseActorReportActivityBase(DataLayerActionWithPorts):
+class _EmitCaseActorReportActivityBase(_EmitSingleActivityBase):
     """Base class for emit nodes that route report-phase activities to the CaseActor.
 
     Per ADR-0021 CLP-10-001: trigger trees MUST emit an outbound activity
     addressed to case_manager_id so the CaseActor receives it and can commit
     a canonical ledger entry.
 
-    Subclasses must override ``_call_factory`` to invoke the appropriate
+    Subclasses must override ``_call_report_factory`` to invoke the appropriate
     ``TriggerActivityPort`` method and return ``(activity_id, activity_dict)``.
 
     When *captured* is provided, the activity dict is stored as
@@ -58,12 +58,13 @@ class _EmitCaseActorReportActivityBase(DataLayerActionWithPorts):
                 serialised activity dict on success.
             name: Optional custom node name.
         """
-        super().__init__(name=name or self.__class__.__name__)
+        super().__init__(
+            captured=captured, name=name or self.__class__.__name__
+        )
         self.offer_id = offer_id
         self.report_id = report_id
-        self._captured = captured
 
-    def _call_factory(
+    def _call_report_factory(
         self, actor_id: str, addressees: list[str]
     ) -> tuple[str, str]:
         """Invoke the trigger-activity factory method for this activity type.
@@ -124,15 +125,12 @@ class _EmitCaseActorReportActivityBase(DataLayerActionWithPorts):
             addressees = self._compute_addressees()
             if not addressees:
                 return Status.FAILURE
-            activity_id, activity_dict = self._call_factory(
+            activity_id, activity_dict = self._call_report_factory(
                 self.actor_id,  # type: ignore[arg-type]
                 addressees,
             )
-            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
-                activity_id
-            )
-            if self._captured is not None:
-                self._captured["activity"] = json.loads(activity_dict)
+            # Route through the shared emit seam (OX-14-001, ASK-04-008).
+            self._emit_through_seam(activity_id, activity_dict)
             self.logger.info(
                 "Actor '%s' emitted %s for offer '%s'",
                 self.actor_id,
@@ -174,7 +172,7 @@ class EmitValidateReportActivity(_EmitCaseActorReportActivityBase):
             name=name,
         )
 
-    def _call_factory(
+    def _call_report_factory(
         self, actor_id: str, addressees: list[str]
     ) -> tuple[str, str]:
         """Call ``validate_report`` on the trigger-activity factory."""
@@ -273,7 +271,7 @@ class EmitInvalidateReportActivity(_EmitCaseActorReportActivityBase):
             name=name,
         )
 
-    def _call_factory(
+    def _call_report_factory(
         self, actor_id: str, addressees: list[str]
     ) -> tuple[str, str]:
         """Call ``invalidate_report`` on the trigger-activity factory."""
@@ -311,7 +309,7 @@ class EmitCloseReportActivity(_EmitCaseActorReportActivityBase):
             name=name,
         )
 
-    def _call_factory(
+    def _call_report_factory(
         self, actor_id: str, addressees: list[str]
     ) -> tuple[str, str]:
         """Call ``close_report`` on the trigger-activity factory."""
@@ -346,7 +344,7 @@ class EmitAckReportActivity(_EmitCaseActorReportActivityBase):
             name=name,
         )
 
-    def _call_factory(
+    def _call_report_factory(
         self, actor_id: str, addressees: list[str]
     ) -> tuple[str, str]:
         """Call ``ack_report`` on the trigger-activity factory."""
@@ -358,12 +356,12 @@ class EmitAckReportActivity(_EmitCaseActorReportActivityBase):
         )
 
 
-class EmitSubmitReportActivity(DataLayerActionWithPorts):
+class EmitSubmitReportActivity(_EmitSingleActivityBase):
     """Create Offer(VulnerabilityReport) and queue in actor outbox.
 
     Calls ``trigger_activity_factory.submit_report()`` and queues the
-    offer ID via ``outbox_append``.  Stores the offer dict in
-    ``captured["offer"]`` if *captured* is provided.
+    offer ID via ``_emit_through_seam`` (OX-14-001, ASK-04-008).  Stores
+    the offer dict in ``captured["offer"]`` if *captured* is provided.
 
     Per BT-15-001: outbound activity construction and queueing must be
     BT leaf nodes.
@@ -377,11 +375,14 @@ class EmitSubmitReportActivity(DataLayerActionWithPorts):
         name: str | None = None,
         proposed_embargo_id: str | None = None,
     ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
+        # Pass captured=None to the seam base: the seam stores the activity
+        # under "activity"; this node uses the legacy "offer" key for its
+        # callers.  _on_success() handles the "offer" capture separately.
+        super().__init__(captured=None, name=name or self.__class__.__name__)
         self.report_id = report_id
         self.recipient_id = recipient_id
         self.proposed_embargo_id = proposed_embargo_id
-        self._captured = captured
+        self._offer_captured = captured
 
     def _call_factory(self) -> tuple[str, str]:
         """Call submit_report on the factory. Raises on error."""
@@ -395,37 +396,13 @@ class EmitSubmitReportActivity(DataLayerActionWithPorts):
             proposed_embargo_id=self.proposed_embargo_id,
         )
 
-    def _validate_context(self) -> Status | None:
-        if (f := self._require_datalayer_and_actor()) is not None:
-            self.logger.error(
-                "%s: DataLayer or actor_id not available", self.name
-            )
-            return f
-        if (f := self._require_factory()) is not None:
-            self.logger.warning(
-                "%s: no TriggerActivityPort — cannot emit SubmitReport offer",
-                self.name,
-            )
-            return f
-        return None
-
-    def update(self) -> Status:
-        if (f := self._validate_context()) is not None:
-            return f
-        try:
-            offer_id, offer_blob = self._call_factory()
-            cast(CaseOutboxPersistence, self.datalayer).outbox_append(offer_id)
-            if self._captured is not None:
-                self._captured["offer"] = json.loads(offer_blob)
-            self.logger.info(
-                "Actor '%s' emitted Offer(VulnerabilityReport) '%s' to '%s'",
-                self.actor_id,
-                offer_id,
-                self.recipient_id,
-            )
-            return Status.SUCCESS
-        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
-            self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
-                "%s: Error emitting submit-report offer: %s", self.name, e
-            )
-            return Status.FAILURE
+    def _on_success(self, activity_id: str, activity_blob: str) -> None:
+        """Store the offer dict under the legacy ``"offer"`` key and log."""
+        if self._offer_captured is not None:
+            self._offer_captured["offer"] = json.loads(activity_blob)
+        self.logger.info(
+            "Actor '%s' emitted Offer(VulnerabilityReport) '%s' to '%s'",
+            self.actor_id,
+            activity_id,
+            self.recipient_id,
+        )

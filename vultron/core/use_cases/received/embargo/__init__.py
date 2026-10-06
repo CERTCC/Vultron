@@ -28,7 +28,6 @@ from vultron.core.use_cases.received.embargo.create_add_remove import (
 )
 from vultron.core.use_cases.received.embargo.invite import (
     InviteToEmbargoOnCaseReceivedUseCase,
-    _store_invite_deadline,
     resolve_invitee_id,
     resolve_proposer_id,
 )
@@ -44,7 +43,6 @@ __all__ = [
     "InviteToEmbargoOnCaseReceivedUseCase",
     "RejectInviteToEmbargoOnCaseReceivedUseCase",
     "RemoveEmbargoEventFromCaseReceivedUseCase",
-    "_store_invite_deadline",
     "resolve_invitee_id",
     "resolve_proposer_id",
 ]

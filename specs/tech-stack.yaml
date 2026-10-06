@@ -15,10 +15,12 @@ groups:
   - id: IMPLTS-01-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The implementation MUST use Python 3.12 or later.
   - id: IMPLTS-01-007
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       Before updating the `requires-python` floor in `pyproject.toml`, the full test suite
       MUST pass on the target Python version in CI, and all static type checks (`mypy`, `pyright`)
@@ -29,23 +31,28 @@ groups:
   - id: IMPLTS-01-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The backend API MUST be implemented using FastAPI.
   - id: IMPLTS-01-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The backend API MUST expose an OpenAPI specification.
   - id: IMPLTS-01-004
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The system MUST use Pydantic for data validation and data modeling.
   - id: IMPLTS-01-005
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       The application MUST use Python’s standard logging framework for structured logging.
   - id: IMPLTS-01-006
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The behavior tree engine MUST be implemented using py_trees.
 - id: IMPLTS-02
   title: Persistence and Data
@@ -53,19 +60,23 @@ groups:
   - id: IMPLTS-02-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The prototype MUST use SQLModel/SQLite for lightweight local persistence.
   - id: IMPLTS-02-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The system MUST support SQLite-based storage for demo and local development
       use.
   - id: IMPLTS-02-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The system MUST support ISO 8601 date/time parsing and formatting using isodate.
   - id: IMPLTS-02-004
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The system MUST support graph construction and analysis using networkx.
 - id: IMPLTS-03
   title: Interfaces and Tooling
@@ -73,18 +84,22 @@ groups:
   - id: IMPLTS-03-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: Command line interfaces MUST be implemented using `click`.
   - id: IMPLTS-03-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The system MUST use `httpx` for all HTTP client interactions, including outbound inbox delivery and demo HTTP calls. The `requests` library MUST NOT be used.
   - id: IMPLTS-03-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The project MUST include automated tests implemented using `pytest`.
   - id: IMPLTS-03-004
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The project MUST support task automation using `make`.
 - id: IMPLTS-04
   title: Documentation and Visualization
@@ -121,10 +136,12 @@ groups:
   - id: IMPLTS-05-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The project MUST use GitHub Actions for CI/CD.
   - id: IMPLTS-05-004
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: CI workflows MUST include automated testing.
   - id: IMPLTS-05-005
     priority: SHOULD
@@ -138,6 +155,7 @@ groups:
   - id: IMPLTS-05-007
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: Source code MUST be hosted in GitHub using git for version control.
 - id: IMPLTS-07
   title: Code Quality Tooling
@@ -145,6 +163,7 @@ groups:
   - id: IMPLTS-07-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     deprecated: true
     superseded_by: IMPLTS-07-017
     adr:
@@ -162,6 +181,7 @@ groups:
   - id: IMPLTS-07-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The project MUST use pyright for static type checking.
     relationships:
     - rel_type: implements
@@ -169,6 +189,7 @@ groups:
   - id: IMPLTS-07-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The project MUST use mypy for static type checking.
     relationships:
     - rel_type: implements
@@ -176,6 +197,7 @@ groups:
   - id: IMPLTS-07-004
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     deprecated: true
     superseded_by: IMPLTS-07-017
     adr:
@@ -192,6 +214,7 @@ groups:
   - id: IMPLTS-07-007
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     deprecated: true
     superseded_by: IMPLTS-07-008
     statement: This requirement is superseded by IMPLTS-07-008; the active cyclomatic complexity threshold is ≤ 10.
@@ -204,6 +227,7 @@ groups:
   - id: IMPLTS-07-008
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     adr:
     - ADR-0094
     statement: >-
@@ -224,6 +248,7 @@ groups:
   - id: IMPLTS-07-005
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     adr:
     - ADR-0094
     statement: >-
@@ -238,12 +263,14 @@ groups:
   - id: IMPLTS-07-006
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       The pytest configuration in `[tool.pytest.ini_options]` MUST include
       `filterwarnings = ["error"]` so that test-suite warnings are treated as errors.
   - id: IMPLTS-07-009
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       pyright MUST run in CI on every commit to `main` and on every pull request
       targeting `main`.
@@ -254,6 +281,7 @@ groups:
   - id: IMPLTS-07-010
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: pyright MUST pass with zero errors.
     rationale: A zero-error gate ensures the codebase remains fully type-correct under pyright.
     relationships:
@@ -262,6 +290,7 @@ groups:
   - id: IMPLTS-07-011
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       mypy MUST run in CI on every commit to `main` and on every pull request
       targeting `main`.
@@ -272,6 +301,7 @@ groups:
   - id: IMPLTS-07-012
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: mypy MUST pass with zero errors.
     rationale: A zero-error gate ensures the codebase remains fully type-correct under mypy.
     relationships:
@@ -280,6 +310,7 @@ groups:
   - id: IMPLTS-07-013
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     deprecated: true
     superseded_by: IMPLTS-07-018
     adr:
@@ -294,6 +325,7 @@ groups:
   - id: IMPLTS-07-014
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     deprecated: true
     superseded_by: IMPLTS-07-018
     adr:
@@ -307,6 +339,7 @@ groups:
   - id: IMPLTS-07-015
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       Existing warnings MUST be resolved before the `filterwarnings = ["error"]`
       setting is activated.
@@ -319,6 +352,7 @@ groups:
   - id: IMPLTS-07-016
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: >-
       New warnings MUST NOT be introduced after `filterwarnings = ["error"]` is
       active.

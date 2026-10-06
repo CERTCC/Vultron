@@ -16,6 +16,7 @@ groups:
   - id: BTC-01-001
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Before implementing any BT node or subtree in `vultron/core/behaviors/`, a developer MUST search `notes/vultron-bt.txt`
       to locate the corresponding node in the canonical simulation tree.
     rationale: The canonical tree is the normative definition of Vultron's domain behavior. Implementing without consulting
@@ -26,6 +27,7 @@ groups:
   - id: BTC-01-002
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: After locating a node in `notes/vultron-bt.txt`, a developer MUST examine the corresponding class in `vultron/bt/`
       to understand the node's children, structure, and composites.
     relationships:
@@ -47,6 +49,7 @@ groups:
   - id: BTC-02-001
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: All BT composite structures used by use cases in `vultron/core/use_cases/` MUST be pre-defined as named classes
       or factory composites in `vultron/core/behaviors/` before use.
     rationale: Business logic lives in `core/behaviors/`. If use cases construct trees ad-hoc, the business logic migrates
@@ -57,6 +60,7 @@ groups:
   - id: BTC-02-002
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2574'
     statement: Use cases MUST NOT construct ad-hoc BT composite trees inline. Inline construction means calling `py_trees.composites.Sequence(children=[
       NodeA(), NodeB(), ...])` or equivalent directly inside a use case's `execute()` method.
     relationships:
@@ -65,6 +69,7 @@ groups:
   - id: BTC-02-003
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: 'Use cases MUST follow the instantiate-then-invoke pattern when using BTs: (1) import the pre-defined BT class from `vultron/core/behaviors/`, (2) instantiate it to obtain a root node, (3) wrap it in a `py_trees.trees.BehaviourTree`, and (4) call `tick_once()` or equivalent to execute it.'
     relationships:
     - rel_type: refines
@@ -75,6 +80,7 @@ groups:
   - id: BTC-03-001
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Behavioral logic that belongs inside a BT MUST be expressed using BT composite idioms (Sequence, Selector/Fallback,
       Decorator) rather than procedural `if`/`else` chains.
     rationale: BT idioms make logic auditable, extractable, and explainable by anyone who can read the tree structure, without
@@ -87,6 +93,7 @@ groups:
   - id: BTC-03-002
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Precondition-then-action logic MUST be modeled as a Sequence where leading children are Condition nodes and
       trailing children are Action nodes.
     relationships:
@@ -95,6 +102,7 @@ groups:
   - id: BTC-03-003
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Try-A-or-else-B fallback logic MUST be modeled as a Selector (Fallback) composite with A and B as children.
     relationships:
     - rel_type: refines
@@ -113,6 +121,7 @@ groups:
   - id: BTC-04-001
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: The compose-and-reuse principle MUST apply at every depth level of the behavior tree — from single-purpose
       leaf nodes up to use-case entry trees.
     relationships:
@@ -121,6 +130,7 @@ groups:
   - id: BTC-04-002
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: When the canonical simulation tree shows the same named behavior appearing at two or more locations, that behavior
       MUST be implemented as a single reusable class in `vultron/core/behaviors/`, instantiated separately at each use site.
     relationships:
@@ -129,6 +139,7 @@ groups:
   - id: BTC-04-003
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: 'Reusable protocol behaviors MUST be implemented as BT subtrees in core/behaviors/ and reused across all call sites; inline duplication of equivalent logic MUST NOT occur. The extraction depth SHOULD be the deepest level at which more than one call site requires the same subtree — not forced uniformly to the top level.'
     relationships:
     - rel_type: refines

@@ -404,7 +404,7 @@ def create_case_proposal_received_tree(
             ),
             # EP-04-011: relay the shortest-wins loser that step 6 recorded,
             # only now that initialization is complete (CM-14-007).
-            RelayCreationTimeRevisionNode(),
+            RelayCreationTimeRevisionNode(actor_config=actor_config),
         ],
     )
 

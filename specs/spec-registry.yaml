@@ -17,16 +17,19 @@ groups:
   - id: SR-01-001
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: >-
       Specifications MUST be maintained as YAML files in `specs/` following the topic-file naming
       convention. Markdown spec files are not permitted.
   - id: SR-01-002
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Each YAML file MUST have a top-level `id` field containing the file-level prefix string (e.g., `"HP"`).
   - id: SR-01-003
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: >-
       Each YAML file MUST have `title` and `description` fields, and MUST NOT have a top-level
       `version` field.
@@ -39,18 +42,22 @@ groups:
   - id: SR-01-004
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Each YAML file MUST contain a `groups` list; each group MUST have `id`, `title`, and `specs` fields.
   - id: SR-01-005
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Each individual spec entry MUST have `id`, `priority`, `statement`, and `rationale` fields.
   - id: SR-01-006
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Spec IDs MUST be globally unique across all loaded YAML files.
   - id: SR-01-007
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: 'Group IDs within a file MUST match the file-level prefix (e.g., group `HP-01` must live in file with `id:
       HP`).'
   - id: SR-01-008
@@ -60,6 +67,7 @@ groups:
   - id: SR-01-009
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: >-
       Spec entries MUST include a `kind` field from the `SpecKind` StrEnum; one of
       `protocol`, `architecture`, `project`, `process`.
@@ -75,11 +83,13 @@ groups:
   - id: SR-01-012
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Spec entries SHOULD include a `relationships` list when cross-spec traceability is needed; each relationship
       MUST have `rel_type` and `spec_id` fields.
   - id: SR-01-013
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: 'Spec IDs within a group MUST match the group ID prefix (e.g., spec `HP-01-001` must live in group with `id:
       HP-01`). This extends SR-01-007 to the spec level and ensures that the three-part ID (`FILE-GROUP-SPEC`) is internally
       consistent.'
@@ -96,20 +106,24 @@ groups:
   - id: SR-02-001
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: 'The `vultron/metadata/specs/` module MUST define Pydantic models for all registry structures: `SpecFile`,
       `SpecGroup`, `StatementSpec`, `BehavioralSpec`, `Relationship`.'
   - id: SR-02-002
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: 'Fixed vocabularies MUST be implemented as `StrEnum` subclasses: `RFC2119Priority`, `RelationType`, `SpecKind`,
       `Scope`, `SpecTag`, `AdrStatus`.'
   - id: SR-02-003
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: '`RFC2119Priority` MUST include at minimum: `MUST`, `MUST_NOT`, `SHOULD`, `SHOULD_NOT`, `MAY`.'
   - id: SR-02-004
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: >-
       `RelationType` MUST include at minimum: `implements`, `supersedes`, `extends`,
       `depends_on`, `conflicts`, `refines`, `derives_from`, `verifies`, `part_of`,
@@ -117,18 +131,22 @@ groups:
   - id: SR-02-005
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: '`SpecKind` MUST include all four portability tiers: `protocol`, `architecture`, `project`, `process`.'
   - id: SR-02-006
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: '`Scope` MUST include: `prototype`, `production`.'
   - id: SR-02-007
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: '`SpecTag` MUST be a controlled vocabulary StrEnum, defined in `vultron/metadata/specs/schema.py`.'
   - id: SR-02-008
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: >-
       A `SpecIdStr` type alias MUST enforce the ID pattern
       `^[A-Z]{2,8}(-\d{2}(-\d{3}[a-z]?)?)?$` via Pydantic `StringConstraints`.
@@ -137,26 +155,31 @@ groups:
   - id: SR-02-009
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: '`StatementSpec` MUST have fields: `id` (`SpecIdStr`), `priority` (`RFC2119Priority`), `kind` (`SpecKind`,
       required), `statement` (non-empty str), `rationale` (non-empty str), and optional fields: `testable`, `scope`, `tags`,
       `relationships`, `adr`, `lint_suppress`.'
   - id: SR-02-010
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: '`BehavioralSpec` MUST extend `StatementSpec` with optional fields: `preconditions`, `steps`, `postconditions`.'
   - id: SR-02-011
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: The `lint_suppress` field on a spec MUST accept a list of `LintWarningCode` StrEnum values to suppress named
       linter warnings for that spec.
   - id: SR-02-012
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: '`SpecGroup` MUST have fields: `id` (`SpecIdStr`), `title`, `specs` (non-empty list), and optional `description`,
       `scope`, `trigger`. `SpecGroup` MUST NOT have a `kind` field; kind is required on each individual spec item.'
   - id: SR-02-013
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: '`SpecFile` MUST have fields: `id` (str), `title`, `description`, `scope` (required), `groups` (non-empty
       list), and optional `tags`. `SpecFile` MUST NOT have a `kind` field; kind is required on each individual spec item.
       `SpecFile` MUST NOT have a `version` field, so that its `extra="forbid"` configuration (SR-02-022) rejects a file
@@ -164,6 +187,7 @@ groups:
   - id: SR-02-014
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: '`scope` at `SpecFile` and `SpecGroup` level MUST serve as a default; individual specs MAY override it.
       `kind` MUST be declared on every individual spec item and is not inheritable from file or group.'
   - id: SR-02-015
@@ -226,12 +250,15 @@ groups:
   - id: SR-02-021
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: >-
       `StatementSpec` (and by inheritance `BehavioralSpec`) MUST support the following
       optional fields in addition to the core set: `verification` (NonEmptyStr — machine-executable
       or human-reviewable check that confirms the requirement is met), `note` (NonEmptyStr —
       correction notice or clarifying annotation), `tracking_issue` (str — GitHub issue
-      reference(s) tracking planned implementation), `references` (list[str] — file paths or
+      reference(s) tracking planned implementation), `verification_debt` (`#N` — the issue
+      that owns verifying a MUST-tier requirement with no `verification`, MS-10-006),
+      `references` (list[str] — file paths or
       URIs to supporting documents), `exceptions` (list[NonEmptyStr] — permitted exceptions
       to the rule stated in the requirement), `trigger` (Trigger — activating event for a
       behavioral spec item), `deprecated` (bool, default False), and `superseded_by`
@@ -248,6 +275,7 @@ groups:
   - id: SR-02-022
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: >-
       Every Pydantic model in `vultron/metadata/specs/schema.py` (`Relationship`, `Trigger`,
       `Precondition`, `BehaviorStep`, `Postcondition`, `StatementSpec`, `BehavioralSpec`,
@@ -266,26 +294,31 @@ groups:
   - id: SR-03-001
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: The `vultron/metadata/specs/` module MUST provide a `load_registry(spec_dir)` function that loads all `*.yaml`
       files from the given directory into a `SpecRegistry`.
   - id: SR-03-002
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: '`SpecRegistry` MUST maintain an index of all specs by ID and enforce global uniqueness, raising `ValueError`
       on duplicate IDs.'
   - id: SR-03-003
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: '`SpecRegistry` MUST provide a `get(spec_id)` method returning the `Spec` for a given ID, raising `KeyError`
       on unknown IDs.'
   - id: SR-03-004
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: '`SpecRegistry` MUST provide a `validate_cross_references()` method returning a list of error strings for any
       dangling relationship targets.'
   - id: SR-03-005
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: The loader MUST work regardless of the caller's working directory by accepting an explicit `spec_dir` path.
   - id: SR-03-006
     priority: SHOULD
@@ -347,6 +380,7 @@ groups:
   - id: SR-04-001
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: The `vultron/metadata/specs/lint.py` module MUST provide a `lint(spec_dir)` function that returns exit code
       `0` (clean) or `1` (errors found).
   - id: SR-04-002
@@ -362,11 +396,13 @@ groups:
   - id: SR-04-003
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: The linter MUST be invokable both as `uv run spec-lint` (console entry point) and as
       `python -m vultron.metadata.specs.lint [spec_dir]` (module invocation).
   - id: SR-04-009
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: Both invocation forms of the spec linter MUST produce identical output for the same input.
     relationships:
     - rel_type: refines
@@ -374,6 +410,7 @@ groups:
   - id: SR-04-010
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: When `spec_dir` is omitted from the module invocation, the linter MUST default to
       `specs/` relative to the current working directory.
     relationships:
@@ -382,6 +419,7 @@ groups:
   - id: SR-04-004
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: The linter MUST respect `lint_suppress` fields on individual specs when checking advisory warnings.
   - id: SR-04-005
     priority: SHOULD
@@ -445,10 +483,12 @@ groups:
   - id: SR-05-001
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: 'The project MUST register a `spec` pytest marker in `conftest.py`: `@pytest.mark.spec("SR-01-001")`.'
   - id: SR-05-002
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: >-
       `pytest_collection_modifyitems` MUST validate each `spec` marker value against the loaded `SpecRegistry` and emit
       `UnknownSpecIdWarning` (a `UserWarning` subclass, non-blocking per SR-05-007) for any unknown spec ID.
@@ -466,6 +506,7 @@ groups:
   - id: SR-05-004
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: >-
       Tests that verify a protocol-tier requirement (spec items with kind equal to "protocol") MUST carry
       `@pytest.mark.spec("<ID>")` linking the test to the requirement it exercises. Tests for other requirement kinds
@@ -477,6 +518,7 @@ groups:
   - id: SR-05-005
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: >-
       CI MUST enforce a minimum `@pytest.mark.spec` coverage floor for protocol-tier requirements and fail the build if
       coverage drops below the configured threshold, preventing marker adoption from drifting back toward zero.
@@ -487,6 +529,7 @@ groups:
   - id: SR-05-006
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: >-
       `pytest_collection_modifyitems` MUST distinguish three cases when resolving the registry, and MUST NOT conflate
       them. (a) **No corpus** — `specs/` absent, or present with no spec files: return silently, because there is nothing
@@ -513,6 +556,7 @@ groups:
   - id: SR-05-007
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: >-
       Every warning the pytest integration relies on being non-blocking MUST have a matching `always::` entry in
       `pyproject.toml`'s `filterwarnings`, and that entry MUST be listed **after** the `"error"` entry. pytest applies
@@ -538,14 +582,17 @@ groups:
   - id: SR-06-001
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: A `spec-lint` pre-commit hook MUST be defined that fires on any staged change to a `specs/*.yaml` file.
   - id: SR-06-002
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: The hook MUST run `python -m vultron.metadata.specs.lint specs/` and block the commit on exit code `1`.
   - id: SR-06-003
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: 'The hook MUST be configured with `pass_filenames: false` so the full registry is always validated, not just
       the changed file.'
 - id: SR-07
@@ -554,15 +601,18 @@ groups:
   - id: SR-07-001
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: The `vultron/metadata/specs/` module MUST provide a context generation tool that accepts a `SpecRegistry` and
       produces output for agent consumption.
   - id: SR-07-002
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: The tool MUST support a **markdown renderer** that regenerates a `.md` view of a spec file from its YAML source.
   - id: SR-07-003
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: The tool MUST support a **JSON exporter** that serializes the full registry or individual spec files to JSON.
   - id: SR-07-004
     priority: SHOULD
@@ -730,6 +780,7 @@ groups:
   - id: SR-09-001
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: >-
       The `render_for_kind(kind, registry)` function MUST route each spec item to the docs page
       matching its `kind` field. There is no inheritance from group or file; each item's `kind`
@@ -743,6 +794,7 @@ groups:
   - id: SR-09-002
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: >-
       When a group contains items of mixed kinds, the group MUST appear on each docs page for which
       it has at least one item whose `kind` matches that page. Items whose `kind` does not match the
@@ -757,6 +809,7 @@ groups:
   - id: SR-09-003
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: >-
       The spec linter MUST emit a hard error (exit 1) when any spec item is missing a `kind` field.
       There is no inheritance fallback; `kind` is required on every individual spec item.
@@ -772,34 +825,40 @@ groups:
   - id: SR-08-001
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: All existing `specs/*.md` files MUST be migrated to `specs/*.yaml` using a lossless conversion that preserves
       all requirement text, IDs, and relationships.
   - id: SR-08-003
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: >-
       YAML files in `specs/` are the sole authoritative source for project specifications. No other
       format or location holds normative spec content.
   - id: SR-08-004
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: '`specs/README.md` MUST be retained as Markdown; it is documentation, not a requirement file.'
     rationale: '`specs/meta-specifications.md` has been converted to `specs/meta-specifications.yaml` (TASK-SPECMD). Only
       `specs/README.md` remains as a Markdown file.'
   - id: SR-08-005
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: All in-project skills, prompts, and agent instructions that reference `specs/*.md` files by path or extension
       MUST be updated to use `specs/*.yaml` paths or the context-generation tool output before the migration is considered
       complete.
   - id: SR-08-006
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2574'
     statement: The original `specs/*.md` requirement files MUST NOT be deleted until the YAML files
       have passed the spec linter with zero errors.
   - id: SR-08-008
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2574'
     statement: The original `specs/*.md` requirement files MUST NOT be deleted until all agent and
       skill references have been updated to use `specs/*.yaml` paths.
     relationships:
@@ -816,6 +875,7 @@ groups:
   - id: SR-10-001
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       A spec statement MUST describe an invariant property of the finished system — what it
       must always be true, always do, or never do. It MUST NOT describe a migration step,
@@ -831,6 +891,7 @@ groups:
   - id: SR-10-002
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       A spec statement MUST be written in the present tense and describe the system as it
       must perpetually be.
@@ -847,6 +908,7 @@ groups:
   - id: SR-10-004
     priority: MUST_NOT
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Phrases that signal migration-task framing — "must be replaced by", "must be removed",
       "must be updated to", "once X is done", "after migration" — MUST NOT appear in a spec
@@ -881,6 +943,7 @@ groups:
   - id: SR-11-001
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: >-
       `StatementSpec` MUST support an optional `stories` field containing a non-empty
       list of `StoryIdStr` values (pattern `^story_\d{4}_\d{3}$`), identifying the
@@ -899,6 +962,7 @@ groups:
   - id: SR-11-002
     priority: MUST
     kind: project
+    verification_debt: '#2574'
     statement: >-
       Story ID strings used in `stories:` fields MUST conform to the pattern
       `^story_\d{4}_\d{3}$` (e.g. `story_2022_001`). The `StoryIdStr` type in

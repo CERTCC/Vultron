@@ -15,10 +15,12 @@ groups:
   - id: ID-01-001
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: All activities MUST have globally unique `id` field (URI)
   - id: ID-01-002
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: Activity IDs MUST remain stable (same activity = same ID)
 - id: ID-02
   title: Duplicate Detection
@@ -69,6 +71,7 @@ groups:
   - id: ID-03-002
     priority: MUST_NOT
     kind: architecture
+    verification_debt: '#2569'
     statement: Duplicate detection MUST NOT delay response beyond 100ms
   - id: ID-03-003
     priority: SHOULD
@@ -103,6 +106,7 @@ groups:
   - id: ID-04-004
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: State-changing handlers MUST be idempotent
     rationale: >-
       Duplicate processing of state-change messages causes data corruption; SHOULD-level idempotency
@@ -110,6 +114,7 @@ groups:
   - id: ID-04-005
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: >-
       A record that a handler later reads as evidence that a transition already happened — an
       idempotency latch or guard record — MUST NOT be written until every other half of that

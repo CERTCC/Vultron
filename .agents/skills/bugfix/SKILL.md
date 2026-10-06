@@ -244,7 +244,9 @@ Once the plan is confirmed:
      and have this PR **close** it: add `- Closes #NNN` to the PR body with a
      one-line "why". Filing the record does not mean leaving the work.
    - Defer a sibling hit only through Gate 1 (measured remainder + approval).
-     See [REFERENCE.md](REFERENCE.md) § "Escalation".
+     See [REFERENCE.md](REFERENCE.md) § "Escalation". With no human to approve
+     (unattended), DEFER is unavailable: fix the hit in this PR or hold the PR.
+     Filing an issue for it is not a way to merge.
 
 4. **Spec backstop (blocking)**: resolve the Spec manifest from 2g against
    the diff per `deepen-context` § "Backstop" until
@@ -255,7 +257,9 @@ Once the plan is confirmed:
 
 5. **Iterate**: run `format-code`, `run-linters`, `run-tests`; refine until
    all relevant tests pass. Apply branch-ownership and pre-existing-failure
-   rules from `completeness-doctrine.md`.
+   rules from `completeness-doctrine.md`. A failing check holds the PR whatever
+   its cause (§ "Never Merge on Red"); never bypass a pre-commit hook (sole exception: the devcontainer
+   `actionlint` hang, `notes/devcontainer-tooling.md`).
 
 6. **Finalize** — in this order. `archive-history` comes *after* `create-pr`
    because its entry body carries the PR URL, which does not exist until the PR
@@ -281,7 +285,8 @@ Once the plan is confirmed:
      `docs/` updates required by the fix (PD-03-007). Apply small updates
      inline and commit them. A large multi-page rewrite that is not done
      inline is deferred to a `type:Concern` issue listing the pages, and
-     recorded as `Docs: deferred to #N`.
+     recorded as `Docs: deferred to #N` — only with the user's approval
+     (Gate 1); unattended, run `write-docs` inline or hold the PR.
    - **Record the outcome** (PD-03-008): edit the PR body to replace the
      `Docs: pending check-docs-sync` placeholder `create-pr` wrote with the
      `Docs:` line `check-docs-sync` reported, and push any docs commit. Do

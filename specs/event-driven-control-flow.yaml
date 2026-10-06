@@ -15,21 +15,25 @@ groups:
   - id: EDF-01-001
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: 'A **primary event** is an externally supplied stimulus or an actor-initiated decision: a message delivered
       to an actor''s inbox, or a trigger invocation representing an actor choosing to begin an action.'
   - id: EDF-01-002
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: A **cascade** is an automatic, BT-driven consequence that occurs within a single actor's execution context
       as a result of processing a primary event or an earlier cascade step.
   - id: EDF-01-003
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: 'A **cascade chain** is the full sequence of causally connected steps that flows from one primary event: within-actor
       cascade → outbox emission → delivery to peer inbox → peer''s own cascade → and so on.'
   - id: EDF-01-004
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: 'An **external decision node** is a BT node that cannot complete autonomously: it requires input from an actor,
       a user interface, or an external system before it can return `SUCCESS` or `FAILURE`.'
 - id: EDF-02
@@ -38,21 +42,25 @@ groups:
   - id: EDF-02-001
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: Every protocol-significant action in Vultron MUST be triggered by an event, not by direct procedural calls
       from upstream code.
   - id: EDF-02-002
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: 'The system MUST follow an "on event, do" model: business logic is invoked in response to events; events are
       not invoked by business logic.'
   - id: EDF-02-003
     priority: MUST_NOT
     kind: architecture
+    verification_debt: '#2569'
     statement: The inbox MUST be the sole entry point for inbound activity processing; handlers MUST NOT be invoked directly
       by callers that bypass the inbox dispatch pipeline.
   - id: EDF-02-004
     priority: MUST_NOT
     kind: architecture
+    verification_debt: '#2569'
     statement: The outbox MUST be the sole exit point for outbound activity delivery; handlers MUST NOT deliver activities
       directly to peer actors.
 - id: EDF-03
@@ -70,11 +78,13 @@ groups:
   - id: EDF-03-002
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: Outbox emissions that are part of a cascade MUST be implemented as BT leaf-node actions (e.g., `EmitXxxNode`);
       they MUST NOT be procedural calls made after `BTBridge.execute_with_setup()` returns.
   - id: EDF-03-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: 'A use case''s `execute()` method MUST contain only infrastructure glue: BT instantiation, blackboard setup,
       bridge execution, status check, and output extraction.'
   - id: EDF-03-004
@@ -90,6 +100,7 @@ groups:
   - id: EDF-03-005
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: Cascade logic MUST NOT be duplicated between actors; each actor's BT handles its own local cascade, triggered
       by receipt of the peer's outgoing activity.
 - id: EDF-04
@@ -98,6 +109,7 @@ groups:
   - id: EDF-04-001
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: When a cascade reaches a point where the actor cannot proceed autonomously, the stopping point MUST be represented
       as an explicit external decision node in the BT.
   - id: EDF-04-002
@@ -142,6 +154,7 @@ groups:
   - id: EDF-04-004
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       Trigger endpoints that correspond to external decision node resolutions MUST be
       documented as such; their role is to supply the missing input, not to choreograph
@@ -149,6 +162,7 @@ groups:
   - id: EDF-04-005
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: >-
       An external decision node MUST NOT succeed or fail without having requested the
       input it needs.
@@ -166,6 +180,7 @@ groups:
   - id: EDF-04-006
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: An external decision node MUST NOT be modeled as an absence of code.
     rationale: >-
       An absent node makes the waiting point invisible to the BT structure, preventing
@@ -179,15 +194,18 @@ groups:
   - id: EDF-05-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: Demo scripts MUST inject only primary events into the system.
   - id: EDF-05-002
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: Demo scripts MUST NOT trigger intermediate cascade steps manually; all cascade steps that are not external
       decision nodes MUST complete automatically as a result of the primary event.
   - id: EDF-05-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: Demo scripts MUST verify correctness by observing externally visible system state (e.g., DataLayer contents,
       activities queued in the outbox) after the primary event and its cascades have settled.
     rationale: '"Settled" is not a matter of elapsed time. EDF-06 defines normatively what counts as evidence that a cascade
@@ -199,6 +217,7 @@ groups:
   - id: EDF-05-004
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: Demo scripts MUST NOT assert on internal BT execution state (e.g., node status, blackboard values) as a substitute
       for observing external system state.
   - id: EDF-05-005
@@ -212,6 +231,7 @@ groups:
   - id: EDF-06-001
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: A harness step that depends on an asynchronous effect MUST be gated on positive evidence that the effect has
       been committed by the actor that produces it. Elapsed time, the step's position in the script, and the return of an
       HTTP 202 acknowledgement MUST NOT be treated as such evidence.
@@ -226,6 +246,7 @@ groups:
   - id: EDF-06-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The gate predicate MUST be evaluated against the state of the actor that owns the awaited effect, read from
       that actor's own container. Observing the effect on the sending actor's container MUST NOT be accepted as evidence that
       the receiving actor committed it.
@@ -239,6 +260,7 @@ groups:
   - id: EDF-06-003
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: A gate MUST NOT be placed on an observable that becomes true synchronously during the triggering request when
       the awaited effect is committed asynchronously after that request returns.
     rationale: 'Bug #2134: `engage-case` was gated on "the case object exists" — which resolves synchronously during
@@ -252,6 +274,7 @@ groups:
   - id: EDF-06-004
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: When a received-side use case creates a new activity in response to a received one (the forwarding pattern),
       the harness MUST discover the derived object by scanning the recipient's state for its semantic properties (activity
       type, target, and object), and MUST NOT poll for the identifier of the sender's original activity.
@@ -266,6 +289,7 @@ groups:
   - id: EDF-06-005
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: An unmet causal gate MUST prevent execution of the steps that depend on it. Recording the failure and
       continuing to the dependent step is not sufficient.
     rationale: A gate that records a failure but lets the dependent step run produces a cascade of secondary failures that
@@ -283,6 +307,7 @@ groups:
   - id: EDF-06-006
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: A wait that is irreducibly temporal — service liveness probes, protocol deadlines such as embargo expiry, and
       transport retry backoff — MUST be identified as temporal at its call site and MUST NOT be counted as a causal gate.
     rationale: Not every wait is a defect. Naming the temporal waits explicitly keeps them from being "fixed" into
@@ -314,6 +339,7 @@ groups:
   - id: EDF-06-008
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       The timeout value of a temporal wait (EDF-06-006) MUST be accompanied by
       a comment at the call site that names the delivery chain being bounded and

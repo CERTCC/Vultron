@@ -36,7 +36,7 @@ cycle.  Import it from here.
 
 import logging
 from enum import Enum, auto
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from py_trees.common import Status
 
@@ -68,6 +68,9 @@ from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.services.embargo_duration import EmbargoDurationSource
 from vultron.core.sync_helpers import recorded_entries_for_case
 from vultron.errors import BtNodePreconditionError, VultronError
+
+if TYPE_CHECKING:
+    from vultron.config.actor import ActorConfig
 
 logger = logging.getLogger(__name__)
 
@@ -139,7 +142,10 @@ class RelayCreationTimeRevisionNode(RelayEmbargoInviteToEachNode):
     """
 
     def __init__(
-        self, case_id: str | None = None, name: str | None = None
+        self,
+        case_id: str | None = None,
+        name: str | None = None,
+        actor_config: "ActorConfig | None" = None,
     ) -> None:
         # The embargo and proposer are known only at tick time, from the
         # marker; ``update`` and ``_resolve_parties`` set them, so the base
@@ -149,6 +155,7 @@ class RelayCreationTimeRevisionNode(RelayEmbargoInviteToEachNode):
             embargo_id="",
             proposer_id="",
             name=name or self.__class__.__name__,
+            actor_config=actor_config,
         )
         self._fixed_case_id = case_id
         self._marker: PendingCreationTimeRevisionRelay | None = None

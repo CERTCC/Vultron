@@ -51,6 +51,33 @@ the ``Reject(Invite)`` entry of an explicit refusal (CM-28-005, ADR-0118).
 INVITE_EXPIRED_SNAPSHOT_TYPE = "Expire"
 """``payloadSnapshot.type`` of the invite-expiry entry; its object is the Invite."""
 
+INVITE_EXPIRED_NOOP_EVENT_TYPE = "invite_to_embargo_on_case_expired_noop"
+"""Ledger ``event_type`` for the CASE_MANAGER's no-op acknowledgement of a late Accept.
+
+Committed when a late ``Accept(Invite(EmbargoEvent))`` arrives after the embargo
+has EXITED or when no embargo has started (EM NONE).  No PEC transition is applied
+(EMB-17-004, ADR-0118); replicas replay the entry via
+:class:`~vultron.core.behaviors.embargo.nodes.expiry.ApplyInviteExpiryNoopFromLedgerNode`
+which recognises it and returns SUCCESS without touching any participant record.
+"""
+
+INVITE_EXPIRED_NOOP_SNAPSHOT_TYPE = "ExpireNoop"
+"""``payloadSnapshot.type`` of the no-op expiry-ack entry (EMB-17-004)."""
+
+HONOUR_LATE_ACCEPT_EVENT_TYPE = "honour_late_accept_invite_to_embargo_on_case"
+"""Ledger ``event_type`` for the CASE_MANAGER's honouring of a late Accept.
+
+Committed when a late ``Accept(Invite(EmbargoEvent))`` arrives and the
+embargo is still active and matching (EMB-17-001, ADR-0118).  The CASE_MANAGER
+advances the participant ``EXPIRED → SIGNATORY`` (or ``DECLINED → INVITED →
+SIGNATORY``) and commits this entry so replicas can replay the same
+advancement via
+:class:`~vultron.core.behaviors.embargo.nodes.expiry.ApplyHonourLateAcceptFromLedgerNode`.
+"""
+
+HONOUR_LATE_ACCEPT_SNAPSHOT_TYPE = "HonourLateAccept"
+"""``payloadSnapshot.type`` of the honour-late-accept entry (EMB-17-001)."""
+
 
 class RsvpDeadlineClamp(StrEnum):
     """Which rule, if any, moved the requested deadline."""
@@ -143,6 +170,12 @@ def resolve_rsvp_deadline(
 __all__ = [
     "DEFAULT_MIN_RSVP_WINDOW",
     "DEFAULT_RSVP_WINDOW",
+    "HONOUR_LATE_ACCEPT_EVENT_TYPE",
+    "HONOUR_LATE_ACCEPT_SNAPSHOT_TYPE",
+    "INVITE_EXPIRED_EVENT_TYPE",
+    "INVITE_EXPIRED_NOOP_EVENT_TYPE",
+    "INVITE_EXPIRED_NOOP_SNAPSHOT_TYPE",
+    "INVITE_EXPIRED_SNAPSHOT_TYPE",
     "RsvpDeadline",
     "RsvpDeadlineClamp",
     "resolve_rsvp_deadline",

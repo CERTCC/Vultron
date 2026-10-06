@@ -17,6 +17,7 @@ groups:
   - id: SM-01-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: All protocol state axes (RM, EM, VFD, PXA) MUST be defined using Python `StrEnum`
   - id: SM-01-002
     priority: SHOULD
@@ -41,6 +42,7 @@ groups:
   - id: SM-02-002
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: '`create_*_machine()` factory functions MUST NOT be called for runtime state changes in production use-case
       or handler code'
     relationships:
@@ -77,6 +79,7 @@ groups:
   - id: SM-04-001
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: Runtime state changes MUST be guarded by an explicit precondition check before the state value is written
     rationale: >-
       The precondition check MUST be contextually appropriate — it verifies that
@@ -96,6 +99,7 @@ groups:
   - id: SM-04-002
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: State-changing handlers MUST be idempotent with respect to repeated application of the same transition
     relationships:
     - rel_type: implements
@@ -107,6 +111,7 @@ groups:
   - id: SM-05-001
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: Persisted state for both case-level and participant-level axes MUST use an append-only history list
   - id: SM-05-002
     priority: MUST
@@ -125,6 +130,7 @@ groups:
   - id: SM-05-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: Status history entries MUST record a trusted server-side timestamp (`received_at` or `updated`) set via `now_utc()`
       at write time
     relationships:
@@ -165,6 +171,7 @@ groups:
   - id: SM-07-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: State subset constants MUST be derived from enum values, not raw strings, to prevent silent mismatches when
       enum values change
 - id: SM-08
@@ -181,6 +188,7 @@ groups:
   - id: SM-08-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: When deserializing state values from the DataLayer or from wire payloads, the receiving Pydantic model MUST
       declare the state field with the `StrEnum` type so that Pydantic coerces the incoming string to the correct enum member
 - id: SM-09
@@ -189,6 +197,7 @@ groups:
   - id: SM-09-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: 'The CS state machine MUST enforce two forced (ephemeral) transitions at validation time: (1) `pX → PX` — exploit-public
       forces public-aware; (2) `vP → VP` — public-aware forces vendor-aware. Any incoming CS state that contains `pX` or `vP`
       MUST be promoted to the forced form before being persisted.'
@@ -207,6 +216,7 @@ groups:
   - id: SM-09-002
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: The CS state machine MUST NOT allow states in the `vF*` pattern (fix-ready, vendor-unaware) or `*fD*` pattern
       (fix-deployed, fix-not-ready). These 32 states are structurally impossible and MUST be rejected at validation time.
     rationale: 'A vendor cannot have deployed a fix (`D`) without first having one ready (`F`); a fix cannot be ready (`F`)
@@ -255,6 +265,7 @@ groups:
   - id: SM-10-003
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: Handlers MUST NOT apply a participant-specific axis transition (RM, VFD) to the shared `CaseStatus`, and MUST
       NOT apply a participant-agnostic axis transition (EM, PXA) to a participant's `ParticipantStatus`. Mixing axes is a
       protocol correctness violation.
