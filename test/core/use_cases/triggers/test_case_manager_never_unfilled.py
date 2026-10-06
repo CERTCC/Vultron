@@ -28,7 +28,8 @@ from vultron.core.use_cases.triggers.actor import (
 from vultron.core.use_cases.triggers.requests import (
     OfferCaseOwnershipTransferTriggerRequest,
 )
-from vultron.errors import VultronError
+from vultron.errors import VultronNotFoundError
+from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
 OWNER = "https://example.org/actors/owner"
 TRANSFEREE = "https://example.org/actors/transferee"
@@ -38,11 +39,12 @@ TRANSFEREE = "https://example.org/actors/transferee"
 def test_delegated_trigger_fails_when_no_case_manager_holds_the_role() -> None:
     """A roster with no CASE_MANAGER is a fault, not a fallback."""
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=OWNER)
+    dl.create(as_Service(id_=OWNER, name="Owner"))
     case = VulnerabilityCase(name="Corrupt roster", attributed_to=OWNER)
     dl.create(case)
     request = OfferCaseOwnershipTransferTriggerRequest(
         actor_id=OWNER, case_id=case.id_, transferee_id=TRANSFEREE
     )
 
-    with pytest.raises(VultronError):
+    with pytest.raises(VultronNotFoundError, match="CASE_MANAGER"):
         SvcOfferCaseOwnershipTransferUseCase(dl, request).execute()
