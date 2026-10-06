@@ -25,6 +25,8 @@ from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
     unaddressed_copy_refusal,
 )
+from vultron.core.use_cases.received._bt_verdict import applied_or_raise
+from vultron.core.use_cases.received._store_only import run_store_only
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +61,16 @@ class AnnounceEmbargoEventToCaseReceivedUseCase:
             )
         ) is not None:
             return refusal
+        tree, result = run_store_only(
+            self._dl,
+            request,
+            name="AnnounceEmbargoEventToCaseReceivedBT",
+            sync_port=self._sync_port,
+            wire_render_port=self._wire_render_port,
+        )
+        applied_or_raise(
+            tree, result, label="AnnounceEmbargoEventToCaseReceivedBT"
+        )
         logger.info(
             "Received embargo announcement '%s' — no receiver-side state"
             " change required",

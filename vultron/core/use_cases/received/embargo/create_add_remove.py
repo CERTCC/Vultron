@@ -7,6 +7,9 @@ if TYPE_CHECKING:
     from vultron.core.ports.wire_render import WireRenderPort
 
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.store_received_object import (
+    StoreReceivedObjectNode,
+)
 from vultron.core.behaviors.embargo.announce_teardown_tree import (
     add_embargo_to_case_tree,
     remove_embargo_from_case_tree,
@@ -23,12 +26,15 @@ from vultron.core.models.use_case_result import (
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.use_cases._helpers import (
-    _idempotent_create,
     resolve_receiving_actor_id,
     unaddressed_copy_refusal,
 )
 from vultron.core.use_cases.received._bt_verdict import (
     verdict_from_bt,
+)
+from vultron.core.use_cases.received._store_only import (
+    run_store_only,
+    store_only_verdict,
 )
 
 if TYPE_CHECKING:
@@ -72,13 +78,22 @@ class CreateEmbargoEventReceivedUseCase:
             )
         ) is not None:
             return refusal
-        return _idempotent_create(
+        tree, result = run_store_only(
             self._dl,
-            request.object_type,
-            request.embargo_id,
-            request.embargo,
-            "EmbargoEvent",
-            request.activity_id,
+            request,
+            name="CreateEmbargoEventReceivedBT",
+            sync_port=self._sync_port,
+            wire_render_port=self._wire_render_port,
+            store_node=StoreReceivedObjectNode(
+                request.object_type,
+                request.embargo_id,
+                request.embargo,
+                "EmbargoEvent",
+                request.activity_id,
+            ),
+        )
+        return store_only_verdict(
+            tree, result, label="CreateEmbargoEventReceivedBT"
         )
 
 

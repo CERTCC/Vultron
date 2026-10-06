@@ -41,6 +41,7 @@ from vultron.core.use_cases.received.status import (
     AddParticipantStatusToParticipantReceivedUseCase,
 )
 from vultron.enums.roles import CVDRole
+from vultron.errors import VultronBTInternalError
 from vultron.wire.as2.factories import (
     add_status_to_participant_activity,
     create_case_activity,
@@ -231,6 +232,9 @@ class TestBootstrapParticipantStorage:
         """A DataLayer failure in store_embedded_participants propagates as an
         exception rather than being silently swallowed (leaves replica
         consistent — fail loudly instead of leaving participants missing).
+
+        The failing write runs inside a BT node, so the bridge reports it as an
+        internal error and the handler raises it (ADR-0095).
         """
         from unittest import mock
 
@@ -248,7 +252,9 @@ class TestBootstrapParticipantStorage:
             return original_save(obj)
 
         with mock.patch.object(dl, "save", side_effect=_patched_save):
-            with pytest.raises(RuntimeError, match="storage failure"):
+            with pytest.raises(
+                VultronBTInternalError, match="storage failure"
+            ):
                 CreateCaseReceivedUseCase(
                     dl,
                     create_event,

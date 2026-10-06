@@ -416,7 +416,7 @@ class WritePendingReportCaseLinkNode(DataLayerActionWithPorts):
 
     Creates or updates the link with ``case_id=None`` and sets
     ``case_creator_id`` to the deterministically derived CaseActor ID
-    so that ``_find_report_case_link`` can match the incoming
+    so that ``find_pending_report_case_link`` can match the incoming
     ``Create(VulnerabilityCase)`` sender when the CaseActor responds.
 
     The CaseActor ID is the container's identity,

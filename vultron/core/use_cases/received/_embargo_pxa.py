@@ -49,13 +49,13 @@ from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.services.idempotent_store import idempotent_store
 from vultron.core.states.cs import (
     is_pxa_attacks_observed,
     is_pxa_exploit_public,
     is_pxa_public_aware,
 )
 from vultron.core.use_cases._helpers import (
-    _idempotent_create,
     add_activity_to_outbox,
 )
 from vultron.errors import VultronNotFoundError
@@ -191,7 +191,7 @@ def refuse_pxa_invite(
     reason = (
         f"EMB-01-002: P/X/A set on case '{case_id}'; embargo proposal rejected"
     )
-    _idempotent_create(
+    idempotent_store(
         dl,
         request.activity_type,
         invite_id,
@@ -200,7 +200,7 @@ def refuse_pxa_invite(
         invite_id,
     )
     if isinstance(request.object_, EmbargoEvent):
-        _idempotent_create(
+        idempotent_store(
             dl,
             request.object_.type_,
             embargo_id,

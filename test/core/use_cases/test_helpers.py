@@ -51,9 +51,9 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.services.idempotent_store import idempotent_store
 from vultron.core.use_cases._helpers import (
     _find_case_actor_id,
-    _idempotent_create,
     resolve_case_participant_id_for_actor,
     resolve_receiving_actor_id,
 )
@@ -683,7 +683,7 @@ class TestResolveReceivingActorId:
 
 
 class TestIdempotentCreateReportsWhatItDid:
-    """``_idempotent_create`` returns a ``HandlerResult`` (#3372, ADR-0095).
+    """``idempotent_store`` returns a ``HandlerResult`` (#3372, ADR-0095).
 
     ``APPLIED`` only when it stored the object; ``SKIPPED`` with a reason on
     every exit that stored nothing, so #2255 has a return channel to classify.
@@ -692,7 +692,7 @@ class TestIdempotentCreateReportsWhatItDid:
     def test_stores_and_reports_applied(
         self, dl: SqliteDataLayer, participant: CaseParticipant
     ) -> None:
-        result = _idempotent_create(
+        result = idempotent_store(
             dl, participant.type_, participant.id_, participant, "Participant"
         )
         assert result == HandlerResult.applied()
@@ -702,7 +702,7 @@ class TestIdempotentCreateReportsWhatItDid:
         self, dl: SqliteDataLayer, participant: CaseParticipant
     ) -> None:
         dl.create(participant)
-        result = _idempotent_create(
+        result = idempotent_store(
             dl, participant.type_, participant.id_, participant, "Participant"
         )
         assert result.disposition is HandlerDisposition.SKIPPED
@@ -718,18 +718,18 @@ class TestIdempotentCreateReportsWhatItDid:
         type_key: str | None,
         id_key: str | None,
     ) -> None:
-        result = _idempotent_create(dl, type_key, id_key, participant, "Note")
+        result = idempotent_store(dl, type_key, id_key, participant, "Note")
         assert result.disposition is HandlerDisposition.SKIPPED
         assert result.reason is not None
 
     def test_missing_object_reports_skipped(self, dl: SqliteDataLayer) -> None:
-        result = _idempotent_create(dl, "Note", "urn:x:absent", None, "Note")
+        result = idempotent_store(dl, "Note", "urn:x:absent", None, "Note")
         assert result.disposition is HandlerDisposition.SKIPPED
         assert dl.read("urn:x:absent") is None
 
     def test_bare_reference_reports_skipped(self, dl: SqliteDataLayer) -> None:
         ref = CoreObject(id_="urn:x:bare", type_=None)
-        result = _idempotent_create(dl, "Note", ref.id_, ref, "Note")
+        result = idempotent_store(dl, "Note", ref.id_, ref, "Note")
         assert result.disposition is HandlerDisposition.SKIPPED
         assert result.reason is not None and "bare reference" in result.reason
         assert dl.read("urn:x:bare") is None

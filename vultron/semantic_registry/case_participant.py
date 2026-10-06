@@ -44,6 +44,7 @@ ENTRIES: list[SemanticEntry] = [
         use_case_class=CreateCaseParticipantReceivedUseCase,
         phrase="{actor} created a case participant record",
         wire_activity_class=_CreateParticipantActivity,
+        include_activity=True,
     ),
     SemanticEntry(
         semantics=MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE,

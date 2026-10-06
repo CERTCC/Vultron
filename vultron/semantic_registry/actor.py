@@ -151,6 +151,7 @@ ENTRIES: list[SemanticEntry] = [
         use_case_class=RejectCaseParticipantRoleReceivedUseCase,
         phrase="{actor} declined the role offer",
         wire_activity_class=_RejectCaseParticipantRoleActivity,
+        include_activity=True,
     ),
     SemanticEntry(
         semantics=MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER,

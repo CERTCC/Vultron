@@ -30,6 +30,8 @@ from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
+from vultron.core.use_cases.received._bt_verdict import applied_or_raise
+from vultron.core.use_cases.received._store_only import run_store_only
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +60,14 @@ class CreateProcessingFaultReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
+        tree, result = run_store_only(
+            self._dl,
+            request,
+            name="CreateProcessingFaultReceivedBT",
+            sync_port=self._sync_port,
+            wire_render_port=self._wire_render_port,
+        )
+        applied_or_raise(tree, result, label="CreateProcessingFaultReceivedBT")
         logger.warning(
             "ProcessingFault received from '%s' for activity '%s'"
             " (fault object: %s)",

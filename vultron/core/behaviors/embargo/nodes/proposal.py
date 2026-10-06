@@ -27,11 +27,9 @@ from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
 )
+from vultron.core.services.idempotent_store import idempotent_store
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
-from vultron.core.use_cases._helpers import (
-    _idempotent_create,
-)
 from vultron.errors import (
     VultronNotAnEmbargoError,
     VultronNotFoundError,
@@ -98,7 +96,7 @@ class CreateAndStoreInviteNode(DataLayerActionWithPorts):
             )
             return Status.SUCCESS
 
-        _idempotent_create(
+        idempotent_store(
             self.datalayer,
             activity_type,
             activity_id,

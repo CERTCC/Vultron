@@ -458,7 +458,7 @@ leaf nodes executed via `bridge.execute_with_setup()`, not directly in
 # ❌ WRONG — trigger-side inline RM state transition
 def execute(self) -> dict:
     set_status = ParticipantStatus(rm_state=RM.INVALID, ...)
-    _idempotent_create(dl, ..., set_status, ...)
+    dl.create(set_status)
     add_activity_to_outbox(actor_id, activity_id, dl)
     return {"activity": activity_dict}
 ```

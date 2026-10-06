@@ -156,23 +156,14 @@ def _collect_violations() -> frozenset[str]:
 # ---------------------------------------------------------------------------
 KNOWN_VIOLATIONS: frozenset[str] = frozenset(
     {
-        # #3871 — participant status, case participant, participant role
-        "vultron/core/use_cases/received/status.py",
-        "vultron/core/use_cases/received/case_participant.py",
-        "vultron/core/use_cases/received/actor/accept_reject_case_participant_role.py",
         # #3872 — report, embargo, invite, ownership
         "vultron/core/use_cases/received/report.py",
-        "vultron/core/use_cases/received/embargo/create_add_remove.py",
         "vultron/core/use_cases/received/embargo/invite.py",
         "vultron/core/use_cases/received/actor/ownership.py",
         # #3873 — case lifecycle (add report) and note (remove note): direct
         # writes with no tree at all
         "vultron/core/use_cases/received/case/lifecycle.py",
         "vultron/core/use_cases/received/note.py",
-        # #3874 — case create and engage/defer: embedded participants and
-        # the case replica
-        "vultron/core/use_cases/received/case/create.py",
-        "vultron/core/use_cases/received/case/engage_defer.py",
     }
 )
 
