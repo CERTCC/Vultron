@@ -6,6 +6,7 @@ missing_tags) including lint_suppress suppression.
 """
 
 import sys
+from typing import cast
 
 import pytest
 
@@ -14,6 +15,7 @@ import vultron.metadata.specs.verification as verification_module
 from test.metadata.specs._helpers import write_yaml
 from test.metadata.specs.conftest import spec_file_data
 from vultron.metadata.specs.lint import lint
+from vultron.metadata.specs.registry import SpecRegistry
 from vultron.metadata.specs.schema import RFC2119Priority, SpecKind
 
 # ---------------------------------------------------------------------------
@@ -2066,9 +2068,7 @@ def test_lint_reports_hardened_unsettled_adr_as_info(tmp_path):
         }
 
     errors, warnings = lint_module._check_adr_status(
-        adr_dir,
-        _Reg(),
-        today,  # type: ignore[arg-type]
+        adr_dir, cast(SpecRegistry, _Reg()), today
     )
     assert errors == []
     infos = [w for w in warnings if w.startswith("[INFO]")]
