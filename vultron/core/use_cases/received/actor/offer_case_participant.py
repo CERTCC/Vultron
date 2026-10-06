@@ -89,7 +89,7 @@ class OfferCaseParticipantReceivedUseCase:
     """
 
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4070", "no sender check for case participant offer"
+        "#3668", "no sender check for case participant offer"
     )
 
     def __init__(
@@ -243,7 +243,7 @@ class AcceptOfferCaseParticipantReceivedUseCase:
     """
 
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4070", "no sender check for accept case participant offer"
+        "#4073", "no sender check for accept case participant offer"
     )
 
     def __init__(
@@ -355,7 +355,7 @@ class RejectOfferCaseParticipantReceivedUseCase:
     """
 
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4070", "no sender check for reject case participant offer"
+        "#4073", "no sender check for reject case participant offer"
     )
 
     def __init__(
