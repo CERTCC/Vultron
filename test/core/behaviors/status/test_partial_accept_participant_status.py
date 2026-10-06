@@ -74,7 +74,6 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import (
     DDimension,
     EmDimension,
-    PecDimension,
     PxaDimension,
     RmDimension,
     VfDimension,
@@ -85,7 +84,6 @@ from vultron.core.states.composite_state_invariants import (
 )
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.semantic_registry import extract_event
@@ -251,7 +249,6 @@ def _current_status(
         context=CASE_ID,
         rm=RmDimension(state=rm_state),
         vf=(VfDimension(state=vf_state) if vf_state is not None else None),
-        consent=PecDimension(state=PEC.SIGNATORY),
         case_status=as_CaseStatus(
             id_=f"{CURRENT_STATUS_ID}/cs",
             context=CASE_ID,
@@ -288,7 +285,6 @@ def _asserted_status(
         context=CASE_ID,
         rm=RmDimension(state=rm_state),
         vf=(VfDimension(state=vf_state) if vf_state is not None else None),
-        consent=PecDimension(state=PEC.SIGNATORY),
         case_status=case_status,
     )
 
@@ -616,9 +612,6 @@ class TestCanonicalLedgerRecordsAcceptedPortion:
         assert snap["vfState"] == CS_vf.VF.name
 
         # Fields the guard never adjudicated survive the patch untouched.
-        assert snap.get("emConsentState") == PEC.SIGNATORY.name, (
-            "emConsentState must survive adjudication (fcvcv invariant harness)"
-        )
         assert "cvdRole" in snap, "cvdRole must survive adjudication"
         assert "@context" in snap, "@context must survive adjudication"
         assert snap.get("type") == "ParticipantStatus"
@@ -1119,7 +1112,7 @@ class TestMergeSnapshotObjectFields:
                 "id": ASSERTED_STATUS_ID,
                 "rmState": "RECEIVED",
                 "rm_state": "RECEIVED",
-                "emConsentState": "SIGNATORY",
+                "cvdRole": ["VENDOR"],
                 "name": "RECEIVED VFd",
             },
             {"rmState": "VALID", "vfState": "VFd"},
@@ -1130,7 +1123,7 @@ class TestMergeSnapshotObjectFields:
             "a stale snake_case twin would let a consumer read the value the"
             " receiver just refused"
         )
-        assert merged["emConsentState"] == "SIGNATORY"
+        assert merged["cvdRole"] == ["VENDOR"]
         assert merged["id"] == ASSERTED_STATUS_ID
         assert "name" not in merged, "the sender's derived label is dropped"
 

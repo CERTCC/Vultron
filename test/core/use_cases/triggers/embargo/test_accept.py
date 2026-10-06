@@ -15,7 +15,9 @@ from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.core.use_cases.triggers.embargo import (
     SvcAcceptEmbargoUseCase,
     _is_case_owner,
@@ -78,8 +80,10 @@ def test_non_manager_accept_embargo_asks_the_case_manager(
     assert updated_case.active_embargo == case.active_embargo
     # Not the CASE_MANAGER: the consent is asked for, not recorded here; the
     # replica moves when the manager's commit is announced (EP-09-008).
-    assert updated_participant.embargo_consent_state == PEC.INVITED.value
-    assert case.active_embargo not in updated_participant.accepted_embargo_ids
+    assert (
+        updated_participant.consent_for(str(case.active_embargo_id))
+        == EmbargoConsentState.INVITED
+    )
     _assert_asked_case_manager(
         finder_dl,
         actor_id=finder.id_,
@@ -148,7 +152,10 @@ def test_accept_embargo_when_attributed_to_is_none_does_not_activate_em(
     updated_participant = cast(as_CaseParticipant, updated_participant)
 
     assert updated_case.current_status.em.state == EM.PROPOSED
-    assert updated_participant.embargo_consent_state == PEC.INVITED.value
+    assert (
+        updated_participant.consent_for(case.proposed_embargoes[0])
+        == EmbargoConsentState.INVITED
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -15,7 +15,7 @@
 Strict-``xfail`` goal tests planned under #2257; each test names the issue
 that implements it (``_TRACKED_BY``).  Every test starts from a CASE_MANAGER store holding a
 case with the CASE_MANAGER, a Case Owner, a joined vendor that is
-``SIGNATORY`` to the active embargo, and a second joined vendor.
+an ``ACCEPTED`` row for the active embargo, and a second joined vendor.
 
 - CM-31-001 — removal keeps the record and makes the participant inert.
 - CM-31-003 — the case publishes a computed ``activeParticipants``.
@@ -56,9 +56,9 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 from vultron.core.models._helpers import _as_id, days_from_now_utc
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.participant_status import (
     ParticipantStatus,
-    PecDimension,
     RmDimension,
 )
 from vultron.core.models.use_case_result import (
@@ -66,7 +66,9 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
@@ -177,7 +179,7 @@ def _participant_id(actor_id: str) -> str:
 def _record(
     actor_id: str,
     roles: list[CVDRole],
-    pec: PEC = PEC.SIGNATORY,
+    consent: EmbargoConsentState | None = EmbargoConsentState.ACCEPTED,
     *,
     rm: RM | None = None,
 ) -> CaseParticipant:
@@ -186,8 +188,11 @@ def _record(
         attributed_to=actor_id,
         context=CASE_ID,
         case_roles=roles,
-        embargo_consent_state=pec,
-        accepted_embargo_ids=[EMBARGO_ID] if pec is PEC.SIGNATORY else [],
+        embargo_consents=(
+            [EmbargoConsent(embargo_id=EMBARGO_ID, state=consent)]
+            if consent is not None
+            else []
+        ),
     )
     if rm is None:
         return record
@@ -195,7 +200,6 @@ def _record(
         context=CASE_ID,
         attributed_to=actor_id,
         rm=RmDimension(state=rm),
-        consent=PecDimension(state=pec),
         cvd_role=roles,
     )
     return record.model_copy(update={"participant_statuses": [status]})
@@ -260,7 +264,7 @@ def test_case_publishes_active_participants_and_round_trips(
 ) -> None:
     """``activeParticipants`` is computed, published, and read back cleanly.
 
-    Every seeded participant is active (joined and ``SIGNATORY``); that a
+    Every seeded participant is active (joined and ``ACCEPTED`` for the embargo); that a
     removed one leaves the view is CM-31-001's test.
     """
     case = removal_case.read_case()
@@ -417,8 +421,8 @@ def test_removal_leaves_embargo_consent_untouched(removal_case) -> None:
     case = removal_case.read_case()
     assert VENDOR in case.actor_participant_index
     participant = removal_case.participant(VENDOR)
-    assert participant.embargo_consent_state == PEC.SIGNATORY
-    assert participant.accepted_embargo_ids == [EMBARGO_ID]
+    assert participant.is_signatory(EMBARGO_ID)
+    assert participant.consent_for(EMBARGO_ID) == EmbargoConsentState.ACCEPTED
 
 
 @pytest.mark.xfail(strict=True, reason=_planned("CM-31-009"))

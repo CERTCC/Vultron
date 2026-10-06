@@ -227,7 +227,6 @@ def test_embargo_handle_result_stores_lifecycle_result_and_delegates():
         em_after=EM.PROPOSED,
         case_changed=True,
         case_embargo_changed=False,
-        pec_exited=False,
     )
     uc = _EmbargoTrigger(
         dl=MagicMock(),

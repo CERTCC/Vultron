@@ -121,9 +121,9 @@ class TestAnnounceEmbargoEventToCaseReceivedUseCase:
 
 
 class TestResetEmbargoConsentWithInlineParticipants:
-    """Regression tests for #609: _exit_case_participant_embargo_consent
-    must tolerate inline as_CaseParticipant objects in case.case_participants,
-    not just plain string IDs.
+    """Regression tests for #609: embargo removal must tolerate inline
+    as_CaseParticipant objects in case.case_participants, not just plain
+    string IDs.
     """
 
     def test_remove_active_embargo_with_inline_participant_no_type_error(
@@ -138,7 +138,10 @@ class TestResetEmbargoConsentWithInlineParticipants:
         import py_trees
 
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.core.states.participant_embargo_consent import PEC
+        from vultron.core.models.embargo_consent import EmbargoConsent
+        from vultron.core.states.participant_embargo_consent import (
+            EmbargoConsentState,
+        )
         from vultron.wire.as2.vocab.objects.case_participant import (
             as_CaseParticipant,
         )
@@ -157,22 +160,26 @@ class TestResetEmbargoConsentWithInlineParticipants:
             actor_id="https://example.org/users/finder",  # the receiving actor's own store
         )
 
-        # Build a participant and store it — it also appears inline in case
-        participant = as_CaseParticipant(
-            id_=participant_id,
-            context=case_id,
-            attributed_to=actor_id,
-        )
-        # Simulate receiver-side: participant's consent state is SIGNATORY
-        object.__setattr__(participant, "embargo_consent_state", PEC.SIGNATORY)
-        dl.create(participant)
-
         embargo = as_EmbargoEvent(
             id_=f"{case_id}/embargo_events/e1",
             context=case_id,
             end_time=days_from_now_utc(45),
         )
         dl.create(embargo)
+
+        # Build a participant and store it — it also appears inline in case.
+        # Receiver-side, the participant holds an ACCEPTED row for the embargo.
+        participant = as_CaseParticipant(
+            id_=participant_id,
+            context=case_id,
+            attributed_to=actor_id,
+            embargo_consents=[
+                EmbargoConsent(
+                    embargo_id=embargo.id_, state=EmbargoConsentState.ACCEPTED
+                )
+            ],
+        )
+        dl.create(participant)
 
         # Store inline as_CaseParticipant object (not string ID) in
         # case_participants — this is the condition that caused #609.
@@ -201,69 +208,6 @@ class TestResetEmbargoConsentWithInlineParticipants:
         assert updated is not None
         assert updated.active_embargo is None
         assert updated.current_status.em.state == EM.EXITED
-
-    def test_exit_consent_with_inline_participant_exits_state(self):
-        """_exit_case_participant_embargo_consent exits consent state even
-        when case_participants entries are inline wire-layer as_CaseParticipant
-        objects (not string IDs).
-
-        Regression test for #609.
-        """
-        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.core.states.participant_embargo_consent import PEC
-        from vultron.core.use_cases._helpers import (
-            exit_case_participant_embargo_consent as _exit_case_participant_embargo_consent,
-        )
-        from vultron.wire.as2.vocab.objects.case_participant import (
-            as_CaseParticipant,
-        )
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
-        )
-
-        actor_id = "https://example.org/users/finder"
-        case_id = "https://example.org/cases/case_609_reset"
-        participant_id = f"{case_id}/participants/p1"
-
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://example.org/users/finder",  # the receiving actor's own store
-        )
-
-        # Wire-layer as_CaseParticipant with non-default consent state.
-        # Stored in the DataLayer separately so dl.read(participant_id) works.
-        participant = as_CaseParticipant(
-            id_=participant_id,
-            context=case_id,
-            attributed_to=actor_id,
-        )
-        object.__setattr__(
-            participant, "embargo_consent_state", PEC.SIGNATORY.value
-        )
-        dl.create(participant)
-
-        # Wire-layer case stored in DataLayer; dl.read() returns core type (ADR-0034).
-        wire_case = as_VulnerabilityCase(
-            id_=case_id,
-            name="Reset Consent Inline",
-        )
-        wire_case.case_participants.append(participant)  # type: ignore[arg-type]
-        dl.create(wire_case)
-
-        from vultron.core.models.case import VulnerabilityCase
-
-        core_case = dl.read(case_id)
-        assert isinstance(core_case, VulnerabilityCase)
-
-        # Must not raise TypeError
-        _exit_case_participant_embargo_consent(dl, core_case)
-
-        updated_participant = dl.read(participant_id)
-        assert updated_participant is not None
-        assert (
-            getattr(updated_participant, "embargo_consent_state", None)
-            == PEC.UNBOUND_EXITED.value
-        )
 
 
 # ---------------------------------------------------------------------------

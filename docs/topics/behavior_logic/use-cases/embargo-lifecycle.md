@@ -22,15 +22,17 @@ The case carries **one** embargo, and each Participant carries its **own stance*
 | Scope | What it tracks | States |
 |---|---|---|
 | Embargo Management (EM) | The case's embargo — one per case | `NONE`, `PROPOSED`, `ACTIVE`, `REVISE`, `EXITED` |
-| Participant Embargo Consent (PEC) | One Participant's commitment to it | `UNBOUND`, `INVITED`, `SIGNATORY`, `LAPSED`, `DECLINED`, `EXPIRED`, `UNBOUND_EXITED` |
+| Participant Embargo Consent (PEC) | One Participant's answer to each embargo it was asked about | one row per embargo: `INVITED`, `ACCEPTED`, `DECLINED`, `EXPIRED` |
 
 The distinction is not bookkeeping.
 "The case is under embargo" and "this Participant is bound by it" are different facts, and a case routinely holds both at once: an active embargo with one Participant who declined it.
-A Participant's `embargo_adherence` is derived from its consent state and is true only at `SIGNATORY`, so the two can never drift apart ([ADR-0056](../../../adr/0056-embargo-adherence-computed-field.md)).
+A Participant is a signatory when its consent row for the case's active embargo is `ACCEPTED`.
+That is a lookup, not a second record, so the embargo and the Participant's position can never drift apart ([ADR-0122](../../../adr/0122-per-embargo-participant-consent.md)).
+A Participant that accepted an earlier embargo but has no accepting row for the one now in force has lapsed, which is read the same way.
 
-`UNBOUND` is the state most often misread.
+A missing row is the thing most often misread.
 It means *not bound by any embargo terms* — not "has not answered yet."
-An actor may accept or decline directly from it, with no intervening invitation ([ADR-0048](../../../adr/0048-pec-no-embargo-is-absence-not-pre-consent.md), [ADR-0091](../../../adr/0091-rename-pec-no-embargo-to-unbound.md), CM-18-003).
+An actor may accept or decline directly from no row, with no intervening invitation ([ADR-0048](../../../adr/0048-pec-no-embargo-is-absence-not-pre-consent.md), CM-18-003).
 
 ---
 
@@ -84,26 +86,26 @@ That is what makes renegotiation safe, and it is why the recommended practice is
 ## Which messages move consent
 
 Consent has no messages of its own (MSM-07-001).
-Every Participant Embargo Consent transition is a side effect of an EM activity, an internal cascade, or a deadline, and the case manager records it; a Participant never declares its own consent state.
+Every Participant Embargo Consent change is a side effect of an EM activity or a deadline, and the case manager records it; a Participant never declares its own consent state.
 
 | Activity | Effect on the case's EM state | Effect on consent |
 |---|---|---|
-| Embargo Proposal (EP), `Invite(Event)` on the case | `NONE` to `PROPOSED`; a further proposal leaves it `PROPOSED` | the invited Participant moves from `UNBOUND`, `DECLINED`, `LAPSED` or `EXPIRED` to `INVITED` (MSM-07-002) |
-| Embargo Acceptance (EA), `Accept(Invite(Event))` | from the case owner: `PROPOSED` to `ACTIVE` | the accepting Participant records the terms and moves to `SIGNATORY` (MSM-07-003) |
-| Embargo Revision Acceptance (EC), `Accept(Invite(Event))` | from the case owner: `REVISE` to `ACTIVE` with the revised terms | a non-owner accepting a proposed revision records it and stays `SIGNATORY` to the terms in force; when the owner activates a revision that ends later than the old terms, every `SIGNATORY` that has not accepted it moves to `LAPSED`, and a revision that ends no later carries every signatory over (MSM-07-003, MSM-07-005) |
-| Embargo Rejection (ER), `Reject(Invite(Event))` | from the case owner: `PROPOSED` to `NONE` once no other proposal is open; while another is, the case stays `PROPOSED` (EP-08-001, EP-08-003) | the rejecting Participant moves to `DECLINED` (MSM-07-004) |
-| Embargo Revision Rejection (EJ), `Reject(Invite(Event))` | from the case owner: `REVISE` back to `ACTIVE` once no other revision is open, and the prior terms stand; once public disclosure, a public exploit or an attack is known, the owner's rejection of the last open revision ends the embargo instead (ET, EMB-04-002) | none: a signatory that refuses proposed terms remains a signatory to the terms in force, the owner included (MSM-07-004) |
-| Embargo Revision (EV) | `ACTIVE` to `REVISE` | none; the proposer is recorded as having accepted the terms it proposed (MSM-07-005, EP-05-002) |
-| Embargo Termination (ET) | `ACTIVE` or `REVISE` to `EXITED` | every Participant moves to the terminal `UNBOUND_EXITED`, with no further message (MSM-07-006) |
-| Invitation deadline passes | none | `INVITED` moves to `EXPIRED`, recorded in the case ledger (MSM-07-007) |
+| Embargo Proposal (EP), `Invite(Event)` on the case | `NONE` to `PROPOSED`; a further proposal leaves it `PROPOSED` | the invited Participant's row for that embargo moves from none, `DECLINED` or `EXPIRED` to `INVITED`; a signatory asked about a revision gains a row for the revision and keeps its row for the embargo in force (MSM-07-002, EP-09-004) |
+| Embargo Acceptance (EA), `Accept(Invite(Event))` | from the case owner: `PROPOSED` to `ACTIVE` | the accepting Participant's row for those terms becomes `ACCEPTED`, which makes it a signatory once they are the embargo in force (MSM-07-003) |
+| Embargo Revision Acceptance (EC), `Accept(Invite(Event))` | from the case owner: `REVISE` to `ACTIVE` with the revised terms | a non-owner accepting a proposed revision marks the revision's row `ACCEPTED` and stays a signatory to the terms in force; when the owner activates a revision that ends later than the old terms, every signatory that has not accepted it has lapsed, and a revision that ends no later carries every signatory over by marking its row `ACCEPTED` (MSM-07-003, MSM-07-005) |
+| Embargo Rejection (ER), `Reject(Invite(Event))` | from the case owner: `PROPOSED` to `NONE` once no other proposal is open; while another is, the case stays `PROPOSED` (EP-08-001, EP-08-003) | the rejecting Participant's row for the rejected terms becomes `DECLINED` (MSM-07-004) |
+| Embargo Revision Rejection (EJ), `Reject(Invite(Event))` | from the case owner: `REVISE` back to `ACTIVE` once no other revision is open, and the prior terms stand; once public disclosure, a public exploit or an attack is known, the owner's rejection of the last open revision ends the embargo instead (ET, EMB-04-002) | none for the owner; a signatory that refuses proposed terms declines only the revision's row and remains a signatory to the terms in force (MSM-07-004) |
+| Embargo Revision (EV) | `ACTIVE` to `REVISE` | none to the terms in force; the proposer's row for the revision becomes `ACCEPTED`, because proposing terms is consenting to them (MSM-07-005, EP-05-002) |
+| Embargo Termination (ET) | `ACTIVE` or `REVISE` to `EXITED` | none is written: with the active embargo cleared nobody is a signatory, and no further message is sent (MSM-07-006) |
+| Invitation deadline passes | none | each `INVITED` row moves to `EXPIRED`, recorded in the case ledger (MSM-07-007) |
 
 One activity can therefore move both scopes at once: an Accept from the case owner activates the embargo *and* makes the owner a signatory.
 
 Only the case manager records an answer; a Participant handed an Accept or Reject meant for the case manager refuses it, and a Reject of terms that are neither in force nor still proposed is refused rather than recorded.
-A `SIGNATORY` that rejects the *active* embargo is withdrawing its own consent: its record moves to `DECLINED` ([§9.2 Transitions and Guards](../../../reference/vultron-spec/tracking-models.md#92-transitions-and-guards)).
-A `SIGNATORY` that rejects a *proposed* revision is refusing those terms only: it stays a signatory to the embargo in force.
+A signatory that rejects the *active* embargo is withdrawing its own consent: its row for that embargo becomes `DECLINED`, as do its accepted rows for any open revision.
+A signatory that rejects a *proposed* revision is refusing those terms only: it stays a signatory to the embargo in force.
 In neither case does the case's embargo change, because only the case owner's reject moves EM (MSM-07-004).
-The full consent transition table is in [§9.2 Transitions and Guards in the specification](../../../reference/vultron-spec/tracking-models.md#92-transitions-and-guards).
+The protocol-level view of consent is in [§9.2 Transitions and Guards in the specification](../../../reference/vultron-spec/tracking-models.md#92-transitions-and-guards).
 
 ---
 
@@ -193,7 +195,7 @@ The case manager instead asks whether the accepted embargo is still the case's c
 
 | What the late Accept refers to | What the case manager does |
 |---|---|
-| The case's current embargo | Honor it; record the Participant as SIGNATORY, exactly as for an on-time Accept — directly from `EXPIRED`, after a fresh invitation from `DECLINED` (EMB-17-002) |
+| The case's current embargo | Honor it; record the Participant's consent row as `ACCEPTED`, exactly as for an on-time Accept — directly from `EXPIRED`, after a fresh invitation from `DECLINED` (EMB-17-002) |
 | A superseded embargo | Send a fresh invitation carrying the current terms. Do **not** record consent to terms the actor never saw (EMB-17-003, EMB-17-005) |
 | An embargo the case no longer has | Acknowledge as a no-op. Do not invite, and do not remove the actor from the case (EMB-17-004, EMB-17-007, EMB-17-008) |
 
@@ -211,7 +213,8 @@ Teardown is the exception worth naming, because its addressing is prescribed.
 The `Announce(EmbargoEvent)` that follows a teardown must be authored by the actor holding `CVDRole.CASE_MANAGER` and addressed to every Participant *except* the announcing actor — never to the case manager itself (EMB-19-001).
 When the case manager is the only Participant, the announcement is skipped rather than sent with an empty recipient list (EMB-19-002).
 
-On entering `EM.EXITED`, every Participant's consent moves to the terminal `UNBOUND_EXITED`, which no later invitation can leave (EMB-13-001, MSM-07-006).
+On entering `EM.EXITED`, no Participant is bound by an embargo any more, and no later invitation can bind one (EMB-13-001, MSM-07-006).
+No consent row is written for this: the active embargo is cleared, and the case is the fact.
 The embargo is over for everyone at once, which is the one thing about the EM scope that is genuinely global.
 
 ---

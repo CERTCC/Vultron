@@ -176,7 +176,7 @@ def make_embargo_case_with_actor(
     Also creates ``as_CaseParticipant`` objects so actor → participant lookups
     in the embargo handlers succeed. Every participant is recorded in both
     ``case_participants`` (the authoritative membership, CM-19-001) and
-    ``actor_participant_index``, so the PEC cascades that walk the membership
+    ``actor_participant_index``, so the consent writes that walk the membership
     list reach every participant, as they do in production.
     """
     from vultron.wire.as2.vocab.objects.case_participant import (

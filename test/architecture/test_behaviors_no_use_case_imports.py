@@ -93,7 +93,6 @@ KNOWN_VIOLATIONS: frozenset[str] = frozenset(
         # migration.
         "vultron/core/behaviors/case/nodes/ledger_payload.py",  # moved from lifecycle.py (#3930)
         "vultron/core/behaviors/embargo/nodes/emit.py",
-        "vultron/core/behaviors/embargo/nodes/teardown.py",
         "vultron/core/behaviors/report/nodes/emit.py",
         "vultron/core/behaviors/sender/nodes/actions.py",
     ]

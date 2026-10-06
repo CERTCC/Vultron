@@ -16,8 +16,8 @@
 
 Covers valid and invalid EM transitions in STRICT and OBSERVED mode, owner
 versus non-owner proposers, idempotency, and the one consent effect a
-proposal has: the proposer's own ``accepted_embargo_ids`` gains the proposed
-id, while nobody's consent *state* changes (EP-05-002).  Also covers
+proposal has: the proposer's own row for the proposed embargo becomes ACCEPTED,
+while nobody's row for the embargo in force moves (EP-05-002).  Also covers
 ``abandon_embargo_proposals``, the P/X/A abandonment of every open proposal
 (EMB-16-001).  The answers to a proposal are tested in ``test_answers.py``."""
 
@@ -33,7 +33,9 @@ from vultron.core.services.embargo_lifecycle import (
     TransitionMode,
 )
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState as ECS,
+)
 from vultron.errors import (
     VultronInvalidStateTransitionError,
     VultronValidationError,
@@ -41,12 +43,11 @@ from vultron.errors import (
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
 from .conftest import (
-    _accepted_ids_of,
-    _force_pec,
+    _consents_of,
+    _is_signatory,
     _make_actor,
     _make_case,
     _make_embargo,
-    _pec_of,
     _seed_consent,
 )
 
@@ -71,7 +72,6 @@ def test_propose_embargo_none_to_proposed(
     assert result.em_after == EM.PROPOSED
     assert result.case_changed is True
     assert result.case_embargo_changed is False
-    assert result.pec_exited is False
     assert result.participant_changes == []
 
     updated = cast(VulnerabilityCase, dl.read(case.id_))
@@ -115,15 +115,15 @@ def test_propose_embargo_idempotent_repropse(
 @pytest.mark.spec("EP-05-002")
 @pytest.mark.spec("MSM-07-005")
 @pytest.mark.spec("CM-18-002")
-def test_propose_embargo_active_to_revise_changes_no_consent(
+def test_propose_embargo_active_to_revise_lapses_nobody(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
     """propose_embargo from ACTIVE moves EM to REVISE and lapses nobody.
 
-    A revision *proposal* changes no participant's consent (EP-05-002,
-    ADR-0093): the prior embargo is still in force, so every signatory to it
-    stays SIGNATORY.  Proposing terms is consenting to them, so the
-    proposer's ``accepted_embargo_ids`` gains the proposed id — list only.
+    A revision *proposal* changes no one's row for the embargo in force
+    (EP-05-002, ADR-0093): every signatory to it stays a signatory.
+    Proposing terms is consenting to them, so the proposer gains an ACCEPTED
+    row for the proposed id and nobody else gains any row.
     """
     owner, dl = owner_and_dl
     finder = _make_actor(dl, "Finder Org")
@@ -134,7 +134,7 @@ def test_propose_embargo_active_to_revise_changes_no_consent(
     case.active_embargo = active.id_
     dl.save(case)
     for p in participants:
-        _seed_consent(dl, p.id_, PEC.SIGNATORY, [active.id_])
+        _seed_consent(dl, p.id_, active.id_, ECS.ACCEPTED)
 
     revision = _make_embargo(dl, case.id_, days=90)
 
@@ -154,21 +154,24 @@ def test_propose_embargo_active_to_revise_changes_no_consent(
     assert updated.current_status.em.state == EM.REVISE
     owner_p, finder_p = participants
     for p in participants:
-        assert _pec_of(dl, p.id_) == PEC.SIGNATORY.value
-    # The proposer consented to its own terms; nobody else's list moved.
-    assert _accepted_ids_of(dl, finder_p.id_) == [active.id_, revision.id_]
-    assert _accepted_ids_of(dl, owner_p.id_) == [active.id_]
+        assert _is_signatory(dl, case.id_, p.id_)
+    # The proposer consented to its own terms; nobody else's rows moved.
+    assert _consents_of(dl, finder_p.id_) == {
+        active.id_: "ACCEPTED",
+        revision.id_: "ACCEPTED",
+    }
+    assert _consents_of(dl, owner_p.id_) == {active.id_: "ACCEPTED"}
 
 
 @pytest.mark.spec("EP-05-002")
 @pytest.mark.spec("MSM-07-005")
-def test_propose_embargo_revise_to_revise_changes_no_consent(
+def test_propose_embargo_revise_to_revise_lapses_nobody(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """A counter-revision (REVISE → REVISE) changes nobody's consent state either.
+    """A counter-revision (REVISE → REVISE) lapses nobody either.
 
-    The proposer's list gains the counter-proposed id; a signatory stays a
-    signatory; an invitee stays invited.
+    The proposer gains an ACCEPTED row for the counter-proposed id; a
+    signatory stays a signatory; an invitee stays invited.
     """
     owner, dl = owner_and_dl
     finder = _make_actor(dl, "Finder Org")
@@ -185,9 +188,9 @@ def test_propose_embargo_revise_to_revise_changes_no_consent(
     case.active_embargo = active.id_
     case.proposed_embargoes = [first_revision.id_]
     dl.save(case)
-    _seed_consent(dl, owner_p.id_, PEC.SIGNATORY, [active.id_])
-    _seed_consent(dl, finder_p.id_, PEC.SIGNATORY, [active.id_])
-    _force_pec(dl, invitee_p.id_, PEC.INVITED)
+    _seed_consent(dl, owner_p.id_, active.id_, ECS.ACCEPTED)
+    _seed_consent(dl, finder_p.id_, active.id_, ECS.ACCEPTED)
+    _seed_consent(dl, invitee_p.id_, first_revision.id_, ECS.INVITED)
 
     counter = _make_embargo(dl, case.id_, days=60)
     result = EmbargoLifecycle(persistence=dl).propose_embargo(
@@ -197,12 +200,15 @@ def test_propose_embargo_revise_to_revise_changes_no_consent(
     assert result.em_before == EM.REVISE
     assert result.em_after == EM.REVISE
     assert result.participant_changes == []
-    assert _pec_of(dl, owner_p.id_) == PEC.SIGNATORY.value
-    assert _pec_of(dl, finder_p.id_) == PEC.SIGNATORY.value
-    assert _pec_of(dl, invitee_p.id_) == PEC.INVITED.value
-    assert _accepted_ids_of(dl, finder_p.id_) == [active.id_, counter.id_]
-    assert _accepted_ids_of(dl, owner_p.id_) == [active.id_]
-    assert _accepted_ids_of(dl, invitee_p.id_) == []
+    assert _is_signatory(dl, case.id_, owner_p.id_)
+    assert _is_signatory(dl, case.id_, finder_p.id_)
+    assert not _is_signatory(dl, case.id_, invitee_p.id_)
+    assert _consents_of(dl, finder_p.id_) == {
+        active.id_: "ACCEPTED",
+        counter.id_: "ACCEPTED",
+    }
+    assert _consents_of(dl, owner_p.id_) == {active.id_: "ACCEPTED"}
+    assert _consents_of(dl, invitee_p.id_) == {first_revision.id_: "INVITED"}
     updated = cast(VulnerabilityCase, dl.read(case.id_))
     assert updated.proposed_embargoes == [first_revision.id_, counter.id_]
 
@@ -222,7 +228,7 @@ def test_propose_embargo_by_a_non_participant_records_no_consent(
     )
 
     assert result.em_after == EM.PROPOSED
-    assert _accepted_ids_of(dl, owner_p.id_) == []
+    assert _consents_of(dl, owner_p.id_) == {}
 
 
 @pytest.mark.spec("CM-18-003")
@@ -231,24 +237,23 @@ def test_propose_embargo_by_a_declined_participant_records_no_consent(
 ) -> None:
     """A DECLINED proposer holds no consent until re-invited (#4003).
 
-    Recording its proposal on its list would let the content gate admit it
-    once the owner activated the terms, while its state stayed DECLINED.
+    Marking its row ACCEPTED would let the content gate admit it once the
+    owner activated the terms, while it had declined them.
     """
     owner, dl = owner_and_dl
     proposer = _make_actor(dl, "Proposer")
     case, (_owner_p, proposer_p) = _make_case(
         dl, owner.id_, extra_participant_ids=[proposer.id_], em_state=EM.NONE
     )
-    _force_pec(dl, proposer_p.id_, PEC.DECLINED)
     embargo = _make_embargo(dl, case.id_)
+    _seed_consent(dl, proposer_p.id_, embargo.id_, ECS.DECLINED)
 
     result = EmbargoLifecycle(persistence=dl).propose_embargo(
         case_id=case.id_, embargo_id=embargo.id_, actor_id=proposer.id_
     )
 
     assert result.em_after == EM.PROPOSED
-    assert _pec_of(dl, proposer_p.id_) == PEC.DECLINED.value
-    assert _accepted_ids_of(dl, proposer_p.id_) == []
+    assert _consents_of(dl, proposer_p.id_) == {embargo.id_: "DECLINED"}
 
 
 # ---------------------------------------------------------------------------
@@ -392,13 +397,13 @@ def test_abandon_changes_no_consent(
     owner, dl = owner_and_dl
     case, ids = _case_with_open_proposals(dl, owner.id_, 1)
     (owner_pid,) = case.actor_participant_index.values()
-    _force_pec(dl, owner_pid, PEC.INVITED)
+    _seed_consent(dl, owner_pid, ids[0], ECS.INVITED)
 
     EmbargoLifecycle(persistence=dl).abandon_embargo_proposals(
         case_id=case.id_, embargo_ids=ids, actor_id=owner.id_
     )
 
-    assert _pec_of(dl, owner_pid) == PEC.INVITED
+    assert _consents_of(dl, owner_pid) == {ids[0]: "INVITED"}
 
 
 @pytest.mark.spec("EMB-16-001")

@@ -111,6 +111,7 @@ def case_with_two_participants():
         context=_CASE_ID,
     )
     vendor_p = as_CaseParticipant(
+        case_roles=[CVDRole.VENDOR],
         id_=_VENDOR_PARTICIPANT_ID,
         attributed_to=_VENDOR_ID,
         context=_CASE_ID,

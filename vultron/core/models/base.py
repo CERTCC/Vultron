@@ -289,8 +289,8 @@ class CoreObject(CoreRecord):
     ) -> "CoreObject":
         """Strip or refuse supplied computed-field values (ARCH-23-005).
 
-        A ``@computed_field`` (e.g. ``ParticipantStatus.embargo_adherence``,
-        ADR-0056) appears in ``model_dump()`` output but is not settable.
+        A ``@computed_field`` (none is declared in production today) appears in
+        ``model_dump()`` output but is not settable.
         A value that matches the derived value is stripped so a dump
         round-trips; a value that contradicts the object's own derived state
         raises ``VultronProtocolViolationError`` carrying every contradiction

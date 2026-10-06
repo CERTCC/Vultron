@@ -29,7 +29,9 @@ from vultron.core.services.embargo_lifecycle import (
 )
 from vultron.core.services.idempotent_store import idempotent_store
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.errors import (
     VultronNotAnEmbargoError,
     VultronNotFoundError,
@@ -228,10 +230,9 @@ class RecordParticipantRejectionNode(DataLayerActionWithPorts):
     ``EmbargoLifecycle.record_embargo_rejection`` so the received
     ``Reject(Invite(EmbargoEvent))`` tree applies the same MSM-07-004 rule
     as the trigger side (ADR-0093) — a Reject naming the *active* embargo is
-    consent withdrawal (``DECLINE`` from any state, ``SIGNATORY`` included);
-    one naming a *proposed* embargo drops the id from the actor's
-    ``accepted_embargo_ids`` and declines only an actor not yet
-    ``SIGNATORY``; the owner's EJ changes nobody's record.  Moves no EM
+    consent withdrawal (the actor's row for it becomes ``DECLINED``, a
+    signatory's included); one naming a *proposed* embargo declines that
+    embargo's row only; the owner's EJ changes nobody's record.  Moves no EM
     state: deciding the proposal is the tree's
     :class:`RemoveFromProposedEmbargoesNode`, and the owner's EM move is the
     CASE_MANAGER's adjudication (EP-09-005).
@@ -258,7 +259,7 @@ class RecordParticipantRejectionNode(DataLayerActionWithPorts):
         self.rejecting_actor_id = rejecting_actor_id
 
     def _already_declined(self, case: VulnerabilityCase) -> bool:
-        """True when the rejecting actor's record on *case* is already DECLINED."""
+        """True when the rejecting actor's row for the embargo is already DECLINED."""
         assert self.datalayer is not None
         participant_id = case.actor_participant_index.get(
             self.rejecting_actor_id
@@ -268,7 +269,8 @@ class RecordParticipantRejectionNode(DataLayerActionWithPorts):
         )
         return (
             isinstance(participant, CaseParticipant)
-            and participant.embargo_consent_state == PEC.DECLINED.value
+            and participant.consent_for(self.embargo_id)
+            == EmbargoConsentState.DECLINED
         )
 
     def update(self) -> Status:
@@ -305,7 +307,7 @@ class RecordParticipantRejectionNode(DataLayerActionWithPorts):
         self.feedback_message = (
             f"Recorded rejection of embargo '{self.embargo_id}' by"
             f" '{self.rejecting_actor_id}' on case '{self.case_id}'"
-            f" ({len(result.participant_changes)} PEC state change(s))"
+            f" ({len(result.participant_changes)} consent row change(s))"
         )
         self.logger.info("%s: %s", self.name, self.feedback_message)
         return Status.SUCCESS

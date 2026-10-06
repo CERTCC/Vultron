@@ -14,7 +14,7 @@
 """Public value types returned and accepted by :class:`EmbargoLifecycle`.
 
 ``TransitionMode`` selects how strictly an operation drives the EM machine;
-``EmbargoLifecycleResult`` (with its per-participant ``ParticipantPECChange``
+``EmbargoLifecycleResult`` (with its per-participant ``ParticipantConsentChange``
 entries) is what every operation returns.
 """
 
@@ -49,12 +49,17 @@ class TransitionMode(StrEnum):
     OBSERVED = "OBSERVED"
 
 
-class ParticipantPECChange(BaseModel):
-    """Records a single participant's PEC state change during a lifecycle op."""
+class ParticipantConsentChange(BaseModel):
+    """Records one participant's consent-row change during a lifecycle op.
+
+    ``consent_before`` is ``None`` when the participant had no row for the
+    embargo (it had not been asked); ``consent_after`` is the row's new state.
+    """
 
     participant_id: str
-    pec_before: str
-    pec_after: str
+    embargo_id: str
+    consent_before: str | None
+    consent_after: str
 
 
 class EmbargoLifecycleResult(BaseModel):
@@ -69,21 +74,17 @@ class EmbargoLifecycleResult(BaseModel):
         case_changed: True if the case object was mutated and persisted.
         case_embargo_changed: True if ``case.active_embargo`` was modified
             (e.g. an embargo was activated or cleared).
-        pec_exited: True if every participant's PEC was exited to the
-            terminal ``UNBOUND_EXITED`` by the ``EXIT`` trigger (embargo
-            termination, ADR-0118).
-        participant_changes: Per-participant PEC *state* changes that occurred
-            during the operation (e.g. signatories lapsed when the owner
-            activated longer terms they had not accepted, EP-05-001).  A write
-            that only touches ``accepted_embargo_ids`` is not reported.
+        participant_changes: Per-participant consent-row changes that
+            occurred during the operation (e.g. a signatory carried over to a
+            shorter revision, EP-05-001).  A lapse is not a change: it is
+            derived from the rows (CM-18-001), so nothing is written for it.
     """
 
     em_before: EM
     em_after: EM
     case_changed: bool
     case_embargo_changed: bool
-    pec_exited: bool
-    participant_changes: list[ParticipantPECChange] = Field(
+    participant_changes: list[ParticipantConsentChange] = Field(
         default_factory=list
     )
     is_expired: bool = False

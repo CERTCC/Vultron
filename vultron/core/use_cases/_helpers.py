@@ -28,7 +28,6 @@ from vultron.core.predicates.addressing import (
     is_addressed_to,
     same_actor_id,
 )
-from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.states.rm import RM
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
@@ -332,25 +331,6 @@ def resolve_case_participant_id_for_actor(
         )
 
     return canonical_id
-
-
-def exit_case_participant_embargo_consent(
-    dl: CasePersistence, case: VulnerabilityCase
-) -> None:
-    """Move every participant's embargo consent to the terminal UNBOUND_EXITED.
-
-    Called when an embargo is terminated (EM ``EXITED``, MSM-07-006).  Applies
-    ``PEC_Trigger.EXIT`` to every participant of *case* not already
-    ``UNBOUND_EXITED`` (ADR-0118).  Tolerates both string IDs and inline
-    ``CaseParticipant`` objects in ``case.case_participants`` (regression
-    #609).
-
-    The cascade itself is
-    :meth:`~vultron.core.services.embargo_lifecycle.EmbargoLifecycle.exit_participant_consent`,
-    the loop ``terminate_active_embargo`` also runs; this helper is its entry
-    point for the teardown nodes, so the two paths share one loop (CS-22-001).
-    """
-    EmbargoLifecycle(persistence=dl).exit_participant_consent(case)
 
 
 def _log_label(uri: str) -> str:

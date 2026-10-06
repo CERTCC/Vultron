@@ -23,13 +23,20 @@ import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState as ECS,
+)
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
-from .conftest import _force_pec, _make_actor, _make_case, _make_embargo
+from .conftest import (
+    _consents_of,
+    _make_actor,
+    _make_case,
+    _make_embargo,
+    _seed_consent,
+)
 
 
 def _case_with_two_open(
@@ -103,7 +110,7 @@ def test_record_consent_false_leaves_the_rejecting_participant_alone(
     case.proposed_embargoes = [embargo.id_]
     dl.save(case)
     finder_pid = case.actor_participant_index[finder.id_]
-    _force_pec(dl, finder_pid, PEC.INVITED)
+    _seed_consent(dl, finder_pid, embargo.id_, ECS.INVITED)
 
     result = EmbargoLifecycle(persistence=dl).reject_embargo_invite(
         case_id=case.id_,
@@ -113,5 +120,4 @@ def test_record_consent_false_leaves_the_rejecting_participant_alone(
     )
 
     assert result.participant_changes == []
-    finder_p = cast(CaseParticipant, dl.read(finder_pid))
-    assert finder_p.embargo_consent_state == PEC.INVITED.value
+    assert _consents_of(dl, finder_pid) == {embargo.id_: "INVITED"}

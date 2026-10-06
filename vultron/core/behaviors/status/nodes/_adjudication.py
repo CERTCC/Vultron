@@ -413,7 +413,7 @@ def _adjudicate_dimensions(
 
     Returns the names of the refused dimensions and the ``model_copy`` update
     that carries the current value forward for each of them.  ``em``,
-    ``consent``, ``case_engagement``, ``embargo_adherence``, ``cvd_role`` and
+    ``case_engagement``, ``cvd_role`` and
     ``tracking_id`` are not adjudicated here — ``em`` in particular belongs to
     EmbargoTeardownAuthorizationGate (ADR-0046, ISSUE-2256).
 

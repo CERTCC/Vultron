@@ -37,7 +37,6 @@ from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.wire_keys import wire_key
-from vultron.core.states.participant_embargo_consent import PEC
 from vultron.errors import VultronValidationError
 
 logger = logging.getLogger(__name__)
@@ -559,7 +558,8 @@ class VulnerabilityCase(CoreObject):
         1. it has joined the case — seated by the case initialization
            sequence or accepted its stub Invite (``participant.joined``);
         2. when this case has an active embargo (:attr:`embargo_in_force`),
-           its embargo consent is ``SIGNATORY``.
+           its consent row for the active embargo is ``ACCEPTED``
+           (:meth:`CaseParticipant.is_signatory`, CM-18-001).
 
         Every other participant is **inert**.  RM ``CLOSED`` is deliberately
         not part of this check: a closed participant still receives the
@@ -576,7 +576,7 @@ class VulnerabilityCase(CoreObject):
             return False
         if not self.embargo_in_force:
             return True
-        return participant.embargo_consent_state == PEC.SIGNATORY
+        return participant.is_signatory(self.active_embargo_id)
 
     @property
     def embargo_in_force(self) -> bool:

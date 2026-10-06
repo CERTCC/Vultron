@@ -541,8 +541,8 @@ def object_from_storage(
 
     Returns ``None`` when no reconstruction path accepts the row.  That is a
     row which *exists* but cannot be read back as a clean object — e.g. a
-    ``ParticipantStatus`` whose stored ``embargo_adherence`` contradicts its
-    consent state (ARCH-23-005) — so the failure is logged at WARNING with the
+    object whose stored computed-field value contradicts the state it is
+    derived from (ARCH-23-005) — so the failure is logged at WARNING with the
     record id and every path's reason rather than being indistinguishable from
     "not found".
     """

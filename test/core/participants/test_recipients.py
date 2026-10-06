@@ -23,6 +23,7 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
+from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.participants.recipients import (
     case_content_participants,
@@ -31,7 +32,9 @@ from vultron.core.participants.recipients import (
     invitation_recipients,
     is_case_content_recipient,
 )
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.core.states.rm import RM
 
 _CASE_ID = "https://example.org/cases/recipients-001"
@@ -53,7 +56,7 @@ def _seat(
     case: VulnerabilityCase,
     actor_id: str,
     *,
-    consent: PEC = PEC.SIGNATORY,
+    consent: EmbargoConsentState | None = EmbargoConsentState.ACCEPTED,
     joined: bool = True,
     rm_state: RM = RM.ACCEPTED,
     store: bool = True,
@@ -63,7 +66,11 @@ def _seat(
         attributed_to=actor_id,
         context=_CASE_ID,
         joined=joined,
-        embargo_consent_state=consent,
+        embargo_consents=(
+            [EmbargoConsent(embargo_id=_EMBARGO_ID, state=consent)]
+            if consent is not None
+            else []
+        ),
         participant_statuses=[
             ParticipantStatus(
                 context=_CASE_ID,
@@ -85,8 +92,10 @@ def _embargoed_case(dl: SqliteDataLayer) -> VulnerabilityCase:
     case.set_embargo(_EMBARGO_ID)
     _seat(dl, case, _SENDER)
     _seat(dl, case, _SIGNATORY)
-    _seat(dl, case, _INVITED, consent=PEC.INVITED)
-    _seat(dl, case, _UNJOINED, consent=PEC.INVITED, joined=False)
+    _seat(dl, case, _INVITED, consent=EmbargoConsentState.INVITED)
+    _seat(
+        dl, case, _UNJOINED, consent=EmbargoConsentState.INVITED, joined=False
+    )
     _seat(dl, case, _CLOSED, rm_state=RM.CLOSED)
     return case
 
@@ -117,8 +126,8 @@ def test_with_no_embargo_every_joined_open_participant_is_active(
     dl: SqliteDataLayer,
 ) -> None:
     case = VulnerabilityCase(id_=_CASE_ID, attributed_to=_SENDER)
-    _seat(dl, case, _SIGNATORY, consent=PEC.UNBOUND)
-    _seat(dl, case, _INVITED, consent=PEC.DECLINED)
+    _seat(dl, case, _SIGNATORY, consent=None)
+    _seat(dl, case, _INVITED, consent=EmbargoConsentState.DECLINED)
     _seat(dl, case, _UNJOINED, joined=False)
     _seat(dl, case, _CLOSED, rm_state=RM.CLOSED)
     assert case_content_recipients(case, dl) == [_SIGNATORY, _INVITED, _CLOSED]
