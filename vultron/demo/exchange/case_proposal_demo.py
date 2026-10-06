@@ -138,12 +138,7 @@ def demo_case_proposal_round_trip(
             # Nothing after this check reads the case, so a timeout cannot
             # leave a later step on unestablished state: demo_check, not
             # demo_gate.
-            case = wait_for_initialized_case(client, report.id_)
-            logger.info(
-                "VulnerabilityCase %s created for report %s",
-                case.id_,
-                report.id_,
-            )
+            wait_for_initialized_case(client, report.id_)
 
 
 def main(
