@@ -10,15 +10,20 @@ import sys
 import pytest
 
 import vultron.metadata.specs.lint as lint_module
+import vultron.metadata.specs.verification as verification_module
 from test.metadata.specs._helpers import write_yaml
 from test.metadata.specs.conftest import spec_file_data
 from vultron.metadata.specs.lint import lint
-from vultron.metadata.specs.schema import SpecKind
-from vultron.metadata.specs.verification import VerificationCeiling
+from vultron.metadata.specs.schema import RFC2119Priority, SpecKind
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+#: MS-10-003: a MUST-tier fixture carries this so the per-item verification
+#: check stays out of tests about other rules.
+_VERIFIED = "A unit test checks it."
 
 
 def _minimal_spec(spec_id="TST-01-001", priority="MUST", extra=None):
@@ -31,6 +36,9 @@ def _minimal_spec(spec_id="TST-01-001", priority="MUST", extra=None):
         "tags": ["testing"],
         "stories": ["story_2022_001"],
     }
+    if RFC2119Priority(priority).is_must_tier:
+        # MS-10-003: keep the per-item verification check out of the way.
+        spec["verification"] = _VERIFIED
     if extra:
         spec.update(extra)
     return {
@@ -208,7 +216,7 @@ def test_lint_suppress_missing_tags(tmp_path, capsys):
 
 
 # ---------------------------------------------------------------------------
-# MS-10-005 / MS-10-006 / MS-10-007: MUST-tier requirements with no verification:
+# MS-10-005 .. MS-10-008: MUST-tier requirements and verification_debt markers
 # ---------------------------------------------------------------------------
 
 
@@ -227,32 +235,32 @@ def _verification_corpus(items):
 
 
 _MIXED_ITEMS = [
-    ("TST-01-001", "MUST", "protocol", {}),
-    ("TST-01-002", "MUST_NOT", "protocol", {}),
+    ("TST-01-001", "MUST", "protocol", {"verification_debt": "#1"}),
+    ("TST-01-002", "MUST_NOT", "protocol", {"verification_debt": "#1"}),
     ("TST-01-003", "MUST", "protocol", {"verification": "Checked by a test."}),
-    ("TST-01-004", "MUST_NOT", "process", {}),
+    ("TST-01-004", "MUST_NOT", "process", {"verification_debt": "#2"}),
     ("TST-01-005", "SHOULD", "process", {}),
     ("TST-01-006", "SHOULD_NOT", "architecture", {}),
     ("TST-01-007", "MAY", "project", {}),
 ]
 
-_MIXED_CEILINGS = {
-    SpecKind.PROTOCOL: VerificationCeiling(2, ("#1",)),
-    SpecKind.PROCESS: VerificationCeiling(1, ("#2",)),
+_MIXED_OWNERS = {
+    SpecKind.PROTOCOL: frozenset({"#1"}),
+    SpecKind.PROCESS: frozenset({"#2"}),
 }
 
 
 def _summary_lines(out):
-    return [ln for ln in out.splitlines() if "must_without_verification" in ln]
+    return [ln for ln in out.splitlines() if "verification_debt kind=" in ln]
 
 
 @pytest.mark.spec("MS-10-005")
-def test_lint_one_summary_line_per_kind_with_correct_count_and_ceiling(
+def test_lint_one_summary_line_per_kind_computed_from_markers(
     tmp_path, capsys
 ):
-    """MUST and MUST_NOT both count; one line per kind, count beside ceiling."""
+    """MUST and MUST_NOT both count; one line per kind, tallied by owner."""
     write_yaml(tmp_path, _verification_corpus(_MIXED_ITEMS))
-    result = lint(tmp_path, ceilings=_MIXED_CEILINGS)
+    result = lint(tmp_path, debt_owners=_MIXED_OWNERS)
     captured = capsys.readouterr()
     assert result == 0
     lines = _summary_lines(captured.out)
@@ -260,18 +268,18 @@ def test_lint_one_summary_line_per_kind_with_correct_count_and_ceiling(
     protocol = next(ln for ln in lines if "kind=protocol" in ln)
     process = next(ln for ln in lines if "kind=process" in ln)
     assert "2 MUST-tier requirement(s)" in protocol
-    assert "(ceiling 2; owner #1)" in protocol
+    assert "(#1: 2)" in protocol
     assert "1 MUST-tier requirement(s)" in process
-    assert "(ceiling 1; owner #2)" in process
+    assert "(#2: 1)" in process
 
 
 @pytest.mark.spec("MS-10-005")
 def test_lint_default_output_has_no_per_item_unverified_lines(
     tmp_path, capsys
 ):
-    """No `[WARN] <id>: priority is MUST but has no verification` lines."""
+    """No per-ID lines unless asked for."""
     write_yaml(tmp_path, _verification_corpus(_MIXED_ITEMS))
-    lint(tmp_path, ceilings=_MIXED_CEILINGS)
+    lint(tmp_path, debt_owners=_MIXED_OWNERS)
     out = capsys.readouterr().out
     assert "TST-01-001" not in out
     assert "TST-01-002" not in out
@@ -280,83 +288,43 @@ def test_lint_default_output_has_no_per_item_unverified_lines(
 
 @pytest.mark.spec("MS-10-005")
 def test_lint_list_unverified_prints_ids_under_their_kind(tmp_path, capsys):
-    """The opt-in flag lists offending IDs; verified and SHOULD-tier ones stay out."""
+    """The opt-in flag lists marked IDs; verified and SHOULD-tier ones stay out."""
     write_yaml(tmp_path, _verification_corpus(_MIXED_ITEMS))
-    lint(tmp_path, ceilings=_MIXED_CEILINGS, list_unverified=True)
+    lint(tmp_path, debt_owners=_MIXED_OWNERS, list_unverified=True)
     out = capsys.readouterr().out
-    assert "TST-01-001" in out
-    assert "TST-01-002" in out
     assert "TST-01-004" in out
     assert "TST-01-003" not in out  # verified
     assert "TST-01-005" not in out  # SHOULD tier
     assert "TST-01-006" not in out  # SHOULD tier
     assert "TST-01-007" not in out  # MAY
-    # IDs sit under their kind's summary line, not before it.
+    # IDs sit under their kind's summary line, each with its marker.
     lines = out.splitlines()
     protocol_at = next(
         i for i, ln in enumerate(lines) if "kind=protocol" in ln
     )
-    assert lines[protocol_at + 1].strip() == "TST-01-001"
-    assert lines[protocol_at + 2].strip() == "TST-01-002"
+    assert lines[protocol_at + 1].split() == ["TST-01-001", "#1"]
+    assert lines[protocol_at + 2].split() == ["TST-01-002", "#1"]
 
 
 @pytest.mark.spec("MS-10-005")
-def test_lint_kind_with_entry_prints_its_line_even_at_zero_items(
+def test_lint_kind_with_owner_entry_prints_its_line_even_at_zero_markers(
     tmp_path, capsys
 ):
-    """A kind with a ceiling entry but no unverified items still gets its line;
-    a kind with neither prints nothing."""
+    """A kind with an owner entry but no markers still gets its line, so a
+    finished backlog is visible; a kind with neither prints nothing."""
     write_yaml(tmp_path, _verification_corpus(_MIXED_ITEMS))
-    ceilings = dict(_MIXED_CEILINGS)
-    ceilings[SpecKind.ARCHITECTURE] = VerificationCeiling(0)
-    lint(tmp_path, ceilings=ceilings)
+    owners = {**_MIXED_OWNERS, SpecKind.ARCHITECTURE: frozenset({"#3"})}
+    lint(tmp_path, debt_owners=owners)
     lines = _summary_lines(capsys.readouterr().out)
-    assert any("kind=architecture: 0 MUST-tier" in ln for ln in lines)
+    assert any(
+        "kind=architecture: 0 MUST-tier" in ln and "(#3: 0)" in ln
+        for ln in lines
+    )
     assert not any("kind=project" in ln for ln in lines)
 
 
-@pytest.mark.spec("MS-10-006")
-def test_lint_summary_counts_suppressed_items(tmp_path, capsys):
-    """lint_suppress: [must_without_verification] does not lower the count."""
-    items = [
-        ("TST-01-001", "MUST", "protocol", {}),
-        (
-            "TST-01-002",
-            "MUST_NOT",
-            "protocol",
-            {"lint_suppress": ["must_without_verification"]},
-        ),
-    ]
-    write_yaml(tmp_path, _verification_corpus(items))
-    ceilings = {SpecKind.PROTOCOL: VerificationCeiling(2, ("#1",))}
-    lint(tmp_path, ceilings=ceilings, list_unverified=True)
-    out = capsys.readouterr().out
-    assert "2 MUST-tier requirement(s)" in out
-    assert "TST-01-002  (lint_suppress, still counted)" in out
-
-
-@pytest.mark.spec("MS-10-005")
-def test_lint_summary_says_when_count_differs_from_ceiling(tmp_path, capsys):
-    """A new unverified MUST shows up as a count above the pinned ceiling."""
-    write_yaml(tmp_path, _verification_corpus(_MIXED_ITEMS))
-    ceilings = {
-        SpecKind.PROTOCOL: VerificationCeiling(1, ("#1",)),
-        SpecKind.PROCESS: VerificationCeiling(1, ("#2",)),
-    }
-    result = lint(tmp_path, ceilings=ceilings)
-    out = capsys.readouterr().out
-    assert result == 0  # the two-sided pin is the ratchet test's job
-    protocol = next(ln for ln in _summary_lines(out) if "kind=protocol" in ln)
-    assert protocol.startswith("[WARN]")
-    assert "2 MUST-tier requirement(s)" in protocol
-    assert "(ceiling 1;" in protocol
-    assert "differs from the ceiling" in protocol
-    process = next(ln for ln in _summary_lines(out) if "kind=process" in ln)
-    assert process.startswith("[INFO]")
-
-
 @pytest.mark.parametrize("priority", ["SHOULD", "SHOULD_NOT", "MAY"])
-def test_lint_should_tier_without_verification_not_counted(
+def test_lint_should_tier_without_verification_is_clean(
     tmp_path, capsys, priority
 ):
     """Only the MUST tier owes a verification: field (MS-10-003)."""
@@ -364,39 +332,54 @@ def test_lint_should_tier_without_verification_not_counted(
         tmp_path,
         _verification_corpus([("TST-01-001", priority, "protocol", {})]),
     )
-    result = lint(tmp_path, ceilings={})
+    result = lint(tmp_path, debt_owners={})
     captured = capsys.readouterr()
     assert result == 0
-    assert "must_without_verification" not in captured.out
-    assert "must_without_verification" not in captured.err
+    assert "[ERROR]" not in captured.err
+    assert _summary_lines(captured.out) == []
+
+
+@pytest.mark.spec("MS-10-006")
+@pytest.mark.parametrize("priority", ["MUST", "MUST_NOT"])
+def test_lint_unmarked_unverified_must_tier_is_hard_error(
+    tmp_path, capsys, priority
+):
+    """With an owner for the kind available, an item still fails until it
+    carries either verification: or its own marker."""
+    write_yaml(
+        tmp_path,
+        _verification_corpus([("TST-01-001", priority, "protocol", {})]),
+    )
+    result = lint(tmp_path, debt_owners=_MIXED_OWNERS)
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "TST-01-001" in captured.err
+    assert "MS-10-003" in captured.err
 
 
 @pytest.mark.spec("MS-10-007")
 @pytest.mark.parametrize("priority", ["MUST", "MUST_NOT"])
-@pytest.mark.parametrize("suppressed", [False, True])
-def test_lint_unverified_must_tier_is_hard_error_without_ceiling(
-    tmp_path, capsys, priority, suppressed
+def test_lint_marker_on_a_kind_with_no_owner_entry_is_hard_error(
+    tmp_path, capsys, priority
 ):
-    """A kind at zero has no ceiling entry; an unverified MUST or MUST_NOT is
-    then a hard error, and lint_suppress cannot silence it."""
-    extra = (
-        {"lint_suppress": ["must_without_verification"]} if suppressed else {}
-    )
+    """A kind whose backlog is finished has no owner entry; a marker on it is
+    then a hard error, so the kind cannot regrow debt."""
     write_yaml(
         tmp_path,
-        _verification_corpus([("TST-01-001", priority, "protocol", extra)]),
+        _verification_corpus(
+            [("TST-01-001", priority, "protocol", {"verification_debt": "#1"})]
+        ),
     )
-    result = lint(tmp_path, ceilings={})
+    result = lint(tmp_path, debt_owners={})
     captured = capsys.readouterr()
     assert result == 1
     assert "TST-01-001" in captured.err
     assert "MS-10-007" in captured.err
-    assert "must_without_verification" not in captured.out
 
 
 @pytest.mark.spec("MS-10-007")
-def test_lint_verified_must_tier_passes_without_ceiling(tmp_path, capsys):
-    """Once a kind is at zero, verified MUST-tier items are simply clean."""
+def test_lint_verified_must_tier_passes_without_owner_entry(tmp_path, capsys):
+    """Once a kind is finished, verified MUST-tier items are simply clean."""
     write_yaml(
         tmp_path,
         _verification_corpus(
@@ -416,22 +399,63 @@ def test_lint_verified_must_tier_passes_without_ceiling(tmp_path, capsys):
             ]
         ),
     )
-    result = lint(tmp_path, ceilings={})
+    result = lint(tmp_path, debt_owners={})
     captured = capsys.readouterr()
     assert result == 0
     assert "[ERROR]" not in captured.err
-    assert "must_without_verification" not in captured.out
+    assert _summary_lines(captured.out) == []
+
+
+def test_lint_retired_must_without_verification_suppression_fails_to_load(
+    tmp_path, capsys
+):
+    """The suppression code is retired (#4199): using it is a schema error."""
+    write_yaml(
+        tmp_path,
+        _verification_corpus(
+            [
+                (
+                    "TST-01-001",
+                    "MUST",
+                    "protocol",
+                    {
+                        "verification_debt": "#1",
+                        "lint_suppress": ["must_without_verification"],
+                    },
+                )
+            ]
+        ),
+    )
+    assert lint(tmp_path, debt_owners=_MIXED_OWNERS) == 1
+    err = capsys.readouterr().err
+    assert "[FATAL] Registry load failed" in err
+    assert "lint_suppress" in err
+
+
+@pytest.mark.spec("MS-10-006")
+def test_lint_check_debt_owners_fails_on_a_closed_owner(
+    tmp_path, capsys, monkeypatch
+):
+    """The opt-in owner check reaches lint() and fails on a closed issue."""
+    write_yaml(tmp_path, _verification_corpus(_MIXED_ITEMS))
+    states = {"#1": "OPEN", "#2": "CLOSED"}
+    monkeypatch.setattr(
+        verification_module, "gh_issue_state", lambda ref: states[ref]
+    )
+    assert lint(tmp_path, debt_owners=_MIXED_OWNERS) == 0
+    capsys.readouterr()
+    result = lint(tmp_path, debt_owners=_MIXED_OWNERS, check_debt_owners=True)
+    err = capsys.readouterr().err
+    assert result == 1
+    assert "#2 is CLOSED" in err
+    assert "#1" not in err
 
 
 @pytest.mark.spec("MS-10-005")
 def test_main_list_unverified_flag(tmp_path, capsys, monkeypatch):
     """`spec-lint <dir> --list-unverified` reaches lint() as the opt-in."""
     write_yaml(tmp_path, _verification_corpus(_MIXED_ITEMS))
-    monkeypatch.setattr(
-        lint_module,
-        "VERIFICATION_CEILINGS",
-        _MIXED_CEILINGS,
-    )
+    monkeypatch.setattr(lint_module, "VERIFICATION_DEBT_OWNERS", _MIXED_OWNERS)
     monkeypatch.setattr(
         sys, "argv", ["spec-lint", str(tmp_path), "--list-unverified"]
     )
@@ -448,7 +472,7 @@ def test_main_default_does_not_list_ids(tmp_path, capsys, monkeypatch):
     """Without the flag, `spec-lint <dir>` prints the summary only (SR-06-002
     runs it this way from the pre-commit hook)."""
     write_yaml(tmp_path, _verification_corpus(_MIXED_ITEMS))
-    monkeypatch.setattr(lint_module, "VERIFICATION_CEILINGS", _MIXED_CEILINGS)
+    monkeypatch.setattr(lint_module, "VERIFICATION_DEBT_OWNERS", _MIXED_OWNERS)
     monkeypatch.setattr(sys, "argv", ["spec-lint", str(tmp_path)])
     with pytest.raises(SystemExit) as exc:
         lint_module.main()
@@ -456,6 +480,54 @@ def test_main_default_does_not_list_ids(tmp_path, capsys, monkeypatch):
     out = capsys.readouterr().out
     assert len(_summary_lines(out)) == 2
     assert "TST-01-001" not in out
+
+
+@pytest.mark.spec("MS-10-006")
+def test_lint_check_closing_pr_fails_a_pr_closing_an_owner_in_use(
+    tmp_path, capsys, monkeypatch
+):
+    write_yaml(tmp_path, _verification_corpus(_MIXED_ITEMS))
+    monkeypatch.setattr(
+        verification_module, "gh_pr_closing_issues", lambda pr: {"#2"}
+    )
+    result = lint(tmp_path, debt_owners=_MIXED_OWNERS, closing_pr=7)
+    assert result == 1
+    assert "this PR closes #2" in capsys.readouterr().err
+
+
+def test_main_check_closing_pr_flag_reaches_lint(monkeypatch, tmp_path):
+    seen: dict[str, object] = {}
+
+    def fake_lint(spec_dir, **kwargs):
+        seen.update(kwargs)
+        return 0
+
+    monkeypatch.setattr(lint_module, "lint", fake_lint)
+    monkeypatch.setattr(
+        sys, "argv", ["spec-lint", str(tmp_path), "--check-closing-pr", "7"]
+    )
+    with pytest.raises(SystemExit):
+        lint_module.main()
+    assert seen["closing_pr"] == 7
+
+
+def test_main_check_debt_owners_flag_reaches_lint(monkeypatch, tmp_path):
+    """`--check-debt-owners` is what CI passes; without it lint stays offline."""
+    seen: dict[str, object] = {}
+
+    def fake_lint(spec_dir, **kwargs):
+        seen.update(kwargs)
+        return 0
+
+    monkeypatch.setattr(lint_module, "lint", fake_lint)
+    for argv, expected in (
+        (["spec-lint", str(tmp_path)], False),
+        (["spec-lint", str(tmp_path), "--check-debt-owners"], True),
+    ):
+        monkeypatch.setattr(sys, "argv", argv)
+        with pytest.raises(SystemExit):
+            lint_module.main()
+        assert seen["check_debt_owners"] is expected
 
 
 # ---------------------------------------------------------------------------
@@ -617,6 +689,7 @@ def _scenario_start_group(with_behavioral_spec: bool):
             "kind": "project",
             "statement": "SCN-01-002 MUST execute the scenario workflow",
             "rationale": "ECA required",
+            "verification": _VERIFIED,
             "tags": ["demo"],
             "preconditions": [{"description": "Actors running"}],
             "steps": [
@@ -631,6 +704,7 @@ def _scenario_start_group(with_behavioral_spec: bool):
             "kind": "project",
             "statement": "SCN-01-002 MUST reach final state VFDPxa",
             "rationale": "Terminal state required",
+            "verification": _VERIFIED,
             "tags": ["demo"],
         }
 
@@ -651,6 +725,7 @@ def _scenario_start_group(with_behavioral_spec: bool):
                         "kind": "project",
                         "statement": "SCN-01-001 MUST reach VFDPxa",
                         "rationale": "Terminal state",
+                        "verification": _VERIFIED,
                         "tags": ["demo"],
                     },
                     workflow_item,
@@ -1264,6 +1339,7 @@ def _minimal_behavioral_spec_data(
         "kind": "protocol",
         "statement": "TST-01-001 MUST execute the workflow",
         "rationale": "ECA required",
+        "verification": _VERIFIED,
         "tags": ["testing"],
         "stories": ["story_2022_001"],
         "preconditions": [{"description": precondition_desc}],
@@ -1355,6 +1431,7 @@ def test_lint_phantom_path_behavioral_step_suppress(tmp_path):
         "kind": "protocol",
         "statement": "TST-01-001 MUST execute",
         "rationale": "Required",
+        "verification": _VERIFIED,
         "tags": ["testing"],
         "stories": ["story_2022_001"],
         "preconditions": [{"description": "System ready"}],
@@ -1664,6 +1741,8 @@ def _minimal_spec_no_stories(priority="MUST", kind="protocol"):
         "rationale": "Because testing",
         "tags": ["testing"],
     }
+    if RFC2119Priority(priority).is_must_tier:
+        spec["verification"] = _VERIFIED
     return {
         "id": "TST",
         "title": "Test File",

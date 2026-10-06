@@ -762,6 +762,7 @@ groups:
   - id: EP-06-001
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       An idempotent retry or re-processing of a participant add-or-update MUST NOT
       overwrite a non-null PEC state with the default `UNBOUND`. Once a participant
@@ -931,6 +932,7 @@ groups:
   - id: EP-07-004
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       A receiving actor MUST NOT reject an `Invite(EmbargoEvent)` as malformed
       solely on the basis of a sub-minimum deadline.

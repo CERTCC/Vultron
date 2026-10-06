@@ -129,14 +129,15 @@ that bite most often:
 - **`priority:`** — underscores, not spaces: `MUST_NOT`, `SHOULD_NOT`. A space
   is a FATAL registry load error. A `MUST_NOT` is the MUST tier (MS-02-003), so
   it needs a `verification:` clause exactly as a `MUST` does (MS-10-003).
-- **`lint_suppress: [must_without_verification]`** — lowers nothing. Each kind's
-  count of unverified `MUST`/`MUST_NOT` items, suppressed ones included, is pinned
-  to the ceiling table in `vultron/metadata/specs/verification.py` (MS-10-006),
-  so a new one fails `test_must_verification_ratchet.py` until it carries a
-  `verification:` clause, and a backfill lowers the ceiling in the same change.
-  A kind with no table entry is at zero: an unverified MUST-tier item there is a
-  hard error (MS-10-007). `uv run spec-lint --list-unverified` names the IDs
-  behind each count.
+- **`verification_debt: '#N'`** — the only way a `MUST`/`MUST_NOT` item may
+  lack a `verification:` clause (MS-10-006). It names the open issue that owns
+  verifying it, which must own the item's kind in `VERIFICATION_DEBT_OWNERS`
+  (`vultron/metadata/specs/verification.py`). Quote it: `#12` unquoted is a
+  YAML comment. Delete the marker when you add `verification:` (both is a hard
+  error); a relabel replaces it with `verification:` (MS-10-008). Never add one
+  to a new item — write the clause. The retired
+  `lint_suppress: [must_without_verification]` no longer loads.
+  `uv run spec-lint --list-unverified` names the marked IDs per kind.
 - **`rel_type:`** — one of the enumerated values; `related_to` is not among them.
 - **`references:`** — not a schema field, silently dropped. Use `adr:`.
 - **Item format is field presence, not a class you pick** (ADR-0101).

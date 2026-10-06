@@ -16,6 +16,7 @@ groups:
   - id: SDO-01-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: Each status dimension (EM, PXA, RM, VFD, PEC) MUST be implemented as a lightweight Pydantic BaseModel subclass
       (not a CoreObject subclass) that holds exactly one state enum field and owns the transition validation and guard methods
       for that machine.
@@ -26,6 +27,7 @@ groups:
   - id: SDO-01-002
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: Dimension objects MUST NOT be registered in CORE_VOCABULARY or given an id_ field.
     rationale: They are always embedded in CaseStatus or ParticipantStatus, which already carries identity. Independent registration
       would create unnecessary schema complexity. See ADR-0036.
@@ -34,6 +36,7 @@ groups:
   - id: SDO-01-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: 'The five dimension objects MUST be named: EmDimension (EM state), PxaDimension (CS_pxa state), RmDimension
       (RM state), VfdDimension (CS_vfd state), and PecDimension (PEC state).'
     rationale: The "Dimension" suffix avoids collision with existing VfdState and PxaState NamedTuples in vultron/core/states/cs.py.
@@ -101,6 +104,7 @@ groups:
   - id: SDO-02-003
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: transition() MUST NOT mutate self. The caller MUST use the returned dimension object as the updated state.
     rationale: Mutation of embedded Pydantic models is fragile and inconsistent with the append-only history model. See ADR-0036.
     adr:
@@ -131,6 +135,7 @@ groups:
   - id: SDO-02-005
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       The SDO-02-004 transition-rejection invariant MUST be enforced via Pydantic
       field or model validators so that validation occurs at model construction time,
@@ -171,6 +176,7 @@ groups:
   - id: SDO-03-003
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: The old flat enum fields (em_state, pxa_state, rm_state, vfd_state, em_consent_state) MUST NOT be retained
       as aliases or shim properties after the migration is complete.
     rationale: Keeping both representations creates an extended half-migrated state and perpetuates the flat-enum problem.
@@ -180,6 +186,7 @@ groups:
   - id: SDO-03-004
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: 'CaseStatus and ParticipantStatus MUST remain round-trippable through the DataLayer after the dimension-object
       migration: a persisted record MUST rehydrate correctly to the new dimension-object shape.'
     rationale: DataLayer round-trip compatibility is a binding design constraint per LST-05-003 and ADR-0033. A dimension
@@ -229,6 +236,7 @@ groups:
   - id: SDO-04-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: All call sites in vultron/ and test/ (excluding vultron/bt/) that access the old flat enum fields (em_state,
       pxa_state, rm_state, vfd_state, em_consent_state) MUST be migrated to use the new dimension object accessors (e.g. .em.state,
       .rm.state) in the same implementation.
@@ -239,6 +247,7 @@ groups:
   - id: SDO-04-003
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: The vultron/bt/ legacy simulation layer MUST NOT be migrated to dimension objects as part of this implementation.
     rationale: vultron/bt/ uses the custom BT engine and is not part of the active prototype. It accesses RM/EM/PEC state
       enums directly and is explicitly excluded from prototype handler work per codebase conventions. See notes/codebase-structure.md.

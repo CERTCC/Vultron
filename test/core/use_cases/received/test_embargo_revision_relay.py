@@ -23,11 +23,11 @@ The manager-side relay (EP-09-001, EP-09-002, EP-09-004) landed with #3913;
 the participant side and the replay of every relay entry (EP-09-003,
 EP-09-007) with #3915 (``test_embargo_relay_replay.py``, beside this file,
 pins the replay across per-actor stores); the sole-recipient invitee
-(EP-09-010) with #3963.  The remaining strict ``xfail`` markers pin what
-#3961 (RSVP deadline) will deliver.  Each fails today for the reason its
-docstring names; when the feature lands the ``xfail`` auto-promotes.
+(EP-09-010) with #3963; the manager-authored RSVP deadline (CM-28-012,
+CM-28-013) with #3961.
 """
 
+from datetime import timedelta
 from typing import cast
 
 import pytest
@@ -56,8 +56,6 @@ from vultron.wire.as2.factories import em_propose_embargo_activity
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 from .conftest import make_embargo_case_with_actor
-
-_TRACKING_3918 = "Concern #3918, ADR-0113."
 
 MANAGER = "https://example.org/users/coord"
 PROPOSER = "https://example.org/users/vendor"
@@ -322,14 +320,6 @@ def test_case_manager_moves_first_proposal_to_proposed(make_payload):
     assert case.current_status.em.state == EM.PROPOSED
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "CM-28-012: the CASE_MANAGER relays the Invites without stamping "
-        "end_time, so none carries an RSVP deadline. Tracked by #3961. "
-        + _TRACKING_3918
-    ),
-)
 @pytest.mark.spec("CM-28-012")
 def test_relayed_invites_carry_the_managers_rsvp_deadline(make_payload):
     """Each relayed Invite has end_time = its own published + the window."""
@@ -352,17 +342,10 @@ def test_relayed_invites_carry_the_managers_rsvp_deadline(make_payload):
     for invite in relayed:
         assert invite.published is not None
         assert invite.end_time is not None
-        assert invite.end_time > invite.published
+        # The default window; the revision ends far beyond it (EP-07-006).
+        assert invite.end_time - invite.published == timedelta(days=7)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "CM-28-013: the RSVP deadline is written at receipt in every store, "
-        "not at the CASE_MANAGER's commit of the relayed Invite. Tracked by "
-        "#3961. " + _TRACKING_3918
-    ),
-)
 @pytest.mark.spec("CM-28-013")
 def test_manager_stores_invitee_deadline_at_its_commit(make_payload):
     """The invitee's deadline appears in the manager's store after the relay."""
@@ -380,16 +363,13 @@ def test_manager_stores_invitee_deadline_at_its_commit(make_payload):
 
     _deliver(dl, proposal, make_payload, receiving_actor_id=MANAGER)
 
-    assert _deadline_of(dl, case_id, OTHER_A) is not None
+    relayed = [i for i in _relayed_invites(dl) if i.to == [OTHER_A]]
+    assert len(relayed) == 1
+    assert relayed[0].end_time is not None
+    # The record takes exactly the deadline the Invite carried (CM-28-013).
+    assert _deadline_of(dl, case_id, OTHER_A) == relayed[0].end_time
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "CM-28-013: a participant derives and stores an RSVP deadline on "
-        "receipt of a relayed Invite. Tracked by #3961. " + _TRACKING_3918
-    ),
-)
 @pytest.mark.spec("CM-28-013")
 @pytest.mark.spec("EP-09-003")
 def test_participant_stores_no_deadline_on_receipt(make_payload):

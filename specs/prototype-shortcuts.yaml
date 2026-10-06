@@ -86,6 +86,7 @@ groups:
   - id: PROTO-08-001
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: >-
       Add backward-compatibility shims when refactoring, renaming, moving, or removing code.
       Shims include re-export stubs, import aliases, wrapper functions, and deprecation stubs
@@ -96,12 +97,14 @@ groups:
   - id: PROTO-08-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       Complete every code change fully — all call sites for a renamed, moved, or removed symbol
       MUST be updated in the same commit as the symbol change.
   - id: PROTO-08-003
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: >-
       Preserve an old API, import path, field name, or function signature solely for backward
       compatibility.

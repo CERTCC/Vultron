@@ -50,6 +50,7 @@ groups:
   - id: OID-01-004
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: Helper functions for constructing full-URI IDs from UUIDs MUST be provided in a shared utility module (e.g.,
       `vultron.as_vocab.utils.make_id`)
   - id: OID-01-005
@@ -95,6 +96,7 @@ groups:
   - id: OID-02-004
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: DataLayer lookups MUST accept full-URI IDs; bare UUIDs MUST NOT be accepted as valid lookup keys
 - id: OID-03
   title: Blackboard Key Handling
@@ -102,6 +104,7 @@ groups:
   - id: OID-03-001
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: Behavior Tree blackboard keys derived from object IDs MUST NOT use the raw full URI as the key
     relationships:
     - rel_type: refines
@@ -112,5 +115,6 @@ groups:
   - id: OID-04-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: Any migration of existing bare-UUID records MUST be accompanied by a migration script or documented manual
       steps

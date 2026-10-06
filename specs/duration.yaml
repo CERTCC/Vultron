@@ -61,6 +61,7 @@ groups:
   - id: DUR-02-002
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: 'The following units MUST NOT appear in Vultron duration strings because they introduce calendar ambiguity: years (`Y`), months (`M`, date-part), and weeks (`W`).'
     rationale: >-
       A year is 365 or 366 days depending on leap year; a month is 28, 29, 30, or

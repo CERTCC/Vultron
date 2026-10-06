@@ -138,11 +138,13 @@ def _admitting_bundle(ticks: list[str]) -> CaseProposalCallOutBundle:
     return _spy_bundle(ticks, Status.SUCCESS)
 
 
-def _proposal() -> as_CaseProposal:
+def _proposal(
+    proposal_uri: str = _PROPOSAL_URI, proposer_uri: str = _VENDOR_URI
+) -> as_CaseProposal:
     """A proposal carrying its report inline, as CP-01-004 requires."""
     return as_CaseProposal(
-        id_=_PROPOSAL_URI,
-        attributed_to=_VENDOR_URI,
+        id_=proposal_uri,
+        attributed_to=proposer_uri,
         object_=as_VulnerabilityReport(
             id_=_REPORT_URI, attributed_to=_REPORTER_URI
         ),
@@ -157,16 +159,21 @@ def _run_tree(
     report_id: str | None = _REPORT_URI,
     with_proposal_dict: bool = True,
     with_trigger_port: bool = True,
+    proposal_uri: str = _PROPOSAL_URI,
+    proposer_uri: str = _VENDOR_URI,
 ) -> Status:
     """Build and run the received-side tree the way the use case does.
+
+    ``proposal_uri`` and ``proposer_uri`` let a test send a second proposal, from
+    the same or another proposer, for the report an earlier one named.
 
     ``with_proposal_dict`` and ``with_trigger_port`` model the two ways the
     ``Reject`` emit can fail: a replay path that carries no wire proposal, and a
     caller that injected no ``TriggerActivityPort``.
     """
-    proposal = _proposal()
+    proposal = _proposal(proposal_uri, proposer_uri)
     activity = as_Create(
-        actor=VultronOrganization(id_=_VENDOR_URI),
+        actor=VultronOrganization(id_=proposer_uri),
         object_=proposal,
         to=[_CASE_ACTOR_URI],
     )
@@ -175,8 +182,8 @@ def _run_tree(
     )
     tree = create_case_proposal_received_tree(
         report_id=report_id,
-        proposal_id=_PROPOSAL_URI,
-        proposer_uri=_VENDOR_URI,
+        proposal_id=proposal_uri,
+        proposer_uri=proposer_uri,
         proposal_dict=(
             proposal.model_dump(by_alias=True, serialize_as_any=True)
             if with_proposal_dict
@@ -893,3 +900,53 @@ class TestTheGateIsKeyedOnTheProposalNotTheReport:
         finally:
             _dl.clear_all()
             _dl.close()
+
+
+# ---------------------------------------------------------------------------
+# A new proposal id for an accepted report is a new request (CP-05-008)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "CP-05-008: LoadExistingCaseNode resolves the case by the "
+        "sender-chosen report id alone, so a second proposer naming the report "
+        "joins the first proposer's case instead of getting its own (#3977). "
+        "The build task that keys the reuse on the proposer removes this xfail."
+    ),
+)
+@pytest.mark.spec("CP-05-008")
+def test_second_proposer_for_an_accepted_report_gets_its_own_case(dl):
+    """Reuse is keyed on (report, proposer), never on the report alone.
+
+    The first proposer's case stays its own: the second proposer is admitted
+    through the normal gate, gets a separate case it owns, and is not added to
+    the first proposer's roster.
+    """
+    second_proposal_uri = "https://other.example.org/proposals/p-002"
+    second_proposer_uri = "https://other.example.org/actors/other-vendor"
+
+    _run_tree(dl)  # the first proposer's proposal is accepted
+    first_case = _cases(dl)[0]
+
+    status = _run_tree(
+        dl,
+        proposal_uri=second_proposal_uri,
+        proposer_uri=second_proposer_uri,
+    )
+
+    assert status == Status.SUCCESS
+    cases = _cases(dl)
+    assert len(cases) == 2, "each proposer gets a case of its own"
+    owners = {str(c.attributed_to) for c in cases}
+    assert owners == {_VENDOR_URI, second_proposer_uri}
+    on_first_roster = [
+        p
+        for p in dl.list_objects("CaseParticipant")
+        if second_proposer_uri in str(getattr(p, "actor_id", ""))
+        and str(getattr(p, "context", "")) == str(first_case.id_)
+    ]
+    assert on_first_roster == [], (
+        "the second proposer must not join the first proposer's case"
+    )

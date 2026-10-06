@@ -225,8 +225,40 @@ through nodes: the received Accept runs `accept_embargo_invite(OBSERVED)`
 (`RecordParticipantAcceptanceNode`), the received Reject records consent through
 `record_embargo_rejection` (`RecordParticipantRejectionNode`) and decides the
 proposal through `RemoveFromProposedEmbargoesNode`, and the teardown replay runs
-`terminate_active_embargo(OBSERVED)`. The received Invite tree
-(`invite_to_embargo_on_case_tree`) has two role-gated arms (#3913, EP-09-001):
+`terminate_active_embargo(OBSERVED)`.
+
+**Late-Accept routing (EMB-17)**: when an inbound `Accept(Invite(EmbargoEvent))`
+arrives after the RSVP deadline, `AcceptInviteToEmbargoOnCaseReceivedUseCase`
+first commits a CASE_MANAGER-authored expiry entry (commit→effect,
+`create_invite_expiry_tree`), then routes to one of three branches.
+Each branch commits a synthesised entry so replicas learn the outcome
+(RSH-08-004); all three factories in
+`vultron/core/behaviors/embargo/expiry_tree.py` are gated on CASE_MANAGER
+(BT-17-001):
+
+- **EMB-17-001** (honour — active, matching embargo): `create_honour_late_accept_tree`
+  commits an `honour_late_accept_invite_to_embargo_on_case` entry
+  (`HONOUR_LATE_ACCEPT_EVENT_TYPE`), then `HonourLateAcceptNode` calls
+  `honour_late_accept()` which applies `EXPIRED → SIGNATORY` directly, or
+  `DECLINED → INVITED → SIGNATORY` via `honour_late_accept()` in
+  `consent.py`.
+  Replicas learn the outcome through `ApplyHonourLateAcceptFromLedgerNode`
+  in `create_announce_log_entry_tree`.
+- **EMB-17-003** (stale embargo — re-invite): no synthesised expiry entry;
+  `EmbargoLifecycle.record_embargo_invite()` records the fresh Invite on the
+  manager; the relay path handles replica propagation.
+- **EMB-17-004** (EM `EXITED`/`NONE` — no-op): `create_noop_ledger_entry_tree`
+  commits an `invite_to_embargo_on_case_expired_noop` entry; no PEC transition is
+  applied (the terminal `UNBOUND_EXITED` stays as it is, or `EXPIRED` remains
+  EXPIRED).
+
+A non-manager processing a late Accept receives `REFUSED` from the tree gate
+and applies no consent change (HP-01-005, BT-17-001).
+See `notes/participant-embargo-consent.md` §"Synthesised Ledger Entries" for
+the full entry table and replay node inventory.
+
+The received Invite tree (`invite_to_embargo_on_case_tree`) has two role-gated
+arms (#3913, EP-09-001):
 in the CASE_MANAGER's store `ProposeEmbargoLifecycleNode(proposer_id=…)` runs
 `propose_embargo(STRICT)` — `NONE → PROPOSED`, `ACTIVE → REVISE`, or no move for
 a counter-proposal — recording the *proposer's* consent, after a read-only
@@ -484,7 +516,8 @@ do about it? The answer, in order:
    replayed (CM-28-014). Replay nodes reconstruct the proposal, each relayed
    Invite, each answer and the owner's decision via `EmbargoLifecycle(OBSERVED)`
    (EP-09-007, RSH-08-004, built in #3915), which is what made the
-   participant-side Invite tree gateable; the expiry replay is #3961's. The
+   participant-side Invite tree gateable; the expiry replay
+   (`ApplyInviteExpiryFromLedgerNode`, ADR-0118) applies the expiry entry. The
    slot table is in `notes/case-communication-model.md` § "What the
    participant and its replica do".
 

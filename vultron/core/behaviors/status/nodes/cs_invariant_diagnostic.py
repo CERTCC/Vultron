@@ -28,17 +28,15 @@ Per CSB-18-002, CSB-18-003, CSB-18-004. Resolves CONCERN-3008.
 """
 
 import logging
-from typing import cast
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.helpers import _EmitSingleActivityBase
 from vultron.core.behaviors.status.nodes.threat_termination import (
     resolve_pxa_threat_state,
     teardown_left_to_case_manager,
 )
 from vultron.core.models.protocols import PersistableModel
-from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.states.composite_state_invariants import (
     violation_pxa_em_entailment,
 )
@@ -46,7 +44,7 @@ from vultron.core.states.composite_state_invariants import (
 logger = logging.getLogger(__name__)
 
 
-class PxaEmInvariantDiagnosticNode(DataLayerActionWithPorts):
+class PxaEmInvariantDiagnosticNode(_EmitSingleActivityBase):
     """Post-cascade PXA↔EM cross-machine invariant check (CSB-18-002..004).
 
     Reads fresh EM state from the DataLayer after
@@ -54,6 +52,16 @@ class PxaEmInvariantDiagnosticNode(DataLayerActionWithPorts):
     has run. When the invariant is still violated — embargo active with PXA
     P/X/A bit set — creates a ``Note`` and posts it to the case via
     ``Add(Note, VulnerabilityCase)``.
+
+    The ``Add(Note, VulnerabilityCase)`` is a protocol-significant outbound
+    activity (AC-3, CSB-18-002/003/004): participants must be notified of
+    active-embargo violations so they can respond.  The write therefore goes
+    through ``_emit_through_seam`` (OX-14-001, ASK-04-008).
+
+    ``_EmitSingleActivityBase._call_factory()`` is not used here: the emit
+    path has complex conditional logic (invariant check, CASE_MANAGER gate,
+    note creation) that does not fit the simple guard→factory→queue skeleton.
+    ``update()`` is overridden.
 
     This node runs whether or not the authorization gate permitted teardown,
     because :class:`~vultron.core.behaviors.status.add_case_status_tree.add_case_status_tree`
@@ -154,9 +162,10 @@ class PxaEmInvariantDiagnosticNode(DataLayerActionWithPorts):
                 actor=self.actor_id,
                 to=to_recipients,
             )
-            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
-                activity_id
-            )
+            # Route through the shared emit seam (OX-14-001, ASK-04-008).
+            # factory.add_note_to_case returns (id, blob); pass empty blob
+            # since no captured dict is present.
+            self._emit_through_seam(activity_id, "")
             logger.info(
                 "PxaEmInvariantDiagnosticNode: queued Add(Note,Case) '%s'"
                 " for CSB-18 violation in case '%s'",

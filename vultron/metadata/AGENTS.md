@@ -184,9 +184,10 @@ directly, and prefer file-scoped exclusions over package-scoped ones. Full
 write-up: [`notes/spec-authoring-rules.md`](../../notes/spec-authoring-rules.md)
 § "A Grep-Corpus Guard Can Resolve Its Own Documentation".
 
-A per-item advisory that is routinely true is not enforcement — collapse it to
-a per-kind count against an owned, live-count ceiling (`specs/verification.py`,
-MS-10-005..008). Select by tier, never by keyword: `priority.is_must_tier`, not
+A per-item advisory that is routinely true is not enforcement — mark each
+remaining hit with its owning issue and check items one at a time, printing a
+per-kind count computed from the markers (`specs/verification.py`,
+MS-10-005..008); never pin a committed count to its live value. Select by tier, never by keyword: `priority.is_must_tier`, not
 `== RFC2119Priority.MUST` (MS-02-004; `test_priority_tier_gate.py` fails it).
 
 ## Related

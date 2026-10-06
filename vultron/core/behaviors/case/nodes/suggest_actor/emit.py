@@ -41,6 +41,7 @@ from vultron.core.behaviors.case.nodes.participant.roles import (
 )
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
+    _EmitSingleActivityBase,
 )
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
@@ -140,7 +141,7 @@ class RecordRecommendationRecommenderNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class EmitOfferCaseParticipantToOwnerNode(DataLayerActionWithPorts):
+class EmitOfferCaseParticipantToOwnerNode(_EmitSingleActivityBase):
     """Transform Offer(Actor, Case) → Offer(CaseParticipant) and DM Case Owner.
 
     Uses ``trigger_activity_factory.offer_actor_to_case()`` with the
@@ -257,9 +258,8 @@ class EmitOfferCaseParticipantToOwnerNode(DataLayerActionWithPorts):
                     f"ledger commit failed for "
                     f"offer_case_participant/{self.recommended_id}"
                 )
-            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
-                activity_id
-            )
+            # Route through the shared emit seam (OX-14-001, ASK-04-008).
+            self._emit_through_seam(activity_id, "")
             self.logger.info(
                 "%s: queued Offer(CaseParticipant) '%s' to Case Owner outbox"
                 " for case '%s'",
@@ -276,7 +276,7 @@ class EmitOfferCaseParticipantToOwnerNode(DataLayerActionWithPorts):
             return Status.FAILURE
 
 
-class EmitNoteDuplicateRecommendationToOwnerNode(DataLayerActionWithPorts):
+class EmitNoteDuplicateRecommendationToOwnerNode(_EmitSingleActivityBase):
     """Send a Note DM to the Case Owner noting reinforcing demand.
 
     Used when a second ``Offer(Actor, Case)`` arrives while a first
@@ -356,9 +356,8 @@ class EmitNoteDuplicateRecommendationToOwnerNode(DataLayerActionWithPorts):
                 actor=self.actor_id,
                 to=[owner_id],
             )
-            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
-                activity_id
-            )
+            # Route through the shared emit seam (OX-14-001, ASK-04-008).
+            self._emit_through_seam(activity_id, "")
             self.logger.info(
                 "%s: sent duplicate-recommendation Note to Case Owner '%s'"
                 " for case '%s'",

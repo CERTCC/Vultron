@@ -61,6 +61,7 @@ groups:
   - id: ENC-01-004
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       Private keys MUST be stored securely and MUST NOT be logged or included in API responses
     scope:
@@ -89,6 +90,7 @@ groups:
   - id: ENC-01-006
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: A new key pair MUST NOT be generated on process resumption for an existing actor identity.
     rationale: >-
       Generating a new key pair on restart breaks any encrypted channel established
@@ -174,6 +176,7 @@ groups:
   - id: ENC-03-003
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       The decryption layer MUST be separate from semantic extraction logic; the two concerns
       MUST NOT be mixed

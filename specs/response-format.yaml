@@ -204,6 +204,7 @@ groups:
   - id: RF-07-001
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: Response generation MUST NOT delay inbox acknowledgment
 - id: RF-08
   title: Response Correlation

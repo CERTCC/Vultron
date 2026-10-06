@@ -23,6 +23,7 @@ factory → commit → outbox → consent chain — including that a failure any
 in that chain fails the node rather than queuing a partial relay (BT-14-001).
 """
 
+from datetime import datetime, timedelta
 from typing import cast
 from unittest.mock import MagicMock
 
@@ -31,6 +32,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.embargo.nodes.relay import (
     EMBARGO_INVITE_EVENT_TYPE,
@@ -279,13 +281,103 @@ class TestCollectEmbargoInviteRecipientsNode:
 
 class TestRelayEmbargoInviteToEachNode:
     def _relay(
-        self, scenario: BTTestScenario, recipients: list[str]
+        self,
+        scenario: BTTestScenario,
+        recipients: list[str],
+        actor_config: ActorConfig | None = None,
     ) -> BTExecutionResult:
         return scenario.run(
             RelayEmbargoInviteToEachNode(
-                case_id=CASE_ID, embargo_id=EMBARGO_ID, proposer_id=PROPOSER
+                case_id=CASE_ID,
+                embargo_id=EMBARGO_ID,
+                proposer_id=PROPOSER,
+                actor_config=actor_config,
             ),
             embargo_invite_recipients=recipients,
+        )
+
+    def _deadline(self, scenario: BTTestScenario, actor_id: str):
+        case = cast(VulnerabilityCase, scenario.dl.read(CASE_ID))
+        record = scenario.dl.read(case.actor_participant_index[actor_id])
+        assert isinstance(record, CaseParticipant)
+        return record.invite_rsvp_deadline
+
+    @pytest.mark.executes_as(MANAGER)
+    @pytest.mark.spec("CM-28-012")
+    @pytest.mark.spec("CM-28-013")
+    def test_each_invite_carries_the_managers_deadline_and_records_it(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """``endTime`` = ``published`` + the window, recorded as emitted."""
+        _seed_case(
+            bt_scenario,
+            participants={OTHER_A: PEC.UNBOUND, OTHER_B: PEC.SIGNATORY},
+        )
+        result = self._relay(bt_scenario, [OTHER_A, OTHER_B])
+        bt_scenario.assert_success(result)
+        invites = _queued_invites(bt_scenario)
+        assert len(invites) == 2
+        for invite in invites:
+            assert invite.published is not None
+            assert invite.end_time is not None
+            assert invite.end_time - invite.published == timedelta(days=7)
+            (invitee,) = invite.to or []
+            # The record takes exactly what the wire carried, signatory too.
+            assert self._deadline(bt_scenario, invitee) == invite.end_time
+
+    @pytest.mark.executes_as(MANAGER)
+    @pytest.mark.spec("CM-28-012")
+    def test_the_configured_window_sets_the_deadline(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        _seed_case(bt_scenario, participants={OTHER_A: PEC.UNBOUND})
+        result = self._relay(
+            bt_scenario,
+            [OTHER_A],
+            actor_config=ActorConfig(default_rsvp_window=timedelta(days=10)),
+        )
+        bt_scenario.assert_success(result)
+        (invite,) = _queued_invites(bt_scenario)
+        assert invite.end_time is not None and invite.published is not None
+        assert invite.end_time - invite.published == timedelta(days=10)
+
+    @pytest.mark.executes_as(MANAGER)
+    @pytest.mark.spec("CM-28-012")
+    @pytest.mark.spec("EP-07-006")
+    def test_the_deadline_never_passes_the_embargo_end(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """A window longer than the embargo is capped at the embargo's end."""
+        _seed_case(bt_scenario, participants={OTHER_A: PEC.UNBOUND})
+        result = self._relay(
+            bt_scenario,
+            [OTHER_A],
+            actor_config=ActorConfig(default_rsvp_window=timedelta(days=90)),
+        )
+        bt_scenario.assert_success(result)
+        embargo = bt_scenario.dl.read(EMBARGO_ID)
+        (invite,) = _queued_invites(bt_scenario)
+        assert invite.end_time == getattr(embargo, "end_time", None)
+
+    @pytest.mark.executes_as(MANAGER)
+    @pytest.mark.spec("CM-28-013")
+    @pytest.mark.spec("EP-09-007")
+    def test_the_committed_entry_carries_the_deadline_for_replay(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """A replica records the deadline from the entry, so it must be there."""
+        _seed_case(bt_scenario, participants={OTHER_A: PEC.UNBOUND})
+        result = self._relay(bt_scenario, [OTHER_A])
+        bt_scenario.assert_success(result)
+        (invite,) = _queued_invites(bt_scenario)
+        (entry,) = [
+            cast(CaseLedgerEntry, e)
+            for e in bt_scenario.dl.list_objects("CaseLedgerEntry")
+        ]
+        assert invite.end_time is not None
+        assert (
+            datetime.fromisoformat(entry.payload_snapshot["endTime"])
+            == invite.end_time
         )
 
     @pytest.mark.executes_as(MANAGER)
@@ -399,6 +491,26 @@ class TestRelayEmbargoInviteToEachNode:
         assert result.status == Status.FAILURE
         assert result.internal_error is True
         assert stranger in result.feedback_message
+
+    @pytest.mark.executes_as(MANAGER)
+    @pytest.mark.spec("CM-28-012")
+    def test_an_embargo_missing_from_the_managers_store_is_an_internal_error(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """The stamp's missing embargo is the manager's fault, never REFUSED."""
+        _seed_case(bt_scenario, participants={OTHER_A: PEC.UNBOUND})
+        missing = f"{CASE_ID}/embargoes/relay-missing"
+        result = bt_scenario.run(
+            RelayEmbargoInviteToEachNode(
+                case_id=CASE_ID, embargo_id=missing, proposer_id=PROPOSER
+            ),
+            embargo_invite_recipients=[OTHER_A],
+        )
+        assert result.status == Status.FAILURE
+        assert result.internal_error is True
+        assert missing in result.feedback_message
+        assert bt_scenario.dl.outbox_list() == []
+        assert _pec(bt_scenario, OTHER_A) is PEC.UNBOUND
 
 
 class TestEmbargoProposalNotYetRecordedNode:

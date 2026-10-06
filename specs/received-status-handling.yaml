@@ -161,6 +161,7 @@ groups:
   - id: RSH-03-002
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >
       `ThreatTerminationBranchNode` MUST NOT gate teardown on sender role
       (e.g., CASE_OWNER). Authorization is the responsibility of StatusAdoptionGate;
@@ -841,6 +842,7 @@ groups:
   - id: RSH-05-021
     priority: MUST
     kind: protocol
+    verification_debt: '#3612'
     statement: >
       When applying an `Announce(CaseLedgerEntry)` for an
       `add_participant_status_to_participant` event, the behavior tree MUST
