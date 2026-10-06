@@ -15,7 +15,7 @@
 
 """Regression tests for accept-invite BT nodes (ADR-0048, CM-10-001, CM-17-003).
 
-AC-4: The invitee MUST reach PEC.SIGNATORY after signing embargo consent.
+AC-4: The invitee MUST be a signatory (ACCEPTED row for the active embargo) after signing embargo consent.
 CM-17-003: Roles MUST be read from the Accept's embedded Invite, not DataLayer.
 """
 
@@ -39,25 +39,44 @@ from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.events.actor import (
     AcceptInviteActorToCaseReceivedEvent,
 )
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.enums.roles import CVDRole
 
 _ACTOR_ID = "https://example.org/actors/invitee"
 _EMBARGO_ID = "https://example.org/embargoes/embargo-001"
+_EARLIER_EMBARGO_ID = "https://example.org/embargoes/embargo-000"
 
 
 def _run_sign_node(
     bt_scenario: BTTestScenario,
-    starting_pec: PEC,
+    starting: EmbargoConsentState | None = None,
+    *,
+    earlier_accepted: bool = False,
 ) -> tuple[Status, CaseParticipant]:
-    """Create a CaseParticipant at ``starting_pec``, run the sign node, return result."""
+    """Create a CaseParticipant whose row for the active embargo is ``starting``.
+
+    ``earlier_accepted`` adds an ACCEPTED row for an earlier embargo, so the
+    participant has lapsed from the one in force.  Run the sign node, return
+    the result.
+    """
+    rows = [
+        EmbargoConsent(
+            embargo_id=_EARLIER_EMBARGO_ID, state=EmbargoConsentState.ACCEPTED
+        )
+        for _ in range(1 if earlier_accepted else 0)
+    ]
+    if starting is not None:
+        rows.append(EmbargoConsent(embargo_id=_EMBARGO_ID, state=starting))
     participant = CaseParticipant(
         id_=_ACTOR_ID,
         attributed_to=_ACTOR_ID,
-        embargo_consent_state=starting_pec,
+        embargo_consents=rows,
     )
 
     node = _SignEmbargoConsentLeafNode(invitee_id=_ACTOR_ID)
@@ -73,115 +92,88 @@ def _run_sign_node(
 
 @pytest.mark.spec("CM-10-001")
 class TestSignEmbargoConsentLeafNode:
-    """_SignEmbargoConsentLeafNode must set invitee to SIGNATORY (CM-10-001)."""
+    """_SignEmbargoConsentLeafNode must make the invitee a signatory (CM-10-001)."""
 
     def test_invitee_reaches_signatory_from_no_embargo(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        """Regression: invitee starting at UNBOUND must reach SIGNATORY.
+        """Regression: an invitee with no row must reach ACCEPTED.
 
-        Before the ADR-0048 fix the consent write was fail-open, returning
-        UNBOUND unchanged while the node logged success — CM-10-001
-        violated.
+        Before the ADR-0048 fix the consent write was fail-open, leaving the
+        invitee unbound while the node logged success — CM-10-001 violated.
         """
-        status, participant = _run_sign_node(
-            bt_scenario, starting_pec=PEC.UNBOUND
-        )
+        status, participant = _run_sign_node(bt_scenario)
         assert status == Status.SUCCESS
-        assert participant.embargo_consent_state == PEC.SIGNATORY
+        assert participant.is_signatory(_EMBARGO_ID)
 
     def test_invitee_reaches_signatory_from_invited(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        """Invitee who was formally INVITED also reaches SIGNATORY."""
+        """Invitee who was formally INVITED also reaches ACCEPTED."""
         status, participant = _run_sign_node(
-            bt_scenario, starting_pec=PEC.INVITED
+            bt_scenario, EmbargoConsentState.INVITED
         )
         assert status == Status.SUCCESS
-        assert participant.embargo_consent_state == PEC.SIGNATORY
+        assert participant.is_signatory(_EMBARGO_ID)
 
     def test_invitee_reaches_signatory_from_lapsed(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        """Invitee who LAPSED (embargo revised) can re-consent without a new invite."""
+        """Invitee who lapsed (embargo revised) can re-consent without a new invite."""
         status, participant = _run_sign_node(
-            bt_scenario, starting_pec=PEC.LAPSED
+            bt_scenario, earlier_accepted=True
         )
+        assert participant.consent_for(_EARLIER_EMBARGO_ID) is not None
         assert status == Status.SUCCESS
-        assert participant.embargo_consent_state == PEC.SIGNATORY
+        assert participant.is_signatory(_EMBARGO_ID)
+        assert not participant.has_lapsed(_EMBARGO_ID)
 
     def test_already_signatory_is_idempotent(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        """SIGNATORY: ACCEPT is skipped, node succeeds, no duplicate embargo ID.
+        """ACCEPTED: ACCEPT is skipped, node succeeds, no duplicate row.
 
-        ADR-0093 introduced SIGNATORY → DECLINED, making DECLINED a reachable
-        terminal state.  A SIGNATORY re-accepting is a no-op: the guard skips
-        the invalid ACCEPT trigger, and the dedup check prevents appending a
-        duplicate embargo ID (CM-18-005).
+        An ACCEPTED row re-accepting is a no-op: the guard skips the illegal
+        ACCEPT trigger, and there is still exactly one row for the embargo
+        (CM-18-005).
         """
-        node = _SignEmbargoConsentLeafNode(invitee_id=_ACTOR_ID)
-        participant = CaseParticipant(
-            id_=_ACTOR_ID,
-            attributed_to=_ACTOR_ID,
-            embargo_consent_state=PEC.SIGNATORY,
-            accepted_embargo_ids=[_EMBARGO_ID],
+        status, participant = _run_sign_node(
+            bt_scenario, EmbargoConsentState.ACCEPTED
         )
-        result = bt_scenario.run(
-            node,
-            actor_id=_ACTOR_ID,
-            new_invite_participant=participant,
-            active_embargo_id=_EMBARGO_ID,
-        )
-        assert result.status == Status.SUCCESS
-        assert participant.embargo_consent_state == PEC.SIGNATORY
-        assert participant.accepted_embargo_ids.count(_EMBARGO_ID) == 1
+        assert status == Status.SUCCESS
+        assert participant.is_signatory(_EMBARGO_ID)
+        assert [r.embargo_id for r in participant.embargo_consents] == [
+            _EMBARGO_ID
+        ]
 
     def test_declined_participant_accept_is_skipped(
         self, bt_scenario: BTTestScenario
     ) -> None:
         """DECLINED: ACCEPT is skipped (ACCEPT from DECLINED is invalid), SUCCESS.
 
-        Mirrors the service-layer guard in _record_actor_pec_acceptance.
+        Mirrors the service-layer guard in _record_actor_acceptance.
         A DECLINED participant reaching this node (e.g., out-of-order EA
         without prior EP re-invite) must not crash.
         """
-        node = _SignEmbargoConsentLeafNode(invitee_id=_ACTOR_ID)
-        participant = CaseParticipant(
-            id_=_ACTOR_ID,
-            attributed_to=_ACTOR_ID,
-            embargo_consent_state=PEC.DECLINED,
+        status, participant = _run_sign_node(
+            bt_scenario, EmbargoConsentState.DECLINED
         )
-        result = bt_scenario.run(
-            node,
-            actor_id=_ACTOR_ID,
-            new_invite_participant=participant,
-            active_embargo_id=_EMBARGO_ID,
+        assert status == Status.SUCCESS
+        assert (
+            participant.consent_for(_EMBARGO_ID)
+            == EmbargoConsentState.DECLINED
         )
-        assert result.status == Status.SUCCESS
-        assert participant.embargo_consent_state == PEC.DECLINED
+        assert not participant.is_signatory(_EMBARGO_ID)
 
-    def test_embargo_id_recorded_on_participant(
+    def test_embargo_row_recorded_on_participant(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        """The active embargo ID is appended to accepted_embargo_ids."""
-        _, participant = _run_sign_node(bt_scenario, starting_pec=PEC.UNBOUND)
-        assert _EMBARGO_ID in participant.accepted_embargo_ids
-
-    def test_snapshot_em_consent_state_agrees_with_scalar(
-        self, bt_scenario: BTTestScenario
-    ) -> None:
-        """AC-7: ledger snapshot emConsentState agrees with embargo_consent_state.
-
-        After the sign node runs, participant_status.consent.state MUST equal
-        embargo_consent_state — the snapshot must not be stale (CM-18-006).
-        """
-        _, participant = _run_sign_node(bt_scenario, starting_pec=PEC.UNBOUND)
-        assert participant.embargo_consent_state == PEC.SIGNATORY
-        status = participant.participant_status
-        assert status is not None
-        assert status.consent is not None
-        assert status.consent.state == PEC.SIGNATORY
+        """The active embargo gets an ACCEPTED consent row."""
+        _, participant = _run_sign_node(bt_scenario)
+        assert (
+            participant.consent_for(_EMBARGO_ID)
+            == EmbargoConsentState.ACCEPTED
+        )
 
     def test_failure_when_participant_missing(
         self, bt_scenario: BTTestScenario
@@ -202,7 +194,6 @@ class TestSignEmbargoConsentLeafNode:
         participant = CaseParticipant(
             id_=_ACTOR_ID,
             attributed_to=_ACTOR_ID,
-            embargo_consent_state=PEC.UNBOUND,
         )
         node = _SignEmbargoConsentLeafNode(invitee_id=_ACTOR_ID)
         result = bt_scenario.run(
@@ -239,8 +230,8 @@ def test_joiner_during_revise_signs_the_terms_in_force_not_the_revision(
     """At REVISE the whole consent step signs the active embargo only.
 
     The open revision is not the joiner's to accept: it records the active
-    embargo's id, reaches SIGNATORY through ``apply_pec_transition``, and
-    the revision id stays out of ``accepted_embargo_ids`` (EP-05-001 then
+    embargo's id, is marked ACCEPTED through ``apply_pec_transition``, and
+    the revision gets no row (EP-05-001 then
     lapses it if the owner activates longer terms).
     """
     from vultron.core.behaviors.case.accept_invite_tree import (
@@ -252,7 +243,6 @@ def test_joiner_during_revise_signs_the_terms_in_force_not_the_revision(
     participant = CaseParticipant(
         id_=_ACTOR_ID,
         attributed_to=_ACTOR_ID,
-        embargo_consent_state=PEC.UNBOUND,
     )
     node = MaybeSignEmbargoConsentNode(case_id=case.id_, invitee_id=_ACTOR_ID)
 
@@ -264,8 +254,8 @@ def test_joiner_during_revise_signs_the_terms_in_force_not_the_revision(
     )
 
     assert result.status == Status.SUCCESS
-    assert participant.embargo_consent_state == PEC.SIGNATORY
-    assert participant.accepted_embargo_ids == [_EMBARGO_ID]
+    assert participant.is_signatory(_EMBARGO_ID)
+    assert participant.consent_for(_REVISION_ID) is None
     assert case.is_active_participant(participant)
 
 
@@ -284,7 +274,7 @@ def test_joiner_signs_the_embargo_in_force(
     """A joiner signs the terms in force at ACTIVE *and* during REVISE.
 
     Signing only at ACTIVE left a joiner that accepted during a revision
-    UNBOUND under an active embargo — inert (CM-10-004), and never asked:
+    without a row under an active embargo — inert (CM-10-004), and never asked:
     the revision Invite was relayed before it joined (#4046).
     """
     case = _case_at(em_state, embargo)
@@ -361,16 +351,16 @@ def test_create_invitee_participant_reads_roles_from_accept_activity_when_invite
 
 
 @pytest.mark.spec("CM-17-003")
+@pytest.mark.spec("CM-11-019")
 def test_read_invite_roles_warns_when_invite_object_missing(
     bt_scenario: BTTestScenario,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """#2802: WARNING emitted when activity.object_ is None — protocol violation.
+    """#2802 / CM-11-019: WARNING logged and FAILURE returned when object_ is None.
 
     A missing embedded Invite object in the Accept activity is a protocol
-    violation (per datalayer-fallback-is-a-smell learning).  The node MUST
-    log a WARNING so operators can distinguish silent absence from graceful
-    empty-roles.
+    violation: the node MUST log a WARNING about the missing object_ and then
+    FAIL (per CM-11-019 — never create a participant with empty roles).
     """
     case = VulnerabilityCase(
         id_=_CM17_CASE_ID, attributed_to=_CM17_CASE_ACTOR_ID
@@ -403,7 +393,8 @@ def test_read_invite_roles_warns_when_invite_object_missing(
             invitee_already_participant=False,
         )
 
-    assert result.status == Status.SUCCESS
+    # CM-11-019: no roles → FAILURE (never create participant with empty roles)
+    assert result.status == Status.FAILURE
     warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
     assert any(
         "object_" in r.message and "protocol violation" in r.message
@@ -414,14 +405,16 @@ def test_read_invite_roles_warns_when_invite_object_missing(
 
 
 @pytest.mark.spec("CM-17-003")
+@pytest.mark.spec("CM-11-019")
 def test_read_invite_roles_warns_when_roles_field_absent(
     bt_scenario: BTTestScenario,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """#2802: WARNING emitted when invite object_ is present but has no roles field.
+    """#2802 / CM-11-019: WARNING logged and FAILURE returned when roles absent.
 
     A missing roles field on the embedded Invite is a protocol violation.
-    The node MUST log a WARNING rather than silently returning an empty list.
+    The node MUST log a WARNING about the missing roles, then FAIL per
+    CM-11-019 (never create a participant with empty roles).
     """
     case = VulnerabilityCase(
         id_=_CM17_CASE_ID, attributed_to=_CM17_CASE_ACTOR_ID
@@ -455,7 +448,8 @@ def test_read_invite_roles_warns_when_roles_field_absent(
             invitee_already_participant=False,
         )
 
-    assert result.status == Status.SUCCESS
+    # CM-11-019: no roles → FAILURE (never create participant with empty roles)
+    assert result.status == Status.FAILURE
     warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
     assert any(
         "roles" in r.message and "protocol violation" in r.message
@@ -466,14 +460,16 @@ def test_read_invite_roles_warns_when_roles_field_absent(
 
 
 @pytest.mark.spec("CM-17-003")
+@pytest.mark.spec("CM-11-019")
 def test_read_invite_roles_warns_and_recovers_on_typeerror(
     bt_scenario: BTTestScenario,
 ) -> None:
-    """#2802: TypeError from validate_roles is caught; node returns SUCCESS.
+    """#2802 / CM-11-019: TypeError from validate_roles is caught; node FAILS.
 
     If validate_roles raises TypeError (truthy but non-iterable roles payload),
     the except clause in _read_invite_roles() MUST catch it rather than
     propagating out of update() and aborting the BT sequence.
+    Per CM-11-019 the node then FAILS (empty roles list → no participant).
     """
     case = VulnerabilityCase(
         id_=_CM17_CASE_ID, attributed_to=_CM17_CASE_ACTOR_ID
@@ -510,7 +506,8 @@ def test_read_invite_roles_warns_and_recovers_on_typeerror(
             invitee_already_participant=False,
         )
 
-    assert result.status == Status.SUCCESS
+    # CM-11-019: coercion failure → empty list → FAILURE (no default VENDOR)
+    assert result.status == Status.FAILURE
 
 
 @pytest.mark.spec("CM-11-001")
@@ -544,6 +541,16 @@ def test_invitee_birth_is_construct_attach_then_advance(
     )
     bt_scenario.seed(case)
 
+    # CM-11-019: CreateInviteeParticipantNode requires roles in the invite.
+    # Provide a minimal fake activity so _read_invite_roles() returns ["vendor"].
+    _fake_invite = types.SimpleNamespace(roles=["vendor"])
+    _fake_activity = types.SimpleNamespace(object_=_fake_invite)
+    _fake_event = types.SimpleNamespace(
+        activity=_fake_activity,
+        activity_id="https://example.org/activities/fake-accept-birth",
+        actor_id=invitee_id,
+    )
+
     # Steps 1 (construct at RM.START) + 2 (attach and save).
     create_then_persist = py_trees.composites.Sequence(
         name="CreateThenPersist",
@@ -560,6 +567,7 @@ def test_invitee_birth_is_construct_attach_then_advance(
     result = bt_scenario.run(
         create_then_persist,
         actor_id=case_actor_id,
+        activity=_fake_event,
         invitee_case=case,
         invitee_already_participant=False,
     )
@@ -607,6 +615,16 @@ def _seed_case_with_persisted_invitee(
         PersistInviteeParticipantNode,
     )
 
+    # CM-11-019: provide a minimal fake activity with roles so
+    # CreateInviteeParticipantNode can resolve them.
+    _fake_invite = types.SimpleNamespace(roles=["vendor"])
+    _fake_activity = types.SimpleNamespace(object_=_fake_invite)
+    _fake_event = types.SimpleNamespace(
+        activity=_fake_activity,
+        activity_id="https://example.org/activities/fake-accept-seed",
+        actor_id=invitee_id,
+    )
+
     result = bt_scenario.run(
         py_trees.composites.Sequence(
             name="CreateThenPersist",
@@ -621,6 +639,7 @@ def _seed_case_with_persisted_invitee(
             ],
         ),
         actor_id=case_actor_id,
+        activity=_fake_event,
         invitee_case=case,
         invitee_already_participant=False,
     )

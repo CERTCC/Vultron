@@ -1,10 +1,12 @@
 ---
 status: accepted
+status_override: Set by the epoch lint rollout (#4196); the status predates the check and awaits a human's review against its epoch.
 date: 2026-09-29
 created: 2026-09-29
 updated: 2026-09-29
 revision: 1
 deciders: [adh, Claude Sonnet 4.6, Claude Fable 5.1]
+partially_superseded_by: docs/adr/0122-per-embargo-participant-consent.md
 stakeholder_type: [project-contributor]
 ---
 

@@ -115,14 +115,14 @@ General information about architectural decision records is available at <https:
 - [ADR-0038 Replace Six-Kind Spec Taxonomy with Four-Tier Portability Hierarchy](0038-four-tier-specification-taxonomy.md)
 - [ADR-0039 Resolve Wire Ambiguity Between OFFER\_CASE\_MANAGER\_ROLE and OFFER\_CASE\_OWNERSHIP\_TRANSFER via Dedicated Object Type](0039-offer-case-participant-role-wire-type.md)
 - [ADR-0040 Introduce UseCaseResult Envelope; Do Not Introduce UseCaseRequest](0040-use-case-result-envelope.md)
-- [ADR-0041 CASE_MANAGER-Authoritative Case Initialization](0041-caseactor-authoritative-case-initialization.md)
+- [ADR-0041 CASE_MANAGER-Authoritative Case Initialization](0041-caseactor-authoritative-case-initialization.md) *(revision 2)*
 - [ADR-0042 Deliver All Inter-Actor Communication over HTTP; Retire the In-Process ASGI Delivery Shortcut](0042-http-only-inter-actor-delivery.md) — partially superseded by 0109-a-container-emits-only-as-actors-it-hosts.md
 - [ADR-0043 Use the ADR `status` Field as the Confidence Signal (Extend Its Vocabulary Rather Than Add a New Field)](0043-adr-status-as-confidence-signal.md)
 - [ADR-0044 Adopt py_trees Typed Ports for BT Node Blackboard Contracts](0044-py-trees-typed-ports-adoption.md)
 - [ADR-0045 Correct Field Assignment on `Create(VulnerabilityCase)` — `context` to Case URI, `inReplyTo` to Accept URI](0045-create-vulnerability-case-field-assignment.md)
 - [ADR-0046 Two-Gate Authorization Model for Received-Side CaseStatus Canonicalization](0046-received-status-authorization.md) *(provisional)*
 - [ADR-0047 Report-to-Others Party Discovery: Sentinel Over Inline BT Loop](0047-report-to-others-sentinel-over-inline-bt.md)
-- [ADR-0048 PEC `NO_EMBARGO` Means Absence of Embargo, Not Pre-Consent](0048-pec-no-embargo-is-absence-not-pre-consent.md)
+- [ADR-0048 PEC `NO_EMBARGO` Means Absence of Embargo, Not Pre-Consent](0048-pec-no-embargo-is-absence-not-pre-consent.md) — partially superseded by docs/adr/0122-per-embargo-participant-consent.md
 - [ADR-0049 Core Does Not Model Inbound Protocol Error Message Types; No `create_inbound_error_followup_tree`](0049-core-does-not-model-error-message-types.md)
 - [ADR-0050 Leave(VulnerabilityCase) Is the Canonical RM Case Closure Mechanism](0050-leave-vul-case-canonical-rm-closure.md)
 - [ADR-0051 CaseActor Has Its Own RM Lifecycle Tracked via CaseParticipant](0051-caseactor-rm-lifecycle.md)
@@ -130,7 +130,6 @@ General information about architectural decision records is available at <https:
 - [ADR-0053 Route Ownership-Transfer Offer and Accept Through the CaseActor](0053-ownership-transfer-routed-via-caseactor.md)
 - [ADR-0054 Retain plan/incoming/learnings/ as a File Queue; Do Not Migrate to GitHub Issues](0054-learnings-queue-as-files-not-issues.md)
 - [ADR-0055 CI Failure Alerting via GitHub Issues on Main-Branch and Scheduled Workflows](0055-ci-failure-alerting-via-github-issues.md)
-- [ADR-0056 `embargo_adherence` Is a Computed Property Derived from PEC State](0056-embargo-adherence-computed-field.md)
 - [ADR-0057 Rename `CVDRole.OTHER` to `CVDRole.OBSERVER` and Define Observer Participant Semantics](0057-observer-participant-role.md)
 - [ADR-0058 Gate Demo Scenario Steps on Causal Preconditions, Not Temporal Order](0058-causal-gating-in-demo-scenarios.md)
 - [ADR-0059 Buffer Pre-Genesis `Announce(CaseLedgerEntry)` and Drain on Case Seed](0059-buffer-pre-genesis-ledger-entries.md)
@@ -161,12 +160,12 @@ General information about architectural decision records is available at <https:
 - [ADR-0088 Authority Is the CASE_MANAGER Role; "Case Actor" Names the Prototype Actor That Enacts It, Not the Authority](0088-consolidate-case-authority-determination.md)
 - [ADR-0089 One `ParticipantStatus` Writer, and Pre-Case RM State Belongs to `ReportCaseLink`](0089-one-participant-status-writer.md)
 - [ADR-0090 A Blank Required Field Is Absence, and a Recognised Inline Object That Fails Validation Is Refused](0090-blank-is-absent-and-inline-faults-are-refused.md)
-- [ADR-0091 Rename PEC `NO_EMBARGO` to `UNBOUND`; Drop `EM.NO_EMBARGO` Alias](0091-rename-pec-no-embargo-to-unbound.md)
+- [ADR-0091 Rename PEC `NO_EMBARGO` to `UNBOUND`; Drop `EM.NO_EMBARGO` Alias](0091-rename-pec-no-embargo-to-unbound.md) — partially superseded by docs/adr/0122-per-embargo-participant-consent.md
 - [ADR-0092 Lint Fragments as Source, and Evaluate Page-Scoped Style Rules on the Rendered Page](0092-lint-fragments-as-source-page-rules-on-rendered-page.md)
-- [ADR-0093 `DECLINE` Is Legal from `SIGNATORY` — Consent Withdrawal Is a First-Class PEC Action](0093-signatory-declined-pec-transition.md)
+- [ADR-0093 `DECLINE` Is Legal from `SIGNATORY` — Consent Withdrawal Is a First-Class PEC Action](0093-signatory-declined-pec-transition.md) — partially superseded by docs/adr/0122-per-embargo-participant-consent.md
 - [ADR-0094 Replace flake8, isort and black with ruff, and declare lint exclusions instead of discovering them](0094-ruff-replaces-flake8-isort-black.md)
 - [ADR-0095 Received-Side `HandlerResult` Carries a Handler Disposition Across the Dispatcher Boundary](0095-received-side-handler-result.md)
-- [ADR-0096 A Protocol Default Embargo Replaces the Pre-Case Phase](0096-protocol-default-embargo.md)
+- [ADR-0096 A Protocol Default Embargo Replaces the Pre-Case Phase](0096-protocol-default-embargo.md) *(revision 2)*
 - [ADR-0097 The Capability Layer: Four Call-Out Shapes, Core-Declared Typed-Port Contracts, and Sentinel as a Call-In Pattern](0097-capability-layer-four-shapes-and-core-declared-contracts.md)
 - [ADR-0098 Demo scenarios self-register at import time; every scenario table and the CI matrix become derived artifacts](0098-demo-scenarios-self-register.md)
 - [ADR-0099 One Object Model: AS2 Is a Serialization of the Core Model, Not a Parallel Hierarchy](0099-one-object-model-as2-is-a-serialization.md)
@@ -184,7 +183,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0113 Embargo Negotiation Relays Through the CASE_MANAGER; the Ledger Carries State but Never Asks](0113-embargo-revision-negotiation-relays-through-the-case-manager.md)
 - [ADR-0114 Joining a Case: The Invite Creates an Inert Participant, the Stub Is Its Own Type, and RM Closes from *Received*](0114-joining-a-case-stub-invite-inert-participant.md)
 - [ADR-0117 The Per-Case Genesis Hash Is Anchored to the Case Owner, Not the CaseActor](0117-genesis-hash-is-anchored-to-the-case-owner.md)
-- [ADR-0118 An Expired Invite Is Not a Decline, and a Terminated Embargo Is Not the Start State](0118-pec-expired-and-unbound-exited-states.md)
+- [ADR-0118 An Expired Invite Is Not a Decline, and a Terminated Embargo Is Not the Start State](0118-pec-expired-and-unbound-exited-states.md) — partially superseded by docs/adr/0122-per-embargo-participant-consent.md
 
 ## Proposed ADRs
 
@@ -196,6 +195,8 @@ General information about architectural decision records is available at <https:
 - [ADR-0119 The Case Ledger Records Completed Acts](0119-case-ledger-records-completed-acts.md)
 - [ADR-0120 ADR Lifecycle: Three Epochs and Tiered Edits](0120-adr-lifecycle-epochs-and-edit-tiers.md)
 - [ADR-0121 A Joined Participant Judges the Case by Answering a Full-Case Invite; Status Is Self-Declared and Asserted Only for Existing Participants](0121-joined-participant-judges-the-case-by-full-case-invite.md)
+- [ADR-0122 Participant Embargo Consent Is Recorded per (Participant, Embargo)](0122-per-embargo-participant-consent.md)
+- [ADR-0123 An Embargo Invite May Name Its Terms by URI](0123-embargo-invite-may-name-its-terms-by-uri.md)
 
 ## Rejected ADRs
 
@@ -209,6 +210,7 @@ Each is listed here with a forward link to its replacement.
 
 - [ADR-0015 Create VulnerabilityCase at Report Receipt (RM.RECEIVED)](archived/0015-create-case-at-report-receipt.md) — superseded by 0041-caseactor-authoritative-case-initialization.md
 - [ADR-0017 Domain/Wire Object Separation: Shared-Base, Two-Branch Hierarchy](archived/0017-domain-wire-object-separation.md) — superseded by 0099-one-object-model-as2-is-a-serialization.md
+- [ADR-0056 `embargo_adherence` Is a Computed Property Derived from PEC State](archived/0056-embargo-adherence-computed-field.md) — superseded by 0122-per-embargo-participant-consent.md
 - [ADR-0062 Normalise Wire → Core at Ingress, and Enforce It Again at the Persistence Boundary](archived/0062-normalise-wire-to-core-at-both-ingress-and-persistence.md) — superseded by 0082-wire-core-boundary-pairing-registry.md
 - [ADR-0070 Reuse `validate-report` for Invited Actors; Derive `VultronOfferRecord` from Ledger Backfill](archived/0070-invited-actor-rm-triage-via-ledger-backfill.md) — superseded by 0121-joined-participant-judges-the-case-by-full-case-invite.md
 - [ADR-0082 Wire/Core Boundary: One Declarative Pairing Registry, One Translator, and Reject Unknown Keys](archived/0082-wire-core-boundary-pairing-registry.md) — superseded by 0099-one-object-model-as2-is-a-serialization.md

@@ -18,7 +18,9 @@ description: >
   with ER any proposal it receives at P/X/A (EMB-01-002), and the replica that
   leaves a CASE_MANAGER-declared teardown to its entry (RSH-03-004); a
   non-manager replica's cascade teardown ask is a pending assertion, so a
-  repeat P/X/A signal queues no second ask (SYNC-11-002).
+  repeat P/X/A signal queues no second ask (SYNC-11-002); and the P/X/A
+  refusal tree, whose ER is its own decision record (HP-01-003, ID-04-005,
+  ADR-0123).
 related_specs:
   - specs/case-management.yaml
   - specs/embargo-policy.yaml
@@ -31,6 +33,7 @@ related_specs:
   - specs/behavior-tree-integration.yaml
   - specs/handler-protocol.yaml
   - specs/case-ledger-processing.yaml
+  - specs/idempotency.yaml
 related_notes:
   - notes/embargo-default-semantics.md
   - notes/bt-integration.md
@@ -70,11 +73,12 @@ The embargo lifecycle involves three interacting state machines:
 1. **EM** (`vultron/core/states/em.py`) — the case-level embargo state:
    `NONE → PROPOSED → ACTIVE ↔ REVISE → EXITED`
 2. **PEC** (`vultron/core/states/participant_embargo_consent.py`) — the
-   per-participant consent state, over `UNBOUND`, `INVITED`, `SIGNATORY`,
-   `LAPSED`, `DECLINED`, `EXPIRED` and the terminal `UNBOUND_EXITED`
-   (ADR-0118). `UNBOUND` means *the participant is not bound by any
-   embargo terms*, so `ACCEPT`/`DECLINE` are valid directly from it — consent
-   is not always mediated by an invitation (ADR-0048, ADR-0091, CM-18-003). See
+   per-participant, per-embargo consent rows (`CaseParticipant.embargo_consents`),
+   each `INVITED`, `ACCEPTED`, `DECLINED` or `EXPIRED` (ADR-0122). A participant
+   with no row for an embargo is not bound by it, so `ACCEPT`/`DECLINE` are
+   valid directly from no row — consent is not always mediated by an invitation
+   (ADR-0048, CM-18-003). "Signatory" (the active embargo's row is `ACCEPTED`)
+   and "lapsed" are read from the rows, never stored. See
    `notes/participant-embargo-consent.md` for the full transition table and
    the direct-assignment pitfall (CM-18-005).
 3. **`VulnerabilityCase.active_embargo`** — the pointer to the currently
@@ -252,8 +256,8 @@ Each branch commits a synthesised entry so replicas learn the outcome
   the same PEC `INVITE` and deadline and moves no EM state.
 - **EMB-17-004** (EM `EXITED`/`NONE` — no-op): `create_noop_ledger_entry_tree`
   commits an `invite_to_embargo_on_case_expired_noop` entry; no PEC transition is
-  applied (the terminal `UNBOUND_EXITED` stays as it is, or `EXPIRED` remains
-  EXPIRED).
+  applied (after a termination nothing is recorded, and an `EXPIRED` row
+  remains `EXPIRED`).
 
 A non-manager processing a late Accept receives `REFUSED` from the tree gate
 and applies no consent change (HP-01-005, BT-17-001).
@@ -281,18 +285,31 @@ EMB-02-002 are enforced as explicit pre-flight guards in
 `InviteToEmbargoOnCaseReceivedUseCase.execute()` and
 `AcceptInviteToEmbargoOnCaseReceivedUseCase.execute()` respectively (implemented
 in [#1484](https://github.com/CERTCC/Vultron/issues/1484)); the refusal lives in
-`vultron/core/use_cases/received/_embargo_pxa.py`. The Invite refusal stores the
-Invite and the `EmbargoEvent` it carries, because the store keeps an Invite's
-object by reference and the ER factory needs the proposal whole (#4104). It
-answers where any Invite answer goes: the CASE_MANAGER answers the proposer, and a
-participant answers the CASE_MANAGER, never a peer (EP-09-003, PCR-08-001). It sends
-no ER for an Invite addressed to someone else (EP-09-010) or one naming terms the
-receiver does not hold (Regime 2, ADR-0087). An Invite the receiver already
-answered (`pending_embargo_proposal_index` maps its embargo to it) is skipped, so a
-later P/X/A never contradicts an earlier answer. "Already stored" is not that
-signal: FastAPI ingress stores the Invite before dispatch. The refusal itself
-records no decision, so a repeated refusal answers twice (#4140). Moving this
-refusal into the receive tree is #3872.
+`vultron/core/use_cases/received/_embargo_pxa.py`, which runs
+`RefuseEmbargoInviteBT` (`vultron/core/behaviors/embargo/refusal_tree.py`). The
+Invite refusal stores the Invite and the `EmbargoEvent` it carries, because the
+store keeps an Invite's object by reference and the ER factory needs the
+proposal (#4104). It answers where any Invite answer goes: the CASE_MANAGER
+answers the proposer, and a participant answers the CASE_MANAGER, never a peer
+(EP-09-003, PCR-08-001). It sends no ER for an Invite addressed to someone else
+(EP-09-010). An Invite that names its terms by URI only is answered all the
+same: the ER names the Invite by id and needs no terms (ADR-0123, #4181). An
+Invite the receiver already answered (`pending_embargo_proposal_index` maps its
+embargo to it) is skipped, so a later P/X/A never contradicts an earlier answer.
+"Already stored" is not that signal: FastAPI ingress stores the Invite before
+dispatch.
+
+The ER is itself the record of the refusal (#4140). Its id derives from the
+rejecting actor and the Invite (`TriggerActivityPort.requeue_embargo_refusal`),
+and a node of the tree queues it, not `execute()` (CLP-10-020), so a repeated
+delivery of the Invite or of its Accept finds the ER sent and is `SKIPPED`
+(HP-01-003, CLP-13-001). The sealed ER is written before the queue append, so
+the latch is ahead of the work it stands for (ID-04-005): an ER sealed but no
+longer pending is queued again under its own id, which the receiver
+deduplicates, rather than read as delivered. An Invite that breaks a shape rule
+is a different kind of fault: one naming no `to` recipient or several
+(EP-09-010), or no embargo, is received but not understood and is answered with
+`Create(ProcessingFault)`, not ER (MSM-05-001).
 
 **A participant answers a revision on a P/X/A case with ER, never ET**
 (EMB-03-003, EMB-01-002, ADR-0118). This is the one statement of the rule. A
@@ -353,12 +370,13 @@ When implementing any code that transitions embargo state:
 4. **PEC cascade is automatic**: `propose_embargo()` changes no consent — a
    proposal binds nobody (ADR-0093, EP-05-002) — and records the proposer's
    consent to the proposed id. The owner path of `accept_embargo_invite()`
-   re-evaluates consent when it replaces the active embargo: signatories who
-   have not accepted *longer* terms lapse, and a *shorter* replacement carries
-   everyone over (MSM-07-005). `terminate_active_embargo()` moves all PEC to
-   the terminal `UNBOUND_EXITED` (`EXIT`, MSM-07-006); an unanswered invite
-   past its deadline moves `INVITED → EXPIRED` (`EXPIRE`, CM-28-004). Callers do
-   not need to do this manually.
+   settles consent when it replaces the active embargo: a *shorter* replacement
+   carries every signatory over by marking the revision's row `ACCEPTED`, and
+   under *longer* terms the signatories who have not accepted them have lapsed
+   by derivation, with nothing written (MSM-07-005).
+   `terminate_active_embargo()` clears the active embargo and writes no consent
+   (MSM-07-006); an unanswered invite past its deadline moves its `INVITED` row to
+   `EXPIRED` (`EXPIRE`, CM-28-004). Callers do not need to do this manually.
 5. **OBSERVED mode** (received-side): pass
    `transition_mode=TransitionMode.OBSERVED` to sync local state with a remote
    assertion. EM transition guards are bypassed in OBSERVED mode; the PEC
@@ -505,12 +523,11 @@ do about it? The answer, in order:
    CASE_MANAGER) through the response decision tree. On receipt it writes **no**
    case, consent or deadline state; consent moves when the CASE_MANAGER commits
    the answer (EP-09-003). The invitee is the sole `to` recipient; anything else
-   is refused as a misrouting (EP-09-010). A revision Invite to a `SIGNATORY`
-   changes no consent state — `INVITE` is legal only from
-   UNBOUND/LAPSED/DECLINED/EXPIRED (EP-09-004), so the receive tree must never
-   apply it unconditionally.
+   is refused as a misrouting (EP-09-010). A revision Invite to a signatory
+   changes nothing that binds it: `INVITE` lands on the revision's own row and
+   the signatory keeps its `ACCEPTED` row for the active embargo (EP-09-004).
 5. The owner's answer is consent *and* decision: `Accept` activates
-   (`PROPOSED → ACTIVE`, or `REVISE → ACTIVE` with the EP-05-001 cascade),
+   (`PROPOSED → ACTIVE`, or `REVISE → ACTIVE` with the EP-05-001 carry-over),
    `Reject` clears a first proposal or keeps the prior terms. The owner MAY
    decide without waiting (EP-09-005) and SHOULD wait for some answers to gauge
    consensus (EP-09-006); no quorum or vote is defined — that is actor policy,

@@ -82,6 +82,11 @@ print(json2md(announce_embargo()))
 - **Protocol role:** The Participant has rejected an embargo proposal.
 - **Triggering transition:** Proposed → None (P → N).
 - **Wire activity:** `Reject(Invite(Event)[context=VulnerabilityCase])`.
+- **Refusal on a public case:** A receiver answers an `EP` with `ER` when the case is public, an exploit is public, or attacks are observed.
+  The `ER` names the Invite by id, so it is sent even when the Invite named its terms only by URI.
+  A receiver sends one `ER` per Invite: a re-delivered Invite is skipped.
+- **Malformed Invite:** An `EP` that names no `to` recipient or several is not answered with `ER`.
+  It is received but not understood, so the receiver sends `Create(ProcessingFault)` to the sender.
 - **How-to:** [How to Revise or Terminate an Embargo](../../howto/activitypub/activities/manage_embargo.md).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#em-message-types),
   [Transitions](../formal_protocol/transitions.md).

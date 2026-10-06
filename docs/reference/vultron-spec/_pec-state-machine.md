@@ -25,9 +25,9 @@ case, alongside the participant's other case state.
 
 ### 9.1 States
 
-Each participant has one consent state, recording its position on the case's current
-embargo terms.
-Consent is given to specific terms, so beside that state the CASE_MANAGER records which embargo terms, active or proposed, each participant has accepted.
+Each participant's position on the case's current embargo terms is one of the states below.
+Consent is given to specific terms, so an implementation records one consent row per participant and embargo (`INVITED`, `ACCEPTED`, `DECLINED`, `EXPIRED`) and derives the position from the rows and the embargo in force.
+`SIGNATORY` is an accepted row for the active embargo, and `LAPSED` and `UNBOUND_EXITED` are read from the rows and the case rather than written (ADR-0122).
 A participant can therefore be a signatory to the active embargo and have already accepted a proposed revision of it.
 
 {% include-markdown "./includes/_pec-states-table.md" %}
@@ -213,7 +213,7 @@ recipient:
 1. The participant is **admitted to the case** — its RM state is at least
    Received.
 2. The participant is a **signatory to the active embargo**
-   (`embargo_adherence = True`), **OR** there is no active embargo
+   (an accepted consent row for the active embargo), **OR** there is no active embargo
    (`EM.NONE`).
 
 !!! note "Recall: report management states"

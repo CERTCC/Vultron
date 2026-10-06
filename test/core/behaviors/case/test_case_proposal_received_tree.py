@@ -119,6 +119,11 @@ def _make_proposal() -> as_CaseProposal:
     )
 
 
+_RETIRED_CONSENT_KEYS = frozenset(
+    {"consent", "emConsentState", "embargoAdherence"}
+)
+
+
 @pytest.mark.spec("CP-05-005")
 class TestPendingCreateCaseActivityModel:
     """AC-1: model stores required fields and produces stable ID."""
@@ -493,16 +498,19 @@ class TestWriteCreateCaseMarkerNode:
 
     @pytest.mark.spec("CM-10-004")
     def test_bootstrap_addressees_withhold_an_inert_finder(self) -> None:
-        """Under an active embargo only a SIGNATORY reporter is bootstrapped.
+        """Under an active embargo only a signatory reporter is bootstrapped.
 
         The ``Create(VulnerabilityCase)`` copy is case content, so its
         REPORTER/FINDER addressees come from the shared active selection
-        (#4046 AC-2): a FINDER that is not SIGNATORY is left out.
+        (#4046 AC-2): a FINDER with no ACCEPTED row for the embargo is left out.
         """
         from vultron.core.models._helpers import days_from_now_utc
         from vultron.core.models.case_participant import CaseParticipant
+        from vultron.core.models.embargo_consent import EmbargoConsent
         from vultron.core.models.embargo_event import EmbargoEvent
-        from vultron.core.states.participant_embargo_consent import PEC
+        from vultron.core.states.participant_embargo_consent import (
+            EmbargoConsentState,
+        )
         from vultron.enums.roles import CVDRole
 
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
@@ -520,16 +528,25 @@ class TestWriteCreateCaseMarkerNode:
         )
         reporter = "https://example.org/actors/reporter"
         finder = "https://example.org/actors/finder"
-        for actor_id, role, pec in (
-            (reporter, CVDRole.REPORTER, PEC.SIGNATORY),
-            (finder, CVDRole.FINDER, PEC.UNBOUND),
+        for actor_id, role, rows in (
+            (
+                reporter,
+                CVDRole.REPORTER,
+                [
+                    EmbargoConsent(
+                        embargo_id=embargo.id_,
+                        state=EmbargoConsentState.ACCEPTED,
+                    )
+                ],
+            ),
+            (finder, CVDRole.FINDER, []),
         ):
             participant = CaseParticipant(
                 id_=f"{actor_id}/participant",
                 attributed_to=actor_id,
                 context=case_id,
                 case_roles=[role],
-                embargo_consent_state=pec,
+                embargo_consents=rows,
             )
             dl.save(participant)
             case.add_participant(participant)
@@ -1302,7 +1319,6 @@ class TestOwnerChecksOnACaseTheCaseActorCreated:
     def test_owner_accepting_a_revision_activates_it(self, make_payload):
         """answers.py accept, and pec.py's owner-acceptance at activation."""
         from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
-        from vultron.core.states.participant_embargo_consent import PEC
 
         dl, case, revision_id = _proposed_case_with_open_revision(make_payload)
         EmbargoLifecycle(persistence=dl).accept_embargo_invite(
@@ -1317,8 +1333,7 @@ class TestOwnerChecksOnACaseTheCaseActorCreated:
 
         owner = dl.read(stored.actor_participant_index[_VENDOR_URI])
         assert isinstance(owner, CaseParticipant)
-        assert owner.embargo_consent_state == PEC.SIGNATORY
-        assert revision_id in owner.accepted_embargo_ids
+        assert owner.is_signatory(revision_id)
 
     def test_case_actor_accepting_a_revision_only_consents(self, make_payload):
         from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
@@ -1824,7 +1839,7 @@ class TestADR0041EmbargoInit:
         )
 
     def test_vendor_owner_seeded_as_signatory(self, make_payload):
-        """CM-13: vendor (CASE_OWNER) is SIGNATORY on the active embargo.
+        """CM-13: vendor (CASE_OWNER) is a signatory of the active embargo.
 
         ``InitializeDefaultEmbargoNode``'s ``InitializeCreationEmbargoNode``
         is the one path that seeds it: it reads the owner from the case's
@@ -1834,7 +1849,6 @@ class TestADR0041EmbargoInit:
         """
         from vultron.core.models.case import VulnerabilityCase
         from vultron.core.models.case_participant import CaseParticipant
-        from vultron.core.states.participant_embargo_consent import PEC
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
@@ -1853,17 +1867,14 @@ class TestADR0041EmbargoInit:
         assert vendor_pid, "vendor must have a participant entry"
         vendor_participant = dl.read(vendor_pid)
         assert isinstance(vendor_participant, CaseParticipant)
-        assert vendor_participant.embargo_consent_state == PEC.SIGNATORY, (
-            "Vendor (CASE_OWNER) must be seeded SIGNATORY on the active"
-            " embargo at case creation (CM-13)"
+        assert vendor_participant.is_signatory(case.active_embargo_id), (
+            "Vendor (CASE_OWNER) must be seeded with an ACCEPTED row for the"
+            " active embargo at case creation (CM-13)"
         )
-        assert (
-            case.active_embargo in vendor_participant.accepted_embargo_ids
-        ), "Active embargo id must be recorded in vendor's accepted list"
 
 
 class TestCM14005ReporterSignatory:
-    """CM-14-005: reporter seeded as embargo SIGNATORY at case initialization."""
+    """CM-14-005: reporter seeded as embargo signatory at case initialization."""
 
     def _get_reporter_participant(self, dl):
         from vultron.core.models.case import VulnerabilityCase
@@ -1881,26 +1892,8 @@ class TestCM14005ReporterSignatory:
         return participant, case
 
     def test_reporter_seeded_as_signatory(self, make_payload):
-        """AC-1: reporter is SIGNATORY after initialization."""
-        from vultron.core.states.participant_embargo_consent import PEC
+        """AC-1: reporter is a signatory after initialization."""
 
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id=_CASE_ACTOR_URI,
-        )
-        _seed_report(dl)
-        _run_full_bt(make_payload, dl)
-
-        participant, _case = self._get_reporter_participant(dl)
-        assert participant is not None, "Reporter participant must exist"
-        assert participant.embargo_consent_state == PEC.SIGNATORY, (
-            "Reporter must be seeded SIGNATORY on the active embargo"
-            f" at case initialization (CM-14-005), got"
-            f" {participant.embargo_consent_state!r}"
-        )
-
-    def test_reporter_accepted_embargo_ids_populated(self, make_payload):
-        """AC-2: reporter's accepted_embargo_ids includes the active embargo."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id=_CASE_ACTOR_URI,
@@ -1910,13 +1903,37 @@ class TestCM14005ReporterSignatory:
 
         participant, case = self._get_reporter_participant(dl)
         assert participant is not None, "Reporter participant must exist"
-        assert case.active_embargo is not None
-        assert case.active_embargo in participant.accepted_embargo_ids, (
-            "Reporter's accepted_embargo_ids must include the active embargo"
+        assert participant.is_signatory(case.active_embargo_id), (
+            "Reporter must be seeded with an ACCEPTED row for the active"
+            f" embargo at case initialization (CM-14-005), got"
+            f" {participant.embargo_consents!r}"
+        )
+
+    def test_reporter_has_accepted_row_for_active_embargo(self, make_payload):
+        """AC-2: reporter holds an ACCEPTED row for the active embargo."""
+        from vultron.core.states.participant_embargo_consent import (
+            EmbargoConsentState,
+        )
+
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=_CASE_ACTOR_URI,
+        )
+        _seed_report(dl)
+        _run_full_bt(make_payload, dl)
+
+        participant, case = self._get_reporter_participant(dl)
+        assert participant is not None, "Reporter participant must exist"
+        assert case.active_embargo_id is not None
+        assert (
+            participant.consent_for(case.active_embargo_id)
+            == EmbargoConsentState.ACCEPTED
+        ), (
+            "Reporter must hold an ACCEPTED row for the active embargo"
             " (CM-14-005 AC-2)"
         )
 
-    def test_no_active_embargo_reporter_remains_no_embargo(self):
+    def test_no_active_embargo_reporter_gets_no_consent_row(self):
         """AC-3: SeedReporterSignatoryNode no-ops gracefully when no active embargo."""
         from vultron.core.behaviors.case.nodes import (
             SeedReporterSignatoryNode,
@@ -1924,7 +1941,6 @@ class TestCM14005ReporterSignatory:
         from vultron.core.models.case import VulnerabilityCase
         from vultron.core.models.case_participant import CaseParticipant
         from vultron.core.models.report import VulnerabilityReport
-        from vultron.core.states.participant_embargo_consent import PEC
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
@@ -1966,18 +1982,19 @@ class TestCM14005ReporterSignatory:
         )
         stored_participant = dl.read(reporter_participant.id_)
         assert isinstance(stored_participant, CaseParticipant)
-        assert stored_participant.embargo_consent_state == PEC.UNBOUND, (
-            "Reporter must remain UNBOUND when no active embargo exists"
+        assert stored_participant.embargo_consents == [], (
+            "Reporter must get no consent row when no active embargo exists"
             " (CM-14-005 AC-3)"
         )
 
-    def test_reporter_signatory_ledger_snapshot_consistent(self, make_payload):
-        """AC-4: ledger snapshot for reporter shows SIGNATORY consent.
+    def test_reporter_status_ledger_snapshot_carries_no_consent(
+        self, make_payload
+    ):
+        """AC-4: the reporter's ledger status snapshot carries no consent.
 
-        The ``CommitNativeLedgerEntriesNode`` runs *after*
-        ``SeedReporterSignatoryNode``, so the participant status it snapshots
-        must already carry ``emConsentState=SIGNATORY`` and
-        ``embargoAdherence=True`` — no contradictory pair.
+        Consent lives on the participant's per-embargo rows (ADR-0122), so the
+        ``ParticipantStatus`` snapshot has no ``emConsentState`` or
+        ``embargoAdherence`` key, in either direction.
         """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
@@ -2020,51 +2037,12 @@ class TestCM14005ReporterSignatory:
             " reporter URI"
         )
         for entry in reporter_entries:
-            snap = getattr(entry, "payload_snapshot", {})
-            obj = snap.get("object", {})
-            em_consent = obj.get("emConsentState") or obj.get(
-                "em_consent_state"
+            obj = getattr(entry, "payload_snapshot", {}).get("object", {})
+            assert not _RETIRED_CONSENT_KEYS & set(obj), (
+                f"Ledger status snapshot must carry no consent keys (consent"
+                f" is per-embargo on the participant, ADR-0122), got"
+                f" {sorted(_RETIRED_CONSENT_KEYS & set(obj))}"
             )
-            embargo_adherence = obj.get("embargoAdherence") or obj.get(
-                "embargo_adherence"
-            )
-            if em_consent is not None:
-                assert em_consent in ("SIGNATORY", "signatory"), (
-                    f"Ledger snapshot emConsentState must be SIGNATORY for"
-                    f" reporter, got {em_consent!r} (CM-14-005 AC-4)"
-                )
-            if embargo_adherence is not None:
-                assert embargo_adherence is True, (
-                    f"Ledger snapshot embargoAdherence must be True for"
-                    f" reporter, got {embargo_adherence!r} (CM-14-005 AC-4)"
-                )
-
-    def test_reporter_embargo_adherence_true(self, make_payload):
-        """AC-5: embargo_adherence is True in reporter's latest ParticipantStatus."""
-        from vultron.core.states.participant_embargo_consent import PEC
-
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id=_CASE_ACTOR_URI,
-        )
-        _seed_report(dl)
-        _run_full_bt(make_payload, dl)
-
-        participant, _case = self._get_reporter_participant(dl)
-        assert participant is not None
-        assert participant.embargo_consent_state == PEC.SIGNATORY
-
-        # embargo_adherence lives on ParticipantStatus, not on CaseParticipant.
-        # The latest status is exposed via participant.participant_status.
-        latest_status = participant.participant_status
-        assert latest_status is not None, (
-            "Reporter must have at least one ParticipantStatus"
-        )
-        assert latest_status.embargo_adherence is True, (
-            "reporter ParticipantStatus.embargo_adherence must be True after"
-            f" initialization (CM-14-005 AC-5),"
-            f" got {latest_status.embargo_adherence!r}"
-        )
 
     def test_no_report_reporter_seeding_does_not_fail_sequence(
         self, make_payload
@@ -2200,7 +2178,7 @@ class TestADR0041LedgerEntries:
 
 
 class TestCM18007InitLedgerEntries:
-    """CM-18-007 and CM-14-003: one init entry per participant; vendor is SIGNATORY."""
+    """CM-18-007 and CM-14-003: one init entry per participant; vendor is seeded."""
 
     def test_exactly_one_participant_status_entry_per_participant(
         self, make_payload
@@ -2242,11 +2220,11 @@ class TestCM18007InitLedgerEntries:
             f" entries per CM-23-007), got {len(ps_entries)} (CM-18-007)"
         )
 
-    def test_vendor_case_owner_appears_as_signatory_in_init_ledger(
+    def test_vendor_case_owner_init_ledger_entry_carries_no_consent(
         self, make_payload
     ):
-        """Vendor (CASE_OWNER) init ledger entry must show SIGNATORY consent
-        (CM-14-003 AC-4)."""
+        """Vendor (CASE_OWNER) init ledger entry carries no consent keys:
+        consent is per-embargo on the participant (ADR-0122, CM-14-003)."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id=_CASE_ACTOR_URI,
@@ -2273,9 +2251,9 @@ class TestCM18007InitLedgerEntries:
         )
         entry = vendor_ps_entries[0]
         obj = getattr(entry, "payload_snapshot", {}).get("object", {})
-        assert obj.get("emConsentState") == "SIGNATORY", (
-            f"Vendor init entry must show SIGNATORY, got"
-            f" {obj.get('emConsentState')!r} (CM-14-003)"
+        assert not _RETIRED_CONSENT_KEYS & set(obj), (
+            f"Vendor init entry must carry no consent keys, got"
+            f" {sorted(_RETIRED_CONSENT_KEYS & set(obj))} (CM-14-003)"
         )
 
 
@@ -2879,9 +2857,8 @@ class TestAllParticipantsRMClosedIncludesCaseActor:
         """Seed a case with vendor (CASE_OWNER) and case-actor (CASE_MANAGER)."""
         from vultron.core.models.case import VulnerabilityCase
         from vultron.core.models.case_participant import CaseParticipant
-        from vultron.core.models.dimensions import PecDimension, RmDimension
+        from vultron.core.models.dimensions import RmDimension
         from vultron.core.models.participant_status import ParticipantStatus
-        from vultron.core.states.participant_embargo_consent import PEC
         from vultron.core.states.rm import RM
         from vultron.enums.roles import CVDRole
 
@@ -2891,7 +2868,6 @@ class TestAllParticipantsRMClosedIncludesCaseActor:
                 rm=RmDimension(state=rm_state),
                 attributed_to=actor_uri,
                 cvd_role=[CVDRole.CASE_OWNER],
-                consent=PecDimension(state=PEC.UNBOUND),
             )
             dl.save(ps)
             return ps
@@ -2960,9 +2936,8 @@ class TestAllParticipantsRMClosedIncludesCaseActor:
             AllParticipantsRMClosedConditionNode,
         )
         from vultron.core.models.case_participant import CaseParticipant
-        from vultron.core.models.dimensions import PecDimension, RmDimension
+        from vultron.core.models.dimensions import RmDimension
         from vultron.core.models.participant_status import ParticipantStatus
-        from vultron.core.states.participant_embargo_consent import PEC
         from vultron.core.states.rm import RM
         from vultron.enums.roles import CVDRole
 
@@ -2983,7 +2958,6 @@ class TestAllParticipantsRMClosedIncludesCaseActor:
             rm=RmDimension(state=RM.CLOSED),
             attributed_to=_CASE_ACTOR_URI,
             cvd_role=[CVDRole.COORDINATOR, CVDRole.CASE_MANAGER],
-            consent=PecDimension(state=PEC.UNBOUND),
         )
         dl.save(closed_ps)
         participant.participant_statuses.append(closed_ps)
@@ -3174,7 +3148,7 @@ def test_store_proposal_report_keeps_the_reporter(caplog):
 
     The reporter is the whole point of storing the report: three downstream
     nodes derive the reporter participant, its ledger entry and the embargo
-    SIGNATORY seed from ``report.attributed_to``. Each skips "best-effort" when
+    signatory seed from ``report.attributed_to``. Each skips "best-effort" when
     it is missing, so losing it costs the reporter a case replica and raises
     nothing.
 
@@ -3598,27 +3572,32 @@ class TestEP04SenderProposalAtCaseCreation:
             entry.log_object_id
             for entry in recorded_entries_for_case(case_id=case.id_, dl=dl)
         }
-        # A signatory's consent does not move on a revision Invite: PEC
-        # INVITE is illegal from SIGNATORY (EP-09-004, ADR-0093).
+        # A signatory asked about a revision gets an INVITED row for the
+        # revision and keeps its ACCEPTED row for the active terms
+        # (EP-09-004, ADR-0122).
         from vultron.core.models.case_participant import CaseParticipant
-        from vultron.core.states.participant_embargo_consent import PEC
+        from vultron.core.states.participant_embargo_consent import (
+            EmbargoConsentState,
+        )
 
         stored = dl.read(case.id_)
         assert isinstance(stored, VulnerabilityCase)
         invitee = dl.read(stored.actor_participant_index[winner])
         assert isinstance(invitee, CaseParticipant)
-        assert invitee.embargo_consent_state is PEC.SIGNATORY
+        assert invitee.is_signatory(stored.active_embargo_id)
+        assert invitee.consent_for(revision_id) == EmbargoConsentState.INVITED
         # Proposing the revision is the loser's consent to it (MSM-07-005):
         # the executing CaseActor and the winner record nothing (#4152).
         proposer = dl.read(stored.actor_participant_index[loser])
         assert isinstance(proposer, CaseParticipant)
-        assert revision_id in proposer.accepted_embargo_ids
-        assert revision_id not in invitee.accepted_embargo_ids
+        assert (
+            proposer.consent_for(revision_id) == EmbargoConsentState.ACCEPTED
+        )
         case_actor_record = stored.actor_participant_index.get(_CASE_ACTOR_URI)
         assert case_actor_record is not None, "the CaseActor is a participant"
         executor = dl.read(case_actor_record)
         assert isinstance(executor, CaseParticipant)
-        assert revision_id not in executor.accepted_embargo_ids
+        assert executor.consent_for(revision_id) is None
         # The invitee holds the case before an Invite about it (CP-09-003,
         # CM-14-011): the relay is queued after Create(VulnerabilityCase).
         labels = _outbox_labels(dl)
@@ -3977,11 +3956,10 @@ class TestEP04SenderProposalAtCaseCreation:
         self, make_payload
     ):
         """Consent is seeded to the active terms even though a revision is
-        pending: CM-14-005 seeds SIGNATORY on the *active* embargo, and the
+        pending: CM-14-005 seeds an ACCEPTED row for the *active* embargo, and the
         revision registered inside ``InitializeDefaultEmbargoNode`` precedes
         those seeds (see notes/embargo-default-semantics.md)."""
         from vultron.core.models.case_participant import CaseParticipant
-        from vultron.core.states.participant_embargo_consent import PEC
 
         dl = self._store()
         self._publish_owner_policy()
@@ -3990,16 +3968,15 @@ class TestEP04SenderProposalAtCaseCreation:
         )
         assert case.current_status.em.state == EM.REVISE
 
-        states = {}
+        signatories = {}
         for actor_uri in (_VENDOR_URI, _REPORTER_URI):
             pid = case.actor_participant_index[actor_uri]
             participant = dl.read(pid)
             assert isinstance(participant, CaseParticipant)
-            states[actor_uri] = participant.embargo_consent_state
-        assert states == {
-            _VENDOR_URI: PEC.SIGNATORY.value,
-            _REPORTER_URI: PEC.SIGNATORY.value,
-        }
+            signatories[actor_uri] = participant.is_signatory(
+                case.active_embargo_id
+            )
+        assert signatories == {_VENDOR_URI: True, _REPORTER_URI: True}
 
     @pytest.mark.spec("EP-04-009")
     def test_terms_about_another_subject_are_no_proposal(

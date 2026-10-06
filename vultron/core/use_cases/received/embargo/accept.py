@@ -43,7 +43,7 @@ from vultron.core.use_cases.received._bt_verdict import (
 )
 from vultron.core.use_cases.received._embargo_pxa import (
     pxa_embargo_ineligible,
-    queue_pxa_reject,
+    run_pxa_refusal_tree,
 )
 
 if TYPE_CHECKING:
@@ -110,15 +110,24 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             case_id,
         )
         if invite_id:
-            queue_pxa_reject(
+            skipped = run_pxa_refusal_tree(
                 self._dl,
                 self._trigger_activity,
+                self._wire_render_port,
+                self._sync_port,
                 invite_id=invite_id,
                 case_id=case_id,
                 actor_id=receiving_actor_id,
                 recipient_id=accepting_actor_id,
+                store_invite=False,
+                activity=self._request,
                 label="accept_invite_to_embargo_on_case",
             )
+            if skipped is not None:
+                return HandlerResult.skipped(
+                    f"EA for Invite '{invite_id}' on case '{case_id}' not"
+                    f" refused again: {skipped}"
+                )
         else:
             logger.warning(
                 "accept_invite_to_embargo_on_case: missing invite_id"
@@ -322,10 +331,9 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
 
         else:
             # AC-4 of #2213: EM EXITED or NONE — ack no-op, no consent
-            # change (EMB-17-004, ADR-0118).  In EXITED the termination cascade
-            # already moved the participant to the terminal UNBOUND_EXITED; in
-            # NONE an expired participant stays EXPIRED, which a later embargo
-            # may re-invite.
+            # change (EMB-17-004, ADR-0118).  In EXITED nothing can be consented
+            # to any more; in NONE an expired participant's row stays EXPIRED,
+            # which a later embargo may re-invite.
             logger.info(
                 "accept_invite_to_embargo_on_case: late Accept for case"
                 " '%s' with EM '%s' — ack no-op; actor '%s' stays in"

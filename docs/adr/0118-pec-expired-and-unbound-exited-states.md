@@ -1,5 +1,6 @@
 ---
 status: accepted
+status_override: Set by the epoch lint rollout (#4196); the status predates the check and awaits a human's review against its epoch.
 date: 2026-10-02
 created: 2026-10-02
 updated: 2026-10-02
@@ -11,6 +12,7 @@ consulted: >-
   specs/em-behavior.yaml EMB-01, EMB-03, EMB-17; specs/handler-protocol.yaml HP-01;
   specs/message-semantics-mapping.yaml MSM-07
 informed: []
+partially_superseded_by: docs/adr/0122-per-embargo-participant-consent.md
 stakeholder_type: [project-contributor]
 ---
 
@@ -95,7 +97,7 @@ Chosen option: "Add two states, `EXPIRED` and `UNBOUND_EXITED`", because it is t
    It fires where `RESET` fired — the embargo termination cascade — on the CASE_MANAGER and, through the teardown replay, on every replica.
    The initial `UNBOUND` keeps its name and its full chain.
    A late Accept on a case with no current embargo (EMB-17-004) changes no consent: in `EM.EXITED` the participant already holds `UNBOUND_EXITED`, and in `EM.NONE` an expired participant stays `EXPIRED`, which a later embargo may re-invite.
-   `embargo_adherence` is unchanged — it is `True` only for `SIGNATORY` (CM-18-008) — so `UNBOUND_EXITED` reads `False`, as `UNBOUND` did.
+   `embargo_adherence` is unchanged — it is `True` only for `SIGNATORY` — so `UNBOUND_EXITED` reads `False`, as `UNBOUND` did.
 3. **A non-owner participant answers a P/X/A revision with ER, never ET.**
    EMB-03-003's ET is withdrawn for any participant that is neither the case owner nor the CASE_MANAGER.
    Such a participant that believes the case is public, exploited or attacked rejects every further embargo proposal, Invite or revision with ER, addressed to the CASE_MANAGER, as EMB-01-002 already requires for a first proposal, and writes no EM state.

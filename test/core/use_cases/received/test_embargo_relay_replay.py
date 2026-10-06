@@ -42,11 +42,14 @@ from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.core.use_cases.triggers.embargo import (
     SvcAcceptEmbargoUseCase,
     SvcProposeEmbargoRevisionUseCase,
@@ -61,6 +64,7 @@ from vultron.core.use_cases.triggers.requests import (
     RejectEmbargoTriggerRequest,
     TerminateEmbargoTriggerRequest,
 )
+from vultron.errors import VultronBTInternalError
 from vultron.semantic_registry import extract_event, use_case_map
 from vultron.wire.as2.factories import em_propose_embargo_activity
 from vultron.wire.as2.parser import parse_activity
@@ -109,7 +113,14 @@ class _Network:
             )
             manager_dl.save(
                 participant.model_copy(
-                    update={"embargo_consent_state": PEC.SIGNATORY}
+                    update={
+                        "embargo_consents": [
+                            EmbargoConsent(
+                                embargo_id=embargo.id_,
+                                state=EmbargoConsentState.ACCEPTED,
+                            )
+                        ]
+                    }
                 )
             )
         self.initial_embargo_id = embargo.id_
@@ -128,12 +139,31 @@ class _Network:
             self.stores[actor_id] = replica
         self._delivered: set[tuple[str, str]] = set()
 
-    def receive(self, receiver: str, body: dict[str, Any]):
-        """Route *body* into *receiver*'s store as the inbox routes it."""
-        dl = self.stores[receiver]
+    def receive(
+        self,
+        receiver: str,
+        body: dict[str, Any],
+        *,
+        without: frozenset[str] = frozenset(),
+    ):
+        """Route *body* into *receiver*'s store as the inbox routes it.
+
+        *without* names ports the receiver is composed without.
+        """
         event = extract_event(parse_activity(body)).model_copy(
             update={"receiving_actor_id": receiver}
         )
+        return self.receive_event(receiver, event, without=without)
+
+    def receive_event(
+        self,
+        receiver: str,
+        event: Any,
+        *,
+        without: frozenset[str] = frozenset(),
+    ):
+        """Run the use case for an already-extracted *event* at *receiver*."""
+        dl = self.stores[receiver]
         use_case = use_case_map()[event.semantic_type]
         offered: dict[str, Any] = {
             "sync_port": SyncActivityAdapter(dl),
@@ -141,7 +171,11 @@ class _Network:
             "wire_render_port": As2WireRenderAdapter(),
         }
         accepted = inspect.signature(use_case).parameters
-        ports = {k: v for k, v in offered.items() if k in accepted}
+        ports = {
+            k: v
+            for k, v in offered.items()
+            if k in accepted and k not in without
+        }
         return use_case(dl, event, **ports).execute()
 
     def queued(self, sender: str, *, to: str, type_: str | None = None):
@@ -317,7 +351,7 @@ def test_a_participants_rejection_is_fanned_out_and_replayed():
     case = net.case(OWNER)
     bystander = replica.read(case.actor_participant_index[BYSTANDER])
     assert isinstance(bystander, CaseParticipant)
-    assert revision_id not in bystander.accepted_embargo_ids
+    assert bystander.consent_for(revision_id) != EmbargoConsentState.ACCEPTED
     assert case.current_status.em.state == EM.REVISE
     assert case.proposed_embargo_ids == [revision_id]
 
@@ -356,14 +390,27 @@ def _set_pxa(net: _Network, actor_id: str) -> None:
     net.stores[actor_id].save(case)
 
 
-def _consent_states(net: _Network, actor_id: str) -> dict[str, PEC]:
-    """Every participant's consent state as *actor_id*'s store holds it."""
+def _participant(net: _Network, store_of: str, member: str) -> CaseParticipant:
+    """*member*'s participant record as *store_of*'s store holds it."""
+    participant = net.stores[store_of].read(
+        net.case(store_of).actor_participant_index[member]
+    )
+    assert isinstance(participant, CaseParticipant)
+    return participant
+
+
+def _consent_states(
+    net: _Network, actor_id: str
+) -> dict[str, dict[str, EmbargoConsentState]]:
+    """Every participant's consent rows as *actor_id*'s store holds them."""
     case = net.case(actor_id)
-    states: dict[str, PEC] = {}
+    states: dict[str, dict[str, EmbargoConsentState]] = {}
     for member, participant_id in case.actor_participant_index.items():
         participant = net.stores[actor_id].read(participant_id)
         assert isinstance(participant, CaseParticipant)
-        states[member] = participant.embargo_consent_state
+        states[member] = {
+            row.embargo_id: row.state for row in participant.embargo_consents
+        }
     return states
 
 
@@ -434,8 +481,13 @@ def test_a_participant_with_pxa_set_answers_a_revision_with_er_never_et():
 
 
 @pytest.mark.spec("EMB-01-002")
-def test_a_bare_uri_invite_with_pxa_set_is_refused_without_raising(caplog):
-    """No copy of the terms means no ER can be built: refuse, never raise."""
+@pytest.mark.spec("MSM-05-001")
+def test_a_bare_uri_invite_with_pxa_set_gets_an_er_naming_the_invite():
+    """Terms held by bare URI only: the ER still names the Invite by id.
+
+    The ER answers the Invite, not the terms, so a receiver that holds no
+    copy of them can still decline (EMB-01-002, MSM-05-001).
+    """
     net = _Network("https://example.org/cases/relay-replay-pxa-uri")
     _propose(net, "public-uri", 90)
     _set_pxa(net, OWNER)
@@ -444,18 +496,19 @@ def test_a_bare_uri_invite_with_pxa_set_is_refused_without_raising(caplog):
     assert body is not None
     body["object"] = body["object"]["id"]
 
-    with caplog.at_level("WARNING"):
-        verdict = net.receive(OWNER, body)
+    verdict = net.receive(OWNER, body)
+    again = net.receive(OWNER, body)
 
     assert verdict.disposition is HandlerDisposition.REFUSED
     assert verdict.reason is not None and "EMB-01-002" in verdict.reason
-    assert verdict.reason is not None and "no ER sent" in verdict.reason
-    assert net.queued(OWNER, to=MANAGER) == []
-    assert net.stores[OWNER].read(invite.id_) is not None
-    assert any(
-        "by id only" in record.getMessage() and record.levelname == "WARNING"
-        for record in caplog.records
-    )
+    assert again.disposition is HandlerDisposition.SKIPPED
+    (reject,) = net.queued(OWNER, to=MANAGER, type_="Reject")
+    sealed = read_sealed_body_dict(net.stores[OWNER], reject.id_)
+    assert sealed is not None
+    assert sealed["object"]["id"] == invite.id_
+    # The proposer understands it: the ER arrives as the answer to its Invite.
+    received = net.receive(MANAGER, sealed)
+    assert received.disposition is HandlerDisposition.APPLIED, received.reason
 
 
 @pytest.mark.spec("EMB-02-002")
@@ -510,11 +563,6 @@ def _pxa_invite_body(
 @pytest.mark.spec("EMB-01-002")
 @pytest.mark.spec("HP-01-003")
 @pytest.mark.spec("TB-06-007")
-@pytest.mark.xfail(
-    strict=True,
-    reason="#4140: the P/X/A refusal records no decision, so a re-delivered"
-    " Invite is refused again and a second ER is queued",
-)
 def test_a_redelivered_invite_with_pxa_set_is_refused_once():
     """A re-delivery was answered on first arrival: no second ER."""
     net = _Network("https://example.org/cases/relay-replay-pxa-again")
@@ -727,7 +775,7 @@ def test_a_lapsed_bystander_gets_its_invite_but_no_ledger_entry():
 
     The managing owner activates a revision longer than the terms the
     bystander signed, before the bystander answers its Invite, so the
-    bystander lapses (ADR-0093).  The content gate then withholds every
+    bystander lapses (derived, ADR-0093, ADR-0122).  The content gate then withholds every
     ``Announce(CaseLedgerEntry)`` from it (CM-10-005), while its relayed
     Invite, which is embargo meta-protocol traffic, still reaches it
     directly.  Once it accepts, the paused stream is backfilled in log order
@@ -744,7 +792,9 @@ def test_a_lapsed_bystander_gets_its_invite_but_no_ledger_entry():
         **_manager_ports(net),
     ).execute()
 
-    assert _consent_states(net, MANAGER)[BYSTANDER] is PEC.LAPSED
+    bystander = _participant(net, MANAGER, BYSTANDER)
+    assert bystander.has_lapsed(revision_id)
+    assert not bystander.is_signatory(revision_id)
     assert net.deliver(MANAGER, to=BYSTANDER, type_="Announce") == []
     assert net.case(BYSTANDER).current_status.em.state == EM.REVISE
     (invite,) = net.queued(MANAGER, to=BYSTANDER, type_="Invite")
@@ -758,7 +808,7 @@ def test_a_lapsed_bystander_gets_its_invite_but_no_ledger_entry():
             type_,
             verdict.reason,
         )
-    assert _consent_states(net, MANAGER)[BYSTANDER] is PEC.SIGNATORY
+    assert _participant(net, MANAGER, BYSTANDER).is_signatory(revision_id)
     _replay_to_bystander(net)
 
     replica = net.case(BYSTANDER)
@@ -868,19 +918,16 @@ def test_a_replica_follows_the_managing_owners_termination_by_trigger():
 @pytest.mark.spec("MSM-07-006")
 @pytest.mark.spec("EMB-17-004")
 @pytest.mark.spec("TB-06-007")
-def test_termination_exits_every_participant_in_every_store():
-    """Every record reads UNBOUND_EXITED on the manager and on a replica.
+def test_termination_leaves_nobody_a_signatory_in_every_store():
+    """Termination writes no consent, yet no record is bound afterwards.
 
-    Termination ends the embargo for everyone, the owner included, so no
-    record is left able to sign it (ADR-0118).  UNBOUND_EXITED is terminal:
-    every record, in both stores, refuses a later ``INVITE`` trigger.
+    With no embargo in force nobody is a signatory or lapsed, on the manager
+    and on a replica alike (ADR-0122); the rows are as they were.
     """
-    from vultron.core.states.participant_embargo_consent import PEC_Trigger
-    from vultron.errors import VultronInvalidStateTransitionError
-
     net = _managing_owner_network(
         "https://example.org/cases/manager-owner-terminate-pec"
     )
+    rows_before = _consent_states(net, MANAGER)
     SvcTerminateEmbargoUseCase(
         net.stores[MANAGER],
         TerminateEmbargoTriggerRequest(actor_id=MANAGER, case_id=net.case_id),
@@ -891,15 +938,190 @@ def test_termination_exits_every_participant_in_every_store():
     for actor_id in (MANAGER, BYSTANDER):
         states = _consent_states(net, actor_id)
         assert set(states) == {MANAGER, PROPOSER, BYSTANDER}, actor_id
-        assert set(states.values()) == {PEC.UNBOUND_EXITED}, (
-            actor_id,
-            states,
+        assert states == rows_before, actor_id
+        assert net.case(actor_id).active_embargo_id is None, actor_id
+        for member in states:
+            participant = _participant(net, actor_id, member)
+            assert not participant.is_signatory(None), (actor_id, member)
+            assert not participant.has_lapsed(None), (actor_id, member)
+
+
+def _faults(net: _Network, sender: str, to: str):
+    """``Create(ProcessingFault)`` bodies *sender* queued for *to*."""
+    bodies = []
+    for activity in net.queued(sender, to=to, type_="Create"):
+        body = read_sealed_body_dict(net.stores[sender], activity.id_)
+        assert body is not None
+        if body["object"]["type"] == "ProcessingFault":
+            bodies.append(body)
+    return bodies
+
+
+@pytest.mark.spec("EP-09-010")
+@pytest.mark.spec("MSM-05-001")
+@pytest.mark.parametrize("recipients", [[OWNER, BYSTANDER], []])
+def test_an_invite_with_zero_or_several_recipients_gets_a_processing_fault(
+    recipients,
+):
+    """A shape violation is received but not understood: fault, not ER."""
+    net = _Network("https://example.org/cases/relay-replay-fault")
+    _, body = _pxa_invite_body(net, MANAGER, OWNER, "shape")
+    body["to"] = recipients
+    body["cc"] = [OWNER]
+
+    verdict = net.receive(OWNER, body)
+    again = net.receive(OWNER, body)
+
+    assert verdict.disposition is HandlerDisposition.REFUSED
+    assert verdict.reason is not None and "EP-09-010" in verdict.reason
+    assert again.disposition is HandlerDisposition.REFUSED
+    (fault,) = _faults(net, OWNER, MANAGER)
+    assert fault["object"]["failureClass"].endswith("MisroutedEmbargoInvite")
+    assert fault["object"]["inReplyTo"] == body["id"]
+    assert net.queued(OWNER, to=MANAGER, type_="Reject") == []
+
+
+@pytest.mark.spec("EMB-02-002")
+@pytest.mark.spec("HP-01-003")
+@pytest.mark.spec("TB-06-007")
+def test_a_redelivered_accept_with_pxa_set_is_answered_once():
+    """The Accept-side refusal answers a repeated Accept once (EMB-02-002)."""
+    net = _Network("https://example.org/cases/relay-replay-pxa-accept-again")
+    _propose(net, "public-accept-again", 90)
+    net.deliver(MANAGER, to=OWNER, type_="Invite")
+    _set_pxa(net, MANAGER)
+    (accept,) = net.queued(OWNER, to=MANAGER, type_="Accept")
+    body = read_sealed_body_dict(net.stores[OWNER], accept.id_)
+    assert body is not None
+
+    first = net.receive(MANAGER, body)
+    again = net.receive(MANAGER, body)
+
+    assert first.disposition is HandlerDisposition.REFUSED
+    assert again.disposition is HandlerDisposition.SKIPPED
+    assert len(net.queued(MANAGER, to=OWNER, type_="Reject")) == 1
+
+
+def _refused_invite(net: _Network, suffix: str) -> dict[str, Any]:
+    """The CASE_MANAGER's relayed Invite to OWNER, with OWNER's P/X/A set."""
+    _propose(net, suffix, 90)
+    _set_pxa(net, OWNER)
+    (invite,) = net.queued(MANAGER, to=OWNER, type_="Invite")
+    body = read_sealed_body_dict(net.stores[MANAGER], invite.id_)
+    assert body is not None
+    return body
+
+
+@pytest.mark.spec("ID-04-005")
+@pytest.mark.spec("EMB-01-002")
+@pytest.mark.spec("HP-01-003")
+def test_a_refusal_whose_queue_write_failed_is_queued_on_redelivery(
+    monkeypatch,
+):
+    """The ER is sealed before it is queued: a failed queue write loses nothing.
+
+    The sealed body is the record that the ER was sent, so a redelivery that
+    reads it as "already answered" must still see the ER queued (ID-04-005).
+    """
+    net = _Network("https://example.org/cases/relay-replay-pxa-queue-fails")
+    body = _refused_invite(net, "queue-fails")
+    owner_dl = net.stores[OWNER]
+
+    def _outbox_down(activity_id: str) -> None:
+        raise RuntimeError("outbox unavailable")
+
+    with monkeypatch.context() as broken:
+        broken.setattr(owner_dl, "outbox_append", _outbox_down)
+        with pytest.raises(Exception):  # noqa: B017  # the delivery fails
+            net.receive(OWNER, body)
+    assert net.queued(OWNER, to=MANAGER, type_="Reject") == []
+
+    again = net.receive(OWNER, body)
+    third = net.receive(OWNER, body)
+
+    assert again.disposition is HandlerDisposition.SKIPPED
+    assert third.disposition is HandlerDisposition.SKIPPED
+    (reject,) = net.queued(OWNER, to=MANAGER, type_="Reject")
+    sealed = read_sealed_body_dict(owner_dl, reject.id_)
+    assert sealed is not None
+    assert sealed["object"]["id"] == body["id"]
+
+
+@pytest.mark.spec("EMB-01-002")
+@pytest.mark.spec("MSM-05-001")
+def test_a_refusal_with_no_trigger_port_stands_without_its_er(caplog):
+    """A receiver composed without the port refuses, says so, and sends no ER."""
+    net = _Network("https://example.org/cases/relay-replay-pxa-no-port")
+    body = _refused_invite(net, "no-port")
+
+    with caplog.at_level("WARNING"):
+        verdict = net.receive(
+            OWNER, body, without=frozenset({"trigger_activity"})
         )
-        for participant_id in net.case(
-            actor_id
-        ).actor_participant_index.values():
-            participant = net.stores[actor_id].read(participant_id)
-            assert isinstance(participant, CaseParticipant)
-            assert participant.accepts_pec_trigger(PEC_Trigger.INVITE) is False
-            with pytest.raises(VultronInvalidStateTransitionError):
-                participant.apply_pec_transition(PEC_Trigger.INVITE)
+
+    assert verdict.disposition is HandlerDisposition.REFUSED
+    assert "trigger_activity unavailable" in caplog.text
+    assert net.queued(OWNER, to=MANAGER, type_="Reject") == []
+    assert net.stores[OWNER].read(body["id"]) is not None
+
+
+@pytest.mark.spec("EP-09-010")
+@pytest.mark.spec("MSM-05-001")
+def test_an_invite_naming_no_embargo_gets_a_processing_fault():
+    """An Invite with no embargo is received but not understood: a fault."""
+    net = _Network("https://example.org/cases/relay-replay-no-embargo")
+    _, body = _pxa_invite_body(net, MANAGER, OWNER, "no-embargo")
+    event = extract_event(parse_activity(body)).model_copy(
+        update={"receiving_actor_id": OWNER, "object_": None}
+    )
+
+    verdict = net.receive_event(OWNER, event)
+    again = net.receive_event(OWNER, event)
+
+    assert verdict.disposition is HandlerDisposition.REFUSED
+    assert again.disposition is HandlerDisposition.REFUSED
+    (fault,) = _faults(net, OWNER, MANAGER)
+    assert fault["object"]["failureClass"].endswith(
+        "EmbargoInviteWithoutEmbargo"
+    )
+    assert fault["object"]["inReplyTo"] == body["id"]
+    assert net.queued(OWNER, to=MANAGER, type_="Reject") == []
+
+
+@pytest.mark.spec("EMB-01-002")
+@pytest.mark.spec("MV-09-001")
+def test_a_bare_uri_invite_on_a_private_case_is_stored_and_not_answered():
+    """Outside P/X/A a bare-URI Invite is not refused; a replica holding no terms keeps it."""
+    net = _Network("https://example.org/cases/relay-replay-uri-private")
+    _propose(net, "uri-private", 90)
+    (invite,) = net.queued(MANAGER, to=OWNER, type_="Invite")
+    body = read_sealed_body_dict(net.stores[MANAGER], invite.id_)
+    assert body is not None
+    body["object"] = body["object"]["id"]
+
+    verdict = net.receive(OWNER, body)
+
+    assert verdict.disposition is not HandlerDisposition.REFUSED, (
+        verdict.reason
+    )
+    assert net.queued(OWNER, to=MANAGER) == []
+    assert net.stores[OWNER].read(body["id"]) is not None
+
+
+@pytest.mark.spec("EMB-02-002")
+@pytest.mark.spec("HP-01-003")
+def test_an_accept_of_an_invite_the_receiver_does_not_hold_sends_no_er():
+    """An Accept naming an Invite this store never saw cannot be answered with ER."""
+    net = _Network("https://example.org/cases/relay-replay-pxa-accept-unheld")
+    _propose(net, "accept-unheld", 90)
+    net.deliver(MANAGER, to=OWNER, type_="Invite")
+    _set_pxa(net, MANAGER)
+    (accept,) = net.queued(OWNER, to=MANAGER, type_="Accept")
+    body = read_sealed_body_dict(net.stores[OWNER], accept.id_)
+    assert body is not None
+    body["object"]["id"] = f"{net.case_id}/embargo_proposals/never-sent"
+
+    with pytest.raises(VultronBTInternalError):
+        net.receive(MANAGER, body)
+
+    assert net.queued(MANAGER, to=OWNER, type_="Reject") == []

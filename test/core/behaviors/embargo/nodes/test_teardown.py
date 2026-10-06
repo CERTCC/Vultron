@@ -32,14 +32,16 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.embargo.nodes.teardown import (
     ApplyEmbargoTeardownNode,
     ClearActiveEmbargoNode,
-    ExitParticipantConsentNode,
     HasEmbargoActiveNode,
     RemoveFromProposedEmbargoesNode,
     SendAnnounceEmbargoEventNode,
 )
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -390,74 +392,6 @@ class TestClearActiveEmbargoNode:
         assert unchanged.current_status.em.state == EM.ACTIVE
 
 
-class TestExitParticipantConsentNode:
-    """Tests for ExitParticipantConsentNode."""
-
-    @pytest.mark.spec("EMB-13-001")
-    def test_exits_participant_pec_to_unbound_exited(self):
-        """Resets all participant PEC states to UNBOUND."""
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
-        case, _ = make_case_and_embargo("rpcn1", em_state=EM.ACTIVE)
-        participant = as_CaseParticipant(
-            id_=f"{case.id_}/participants/p1",
-            attributed_to="https://example.org/users/finder",
-        )
-        object.__setattr__(
-            participant, "embargo_consent_state", PEC.SIGNATORY.value
-        )
-        case.case_participants.append(participant.id_)
-        dl.create(case)
-        dl.create(participant)
-
-        setup_blackboard(dl)
-        node = ExitParticipantConsentNode(case_id=case.id_)
-        bt = py_trees.trees.BehaviourTree(root=node)
-        bt.setup()
-        bt.tick()
-
-        assert node.status == py_trees.common.Status.SUCCESS
-        updated_p = cast(as_CaseParticipant, dl.read(participant.id_))
-        assert updated_p.embargo_consent_state == PEC.UNBOUND_EXITED.value
-
-    def test_returns_success_with_no_participants(self):
-        """Returns SUCCESS when case has no participants."""
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
-        case, _ = make_case_and_embargo("rpcn2", em_state=EM.ACTIVE)
-        object.__setattr__(case, "case_participants", [])
-        dl.create(case)
-
-        setup_blackboard(dl)
-        node = ExitParticipantConsentNode(case_id=case.id_)
-        bt = py_trees.trees.BehaviourTree(root=node)
-        bt.setup()
-        bt.tick()
-
-        assert node.status == py_trees.common.Status.SUCCESS
-
-    def test_returns_failure_when_case_missing(self):
-        """Returns FAILURE when the case is not found in the DataLayer."""
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
-        setup_blackboard(dl)
-
-        node = ExitParticipantConsentNode(
-            case_id="https://example.org/cases/nonexistent"
-        )
-        bt = py_trees.trees.BehaviourTree(root=node)
-        bt.setup()
-        bt.tick()
-
-        assert node.status == py_trees.common.Status.FAILURE
-
-
 class TestApplyEmbargoTeardownNode:
     """Tests for ApplyEmbargoTeardownNode."""
 
@@ -597,23 +531,26 @@ class TestApplyEmbargoTeardownNode:
         assert updated.current_status.em.state == EM.EXITED
 
     @pytest.mark.spec("EMB-13-001")
-    def test_resets_participant_embargo_consent(self):
-        """Node resets participant PEC state to UNBOUND."""
+    def test_leaves_consent_rows_and_leaves_nobody_a_signatory(self):
+        """Teardown writes no consent: rows stay, but no embargo is in force."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
-        case, _ = make_case_and_embargo("atn5", em_state=EM.ACTIVE)
+        case, embargo = make_case_and_embargo("atn5", em_state=EM.ACTIVE)
         participant = as_CaseParticipant(
             id_=f"{case.id_}/participants/p1",
             attributed_to="https://example.org/users/finder",
-        )
-        object.__setattr__(
-            participant, "embargo_consent_state", PEC.SIGNATORY.value
+            embargo_consents=[
+                EmbargoConsent(
+                    embargo_id=embargo.id_, state=EmbargoConsentState.ACCEPTED
+                )
+            ],
         )
         case.case_participants.append(participant.id_)
         dl.create(case)
         dl.create(participant)
+        assert participant.is_signatory(case.active_embargo_id)
 
         setup_blackboard(dl)
         node = ApplyEmbargoTeardownNode(case_id=case.id_)
@@ -622,8 +559,14 @@ class TestApplyEmbargoTeardownNode:
         bt.tick()
 
         assert node.status == py_trees.common.Status.SUCCESS
+        updated_case = cast(VulnerabilityCase, dl.read(case.id_))
+        assert updated_case.active_embargo_id is None
         updated_p = cast(as_CaseParticipant, dl.read(participant.id_))
-        assert updated_p.embargo_consent_state == PEC.UNBOUND_EXITED.value
+        assert updated_p.embargo_consents == participant.embargo_consents
+        assert updated_p.consent_for(embargo.id_) is (
+            EmbargoConsentState.ACCEPTED
+        )
+        assert not updated_p.is_signatory(updated_case.active_embargo_id)
 
     def test_returns_success_when_case_missing(self):
         """Node returns SUCCESS when the case ID is not in the DataLayer.

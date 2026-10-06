@@ -426,6 +426,65 @@ class ActorSession:
             ),
         )
 
+    # -- embargo triggers ------------------------------------------------
+
+    def propose_embargo(
+        self, *, end_time: datetime, note: str | None = None
+    ) -> WireActivityResult:
+        """Propose an embargo ending at *end_time* (propose-embargo).
+
+        The result is the proposer's own ``Invite(EmbargoEvent)`` to the
+        CASE_MANAGER, which relays it to the other participants (EP-09-002);
+        the embargo's id is the Invite's ``object``.
+        """
+        return self._embargo_proposal("propose-embargo", end_time, note)
+
+    def propose_embargo_revision(
+        self, *, end_time: datetime, note: str | None = None
+    ) -> WireActivityResult:
+        """Propose revised terms ending at *end_time* (propose-embargo-revision).
+
+        Valid only while an embargo is in force (``EM.ACTIVE`` or
+        ``EM.REVISE``); the result is shaped as :meth:`propose_embargo`'s.
+        """
+        return self._embargo_proposal(
+            "propose-embargo-revision", end_time, note
+        )
+
+    def _embargo_proposal(
+        self, behavior: str, end_time: datetime, note: str | None
+    ) -> WireActivityResult:
+        """Post an embargo proposal *behavior* and type the emitted Invite."""
+        body: dict[str, Any] = {
+            "case_id": self._require_case_id(),
+            "end_time": end_time.isoformat(),
+        }
+        if note is not None:
+            body["note"] = note
+        return cast(
+            WireActivityResult,
+            self._post(behavior, body, result_cls=WireActivityResult),
+        )
+
+    def accept_embargo(
+        self, *, proposal_id: str | None = None
+    ) -> WireTriggerResult:
+        """Accept an open embargo proposal on the bound case (accept-embargo).
+
+        *proposal_id* names the proposal; omitted, the earliest-expiring open
+        proposal is answered (EP-08-002).
+        """
+        body: dict[str, Any] = {"case_id": self._require_case_id()}
+        if proposal_id is not None:
+            body["proposal_id"] = proposal_id
+        return self._post("accept-embargo", body)
+
+    def terminate_embargo(self) -> WireTriggerResult:
+        """Announce the end of the bound case's active embargo (terminate-embargo)."""
+        return self._post(
+            "terminate-embargo", {"case_id": self._require_case_id()}
+        )
+
     def notify_fix_ready(self) -> WireTriggerResult:
         """Self-report fix ready (CS.VFd) for the bound case (notify-fix-ready)."""
         return self._post(

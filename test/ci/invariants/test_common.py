@@ -293,7 +293,6 @@ def test_check_no_rm_state_oscillation_detects_post_closed_transition():
                 "object": {
                     "attributedTo": actor_id,
                     "rmState": "CLOSED",
-                    "emConsentState": "SIGNATORY",
                     "cvdRole": ["FINDER"],
                 }
             },
@@ -307,7 +306,6 @@ def test_check_no_rm_state_oscillation_detects_post_closed_transition():
                 "object": {
                     "attributedTo": actor_id,
                     "rmState": "ACCEPTED",  # post-CLOSED → oscillation
-                    "emConsentState": "SIGNATORY",
                     "cvdRole": ["FINDER"],
                 }
             },
@@ -335,7 +333,6 @@ def test_check_rm_closed_termination_detects_open_participant():
             "object": {
                 "attributedTo": actor_id,
                 "rmState": "ACCEPTED",  # not CLOSED
-                "emConsentState": "SIGNATORY",
                 "cvdRole": ["FINDER"],
             }
         },
@@ -392,8 +389,7 @@ def test_check_participant_status_schema_completeness_detects_missing_field():
             "object": {
                 "attributedTo": "https://example.org/actors/x",
                 "rmState": "VALID",
-                # emConsentState intentionally missing
-                "cvdRole": ["FINDER"],
+                # cvdRole intentionally missing
             }
         },
     )
@@ -413,7 +409,6 @@ def test_check_participant_status_schema_completeness_detects_invalid_role():
             "object": {
                 "attributedTo": "https://example.org/actors/x",
                 "rmState": "VALID",
-                "emConsentState": "SIGNATORY",
                 "cvdRole": ["NOT_A_REAL_ROLE"],
             }
         },
@@ -543,7 +538,6 @@ def test_check_cs_state_transitions_observed_detects_missing_fix_ready():
             "object": {
                 "attributedTo": actor_id,
                 "rmState": "VALID",
-                "emConsentState": "SIGNATORY",
                 "cvdRole": ["FINDER"],
                 "vfState": "vf",  # never VF
                 "caseStatus": {"pxaState": "Pxa"},
@@ -583,7 +577,6 @@ def test_check_cs_state_transitions_observed_no_vf_passes_without_fix_ready():
             "object": {
                 "attributedTo": actor_id,
                 "rmState": "ACCEPTED",
-                "emConsentState": "SIGNATORY",
                 "cvdRole": ["COORDINATOR"],
                 "vfState": "vf",  # no vendor → never VF
                 "caseStatus": {"pxaState": "Pxa"},  # P-transition present
@@ -610,7 +603,6 @@ def test_check_cs_state_transitions_observed_no_vfd_still_requires_published():
             "object": {
                 "attributedTo": actor_id,
                 "rmState": "ACCEPTED",
-                "emConsentState": "SIGNATORY",
                 "cvdRole": ["COORDINATOR"],
                 "vfState": "vf",
                 "caseStatus": {"pxaState": "pxa"},  # no P yet
@@ -1242,7 +1234,6 @@ def _status_entry(
             "object": {
                 "attributedTo": actor_id,
                 "rmState": rm_state,
-                "emConsentState": "SIGNATORY",
                 "cvdRole": ["FINDER"],
                 "vfState": vf_state,
                 "caseStatus": {"pxaState": pxa_state},
@@ -1272,7 +1263,7 @@ class TestForEachReplica:
     def test_case_actor_is_exempt(self):
         """A defect present only in the case-actor replica yields nothing."""
         bad_entry = _status_entry(0, "ACCEPTED", "VF", "Pxa")
-        bad_entry["payloadSnapshot"]["object"].pop("emConsentState")
+        bad_entry["payloadSnapshot"]["object"].pop("cvdRole")
         replicas = {"case-actor": [bad_entry]}
         assert (
             for_each_replica(
@@ -1435,18 +1426,6 @@ class TestCheckPerActorReplicaParticipantStatusSchemaCompleteness:
     def test_detects_missing_cvd_role(self):
         entries = _vendor_entries_valid()
         entries[0]["payloadSnapshot"]["object"].pop("cvdRole")
-        replicas = {"case-actor": _vendor_entries_valid(), "vendor": entries}
-        violations = (
-            check_per_actor_replica_participant_status_schema_completeness(
-                replicas
-            )
-        )
-        assert violations
-        assert "vendor" in violations[0]
-
-    def test_detects_missing_em_consent_state(self):
-        entries = _vendor_entries_valid()
-        entries[0]["payloadSnapshot"]["object"].pop("emConsentState")
         replicas = {"case-actor": _vendor_entries_valid(), "vendor": entries}
         violations = (
             check_per_actor_replica_participant_status_schema_completeness(

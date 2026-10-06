@@ -12,8 +12,11 @@ from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import compute_genesis_hash
 from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import em_propose_embargo_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Invite
@@ -47,14 +50,21 @@ def _build_active_embargo_case(
     owner_participant = VendorParticipant(
         attributed_to=owner_id,
         context=case.id_,
-        embargo_consent_state=PEC.SIGNATORY,
-        accepted_embargo_ids=[embargo.id_],
+        embargo_consents=[
+            EmbargoConsent(
+                embargo_id=embargo.id_, state=EmbargoConsentState.ACCEPTED
+            )
+        ],
     )
     owner_participant.add_role(CVDRole.CASE_MANAGER)
     participant = FinderParticipant(
         attributed_to=participant_id,
         context=case.id_,
-        embargo_consent_state=PEC.INVITED,
+        embargo_consents=[
+            EmbargoConsent(
+                embargo_id=embargo.id_, state=EmbargoConsentState.INVITED
+            )
+        ],
     )
 
     case.case_participants = [owner_participant.id_, participant.id_]
@@ -100,15 +110,22 @@ def _build_proposed_embargo_case_no_owner_attribution(
     case_manager_participant = VendorParticipant(
         attributed_to=case_manager_id,
         context=case.id_,
-        embargo_consent_state=PEC.SIGNATORY,
-        accepted_embargo_ids=[embargo.id_],
+        embargo_consents=[
+            EmbargoConsent(
+                embargo_id=embargo.id_, state=EmbargoConsentState.ACCEPTED
+            )
+        ],
     )
     case_manager_participant.add_role(CVDRole.CASE_MANAGER)
 
     actor_participant = FinderParticipant(
         attributed_to=actor_id,
         context=case.id_,
-        embargo_consent_state=PEC.INVITED,
+        embargo_consents=[
+            EmbargoConsent(
+                embargo_id=embargo.id_, state=EmbargoConsentState.INVITED
+            )
+        ],
     )
 
     case.case_participants = [
@@ -143,7 +160,6 @@ def _build_exited_case(
     owner_participant = VendorParticipant(
         attributed_to=owner_id,
         context=case.id_,
-        embargo_consent_state=PEC.UNBOUND,
     )
     owner_participant.add_role(CVDRole.CASE_MANAGER)
     case.case_participants = [owner_participant.id_]
@@ -164,7 +180,6 @@ def _build_unbound_case_with_case_manager(
     owner_participant = VendorParticipant(
         attributed_to=owner_id,
         context=case.id_,
-        embargo_consent_state=PEC.UNBOUND,
     )
     owner_participant.add_role(CVDRole.CASE_MANAGER)
     case.case_participants = [owner_participant.id_]
@@ -189,8 +204,11 @@ def _build_active_embargo_case_with_case_manager(
     owner_participant = VendorParticipant(
         attributed_to=actor_id,
         context=case.id_,
-        embargo_consent_state=PEC.SIGNATORY,
-        accepted_embargo_ids=[embargo.id_],
+        embargo_consents=[
+            EmbargoConsent(
+                embargo_id=embargo.id_, state=EmbargoConsentState.ACCEPTED
+            )
+        ],
     )
     owner_participant.add_role(CVDRole.CASE_MANAGER)
 
@@ -292,20 +310,25 @@ def _add_participant(
     dl: SqliteDataLayer,
     case_id: str,
     actor_id: str,
-    consent: PEC = PEC.SIGNATORY,
+    consent: EmbargoConsentState | None = EmbargoConsentState.ACCEPTED,
 ) -> str:
     """Add a finder participant for *actor_id* to a stored case; return its id.
 
-    ``SIGNATORY`` by default, so a case-content send reaches it while the
+    Its row for the embargo in force is ``ACCEPTED`` by default, so a case-content send reaches it while the
     embargo is in force (CM-10-004).
     """
     from typing import cast
 
     case = cast(VulnerabilityCase, dl.read(case_id))
+    rows = (
+        [EmbargoConsent(embargo_id=case.active_embargo_id, state=consent)]
+        if consent is not None and case.active_embargo_id is not None
+        else []
+    )
     participant = FinderParticipant(
         attributed_to=actor_id,
         context=case_id,
-        embargo_consent_state=consent,
+        embargo_consents=rows,
     )
     dl.create(participant)
     case.case_participants = [*case.case_participants, participant.id_]

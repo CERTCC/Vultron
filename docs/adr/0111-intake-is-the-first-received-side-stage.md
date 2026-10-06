@@ -1,5 +1,6 @@
 ---
 status: accepted
+status_override: Set by the epoch lint rollout (#4196); the status predates the check and awaits a human's review against its epoch.
 date: 2026-09-29
 created: 2026-09-29
 updated: 2026-09-29
@@ -114,13 +115,21 @@ Detail 5 stands with the correction that the handler-local helpers are replaced 
 **Fifteen trees bypassed the factory, not two.**
 Detail 7 assumed the two trees composing the CASE_MANAGER gate directly were the only ones outside `create_receive_activity_tree`.
 Defining a receive-side tree as one a received use case calls, the ordering ratchet found fifteen.
-They are held as an exact set (`KNOWN_FACTORIES_BYPASSING_INTAKE`, ARCH-18-001) and each moves with the handler migration that owns its area, or with #3935 for the sync and dead-letter trees.
+They are held as an exact set (`KNOWN_FACTORIES_BYPASSING_INTAKE`, ARCH-18-001) and each moves with the handler migration that owns its area; the sync announce and reject trees and the dead-letter tree moved in #3935.
+`create_commit_log_entry_tree` is not a receive-side tree: it is the subtree the commit node runs, and no received use case calls it, so it is outside the ratchet's definition.
 
 **The commit stage needs a canonical signature.**
 CLP-10-013 required every factory-built tree to pass `case_id` and commit.
 `Update(VulnerabilityCase)` has no canonical payload signature, so the CASE_MANAGER refused its own commit the moment the update tree moved onto the factory.
 CLP-10-013 is amended to require the commit exactly when the received `(type, object)` pair is a canonical signature; the update tree and the sync trees pass `case_id=None`.
-Whether an owner's update should become a ledgered assertion (ADR-0108) is #3936.
+
+**An owner's `Update(VulnerabilityCase)` is not a ledgered assertion (#3936).**
+ADR-0108 says case state flows through the case manager and the ledger, and the ledger carries completed acts (ADR-0119).
+An `Update(VulnerabilityCase)` is neither: the message is a request to change case fields that no production code sends (`update_case_activity` is called only by the vocabulary examples), it has no story in the protocol's use cases, and its one visible effect, the CM-06-001 broadcast, duplicates what `Announce(CaseLedgerEntry)` fan-out already does for every ledgered change.
+Making it canonical would add a signature, a replica apply slot and changed entry hashes in every demo, for a message nobody emits.
+So it stays outside `_CANONICAL_PAYLOAD_SIGNATURES`; `create_update_case_received_tree` passes `case_id=None`; a receiver applies it to its replica and only the CASE_MANAGER announces it (CM-06-001).
+A case change an actor wants ledgered is made by a canonical act, not by this message.
+The received path is kept because the wire vocabulary still defines the activity; removing the vocabulary, the semantic and the handler together is a protocol-surface change left to its own decision.
 
 **The archive is keyed by the receiver, not by the sender.**
 The first build archived the activity as its own row, under the id the sender chose, which treated the archive as inert.

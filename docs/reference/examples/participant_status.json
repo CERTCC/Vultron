@@ -21,6 +21,5 @@
     "pxaState": "pxa",
     "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
   },
-  "embargoAdherence": false,
   "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
 }

@@ -104,12 +104,14 @@ class TestOfferActorToCaseReceivedUseCase:
         recommended_id = "https://example.org/actors/vendor-new"
         recommended = as_Actor(id_=recommended_id)
 
-        # Build Offer(Actor, Case) — the wire activity matched by OFFER_ACTOR_TO_CASE
+        # Build Offer(Actor, Case) — the wire activity matched by OFFER_ACTOR_TO_CASE.
+        # CM-11-019: roles must be explicit; no default to VENDOR.
         activity = recommend_actor_activity(
             recommended,
             target=_case_ref(case_id),
             actor=recommender_id,
             to=[local_actor_id],
+            suggested_roles=["vendor"],
         )
         event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID)
         assert isinstance(event, OfferActorToCaseReceivedEvent), (
@@ -448,8 +450,9 @@ class TestOwnerDirectInviteAtCaseManager:
 
     def _sealed_invite(self, dl) -> dict:
         bodies = self._sealed_bodies(dl)
-        assert len(bodies) == 1, f"expected one Invite, got {bodies!r}"
-        return bodies[0]
+        invites = [b for b in bodies if b.get("type") == "Invite"]
+        assert len(invites) == 1, f"expected one Invite, got {bodies!r}"
+        return invites[0]
 
     @pytest.mark.spec("CM-17-007")
     def test_case_manager_emits_the_invite_itself(
@@ -457,7 +460,8 @@ class TestOwnerDirectInviteAtCaseManager:
     ):
         dl = self._setup_dl(seed_case_manager)
 
-        result = self._deliver(dl, make_payload)
+        # CM-11-019: roles must be explicit; no default to VENDOR.
+        result = self._deliver(dl, make_payload, roles=["vendor"])
 
         assert result.disposition is HandlerDisposition.APPLIED
         invite = self._sealed_invite(dl)
@@ -466,7 +470,6 @@ class TestOwnerDirectInviteAtCaseManager:
         assert invite.get("attributedTo") == self._OWNER_ID
         assert invite.get("to") == [self._INVITEE_ID]
         assert "cc" not in invite
-        # No roles named: the CASE_MANAGER assigns the default (CM-16-003).
         assert invite.get("roles") == ["vendor"]
 
     @pytest.mark.spec("CM-17-003")
@@ -485,7 +488,7 @@ class TestOwnerDirectInviteAtCaseManager:
     ):
         dl = self._setup_dl(seed_case_manager)
 
-        self._deliver(dl, make_payload)
+        self._deliver(dl, make_payload, roles=["vendor"])
 
         invite_id = self._sealed_invite(dl)["id"]
         snapshot_ids = [
@@ -500,7 +503,7 @@ class TestOwnerDirectInviteAtCaseManager:
     ):
         dl = self._setup_dl(seed_case_manager, with_active_embargo=True)
 
-        self._deliver(dl, make_payload)
+        self._deliver(dl, make_payload, roles=["vendor"])
 
         target = self._sealed_invite(dl)["target"]
         assert isinstance(target.get("activeEmbargo"), dict)
@@ -516,11 +519,14 @@ class TestOwnerDirectInviteAtCaseManager:
         """The fresh path's Offer(CaseParticipant) to the owner is not sent."""
         dl = self._setup_dl(seed_case_manager)
 
-        self._deliver(dl, make_payload)
+        self._deliver(dl, make_payload, roles=["vendor"])
 
         queued = self._sealed_bodies(dl)
         assert queued
-        assert all(body.get("type") == "Invite" for body in queued)
+        # An Add(CaseParticipant) is now emitted alongside the Invite (AC-1,
+        # CM-11-006), but no Offer(CaseParticipant) should reach the owner.
+        assert any(body.get("type") == "Invite" for body in queued)
+        assert not any(body.get("type") == "Offer" for body in queued)
 
 
 class TestSuggestionFromNonParticipant:

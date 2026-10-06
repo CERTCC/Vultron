@@ -26,7 +26,7 @@ from vultron.core.models.dimensions import EmDimension
 from vultron.core.services.embargo_lifecycle.base import _LifecycleBase
 from vultron.core.services.embargo_lifecycle.results import (
     EmbargoLifecycleResult,
-    ParticipantPECChange,
+    ParticipantConsentChange,
 )
 from vultron.core.services.embargo_ordering import (
     earliest_expiring_embargo_id,
@@ -113,7 +113,7 @@ class _ActivationArmMixin(_LifecycleBase):
         *,
         em_before: EM,
         em_after: EM,
-        participant_changes: list[ParticipantPECChange],
+        participant_changes: list[ParticipantConsentChange],
     ) -> EmbargoLifecycleResult:
         """The result of an activation: case and active embargo changed."""
         return EmbargoLifecycleResult(
@@ -121,6 +121,5 @@ class _ActivationArmMixin(_LifecycleBase):
             em_after=em_after,
             case_changed=True,
             case_embargo_changed=True,
-            pec_exited=False,
             participant_changes=participant_changes,
         )

@@ -20,7 +20,6 @@ from typing import Any, Literal
 from pydantic import (
     AliasChoices,
     Field,
-    computed_field,
     field_serializer,
     field_validator,
     model_validator,
@@ -30,34 +29,17 @@ from vultron.core.models.base import CoreObject, NonEmptyString
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import (
     DDimension,
-    PecDimension,
     RmDimension,
     VfDimension,
 )
 from vultron.core.models.wire_keys import input_keys
 from vultron.core.states.cs import CS_d, CS_vf
-from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM, is_rm_write_permitted
 from vultron.enums.roles import CVDRole
 from vultron.errors import (
     VultronProtocolViolationError,
     VultronValidationError,
 )
-
-
-def coerce_em_consent_state(value: object) -> PEC | None:
-    if value is None:
-        return None
-    if isinstance(value, PEC):
-        return value
-    if isinstance(value, str):
-        # ADR-0091 renamed NO_EMBARGO → UNBOUND; migrate stored legacy values.
-        if value == "NO_EMBARGO":
-            return PEC.UNBOUND
-        return PEC(value)
-    raise TypeError(
-        f"Unsupported em_consent_state type: {type(value).__name__}"
-    )
 
 
 def coerce_cvd_roles(value: object) -> list[CVDRole]:
@@ -98,9 +80,10 @@ class ParticipantStatus(CoreObject):
     ``case_status`` embeds the participant's perspective on the case-level
     state (em and pxa) via a nested :class:`CaseStatus` object.
 
-    ``rm``, ``vf``, ``d``, and ``consent`` are dimension objects that own the
-    RM, VF, D, and PEC state machines respectively (ADR-0036, ADR-0075,
-    SDO-03-002).  ``vf`` is non-None for VENDOR participants; ``d`` is
+    ``rm``, ``vf``, and ``d`` are dimension objects that own the RM, VF, and D
+    state machines respectively (ADR-0036, ADR-0075, SDO-03-002).  The status
+    carries no embargo consent: consent is per (participant, embargo) and lives
+    on the ``CaseParticipant`` (ADR-0122, CM-18-001).  ``vf`` is non-None for VENDOR participants; ``d`` is
     non-None for DEPLOYER participants; a participant with both roles carries
     both.
     """
@@ -131,20 +114,6 @@ class ParticipantStatus(CoreObject):
         serialization_alias="dState",
     )
     case_engagement: bool = True
-    consent: PecDimension | None = Field(
-        default=None,
-        validation_alias=AliasChoices(
-            "emConsentState", "em_consent_state", "consent"
-        ),
-        serialization_alias="emConsentState",
-    )
-
-    @computed_field  # type: ignore[misc]
-    @property
-    def embargo_adherence(self) -> bool:
-        """True iff consent.state == SIGNATORY; False otherwise (CM-18-008, ADR-0056)."""
-        return self.consent is not None and self.consent.is_signatory()
-
     cvd_role: list[CVDRole] = Field(default_factory=lambda: [CVDRole.OBSERVER])
     tracking_id: NonEmptyString | None = None
     case_status: CaseStatus | None = None

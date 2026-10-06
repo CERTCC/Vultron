@@ -14,19 +14,26 @@ from vultron.core.behaviors.sync.announce_tree import (
     create_announce_log_entry_tree,
 )
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
+from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
+)
 from vultron.core.models.rsvp_deadline import (
     INVITE_EXPIRED_EVENT_TYPE,
     INVITE_EXPIRED_SNAPSHOT_TYPE,
 )
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.semantic_registry import extract_event
@@ -104,13 +111,47 @@ def _make_event(
         entry.model_dump(mode="json")
     )
     activity = announce_log_entry_activity(entry=wire_entry, actor=actor_id)
-    return cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
+    event = cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
+    # The inbox pipeline attaches the core wire activity; intake archives it.
+    event.activity = VultronActivity(
+        id_=event.activity_id,
+        type_="Announce",
+        actor=actor_id,
+        object_=entry,
+    )
+    return event
 
 
-def test_create_announce_log_entry_tree_returns_selector():
+def test_create_announce_log_entry_tree_is_intake_then_role_selector():
     tree = create_announce_log_entry_tree()
     assert tree.name == "AnnounceLogEntryReceivedBT"
+    # Intake first (CLP-10-017), then the CASE_MANAGER / participant arms.
+    assert tree.children[0].name == "IntakeReceivedActivityNode"
     assert len(tree.children) == 2
+    assert len(tree.children[1].children) == 2
+
+
+def _archived(datalayer, event) -> bool:
+    record = datalayer.read(ReceivedActivityRecord.build_id(event.activity_id))
+    return isinstance(record, ReceivedActivityRecord)
+
+
+@pytest.mark.spec("CLP-10-017")
+def test_announce_archives_the_received_activity(
+    bridge, datalayer, case_actor, case_obj
+):
+    entry = _make_entry(0, case_obj.genesis_hash)
+    event = _make_event(entry, actor_id=case_actor.id_)
+
+    result = bridge.execute_with_setup(
+        tree=create_announce_log_entry_tree(),
+        actor_id=PARTICIPANT_ACTOR_ID,
+        activity=event,
+        sync_port=MagicMock(spec=SyncActivityPort),
+    )
+
+    assert result.status == Status.SUCCESS
+    assert _archived(datalayer, event)
 
 
 @pytest.fixture
@@ -299,6 +340,9 @@ def test_hash_mismatch_sends_reject_and_does_not_store(
     assert result.status == Status.FAILURE
     assert datalayer.read(bad_entry.id_) is None
     sync_port.send_reject_log_entry.assert_called_once()
+    # The refused chain check leaves the archive of what arrived, and only
+    # that: the inlined entry is not stored (CLP-10-017, CLP-10-018).
+    assert _archived(datalayer, event)
 
 
 def _make_remove_embargo_entry(
@@ -485,12 +529,25 @@ def _make_invite_expired_entry(
     )
 
 
-def _seed_invited_participant(datalayer, case_obj, pec: PEC) -> str:
-    """Give the replica a participant record for this store's actor."""
+_ENTRY_EMBARGO_ID = f"{CASE_ID}/embargo_events/e1"
+
+
+def _seed_invited_participant(
+    datalayer, case_obj, consent: EmbargoConsentState | None
+) -> str:
+    """Give the replica a participant record for this store's actor.
+
+    *consent* is the state of its row for the embargo the ledger entries
+    name, or ``None`` for a participant never asked about it.
+    """
     participant = CaseParticipant(
         attributed_to=PARTICIPANT_ACTOR_ID,
         context=CASE_ID,
-        embargo_consent_state=pec,
+        embargo_consents=(
+            []
+            if consent is None
+            else [EmbargoConsent(embargo_id=_ENTRY_EMBARGO_ID, state=consent)]
+        ),
     )
     datalayer.create(participant)
     case_obj.actor_participant_index[PARTICIPANT_ACTOR_ID] = participant.id_
@@ -509,9 +566,7 @@ class TestAnnounceLogEntryAppliesEmbargoInviteRelay:
     ):
         """The invitee's deadline appears in the replica after replay."""
         _seed_case_manager(datalayer, case_obj)
-        participant_id = _seed_invited_participant(
-            datalayer, case_obj, PEC.UNBOUND
-        )
+        participant_id = _seed_invited_participant(datalayer, case_obj, None)
         entry = _make_relayed_invite_entry(0, case_obj.genesis_hash)
         event = _make_event(entry, actor_id=CASE_ACTOR_ACTOR_ID)
 
@@ -526,7 +581,10 @@ class TestAnnounceLogEntryAppliesEmbargoInviteRelay:
         updated = datalayer.read(participant_id)
         assert isinstance(updated, CaseParticipant)
         assert updated.invite_rsvp_deadline is not None
-        assert updated.embargo_consent_state == PEC.INVITED
+        assert (
+            updated.consent_for(_ENTRY_EMBARGO_ID)
+            is EmbargoConsentState.INVITED
+        )
 
     @pytest.mark.spec("CM-28-014")
     def test_replica_reads_expired_from_expiry_entry(
@@ -534,7 +592,7 @@ class TestAnnounceLogEntryAppliesEmbargoInviteRelay:
     ):
         """A replica learns an expiry from the entry and never computes one."""
         participant_id = _seed_invited_participant(
-            datalayer, case_obj, PEC.INVITED
+            datalayer, case_obj, EmbargoConsentState.INVITED
         )
         entry = _make_invite_expired_entry(0, case_obj.genesis_hash)
         event = _make_event(entry, actor_id=case_actor.id_)
@@ -549,7 +607,10 @@ class TestAnnounceLogEntryAppliesEmbargoInviteRelay:
         assert result.status == Status.SUCCESS
         updated = datalayer.read(participant_id)
         assert isinstance(updated, CaseParticipant)
-        assert updated.embargo_consent_state is PEC.EXPIRED
+        assert (
+            updated.consent_for(_ENTRY_EMBARGO_ID)
+            is EmbargoConsentState.EXPIRED
+        )
 
 
 def _make_add_note_entry(

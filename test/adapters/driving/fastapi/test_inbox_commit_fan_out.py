@@ -121,6 +121,7 @@ def test_owner_offer_actor_dispatched_by_inbox_fans_out_every_commit(
         target=as_VulnerabilityCase(id_=_CASE_ID, name="FanOutWiring"),
         actor=_OWNER_ID,
         to=[_MANAGER_ID],
+        suggested_roles=["vendor"],
     )
     event = extract_event(activity).model_copy(
         update={"receiving_actor_id": _MANAGER_ID}

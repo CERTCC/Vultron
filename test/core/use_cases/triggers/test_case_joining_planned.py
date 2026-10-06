@@ -75,7 +75,9 @@ from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.predicates.participants import all_participants_rm_closed
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.actor.suggest import (
     OfferActorToCaseReceivedUseCase,
@@ -256,13 +258,6 @@ def _case_with_invitee_record(
     return case, record
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "CM-11-006: sending a stub Invite creates the invitee's inert"
-        " participant at RM RECEIVED. Tracked by #4048."
-    ),
-)
 @pytest.mark.spec("CM-11-006")
 def test_stub_invite_creates_inert_invitee_participant(actor_store) -> None:
     """The CASE_MANAGER records the invitee the moment it invites it.
@@ -297,7 +292,7 @@ def test_stub_invite_creates_inert_invitee_participant(actor_store) -> None:
     latest = participant.participant_statuses[-1]
     assert participant_status_rm_state(latest) == RM.RECEIVED
     assert participant_status_vf_state(latest) == CS_vf.vf
-    assert participant.embargo_consent_state == PEC.INVITED
+    assert participant.consent_for(embargo.id_) == EmbargoConsentState.INVITED
 
     creation_entries = [
         e
@@ -785,14 +780,6 @@ def test_stub_invite_is_addressed_to_the_inert_invitee(actor_store) -> None:
     assert invitee.id_ in recipients
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "PRM-06-001: the participant's birth — one status at RM RECEIVED —"
-        " is the only write about it the CASE_MANAGER makes. "
-        "Tracked by #4048."
-    ),
-)
 @pytest.mark.spec("PRM-06-001")
 def test_stub_invite_writes_only_the_invitee_birth_status(
     actor_store,

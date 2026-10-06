@@ -313,7 +313,8 @@ resolved by moving `exit_case_participant_embargo_consent` to
 `vultron.core.use_cases._helpers` (a shared utility module importable by
 both layers) and by decomposing the god node into three single-responsibility
 nodes: `HasEmbargoActiveNode`, `ClearActiveEmbargoNode`, and
-`ExitParticipantConsentNode` (issue #1554).
+`ExitParticipantConsentNode` (issue #1554). ADR-0122 later deleted the
+consent-exit node and helper: termination now writes no consent row.
 
 ---
 

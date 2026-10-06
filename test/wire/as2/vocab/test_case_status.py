@@ -27,7 +27,6 @@ from vultron.core.models.case_status import CaseStatus as CoreCaseStatus
 from vultron.core.models.participant_status import (
     ParticipantStatus as CoreParticipantStatus,
 )
-from vultron.core.states.participant_embargo_consent import PEC
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.case_status import (
     as_CaseStatus,
@@ -169,14 +168,13 @@ class TestCoerceUnknownEnumNames(unittest.TestCase):
                 rm_state="BOGUS_RM",  # type: ignore[arg-type]
             )
 
-    def test_em_consent_state_unknown_raises_validation_error(self):
-        """as_ParticipantStatus with bogus emConsentState raises ValidationError."""
-        with pytest.raises(ValidationError):
-            as_ParticipantStatus(
-                attributed_to=ACTOR_ID,
-                context=CASE_ID,
-                emConsentState="BOGUS_PEC",  # type: ignore[call-arg]
-            )
+    def test_retired_consent_key_raises_validation_error(self):
+        """A retired scalar-consent key is refused, not silently dropped (ADR-0122)."""
+        for key in ("emConsentState", "em_consent_state", "embargoAdherence"):
+            with self.subTest(key=key), pytest.raises(ValidationError):
+                as_ParticipantStatus.model_validate(
+                    {"attributed_to": ACTOR_ID, "context": CASE_ID, key: "X"}
+                )
 
 
 class TestAs2RoundTripPreservesFields(unittest.TestCase):
@@ -252,23 +250,6 @@ class TestRetiredVfdKeyRejection(unittest.TestCase):
             attributed_to=ACTOR_ID,
         )
         self.assertEqual(CASE_ID, ps.context)
-
-
-class TestParticipantStatusLegacyPecMigration(unittest.TestCase):
-    """as_ParticipantStatus must coerce legacy emConsentState values (ADR-0091)."""
-
-    def test_no_embargo_em_consent_state_migrates_to_unbound(self):
-        """ADR-0091 renamed NO_EMBARGO → UNBOUND; as_ParticipantStatus must migrate stored legacy emConsentState (issue #3376)."""
-        ps = as_ParticipantStatus.model_validate(
-            {
-                "context": CASE_ID,
-                "attributed_to": ACTOR_ID,
-                "emConsentState": "NO_EMBARGO",
-            }
-        )
-        # The dimension owns the state; ``consent.state`` is where it lands.
-        assert ps.consent is not None
-        self.assertEqual(ps.consent.state, PEC.UNBOUND)
 
 
 if __name__ == "__main__":

@@ -25,15 +25,17 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus as CoreCaseStatus
 from vultron.core.models.dimensions import (
     EmDimension,
-    PecDimension,
     RmDimension,
 )
+from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.participant_status import (
     ParticipantStatus as CoreParticipantStatus,
 )
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.objects.case_actor import as_CaseActor
 from vultron.wire.as2.vocab.objects.case_ledger_entry import as_CaseLedgerEntry
@@ -125,35 +127,6 @@ def test_participant_status_from_core_materializes_case_status_reference():
     assert round_tripped.case_status.em.state == core_case_status.em.state
 
 
-def test_participant_status_embargo_adherence_survives_wire_round_trip():
-    """embargo_adherence is correctly projected through from_core() and round-tripped via to_core() (ADR-0056)."""
-    core_signatory = CoreParticipantStatus(
-        id_="https://example.org/cases/1/participants/vendor/status/1",
-        attributed_to="https://example.org/actors/vendor",
-        context="https://example.org/cases/1",
-        consent=PecDimension(state=PEC.SIGNATORY),
-    )
-    wire = as_ParticipantStatus.model_validate(
-        core_signatory.model_dump(by_alias=True, mode="json")
-    )
-    assert wire.embargo_adherence is True
-
-    round_tripped = wire
-    assert round_tripped.embargo_adherence is True
-
-    core_no_consent = CoreParticipantStatus(
-        id_="https://example.org/cases/1/participants/vendor/status/2",
-        attributed_to="https://example.org/actors/vendor",
-        context="https://example.org/cases/1",
-        consent=None,
-    )
-    wire_no_consent = as_ParticipantStatus.model_validate(
-        core_no_consent.model_dump(by_alias=True, mode="json")
-    )
-    assert wire_no_consent.embargo_adherence is False
-    assert wire_no_consent.embargo_adherence is False
-
-
 def test_case_participant_round_trips_between_core_and_wire():
     core = CaseParticipant(
         id_="https://example.org/cases/1/participants/vendor",
@@ -168,13 +141,21 @@ def test_case_participant_round_trips_between_core_and_wire():
                 rm=RmDimension(state=RM.ACCEPTED),
             )
         ],
-        accepted_embargo_ids=["https://example.org/embargoes/1"],
+        embargo_consents=[
+            EmbargoConsent(
+                embargo_id="https://example.org/embargoes/1",
+                state=EmbargoConsentState.ACCEPTED,
+            ),
+            EmbargoConsent(
+                embargo_id="https://example.org/embargoes/2",
+                state=EmbargoConsentState.INVITED,
+            ),
+        ],
         participant_case_name="Vendor Case Name",
     )
 
-    wire = as_CaseParticipant.model_validate(
-        core.model_dump(by_alias=True, mode="json")
-    )
+    wire_dump = core.model_dump(by_alias=True, mode="json")
+    wire = as_CaseParticipant.model_validate(wire_dump)
 
     assert isinstance(wire, as_CaseParticipant)
     assert wire.id_ == core.id_
@@ -182,7 +163,10 @@ def test_case_participant_round_trips_between_core_and_wire():
     assert round_tripped.id_ == core.id_
     assert round_tripped.attributed_to == core.attributed_to
     assert round_tripped.context == core.context
-    assert round_tripped.accepted_embargo_ids == core.accepted_embargo_ids
+    assert round_tripped.embargo_consents == core.embargo_consents
+    assert wire_dump["embargoConsents"][0]["embargoId"] == (
+        "https://example.org/embargoes/1"
+    )
     assert round_tripped.participant_statuses[0].rm.state == RM.ACCEPTED
 
 
