@@ -365,6 +365,30 @@ def test_case_proposal_reject_from_non_addressee_is_refused(make_payload):
 
 
 @pytest.mark.spec("CP-06-005")
+def test_case_proposal_reply_with_no_recorded_addressee_is_refused(
+    make_payload,
+):
+    """A link that records nobody entitles nobody."""
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_VENDOR_URI)
+    proposal = _make_proposal()
+    report = proposal.object_
+    assert report is not None
+    link_id = VultronReportCaseLink.build_id(_report_id(report))
+    dl.create(VultronReportCaseLink(report_id=_report_id(report)))
+    event = make_payload(
+        as_Accept(actor=_IMPOSTOR_ID, object_=proposal, to=[_VENDOR_URI]),
+        receiving_actor_id=_VENDOR_URI,
+    )
+
+    result = AcceptCaseProposalReceivedUseCase(dl, event).execute()
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    link = dl.read(link_id)
+    assert isinstance(link, VultronReportCaseLink)
+    assert link.case_manager_id is None
+
+
+@pytest.mark.spec("CP-06-005")
 def test_case_proposal_accept_after_case_established_keeps_case_manager(
     make_payload,
 ):
