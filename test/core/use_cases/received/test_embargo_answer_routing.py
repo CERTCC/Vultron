@@ -379,6 +379,28 @@ def test_a_reinvite_is_not_committed_by_a_store_that_is_not_the_manager():
     assert _event_types(net, OWNER).count(EMBARGO_REINVITE_EVENT_TYPE) == 0
 
 
+@pytest.mark.spec("EMB-17-003")
+@pytest.mark.spec("BT-17-001")
+def test_a_late_accept_of_a_stale_embargo_reinvites_nobody_from_a_replica():
+    """The use case, run on a store that is not the manager, commits nothing."""
+    net = _Network("https://example.org/cases/answer-reinvite-replica")
+    _propose(net, "replica", 90)
+    _replay_to_bystander(net)
+    net.deliver(MANAGER, to=BYSTANDER, type_="Invite")
+    (accept,) = net.queued(BYSTANDER, to=MANAGER, type_="Accept")
+    body = read_sealed_body_dict(net.stores[BYSTANDER], accept.id_)
+    assert body is not None
+    _deliver_all(net, OWNER)
+    queued_before = len(net.queued(OWNER, to=BYSTANDER, type_="Invite"))
+
+    net.receive(OWNER, body)
+
+    assert _event_types(net, OWNER).count(EMBARGO_REINVITE_EVENT_TYPE) == 0
+    assert (
+        len(net.queued(OWNER, to=BYSTANDER, type_="Invite")) == queued_before
+    )
+
+
 @pytest.mark.spec("EMB-17-001")
 @pytest.mark.spec("EMB-17-009")
 @pytest.mark.spec("RSH-08-004")
