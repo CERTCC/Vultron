@@ -1,7 +1,7 @@
 """Use cases for vulnerability report activities."""
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case import receive_report_case_tree
@@ -55,6 +55,11 @@ if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
     from vultron.core.ports.wire_render import WireRenderPort
+
+from vultron.core.behaviors.sender_entitlement import (
+    SenderEntitlement,
+    exempt,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -234,6 +239,10 @@ def _log_refusal(verdict: HandlerResult, activity_id: str) -> HandlerResult:
 
 
 class CreateReportReceivedUseCase:
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4071", "no sender check defined for report creation"
+    )
+
     def __init__(
         self,
         dl: CasePersistence,
@@ -270,6 +279,10 @@ class CreateReportReceivedUseCase:
 
 
 class SubmitReportReceivedUseCase:
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4071", "no sender check defined for report submission"
+    )
+
     def __init__(
         self,
         dl: CasePersistence,
@@ -343,6 +356,10 @@ class SubmitReportReceivedUseCase:
 
 
 class ValidateReportReceivedUseCase:
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4071", "no sender check defined for report validation"
+    )
+
     def __init__(
         self,
         dl: CasePersistence,
@@ -431,6 +448,10 @@ class ValidateReportReceivedUseCase:
 
 
 class InvalidateReportReceivedUseCase:
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4071", "no sender check defined for report invalidation"
+    )
+
     def __init__(
         self,
         dl: CasePersistence,
@@ -473,6 +494,11 @@ class InvalidateReportReceivedUseCase:
 
 
 class AckReportReceivedUseCase:
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4071",
+        "sender is internal echo route (SenderIsExecutingActorNode inside effect node), not an entitlement guard",
+    )
+
     def __init__(
         self,
         dl: CasePersistence,
@@ -520,6 +546,10 @@ class AckReportReceivedUseCase:
 
 
 class CloseReportReceivedUseCase:
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4071", "no sender check defined for report closure"
+    )
+
     def __init__(
         self,
         dl: CasePersistence,

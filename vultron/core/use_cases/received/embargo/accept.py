@@ -2,7 +2,7 @@
 
 import logging
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 if TYPE_CHECKING:
     from vultron.config.actor import ActorConfig
@@ -58,6 +58,11 @@ if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
 
+from vultron.core.behaviors.sender_entitlement import (
+    SenderEntitlement,
+    exempt,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -76,6 +81,10 @@ def _resolve_case_for_embargo_acceptance(
 
 
 class AcceptInviteToEmbargoOnCaseReceivedUseCase:
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4074", "no sender check for embargo accept"
+    )
+
     def __init__(
         self,
         dl: CaseOutboxPersistence,

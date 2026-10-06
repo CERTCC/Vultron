@@ -16,9 +16,16 @@
 """Receive-side tree composition: the four-stage shared factory (ADR-0111).
 
 :func:`create_receive_activity_tree` is the one way to build a received-side
-BT.  It fixes the stage order intake → precondition guards → guarded commit →
-protocol effects (CLP-10-006, CLP-10-010) and supplies the shared intake node
-itself (CLP-10-017), so no handler opts out of recording what arrived.
+BT.
+It fixes the stage order intake → sender guard → precondition guards →
+guarded commit → protocol effects (CLP-10-006, CLP-10-010, ADR-0115) and
+supplies the shared intake node itself (CLP-10-017), so no handler opts out
+of recording what arrived.
+
+When ``sender_guard`` is provided, the factory places it immediately after
+intake and before the caller's ``precondition_guards``.
+A failed sender guard ends the tree with ``REFUSED`` and nothing is written
+or sent (HP-01-006, ADR-0115).
 
 :func:`create_guarded_commit_case_ledger_entry_tree` is the commit stage.  It
 is called here and nowhere else: a tree factory that calls it directly forks
@@ -78,25 +85,37 @@ def create_receive_activity_tree(
     precondition_guards: list[py_trees.behaviour.Behaviour],
     effect_nodes: list[py_trees.behaviour.Behaviour],
     case_may_be_absent: bool = False,
+    *,
+    sender_guard: "py_trees.behaviour.Behaviour | None" = None,
 ) -> py_trees.composites.Sequence:
     """Compose a receive-side BT with the four CLP-10-010 stages in order.
 
-    Structurally enforces the receive-side ordering (ADR-0111)::
+    Structurally enforces the receive-side ordering (ADR-0111, ADR-0115)::
 
-        Intake → [*precondition_guards] → GuardedCommit(receipt) → [*effect_nodes]
+        Intake → [sender_guard] → [*precondition_guards] → GuardedCommit
+            → [*effect_nodes]
 
     Intake is one shared :class:`IntakeReceivedActivityNode` that archives the
     received activity exactly as received, idempotently, and writes nothing
     else — in particular no core record from any object inlined in it, which
     an effect node writes from the event's copy after the guards
-    (CLP-10-017).  It runs first so a guard that refuses the assertion still
-    leaves the receiver holding what arrived (CLP-10-018).  Precondition guards are read-only checks that may
-    return FAILURE to abort the tree before any protocol effect.  The guarded
-    commit ledgers receipt of the triggering activity (which is on the
-    blackboard before any node runs, placed there by
-    ``BTBridge.execute_with_setup``).  Effect nodes perform state
-    transitions, outbox enqueues, and participant mutations — all of which
-    happen only after the receipt is recorded.
+    (CLP-10-017).
+    It runs first so a guard that refuses the assertion still leaves the
+    receiver holding what arrived (CLP-10-018).
+
+    When ``sender_guard`` is provided it is placed immediately after intake
+    and before the caller's ``precondition_guards``.
+    The sender guard is the per-use-case sender-entitlement check declared via
+    ``sender_entitlement`` on the use-case class (ADR-0115, HP-01-006): a
+    failed guard ends the tree with ``REFUSED`` and nothing is written or sent.
+
+    Precondition guards are read-only checks that may return FAILURE to abort
+    the tree before any protocol effect.
+    The guarded commit ledgers receipt of the triggering activity (which is on
+    the blackboard before any node runs, placed there by
+    ``BTBridge.execute_with_setup``).
+    Effect nodes perform state transitions, outbox enqueues, and participant
+    mutations — all of which happen only after the receipt is recorded.
 
     When ``case_id`` is ``None`` the commit step is omitted entirely,
     preserving behaviour for trees that receive no explicit case context;
@@ -104,9 +123,19 @@ def create_receive_activity_tree(
 
     Set ``case_may_be_absent`` when the receiver legitimately holds no replica
     of the case yet — an invitee holds only the Invite's case stub
-    (MV-10-004).  The commit gate then skips at ``debug`` level for a case
-    the receiver does not hold, instead of reporting it as an ADR-0087
-    Regime 1 anomaly.
+    (MV-10-004).
+    The commit gate then skips at ``debug`` level for a case the receiver does
+    not hold, instead of reporting it as an ADR-0087 Regime 1 anomaly.
+
+    Args:
+        name: Name for the root ``Sequence`` node.
+        case_id: Case URI for the guarded-commit stage; ``None`` omits it.
+        precondition_guards: Read-only guard nodes after the sender guard.
+        effect_nodes: State-mutation and emit nodes after the commit stage.
+        case_may_be_absent: Pass ``True`` when the receiver may not hold the
+            case yet (e.g. an invitee seeing the first Invite).
+        sender_guard: Optional sender-entitlement condition node, placed
+            immediately after intake (HP-01-006, ADR-0115).
 
     Per ``specs/case-ledger-processing.yaml`` CLP-10-006, CLP-10-010,
     CLP-10-017.
@@ -114,6 +143,8 @@ def create_receive_activity_tree(
     children: list[py_trees.behaviour.Behaviour] = [
         IntakeReceivedActivityNode()
     ]
+    if sender_guard is not None:
+        children.append(sender_guard)
     children.extend(precondition_guards)
     if case_id is not None:
         children.append(

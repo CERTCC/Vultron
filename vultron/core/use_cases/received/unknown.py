@@ -1,10 +1,15 @@
 """Use case for unknown/unrecognized activities."""
 
 import logging
+from typing import ClassVar
 
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.dead_letter.dead_letter_tree import (
     create_store_dead_letter_tree,
+)
+from vultron.core.behaviors.sender_entitlement import (
+    SenderEntitlement,
+    exempt,
 )
 from vultron.core.models.events.unknown import (
     UnknownReceivedEvent,
@@ -30,6 +35,10 @@ class UnknownUseCase:
     semantic type.
     """
 
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4070", "no sender check for unknown activities"
+    )
+
     def __init__(
         self,
         dl: CasePersistence,
@@ -54,6 +63,10 @@ class UnresolvableObjectUseCase:
 
     See ``specs/semantic-extraction.yaml`` SE-04-002, SE-04-003.
     """
+
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4070", "no sender check for unresolvable object activities"
+    )
 
     def __init__(
         self,

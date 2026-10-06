@@ -28,7 +28,6 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sender.send_tree import sender_side_bt
-from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
@@ -98,14 +97,6 @@ def _coerce_embargo_event(raw_embargo: object, embargo_id: str) -> object:
     raise VultronValidationError(
         f"Could not resolve EmbargoEvent '{embargo_id}'."
     )
-
-
-def _is_case_owner(case: object | None, actor_id: str) -> bool:
-    """Return True when ``actor_id`` matches the case owner."""
-    if case is None:
-        return False
-    owner_id = _as_id(getattr(case, "attributed_to", None))
-    return owner_id is not None and owner_id == actor_id
 
 
 def _resolve_embargo_proposal(

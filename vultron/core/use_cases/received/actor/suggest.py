@@ -1,7 +1,7 @@
 """Use cases for CaseActor-routed actor-suggestion activities (ADR-0026)."""
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.suggest_actor_tree import (
@@ -26,6 +26,11 @@ if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
     from vultron.core.ports.wire_render import WireRenderPort
 
+from vultron.core.behaviors.sender_entitlement import (
+    SenderEntitlement,
+    exempt,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -46,6 +51,10 @@ class OfferActorToCaseReceivedUseCase:
     ``CVDRole.CASE_MANAGER`` for the case (BT-17-001).  Any other receiver of
     a copy does nothing and refuses (HP-01-005, #3752).
     """
+
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#3668", "actor suggestion sender check pending"
+    )
 
     def __init__(
         self,

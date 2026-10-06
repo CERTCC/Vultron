@@ -7,7 +7,12 @@ See SE-08-003, ADR-0039.
 """
 
 import logging
+from typing import ClassVar
 
+from vultron.core.behaviors.sender_entitlement import (
+    SenderEntitlement,
+    exempt,
+)
 from vultron.core.models.events.actor import (
     AcceptCaseParticipantRoleReceivedEvent,
     RejectCaseParticipantRoleReceivedEvent,
@@ -28,6 +33,10 @@ class AcceptCaseParticipantRoleReceivedUseCase:
     CaseActor representative).  Idempotently persists the activity and logs
     at INFO level.  See SE-08-003, ADR-0039.
     """
+
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4070", "no sender check for accept case participant role"
+    )
 
     def __init__(
         self,
@@ -67,6 +76,10 @@ class RejectCaseParticipantRoleReceivedUseCase:
     CaseActor representative).  Logs at WARNING level.
     See SE-08-003, ADR-0039.
     """
+
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4070", "no sender check for reject case participant role"
+    )
 
     def __init__(
         self,
