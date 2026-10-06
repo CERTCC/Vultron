@@ -140,11 +140,17 @@ def test_load_actor_names_reads_the_manifest(
                     {"actorName": "vendor", "routeKey": _VENDOR_KEY},
                     {"actorName": "broken"},
                     "not-a-record",
-                ]
+                ],
+                "unreplicatedActors": [
+                    {"actorName": "rejector", "routeKey": "route-r"}
+                ],
             }
         ),
         encoding="utf-8",
     )
     monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
-    assert load_actor_names("fv") == {_VENDOR_KEY: "vendor"}
+    assert load_actor_names("fv") == {
+        _VENDOR_KEY: "vendor",
+        "route-r": "rejector",
+    }
     assert load_actor_names("absent") == {}

@@ -547,11 +547,15 @@ def _phase_dump_case_ledgers(
     coordinator_client: DataLayerClient,
     case: as_VulnerabilityCase,
     demo_name: str = "fcv-reject",
+    vendor_client: DataLayerClient | None = None,
 ) -> None:
     """Dump case ledger entries from Finder, Coordinator, and CaseActor to JSONL.
 
-    Vendor is intentionally excluded: it rejected the invitation and was never
-    added as a case participant, so it has no case ledger replica.
+    Vendor is intentionally excluded from the dump targets: it rejected the
+    invitation and was never added as a case participant, so it has no case
+    ledger replica.  Its identity is still recorded in the manifest, because
+    the Case Actor's ``reject_invite_actor_to_case`` entry names it as the
+    recorded actor and a narrative tag must resolve to it (#4248).
 
     Thin scenario-specific wrapper over
     :func:`~vultron.demo.helpers.ledger_dump.dump_case_ledgers`, which owns the
@@ -579,7 +583,17 @@ def _phase_dump_case_ledgers(
             )
         )
 
-    dump_case_ledgers(demo_name=demo_name, case=case, targets=targets)
+    unreplicated = (
+        {"vendor": replica_route_key(vendor_client, "vendor")}
+        if vendor_client is not None
+        else None
+    )
+    dump_case_ledgers(
+        demo_name=demo_name,
+        case=case,
+        targets=targets,
+        unreplicated=unreplicated,
+    )
 
 
 def run_fcv_reject_demo(
@@ -631,6 +645,7 @@ def run_fcv_reject_demo(
                 coordinator_client=coordinator_client,
                 case=case,
                 demo_name=harness.demo_name,
+                vendor_client=vendor_client,
             )
         )
 

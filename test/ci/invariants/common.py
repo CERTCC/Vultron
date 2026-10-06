@@ -1123,7 +1123,8 @@ def load_actor_names(demo_name: str) -> dict[str, str]:
     """Return ``{routeKey: actorName}`` from the scenario's dump manifest.
 
     The manifest is the dump's own record of which actor was read under which
-    in-container route key (``vultron.demo.helpers.ledger_dump``).  A
+    in-container route key (``vultron.demo.helpers.ledger_dump``), plus any
+    actor that acted without holding a replica (``unreplicatedActors``).  A
     ledger entry's recorded actor, stripped of its URI prefix, is a
     ``routeKey``; the ``actorName`` beside it is the replica directory name and
     the vocabulary of a narrative's ``consequent_actor`` tag.
@@ -1137,7 +1138,11 @@ def load_actor_names(demo_name: str) -> dict[str, str]:
         return {}
     names: dict[str, str] = {}
     for manifest in _read_dump_manifests(search_root):
-        for record in manifest.get("actors") or []:
+        records = [
+            *(manifest.get("actors") or []),
+            *(manifest.get("unreplicatedActors") or []),
+        ]
+        for record in records:
             if not isinstance(record, dict):
                 continue
             route_key = record.get("routeKey")
