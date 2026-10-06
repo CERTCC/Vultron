@@ -1139,6 +1139,7 @@ class TestEmitAddCaseParticipantNode:
 _OT_OWNER_ID = "https://example.org/actors/ot-owner"
 _OT_CASE_ACTOR_ID = "https://example.org/actors/ot-case-actor"
 _OT_TRANSFEREE_ID = "https://example.org/actors/ot-transferee"
+_OT_REQUESTER_ID = "https://example.org/actors/ot-requester"
 _OT_CASE_ID = "https://example.org/cases/ot-emit-test-01"
 
 
@@ -1203,6 +1204,7 @@ class TestEmitOwnershipTransferNodes:
         node = EmitOfferCaseOwnershipTransferNode(
             case_id=_OT_CASE_ID,
             transferee_id=_OT_TRANSFEREE_ID,
+            requesting_actor_id=_OT_REQUESTER_ID,
             captured=captured,
         )
         bridge = BTBridge(
@@ -1222,6 +1224,9 @@ class TestEmitOwnershipTransferNodes:
             f"Offer must be addressed to the CaseActor ({_OT_CASE_ACTOR_ID}); "
             f"got to={activity.get('to')!r}"
         )
+        # CM-24-001, CM-24-002, CM-24-005: executing actor authors, requester asked.
+        assert activity.get("actor") == _OT_OWNER_ID
+        assert activity.get("attributedTo") == _OT_REQUESTER_ID
         # The transferee is named as the intended new owner in the target field.
         assert activity.get("target") == _OT_TRANSFEREE_ID, (
             f"Offer.target must name the transferee ({_OT_TRANSFEREE_ID}); "

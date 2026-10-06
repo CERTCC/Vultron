@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-09-28
+created: 2026-09-28
+updated: 2026-09-28
+revision: 1
 deciders: Allen D. Householder
 consulted: Claude Fable 5.1
 informed: Vultron contributors
@@ -39,7 +42,7 @@ The question this ADR settles: when one transition has more than one wire carrie
 
 ## Decision Drivers
 
-- Participant status is self-declaratory ([ADR-0084](0084-participant-assertion-authority.md)). RM is per-participant; nobody moves another participant's RM, and the on-behalf exceptions cover only vendor-awareness and fix-deployed.
+- Participant status is self-declaratory ([ADR-0121](0121-joined-participant-judges-the-case-by-full-case-invite.md)). RM is per-participant; nobody moves another participant's RM, and the on-behalf exceptions cover only vendor-awareness and fix-deployed.
 - Only the CASE_MANAGER writes canonical case state, and replicas take it from the ledger (PCR-03-001, PCR-03-006, CM-06-002, RSH-04-001). This is specified; it is not fully built.
 - Liberal accept ([ADR-0061](0061-per-dimension-partial-accept.md), [ADR-0086](0086-report-every-violation-reject-the-batch.md)): the receive side records what the sender declares, refuses only what cannot be true, and never refuses silently.
 - The activity type carries information the status snapshot cannot: which offer, which report, which invitation the move answers. Retiring it loses the antecedent.
@@ -156,7 +159,7 @@ Spec requirements: `specs/received-status-handling.yaml` RSH-08 (new), RSH-06-00
 Source: CONCERN-3473, under epic #3472 (wire-form authority).
 The inventory that grounds this decision, one row per wire form per state machine with the subject and adjudication path of each, is recorded in the concern's history entry.
 
-Related decisions: [ADR-0083](0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md) (formal↔wire divergence is deliberate; this ADR covers wire↔wire), [ADR-0084](0084-participant-assertion-authority.md) (self-declaration; extended here to the whole receive side), [ADR-0061](0061-per-dimension-partial-accept.md) and [ADR-0086](0086-report-every-violation-reject-the-batch.md) (liberal accept; extended here to the activity-typed handlers), [ADR-0089](0089-one-participant-status-writer.md) (one writer; the store-versus-subject conflation this ADR names again), [ADR-0046](0046-received-status-authorization.md) (two-gate adoption model; RSH-01-003/004 corrected to match the direct-write shape of RSH-04-004), [ADR-0050](0050-leave-vul-case-canonical-rm-closure.md) and CM-23-001 (the one prior per-transition authority rule, which this ADR generalizes).
+Related decisions: [ADR-0083](0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md) (formal↔wire divergence is deliberate; this ADR covers wire↔wire), [ADR-0121](0121-joined-participant-judges-the-case-by-full-case-invite.md) (self-declaration; extended here to the whole receive side), [ADR-0061](0061-per-dimension-partial-accept.md) and [ADR-0086](0086-report-every-violation-reject-the-batch.md) (liberal accept; extended here to the activity-typed handlers), [ADR-0089](0089-one-participant-status-writer.md) (one writer; the store-versus-subject conflation this ADR names again), [ADR-0046](0046-received-status-authorization.md) (two-gate adoption model; RSH-01-003/004 corrected to match the direct-write shape of RSH-04-004), [ADR-0050](0050-leave-vul-case-canonical-rm-closure.md) and CM-23-001 (the one prior per-transition authority rule, which this ADR generalizes).
 
 Design notes: `notes/received-status-authorization.md` § "One move, one mover", `notes/message-type-reference.md` § "Collapses", `notes/bt-pitfalls.md` § "The Store Is Not the Subject".
 

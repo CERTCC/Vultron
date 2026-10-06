@@ -35,12 +35,10 @@ it:
     ├─ ProposeEmbargoLifecycleNode          # EM write (EmbargoLifecycle)
     └─ RelayEmbargoInviteToEachNode         # factory → commit → outbox → PEC
 
-The CM-24-005 delegated-authorship helper (``_prepare_delegated_context``) is
-a trigger-side use-case helper a BT node may not import (BTND-04-003), and its
-"no CASE_MANAGER, send directly" arm is what ADR-0113 detail 14 retires
-(#3964).  The received-side relay satisfies CM-24-001/002 structurally
-instead: it runs only under the CASE_MANAGER gate, so ``actor`` is the role
-holder by construction, and ``attributed_to`` is the adjudicated proposer.
+``actor`` and ``attributed_to`` come from the shared CM-24-005 helper
+(``delegated_authorship``): the relay runs only under the CASE_MANAGER gate, so
+the doing actor is the role holder, and the asking actor is the adjudicated
+proposer.
 """
 
 import json
@@ -53,6 +51,7 @@ from py_trees.common import Status
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
 )
+from vultron.core.behaviors.delegated_authorship import delegated_authorship
 from vultron.core.behaviors.embargo.nodes.em_state import read_case_em_state
 from vultron.core.behaviors.embargo.rsvp_stamp import (
     stamp_invite_rsvp_deadline,
@@ -346,6 +345,13 @@ class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
         """The id the Invite to *recipient_id* takes; ``None`` mints a fresh one."""
         return None
 
+    #: Ledger ``event_type`` the emission is committed under.
+    _EVENT_TYPE = EMBARGO_INVITE_EVENT_TYPE
+
+    def _attributed_to(self) -> str | None:
+        """Whose terms the Invite carries; ``None`` when it is the manager's own ask."""
+        return self._proposer_id
+
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
@@ -379,12 +385,20 @@ class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
                 f"{self.name}: cannot stamp the RSVP deadline of embargo"
                 f" '{self._embargo_id}' on case '{self._case_id}': {exc}"
             ) from exc
+        proposer_id = self._attributed_to()
+        authorship = (
+            delegated_authorship(
+                doing_actor_id=self.actor_id, requesting_actor_id=proposer_id
+            )
+            if proposer_id
+            else None
+        )
         activity_id, blob = self.trigger_activity_factory.propose_embargo(
             embargo_id=self._embargo_id,
             case_id=self._case_id,
-            actor=self.actor_id,
+            actor=authorship.actor if authorship else self.actor_id,
             to=[recipient_id],
-            attributed_to=self._proposer_id,
+            attributed_to=authorship.attributed_to if authorship else None,
             activity_id=self._activity_id_for(recipient_id),
             rsvp_deadline=stamp.rsvp_deadline,
             published=stamp.published,
@@ -401,7 +415,7 @@ class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
             self.actor_id,
             self._embargo_id,
             recipient_id,
-            self._proposer_id,
+            self._attributed_to() or self.actor_id,
         )
 
     def _record_queued(self, activity_id: str) -> None:
@@ -420,7 +434,7 @@ class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
             case_id=self._case_id,
             activity_id=activity_id,
             activity_blob=blob,
-            event_type=EMBARGO_INVITE_EVENT_TYPE,
+            event_type=self._EVENT_TYPE,
             sync_port=self._sync_port,
         )
 

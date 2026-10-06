@@ -40,9 +40,11 @@ from vultron.core.behaviors.case.actor_trigger_trees import (
     reject_case_invite_trigger_bt,
     suggest_actor_to_case_trigger_bt,
 )
+from vultron.core.behaviors.delegated_authorship import delegated_authorship
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.use_case_result import RoleOfferResult
+from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
@@ -50,7 +52,6 @@ from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.use_cases._helpers import read_received_activity
 from vultron.core.use_cases.triggers._base import SvcActivityTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
-    _prepare_delegated_context,
     resolve_actor,
     resolve_case,
 )
@@ -454,17 +455,27 @@ class SvcOfferCaseOwnershipTransferUseCase(SvcActivityTriggerBase):
         self._transferee_id = request.transferee_id
         self._content = request.content
 
-        # Delegated-message contract: emit from CaseActor identity (CM-24-001..003)
-        self._actor_id, self._attributed_to = _prepare_delegated_context(
-            self._dl, self._case.id_, offering_actor_id
+        # Delegated-message contract: emit as the CASE_MANAGER, attributed to
+        # the requester (CM-24-001, CM-24-002, CM-24-005).  A case always has a
+        # CASE_MANAGER (CM-24-006), so none is a fault, not a direct send.
+        case_manager_id = resolve_case_manager_id(self._case, self._dl)
+        if case_manager_id is None:
+            raise VultronNotFoundError(
+                "CASE_MANAGER", f"(for case '{self._case.id_}')"
+            )
+        authorship = delegated_authorship(
+            doing_actor_id=case_manager_id,
+            requesting_actor_id=offering_actor_id,
         )
+        self._actor_id = authorship.actor
+        self._requesting_actor_id = authorship.attributed_to
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         return offer_case_ownership_transfer_trigger_bt(
             case_id=self._case.id_,
             transferee_id=self._transferee_id,
             content=self._content,
-            attributed_to=self._attributed_to,
+            requesting_actor_id=self._requesting_actor_id,
             captured=self._captured,
         )
 

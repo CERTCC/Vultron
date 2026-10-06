@@ -37,11 +37,11 @@ from vultron.core.behaviors.call_out.bundles.embargo import (
     EmbargoCallOutBundle,
 )
 from vultron.core.behaviors.call_out.nodes import AlwaysFail, AlwaysSucceed
-from vultron.core.behaviors.case.nodes.vfd_role_guards import (
-    CheckIsCaseOwnerNode,
-)
 from vultron.core.behaviors.embargo.response_decision_tree import (
     create_embargo_response_decision_tree,
+)
+from vultron.core.behaviors.sender_entitlement import (
+    SenderIsCaseOwnerNode,
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -160,10 +160,10 @@ class TestAcceptArm:
 
     @pytest.mark.spec("EMB-15-002")
     def test_authorize_first_child_is_check_is_case_owner(self):
-        """EMB-15-002: gospel-bypass guard is CheckIsCaseOwnerNode."""
+        """EMB-15-002: gospel-bypass guard is SenderIsCaseOwnerNode."""
         tree = _make_tree()
         auth = tree.children[0].children[0]
-        assert isinstance(auth.children[0], CheckIsCaseOwnerNode)
+        assert isinstance(auth.children[0], SenderIsCaseOwnerNode)
 
     def test_authorize_first_child_name(self):
         tree = _make_tree()

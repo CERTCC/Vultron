@@ -12,7 +12,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Architecture ratchet: case resolution goes through the unified helpers.
+"""Architecture test: case resolution goes through the unified helpers.
 
 ADR-0087 unifies the "what to do when a case cannot be resolved" decision into
 two canonical helpers in ``vultron/core/behaviors/helpers.py``:
@@ -29,7 +29,7 @@ helpers instead of hand-rolling ``read_case(...) -> None -> Status.*``, which is
 the per-site drift (#3101, silent / ``debug`` / ``warning`` / ``SUCCESS`` /
 ``FAILURE`` at random) that ADR-0087 eliminates.
 
-This ratchet flags every direct ``.read_case(`` call under
+This test flags every direct ``.read_case(`` call under
 ``vultron/core/behaviors/`` (except ``helpers.py``, which *is* the unified
 implementation), keyed by ``(relative_path, class-qualified function name)``.
 The ``KNOWN_ALLOWLIST`` enumerates the sites that deliberately do NOT route
@@ -47,6 +47,10 @@ through the helpers, each falling into one of four examined categories:
 - **Module-level resolver** — a bare ``def`` taking ``datalayer``/``dl`` rather
   than a node, so it cannot call ``self._require_case``; it fails via ``None``
   return and the calling node returns ``FAILURE``.
+
+``KNOWN_ALLOWLIST`` is a pinned exemption set, not a ratchet (ARCH-18-005):
+each category is a permanent ADR-0087 regime, so the list has no empty end state
+and grows when a new site falls into one.
 
 The allowlist is **exact and per-call**: each entry sanctions exactly one
 ``read_case`` in that scope. A new direct ``read_case`` site fails the test
@@ -75,7 +79,7 @@ class _ReadCaseScopeVisitor(ast.NodeVisitor):
     at least one call) is derived from it for the detector-validation tests.
     Counting rather than set-collapsing is deliberate: the allowlist sanctions
     *one* call per listed scope, so a second unsanctioned ``read_case`` added
-    inside an already-allowlisted scope still trips the ratchet.
+    inside an already-allowlisted scope still trips the check.
     """
 
     def __init__(self) -> None:
@@ -141,6 +145,7 @@ def _collect_sites() -> "Counter[tuple[str, str]]":
 # ---------------------------------------------------------------------------
 _NODES = "vultron/core/behaviors/case/nodes"
 
+# permanent: ADR-0087 (Regime 2, Regime 3, lenient-guard and module-resolver sites)
 KNOWN_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
     {
         # R3 — idempotency probes / audit-best-effort / seeds during the
@@ -242,8 +247,8 @@ KNOWN_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         # it reads leniently instead of via Regime 1 _require_case. Authority is
         # still resolved role-based via resolve_case_manager_id (ADR-0088).
         (
-            "vultron/core/behaviors/sync/nodes/conditions.py",
-            "VerifySenderIsCaseActorNode.update",
+            "vultron/core/behaviors/sender_entitlement.py",
+            "SenderIsCaseManagerNode.update",
         ),
     }
 )
@@ -330,7 +335,7 @@ def test_detector_ignores_other_reads() -> None:
 def test_detector_counts_multiple_read_case_in_scope() -> None:
     """Two read_case calls in one scope are counted, not collapsed to one.
 
-    This is what lets the ratchet catch a second unsanctioned read_case added
+    This is what lets the check catch a second unsanctioned read_case added
     inside an already-allowlisted scope.
     """
     tree = _corpus.parse_inline(

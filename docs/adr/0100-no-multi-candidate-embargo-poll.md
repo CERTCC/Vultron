@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-09-21
+created: 2026-09-21
+updated: 2026-09-21
+revision: 1
 deciders: [adh, Claude Opus 5]
 consulted: []
 informed: []

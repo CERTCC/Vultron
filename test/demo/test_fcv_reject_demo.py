@@ -33,6 +33,7 @@ import httpx2 as httpx
 
 import vultron.demo.scenario.fcv_reject_demo as demo
 from vultron.demo.actor_session import ActorSession
+from vultron.demo.helpers import invite_chain
 from vultron.demo.helpers.notes import participant_adds_note_to_case
 from vultron.demo.utils import reset_demo_failures
 
@@ -153,7 +154,7 @@ class TestFcvRejectInviteChainSkipsDependents:
             ),
             patch.object(ActorSession, "reject_case_invite") as reject_invite,
             patch.object(
-                demo, "find_case_invite_for_actor", **invite_lookup
+                invite_chain, "find_case_invite_for_actor", **invite_lookup
             ) as find_invite,
             patch.object(demo, "get_actor_by_id", return_value=vendor),
             # set_stub_summary is seeding infrastructure not under test here.

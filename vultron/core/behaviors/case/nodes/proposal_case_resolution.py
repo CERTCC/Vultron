@@ -46,23 +46,64 @@ logger = logging.getLogger(__name__)
 
 
 class LoadExistingCaseNode(RequireCaseForReport):
-    """Find an existing ``VulnerabilityCase`` for *report_id* and load it.
+    """Find the *proposer's own* case for *report_id* and load it.
 
-    AC-1 / AC-2 (CP-05-006): detects a duplicate ``Create(as_CaseProposal)``
-    for a report that already has a case.  Writes the existing ``case_id`` to
-    the blackboard so ``EmitAcceptCaseProposalNode`` and
-    ``WriteCreateCaseMarkerNode`` can reference it, then returns SUCCESS.
+    CP-05-006 / CP-05-008: a ``Create(as_CaseProposal)`` under a new proposal
+    id may name a report that already has a case.  The case is reused only
+    when the proposer owns it (``attributed_to``); a case for the same report
+    owned by anyone else is not this proposer's, so this node fails and the
+    outer Selector creates a separate case (CBT-06-002).  ``report_id`` is
+    chosen by the sender, so the report alone never identifies a case.
 
-    Returns FAILURE when no existing case is found, allowing the outer
-    Selector to fall through to ``CreateCaseFromProposalNode`` (normal path).
+    Writes the existing ``case_id`` to the blackboard so
+    ``EmitAcceptCaseProposalNode`` and ``WriteCreateCaseMarkerNode`` can
+    reference it, then returns SUCCESS.  Returns FAILURE when the proposer owns
+    no case for the report, allowing the Selector to fall through to
+    ``CreateCaseFromProposalNode`` (normal path).
 
-    Behaviour is inherited wholesale from
-    :class:`~vultron.core.behaviors.case.nodes.case_lookup.RequireCaseForReport`
-    — "resolve this store's case for a report, publish ``/case_id``, fail when
-    absent" has exactly one implementation (ARCH-15-004).  The subclass exists
-    only to keep the CP-05-006 node name in BT traces and to document what
-    FAILURE means *here*: no duplicate, so create the case.
+    The store may hold several cases for one report (one per proposer), so the
+    single-row ``find_case_by_report_id`` lookup is only the fast path; when it
+    returns another proposer's case the cases are scanned for the proposer's.
     """
+
+    def __init__(
+        self,
+        report_id: str | None,
+        owner_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(report_id=report_id, name=name)
+        self._owner_id = owner_id
+
+    def _find_case(self, report_id: str) -> VulnerabilityCase | None:
+        assert self.datalayer is not None
+        first = self.datalayer.find_case_by_report_id(report_id)
+        if first is None:
+            return None
+        if str(first.attributed_to) == self._owner_id:
+            return first
+        for case in self.datalayer.list_objects("VulnerabilityCase"):
+            if (
+                isinstance(case, VulnerabilityCase)
+                and str(case.attributed_to) == self._owner_id
+                and report_id in _report_ids(case)
+            ):
+                return case
+        return None
+
+    def _absence_message(self, report_id: str) -> str:
+        return (
+            f"no VulnerabilityCase for report '{report_id}' owned by"
+            f" '{self._owner_id}' in this actor's store"
+        )
+
+
+def _report_ids(case: VulnerabilityCase) -> set[str]:
+    """The report ids *case* references, whether stored bare or inline."""
+    return {
+        entry if isinstance(entry, str) else str(entry.id_)
+        for entry in case.vulnerability_reports
+    }
 
 
 class CreateCaseFromProposalNode(DataLayerActionWithPorts):

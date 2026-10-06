@@ -55,6 +55,7 @@ from vultron.core.behaviors.embargo.nodes.expiry import (
 )
 from vultron.core.behaviors.embargo.nodes.invite_answer import (
     CanAnswerEmbargoInviteNode,
+    OwnerMayAutoAcceptEmbargoNode,
     SendEmbargoInviteAnswerNode,
 )
 from vultron.core.behaviors.embargo.nodes.lifecycle import (
@@ -81,6 +82,9 @@ from vultron.core.behaviors.embargo.nodes.proposal import (
     RecordParticipantAcceptanceNode,
     RecordParticipantRejectionNode,
 )
+from vultron.core.behaviors.embargo.nodes.reinvite import (
+    ReinviteStaleAccepterNode,
+)
 from vultron.core.behaviors.embargo.nodes.reject_proposed import (
     DecideRejectedEmbargoProposalNode,
     OwnerRejectsRevisionAfterDisclosureNode,
@@ -97,6 +101,7 @@ from vultron.core.behaviors.embargo.nodes.relay_effect import (
     ApplyEmbargoAcceptanceFromLedgerNode,
     ApplyEmbargoInviteFromLedgerNode,
     ApplyEmbargoProposalFromLedgerNode,
+    ApplyEmbargoReinviteFromLedgerNode,
     ApplyEmbargoRejectionFromLedgerNode,
 )
 from vultron.core.behaviors.embargo.nodes.teardown import (
@@ -115,6 +120,7 @@ from vultron.core.behaviors.embargo.nodes.terminate import (
 __all__ = [
     # Invite answer (EP-09-003)
     "CanAnswerEmbargoInviteNode",
+    "OwnerMayAutoAcceptEmbargoNode",
     "SendEmbargoInviteAnswerNode",
     # Conditions
     "ValidateCaseExistsNode",
@@ -141,6 +147,7 @@ __all__ = [
     "CollectEmbargoInviteRecipientsNode",
     "EmStateAdmitsProposalNode",
     "EmbargoProposalNotYetRecordedNode",
+    "ReinviteStaleAccepterNode",
     "RelayEmbargoInviteToEachNode",
     # CASE_MANAGER decision commit (EP-09-008, #4085)
     "EMBARGO_TEARDOWN_EVENT_TYPE",
@@ -152,6 +159,7 @@ __all__ = [
     # Relay ledger replay (EP-09-007)
     "ApplyEmbargoProposalFromLedgerNode",
     "ApplyEmbargoInviteFromLedgerNode",
+    "ApplyEmbargoReinviteFromLedgerNode",
     "ApplyEmbargoAcceptanceFromLedgerNode",
     "ApplyEmbargoRejectionFromLedgerNode",
     # P/X/A abandonment of open proposals (EMB-16-001, #4131)

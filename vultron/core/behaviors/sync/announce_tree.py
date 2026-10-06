@@ -14,11 +14,16 @@ from vultron.core.behaviors.embargo.nodes import (
     ApplyEmbargoAcceptanceFromLedgerNode,
     ApplyEmbargoInviteFromLedgerNode,
     ApplyEmbargoProposalFromLedgerNode,
+    ApplyEmbargoReinviteFromLedgerNode,
     ApplyEmbargoRejectionFromLedgerNode,
     ApplyEmbargoTeardownNode,
     ApplyHonourLateAcceptFromLedgerNode,
     ApplyInviteExpiryFromLedgerNode,
     ApplyInviteExpiryNoopFromLedgerNode,
+)
+from vultron.core.behaviors.sender_entitlement import (
+    SenderIsCaseManagerNode,
+    SenderIsNamedActorNode,
 )
 from vultron.core.behaviors.sync.nodes import (
     ApplyInviteAcceptFromLedgerNode,
@@ -36,6 +41,7 @@ from vultron.core.behaviors.sync.nodes import (
     IsEmbargoAbandonmentEventNode,
     IsEmbargoInviteRelayEventNode,
     IsEmbargoProposalEventNode,
+    IsEmbargoReinviteEventNode,
     IsHonourLateAcceptEventNode,
     IsInviteAcceptEventNode,
     IsInviteExpiryEventNode,
@@ -50,8 +56,6 @@ from vultron.core.behaviors.sync.nodes import (
     PersistReceivedLogEntryNode,
     ReconstructChainTailNode,
     SendRejectLogEntryNode,
-    VerifySenderIsCaseActorNode,
-    VerifySenderIsOwnIdNode,
 )
 from vultron.core.behaviors.sync.nodes.participant_status_effect import (
     EmitImpossibleStateFaultNode,
@@ -112,6 +116,11 @@ def _embargo_relay_effect_slots() -> list[py_trees.behaviour.Behaviour]:
             ApplyEmbargoInviteFromLedgerNode,
         ),
         _event_effect_slot(
+            "EmbargoReinvite",
+            IsEmbargoReinviteEventNode,
+            ApplyEmbargoReinviteFromLedgerNode,
+        ),
+        _event_effect_slot(
             "EmbargoAcceptance",
             IsAcceptEmbargoInviteEventNode,
             ApplyEmbargoAcceptanceFromLedgerNode,
@@ -150,7 +159,7 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
         memory=False,
         children=[
             CheckIsCaseManagerNode(name="CheckIsCaseManager"),
-            VerifySenderIsOwnIdNode(name="VerifySenderIsOwnId"),
+            SenderIsNamedActorNode(name="SenderIsNamedActor"),
             LogDeliveryConfirmationNode(name="LogDeliveryConfirmation"),
         ],
     )
@@ -300,7 +309,7 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
                 name="CheckIsNotCaseManager",
                 child=CheckIsCaseManagerNode(name="CheckIsCaseManagerInverse"),
             ),
-            VerifySenderIsCaseActorNode(name="VerifySenderIsCaseActor"),
+            SenderIsCaseManagerNode(name="SenderIsCaseManager"),
             entry_processing,
         ],
     )

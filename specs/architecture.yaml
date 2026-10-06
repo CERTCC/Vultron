@@ -621,33 +621,6 @@ groups:
 - id: ARCH-13
   title: DataLayer Scope Contract
   specs:
-  - id: ARCH-13-001
-    priority: MUST
-    kind: project
-    verification_debt: '#2575'
-    deprecated: true
-    superseded_by: DL-07-002
-    statement: This requirement is superseded by DL-07-002; there is no unscoped DataLayer to keep away from queue operations.
-    rationale: >-
-      The rule policed a hazard that ADR-0073 removed rather than mitigated. It distinguished a "shared"
-      DataLayer from an actor-scoped one and forbade passing the former to queue operations; with every
-      DataLayer belonging to exactly one actor, the distinction has no referent and the rule is vacuous.
-      Retiring it is the point: the decision *deletes* guard rails instead of adding them.
-    adr:
-    - ADR-0073
-  - id: ARCH-13-002
-    priority: MUST
-    kind: project
-    verification_debt: '#2575'
-    deprecated: true
-    superseded_by: DL-07-001
-    statement: This requirement is superseded by DL-07-001; queue operations have no unscoped alternative to be required away from.
-    rationale: >-
-      Named `ActorScopedDataLayer`, a protocol refinement that existed only to mark the scoped case as
-      distinct. With no unscoped mode the refinement was merged back into `DataLayer`, and queue rows no
-      longer carry an `actor_id` column to address at all — the queue lives in its owner's store.
-    adr:
-    - ADR-0073
   - id: ARCH-13-003
     priority: MUST
     kind: project
@@ -673,33 +646,6 @@ groups:
       segment to the canonical URI and that the resulting store can read the outbox entries that
       actor's own writes went to; `test/adapters/driving/fastapi/routers/test_trigger_case.py` asserts
       the same through the trigger routes' `get_trigger_dl` chain.
-    adr:
-    - ADR-0073
-  - id: ARCH-13-004
-    priority: MUST
-    kind: project
-    verification_debt: '#2575'
-    deprecated: true
-    superseded_by: DL-07-001
-    statement: This requirement is superseded by DL-07-001; the two identities it required to match no longer both exist.
-    rationale: >-
-      It required the `actor_id` passed to `record_outbox_item` to equal the one used to construct the
-      reading DataLayer. `record_outbox_item` is gone: every one of its call sites passed the executing
-      actor's own id, so with a mandatory actor scope it was exactly `outbox_append`. With one identity
-      instead of two there is nothing left to keep in agreement.
-    adr:
-    - ADR-0073
-  - id: ARCH-13-005
-    priority: SHOULD
-    kind: project
-    deprecated: true
-    superseded_by: DL-07-002
-    statement: This requirement is superseded by DL-07-002; the `ActorScopedDataLayer` protocol it asked for has been deleted.
-    rationale: >-
-      It asked for a Protocol refinement so type-checkers could enforce the scope boundary at
-      signature level. The boundary is now enforced by construction instead — a DataLayer cannot exist
-      unscoped — so the refinement had no referent and was merged back into `DataLayer`. Retired
-      alongside ARCH-13-001/002/004 rather than kept as an unimplementable SHOULD.
     adr:
     - ADR-0073
 - id: ARCH-16
@@ -819,6 +765,26 @@ groups:
       spec_id: ARCH-18-003
     lint_suppress:
     - phantom_path_ref
+  - id: ARCH-18-005
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      A baseline under `test/` is a **ratchet** when its terminal value is an empty set or a zero ceiling and an
+      `# owner: #N` issue drives it there; it is a **pinned exemption set** when it is an exact set with no terminal
+      value, kept equal to reality in both directions (ARCH-18-001, ARCH-18-002), whose entries are exempt by a recorded
+      decision rather than awaiting a fix. Only a ratchet counts as open debt. A pinned exemption set MUST carry the
+      `# permanent:` marker of ARCH-18-003, and its comment and module docstring MUST describe that constant as a
+      pinned exemption set, not as a ratchet or a backlog. A pinned set MUST contain only permanent entries: an
+      entry awaiting a fix MUST move to its own ratchet constant with an `# owner: #N` marker.
+    rationale: >-
+      Several exact sets began as shrinking backlogs and were later decided to be permanent design registers, but
+      their files still called them ratchets. A reader counting open debt over-counted, and the real debt was harder to
+      see. Both kinds use the same bidirectional equality check; what differs is whether an end state exists, so the
+      name and the marker carry that difference.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-18-003
 - id: ARCH-19
   title: Outbound Delivery Pipeline
   specs:

@@ -268,8 +268,9 @@ The recipient sends that profile inline as the `actor` of its case proposal, and
 When the case is created, the shorter of the two becomes the active embargo and the longer is left pending as a revision, so the EM state is `REVISE`; when the recipient has published no default, the Reporter's terms apply at their stated length and the EM state is `ACTIVE`.
 No proposal exchange precedes the case: the comparison is settled at case creation.
 The CaseActor then relays the pending revision to the party whose terms won, on behalf of the party whose terms lost (EP-04-011).
-When the Reporter proposed 60 days, that party is the Vendor, the case owner: it accepts by default, and an owner's acceptance activates the Reporter's terms, so the case returns to `ACTIVE`.
-When the Reporter proposed 10 days, the Reporter is invited instead, and its acceptance only records consent, so the case stays at `REVISE`.
+When the Reporter proposed 60 days, that party is the Vendor, the case owner.
+The protocol requires no automatic answer, so the Vendor's 30-day default stays active and the Reporter's longer terms stay pending until the owner answers; the case stays at `REVISE`.
+When the Reporter proposed 10 days, the Reporter is invited instead, and its acceptance only records consent, so the case also stays at `REVISE`.
 
 ```mermaid
 ---
@@ -292,8 +293,7 @@ sequenceDiagram
         Note over CA: 30-day default ACTIVE<br/>Reporter's terms pending, EM = REVISE
         CA->>V: Create(VulnerabilityCase)
         CA->>V: Invite(Event)<br/>Reporter's terms, on the Reporter's behalf
-        V->>CA: Accept — the owner's answer activates them
-        Note over CA: Reporter's terms ACTIVE<br/>nothing pending, EM = ACTIVE
+        Note over V,CA: No automatic answer — the owner decides<br/>whether to accept the longer terms
     else No policy published
         Note over CA: Reporter's terms ACTIVE<br/>nothing pending, EM = ACTIVE
         CA->>V: Create(VulnerabilityCase)

@@ -11,6 +11,7 @@ related_notes:
   - notes/agentic-workflow.md
   - notes/specs-vs-adrs.md
   - notes/devcontainer-tooling.md
+  - notes/flaky-tests.md
 related_specs:
   - specs/project-documentation.yaml
   - specs/build-workflow.yaml
@@ -172,3 +173,26 @@ The `bugfix` skill mandates this scan at Phase 2d; see
 `.claude/skills/bugfix/REFERENCE.md` § "Sibling Scan Pattern".
 
 Source: CONCERN-2413
+
+## Never Merge on Red; a Red `main` Gets One Fix PR
+
+A PR with any failing check is not mergeable. "Pre-existing", "unrelated",
+"flaky" and "passed on rerun" are claims, not evidence (full doctrine:
+`.agents/skills/shared/completeness-doctrine.md` § "Never Merge on Red"). In the
+2026-10-02 audit, PR #4034 merged with three red checks judged pre-existing, and
+PR #4087 re-ran a failed demo gate, saw it pass, and merged calling it flaky;
+the failure (#4113) was a real fan-out bug.
+
+- **Red `main` gets exactly one fix PR.** Every other PR waits for it or rebases
+  onto it. None merges past the red, and none opens a second fix for the same
+  failure.
+- **A flaky check may be re-run once, and only when it is already tracked**: an
+  open `flaky-test` issue (see `notes/flaky-tests.md`) holds a reproduction, and
+  the PR body names that issue. A pass on rerun with no such issue is not evidence
+  of flakiness. File the issue with the reproduction first; the PR stays held until
+  the check is green on its own or the cause is fixed.
+- **Hooks are not skipped** (`--no-verify`, `SKIP=`). #4033 and #4034 skipped the
+  spec-lint hook. The one exception is the documented devcontainer `actionlint`
+  hang (`notes/devcontainer-tooling.md`).
+
+Source: ISSUE-4189, ISSUE-4195

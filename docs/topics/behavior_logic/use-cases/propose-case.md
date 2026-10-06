@@ -97,6 +97,8 @@ A service that created the case, committed ledger entries, and *then* declined w
 
 When the service declines, it sends `Reject(as_CaseProposal)` with the proposal inline, and creates nothing (CP-05-004).
 The proposing actor records the refusal (CP-06-003, CP-06-004).
+It records a reply only from the actor it addressed the proposal to, and a reply from anyone else is refused with its records unchanged (CP-06-005).
+Once a case exists for the report, no reply replaces the case's trusted CASE_MANAGER.
 
 The refusal is recorded before it is sent, and that ordering carries weight.
 A decline that cannot be delivered does not silently become an acceptance: the service writes the decision down first and refuses to run the accept path afterwards, so the irrevocability CP-05-004 and CP-05-005 rely on holds in both directions.
@@ -127,7 +129,16 @@ The same missing channel means a policy backend that is merely unreachable is re
 An already-answered proposal is never re-adjudicated.
 A duplicate delivery of the *same* proposal reuses the existing case rather than deciding again, because a later "decline" would contradict an `Accept` already sent.
 CP-05-006 goes further: the stored `Accept` must be re-sent unchanged, with its original identifier, so a proposer whose copy was lost converges rather than waiting forever.
-The reference implementation reuses the case but does not yet re-send ([#2890](https://github.com/CERTCC/Vultron/issues/2890)).
+The reference implementation does this.
+The `Accept` takes an id derived from the proposal.
+A duplicate proposal queues the stored `Accept` again under that id, unless it is still waiting in the outbox.
+The proposer-side deadline that lets a proposer give up on a lost reply (CP-05-007) is not yet implemented ([#2890](https://github.com/CERTCC/Vultron/issues/2890)).
+
+A proposal under a *new* identifier is a new request, even when it names a report that already has a case (CP-05-008).
+It goes through the admission decision and gets its own `Accept` or `Reject`, not the earlier proposal's stored answer.
+What happens to the case depends on who asks.
+The proposer that owns the case gets that case back: the `Accept`'s `result` names it, no second case is created, and the case is not announced or recorded in the ledger a second time.
+Any other proposer gets a separate case of its own and is not added to the first one, because the report identifier is chosen by the sender and does not say whose case it is.
 
 ---
 

@@ -404,7 +404,10 @@ All of them ask the shared active-participant selection in
 `case_content_recipients()`, the replay and the pre-seed through
 `is_case_content_recipient()`. A peer that is not an active participant is
 sent no entries, and a `Reject(CaseLedgerEntry)` from it replays nothing and
-seeds no case. Without the replay gate, the paused replica's forward-gap
+seeds no case. The reject tree checks the sender first
+(`SenderIsActiveLedgerParticipantNode`, SYNC-03-005, ADR-0115): any sender that
+is not an active participant gets `REFUSED` before replication state is
+written, so the replay and pre-seed gates are defence in depth behind it. Without the replay gate, the paused replica's forward-gap
 Reject (SYNC-14-002) would pull the withheld entries straight through.
 
 Only a joined participant the active embargo withholds (not `SIGNATORY` to

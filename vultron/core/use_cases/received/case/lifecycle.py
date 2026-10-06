@@ -1,7 +1,7 @@
 """Use cases for vulnerability case activities."""
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 import py_trees
 from py_trees.common import Status
@@ -32,10 +32,19 @@ if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
     from vultron.core.ports.wire_render import WireRenderPort
 
+from vultron.core.behaviors.sender_entitlement import (
+    SenderEntitlement,
+    exempt,
+)
+
 logger = logging.getLogger(__name__)
 
 
 class AddReportToCaseReceivedUseCase:
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4070", "no sender check defined for report-to-case addition"
+    )
+
     def __init__(
         self,
         dl: CasePersistence,
@@ -81,6 +90,10 @@ class AddReportToCaseReceivedUseCase:
 
 
 class CloseCaseReceivedUseCase:
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4070", "no sender check defined for case closure"
+    )
+
     def __init__(
         self,
         dl: CaseOutboxPersistence,

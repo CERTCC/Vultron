@@ -17,6 +17,7 @@ You finish with the suggested actor either invited or the recommendation decline
 
 - A case you participate in.
   Any participant can suggest an actor.
+  The CASE_MANAGER refuses a suggestion from an actor that is not a participant, and forwards nothing to the Case Owner.
 - The suggested actor's Uniform Resource Identifier (URI).
 - The CASE_MANAGER's actor URI.
 
@@ -81,6 +82,10 @@ As Case Owner, answer the forwarded offer, addressing the reply to the CASE_MANA
   The CASE_MANAGER then invites the actor.
 - If it should not, send `Reject(Offer(CaseParticipant))` with the same `object`.
   No invitation is sent.
+
+The CASE_MANAGER acts on a decision only when the Case Owner sent it.
+It refuses a reply from any other sender, invites no one, and tells the recommender nothing.
+The actor it invites is the one named in the `Offer(CaseParticipant)` it forwarded, never the one named in your reply.
 
 !!! warning "Replying to the recommender skips the record"
 

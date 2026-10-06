@@ -1,7 +1,12 @@
 """Use cases for vulnerability case activities."""
 
 import logging
+from typing import ClassVar
 
+from vultron.core.behaviors.sender_entitlement import (
+    SenderEntitlement,
+    exempt,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.case import CreateCaseReceivedEvent
 from vultron.core.models.report_case_link import VultronReportCaseLink
@@ -36,6 +41,10 @@ class CreateCaseReceivedUseCase:
     4. Seed a local replica of the case via the case-replica BT.
     5. Update the link with ``case_id`` and ``case_manager_id``.
     """
+
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4070", "no sender check defined for case creation"
+    )
 
     def __init__(
         self,

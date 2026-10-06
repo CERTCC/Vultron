@@ -1,11 +1,15 @@
 """Use cases for case actor/participant invitation and suggestion activities."""
 
 import logging
-from typing import cast
+from typing import ClassVar, cast
 
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.announce_case_received_tree import (
     create_announce_vulnerability_case_received_tree,
+)
+from vultron.core.behaviors.sender_entitlement import (
+    SenderEntitlement,
+    exempt,
 )
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.events.actor import (
@@ -72,6 +76,10 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
     Per MV-10-004, if the case already exists locally, the announcement is
     accepted without overwriting the existing record (idempotent).
     """
+
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4070", "no sender check for actor announcement"
+    )
 
     def __init__(
         self,

@@ -1,7 +1,7 @@
 """Use cases for CaseActor-routed actor-suggestion activities (ADR-0026)."""
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.suggest_actor_tree import (
@@ -26,6 +26,11 @@ if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
     from vultron.core.ports.wire_render import WireRenderPort
 
+from vultron.core.behaviors.sender_entitlement import (
+    SenderEntitlement,
+    SenderEntitlementKind,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -45,7 +50,15 @@ class OfferActorToCaseReceivedUseCase:
     Every effect is gated on the receiving actor holding
     ``CVDRole.CASE_MANAGER`` for the case (BT-17-001).  Any other receiver of
     a copy does nothing and refuses (HP-01-005, #3752).
+
+    Only a participant of the case may suggest an actor (CM-16-001): an Offer
+    from anyone else is refused before the case ledger is written, so nothing is
+    forwarded to the Case Owner (HP-01-006, #3668).
     """
+
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.ACTIVE_PARTICIPANT
+    )
 
     def __init__(
         self,

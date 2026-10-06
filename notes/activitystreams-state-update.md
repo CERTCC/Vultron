@@ -392,7 +392,8 @@ format was never emitted by any supported actor; retaining it as a registry
 entry was a source of ordering fragility. It has been removed entirely.
 The canonical `OFFER_CASE_PARTICIPANT_ROLE` format uses a dedicated object
 type (`as_CaseParticipantRole`) that is self-describing without any registry
-ordering dependency. See SE-08-003, SE-08-005.
+ordering dependency. See SE-08-003 (SE-08-005, retired, recorded the
+removal of its predecessor).
 
 **Rule for new patterns that share a verb+object pair** — if a new semantic
 requires the same `(activity_, object_)` pair as an existing pattern, it MUST

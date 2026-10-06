@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-08-14
+created: 2026-08-14
+updated: 2026-08-14
+revision: 1
 deciders: Vultron maintainers
 consulted: CERT/CC CVD research team
 informed: Vultron contributors
@@ -181,9 +184,15 @@ The implementation landed in CERTCC/Vultron#4168:
 
 - A shared `QueueAttemptEntry` SQLModel table (composite PK: `queue`, `activity_id`)
   backs both inbox and outbox attempt counters.
-  The existing `OutboxAttemptEntry` table is kept for backward compatibility
-  (deprecated) and all outbox methods delegate to the shared table with
-  `queue="outbox"`.
+  The former outbox-only `OutboxAttemptEntry` table (`vultron_outbox_attempts`)
+  is removed; all outbox methods use the shared table with `queue="outbox"`.
+  Attempt counts in an existing store's old table are **not migrated**: they are
+  dropped, which resets in-flight outbox retry budgets to zero on upgrade.
+  The cost is bounded (at most one extra retry budget per undelivered activity),
+  and a reset only widens the retry window, so no counter migration is warranted.
+  Stores that predate the per-actor layout are orphaned regardless (ADR-0073,
+  #2551), which is a separate upgrade path.
+  `create_all` neither reads nor drops the leftover table in old files.
 - `InboxDeadLetterEntry(CoreRecord)` mirrors `OutboxDeadLetterEntry` and is
   stored via `dl.save()` / `dl.by_type()`.
 - `RetryStore` extends `OutboxRetryStore` with the inbox-specific methods;

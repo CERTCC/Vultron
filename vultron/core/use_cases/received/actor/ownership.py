@@ -1,7 +1,7 @@
 """Use cases for case actor/participant invitation and suggestion activities."""
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.ownership_transfer_tree import (
@@ -35,10 +35,19 @@ if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
     from vultron.core.ports.wire_render import WireRenderPort
 
+from vultron.core.behaviors.sender_entitlement import (
+    SenderEntitlement,
+    exempt,
+)
+
 logger = logging.getLogger(__name__)
 
 
 class OfferCaseOwnershipTransferReceivedUseCase:
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4070", "no sender check for ownership offer"
+    )
+
     def __init__(
         self,
         dl: CaseOutboxPersistence,
@@ -69,7 +78,8 @@ class OfferCaseOwnershipTransferReceivedUseCase:
         offerer of record; nothing downstream re-checks it, because
         CLP-07-003 validates `payloadSnapshot.actor` and not `attributed_to`.
         Outside the delegated shape the sender is the offerer, which is also the
-        correct answer when the case has no CaseActor at all (CM-24-003).
+        correct answer when the case has no CaseActor at all (the retired
+        send-directly arm; see CM-24-006).
         """
         request = self._request
         delegated_author = _as_id(request.activity.attributed_to)
@@ -180,6 +190,10 @@ class OfferCaseOwnershipTransferReceivedUseCase:
 
 
 class AcceptCaseOwnershipTransferReceivedUseCase:
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4070", "no sender check for ownership accept"
+    )
+
     def __init__(
         self,
         dl: CaseOutboxPersistence,
@@ -236,6 +250,10 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
 
 
 class RejectCaseOwnershipTransferReceivedUseCase:
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4070", "no sender check for ownership reject"
+    )
+
     def __init__(
         self,
         dl: CaseOutboxPersistence,

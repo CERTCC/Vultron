@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-09-18
+created: 2026-09-18
+updated: 2026-10-06
+revision: 2
 deciders: [adh, Claude Opus 5]
 consulted: []
 informed: []
@@ -126,7 +129,7 @@ no-op.
 
 | Term | What it is | Competes under shortest-wins |
 |---|---|---|
-| **Actor default** | A duration from the `EmbargoPolicy` on the Case Owner's actor profile; what `defaults.md` calls a *standing proposal* | **Yes** |
+| **Actor default** | A duration from a published `EmbargoPolicy`; what `defaults.md` calls a *standing proposal* | **Yes** |
 | **Protocol default** | The fallback applied when no proposal and no actor default applies | **No** |
 
 The protocol default is **the value when the candidate set is empty, never a
@@ -435,3 +438,12 @@ The Reporter's terms therefore arrive as the Reporter stated them, not as the ve
 The proposed event keeps its identity at case creation; only its `context` is rewritten from the report to the case (EP-04-004).
 The losing side of shortest-wins is registered as a pending revision through `EmbargoLifecycle.propose_embargo`, so a contested creation leaves the case at `EM.REVISE` (EP-04-003).
 The decision itself is unchanged.
+
+## Amendment — 2026-10-02
+
+The "Actor default" row of the terms table reads "A duration from a published `EmbargoPolicy`".
+That text is replaced: an actor default is a duration from the `EmbargoPolicy` on the Case Owner's actor profile.
+The embargo policy is a field of the actor profile, not a separately stored object, and `attributedTo` on the case is the CASE_OWNER (ADR-0041, amended 2026-10-02).
+An earlier change (commit `0882ed1c7`, #3979) edited the row in place without a trail; the 2026-10-02 audit of unsupervised agent decisions (#4195) confirmed the policy-is-a-profile-field position and the original text above is restored so this section is the record of it.
+The decision itself is unchanged.
+Confirmed by Allen D. Householder, 2026-10-02.

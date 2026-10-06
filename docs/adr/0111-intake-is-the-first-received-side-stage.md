@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-09-29
+created: 2026-09-29
+updated: 2026-09-29
+revision: 1
 deciders: Allen D. Householder
 consulted: >-
   notes/bt-integration.md, notes/case-ledger-authority.md,
@@ -136,3 +139,10 @@ CLP-10-017 says so; the handler migrations that still store under the sender's i
 Generated spec requirements: `case-ledger-processing.yaml` CLP-10-006 and CLP-10-010 (amended), CLP-10-017 through CLP-10-020; `case-management.yaml` CM-15-005 (amended).
 
 Source: ISSUE-3339.
+
+## Annotation — 2026-10-02
+
+The amendment of 2026-09-30 was made without a human reviewing it.
+The 2026-10-02 audit (#4195) confirmed sealed-at-emission and byte-for-byte relay (OX-07 as rewritten) and recorded that the receive-side verbatim snapshot is a defect to finish (#3742): the "faithful copy of what arrived" the amendment names is not yet persisted beside the archived row.
+The commit-stage carve-out for `Update(VulnerabilityCase)` (CLP-10-013) stays with #3936.
+Reviewed by Allen D. Householder, 2026-10-02.

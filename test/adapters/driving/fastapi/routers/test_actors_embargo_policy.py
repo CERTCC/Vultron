@@ -106,7 +106,7 @@ class TestPutEmbargoPolicy:
             _stored_profile(hosted_actor)
         ) == timedelta(days=21)
 
-    @pytest.mark.spec("EP-02-003")
+    @pytest.mark.spec("EP-02-005")
     @pytest.mark.spec("HTTP-03-001")
     def test_replace_returns_200_and_leaves_exactly_one_policy(
         self, client_actors, hosted_actor
@@ -128,7 +128,7 @@ class TestPutEmbargoPolicy:
         assert second.json()["id"] == first.json()["id"]
 
     @pytest.mark.spec("EP-02-001")
-    @pytest.mark.spec("EP-02-003")
+    @pytest.mark.spec("EP-02-005")
     def test_the_published_policy_is_the_record_at_the_endpoint_url(
         self, client_actors, hosted_actor
     ):
@@ -140,7 +140,7 @@ class TestPutEmbargoPolicy:
         profile = client_actors.get(f"/actors/{_SLUG}/profile").json()
         assert profile["embargoPolicy"]["id"] == resp.json()["id"]
 
-    @pytest.mark.spec("EP-02-003")
+    @pytest.mark.spec("EP-02-005")
     def test_a_publish_leaves_a_seeded_policy_record_unread(
         self, client_actors, hosted_actor
     ):
@@ -232,7 +232,7 @@ class TestPutEmbargoPolicy:
         assert _profile_policy(hosted_actor) is None
 
     @pytest.mark.spec("EP-01-005")
-    @pytest.mark.spec("EP-02-003")
+    @pytest.mark.spec("EP-02-005")
     def test_a_body_cannot_publish_in_another_actors_name(
         self, client_actors, hosted_actor
     ):

@@ -16,6 +16,7 @@ related_specs:
   - specs/behavior-tree-integration.yaml
   - specs/spec-registry.yaml
   - specs/meta-specifications.yaml
+  - specs/handler-protocol.yaml
 related_notes:
   - notes/flaky-tests.md
   - notes/configuration.md
@@ -767,3 +768,25 @@ committed baseline is unavoidable, make it a named set (`KNOWN_VIOLATIONS`,
 ARCH-18), never a bare number. A set entry names what it exempts, and a
 concurrent PR that removes a different entry merges cleanly to the right
 answer.
+
+## Delete an Ephemeral Migration Check When the Migration Lands
+
+A test written to prove a migration is complete (every call site moved, no
+caller of the old name left, old and new outputs equal) is scaffolding. Once the
+migration has landed, the check guards a transition that is over, so it keeps
+costing runtime and review attention while protecting nothing a durable test does
+not. Delete it in the PR that finishes the migration (#4190). If part of it
+states an invariant that must keep holding, promote that part to a durable test
+under its own spec ID (an architecture ratchet with a named known-violations set
+is the usual shape; see § Ratchets) and delete the rest.
+
+## A Test Timeout Is Acceptable Verification of a Time-Limit MUST
+
+When a requirement is a time limit ("MUST complete within N seconds", "MUST NOT
+block longer than N"), a test that fails by timing out *is* its verification.
+Do not add a stopwatch assertion beside the timeout; it measures the same thing
+with more noise. HP-07-002 stands on this reading. The timeout *method* still
+matters (see the two-tier timeout guardrail above): a timeout that cannot
+interrupt the blocked call verifies nothing.
+
+Source: ISSUE-4190, ISSUE-4195

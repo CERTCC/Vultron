@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-07-13
+created: 2026-07-13
+updated: 2026-07-13
+revision: 1
 deciders: Allen D. Householder
 stakeholder_type: [project-contributor]
 ---

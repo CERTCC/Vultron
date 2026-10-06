@@ -14,6 +14,8 @@ related_notes:
   - notes/git-workflow-pitfalls.md
   - notes/parallel-development.md
   - notes/lint-tooling.md
+  - notes/case-bootstrap-trust.md
+  - notes/structured-logging.md
 related_specs:
   - specs/tech-stack.yaml
 ---
@@ -168,3 +170,33 @@ own `SKILL.md` may cite either path in prose (both resolve for a reader), but
 tracked one.
 
 Source: ISSUE-1467; mechanism corrected while working ISSUE-3482.
+
+## CodeQL Flags Names, Not Behaviour — Words That Draw Its Attention
+
+Some CodeQL queries (for example `py/clear-text-logging-sensitive-data`) judge a
+value by the *name* it travels under, not by what it holds. A field, variable or
+parameter whose name contains one of these words is read as sensitive or as
+tainted, whatever the value is:
+
+- **Reads as trusted or safe**: `trusted`, `secure`, `internal`, `authenticated`,
+  `verified`, `safe`.
+- **Reads as a secret**: `password`, `secret`, `token`, `apikey`, `private_key`,
+  `auth`.
+- **Reads as tainted input**: `untrusted`, `raw`, `request`, `payload`, `input`,
+  `param`, `dirty`.
+- **Reads as a sanitizer** (and can clear or confuse a taint path): `clean`,
+  `sanitize`, `strip`, `escape`, `validate`, `is_valid`.
+
+The fix for a name-pattern alert is to name the value for the role it records,
+not to suppress the alert. `trusted_case_creator_id` held a public ActivityPub
+URI and was flagged for the word "trusted" alone; it was renamed for the role
+(#4020, see `notes/case-bootstrap-trust.md`).
+
+**What an agent may dismiss.** An agent may dismiss a CodeQL alert only when it is
+such a name-pattern false positive: the value is demonstrably public (an actor id,
+a case id, a URL) and the only thing that drew the query is a word from the list
+above. Record the reason in the dismissal. Every other alert, including any where
+the flagged value could be a credential, is fixed or escalated, never dismissed by
+an agent (#4000 is the precedent).
+
+Source: ISSUE-4195

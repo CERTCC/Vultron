@@ -1,7 +1,7 @@
 """Received ``Invite(EmbargoEvent)`` (EP, EV) and its invitee and proposer."""
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 if TYPE_CHECKING:
     from vultron.config.actor import ActorConfig
@@ -48,6 +48,11 @@ from vultron.errors import (
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
+
+from vultron.core.behaviors.sender_entitlement import (
+    SenderEntitlement,
+    exempt,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +131,10 @@ def resolve_proposer_id(
 
 
 class InviteToEmbargoOnCaseReceivedUseCase:
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4256", "no sender check for embargo invite"
+    )
+
     def __init__(
         self,
         dl: CaseOutboxPersistence,

@@ -351,14 +351,17 @@ groups:
     statement: >-
       A Participant in EM Active (q^em ∈ A) with CS not yet public/exploit/attack
       (q^cs ∈ ···pxa) receiving EV MUST transition their EM state to Revise
-      (q^em A → R) and emit EK to acknowledge receipt.
+      (q^em A → R). "Emit EK" is discharged by the CASE_MANAGER's commit of the
+      received activity, fanned out as `Announce(CaseLedgerEntry)`; no EK message
+      is emitted (EP-09-009, MSM-02-009).
     rationale: >-
       EV signals a proposal to revise an active embargo's terms. The receiver
       enters Revise state to indicate a pending revision. The original embargo
       remains in force during revision per VP-04-005.
     verification: >-
       Integration tests in `test/demo/` confirm that receiving EV in EM ACTIVE
-      with CS matching ...pxa transitions EM to REVISE and queues EK to the sender.
+      with CS matching ...pxa transitions EM to REVISE, and that the CASE_MANAGER's ledger
+      commit and announcement of the received EV discharge EK with no EK message queued.
     testable: true
     preconditions:
     - em_state:
@@ -372,12 +375,12 @@ groups:
       expected: Receiver EM state is REVISE
     - order: 2
       actor: receiver
-      action: Emit EK to acknowledge receipt of EV
-      expected: EK queued for sender
+      action: CASE_MANAGER commits the received EV and announces the ledger entry (discharges EK)
+      expected: Ledger entry committed and fanned out; no EK message exists
     postconditions:
     - description: >-
         Receiver EM state is REVISE; original embargo remains in force; EK
-        emitted
+        discharged by the ledger commit
     relationships:
     - rel_type: satisfies
       spec_id: VP-04-005
@@ -513,15 +516,18 @@ groups:
     statement: >-
       A Participant in EM Revise (q^em ∈ R) with CS not yet public/exploit/attack
       (q^cs ∈ ···pxa) receiving EJ MUST transition their EM state back to Active
-      (q^em R → A) and emit EK to acknowledge receipt.
+      (q^em R → A). "Emit EK" is discharged by the CASE_MANAGER's commit of the
+      received activity, fanned out as `Announce(CaseLedgerEntry)`; no EK message
+      is emitted (EP-09-009, MSM-02-009).
     rationale: >-
       EJ signals that a revision proposal has been rejected and the embargo
       reverts to its previous Active terms. The receiver restores the
       pre-revision state.
     verification: >-
       Integration tests in `test/demo/` confirm that receiving EJ in EM REVISE
-      with CS matching ...pxa transitions EM back to ACTIVE and queues EK to the
-      sender.
+      with CS matching ...pxa transitions EM back to ACTIVE, and that the CASE_MANAGER's
+      ledger commit and announcement of the received EJ discharge EK with no EK message
+      queued.
     testable: true
     preconditions:
     - em_state:
@@ -535,10 +541,11 @@ groups:
       expected: Receiver EM state is ACTIVE
     - order: 2
       actor: receiver
-      action: Emit EK to acknowledge receipt of EJ
-      expected: EK queued for sender
+      action: CASE_MANAGER commits the received EJ and announces the ledger entry (discharges EK)
+      expected: Ledger entry committed and fanned out; no EK message exists
     postconditions:
-    - description: Receiver EM state is ACTIVE (revision rejected); EK emitted
+    - description: >-
+        Receiver EM state is ACTIVE (revision rejected); EK discharged by the ledger commit
     relationships:
     - rel_type: satisfies
       spec_id: VP-11-004
@@ -609,14 +616,17 @@ groups:
     statement: >-
       A Participant in EM Revise (q^em ∈ R) with CS not yet public/exploit/attack
       (q^cs ∈ ···pxa) receiving EC MUST transition their EM state back to Active
-      (q^em R → A) with the revised terms and emit EK to acknowledge receipt.
+      (q^em R → A) with the revised terms. "Emit EK" is discharged by the
+      CASE_MANAGER's commit of `Add(EmbargoEvent, target=Case)`, fanned out as
+      `Announce(CaseLedgerEntry)`; no EK message is emitted (EP-09-009, MSM-02-009).
     rationale: >-
       EC signals that a revision proposal has been accepted. The embargo returns
       to Active state under the new terms agreed by the revision.
     verification: >-
       Integration tests in `test/demo/` confirm that receiving EC in EM REVISE
-      with CS matching ...pxa transitions EM back to ACTIVE with revised terms and
-      queues EK to the sender.
+      with CS matching ...pxa transitions EM back to ACTIVE with revised terms, and that the
+      CASE_MANAGER's commit of `Add(EmbargoEvent, target=Case)` and its announcement
+      discharge EK with no EK message queued.
     testable: true
     preconditions:
     - em_state:
@@ -630,10 +640,13 @@ groups:
       expected: Receiver EM state is ACTIVE; revised terms recorded
     - order: 2
       actor: receiver
-      action: Emit EK to acknowledge receipt of EC
-      expected: EK queued for sender
+      action: >-
+        CASE_MANAGER commits `Add(EmbargoEvent, target=Case)` and announces the ledger entry
+        (discharges EK)
+      expected: Ledger entry committed and fanned out; no EK message exists
     postconditions:
-    - description: Receiver EM state is ACTIVE with new terms; EK emitted
+    - description: >-
+        Receiver EM state is ACTIVE with new terms; EK discharged by the ledger commit
     relationships:
     - rel_type: satisfies
       spec_id: VP-04-005
@@ -1463,6 +1476,12 @@ groups:
       the DETERMINISTIC call-out bundle (BT-23) supplies the default. Structuring
       acceptance as an Evaluator call-out point preserves the seam for later
       owner/agent adjudication without changing the tree.
+    note: >-
+      The seam's default is accept; it does not decide whether the seam runs. For a
+      relayed revision Invite the case owner's answer is its own (EP-09-005, EP-09-006),
+      so the Flow B tree reaches this seam for the owner only inside the prototype's
+      bounded auto-accept (EM `NONE`, terms within the owner's policy duration) and holds
+      the answer otherwise (#4179). A non-owner participant always reaches the seam.
     verification: >-
       Integration tests in `test/demo/` confirm that an inbound EP or
       InviteToEmbargoOnCase is accepted by default under the DETERMINISTIC bundle,
@@ -2137,6 +2156,48 @@ groups:
     stories:
     - story_2022_013
     - story_2022_088
+  - id: EMB-17-011
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the CASE_MANAGER re-invites a late accepter to the case's current
+      embargo (EMB-17-003), it MUST commit the fresh `Invite(EmbargoEvent)` as a
+      distinct ledger entry of event type `invite_to_embargo_on_case_reinvite`
+      before it queues the Invite, and a replica MUST replay the entry by
+      applying the invitee's PEC `INVITE` and recording the Invite's `endTime`
+      as its RSVP deadline, without moving EM state (CM-28-013, RSH-08-004).
+    rationale: >-
+      Without a committed entry the replica never learns the participant was
+      re-invited, so its record keeps the lapsed state and deadline while the
+      CASE_MANAGER's shows the fresh ones. The re-invite has no proposer, so the
+      relayed-Invite classifier would read a committed copy as a proposal and
+      move EM state for an embargo that is already current; an event type of its
+      own gets a replay slot that cannot do that (EP-09-007, ADR-0118).
+    verification: >-
+      `test_the_managers_reinvite_is_committed_and_replayed_by_a_replica` drives
+      the full path across per-actor stores: the late Accept reaches the
+      CASE_MANAGER, the re-invite entry is committed and broadcast, and the
+      replica reads the invitee `INVITED` with the manager's deadline and the
+      manager's EM state. `test_embargo_relay_entries_are_replayed.py`
+      classifies the entry shape.
+    testable: true
+    postconditions:
+    - description: >-
+        A ledger entry with event type `invite_to_embargo_on_case_reinvite` is
+        committed in the CASE_MANAGER's store and replayed in every replica's
+        store; the invitee reads `INVITED` with the Invite's deadline on each,
+        and no EM state moves
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-17-003
+    - rel_type: depends_on
+      spec_id: RSH-08-004
+    - rel_type: depends_on
+      spec_id: CM-28-013
+    adr:
+    - ADR-0118
+    stories:
+    - story_2022_013
 
 - id: EMB-18
   title: EM Write-Boundary Consolidation
@@ -2201,6 +2262,10 @@ groups:
       closed on an unreadable one before writing EM state or
       `active_embargo`. An unreadable replaced embargo is a broken invariant,
       reported as a refusal, not deferred.
+    note: >-
+      The refusal stands in for object dereference (AKM-05-003): it is conditional on an
+      implementation that cannot fetch the unreadable record by an API call, and lapses
+      where dereference exists (AKM-05-004).
     rationale: >-
       The EP-05-001 comparison reads the replaced embargo, so it holds only if
       no case names an embargo its store cannot read. The ledger applies an
@@ -2222,6 +2287,32 @@ groups:
       spec_id: EMB-18-001
     - rel_type: constrains
       spec_id: EP-05-001
+    - rel_type: depends_on
+      spec_id: AKM-05-003
+  - id: EMB-18-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST refuse an inline `EmbargoEvent` whose `context` is not the case that
+      carries it, and MUST refuse it before writing anything: the event is not stored and
+      no embargo state of either case changes.
+    rationale: >-
+      An embargo belongs to the case named by its `context`. The inbox stores a carried
+      embargo ahead of the handler's trust checks, and a first write wins, so an unchecked
+      event would let a sender plant another case's embargo under an id that case will later
+      name. Giving the refusal a requirement lets ratchets and docs cite it instead of a
+      code comment.
+    verification: >-
+      A receiver is given a case that carries an inline `EmbargoEvent` whose `context`
+      names a different case. The receiver refuses it, holds no record of the event
+      afterwards, and leaves both cases' embargo state unchanged. Exercised by
+      `test_an_inline_embargo_of_another_case_is_refused_unstored`.
+    stories:
+    - story_2022_014
+    testable: true
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-18-003
 
 - id: EMB-19
   title: Embargo Teardown Announcement

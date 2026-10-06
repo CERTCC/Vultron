@@ -31,8 +31,9 @@ import pytest
 import vultron.demo.helpers.sync as sync_module
 import vultron.demo.scenario.fcvcv_demo as demo
 import vultron.demo.utils as demo_utils
-from test.demo._helpers import patched_report_submission
+from test.demo._helpers import patch_chain_shared, patched_report_submission
 from vultron.demo.actor_session import ActorSession
+from vultron.demo.helpers import invite_chain
 from vultron.demo.utils import reset_demo_failures
 
 
@@ -121,14 +122,14 @@ class TestFinderCaseReplicaWaitBeforeV1Triage(_Helpers):
             patch.object(ActorSession, "set_stub_summary"),
             patch.object(demo, "post_to_inbox_and_wait"),
             patch.object(demo, "verify_object_stored"),
-            patch.object(
+            patch_chain_shared(
                 demo, "wait_for_case_on_container", side_effect=_wait_for_case
             ),
             patch.object(
                 demo, "run_invite_path_rm_triage", side_effect=_triage
             ),
             patch.object(
-                demo,
+                invite_chain,
                 "find_case_invite_for_actor",
                 return_value="urn:test:invite",
             ),
@@ -231,7 +232,7 @@ class TestFinderCaseReplicaWaitBeforeV2Triage(_Helpers):
             call_order.append("triage")
 
         with (
-            patch.object(
+            patch_chain_shared(
                 demo, "wait_for_case_on_container", side_effect=_wait_for_case
             ),
             patch.object(
@@ -255,7 +256,7 @@ class TestFinderCaseReplicaWaitBeforeV2Triage(_Helpers):
                 return_value="urn:test:ca",
             ),
             patch.object(
-                demo,
+                invite_chain,
                 "find_case_invite_for_actor",
                 return_value="urn:test:invite-id",
             ),
@@ -369,7 +370,7 @@ class TestFinderCaseReplicaGenesisWaitInReportSubmission(_Helpers):
             patch.object(demo, "wait_for_case_participants"),
             patch.object(demo, "wait_for_replica_ledger_coverage"),
             patch.object(demo, "verify_case_active"),
-            patch.object(
+            patch_chain_shared(
                 demo, "wait_for_case_on_container", side_effect=_wait_for_case
             ),
             patch.object(
@@ -385,7 +386,7 @@ class TestFinderCaseReplicaGenesisWaitInReportSubmission(_Helpers):
             patch.object(demo, "verify_object_stored"),
             patch.object(demo, "run_invite_path_rm_triage"),
             patch.object(
-                demo,
+                invite_chain,
                 "find_case_invite_for_actor",
                 return_value="urn:test:invite",
             ),
@@ -487,11 +488,11 @@ class TestFcvcvCausalGates(_Helpers):
             ),
             patch.object(demo, "get_actor_by_id", return_value=MagicMock()),
             patch.object(
-                demo,
+                invite_chain,
                 "find_case_invite_for_actor",
                 return_value="urn:test:invite",
             ),
-            patch.object(demo, "wait_for_case_on_container"),
+            patch_chain_shared(demo, "wait_for_case_on_container"),
             patch.object(demo, "wait_for_case_participants"),
             patch.object(demo, "run_invite_path_rm_triage"),
         ):
@@ -553,7 +554,9 @@ class TestFcvcvCausalGates(_Helpers):
             ),
             patch.object(demo, "run_direct_path_rm_triage", return_value=case),
             patch.object(demo, "wait_for_case_participants"),
-            patch.object(demo, "wait_for_case_on_container") as replica_wait,
+            patch_chain_shared(
+                demo, "wait_for_case_on_container"
+            ) as replica_wait,
             patch.object(demo, "verify_case_active"),
             patch.object(demo, "wait_for_replica_ledger_coverage"),
             patch.object(demo, "run_invite_path_rm_triage") as rm_triage,
@@ -568,7 +571,7 @@ class TestFcvcvCausalGates(_Helpers):
             # set_stub_summary is seeding infrastructure not under test here.
             patch.object(ActorSession, "set_stub_summary"),
             patch.object(
-                demo,
+                invite_chain,
                 "find_case_invite_for_actor",
                 side_effect=AssertionError("timed out polling for Invite"),
             ),
@@ -637,11 +640,13 @@ class TestFcvcvCausalGates(_Helpers):
             ),
             patch.object(demo, "get_actor_by_id", return_value=MagicMock()),
             patch.object(
-                demo,
+                invite_chain,
                 "find_case_invite_for_actor",
                 side_effect=AssertionError("timed out polling for Invite"),
             ),
-            patch.object(demo, "wait_for_case_on_container") as replica_wait,
+            patch_chain_shared(
+                demo, "wait_for_case_on_container"
+            ) as replica_wait,
             patch.object(demo, "wait_for_case_participants"),
             patch.object(demo, "run_invite_path_rm_triage"),
         ):
@@ -729,10 +734,10 @@ class TestFcvcvRmTriageTimeout(_Helpers):
             patch.object(ActorSession, "set_stub_summary"),
             patch.object(demo, "post_to_inbox_and_wait"),
             patch.object(demo, "verify_object_stored"),
-            patch.object(demo, "wait_for_case_on_container"),
+            patch_chain_shared(demo, "wait_for_case_on_container"),
             patch.object(demo, "run_invite_path_rm_triage"),
             patch.object(
-                demo,
+                invite_chain,
                 "find_case_invite_for_actor",
                 return_value="urn:test:invite",
             ),
@@ -814,7 +819,9 @@ class TestFcvcvInviteTriggerFailureSkipsDependents(_Helpers):
             ),
             patch.object(demo, "run_direct_path_rm_triage", return_value=case),
             patch.object(demo, "wait_for_case_participants"),
-            patch.object(demo, "wait_for_case_on_container") as replica_wait,
+            patch_chain_shared(
+                demo, "wait_for_case_on_container"
+            ) as replica_wait,
             patch.object(demo, "verify_case_active"),
             patch.object(demo, "wait_for_replica_ledger_coverage"),
             patch.object(demo, "run_invite_path_rm_triage") as rm_triage,
@@ -826,7 +833,9 @@ class TestFcvcvInviteTriggerFailureSkipsDependents(_Helpers):
             patch.object(ActorSession, "accept_case_invite") as accept_invite,
             # set_stub_summary is seeding infrastructure not under test here.
             patch.object(ActorSession, "set_stub_summary"),
-            patch.object(demo, "find_case_invite_for_actor") as find_invite,
+            patch.object(
+                invite_chain, "find_case_invite_for_actor"
+            ) as find_invite,
             patch.object(demo, "as_VulnerabilityCase") as mock_vc,
         ):
             mock_vc.model_validate.return_value = case

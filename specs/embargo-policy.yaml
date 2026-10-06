@@ -156,7 +156,39 @@ groups:
     - story_2022_003
     - story_2022_004
     - story_2022_009
-  - id: EP-02-003
+  - id: EP-02-004
+    priority: MUST
+    kind: project
+    statement: >-
+      A publish or replace at `PUT /actors/{actor_id}/embargo-policy` MUST NOT overwrite
+      an update to the actor's profile that was written after the request read it. The
+      write MUST succeed only if the stored profile is still the one the request read;
+      otherwise the request MUST re-read the profile and re-apply its terms, and when the
+      profile keeps changing under it for a bounded number of attempts it MUST be refused
+      with 409 Conflict and MUST write nothing.
+    rationale: >-
+      The policy is a field of the profile (EP-01-001), so a publish rewrites the whole
+      profile, and a plain read-then-save loses a write landing between the two without
+      anyone being told (#4102). Re-applying the terms to a fresh read is safe because a
+      publish changes only the policy field; the bound keeps a profile under continuous
+      write from holding the request open.
+    verification: >-
+      `test/adapters/driving/fastapi/routers/test_actors_embargo_policy.py`
+      (`TestConcurrentProfileWrite`) interleaves a profile write between the PUT's read and
+      its write and confirms both the concurrent update and the published policy are kept,
+      and that a profile changed under every attempt yields 409 with the stored profile
+      untouched. `test/adapters/driven/test_sqlite_save_if_unchanged.py` confirms the
+      store's compare-and-set refuses a stale expected record and a row changed between
+      its own read and write.
+    scope:
+    - production
+    relationships:
+    - rel_type: refines
+      spec_id: EP-02-005
+    stories:
+    - story_2022_003
+    - story_2022_009
+  - id: EP-02-005
     priority: SHOULD
     kind: protocol
     statement: >-
@@ -189,38 +221,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: EP-01-004
-    stories:
-    - story_2022_003
-    - story_2022_009
-  - id: EP-02-004
-    priority: MUST
-    kind: protocol
-    statement: >-
-      A publish or replace at `PUT /actors/{actor_id}/embargo-policy` MUST NOT overwrite
-      an update to the actor's profile that was written after the request read it. The
-      write MUST succeed only if the stored profile is still the one the request read;
-      otherwise the request MUST re-read the profile and re-apply its terms, and when the
-      profile keeps changing under it for a bounded number of attempts it MUST be refused
-      with 409 Conflict and MUST write nothing.
-    rationale: >-
-      The policy is a field of the profile (EP-01-001), so a publish rewrites the whole
-      profile, and a plain read-then-save loses a write landing between the two without
-      anyone being told (#4102). Re-applying the terms to a fresh read is safe because a
-      publish changes only the policy field; the bound keeps a profile under continuous
-      write from holding the request open.
-    verification: >-
-      `test/adapters/driving/fastapi/routers/test_actors_embargo_policy.py`
-      (`TestConcurrentProfileWrite`) interleaves a profile write between the PUT's read and
-      its write and confirms both the concurrent update and the published policy are kept,
-      and that a profile changed under every attempt yields 409 with the stored profile
-      untouched. `test/adapters/driven/test_sqlite_save_if_unchanged.py` confirms the
-      store's compare-and-set refuses a stale expected record and a row changed between
-      its own read and write.
-    scope:
-    - production
-    relationships:
-    - rel_type: refines
-      spec_id: EP-02-003
     stories:
     - story_2022_003
     - story_2022_009
@@ -1339,6 +1339,12 @@ groups:
       This is why the Invites are sent even though the owner may act by fiat. When the owner
       activates longer terms, every signatory that accepted them stays bound and every
       signatory that did not lapses (EP-05-001); the answers are what that cascade reads.
+
+      Auto-accept is never required: the protocol imposes no automatic answer to a revision
+      Invite (EP-09-006). The prototype keeps one bounded auto-accept, an implementation
+      choice and not a protocol rule: the owner accepts on its own only while EM is `NONE` and
+      the proposal ends no later than the owner's own policy duration from now, and never
+      while an embargo is `ACTIVE` or `REVISE` (#4179).
     verification: >-
       A unit test in `test/core/services/embargo_lifecycle/` asserts the owner's accept of a
       revision from `REVISE` activates it with no other participant having answered.
@@ -1368,7 +1374,9 @@ groups:
       The MAY in EP-09-005 and the SHOULD here are one position, not a contradiction: the
       owner is never blocked, and is advised to listen first. An implementation that wants to
       wait puts the policy at the owner's accept or reject call-out; the protocol imposes
-      nothing.
+      nothing. The default answer to a revision Invite is no answer, so a creation-time
+      revision (EP-04-011) leaves the shorter terms active until the owner acts; the
+      prototype's bounded auto-accept is described at EP-09-005.
     verification: >-
       Not machine-checkable as a protocol obligation: the protocol imposes no waiting rule.
       The EP-09-005 test pins that nothing blocks the owner; inspection of the owner-side

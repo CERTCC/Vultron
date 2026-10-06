@@ -35,6 +35,10 @@ import sys
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.actor_roles import ActorRole, role_map
 from vultron.demo.helpers.harness import scenario_harness
+from vultron.demo.helpers.invite_chain import (
+    CaseInviter,
+    run_case_invite_chain,
+)
 from vultron.demo.helpers.ledger_dump import (
     LedgerDumpTarget,
     dump_case_ledgers,
@@ -48,7 +52,6 @@ from vultron.demo.helpers.milestones import (
 )
 from vultron.demo.helpers.notes import participant_adds_note_to_case
 from vultron.demo.helpers.polling import (
-    find_case_invite_for_actor,
     resolve_case_actor_store_id,
     wait_for_all_participants_rm_closed,
     wait_for_case_em_terminated,
@@ -318,40 +321,23 @@ def _phase_invite_vendor_reject(
         case
     ).quiet().set_stub_summary("Vulnerability report")
 
-    # The delivery gate and Vendor's reject are nested inside the invite step
-    # so a failed trigger or lookup skips them instead of handing them
-    # ``None`` (ADR-0058 nested-block model, EDF-06-005, #3038).
-    with demo_step("Coordinator invites Vendor with CVDRole.VENDOR"):
-        invite_offer = (
-            ActorSession(
-                client=coordinator_client, actor=coordinator_in_coordinator
-            )
-            .with_case(case)
-            .quiet()
-            .invite_actor_to_case(
-                invitee_id=vendor.id_, roles=[CVDRole.VENDOR]
-            )
-        ).activity
-        logger.info(
-            "Coordinator asked the CASE_MANAGER to invite Vendor: %s",
-            invite_offer.id_,
-        )
-
-        # The delivered Invite is the causal precondition for the reject: a
-        # demo_gate, with the reject using the ID it found.
-        with demo_gate("Vendor invite delivered to Vendor's DataLayer"):
-            invite_id = find_case_invite_for_actor(
-                client=vendor_client,
-                case_id=case.id_,
-                invitee_id=vendor.id_,
-                timeout_seconds=20.0,
-            )
-
-            with demo_step("Vendor rejects the case invitation"):
-                ActorSession(
-                    client=vendor_client, actor=vendor_in_vendor
-                ).quiet().reject_case_invite(invite_id=invite_id)
-            logger.info("Vendor sent Reject(Invite) to CaseActor")
+    # The chain's gate and Vendor's reject are nested inside the invite step
+    # (ADR-0058 nested-block model, EDF-06-005, #3038).
+    run_case_invite_chain(
+        case=case,
+        invitee_name="Vendor",
+        invitee_client=vendor_client,
+        invitee=vendor,
+        invitee_in_own_container=vendor_in_vendor,
+        inviter=CaseInviter(
+            name="Coordinator",
+            client=coordinator_client,
+            actor=coordinator_in_coordinator,
+            role=CVDRole.VENDOR,
+        ),
+        respond="reject",
+        invite_timeout=20.0,
+    )
 
     # Participant count remains 3: Coordinator + Finder + CaseActor.
     # Vendor must NOT appear as a 4th participant.

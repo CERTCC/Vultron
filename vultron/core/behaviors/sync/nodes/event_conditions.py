@@ -32,6 +32,7 @@ from vultron.core.behaviors.sync.nodes.conditions import _require_log_entry
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.rsvp_deadline import (
+    EMBARGO_REINVITE_EVENT_TYPE,
     HONOUR_LATE_ACCEPT_EVENT_TYPE,
     INVITE_EXPIRED_EVENT_TYPE,
     INVITE_EXPIRED_NOOP_EVENT_TYPE,
@@ -408,6 +409,22 @@ class IsEmbargoAbandonmentEventNode(_ActivityEventNode):
     def update(self) -> Status:
         entry = _require_log_entry(self.activity, self.name)
         if entry.event_type == EMBARGO_ABANDONMENT_EVENT_TYPE:
+            return Status.SUCCESS
+        return Status.FAILURE
+
+
+class IsEmbargoReinviteEventNode(_ActivityEventNode):
+    """Precondition: this entry is the CASE_MANAGER's re-invite of a stale accepter.
+
+    Matches :data:`~vultron.core.models.rsvp_deadline.EMBARGO_REINVITE_EVENT_TYPE`.
+    Used in the ``EmbargoReinviteEffects`` slot of ``AnnounceLogEntryReceivedBT``.
+
+    Per EMB-17-003, CM-28-013, EP-09-007, RSH-08-004, BTND-08-001, SYNC-12-001.
+    """
+
+    def update(self) -> Status:
+        entry = _require_log_entry(self.activity, self.name)
+        if entry.event_type == EMBARGO_REINVITE_EVENT_TYPE:
             return Status.SUCCESS
         return Status.FAILURE
 

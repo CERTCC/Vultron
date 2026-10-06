@@ -34,11 +34,14 @@ import pytest
 from test.core.use_cases.received.actor.test_offer_case_participant import (
     CASE_ACTOR_ID as RECOMMEND_CASE_MANAGER_ID,
     CASE_ID as RECOMMEND_CASE_ID,
+    CASE_OWNER_ID as RECOMMEND_CASE_OWNER_ID,
     _build_offer_activity,
     _case_ref,
     _seed_dl_for_case_actor,
 )
 from test.core.use_cases.received.conftest import (
+    seed_case_manager_participant,
+    seed_case_participant,
     seed_store_owner_as_case_manager,
 )
 from test.core.use_cases.received.test_case_proposal import (
@@ -62,6 +65,8 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.actor import (
     AcceptOfferCaseParticipantReceivedEvent,
+    OfferCaseParticipantReceivedEvent,
+    RejectOfferCaseParticipantReceivedEvent,
 )
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.models.report_case_link import VultronReportCaseLink
@@ -71,6 +76,8 @@ from vultron.core.use_cases.received.actor.invite import (
 )
 from vultron.core.use_cases.received.actor.offer_case_participant import (
     AcceptOfferCaseParticipantReceivedUseCase,
+    OfferCaseParticipantReceivedUseCase,
+    RejectOfferCaseParticipantReceivedUseCase,
 )
 from vultron.core.use_cases.received.actor.ownership import (
     AcceptCaseOwnershipTransferReceivedUseCase,
@@ -80,6 +87,7 @@ from vultron.core.use_cases.received.case.lifecycle import (
 )
 from vultron.core.use_cases.received.case_proposal import (
     AcceptCaseProposalReceivedUseCase,
+    RejectCaseProposalReceivedUseCase,
 )
 from vultron.core.use_cases.received.note import (
     RemoveNoteFromCaseReceivedUseCase,
@@ -94,11 +102,13 @@ from vultron.wire.as2.factories import (
     accept_case_participant_offer_activity,
     add_report_to_case_activity,
     offer_case_ownership_transfer_activity,
+    reject_case_participant_offer_activity,
     rm_accept_invite_to_case_activity,
     rm_invite_to_case_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
+    as_Reject,
     as_Remove,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -269,12 +279,8 @@ def test_accept_of_invite_takes_roles_from_recorded_invite(
     assert CVDRole.CASE_OWNER not in participant.case_roles
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="CM-16-019: Accept(Offer(CaseParticipant)) from a non-owner invites. Tracked by #4073.",
-)
 @pytest.mark.spec("CM-16-019")
+@pytest.mark.spec("HP-01-006")
 def test_recommendation_accept_from_non_owner_is_refused():
     """The Accept comes from a participant that is not the Case Owner.
 
@@ -282,17 +288,7 @@ def test_recommendation_accept_from_non_owner_is_refused():
     not case membership.
     """
     dl, _ = _seed_dl_for_case_actor()
-    case = _reload_case(dl, RECOMMEND_CASE_ID)
-    participant = CaseParticipant(
-        id_=f"{RECOMMEND_CASE_ID}/participants/impostor",
-        attributed_to=_IMPOSTOR_ID,
-        context=RECOMMEND_CASE_ID,
-        case_roles=[CVDRole.VENDOR],
-    )
-    dl.create(participant)
-    case.case_participants.append(participant.id_)
-    case.actor_participant_index[_IMPOSTOR_ID] = participant.id_
-    dl.save(case)
+    _seed_impostor_participant(dl)
     accept = accept_case_participant_offer_activity(
         _build_offer_activity(),
         target=_case_ref(RECOMMEND_CASE_ID),
@@ -312,14 +308,87 @@ def test_recommendation_accept_from_non_owner_is_refused():
     ).execute()
 
     assert result.disposition is HandlerDisposition.REFUSED
+    assert "Case Owner" in (result.reason or "")
     assert dl.outbox_list() == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="CP-06-005: Accept(CaseProposal) from a non-addressee is recorded. Tracked by #4072.",
-)
+def _seed_impostor_participant(dl: SqliteDataLayer) -> None:
+    """Make the impostor a plain participant of the recommendation's case."""
+    case = _reload_case(dl, RECOMMEND_CASE_ID)
+    seed_case_participant(dl, case, _IMPOSTOR_ID, [CVDRole.VENDOR])
+    dl.save(case)
+
+
+@pytest.mark.spec("CM-16-019")
+@pytest.mark.spec("HP-01-006")
+def test_recommendation_reject_from_non_owner_is_refused():
+    """The Reject comes from a participant that is not the Case Owner.
+
+    The recommender must not be told the recommendation was rejected by
+    someone with no standing to decide it.
+    """
+    dl, _ = _seed_dl_for_case_actor()
+    _seed_impostor_participant(dl)
+    reject = reject_case_participant_offer_activity(
+        _build_offer_activity(),
+        target=_case_ref(RECOMMEND_CASE_ID),
+        actor=_IMPOSTOR_ID,
+        to=[RECOMMEND_CASE_MANAGER_ID],
+    )
+    event = cast(
+        RejectOfferCaseParticipantReceivedEvent, extract_event(reject)
+    )
+
+    result = RejectOfferCaseParticipantReceivedUseCase(
+        dl,
+        event,
+        trigger_activity=TriggerActivityAdapter(dl),
+        sync_port=SyncActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute()
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert "Case Owner" in (result.reason or "")
+    assert dl.outbox_list() == []
+    assert dl.list_objects("CaseLedgerEntry") == []
+
+
+@pytest.mark.spec("CM-16-004")
+@pytest.mark.spec("HP-01-006")
+def test_offer_case_participant_from_non_case_manager_is_refused():
+    """The Case Owner receives an Offer(CaseParticipant) a stranger sent.
+
+    Only the CASE_MANAGER forwards a recommendation to the owner (CM-16-004),
+    so an Offer from any other actor is not the owner's to decide.
+    """
+    dl = SqliteDataLayer(
+        "sqlite:///:memory:", actor_id=RECOMMEND_CASE_OWNER_ID
+    )
+    case = as_VulnerabilityCase(
+        id_=RECOMMEND_CASE_ID,
+        name="Sender entitlement",
+        attributed_to=RECOMMEND_CASE_OWNER_ID,
+    )
+    seed_case_manager_participant(dl, case, RECOMMEND_CASE_MANAGER_ID)
+    dl.create(case)
+    offer = _build_offer_activity(
+        actor=_IMPOSTOR_ID, to=[RECOMMEND_CASE_OWNER_ID]
+    )
+    event = cast(OfferCaseParticipantReceivedEvent, extract_event(offer))
+
+    result = OfferCaseParticipantReceivedUseCase(
+        dl,
+        event,
+        trigger_activity=TriggerActivityAdapter(dl),
+        sync_port=SyncActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute()
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert "CASE_MANAGER" in (result.reason or "")
+    assert dl.outbox_list() == []
+
+
 @pytest.mark.spec("CP-06-005")
 def test_case_proposal_accept_from_non_addressee_is_refused(make_payload):
     """The vendor addressed the proposal to another case actor."""
@@ -343,10 +412,146 @@ def test_case_proposal_accept_from_non_addressee_is_refused(make_payload):
     assert dl.outbox_list() == []
 
 
+@pytest.mark.spec("CP-06-005")
+def test_case_proposal_reject_from_non_addressee_is_refused(make_payload):
+    """A Reject from an actor the proposal was not addressed to is refused."""
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_VENDOR_URI)
+    proposal = _make_proposal()
+    _seed_vendor_link(dl, proposal)
+    report = proposal.object_
+    assert report is not None
+    link_id = VultronReportCaseLink.build_id(_report_id(report))
+    event = make_payload(
+        as_Reject(actor=_IMPOSTOR_ID, object_=proposal, to=[_VENDOR_URI]),
+        receiving_actor_id=_VENDOR_URI,
+    )
+
+    result = RejectCaseProposalReceivedUseCase(dl, event).execute()
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    link = dl.read(link_id)
+    assert isinstance(link, VultronReportCaseLink)
+    assert link.proposal_rejected is False
+    assert link.rejection_reason is None
+    assert dl.outbox_list() == []
+
+
+@pytest.mark.spec("CP-06-005")
+def test_case_proposal_reply_with_no_recorded_addressee_is_refused(
+    make_payload,
+):
+    """A link that records nobody entitles nobody."""
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_VENDOR_URI)
+    proposal = _make_proposal()
+    report = proposal.object_
+    assert report is not None
+    link_id = VultronReportCaseLink.build_id(_report_id(report))
+    dl.create(VultronReportCaseLink(report_id=_report_id(report)))
+    event = make_payload(
+        as_Accept(actor=_IMPOSTOR_ID, object_=proposal, to=[_VENDOR_URI]),
+        receiving_actor_id=_VENDOR_URI,
+    )
+
+    result = AcceptCaseProposalReceivedUseCase(dl, event).execute()
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    link = dl.read(link_id)
+    assert isinstance(link, VultronReportCaseLink)
+    assert link.case_manager_id is None
+
+
+@pytest.mark.spec("CP-06-005")
+def test_case_proposal_accept_after_case_established_keeps_case_manager(
+    make_payload,
+):
+    """Once a case is established, even the addressee's reply replaces nothing."""
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_VENDOR_URI)
+    proposal = _make_proposal()
+    _seed_vendor_link(dl, proposal)
+    report = proposal.object_
+    assert report is not None
+    link_id = VultronReportCaseLink.build_id(_report_id(report))
+    link = dl.read(link_id)
+    assert isinstance(link, VultronReportCaseLink)
+    link.case_id = "https://example.org/cases/established"
+    link.case_manager_id = _CASE_MANAGER_ID
+    dl.save(link)
+    event = make_payload(
+        as_Accept(
+            actor=link.case_creator_id, object_=proposal, to=[_VENDOR_URI]
+        ),
+        receiving_actor_id=_VENDOR_URI,
+    )
+
+    AcceptCaseProposalReceivedUseCase(dl, event).execute()
+
+    reloaded = dl.read(link_id)
+    assert isinstance(reloaded, VultronReportCaseLink)
+    assert reloaded.case_manager_id == _CASE_MANAGER_ID
+
+
+@pytest.mark.spec("CP-06-005")
+def test_case_proposal_reject_after_case_established_leaves_link_unchanged(
+    make_payload,
+):
+    """A late Reject from the addressee must not re-open the proposal."""
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_VENDOR_URI)
+    proposal = _make_proposal()
+    _seed_vendor_link(dl, proposal)
+    report = proposal.object_
+    assert report is not None
+    link_id = VultronReportCaseLink.build_id(_report_id(report))
+    link = dl.read(link_id)
+    assert isinstance(link, VultronReportCaseLink)
+    link.case_id = "https://example.org/cases/established"
+    dl.save(link)
+    event = make_payload(
+        as_Reject(
+            actor=link.case_creator_id, object_=proposal, to=[_VENDOR_URI]
+        ),
+        receiving_actor_id=_VENDOR_URI,
+    )
+
+    RejectCaseProposalReceivedUseCase(dl, event).execute()
+
+    reloaded = dl.read(link_id)
+    assert isinstance(reloaded, VultronReportCaseLink)
+    assert reloaded.proposal_rejected is False
+    assert reloaded.rejection_reason is None
+
+
+@pytest.mark.spec("CP-06-005")
+def test_case_proposal_accept_from_addressee_with_trailing_slash_is_applied(
+    make_payload,
+):
+    """The addressee is recognised whichever way the id is written."""
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_VENDOR_URI)
+    proposal = _make_proposal()
+    _seed_vendor_link(dl, proposal)
+    report = proposal.object_
+    assert report is not None
+    link_id = VultronReportCaseLink.build_id(_report_id(report))
+    link = dl.read(link_id)
+    assert isinstance(link, VultronReportCaseLink)
+    assert link.case_creator_id is not None
+    sender = link.case_creator_id + "/"
+    event = make_payload(
+        as_Accept(actor=sender, object_=proposal, to=[_VENDOR_URI]),
+        receiving_actor_id=_VENDOR_URI,
+    )
+
+    result = AcceptCaseProposalReceivedUseCase(dl, event).execute()
+
+    assert result.disposition is HandlerDisposition.APPLIED
+    reloaded = dl.read(link_id)
+    assert isinstance(reloaded, VultronReportCaseLink)
+    assert reloaded.case_manager_id == sender
+
+
 @pytest.mark.xfail(
     strict=True,
     raises=AssertionError,
-    reason="CM-30-001: Remove(Note) from neither author nor owner is applied. Tracked by #4074.",
+    reason="CM-30-001: Remove(Note) from neither author nor owner is applied. Tracked by #4230 (source #4074).",
 )
 @pytest.mark.spec("CM-30-001")
 def test_note_removal_by_stranger_is_refused(
@@ -378,7 +583,7 @@ def test_note_removal_by_stranger_is_refused(
 @pytest.mark.xfail(
     strict=True,
     raises=AssertionError,
-    reason="CM-30-002: Add(VulnerabilityReport) from a non-owner is applied. Tracked by #4074.",
+    reason="CM-30-002: Add(VulnerabilityReport) from a non-owner is applied. Tracked by #4230 (source #4074).",
 )
 @pytest.mark.spec("CM-30-002")
 def test_report_addition_by_non_owner_is_refused(
@@ -401,11 +606,6 @@ def test_report_addition_by_non_owner_is_refused(
     assert cm_store.outbox_list() == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="SYNC-03-005: Reject(CaseLedgerEntry) from a non-participant replays. Tracked by #4075.",
-)
 @pytest.mark.spec("SYNC-03-005")
 def test_ledger_reject_from_non_participant_is_refused():
     """A stranger claims an empty ledger, asking for a replay from genesis."""
@@ -424,6 +624,26 @@ def test_ledger_reject_from_non_participant_is_refused():
     assert result.disposition is HandlerDisposition.REFUSED
     assert dl.outbox_list() == []
     assert not dl.by_type("Announce")
+    state_id = VultronReplicationState(
+        case_id=SYNC_CASE_ID, peer_id=_IMPOSTOR_ID
+    ).id_
+    assert dl.read(state_id) is None
+
+
+@pytest.mark.spec("SYNC-03-005")
+def test_ledger_reject_for_unknown_case_is_refused():
+    """With no case there is no participant, so nothing is written or sent."""
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=SYNC_CASE_MANAGER_ID)
+    entry0 = _make_entry(SYNC_CASE_ID, 0, "0" * 64)
+    dl.save(entry0)
+    event = _make_reject_event(entry0, "", _IMPOSTOR_ID)
+
+    result = RejectLedgerEntryReceivedUseCase(
+        dl, event, sync_port=SyncActivityAdapter(dl)
+    ).execute()
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert dl.outbox_list() == []
     state_id = VultronReplicationState(
         case_id=SYNC_CASE_ID, peer_id=_IMPOSTOR_ID
     ).id_

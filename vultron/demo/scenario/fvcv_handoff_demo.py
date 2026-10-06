@@ -31,6 +31,11 @@ from vultron.core.states.rm import RM
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.actor_roles import ActorRole, role_map
 from vultron.demo.helpers.harness import scenario_harness
+from vultron.demo.helpers.invite_chain import (
+    CaseInviter,
+    EmittedBy,
+    run_case_invite_chain,
+)
 from vultron.demo.helpers.ledger_dump import (
     LedgerDumpTarget,
     dump_case_ledgers,
@@ -49,9 +54,7 @@ from vultron.demo.helpers.notes import (
 from vultron.demo.helpers.polling import (
     LATE_JOINER_TIMEOUT,
     SharedBudget,
-    assert_received_from,
     find_case_actor_participant_id,
-    find_case_invite_for_actor,
     find_ownership_transfer_offer_for_actor,
     wait_for_all_participants_rm_closed,
     wait_for_case_actor_ledger_event,
@@ -92,9 +95,6 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     setup_demo_logging,
 )
 from vultron.enums.roles import CVDRole
-from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-    as_TransitiveActivity,
-)
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -349,49 +349,23 @@ def _phase_ownership_handoff(
         case
     ).quiet().set_stub_summary("Vulnerability report from Finder")
 
-    # Vendor1 invites Coordinator with COORDINATOR role.
-    # Every step that depends on the invite — the delivery gate, the accept
-    # and the replica wait — is nested inside the block that produces what it
-    # needs, so a failed trigger or lookup skips its dependents instead of
-    # handing them ``None`` (ADR-0058 nested-block model, EDF-06-005, #3038).
-    with demo_step("Vendor1 invites Coordinator with CVDRole.COORDINATOR"):
-        invite_offer = (
-            ActorSession(client=vendor_client, actor=vendor_in_vendor)
-            .with_case(case)
-            .quiet()
-            .invite_actor_to_case(
-                invitee_id=coordinator.id_, roles=[CVDRole.COORDINATOR]
-            )
-        ).activity
-        logger.info(
-            "Vendor1 asked the CASE_MANAGER to invite Coordinator: %s",
-            invite_offer.id_,
-        )
-
-        # The delivered Invite is the causal precondition for the accept: a
-        # demo_gate, with the accept using the ID it found.
-        with demo_gate(
-            "Coordinator invite delivered to Coordinator's DataLayer"
-        ):
-            invite_id = find_case_invite_for_actor(
-                client=coordinator_client,
-                case_id=case.id_,
-                invitee_id=coordinator.id_,
-                timeout_seconds=90.0,
-            )
-
-            # Coordinator accepts the invite.
-            with demo_step("Coordinator accepts the case invitation"):
-                ActorSession(
-                    client=coordinator_client, actor=coordinator_in_coordinator
-                ).quiet().accept_case_invite(invite_id=invite_id)
-
-            # Wait for Coordinator's case replica.
-            with demo_check("Coordinator's DataLayer received case replica"):
-                wait_for_case_on_container(
-                    client=coordinator_client,
-                    case_id=case.id_,
-                )
+    # Vendor1 invites Coordinator with COORDINATOR role; the chain nests the
+    # delivery gate, the accept and the replica wait (ADR-0058, EDF-06-005,
+    # #3038).
+    run_case_invite_chain(
+        case=case,
+        invitee_name="Coordinator",
+        invitee_client=coordinator_client,
+        invitee=coordinator,
+        invitee_in_own_container=coordinator_in_coordinator,
+        inviter=CaseInviter(
+            name="Vendor1",
+            client=vendor_client,
+            actor=vendor_in_vendor,
+            role=CVDRole.COORDINATOR,
+        ),
+        invite_timeout=90.0,
+    )
 
     # All 4 participants (Finder + Vendor1 + Coordinator + CaseActor) present is
     # the causal precondition for the ownership-transfer offer/accept below: a
@@ -592,11 +566,6 @@ def _phase_coordinator_invites_vendor2(
     # (PCR-08-007, PCR-08-008).  The check on the delivered Invite below is
     # what holds that property honest.
     #
-    # Every step that depends on the invite — the delivery gate, the accept
-    # and the replica wait — is nested inside the block that produces what it
-    # needs, so a failed trigger or lookup skips its dependents instead of
-    # handing them ``None`` (ADR-0058 nested-block model, EDF-06-005, #3038).
-
     # Seed stub_summary on the CASE_MANAGER's DataLayer copy so the invite BT
     # can build the stub Invite (CM-17-010, MV-10-001, #4165).
     # EmitInviteActorToCaseNode runs in the CASE_MANAGER's received tree and
@@ -608,70 +577,30 @@ def _phase_coordinator_invites_vendor2(
         case
     ).quiet().set_stub_summary("Vulnerability report from Finder")
 
-    with demo_step("Coordinator invites Vendor2 to the case"):
-        invite_offer = (
-            ActorSession(
-                client=coordinator_client, actor=coordinator_in_coordinator
-            )
-            .with_case(case)
-            .quiet()
-            .invite_actor_to_case(
-                invitee_id=vendor2.id_, roles=[CVDRole.VENDOR]
-            )
-        ).activity
-        logger.info(
-            "Coordinator asked the CASE_MANAGER to invite Vendor2: %s",
-            invite_offer.id_,
-        )
-
-        # The delivered Invite is the causal precondition for the accept: a
-        # demo_gate, with the accept using the ID it found.
-        with demo_gate("Vendor2 invite delivered to Vendor2's DataLayer"):
-            invite_id = find_case_invite_for_actor(
-                client=vendor2_client,
-                case_id=case.id_,
-                invitee_id=vendor2.id_,
-                timeout_seconds=90.0,
-            )
-
-            with demo_check(
-                "Vendor2 invite was emitted as the CaseActor (PCR-08-008)"
-            ):
-                assert_received_from(
-                    vendor2_client,
-                    invite_id,
-                    case_actor_id,
-                    "Vendor2's Accept would route to the Coordinator and"
-                    " AcceptInviteActorToCaseBT would not run",
-                )
-
-            # Vendor2 accepts the invite.
-            with demo_step("Vendor2 accepts the case invitation"):
-                accept_result = (
-                    ActorSession(
-                        client=vendor2_client, actor=vendor2_in_vendor2
-                    )
-                    .quiet()
-                    .accept_case_invite(invite_id=invite_id)
-                )
-                accept = as_TransitiveActivity.model_validate(
-                    accept_result.activity
-                )
-                logger.info("Vendor2 sent Accept(Invite): %s", accept.id_)
-
-            # HttpDeliveryAdapter delivers Vendor2's Accept to the CaseActor
-            # inbox via the real HTTP path (PCR-08-008).  Poll for the case
-            # replica as proof that CaseActor processed the Accept and fanned
-            # out Announce(VulnerabilityCase).
-            with demo_check(
-                "Vendor2's DataLayer received case replica (AC-2)"
-            ):
-                wait_for_case_on_container(
-                    client=vendor2_client,
-                    case_id=case.id_,
-                    timeout_seconds=90.0,
-                )
-            logger.info("Vendor2 received case replica")
+    # run_case_invite_chain nests the accept and the replica wait inside the
+    # delivery gate (ADR-0058 nested-block model, EDF-06-005, #3038).
+    run_case_invite_chain(
+        case=case,
+        invitee_name="Vendor2",
+        invitee_client=vendor2_client,
+        invitee=vendor2,
+        invitee_in_own_container=vendor2_in_vendor2,
+        inviter=CaseInviter(
+            name="Coordinator",
+            client=coordinator_client,
+            actor=coordinator_in_coordinator,
+            role=CVDRole.VENDOR,
+        ),
+        invite_timeout=90.0,
+        replica_timeout=90.0,
+        expect_emitted_by=EmittedBy(
+            case_actor_id=case_actor_id,
+            consequence=(
+                "Vendor2's Accept would route to the Coordinator and"
+                " AcceptInviteActorToCaseBT would not run"
+            ),
+        ),
+    )
 
     # All 5 participants (Finder + Vendor1 + Coordinator + Vendor2 + CaseActor)
     # present is the causal precondition for Vendor2's RM triage below: a

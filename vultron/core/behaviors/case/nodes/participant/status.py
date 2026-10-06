@@ -137,7 +137,8 @@ class CreateParticipantStatusNode(
                 exemption: they assert nothing about RM.
 
                 ``test/architecture/test_participant_status_validation.py``
-                pins the exempt call sites, so the list can only shrink.
+                pins the exempt call sites as an exact pinned exemption set
+                (ARCH-18-005).
         """
         super().__init__(name=name or self.__class__.__name__)
         self._actor_id = actor_id

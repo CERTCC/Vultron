@@ -199,9 +199,9 @@ def outbox_store(dl: DataLayer) -> CaseOutboxPersistence:
     ``get_trigger_dl`` returns a ``SqliteDataLayer`` at runtime, which satisfies
     ``CaseOutboxPersistence`` structurally.  The cast is safe: with every
     DataLayer belonging to exactly one actor there is no unscoped instance it
-    could smuggle in (DL-07-001 / DL-07-002, which retired ARCH-13-001 /
-    ARCH-13-002).  One helper, shared by :func:`get_trigger_dispatcher` and
-    ``run_trigger``, so the reasoning is written once.
+    could smuggle in (DL-07-001 / DL-07-002).  One helper, shared by
+    :func:`get_trigger_dispatcher` and ``run_trigger``, so the reasoning is
+    written once.
     """
     return cast(CaseOutboxPersistence, dl)
 

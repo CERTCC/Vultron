@@ -1,6 +1,9 @@
 ---
 status: superseded
 date: 2026-04-28
+created: 2026-04-28
+updated: 2026-04-28
+revision: 1
 deciders: Vultron maintainers
 superseded_by: 0041-caseactor-authoritative-case-initialization.md
 stakeholder_type: [project-contributor]

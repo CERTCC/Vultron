@@ -15,7 +15,8 @@
 
 """Unit tests for status condition nodes (submodule path).
 
-Verifies VerifySenderIsParticipantNode imported directly from the submodule.
+Verifies SenderIsActiveParticipantNode (formerly SenderIsActiveParticipantNode)
+imported from the consolidated sender_entitlement module.
 Per DEMOMA-07-003 step 1.
 """
 
@@ -24,8 +25,8 @@ from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.status.nodes.conditions import (
-    VerifySenderIsParticipantNode,
+from vultron.core.behaviors.sender_entitlement import (
+    SenderIsActiveParticipantNode,
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.enums.roles import CVDRole
@@ -101,9 +102,9 @@ def populated_bridge(populated_dl):
     return BTBridge(datalayer=populated_dl)
 
 
-class TestVerifySenderIsParticipantNode:
+class TestSenderIsActiveParticipantNode:
     def test_known_sender_succeeds(self, populated_bridge):
-        node = VerifySenderIsParticipantNode(
+        node = SenderIsActiveParticipantNode(
             status_id=STATUS_ID,
             sender_actor_id=ACTOR_ID,
             case_id=CASE_ID,
@@ -114,7 +115,7 @@ class TestVerifySenderIsParticipantNode:
         assert result.status == Status.SUCCESS
 
     def test_unknown_sender_fails(self, populated_bridge):
-        node = VerifySenderIsParticipantNode(
+        node = SenderIsActiveParticipantNode(
             status_id=STATUS_ID,
             sender_actor_id=OUTSIDER_ID,
             case_id=CASE_ID,
@@ -125,7 +126,7 @@ class TestVerifySenderIsParticipantNode:
         assert result.status == Status.FAILURE
 
     def test_no_case_id_falls_back_to_status_context(self, populated_bridge):
-        node = VerifySenderIsParticipantNode(
+        node = SenderIsActiveParticipantNode(
             status_id=STATUS_ID,
             sender_actor_id=ACTOR_ID,
             case_id=None,
@@ -136,7 +137,7 @@ class TestVerifySenderIsParticipantNode:
         assert result.status == Status.SUCCESS
 
     def test_missing_case_fails(self, bridge):
-        node = VerifySenderIsParticipantNode(
+        node = SenderIsActiveParticipantNode(
             status_id=STATUS_ID,
             sender_actor_id=ACTOR_ID,
             case_id="https://example.org/cases/nonexistent",

@@ -56,6 +56,7 @@ from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.rsvp_deadline import (
+    EMBARGO_REINVITE_EVENT_TYPE,
     HONOUR_LATE_ACCEPT_EVENT_TYPE,
     HONOUR_LATE_ACCEPT_SNAPSHOT_TYPE,
     INVITE_EXPIRED_EVENT_TYPE,
@@ -105,6 +106,15 @@ REPLAYED: dict[str, tuple[str, dict[str, Any]]] = {
             "type": "Invite",
             "actor": MANAGER,
             "attributedTo": MANAGER,
+            "to": [REPLICA],
+            "object": EMBARGO,
+        },
+    ),
+    "the manager's re-invite of a stale accepter": (
+        EMBARGO_REINVITE_EVENT_TYPE,
+        {
+            "type": "Invite",
+            "actor": MANAGER,
             "to": [REPLICA],
             "object": EMBARGO,
         },

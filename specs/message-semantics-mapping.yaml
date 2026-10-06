@@ -52,7 +52,7 @@ groups:
     - rel_type: derives_from
       spec_id: VAM-02-005
     adr:
-    - ADR-0070
+    - ADR-0121
     stories:
     - story_2022_101
     - story_2022_006
@@ -73,7 +73,7 @@ groups:
     - rel_type: derives_from
       spec_id: VAM-02-004
     adr:
-    - ADR-0070
+    - ADR-0121
     stories:
     - story_2022_101
     - story_2022_006
@@ -129,7 +129,7 @@ groups:
     - rel_type: derives_from
       spec_id: VAM-02-006
     adr:
-    - ADR-0070
+    - ADR-0121
     stories:
     - story_2022_006
     - story_2022_101

@@ -13,36 +13,38 @@
 """The CASE_MANAGER role is never unfilled (CM-24-006).
 
 Both creation paths register a holder at birth and delegation hands it on, so a
-roster with no ``CVDRole.CASE_MANAGER`` is corrupt, not a topology.  The
-delegated-context helper still carries CM-24-003's "no manager, send directly"
-fallback; this strict ``xfail`` pins its retirement (#3964; Concern #3918,
-ADR-0113 as rewritten 2026-09-30).
+roster with no ``CVDRole.CASE_MANAGER`` is corrupt, not a topology.  A trigger
+that must emit as the CASE_MANAGER fails on such a roster rather than sending
+directly as the requester (a fallback an earlier, now retired, requirement allowed).
 """
 
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.use_cases.triggers._helpers import _prepare_delegated_context
-from vultron.errors import VultronError
+from vultron.core.use_cases.triggers.actor import (
+    SvcOfferCaseOwnershipTransferUseCase,
+)
+from vultron.core.use_cases.triggers.requests import (
+    OfferCaseOwnershipTransferTriggerRequest,
+)
+from vultron.errors import VultronNotFoundError
+from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
 OWNER = "https://example.org/actors/owner"
+TRANSFEREE = "https://example.org/actors/transferee"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "CM-24-006: _prepare_delegated_context falls back to the requesting "
-        "actor when the roster names no CASE_MANAGER (CM-24-003). Tracked by "
-        "#3964 (Concern #3918, ADR-0113)."
-    ),
-)
 @pytest.mark.spec("CM-24-006")
-def test_delegated_context_fails_when_no_case_manager_holds_the_role() -> None:
+def test_delegated_trigger_fails_when_no_case_manager_holds_the_role() -> None:
     """A roster with no CASE_MANAGER is a fault, not a fallback."""
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=OWNER)
+    dl.create(as_Service(id_=OWNER, name="Owner"))
     case = VulnerabilityCase(name="Corrupt roster", attributed_to=OWNER)
     dl.create(case)
+    request = OfferCaseOwnershipTransferTriggerRequest(
+        actor_id=OWNER, case_id=case.id_, transferee_id=TRANSFEREE
+    )
 
-    with pytest.raises(VultronError):
-        _prepare_delegated_context(dl, case.id_, OWNER)
+    with pytest.raises(VultronNotFoundError, match="CASE_MANAGER"):
+        SvcOfferCaseOwnershipTransferUseCase(dl, request).execute()

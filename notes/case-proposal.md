@@ -21,6 +21,7 @@ related_notes:
   - notes/demo-scenario-authoring.md
   - notes/case-ledger-authority.md
   - notes/datalayer-design.md
+  - notes/case-bootstrap-trust.md
 relevant_packages:
   - vultron/wire/as2/vocab/objects
   - vultron/core/models/events
@@ -132,6 +133,18 @@ When the case-actor service declines, it sends:
 **`Reject(as_CaseProposal)`** — `object_` embeds the `as_CaseProposal`
 inline (consistent with the Accept pattern; inline is preferred over URI-only
 for rejection so the receiver has the full proposal context without a round-trip).
+
+### Step 2c: Who may answer (CP-06-005)
+
+The vendor records the actor it addressed the proposal to on its
+`VultronReportCaseLink.case_creator_id` when it sends `Create(as_CaseProposal)`.
+It acts on an `Accept` or `Reject` only when the sender is that actor
+(`SenderIsProposalAddresseeNode`, declared `NAMED_ACTOR` per ADR-0115).
+A reply from anyone else ends `REFUSED` with the link unchanged.
+Once a case is established for the report (`case_id` is set), even the
+addressee's reply replaces nothing: the trusted CASE_MANAGER
+(`case_manager_id`) stays, and a late `Reject` does not set `proposal_rejected`.
+A reply for a report the vendor never proposed (no link) is `SKIPPED`.
 
 What *decides* the refusal is the `EvaluateCaseProposal` call-out point — see
 [Admission Decision](#admission-decision-cp-05-002).
@@ -531,7 +544,10 @@ owns recovery; the duplicate is silently dropped.
 the *proposal id*. The case-actor re-sends the stored `Accept(as_CaseProposal)`
 unchanged, with its original id, so it reads as the first acceptance arriving
 late rather than a second decision, and it creates no second case
-(ASK-08-002). The reference implementation does not yet re-send it (#2890).
+(ASK-08-002). The reference implementation does this: the `Accept` id is derived
+from the proposal, and a duplicate queues the stored `Accept` again unless it is
+still pending in the outbox (#4215). The proposer-side deadline (CP-05-007) is
+still open (#2890).
 
 **Different proposal id, same report** (CP-05-008): a new request, because the
 requester tracks each proposal as its own ask (CP-05-007) and may already have
@@ -543,13 +559,22 @@ below (`LoadExistingCaseNode` → `EmitAcceptCaseProposalNode`) is this path:
 - the existing case is reused only when the proposer owns it; a different
   proposer naming the same report gets a case of its own (CBT-06-002), because
   the report id is chosen by the sender and a report-only lookup would add the
-  second proposer to someone else's case. Today `LoadExistingCaseNode` looks up
-  by report alone, so this is not yet true (strict xfail,
-  `test_second_proposer_for_an_accepted_report_gets_its_own_case`, #3977);
+  second proposer to someone else's case. `LoadExistingCaseNode` takes the
+  proposer (`owner_id`) and succeeds only for a case whose `attributed_to` is
+  that proposer. The store may now hold several cases for one report, so
+  `find_case_by_report_id` is only its fast path; when that returns another
+  proposer's case the node scans the cases for the proposer's own
+  (`test_second_proposer_for_an_accepted_report_gets_its_own_case`);
 - `object_` = inline `as_CaseProposal` (CP-05-003);
 - **`result` = URI of the reused `VulnerabilityCase`**, so the requester can
   correlate it without waiting for a second `Create(VulnerabilityCase)`, which
-  the case-actor does not send again (CP-05-005, #4146).
+  the case-actor does not send again (CP-05-005, #4146). The tree enforces
+  that: `CheckCaseAlreadyAnnouncedNode` skips the marker/`Create` steps when a
+  `Create(VulnerabilityCase)` for the case is already stored, and
+  `CommitNativeLedgerEntriesNode` skips every entry already recorded. Without
+  the second skip the commit tree reused each recorded entry (logging "log entry
+  already exists" at INFO, not raising) but fanned it out to every recipient
+  again (`test_new_proposal_id_from_the_owner_reuses_its_case`).
 
 For first-time proposals, `EmitAcceptCaseProposalNode` also sets
 `result=case_id` (the newly-created case URI). This is consistent: the
@@ -584,16 +609,14 @@ report that describes the same vulnerability; that is a report-management questi
 - The reuse branch must leave the existing case's state alone, including its
   embargo whatever EM state it is in (EP-04-012;
   `notes/embargo-default-semantics.md` § "Initialization Runs Once Per Case").
-- `LoadExistingCaseNode` keys on the *report*, which is the wrong key for both of
-  the branch's real jobs: answering the same proposal again, and finishing the
-  same proposal's half-built case. Those two belong on the *proposal*. The
-  per-proposal `CaseProposalAdmissionRecord` is the place to carry the case it
-  made and the id of the `Accept` it queued, the way `CaseProposalDeclineRecord`
-  carries `reject_activity_id`: one indexed read, in place of the scan of every
-  stored `Accept` that `find_activity_for_proposal` does today.
-- A report-only lookup is also wrong for a *different* proposer, who is owed a
-  case of its own (CBT-06-002), so a lookup by report has to take the proposer
-  into account (CP-05-008).
+- `LoadExistingCaseNode` keys on the proposer and the report, which fixes the
+  different-proposer case (CP-05-008). It does not key on the *proposal*, which
+  the same-proposal jobs need: answering the same proposal again, and finishing
+  the same proposal's half-built case (#2890). The per-proposal
+  `CaseProposalAdmissionRecord` is the place to carry the case it made and the
+  id of the `Accept` it queued, the way `CaseProposalDeclineRecord` carries
+  `reject_activity_id`: one indexed read, in place of the scan of every stored
+  `Accept` that `find_activity_for_proposal` does today.
 
 ### Implementation: `VultronAccept.result`
 
@@ -615,16 +638,15 @@ a second, unlinked case with no participants.
 **Pattern for exchange demo setup:**
 
 ```python
-def _find_canonical_case(client) -> dict:
-    cases = client.get("/datalayer/VulnerabilityCases/").json()
-    for case_id, case in cases.items():
-        if case.get("case_participants"):
-            return case
-    raise AssertionError("No canonical case found after validate-report")
+case = wait_for_initialized_case(client, report.id_)
 ```
 
-`GET /datalayer/VulnerabilityCases/` returns a `dict[str, dict]` keyed by object
-ID. The canonical case is the one with `case_participants` populated.
+`wait_for_initialized_case` polls the CaseActor's store (a `dict[str, dict]`
+keyed by object ID) for the case whose `vulnerability_reports` include the
+report and whose `case_participants` are populated.
+The CaseActor identity is constant per container, so its store can hold several
+cases; taking the first case with participants can return another report's case.
+Match on the report, as `case_references_report` does.
 
 A receiver-local case created by calling `create_case_activity` anyway is broken in
 three distinct ways, none of which raise:
