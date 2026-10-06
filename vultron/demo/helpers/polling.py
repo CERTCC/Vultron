@@ -36,6 +36,7 @@ from vultron.demo.utils import (
     CASE_ACTOR_SLUG,
     DataLayerClient,
     case_actor_id_for_report,
+    case_references_report,
     demo_check,
     logfmt,
 )
@@ -1657,7 +1658,7 @@ def wait_for_initialized_case(
     timeout_seconds: float = PARTICIPANT_JOIN_TIMEOUT,
     poll_interval: float = 0.5,
 ) -> as_VulnerabilityCase:
-    """Poll the CaseActor's store until a VulnerabilityCase with participants appears.
+    """Poll the CaseActor's store until *report_id*'s case has participants.
 
     After ``ProposeReportCaseToActorNode`` runs during report validation the
     CaseActor creates the canonical ``VulnerabilityCase`` with vendor, reporter,
@@ -1665,7 +1666,10 @@ def wait_for_initialized_case(
     this helper polls instead, giving the BT time to complete.
 
     The CaseActor URI is derived from *report_id* via
-    :func:`~vultron.demo.utils.case_actor_id_for_report`.
+    :func:`~vultron.demo.utils.case_actor_id_for_report`.  The CaseActor
+    identity is constant per container, so its store may hold several cases;
+    only the case whose ``vulnerability_reports`` include *report_id* counts
+    (:func:`~vultron.demo.utils.case_references_report`).
 
     Args:
         client: DataLayerClient for the container that hosts the CaseActor.
@@ -1674,12 +1678,12 @@ def wait_for_initialized_case(
         poll_interval: Seconds between DataLayer poll attempts.
 
     Returns:
-        The first ``as_VulnerabilityCase`` found with non-empty
+        The ``as_VulnerabilityCase`` for *report_id* with non-empty
         ``case_participants``.
 
     Raises:
-        AssertionError: If no initialized VulnerabilityCase appears within
-            *timeout_seconds*.
+        AssertionError: If no initialized VulnerabilityCase for *report_id*
+            appears within *timeout_seconds*.
 
     Spec: ISSUE-2359 / ADR-0041.
     """
@@ -1692,11 +1696,14 @@ def wait_for_initialized_case(
         )
         for case_raw in cases_by_id.values():
             case = as_VulnerabilityCase(**case_raw)
-            if case.case_participants:
+            if case.case_participants and case_references_report(
+                case, report_id
+            ):
                 found.append(case)
                 logger.info(
-                    "Initialized VulnerabilityCase found in CaseActor"
-                    " store %s: %s",
+                    "Initialized VulnerabilityCase for report %s found in"
+                    " CaseActor store %s: %s",
+                    report_id,
                     case_actor_id,
                     case.id_,
                 )
@@ -1707,8 +1714,9 @@ def wait_for_initialized_case(
         _check,
         timeout_seconds,
         poll_interval,
-        f"Timed out waiting for initialized VulnerabilityCase in CaseActor"
-        f" store {case_actor_id!r} at {client.base_url}",
+        f"Timed out waiting for initialized VulnerabilityCase for report"
+        f" {report_id!r} in CaseActor store {case_actor_id!r}"
+        f" at {client.base_url}",
         swallow_exceptions=True,
     )
     assert found, (

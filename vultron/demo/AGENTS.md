@@ -156,9 +156,9 @@ See
 After `validate-report`, the BT fires `ProposeReportCaseToActorNode` and the
 CaseActor creates the **canonical** `VulnerabilityCase` (ADR-0041). Do NOT call
 `create_case_activity` in exchange demo setup — that makes a second, vendor-local
-case with no `ReportCaseLink` and no participants. Find the canonical case by
-scanning `GET /datalayer/VulnerabilityCases/` for the entry with
-`case_participants` populated. See
+case with no `ReportCaseLink` and no participants. Find the canonical case with
+`wait_for_initialized_case(client, report_id)` — keyed on the report, never the
+first case found. See
 [`notes/case-proposal.md`](../../notes/case-proposal.md) § "Exchange Demo:
 Discovering the Canonical Case". (ISSUE-1994)
 
