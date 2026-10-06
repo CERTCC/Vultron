@@ -75,6 +75,7 @@ from vultron.core.behaviors.embargo.nodes import (
     ExitParticipantConsentNode,
     HasEmbargoActiveNode,
     IsActiveEmbargoNode,
+    OwnerMayAutoAcceptEmbargoNode,
     PersistEmbargoEventNode,
     ProposeEmbargoLifecycleNode,
     RelayEmbargoInviteToEachNode,
@@ -88,6 +89,7 @@ from vultron.core.behaviors.embargo.nodes import (
 from vultron.core.behaviors.embargo.response_decision_tree import (
     create_embargo_response_decision_tree,
 )
+from vultron.core.behaviors.sender_entitlement import SenderIsCaseOwnerNode
 from vultron.core.behaviors.sync.nodes.embargo_backfill import (
     BackfillAdmittedParticipantsNode,
 )
@@ -363,6 +365,27 @@ def invite_to_embargo_on_case_tree(
                                     invitee_id=invitee_id,
                                     embargo_id=embargo_id,
                                 ),
+                            ),
+                            # EP-09-005/006: the owner's answer is its own
+                            # to give; it auto-accepts only inside the
+                            # prototype's bound, otherwise it holds.
+                            py_trees.composites.Sequence(
+                                name="OwnerHoldsAnswer",
+                                memory=False,
+                                children=[
+                                    SenderIsCaseOwnerNode(
+                                        sender_actor_id=invitee_id,
+                                        case_id=case_id,
+                                        name="InviteeIsCaseOwner",
+                                    ),
+                                    py_trees.decorators.Inverter(
+                                        name="AutoAcceptNotAllowed",
+                                        child=OwnerMayAutoAcceptEmbargoNode(
+                                            case_id=case_id,
+                                            embargo_id=embargo_id,
+                                        ),
+                                    ),
+                                ],
                             ),
                             create_embargo_response_decision_tree(
                                 case_id=case_id,

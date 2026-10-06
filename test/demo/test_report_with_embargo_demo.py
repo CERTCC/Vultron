@@ -72,8 +72,7 @@ def demo_env(client):
         (
             demo.demo_reporter_proposes_longer,
             [
-                "Reporter's terms are the active embargo",
-                "Accepted revision settled the case",
+                "Shortest-wins: active",
             ],
         ),
         (

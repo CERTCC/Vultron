@@ -1463,6 +1463,12 @@ groups:
       the DETERMINISTIC call-out bundle (BT-23) supplies the default. Structuring
       acceptance as an Evaluator call-out point preserves the seam for later
       owner/agent adjudication without changing the tree.
+    note: >-
+      The seam's default is accept; it does not decide whether the seam runs. For a
+      relayed revision Invite the case owner's answer is its own (EP-09-005, EP-09-006),
+      so the Flow B tree reaches this seam for the owner only inside the prototype's
+      bounded auto-accept (EM `NONE`, terms within the owner's policy duration) and holds
+      the answer otherwise (#4179). A non-owner participant always reaches the seam.
     verification: >-
       Integration tests in `test/demo/` confirm that an inbound EP or
       InviteToEmbargoOnCase is accepted by default under the DETERMINISTIC bundle,
