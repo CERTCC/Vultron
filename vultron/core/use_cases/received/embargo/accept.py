@@ -110,7 +110,7 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             case_id,
         )
         if invite_id:
-            if not run_pxa_refusal_tree(
+            skipped = run_pxa_refusal_tree(
                 self._dl,
                 self._trigger_activity,
                 self._wire_render_port,
@@ -122,10 +122,11 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
                 store_invite=False,
                 activity=self._request,
                 label="accept_invite_to_embargo_on_case",
-            ):
+            )
+            if skipped is not None:
                 return HandlerResult.skipped(
-                    f"EA for Invite '{invite_id}' was already answered with"
-                    f" ER on case '{case_id}' (HP-01-003)"
+                    f"EA for Invite '{invite_id}' on case '{case_id}' not"
+                    f" refused again: {skipped}"
                 )
         else:
             logger.warning(

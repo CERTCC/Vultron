@@ -26,7 +26,7 @@ The store keeps an Invite's object by reference, so the refusal stores the copy
 of the terms the Invite carries, as the tree's intake does on the normal path,
 and the ER is built from the stored Invite.  An Invite that names its terms by
 URI only is answered all the same: the ER names the Invite by id and needs no
-terms, so the Invite reads back with the URI as its object (ADR-0120).  Storing
+terms, so the Invite reads back with the URI as its object (ADR-0122).  Storing
 the terms moves no EM or consent state (EP-09-003).
 
 An Invite this receiver already answered before the case went public is a
@@ -107,8 +107,11 @@ def run_pxa_refusal_tree(
     answer: bool = True,
     activity: object | None = None,
     label: str,
-) -> bool:
-    """Run the refusal tree; return ``False`` when the ER was already sent.
+) -> str | None:
+    """Run the refusal tree; return why it did nothing, or ``None`` if it ran.
+
+    The tree does nothing when the ER was already sent (a re-delivery,
+    HP-01-003) or when this node is not the replication leader.
 
     Without a trigger-activity port nothing can be built, so the refusal
     stands without its ER and says so.
@@ -138,10 +141,12 @@ def run_pxa_refusal_tree(
         wire_render_port=wire_render_port,
         sync_port=sync_port,
     ).execute_with_setup(tree=tree, actor_id=actor_id, activity=activity)
+    if result.leader_skipped:
+        return "not the replication leader"
     if node_failed(tree, EmbargoInviteNotYetRefusedNode):
-        return False
+        return "the ER was already sent (HP-01-003)"
     applied_or_raise(tree, result, label="RefuseEmbargoInviteBT")
-    return True
+    return None
 
 
 def _invite_er_recipient(
@@ -181,7 +186,7 @@ def refuse_pxa_invite(
     Invite and the terms it carries are stored so the ER can be built from
     the stored Invite.  No ER is sent for an Invite already answered (skipped) or
     an Invite addressed to another actor (EP-09-010).  An Invite that names its
-    terms by URI is answered all the same: the ER names the Invite (ADR-0120).
+    terms by URI is answered all the same: the ER names the Invite (ADR-0122).
 
     Raises:
         VultronNotFoundError: the case names no CASE_MANAGER (CM-24-006).
@@ -233,7 +238,7 @@ def refuse_pxa_invite(
             case_id,
         )
     answer = addressed
-    sent = run_pxa_refusal_tree(
+    skipped = run_pxa_refusal_tree(
         dl,
         trigger_activity,
         wire_render_port,
@@ -254,10 +259,10 @@ def refuse_pxa_invite(
         activity=request,
         label=_INVITE_LABEL,
     )
-    if not sent:
+    if skipped is not None:
         return HandlerResult.skipped(
-            f"Invite(EmbargoEvent) '{invite_id}' was already refused with ER"
-            f" on case '{case_id}' (HP-01-003)"
+            f"Invite(EmbargoEvent) '{invite_id}' on case '{case_id}' not"
+            f" refused again: {skipped}"
         )
     if not addressed:
         return HandlerResult.refused(

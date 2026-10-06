@@ -53,8 +53,10 @@ class EmbargoInviteNotYetRefusedNode(
     """Idempotency guard: this actor has not yet sent ER for this Invite.
 
     FAILURE means the ER was already sent; the handler reads it as a
-    re-delivery (CLP-13-001, HP-01-003).  A missing trigger-activity port
-    sends nothing, so there is nothing to repeat.
+    re-delivery (CLP-13-001, HP-01-003).  The ER is sealed before it is
+    queued, so an ER sealed but no longer pending is queued again under its
+    own id rather than taken as delivered (ID-04-005).  A missing
+    trigger-activity port sends nothing, so there is nothing to repeat.
     """
 
     def __init__(self, invite_id: str, name: str | None = None) -> None:
@@ -64,7 +66,7 @@ class EmbargoInviteNotYetRefusedNode(
     def update(self) -> Status:
         if self.trigger_activity_factory is None or self.actor_id is None:
             return Status.SUCCESS
-        if self.trigger_activity_factory.embargo_invite_answered(
+        if self.trigger_activity_factory.requeue_embargo_refusal(
             self.actor_id, self._invite_id
         ):
             self.feedback_message = (

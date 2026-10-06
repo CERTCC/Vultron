@@ -661,11 +661,14 @@ class TriggerActivityPort(Protocol):
         """
         ...
 
-    def embargo_invite_answered(self, actor: str, proposal_id: str) -> bool:
+    def requeue_embargo_refusal(self, actor: str, proposal_id: str) -> bool:
         """Whether *actor* already rejected the Invite *proposal_id*.
 
         A ``Reject`` of one Invite by one actor is a single activity, so a
         repeat refusal of a re-delivered Invite can be told from the first.
+        A ``Reject`` that was sealed but is no longer pending is queued again
+        under the same id, so an ER whose queue write failed is not lost
+        (ID-04-005).
         """
         ...
 

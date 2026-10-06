@@ -27,6 +27,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import HandlerDisposition
@@ -760,12 +761,14 @@ class TestInviteToEmbargoReceivedPxaGuard:
         assert f"names {count} 'to' recipients" in (result.reason or "")
         assert "EMB-01-002" not in (result.reason or "")
         (queued,) = dl.outbox_list()
-        fault = dl.read(queued)
-        assert getattr(fault, "type_", None) == "Create"
-        assert all(
-            getattr(dl.read(item), "type_", None) != "Reject"
-            for item in dl.outbox_list()
+        sealed = read_sealed_body_dict(dl, queued)
+        assert sealed is not None
+        assert sealed["type"] == "Create"
+        assert sealed["object"]["type"] == "ProcessingFault"
+        assert sealed["object"]["failureClass"].endswith(
+            "MisroutedEmbargoInvite"
         )
+        assert sealed["object"]["inReplyTo"] == proposal.id_
 
     def test_pxa_clear_allows_ep_processing(self, make_payload):
         """invite_to_embargo_on_case runs normally when pxa_state is clear."""

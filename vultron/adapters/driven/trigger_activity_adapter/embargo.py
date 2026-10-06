@@ -124,7 +124,7 @@ class _EmbargoMixin:
 
         The id is derived from the rejecting actor and the Invite, so an
         actor's rejection of one Invite is one activity (ID-04-004) and
-        :meth:`embargo_invite_answered` can tell it was sent.
+        :meth:`requeue_embargo_refusal` can tell it was sent.
         """
         proposal = cast(Any, self._dl.read(proposal_id))
         activity = em_reject_embargo_activity(
@@ -143,9 +143,22 @@ class _EmbargoMixin:
             )
         return _seal(self._dl, activity)
 
-    def embargo_invite_answered(self, actor: str, proposal_id: str) -> bool:
-        """Whether *actor* already rejected the Invite *proposal_id*."""
-        return is_sealed(self._dl, _reject_id(actor, proposal_id))
+    def requeue_embargo_refusal(self, actor: str, proposal_id: str) -> bool:
+        """Whether *actor* already rejected the Invite *proposal_id*.
+
+        The sealed body is written before the caller queues the ``Reject``, so
+        a sealed ``Reject`` that is no longer pending may have been delivered
+        or may never have been queued; the queue cannot say which.  It is
+        queued again under the same id and body, which the receiver
+        deduplicates, so a failure between the two writes never loses the ER
+        (ID-04-005).  A ``Reject`` still pending is left alone.
+        """
+        reject_id = _reject_id(actor, proposal_id)
+        if not is_sealed(self._dl, reject_id):
+            return False
+        if reject_id not in self._dl.outbox_list():
+            self._dl.outbox_append(reject_id)
+        return True
 
     def announce_embargo(
         self,

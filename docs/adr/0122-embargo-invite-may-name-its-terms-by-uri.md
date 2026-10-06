@@ -1,6 +1,9 @@
 ---
-status: accepted
+status: proposed
 date: 2026-10-06
+created: 2026-10-06
+updated: 2026-10-06
+revision: 1
 deciders: Allen D. Householder
 consulted: >-
   Claude Sonnet 5.5; specs/message-semantics-mapping.yaml MSM-05-001, MSM-05-003;
@@ -37,4 +40,5 @@ It was rejected because it leaves a protocol MUST unmet and lets a redelivery of
 - Any `Invite(EmbargoEvent)` now parses with its object as a URI, not only the one being refused.
   The receive tree still answers such an Invite only when it holds the terms (`CanAnswerEmbargoInviteNode`, ADR-0087), so accepting is unchanged.
 - The refusal is recorded by the ER itself: its id derives from the rejecting actor and the Invite, so a redelivery finds it sent and is `SKIPPED` (HP-01-003).
+  The ER is sealed before it is queued, so an ER sealed but no longer pending is queued again under its own id, and the receiver deduplicates it (ID-04-005).
 - A shape violation (an Invite naming no `to` recipient or several, EP-09-010, or naming no embargo) is received but not understood, and is answered with `Create(ProcessingFault)` (MSM-05-001).

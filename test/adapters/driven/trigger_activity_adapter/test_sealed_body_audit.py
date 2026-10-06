@@ -71,7 +71,7 @@ _PEER = "https://example.org/actors/vendor"
 _CASE_ACTOR = "https://example.org/actors/case-actor"
 
 #: Port methods that build a domain *object*, not an outbound activity.
-_NOT_AN_ACTIVITY = frozenset({"create_note", "embargo_invite_answered"})
+_NOT_AN_ACTIVITY = frozenset({"create_note", "requeue_embargo_refusal"})
 
 
 class _World:

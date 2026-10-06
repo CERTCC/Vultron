@@ -45,7 +45,9 @@ class CanAnswerEmbargoInviteNode(DataLayerConditionWithPorts):
     the answer goes to the case's CASE_MANAGER (PCR-08-001), and the embargo the
     Invite proposes, since the answer carries the Invite whole.  An invitee
     missing either is a partial replica (Regime 2, ADR-0087): it keeps the
-    Invite and answers nothing, and the WARNING says so.
+    Invite and answers nothing, and the WARNING says so.  This is the accept
+    path: a refusal under P/X/A answers an Invite whose terms it does not hold
+    too, since the ER names the Invite by id (ADR-0122).
 
     A copy addressed to neither ``to`` nor ``cc`` of this actor never gets
     here: ``unaddressed_copy_refusal()`` refuses it at the door, before any

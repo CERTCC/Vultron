@@ -1516,8 +1516,9 @@ groups:
       case gets no ER: EMB-01-002's ER answers a proposal its receiver was sent, and a
       misrouting is received but not understood. The receiver answers it with
       `Create(ProcessingFault)` to the sender, naming the Invite in `inReplyTo` and
-      failure class `MisroutedEmbargoInvite` (MSM-05-001, ADR-0120). Two spellings of one actor in `to` (a trailing
-      slash) name one recipient.
+      failure class `MisroutedEmbargoInvite` (MSM-05-001, ADR-0122). An Invite that names
+      no embargo is answered the same way, with failure class `EmbargoInviteWithoutEmbargo`.
+      Two spellings of one actor in `to` (a trailing slash) name one recipient.
     rationale: >-
       Every emitter sends a single-recipient Invite — a participant to the CASE_MANAGER, the
       CASE_MANAGER to one participant per relayed Invite (EP-09-002) — so the multi-recipient
@@ -1527,8 +1528,11 @@ groups:
     verification: >-
       Tests deliver an Invite with two `to` recipients and with none and assert `REFUSED`
       with the recipient count in the reason and one `Create(ProcessingFault)` to the
-      sender (`test_an_invite_with_zero_or_several_recipients_gets_a_processing_fault`); a single-recipient Invite resolves that
-      recipient (`test_invite_with_several_recipients_is_refused` and
+      sender, however often the Invite is delivered
+      (`test_an_invite_with_zero_or_several_recipients_gets_a_processing_fault`); an Invite
+      naming no embargo gets the `EmbargoInviteWithoutEmbargo` fault
+      (`test_an_invite_naming_no_embargo_gets_a_processing_fault`); a single-recipient Invite
+      resolves that recipient (`test_invite_with_several_recipients_is_refused` and
       `test_invite_with_no_recipient_is_refused` in `test_embargo_revision_relay.py`;
       `TestInviteeIsTheAddressee` and `TestInviteeIdProperty` in
       `test_embargo_invite_lapse.py`).

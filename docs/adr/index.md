@@ -185,7 +185,6 @@ General information about architectural decision records is available at <https:
 - [ADR-0114 Joining a Case: The Invite Creates an Inert Participant, the Stub Is Its Own Type, and RM Closes from *Received*](0114-joining-a-case-stub-invite-inert-participant.md)
 - [ADR-0117 The Per-Case Genesis Hash Is Anchored to the Case Owner, Not the CaseActor](0117-genesis-hash-is-anchored-to-the-case-owner.md)
 - [ADR-0118 An Expired Invite Is Not a Decline, and a Terminated Embargo Is Not the Start State](0118-pec-expired-and-unbound-exited-states.md)
-- [ADR-0120 An Embargo Invite May Name Its Terms by URI](0120-embargo-invite-may-name-its-terms-by-uri.md)
 
 ## Proposed ADRs
 
@@ -197,6 +196,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0119 The Case Ledger Records Completed Acts](0119-case-ledger-records-completed-acts.md)
 - [ADR-0120 ADR Lifecycle: Three Epochs and Tiered Edits](0120-adr-lifecycle-epochs-and-edit-tiers.md)
 - [ADR-0121 A Joined Participant Judges the Case by Answering a Full-Case Invite; Status Is Self-Declared and Asserted Only for Existing Participants](0121-joined-participant-judges-the-case-by-full-case-invite.md)
+- [ADR-0122 An Embargo Invite May Name Its Terms by URI](0122-embargo-invite-may-name-its-terms-by-uri.md)
 
 ## Rejected ADRs
 
