@@ -15,10 +15,15 @@
 
 """Storage-oriented note BT nodes."""
 
+from typing import ClassVar
+
 from py_trees.common import Status
 
+from vultron.core.behaviors.case.nodes.reference_list import (
+    CaseReferenceEditNode,
+    ReferenceField,
+)
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
-from vultron.core.models._helpers import _as_id
 from vultron.core.models.note import VultronNote
 
 
@@ -45,8 +50,11 @@ class SaveNoteNode(DataLayerActionWithPorts):
             return Status.FAILURE
 
 
-class AttachNoteToCaseNode(DataLayerActionWithPorts):
-    """Attach a note to a VulnerabilityCase in the DataLayer."""
+class AttachNoteToCaseNode(CaseReferenceEditNode):
+    """Attach a note to a VulnerabilityCase in the DataLayer (idempotent)."""
+
+    FIELD: ClassVar[ReferenceField] = "notes"
+    ATTACH: ClassVar[bool] = True
 
     def __init__(
         self,
@@ -54,41 +62,21 @@ class AttachNoteToCaseNode(DataLayerActionWithPorts):
         case_id: str | None,
         name: str | None = None,
     ):
-        super().__init__(name=name or self.__class__.__name__)
+        super().__init__(ref_id=note_id, case_id=case_id, name=name)
         self.note_id = note_id
-        self.case_id = case_id
 
-    def update(self) -> Status:
-        if self.case_id is None:
-            self.logger.debug(
-                "%s: no case_id — skipping case attachment", self.name
-            )
-            return Status.SUCCESS
 
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
+class DetachNoteFromCaseNode(CaseReferenceEditNode):
+    """Remove a note from a VulnerabilityCase's ``notes`` (idempotent)."""
 
-        case, failure = self._require_case(self.case_id)
-        if failure is not None:
-            return failure  # Regime 1 (ADR-0087)
+    FIELD: ClassVar[ReferenceField] = "notes"
+    ATTACH: ClassVar[bool] = False
 
-        existing_ids = [_as_id(n) for n in case.notes]
-        if self.note_id in existing_ids:
-            self.logger.info(
-                "%s: note '%s' already in case '%s' — skipping (idempotent)",
-                self.name,
-                self.note_id,
-                self.case_id,
-            )
-            return Status.SUCCESS
-
-        case.notes.append(self.note_id)
-        self.datalayer.save(case)
-        self.logger.info(
-            "%s: Attached note '%s' to case '%s'",
-            self.name,
-            self.note_id,
-            self.case_id,
-        )
-        return Status.SUCCESS
+    def __init__(
+        self,
+        note_id: str,
+        case_id: str | None,
+        name: str | None = None,
+    ):
+        super().__init__(ref_id=note_id, case_id=case_id, name=name)
+        self.note_id = note_id

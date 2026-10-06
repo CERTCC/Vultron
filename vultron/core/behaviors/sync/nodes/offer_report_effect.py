@@ -36,6 +36,7 @@ from vultron.core.behaviors.sync.nodes.conditions import (
     _require_log_entry,
 )
 from vultron.core.models._helpers import (
+    _as_id,
     project_wire_snapshot_to_core,
 )
 from vultron.core.models.offer_record import (
@@ -102,11 +103,23 @@ class ApplyOfferReportFromLedgerNode(DataLayerActionWithPorts):
             if isinstance(entry.payload_snapshot, dict)
             else {}
         )
+        object_data = snapshot.get("object")
+        report_id = (
+            _extract_id_from_field(object_data)
+            if isinstance(object_data, (str, dict))
+            else None
+        )
+
+        # The replica's report list converges on the manager's whether or not
+        # the entry carries an offer (RSH-08-004).
+        self._maybe_restore_report(object_data, report_id)
+        self._attach_report_to_case(entry.case_id, report_id)
+
         offer_id = snapshot.get(SNAPSHOT_OFFER_ID_KEY)
         if not offer_id:
             self.logger.debug(
                 "%s: add_report_to_case entry carries no '%s' —"
-                " skipping (non-fatal)",
+                " skipping offer record (non-fatal)",
                 self.name,
                 SNAPSHOT_OFFER_ID_KEY,
             )
@@ -126,14 +139,6 @@ class ApplyOfferReportFromLedgerNode(DataLayerActionWithPorts):
         offer_actor_id = _extract_id_from_field(
             snapshot.get(SNAPSHOT_OFFER_ACTOR_ID_KEY) or snapshot.get("actor")
         )
-        object_data = snapshot.get("object")
-        report_id = (
-            _extract_id_from_field(object_data)
-            if isinstance(object_data, (str, dict))
-            else None
-        )
-
-        self._maybe_restore_report(object_data, report_id)
 
         offer_to = snapshot.get("to", [])
         if isinstance(offer_to, str):
@@ -149,6 +154,32 @@ class ApplyOfferReportFromLedgerNode(DataLayerActionWithPorts):
 
         return self._save_offer_record(
             offer_id, offer_record_id, report_id, offer_actor_id, offer_to
+        )
+
+    def _attach_report_to_case(
+        self, case_id: str | None, report_id: str | None
+    ) -> None:
+        """Append the report id to the replica's ``vulnerability_reports``.
+
+        Idempotent, and lenient on a case this replica does not hold yet
+        (Regime 2, ADR-0087): the entry is still recorded and the report id is
+        recovered when the case is seeded.
+        """
+        assert self.datalayer is not None
+        if not case_id or not report_id:
+            return
+        case = self._resolve_case_replica(case_id)
+        if case is None:
+            return
+        if report_id in [_as_id(r) for r in case.vulnerability_reports]:
+            return
+        case.vulnerability_reports.append(report_id)
+        self.datalayer.save(case)
+        self.logger.info(
+            "%s: attached report '%s' to case '%s' replica (SYNC-02-002)",
+            self.name,
+            report_id,
+            case_id,
         )
 
     def _maybe_restore_report(

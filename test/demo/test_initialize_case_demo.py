@@ -29,9 +29,20 @@ def demo_env(client):
         mp.setattr(
             demo.DataLayerClient, "call", make_testclient_call(client, base)
         )
+        # The trigger-minted case goes through an ActorSession, which checks
+        # that the client's base URL hosts the actor (DEMOMA-26-002).
+        _original_base_url_default = demo.DataLayerClient.model_fields[
+            "base_url"
+        ].default
+        demo.DataLayerClient.model_fields["base_url"].default = base
+        demo.DataLayerClient.model_rebuild(force=True)
         yield
     finally:
         mp.undo()
+        demo.DataLayerClient.model_fields[
+            "base_url"
+        ].default = _original_base_url_default
+        demo.DataLayerClient.model_rebuild(force=True)
         importlib.reload(demo)
 
 

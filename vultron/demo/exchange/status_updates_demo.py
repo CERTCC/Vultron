@@ -167,6 +167,9 @@ def demo_notes_workflow(
                     )
 
     with demo_step("Step 3: Vendor removes note from case"):
+        # The vendor is this case's CASE_OWNER and its CASE_MANAGER
+        # (setup_initialized_case), so its inbox is the manager's inbox and the
+        # sender is the note's author: the Remove(Note) is entitled (CM-30-001).
         remove_note_activity = as_Remove(
             actor=vendor.id_,
             object_=note,

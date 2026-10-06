@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Ledger effect node for ``add_note_to_case`` events.
+"""Ledger effect nodes for ``add_note_to_case`` and ``remove_note_from_case``.
 
 Per specs/sync-ledger-replication.yaml SYNC-02-002 and ADR-0022.
 """
@@ -156,3 +156,56 @@ class ApplyNoteFromLedgerNode(_LedgerEffectNode):
         self.logger.debug(
             "%s: stored note '%s' from the canonical entry", self.name, note_id
         )
+
+
+class ApplyRemoveNoteFromLedgerNode(_LedgerEffectNode):
+    """Apply a ``remove_note_from_case`` ledger entry to the local case replica.
+
+    Removes the note id (from ``payload_snapshot["object"]``) from the replica's
+    ``notes`` list.  Idempotent when the note is already absent, and lenient on
+    a missing case replica or a snapshot without a note id, so a bad payload
+    cannot wedge replication.  The note record itself is left in the store: the
+    case no longer references it, and other records may.
+
+    Spec: SYNC-02-002, SYNC-12-001, RSH-08-004.
+    """
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        entry = self._get_entry()
+        note_id = _extract_id_from_field(entry.payload_snapshot.get("object"))
+        case_id = entry.case_id
+        if not note_id or not case_id:
+            self.logger.debug(
+                "%s: payload_snapshot missing 'object' id or case_id"
+                " — skipping note removal (non-fatal)",
+                self.name,
+            )
+            return Status.SUCCESS
+
+        case = self._resolve_case_replica(case_id)
+        if case is None:
+            return Status.SUCCESS  # Regime 2 (ADR-0087): partial replica, skip
+
+        if note_id not in [_as_id(n) for n in case.notes]:
+            self.logger.debug(
+                "%s: note '%s' not in case '%s' — idempotent no-op",
+                self.name,
+                note_id,
+                case_id,
+            )
+            return Status.SUCCESS
+
+        case.notes[:] = [n for n in case.notes if _as_id(n) != note_id]
+        self.datalayer.save(case)
+        self.logger.info(
+            "%s: applied ledger note removal '%s' from case '%s'"
+            " (SYNC-02-002)",
+            self.name,
+            note_id,
+            case_id,
+        )
+        return Status.SUCCESS

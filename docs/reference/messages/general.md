@@ -34,6 +34,11 @@ print(render_page("general", heading=False))
   (`Offer(Actor)[target=VulnerabilityCase]`,
   `Offer(CaseParticipant)[target=VulnerabilityCase]`, and its `Accept`/`Reject`).
   Suggesting a Participant is a `GI` inquiry, not a case-management message.
+- **Who may send:**
+  The CASE_MANAGER accepts `Remove(Note)[target=VulnerabilityCase]` from the note's author while that author is an active participant, or from the Case Owner.
+  It accepts `Add(VulnerabilityReport)[target=VulnerabilityCase]` only from the Case Owner.
+  Any other sender is refused, and the note stays in the case or the report stays out of it.
+  A participant replica accepts either message only from the CASE_MANAGER, because replicas learn of the change from the ledger entry the CASE_MANAGER fans out.
 - **How-to:** [How to Post a Status Update or a Case Note](../../howto/activitypub/activities/status_updates.md)
   (notes); [How to Suggest an Actor for a Case](../../howto/activitypub/activities/suggest_actor.md)
   (actor suggestion).

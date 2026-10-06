@@ -8,7 +8,9 @@ from vultron.core.behaviors.note.add_note_received_tree import (
     create_add_note_to_case_received_tree,
 )
 from vultron.core.behaviors.note.create_note_tree import create_note_tree
-from vultron.core.models._helpers import _as_id
+from vultron.core.behaviors.note.remove_note_received_tree import (
+    create_remove_note_from_case_received_tree,
+)
 from vultron.core.models.events.note import (
     AddNoteToCaseReceivedEvent,
     CreateNoteReceivedEvent,
@@ -25,6 +27,7 @@ from vultron.core.use_cases._helpers import (
 )
 from vultron.core.use_cases.received._bt_verdict import (
     not_case_manager_refusal,
+    reference_edit_verdict,
     verdict_from_bt,
 )
 
@@ -34,6 +37,7 @@ if TYPE_CHECKING:
 
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlement,
+    SenderEntitlementKind,
     exempt,
 )
 
@@ -180,13 +184,22 @@ class AddNoteToCaseReceivedUseCase:
 
 
 class RemoveNoteFromCaseReceivedUseCase:
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4070", "no sender check for note operations"
+    """Detach a note from the case and commit a canonical ledger entry.
+
+    Mirror of :class:`AddNoteToCaseReceivedUseCase`: only the CASE_MANAGER
+    detaches the note and commits; replicas apply the ledger fan-out.  The
+    sender must be the note's author (while an active participant) or the Case
+    Owner; anyone else is ``REFUSED`` with the note left in place (CM-30-001).
+    A note the case does not hold is ``SKIPPED``.
+    """
+
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.ACTIVE_PARTICIPANT
     )
 
     def __init__(
         self,
-        dl: CasePersistence,
+        dl: CaseOutboxPersistence,
         request: RemoveNoteFromCaseReceivedEvent,
         sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
@@ -205,28 +218,39 @@ class RemoveNoteFromCaseReceivedUseCase:
             return HandlerResult.refused(
                 "Remove(Note, Case) is missing its note id or case id"
             )
-        case = self._dl.read_case(case_id)
-
-        if case is None:
+        if self._dl.read_case(case_id) is None:
             logger.warning(
                 "remove_note_from_case: case '%s' not found", case_id
             )
             return HandlerResult.refused(f"case '{case_id}' not found")
 
-        existing_ids = [_as_id(n) for n in case.notes]
-        if note_id not in existing_ids:
-            logger.info(
-                "Note '%s' not in case '%s' — skipping (idempotent)",
+        tree = create_remove_note_from_case_received_tree(
+            note_id=note_id,
+            case_id=case_id,
+            sender_id=request.actor_id,
+        )
+        result = BTBridge(
+            datalayer=self._dl,
+            wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
+        ).execute_with_setup(
+            tree=tree,
+            actor_id=resolve_receiving_actor_id(
+                self._dl, request.receiving_actor_id
+            ),
+            activity=request,
+        )
+        verdict = reference_edit_verdict(
+            tree,
+            verdict_from_bt(tree, result, label="GuardedDetachAndCommitBT"),
+            self._dl,
+            case_id,
+        )
+        if verdict.disposition is HandlerDisposition.REFUSED:
+            logger.warning(
+                "remove_note_from_case: note '%s' in case '%s' refused: %s",
                 note_id,
                 case_id,
+                verdict.reason,
             )
-            return HandlerResult.skipped(
-                f"note '{note_id}' not in case '{case_id}'"
-            )
-
-        case.notes = [  # type: ignore[assignment]
-            n for n in case.notes if _as_id(n) != note_id
-        ]
-        self._dl.save(case)
-        logger.info("Removed note '%s' from case '%s'", note_id, case_id)
-        return HandlerResult.applied()
+        return verdict

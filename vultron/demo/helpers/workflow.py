@@ -775,6 +775,40 @@ def wait_for_case_by_report(
     return found["case"]
 
 
+def create_case_via_trigger(
+    client: DataLayerClient,
+    vendor: as_Actor,
+    name: str,
+    content: str,
+) -> as_VulnerabilityCase:
+    """Mint a case through the ``trigger/create-case`` endpoint.
+
+    The trigger registers *vendor* as CASE_OWNER and CASE_MANAGER
+    (CM-02-014, CM-02-015).
+    A case injected as ``Create(VulnerabilityCase)`` has no CASE_MANAGER, so
+    the CASE_MANAGER-gated received handlers (``Add(Report, Case)``) refuse
+    it.
+
+    Returns:
+        A stub ``as_VulnerabilityCase`` carrying the new case's id.
+    """
+    trigger_result = ActorSession(client=client, actor=vendor).create_case(
+        name=name, content=content
+    )
+    case_id = trigger_result.case_id
+    if not case_id:
+        raise ValueError("create-case trigger did not return a case_id")
+    verify_object_stored(client, case_id)
+    return as_VulnerabilityCase.model_validate(
+        {
+            "id": case_id,
+            "attributed_to": vendor.id_,
+            "name": name,
+            "content": content,
+        }
+    )
+
+
 def setup_initialized_case(
     client: DataLayerClient,
     finder: as_Actor,
@@ -827,21 +861,11 @@ def setup_initialized_case(
     )
     post_to_inbox_and_wait(client, vendor.id_, validate_activity)
 
-    trigger_result = ActorSession(client=client, actor=vendor).create_case(
+    case = create_case_via_trigger(
+        client,
+        vendor,
         name="RCE Case — Web Framework",
         content="Tracking the RCE vulnerability in the web framework.",
-    )
-    case_id = trigger_result.case_id
-    if not case_id:
-        raise ValueError("create-case trigger did not return a case_id")
-    verify_object_stored(client, case_id)
-    case = as_VulnerabilityCase.model_validate(
-        {
-            "id": case_id,
-            "attributed_to": vendor.id_,
-            "name": "RCE Case — Web Framework",
-            "content": "Tracking the RCE vulnerability in the web framework.",
-        }
     )
 
     add_report_activity = add_report_to_case_activity(

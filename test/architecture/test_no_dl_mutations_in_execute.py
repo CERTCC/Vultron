@@ -165,10 +165,6 @@ KNOWN_VIOLATIONS: frozenset[str] = frozenset(
         "vultron/core/use_cases/received/embargo/create_add_remove.py",
         "vultron/core/use_cases/received/embargo/invite.py",
         "vultron/core/use_cases/received/actor/ownership.py",
-        # #3873 — case lifecycle (add report) and note (remove note): direct
-        # writes with no tree at all
-        "vultron/core/use_cases/received/case/lifecycle.py",
-        "vultron/core/use_cases/received/note.py",
         # #3874 — case create and engage/defer: embedded participants and
         # the case replica
         "vultron/core/use_cases/received/case/create.py",
