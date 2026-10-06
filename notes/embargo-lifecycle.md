@@ -519,6 +519,13 @@ do about it? The answer, in order:
    (CM-28-013). Proposing terms is consenting to them (ADR-0093), so an Invite
    to the proposer asks an answered question — and the response call-out could
    let a proposer decline its own proposal, a state the protocol has no name for.
+   The manager is not invited either, so the same commit writes the rows no
+   Invite will: the proposer's `ACCEPTED`, and the manager's own when it is a
+   participant with a stake beyond the container roles (`CASE_MANAGER`,
+   `COORDINATOR`) — `ACCEPTED` by the embargo-proposal policy call-out, else
+   `DECLINED`; an owner-manager's consent stays its decision as owner
+   (EP-09-002, EP-09-005, `nodes/manager_consent.py`, #4180). The manager's row
+   is written in its own store only; a replica learns it from no entry.
 4. A participant answers the Invite addressed to it (`Accept`/`Reject` to the
    CASE_MANAGER) through the response decision tree. On receipt it writes **no**
    case, consent or deadline state; consent moves when the CASE_MANAGER commits
