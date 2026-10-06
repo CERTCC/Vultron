@@ -37,6 +37,8 @@ Submodules:
 - ``proposal_admission_conditions``: case-actor-side admission guards (CP-05-002)
 - ``proposal_admission_actions``: case-actor-side admission writes and the
   ``Reject`` emit (CP-05-002, CP-05-004)
+- ``invite_inert_participant``: Inert-participant lifecycle nodes (ADR-0114):
+  create at invite-send time, advance VF on reply, close on Reject
 - ``suggest_actor``: Suggest-actor workflow emit and duplicate-detection nodes
 
 Composite subtrees (``Sequence``/``Selector`` subclasses) are defined in
@@ -98,6 +100,11 @@ from vultron.core.behaviors.case.nodes.embargo_revision import (
 )
 from vultron.core.behaviors.case.nodes.intake import (
     IntakeReceivedActivityNode,
+)
+from vultron.core.behaviors.case.nodes.invite_inert_participant import (
+    AdvanceInviteeVFToVendorAwareNode,
+    ApplyInviteRejectToParticipantNode,
+    CreateInertInviteeParticipantNode,
 )
 from vultron.core.behaviors.case.nodes.invite_ledger_backfill import (
     BackfillCanonicalLedgerToInviteeNode,
@@ -304,6 +311,10 @@ __all__ = [
     # proposal_emits (leaf nodes)
     "EmitAcceptCaseProposalNode",
     "EmitCreateVulnerabilityCaseNode",
+    # invite_inert_participant (leaf nodes — ADR-0114)
+    "AdvanceInviteeVFToVendorAwareNode",
+    "ApplyInviteRejectToParticipantNode",
+    "CreateInertInviteeParticipantNode",
     # invite_participant (leaf nodes)
     "CheckInviteeNotAlreadyParticipantNode",
     "CreateInviteeParticipantNode",

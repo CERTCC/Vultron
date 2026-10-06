@@ -422,7 +422,10 @@ def _phase_c2_suggests_vendor(
     with demo_step("C2 suggests Vendor to CaseActor"):
         ActorSession(client=c2_client, actor=c2_in_c2).with_case(
             case
-        ).quiet().suggest_actor_to_case(suggested_actor_id=vendor.id_)
+        ).quiet().suggest_actor_to_case(
+            suggested_actor_id=vendor.id_,
+            roles=[CVDRole.VENDOR],
+        )
     logger.info("C2 sent suggest-actor-to-case for Vendor (%s)", vendor.id_)
 
     # CaseActor processes Offer(Actor, Case) and forwards Offer(CaseParticipant)

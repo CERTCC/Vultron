@@ -422,7 +422,14 @@ def _all_fetchable_participants_rm_closed(
         # No projection step: as_CaseParticipant *is* CaseParticipant
         # (ADR-0099 detail 3), so validating the fetched payload already yields the
         # core object ``all_participants_rm_closed`` expects.
-        core_participants.append(as_CaseParticipant(**p_data))
+        participant = as_CaseParticipant(**p_data)
+        if not participant.joined:
+            # Inert (never-joined) participants are excluded from the active-closure
+            # check.  A rejected invitee's RM.CLOSED state is confirmed at the
+            # point of rejection (M2 check); replica sync for inert records is
+            # not guaranteed across containers (ADR-0114, CM-11-007).
+            continue
+        core_participants.append(participant)
     if not core_participants:
         # No locally-fetchable participants — cannot confirm closure.
         return False
