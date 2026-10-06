@@ -42,7 +42,7 @@ class _EmProposeEmbargoActivity(as_Invite):
     This corresponds to the Vultron Message Types EP and EV
     object_: as_EmbargoEvent, or its URI when the sender named the terms by
         reference.  An Invite received that way is still answered: the ER
-        names the Invite by id and needs no terms (ADR-0122).
+        names the Invite by id and needs no terms (ADR-0123).
     """
 
     object_: as_EmbargoEvent | NonEmptyString = Field(

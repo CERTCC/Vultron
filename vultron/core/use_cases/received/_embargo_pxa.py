@@ -26,7 +26,7 @@ The store keeps an Invite's object by reference, so the refusal stores the copy
 of the terms the Invite carries, as the tree's intake does on the normal path,
 and the ER is built from the stored Invite.  An Invite that names its terms by
 URI only is answered all the same: the ER names the Invite by id and needs no
-terms, so the Invite reads back with the URI as its object (ADR-0122).  Storing
+terms, so the Invite reads back with the URI as its object (ADR-0123).  Storing
 the terms moves no EM or consent state (EP-09-003).
 
 An Invite this receiver already answered before the case went public is a
@@ -186,7 +186,7 @@ def refuse_pxa_invite(
     Invite and the terms it carries are stored so the ER can be built from
     the stored Invite.  No ER is sent for an Invite already answered (skipped) or
     an Invite addressed to another actor (EP-09-010).  An Invite that names its
-    terms by URI is answered all the same: the ER names the Invite (ADR-0122).
+    terms by URI is answered all the same: the ER names the Invite (ADR-0123).
 
     Raises:
         VultronNotFoundError: the case names no CASE_MANAGER (CM-24-006).

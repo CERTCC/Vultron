@@ -56,11 +56,6 @@ from vultron.core.states.em import (
     EM_Trigger,
     _transitions as _em_transitions,
 )
-from vultron.core.states.participant_embargo_consent import (
-    PEC,
-    PEC_Trigger,
-    _transitions as _pec_transitions,
-)
 from vultron.core.states.rm import (
     RM,
     RM_VALIDATED,
@@ -92,19 +87,6 @@ def _coerce_rm(v: object) -> RM:
         except KeyError:
             raise ValueError(f"Unknown RM value: {v!r}") from None
     raise ValueError(f"Cannot coerce {v!r} to RM")
-
-
-def _coerce_pec(v: object) -> PEC:
-    if isinstance(v, PEC):
-        return v
-    if isinstance(v, str):
-        if v == "NO_EMBARGO":
-            return PEC.UNBOUND
-        try:
-            return PEC[v]
-        except KeyError:
-            raise ValueError(f"Unknown PEC value: {v!r}") from None
-    raise ValueError(f"Cannot coerce {v!r} to PEC")
 
 
 def _coerce_pxa(v: object) -> CS_pxa:
@@ -151,8 +133,8 @@ def _apply_transition(
     """Return the destination state for (current_state, trigger).
 
     Raises VultronInvalidStateTransitionError when no matching transition exists.
-    Every source is an explicit state: the PEC machine's ``EXIT`` enumerates
-    its sources so the terminal ``UNBOUND_EXITED`` refuses it (ADR-0118).
+    Every source is an explicit state: a trigger with no matching
+    source for the current state is refused.
     """
     for t in transitions:
         src = t.get("source")
@@ -401,43 +383,3 @@ class DDimension(_ScalarDimension):
 
     def is_fix_deployed(self) -> bool:
         return self.state in D_FIX_DEPLOYED
-
-
-class PecDimension(_ScalarDimension):
-    """Participant Embargo Consent dimension object.
-
-    Holds a single participant's embargo consent state and owns immutable
-    transition validation.  Replaces ParticipantStatus.em_consent_state
-    (SDO-01-001, SDO-03-002).
-    """
-
-    state: PEC = PEC.UNBOUND
-
-    @field_validator("state", mode="before")
-    @classmethod
-    def validate_state(cls, v: object) -> PEC:
-        return _coerce_pec(v)
-
-    def transition(self, trigger: PEC_Trigger) -> "PecDimension":
-        """Return a new PecDimension with the state after applying *trigger*.
-
-        Raises VultronInvalidStateTransitionError on invalid trigger,
-        including every trigger from the terminal ``UNBOUND_EXITED``
-        (ADR-0118).
-        """
-        new_state = _apply_transition(
-            self.state, trigger, _pec_transitions, "PecDimension"
-        )
-        return self.model_copy(update={"state": PEC(str(new_state))})
-
-    def is_signatory(self) -> bool:
-        return self.state == PEC.SIGNATORY
-
-    def is_declined(self) -> bool:
-        return self.state == PEC.DECLINED
-
-    def is_invited(self) -> bool:
-        return self.state == PEC.INVITED
-
-    def is_lapsed(self) -> bool:
-        return self.state == PEC.LAPSED

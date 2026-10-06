@@ -82,7 +82,7 @@ groups:
       The ER duty binds only the proposal's addressee: a receiver that is neither the sender nor
       named in its `to` or `cc` holds an unaddressed copy, refuses it (HP-01-005) and answers
       nothing (ADR-0118). The ER names the Invite by id and needs no terms, so an Invite that
-      names its terms by URI only is answered too (ADR-0122). A re-delivery of an Invite already
+      names its terms by URI only is answered too (ADR-0123). A re-delivery of an Invite already
       answered with ER is a duplicate: it is skipped and queues no second ER (HP-01-003). An ER
       recorded as sent but no longer pending is queued again under its own id, so a failed queue
       write does not lose it (ID-04-005).
@@ -1232,13 +1232,14 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      A Participant entering EM Exited SHOULD move all Participant embargo
-      consent states to the terminal UNBOUND_EXITED to reflect that the embargo
-      has ended (MSM-07-006, ADR-0118).
+      A Participant entering EM Exited SHOULD treat no participant as bound by an
+      embargo, clearing the case's active embargo and writing no consent row
+      (MSM-07-006, ADR-0118, ADR-0122).
     rationale: >-
-      Once the embargo exits, each Participant's consent status should hold a
-      terminal state: EM Exited has no outgoing transition, so no later
-      invitation to the terminated embargo can rebind anyone.
+      Once the embargo exits, no consent row binds anyone: with no active embargo
+      nobody is a signatory, and EM Exited has no outgoing transition, so no later
+      invitation to the terminated embargo can rebind anyone. The position is
+      derived from the case, so it is not copied onto each participant record.
     testable: true
     preconditions:
     - em_state:
@@ -1248,11 +1249,10 @@ groups:
     - order: 1
       actor: participant
       action: >-
-        Move all Participant embargo consent states to the terminal
-        UNBOUND_EXITED
-      expected: All Participant embargo consent states reflect embargo termination
+        Clear the active embargo; write no Participant consent row
+      expected: No Participant is bound by an embargo; consent rows are as they were
     postconditions:
-    - description: Embargo consent states are UNBOUND_EXITED; EM state is terminal EXITED
+    - description: No active embargo and no signatory; EM state is terminal EXITED
     relationships:
     - rel_type: satisfies
       spec_id: VP-04-001
@@ -1521,7 +1521,7 @@ groups:
       note: Adds the response-decision layer above EP receipt
     - rel_type: refines
       spec_id: CM-18-003
-      note: Flow B acceptance advances the PEC state machine (INVITED → SIGNATORY)
+      note: Flow B acceptance advances the participant's consent row (INVITED → ACCEPTED)
     stories:
     - story_2022_014
     - story_2022_006
@@ -1900,9 +1900,9 @@ groups:
     kind: protocol
     statement: >-
       When the accepted embargo is the case's current embargo, the CASE_MANAGER MUST honour the late
-      Accept and record the participant's PEC transition to SIGNATORY, exactly as it would for an
-      on-time Accept. A participant at EXPIRED moves directly to SIGNATORY (`EXPIRED → SIGNATORY`,
-      ADR-0118); one at DECLINED is re-invited first (`DECLINED → INVITED → SIGNATORY`), because
+      Accept and mark the participant's consent row for it ACCEPTED, exactly as it would for an
+      on-time Accept. A row at EXPIRED moves directly to ACCEPTED (`EXPIRED → ACCEPTED`,
+      ADR-0118); one at DECLINED is re-invited first (`DECLINED → INVITED → ACCEPTED`), because
       ACCEPT is not legal from DECLINED (CM-18-003).
     rationale: >-
       If the terms the participant agreed to are the terms in force, the
@@ -1910,8 +1910,8 @@ groups:
       *invitation* is open, not whether the *agreement* is sound. See ADR-0065.
     verification: >-
       Integration tests in `test/demo/` confirm that a late Accept whose embargo ID
-      matches the case's current active embargo records the participant's PEC
-      transition to SIGNATORY with `embargo_adherence` set to true.
+      matches the case's current active embargo marks the participant's consent row for it
+      ACCEPTED, making the participant a signatory.
     testable: true
     preconditions:
     - em_state:
@@ -1923,9 +1923,9 @@ groups:
     - order: 1
       actor: system
       action: Record the PEC ACCEPT transition for the accepting participant
-      expected: Participant PEC state is SIGNATORY; embargo_adherence is true
+      expected: The participant's consent row for the current embargo is ACCEPTED
     postconditions:
-    - description: Participant PEC state is SIGNATORY
+    - description: The participant is a signatory to the current embargo
     relationships:
     - rel_type: refines
       spec_id: EMB-17-001
@@ -1964,7 +1964,7 @@ groups:
         Emit a fresh Invite(EmbargoEvent) to the accepting actor carrying the
         case's current embargo
       expected: >-
-        Accepting participant PEC state is INVITED for the current embargo;
+        Accepting participant's consent row for the current embargo is INVITED;
         stale Accept is not recorded as consent
     postconditions:
     - description: >-
@@ -2013,9 +2013,9 @@ groups:
     kind: protocol
     statement: >-
       When the case has no current embargo (EM state is EXITED or NONE), the CASE_MANAGER MUST
-      acknowledge the late Accept as a no-op on embargo state, leaving the participant's PEC state
-      unchanged: UNBOUND_EXITED after a termination (EM EXITED), or EXPIRED when no embargo has
-      started (EM NONE) (ADR-0118).
+      acknowledge the late Accept as a no-op on embargo state, leaving the participant's consent
+      rows unchanged: nothing is recorded after a termination (EM EXITED), and an EXPIRED row stays
+      EXPIRED when no embargo has started (EM NONE) (ADR-0118).
     note: >-
       EMB-13-002 independently forbids seeking or accepting new embargoes for a
       case whose CS state is public, exploit-public, or attacks-observed. This
@@ -2029,7 +2029,7 @@ groups:
       survive. See ADR-0065.
     verification: >-
       Tests confirm that a late Accept arriving when EM is EXITED or NONE is acknowledged without
-      applying any PEC transition, leaving a participant at UNBOUND_EXITED (EM EXITED) unchanged.
+      applying any PEC transition, leaving every consent row unchanged.
     testable: true
     preconditions:
     - em_state:
@@ -2041,7 +2041,7 @@ groups:
       actor: system
       action: Acknowledge the Accept without applying a PEC transition
       expected: >-
-        Participant PEC state is unchanged; participant remains in the
+        Participant consent rows are unchanged; participant remains in the
         case; no fresh invitation is emitted
     postconditions:
     - description: >-

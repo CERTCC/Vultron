@@ -286,7 +286,7 @@ def test_an_invite_committed_before_its_consent_write_is_completed_on_retry(
     bt_scenario: BTTestScenario, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A relay that committed and queued its Invite and then failed applying
-    the winner's PEC INVITE: the retry applies it, without a second Invite."""
+    the winner's consent INVITE: the retry applies it, without a second Invite."""
     seed(bt_scenario)
     owe(bt_scenario)
     invite_where_legal = RelayCreationTimeRevisionNode._invite_where_legal
@@ -391,7 +391,7 @@ def test_an_invite_committed_but_never_queued_is_queued_on_retry(
 ) -> None:
     """The outbox write failed after the commit, so no queued receipt was
     written: the retry queues the committed Invite under its own id, applies
-    the winner's PEC INVITE and indexes it, without committing it again
+    the winner's consent INVITE and indexes it, without committing it again
     (#4156)."""
     seed(bt_scenario)
     owe(bt_scenario)

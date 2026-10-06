@@ -55,8 +55,11 @@ from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.wire.as2.factories import em_propose_embargo_activity
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
@@ -66,13 +69,13 @@ def _proposed_case(
     days: tuple[int, ...] = (60, 15),
     *,
     indexed: bool = True,
-    consent: PEC = PEC.SIGNATORY,
+    consent: EmbargoConsentState = EmbargoConsentState.ACCEPTED,
 ) -> tuple[VulnerabilityCase, SqliteDataLayer, dict[str, str]]:
     """A PROPOSED case in the CASE_MANAGER's store with open proposals.
 
     Returns the case, the store and ``{embargo_id: invite_id}`` in record
     order.  With *indexed* false no proposal names its Invite.  Every
-    participant's consent is *consent*.
+    participant holds a *consent* row.
     """
     case, _cm, dl = make_case_with_manager(
         suffix, em_state=EM.PROPOSED, other_consent=consent
@@ -189,10 +192,12 @@ def test_the_manager_queues_nothing_to_itself():
     )
 
 
-def _consents(dl: SqliteDataLayer, case_id: str) -> dict[str, PEC]:
+def _consents(
+    dl: SqliteDataLayer, case_id: str
+) -> dict[str, list[EmbargoConsent]]:
     stored = cast(VulnerabilityCase, dl.read(case_id))
     return {
-        actor: cast(CaseParticipant, dl.read(pid)).embargo_consent_state
+        actor: cast(CaseParticipant, dl.read(pid)).embargo_consents
         for actor, pid in stored.actor_participant_index.items()
     }
 
@@ -230,9 +235,10 @@ def test_the_managers_abandonment_changes_no_consent():
     pinned in ``test_embargo_abandonment_replay.py``.
     """
     case, dl, _proposals = _proposed_case(
-        "abandon-consent", consent=PEC.INVITED
+        "abandon-consent", consent=EmbargoConsentState.INVITED
     )
     before = _consents(dl, case.id_)
+    assert all(before.values())
 
     assert _run(dl, case.id_, CASE_MANAGER_ACTOR) == Status.SUCCESS
 

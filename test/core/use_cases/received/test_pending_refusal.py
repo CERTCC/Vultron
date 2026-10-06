@@ -38,7 +38,6 @@ from vultron.core.models.pending_assertion import (
     record_pending_assertion,
 )
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.use_cases.received.embargo import (
     RejectInviteToEmbargoOnCaseReceivedUseCase,
 )
@@ -73,14 +72,12 @@ def _proposer_with_pending_proposal() -> tuple[
     manager = VendorParticipant(
         attributed_to=_MANAGER,
         context=case.id_,
-        embargo_consent_state=PEC.UNBOUND,
     )
     manager.add_role(CVDRole.CASE_MANAGER)
     finders = [
         FinderParticipant(
             attributed_to=actor_id,
             context=case.id_,
-            embargo_consent_state=PEC.UNBOUND,
         )
         for actor_id in (_PROPOSER, _OTHER)
     ]

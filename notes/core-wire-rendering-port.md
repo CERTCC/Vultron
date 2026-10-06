@@ -290,38 +290,14 @@ persisted shape, and that assumption is false. If you are re-deriving this,
 verify it the same way rather than trusting either the issue or this note:
 dump `Record.from_obj(ParticipantStatus(...)).data_` and look at the keys.
 
-## Do not re-read CM-18-006 as requiring the core alias
+## CM-18-006 and DRPT-02-008 no longer bear on the port
 
-CM-18-006 constrains the consent/`emConsentState` relationship and looks at first
-glance like it depends on core-side aliasing. It does not.
-`as_ParticipantStatus.from_core(core).model_dump(by_alias=True)` yields
-`emConsentState = SIGNATORY` and `embargoAdherence = True`; the *core* dump yields
-`emConsentState = None`. The wire projection is what satisfies the spec, so
-CM-18-006 needs no amendment — and it is evidence for the port, not against it.
-
-## DRPT-02-008 needs no amendment either, and must not be pruned
-
-CONCERN-2260 named DRPT-02-008 alongside CM-18-006 as an interacting
-requirement. It obliges the demo-report extractor to read `pec_state` from
-either the ADR-0036 dimension object (`{"consent": {"state": ...}}`) or any of
-four legacy flat spellings (`emConsentState`, `em_consent_state`,
-`embargoConsentState`, `embargo_consent_state`). Nothing in this work changes
-that, for two reasons:
-
-- The extractor is a **dict reader**, not a model consumer. `_dimension_state`
-  in `vultron/demo/report.py:542-557` walks candidate dicts straight off the
-  `payloadSnapshot`; it never validates through core `ParticipantStatus`. The
-  reject-guards constrain what the *core model* accepts on the way in, so they
-  are invisible to it.
-- The two shapes DRPT-02-008 cares about most both stay reachable. CLP-07-009
-  makes every snapshot wire-shaped, and the wire shape carries the flat
-  `emConsentState` the extractor already handles; the dimension-object form
-  still arrives from core-shaped historical dumps.
-
-So do **not** treat the flat-spelling branches as dead code to delete when
-tightening the core model: narrowing what the core model accepts is not a
-licence to narrow what a downstream reader tolerates — the extractor parses
-artefacts of unknown vintage, and DRPT-02-008 is still a MUST.
+They once looked like reasons to keep core-side aliasing: CM-18-006 constrained the
+consent/`emConsentState` relationship, and DRPT-02-008 obliged the demo-report
+extractor to read `pec_state` from a snapshot. Both are moot since ADR-0122.
+`ParticipantStatus` carries no consent, CM-18-006 now says consent is reproduced from
+the ledger entry of the causing activity, and DRPT-02-008 (with -014 and -015) was
+removed along with the report's PEC column. The port argument above stands on its own.
 
 ## The `as_Object.model_config` override is gone, and why
 

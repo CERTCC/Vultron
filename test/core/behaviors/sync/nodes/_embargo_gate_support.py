@@ -38,9 +38,13 @@ from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
+from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+    PEC_Trigger,
+)
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 
@@ -72,18 +76,19 @@ def seed_case(datalayer, *, embargo_active: bool) -> None:
     case = VulnerabilityCase(id_=CASE_ID, attributed_to=MANAGER_ID)
     if embargo_active:
         case.set_embargo(embargo)
-    for actor_id, consent, accepted, roles in (
-        (MANAGER_ID, PEC.SIGNATORY, [EMBARGO_ID], [CVDRole.CASE_MANAGER]),
-        (SIGNATORY_ID, PEC.SIGNATORY, [EMBARGO_ID], []),
-        (NON_SIGNATORY_ID, PEC.INVITED, [], []),
+    for actor_id, consent, roles in (
+        (MANAGER_ID, EmbargoConsentState.ACCEPTED, [CVDRole.CASE_MANAGER]),
+        (SIGNATORY_ID, EmbargoConsentState.ACCEPTED, []),
+        (NON_SIGNATORY_ID, EmbargoConsentState.INVITED, []),
     ):
         participant = CaseParticipant(
             id_=f"{actor_id}/participant",
             attributed_to=actor_id,
             context=CASE_ID,
             case_roles=roles,
-            embargo_consent_state=consent,
-            accepted_embargo_ids=accepted,
+            embargo_consents=[
+                EmbargoConsent(embargo_id=EMBARGO_ID, state=consent)
+            ],
         )
         datalayer.create(participant)
         case.add_participant(participant)
@@ -103,13 +108,12 @@ def collect_recipients(bridge, node_cls: type) -> list[str]:
 def accept_embargo(datalayer, actor_id: str) -> None:
     """Record that *actor_id* accepted the active embargo (CM-10-006 admission).
 
-    Sets both halves of an acceptance: the embargo id on the record and the
-    ``SIGNATORY`` consent the active-participant check reads (CM-10-004).
+    Marks the participant's row for the embargo ``ACCEPTED``, which is what
+    the active-participant check reads (CM-10-004).
     """
     participant = datalayer.read(f"{actor_id}/participant")
     assert isinstance(participant, CaseParticipant)
-    participant.accepted_embargo_ids = [EMBARGO_ID]
-    participant.embargo_consent_state = PEC.SIGNATORY
+    participant.apply_pec_transition(EMBARGO_ID, PEC_Trigger.ACCEPT)
     datalayer.save(participant)
 
 

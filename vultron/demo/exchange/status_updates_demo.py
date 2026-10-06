@@ -42,13 +42,11 @@ from collections.abc import Sequence
 
 from vultron.core.models.dimensions import (
     EmDimension,
-    PecDimension,
     PxaDimension,
     RmDimension,
 )
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.verification import _fetch_participant
@@ -246,7 +244,6 @@ def demo_status_workflow(
             context=participant.id_,
             rm=RmDimension(state=RM.RECEIVED),
             attributed_to=finder.id_,
-            consent=PecDimension(state=PEC.UNBOUND),
             cvd_role=[CVDRole.FINDER],
             case_status=case_status,
         )

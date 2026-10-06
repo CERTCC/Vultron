@@ -333,7 +333,7 @@ class TestEmProposeEmbargoActivity:
     cls = _EmProposeEmbargoActivity
 
     def test_accepts_the_terms_by_uri(self):
-        """An Invite may name its terms by URI, and is still answerable (ADR-0122)."""
+        """An Invite may name its terms by URI, and is still answerable (ADR-0123)."""
         assert _make_activity(self.cls, _STR_URI).object_ == _STR_URI
 
     def test_the_uri_form_survives_serialize_and_parse(self):
