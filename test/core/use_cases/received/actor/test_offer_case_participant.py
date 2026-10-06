@@ -431,6 +431,43 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
         }
         assert invitees == {RECOMMENDED_ID}
 
+    @pytest.mark.spec("CM-16-019")
+    def test_offer_archived_from_a_stranger_is_not_a_record(self):
+        """An Offer a stranger sent, archived by intake, is refused as a record.
+
+        Intake stores every inbound activity, so the id the Case Owner names
+        can resolve to an Offer the CASE_MANAGER never sent; the invitee
+        must come only from one it did.
+        """
+        dl, _ = _seed_dl_for_case_actor()
+        dl.save(
+            _build_offer_activity(
+                actor="https://example.org/actors/stranger",
+                recommended_id="https://example.org/actors/forged-invitee",
+            )
+        )
+        accept = accept_case_participant_offer_activity(
+            _build_offer_activity(),
+            target=_case_ref(CASE_ID),
+            actor=CASE_OWNER_ID,
+            to=[CASE_ACTOR_ID],
+        )
+        event = cast(
+            AcceptOfferCaseParticipantReceivedEvent, extract_event(accept)
+        )
+
+        result = AcceptOfferCaseParticipantReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "never recorded" in (result.reason or "")
+        assert dl.outbox_list() == []
+
     def test_never_fabricates_the_local_actor(self, caplog):
         """There is no "no local actor" case to skip for (ADR-0073).
 

@@ -52,7 +52,7 @@ class OfferActorToCaseReceivedUseCase:
     a copy does nothing and refuses (HP-01-005, #3752).
 
     Only a participant of the case may suggest an actor (CM-16-001): an Offer
-    from anyone else is refused before the receipt is recorded, so nothing is
+    from anyone else is refused before the case ledger is written, so nothing is
     forwarded to the Case Owner (HP-01-006, #3668).
     """
 

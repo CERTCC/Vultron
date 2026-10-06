@@ -156,7 +156,7 @@ def create_recommend_actor_to_case_received_tree(
 
     Only a participant may suggest an actor (CM-16-001): the sender guard
     refuses a suggestion from anyone the case does not list, before the
-    receipt is recorded or anything is forwarded (HP-01-006, #3668).
+    case ledger is written or anything is forwarded (HP-01-006, #3668).
 
     Args:
         recommendation_id: ID of the incoming ``Offer(Actor, Case)`` activity.
@@ -355,7 +355,7 @@ def create_accept_actor_recommendation_received_tree(
     factory, never from the Accept.
 
     Only the Case Owner may accept (CM-16-019): the sender guard refuses any
-    other sender before the receipt is recorded or anything is sent.
+    other sender before the case ledger is written or anything is sent.
 
     Args:
         recommendation_id: ID of the original ``Offer(Actor, Case)`` from the
@@ -427,7 +427,7 @@ def create_reject_actor_recommendation_received_tree(
     The emit is the CASE_MANAGER's (CM-16-007); a receiver that is not it
     does nothing (#3752).
     Only the Case Owner may reject (CM-16-019): the sender guard refuses any
-    other sender before the receipt is recorded or anything is sent.
+    other sender before the case ledger is written or anything is sent.
 
     Args:
         recommendation_id: ID of the original ``Offer(Actor, Case)`` from the

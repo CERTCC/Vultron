@@ -46,6 +46,7 @@ from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
 )
+from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.use_cases._helpers import (
     is_recipient,
@@ -220,6 +221,7 @@ def _require_recorded_recommendation(
 def _require_recorded_offer(
     dl: CasePersistence,
     inner_offer: object,
+    case_id: str,
     *,
     verb: str,
     activity_id: str,
@@ -233,6 +235,9 @@ def _require_recorded_offer(
     CM-16-019).
     A reply naming an Offer this store never recorded has no invitee to act
     on and is refused.
+    Intake archives every inbound activity, refused ones included, so a stored
+    object is "recorded" only when the case's CASE_MANAGER sent it about this
+    case: an archived Offer from any other actor is not a record (CM-16-019).
     ``roles`` is ``None`` when the recorded Offer carries none.
     """
     raw_offer_id = getattr(inner_offer, "id_", None)
@@ -241,6 +246,13 @@ def _require_recorded_offer(
         if isinstance(raw_offer_id, str) and raw_offer_id
         else None
     )
+    if not _is_managers_offer_about(dl, stored_offer, case_id):
+        return _unrecorded_recommendation_refusal(
+            verb,
+            activity_id,
+            f"an Offer(CaseParticipant) this CASE_MANAGER never recorded"
+            f" ({raw_offer_id})",
+        )
     stored_participant = getattr(stored_offer, "object_", None)
     # AKM-03-001: dehydration stores object_ as a bare ID string;
     # follow the reference to retrieve the full as_CaseParticipant.
@@ -262,6 +274,25 @@ def _require_recorded_offer(
         else None
     )
     return invitee_id, roles
+
+
+def _is_managers_offer_about(
+    dl: CasePersistence, stored_offer: object, case_id: str
+) -> bool:
+    """True when *stored_offer* was sent by *case_id*'s CASE_MANAGER about it."""
+    if stored_offer is None:
+        return False
+    case = dl.read_case(case_id)
+    manager_id = resolve_case_manager_id(case, dl) if case else None
+    raw_actor = getattr(stored_offer, "actor", None)
+    actor_id = getattr(raw_actor, "id_", raw_actor)
+    raw_target = getattr(stored_offer, "target", None)
+    target_id = getattr(raw_target, "id_", raw_target)
+    return (
+        manager_id is not None
+        and actor_id == manager_id
+        and target_id == case_id
+    )
 
 
 def _unrecorded_recommendation_refusal(
@@ -326,7 +357,11 @@ class AcceptOfferCaseParticipantReceivedUseCase:
         # The invitee and roles are the recorded Offer's, not the Accept's
         # (CM-16-019, ISSUE-1745).
         recorded = _require_recorded_offer(
-            self._dl, inner_offer, verb="Accept", activity_id=activity_id
+            self._dl,
+            inner_offer,
+            case_id,
+            verb="Accept",
+            activity_id=activity_id,
         )
         if isinstance(recorded, HandlerResult):
             return recorded
@@ -436,7 +471,11 @@ class RejectOfferCaseParticipantReceivedUseCase:
         # The recommended actor is the recorded Offer's, not the Reject's
         # (CM-16-019).
         recorded = _require_recorded_offer(
-            self._dl, inner_offer, verb="Reject", activity_id=activity_id
+            self._dl,
+            inner_offer,
+            case_id,
+            verb="Reject",
+            activity_id=activity_id,
         )
         if isinstance(recorded, HandlerResult):
             return recorded
