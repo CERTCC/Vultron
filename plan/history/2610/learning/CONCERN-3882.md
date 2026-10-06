@@ -33,3 +33,5 @@ Discovered during bugfix of #2753 / #2754 (PR <https://github.com/CERTCC/Vultron
 Governing specs: DEMOMA-22-004, DEMOMA-22-005
 
 **Resolved**: 2026-10-06 — implementation tracked in #4248 (one PR, two commits: report-only check, then enforcing check after every scenario's tags are verified).
+
+Docs PR: <https://github.com/CERTCC/Vultron/pull/4249>.
