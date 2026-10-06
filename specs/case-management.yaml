@@ -617,6 +617,10 @@ groups:
     statement: >-
       When the CASE_MANAGER updates canonical case state, it MUST notify every active
       participant (CM-10-004).
+    rationale: >-
+      An owner's `Update(VulnerabilityCase)` is not a ledgered assertion (ADR-0111,
+      #3936); the CASE_MANAGER announces a received update to the participants as
+      a broadcast, and every ledgered change reaches them as `Announce(CaseLedgerEntry)`.
     verification: >-
       Integration tests in `test/demo/` confirm that after the CASE_MANAGER updates
       canonical case state it fans out `Announce(CaseLedgerEntry)` to every active
