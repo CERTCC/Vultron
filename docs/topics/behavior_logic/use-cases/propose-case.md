@@ -134,6 +134,12 @@ The `Accept` takes an id derived from the proposal.
 A duplicate proposal queues the stored `Accept` again under that id, unless it is still waiting in the outbox.
 The proposer-side deadline that lets a proposer give up on a lost reply (CP-05-007) is not yet implemented ([#2890](https://github.com/CERTCC/Vultron/issues/2890)).
 
+A proposal under a *new* identifier is a new request, even when it names a report that already has a case (CP-05-008).
+It goes through the admission decision and gets its own `Accept` or `Reject`, not the earlier proposal's stored answer.
+What happens to the case depends on who asks.
+The proposer that owns the case gets that case back: the `Accept`'s `result` names it, no second case is created, and the case is not announced or recorded in the ledger a second time.
+Any other proposer gets a separate case of its own and is not added to the first one, because the report identifier is chosen by the sender and does not say whose case it is.
+
 ---
 
 ## What the case learns
