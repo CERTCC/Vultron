@@ -89,7 +89,7 @@ the design decisions reached in the #1178 planning session.
 |----------|-------|-------------|--------|
 | Case split/merge | #1229 | Parent/child/sibling case relationships | blocked — merge spec #3701 and merge build #3702 (ADR-0105); per-recipient `ReportCaseLink` #3698; split still unplanned |
 | Multi-reporter | #1231 | Two Finders, one C consolidates into one case — no merge: C adds the second report to the existing case and invites F2 | planned — #3671, blocked by the added-report ledger fix #3665 |
-| Concurrent cases | #1875 | Two independent cases through shared actors; one CaseActor manages both; no cross-case bleed | planned — #3672, blocked by the case-lookup helper fix #3666 |
+| Concurrent cases | #1875 | Two independent cases through shared actors; one CaseActor manages both; no cross-case bleed | planned — #3672 (the case-lookup helper fix #3666 is done) |
 
 The Deployer-role and Vendor-as-finder ideas from this group are specified, so
 they sit in the [planned scenario register](#planned-scenario-register) as

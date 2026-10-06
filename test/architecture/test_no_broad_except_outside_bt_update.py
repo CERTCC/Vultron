@@ -12,7 +12,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Architecture ratchet: no broad ``except`` outside a BT node's ``update()``.
+"""Architecture test: no broad ``except`` outside a BT node's ``update()``.
 
 CS-23-001 forbids a blanket ``except Exception`` (or a bare ``except:``) around
 domain logic in ``vultron/``: an exception handler MUST catch the narrowest
@@ -23,7 +23,7 @@ broad catch is more likely to be masking a defect than handling a real case
 
 The one sanctioned broad-catch boundary is a behavior-tree node's ``update()``
 method, where converting an unexpected error into ``Status.FAILURE`` is the
-documented node contract (BT-HELPER-01).  This ratchet enforces the rule for
+documented node contract (BT-HELPER-01).  This test enforces the rule for
 ``vultron/core/behaviors/``: it fails on any ``except Exception``/bare ``except``
 whose nearest enclosing function is not named ``update``.
 
@@ -31,9 +31,11 @@ Genuine framework/execution boundaries (the ``BTBridge`` execution boundary in
 ``bridge.py``; the inbox orchestrator's raw py_trees tick loop; boot-recovery
 persistence; the SYNC-12-001 write-fails-the-effect boundary) are enumerated in
 ``_DECLARED_EXCLUSIONS`` with one reason per entry and an exact broad-catch count.
-The assertion is an exact match, so the list can only shrink: a new broad catch
-in an already-listed file fails the test (the count grew), and a broad catch in
-any other file fails immediately.
+That list is a pinned exemption set, not a ratchet (ARCH-18-005): each boundary
+is permanent by CS-23-001's exception, so the list has no empty end state.  The
+assertion is an exact match: a new broad catch in an already-listed file fails
+the test (the count grew), a broad catch in any other file fails immediately,
+and a boundary joins the list only with its own inline justification.
 
 Spec: CS-23-001 (``specs/code-style.yaml``), refining ARCH-15-002.
 See ``notes/domain-validation.md`` § "Broad ``except Exception`` Is a Masking
@@ -119,10 +121,12 @@ def _collect_violations() -> dict[str, int]:
 #
 # Each entry is a framework/execution/persistence boundary where the narrowest
 # core-nameable covering type is ``Exception`` and the site carries an inline
-# comment stating what it guards and why (CS-23-001 option 3).  The assertion is
-# an exact match, so this list can ONLY SHRINK: adding a broad catch anywhere —
-# including one more in a file already listed here — fails the test.
+# comment stating what it guards and why (CS-23-001 option 3).  A pinned
+# exemption set (ARCH-18-005): the assertion is an exact match, so adding a
+# broad catch anywhere — including one more in a file already listed here —
+# fails the test until it is justified and declared.
 # ---------------------------------------------------------------------------
+# permanent: CS-23-001 (framework/execution boundary exception)
 _DECLARED_EXCLUSIONS: dict[str, tuple[int, str]] = {
     "vultron/core/behaviors/bridge.py": (
         4,
@@ -189,8 +193,8 @@ def test_no_broad_except_outside_bt_update() -> None:
             )
     if resolved_or_shrunk:
         lines.append(
-            "These declared exclusions no longer match (the list can only"
-            " shrink — update _DECLARED_EXCLUSIONS to the new count or remove"
+            "These declared exclusions no longer match the code (the set is"
+            " exact — update _DECLARED_EXCLUSIONS to the new count or remove"
             " the entry):"
         )
         for p in sorted(resolved_or_shrunk):

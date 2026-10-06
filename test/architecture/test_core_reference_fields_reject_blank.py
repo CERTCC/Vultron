@@ -10,7 +10,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Ratchet: every core string field refuses a blank (CS-08-001).
+"""Architecture test: every core string field refuses a blank (CS-08-001).
 
 Spec: CS-08-001, CS-08-002, ARCH-10-001
 
@@ -18,7 +18,7 @@ Sibling of ``test_wire_reference_fields_reject_blank``.  Since ADR-0099 made
 wire and core one class hierarchy, core reference fields carry the same
 blank-string gap as the wire aliases did (#3877).  Core cannot derive "is a
 reference" from an ``as_Link`` branch the way the wire ratchet does — a case id
-is a bare string — so this ratchet asserts the rule CS-08-001 actually states,
+is a bare string — so this test asserts the rule CS-08-001 actually states,
 over every string-valued leaf of every field a core model *declares itself*:
 scalar, union member, list item or dict value.  Each must refuse ``""`` and
 ``"   "`` at construction.  Fields a core class only inherits from the wire
@@ -27,9 +27,10 @@ wire ratchet's to judge; ``owner_of`` keeps them out of this scan.
 
 The only fields allowed to accept a blank are the ones where ``""`` is a
 documented sentinel meaning "not yet" (an unacknowledged hash, an endpoint the
-model derives itself).  They are pinned as an exact set: one that stops
-accepting a blank must be removed from the set, so the set never rots into a
-list of forgotten violations.
+model derives itself).  They are a pinned exemption set, not a ratchet
+(ARCH-18-005): a sentinel is a documented design choice with no empty end state.
+The set is exact in both directions, so one that stops accepting a blank must be
+removed and the set never rots into a list of forgotten violations.
 """
 
 import inspect
@@ -63,6 +64,8 @@ from test.support.core_vocab import import_all_core_models
 #:   ``replay_from_hash`` returned, which is ``""`` for a genesis replay, and
 #:   ``should_replay`` compares it to that value (SYNC-15-003).  ``None`` there
 #:   means "no replay yet"; ``""`` means "replayed from genesis".
+#:
+#: permanent: CS-08-001 (a documented "not yet" sentinel is not a reference), #3877
 BLANK_SENTINEL_FIELDS: frozenset[str] = frozenset(
     {
         "CoreActor.inbox",
@@ -154,7 +157,7 @@ def test_every_core_string_field_rejects_a_blank() -> None:
 
 
 def test_the_scan_covers_the_fields_3877_named() -> None:
-    """The fields the issue enumerated are in scope, so the ratchet is not vacuous."""
+    """The fields the issue enumerated are in scope, so the check is not vacuous."""
     classes = core_model_classes()
     assert {"context", "in_reply_to"} <= set(
         string_fields(classes["VultronCreateCaseActivity"])

@@ -117,6 +117,19 @@ def ref_id(value: object) -> str | None:
     return getattr(value, "id_", None)
 
 
+def case_references_report(case: as_VulnerabilityCase, report_id: str) -> bool:
+    """Return whether *case* lists the report *report_id*.
+
+    The single membership test behind every "which case did this report
+    produce?" lookup, so a store holding several cases is never read as
+    "the case".
+    """
+    return any(
+        ref_id(report) == report_id
+        for report in (case.vulnerability_reports or [])
+    )
+
+
 @contextmanager
 def _demo_accumulate(
     description: str,

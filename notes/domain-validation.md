@@ -26,6 +26,7 @@ related_notes:
   - notes/case-state-model.md
   - notes/participant-embargo-consent.md
   - notes/case-ledger-authority.md
+  - notes/architecture-ratchet-corpus.md
 ---
 
 # Domain Object Validation — Strict vs. Loose Boundaries
@@ -625,7 +626,8 @@ closure sites go through `RMClosureWriter` (`case/nodes/participant/rm_closure.p
 which walks `rm_closure_path()` with RM adjacency validation in force, so no
 closure write carries `force_rm_state`. The replica site that once made a third
 (`close_case_effect.py`) no longer writes RM state (see below). `test/architecture/test_rm_closure_no_force.py` pins
-that; the remaining `_RM_FORCE_QUARANTINE` entries are bootstrap writes only.
+that; the remaining `_RM_FORCE_QUARANTINE` entries are bootstrap writes only,
+which makes it a pinned exemption set rather than a ratchet (ARCH-18-005).
 If a new closure path seems to need the override, the RM table is wrong or the
 path is — do not add an exemption.
 
@@ -728,7 +730,9 @@ always harmless.
 Other genuine boundaries — the `BTBridge` execution boundary
 (`behaviors/bridge.py`), py_trees `setup()`/`initialise()` — keep their broad
 catch but are enumerated in the enforcing test's `_DECLARED_EXCLUSIONS`
-allow-list, one reason per entry, and the list can only shrink.
+allow-list, one reason per entry. The list is a pinned exemption set
+(ARCH-18-005): it matches the code exactly, so an unlisted broad catch fails, and
+a new boundary needs its own reason to join.
 
 ### When you cannot tell whether a fallback is load-bearing
 
