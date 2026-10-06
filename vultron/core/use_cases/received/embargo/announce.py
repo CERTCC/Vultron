@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 class AnnounceEmbargoEventToCaseReceivedUseCase:
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4074", "no sender check for embargo announce"
+        "#4256", "no sender check for embargo announce"
     )
 
     def __init__(

@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 
 class CreateEmbargoEventReceivedUseCase:
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4074", "no sender check for embargo create"
+        "#4256", "no sender check for embargo create"
     )
 
     def __init__(
@@ -84,7 +84,7 @@ class CreateEmbargoEventReceivedUseCase:
 
 class AddEmbargoEventToCaseReceivedUseCase:
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4074", "no sender check for embargo add"
+        "#4256", "no sender check for embargo add"
     )
 
     def __init__(
@@ -157,7 +157,7 @@ class AddEmbargoEventToCaseReceivedUseCase:
 
 class RemoveEmbargoEventFromCaseReceivedUseCase:
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4074", "no sender check for embargo remove"
+        "#4256", "no sender check for embargo remove"
     )
 
     def __init__(
