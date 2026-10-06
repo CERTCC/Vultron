@@ -129,7 +129,10 @@ The same missing channel means a policy backend that is merely unreachable is re
 An already-answered proposal is never re-adjudicated.
 A duplicate delivery of the *same* proposal reuses the existing case rather than deciding again, because a later "decline" would contradict an `Accept` already sent.
 CP-05-006 goes further: the stored `Accept` must be re-sent unchanged, with its original identifier, so a proposer whose copy was lost converges rather than waiting forever.
-The reference implementation reuses the case but does not yet re-send ([#2890](https://github.com/CERTCC/Vultron/issues/2890)).
+The reference implementation does this.
+The `Accept` takes an id derived from the proposal.
+A duplicate proposal queues the stored `Accept` again under that id, unless it is still waiting in the outbox.
+The proposer-side deadline that lets a proposer give up on a lost reply (CP-05-007) is not yet implemented ([#2890](https://github.com/CERTCC/Vultron/issues/2890)).
 
 ---
 

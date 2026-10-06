@@ -22,6 +22,7 @@ CaseActor outbox. Composed by ``create_case_proposal_received_tree``
 """
 
 import logging
+from typing import cast
 
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
@@ -36,6 +37,7 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.models.pending_create_case_activity import (
     PendingCreateCaseActivity,
 )
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.errors import VultronError
 
 logger = logging.getLogger(__name__)
@@ -136,10 +138,25 @@ class EmitAcceptCaseProposalNode(_EmitSingleActivityBase):
             logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
-        # Route through the shared emit seam (OX-14-001, ASK-04-008).
-        # outbox_append is now called inside _emit_through_seam, not directly
-        # (ADR-0073: the queue lives in the owning actor's store).
-        self._emit_through_seam(activity_id, "")
+        # The Accept's id is derived from the proposal, so a redelivery names
+        # the Accept its first delivery built and re-sends it unchanged
+        # (CP-05-006).  A copy still waiting in the outbox already is that
+        # re-send; queueing it again would only duplicate the row (ID-04-004).
+        if (
+            activity_id
+            in cast(CaseOutboxPersistence, self.datalayer).outbox_list()
+        ):
+            logger.info(
+                "%s: Accept(CaseProposal) '%s' is still queued — not queueing"
+                " it again (CP-05-006)",
+                self.name,
+                activity_id,
+            )
+        else:
+            # Route through the shared emit seam (OX-14-001, ASK-04-008).
+            # outbox_append is now called inside _emit_through_seam, not
+            # directly (ADR-0073: the queue lives in the owning actor's store).
+            self._emit_through_seam(activity_id, "")
         self._set_output("accept_activity_id", activity_id)
         logger.info(
             "%s: Queued Accept(CaseProposal) '%s' to outbox for report receiver '%s'",

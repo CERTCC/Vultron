@@ -33,7 +33,11 @@ See also:
 
 import logging
 
-from vultron.adapters.outbox_sealed_body import seal_outbound_body
+from vultron.adapters.outbox_sealed_body import (
+    derived_activity_id,
+    is_sealed,
+    seal_outbound_body,
+)
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import add_activity_to_outbox
@@ -97,14 +101,38 @@ class SyncActivityAdapter:
     ) -> None:
         """Build and queue a ``Reject(CaseLedgerEntry)`` activity.
 
+        The activity id is derived from the rejected entry, the tail hash
+        and the recipients, so a redelivery of the same mismatching entry
+        builds no new activity and reuses the same id (ID-04-004).  If that
+        Reject is sealed but no longer pending, it is queued once more under
+        the same id and body, which the receiver deduplicates (ID-04-005).  A
+        different tail hash is a different rejection and gets its own id.
+
         Spec: SYNC-03-001.
         """
+        reject_id = derived_activity_id(
+            "reject-log-entry", actor_id, entry.id_, tail_hash, *sorted(to)
+        )
+        if is_sealed(self._dl, reject_id):
+            # Sealed before queued: a sealed Reject no longer pending was
+            # either delivered or never queued, so queue the same one again
+            # for the receiver to deduplicate (ID-04-005).
+            if reject_id not in self._dl.outbox_list():
+                add_activity_to_outbox(actor_id, reject_id, self._dl)
+            logger.info(
+                "sync adapter: Reject(CaseLedgerEntry) '%s' for entry '%s'"
+                " was already built; not building it again",
+                reject_id,
+                entry.id_,
+            )
+            return
         wire_entry = self._to_wire(entry)
         reject = reject_log_entry_activity(
             entry=wire_entry,
             context=tail_hash,
             actor=actor_id,
             to=to,
+            id_=reject_id,
         )
         self._dl.save(reject)
         seal_outbound_body(self._dl, reject)

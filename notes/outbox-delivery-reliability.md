@@ -14,6 +14,7 @@ related_issues:
   - https://github.com/CERTCC/Vultron/issues/3602
   - https://github.com/CERTCC/Vultron/issues/3878
   - https://github.com/CERTCC/Vultron/issues/4168
+  - https://github.com/CERTCC/Vultron/issues/4215
 related_notes:
   - notes/outbox.md
   - notes/sync-ledger-replication.md
@@ -204,3 +205,30 @@ CONCERN-2302).
   Protocol-level NACK on exhaustion is still deferred to #1880.
 - **OX-12-001**: HTTP-only delivery (ADR-0042) is not in question. All changes here
   are about the reliability envelope, not the delivery mechanism.
+
+## A Response to an Inbound Activity Takes Its Id From the Request
+
+An outbound activity that answers one inbound activity (a `ProcessingFault`
+NACK, `Reject(CaseLedgerEntry)`, `Accept(CaseProposal)`) MUST NOT mint a fresh
+UUID per emission.
+A redelivery would then build a second response with a new id, and the store
+and outbox grow on every retry (ID-04-004, #4215).
+
+- Derive the id with `derived_activity_id(kind, actor, <what it answers>, ...)`
+  in `vultron/adapters/outbox_sealed_body.py`.
+  Put a kind label first so two kinds of response to one activity never collide.
+- Ask "was this already sent?" with `is_sealed(dl, id)`.
+  The sealed body outlives the outbox entry, so it still answers after delivery
+  popped the queue; the queue and the activity record cannot
+  (see `notes/bt-pitfalls.md` § "A Refusal Arm in a Selector Fails Toward
+  'Admit'").
+- The sealed body is written before the queue append, so a sealed response
+  that is not pending was either delivered or never queued, and the queue
+  cannot say which.
+  Treat "sealed" as "built", not "sent": if the id is not pending, queue the
+  same id and body again, and let the receiver deduplicate (ID-04-005).
+  Skipping on "sealed" alone loses the response after a crash between the two
+  writes.
+- Where a spec says a duplicate request is answered by re-sending the stored
+  response (CP-05-006), this is the same rule: reuse the id and the sealed body
+  and re-queue only when the id is not already pending.
