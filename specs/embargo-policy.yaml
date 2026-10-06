@@ -1569,3 +1569,37 @@ groups:
     stories:
     - story_2022_014
 
+  - id: EP-09-011
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the CASE_MANAGER admits a participant (`Accept(Invite(stub))`) while an embargo
+      proposal is open, it MUST relay an `Invite(EmbargoEvent)` for every open proposal to
+      the joiner and commit each as a ledger entry, after the joiner holds the case and the
+      prior ledger. Each Invite has `actor` set to the CASE_MANAGER's ID and `attributedTo`
+      set to the proposal's original proposer (EP-09-002). A proposal the joiner already
+      holds a consent row for is not relayed again. The joiner's row for the active
+      embargo is unchanged (EP-09-004), so a joiner that accepts the revision is a
+      signatory of it at activation and one that does not lapses (ADR-0093, EP-05-001).
+    rationale: >-
+      A joiner is seated after the relay of a proposal (EP-09-002), so it was never on the
+      roster when the Invite went out, and nothing else would ask it. A new participant
+      becomes signatory to the embargo in effect when it joins, and is asked about a
+      revision on the table exactly like the participants who were present when it was
+      proposed.
+    verification: >-
+      `test/core/use_cases/received/test_joiner_revision_relay.py` accepts a stub Invite
+      as the CASE_MANAGER at `EM.REVISE` and asserts one committed, outbox-queued Invite
+      per open proposal, attributed to the proposer, with the joiner's row for the
+      revision `INVITED` and the row for the active embargo `ACCEPTED`; a follow-up
+      accept leaves it with an `ACCEPTED` row for the revision, which binds it at activation.
+    relationships:
+    - rel_type: refines
+      spec_id: EP-09-002
+    - rel_type: depends_on
+      spec_id: CM-11-001
+    adr:
+    - ADR-0113
+    - ADR-0114
+    stories:
+    - story_2022_014
