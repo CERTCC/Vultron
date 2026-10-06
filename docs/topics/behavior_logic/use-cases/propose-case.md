@@ -97,6 +97,8 @@ A service that created the case, committed ledger entries, and *then* declined w
 
 When the service declines, it sends `Reject(as_CaseProposal)` with the proposal inline, and creates nothing (CP-05-004).
 The proposing actor records the refusal (CP-06-003, CP-06-004).
+It records a reply only from the actor it addressed the proposal to, and a reply from anyone else is refused with its records unchanged (CP-06-005).
+Once a case exists for the report, no reply replaces the case's trusted CASE_MANAGER.
 
 The refusal is recorded before it is sent, and that ordering carries weight.
 A decline that cannot be delivered does not silently become an acceptance: the service writes the decision down first and refuses to run the accept path afterwards, so the irrevocability CP-05-004 and CP-05-005 rely on holds in both directions.

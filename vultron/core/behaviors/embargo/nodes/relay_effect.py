@@ -19,10 +19,11 @@ The CASE_MANAGER commits four kinds of entry while it relays an embargo
 negotiation: the proposal it received, each ``Invite(EmbargoEvent)`` it relays
 to a participant, each participant's ``Accept`` or ``Reject`` of its Invite,
 and the case owner's decision (which is an ``Accept`` or ``Reject`` by the
-owner).  A participant replica writes none of that state when the activity
-reaches it directly (EP-09-003, RSH-08-003); it reconstructs the state from the
-``Announce(CaseLedgerEntry)`` broadcast through these nodes (RSH-08-004,
-ADR-0108).
+owner).  A fifth, the re-invite of a late accepter whose embargo went stale
+(EMB-17-003), has an event type of its own.  A participant replica writes none
+of that state when the activity reaches it directly (EP-09-003, RSH-08-003); it
+reconstructs the state from the ``Announce(CaseLedgerEntry)`` broadcast through
+these nodes (RSH-08-004, ADR-0108).
 
 Each node goes through :class:`EmbargoLifecycle` in ``OBSERVED`` mode, as the
 teardown apply node does — the CASE_MANAGER already decided, so the replica
@@ -341,6 +342,26 @@ class ApplyEmbargoInviteFromLedgerNode(_EmbargoRelayEffectNode):
         case, embargo_id = resolved
         assert self.datalayer is not None
 
+        return self._replay_invite(case, embargo_id, snapshot)
+
+
+class ApplyEmbargoReinviteFromLedgerNode(_EmbargoRelayEffectNode):
+    """Replay the CASE_MANAGER's EMB-17-003 re-invite of a stale accepter.
+
+    Records the invitee's PEC ``INVITE`` and the Invite's RSVP deadline
+    (``endTime``) through ``EmbargoLifecycle.record_embargo_invite``, as the
+    manager did at its commit (CM-28-013).  It moves no EM state and indexes no
+    proposal: the embargo is the case's current one, and the Invite carries no
+    proposer.  An invitee with no participant record here is skipped.
+    """
+
+    def update(self) -> Status:
+        entry = self._get_entry()
+        snapshot = entry.payload_snapshot
+        resolved = self._resolve(snapshot.get("object"))
+        if isinstance(resolved, Status):
+            return resolved
+        case, embargo_id = resolved
         return self._replay_invite(case, embargo_id, snapshot)
 
 

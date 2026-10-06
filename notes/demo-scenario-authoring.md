@@ -162,6 +162,18 @@ This rule applies to scenario files in `vultron/demo/scenario/`. Exchange demos
 under `vultron/demo/exchange/` are lower-level and may duplicate less when a full
 helper would add more abstraction than value.
 
+**Worked example — the invite chain.** PR #3886 hand-nested the same
+invite → deliver → answer → replica chain in every scenario and skipped this rule
+because the variants "do not extract into one helper without a flag per
+variant". That is a design task, not a skip reason: `run_case_invite_chain` in
+`helpers/invite_chain.py` takes the variants as parameters (who asks, accept or
+reject, the sender check, timeouts) and a `then` callback for what follows. A
+callback, not a `with` block, because `demo_gate` suppresses an exception
+before a generator-based context manager could yield. The ratchet
+`test_demo_scenarios_use_invite_chain_helper.py` fails on a scenario that calls
+a chain link directly. A consolidation like this must not change what a demo
+reports as pass or fail (#4192).
+
 Normative: `specs/multi-actor-demo.yaml` DEMOMA-17-001 — a MUST-level
 specialisation of the project-wide SHOULD rule CS-22-001 in
 `specs/code-style.yaml`.

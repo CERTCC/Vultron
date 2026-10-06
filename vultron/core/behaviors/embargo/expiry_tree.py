@@ -45,10 +45,19 @@ effect::
     └─ HonourLateAccept (Sequence)
        ├─ CommitLogEntryBT             # commit HONOUR_LATE_ACCEPT_EVENT_TYPE
        └─ HonourLateAcceptNode         # EFFECT: apply EXPIRED/DECLINED → SIGNATORY
+
+The re-invite of a stale accepter (EMB-17-003) is a CASE_MANAGER-gated commit →
+effect node of the relay's frame::
+
+    ReinviteStaleAccepterBT (CASE_MANAGER-gated)
+    └─ ReinviteStaleAccepterNode     # stamp → build → commit → outbox → PEC INVITE
+
+Replicas replay it through
+:class:`~vultron.core.behaviors.embargo.nodes.relay_effect.ApplyEmbargoReinviteFromLedgerNode`.
 """
 
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import py_trees
 
@@ -63,6 +72,9 @@ from vultron.core.behaviors.embargo.nodes.expiry import (
     InviteExpiryNeedsApplyNode,
     RecordInviteExpiryNode,
 )
+from vultron.core.behaviors.embargo.nodes.reinvite import (
+    ReinviteStaleAccepterNode,
+)
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
@@ -74,6 +86,9 @@ from vultron.core.models.rsvp_deadline import (
     INVITE_EXPIRED_NOOP_SNAPSHOT_TYPE,
     INVITE_EXPIRED_SNAPSHOT_TYPE,
 )
+
+if TYPE_CHECKING:
+    from vultron.config.actor import ActorConfig
 
 # Keep the old alias so existing imports of CONSENT_CHANGED_KEY from this
 # module still work.
@@ -315,6 +330,41 @@ def create_noop_ledger_entry_tree(
     )
 
 
+def create_reinvite_stale_accepter_tree(
+    *,
+    case_id: str,
+    embargo_id: str,
+    invitee_id: str,
+    actor_config: "ActorConfig | None" = None,
+) -> py_trees.behaviour.Behaviour:
+    """Build the CASE_MANAGER-gated EMB-17-003 re-invite tree.
+
+    The gate is the role guard; the node commits the re-invite as a canonical
+    entry before it queues it (CLP-10-006, BT-17-001) and then applies PEC
+    ``INVITE`` to the invitee, recording the fresh deadline the Invite carries
+    (CM-28-013).  Replicas learn both from the entry.
+
+    Args:
+        case_id: The case the late Accept was for.
+        embargo_id: The case's *current* embargo, which the re-invite carries.
+        invitee_id: The accepting participant being asked again.
+        actor_config: The manager's configuration; sets the RSVP window.
+    """
+    return create_case_manager_gated_tree(
+        name="ReinviteStaleAccepterBT",
+        case_id=case_id,
+        children=[
+            ReinviteStaleAccepterNode(
+                case_id=case_id,
+                embargo_id=embargo_id,
+                invitee_id=invitee_id,
+                actor_config=actor_config,
+            )
+        ],
+        body_name="ReinviteStaleAccepter",
+    )
+
+
 __all__ = [
     "CONSENT_CHANGED_KEY",
     "IS_EXPIRED_KEY",
@@ -322,6 +372,7 @@ __all__ = [
     "create_honour_late_accept_tree",
     "create_invite_expiry_tree",
     "create_noop_ledger_entry_tree",
+    "create_reinvite_stale_accepter_tree",
     "expiry_payload_snapshot",
     "honour_late_accept_payload_snapshot",
 ]

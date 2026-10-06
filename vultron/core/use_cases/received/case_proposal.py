@@ -67,6 +67,7 @@ from vultron.core.behaviors.case.reject_case_proposal_received_tree import (
 )
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlement,
+    SenderEntitlementKind,
     exempt,
 )
 from vultron.core.models.events.case_proposal import (
@@ -339,8 +340,10 @@ class AcceptCaseProposalReceivedUseCase:
     Spec: CP-06-001, CP-06-003.
     """
 
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4072", "pending sender check for accept case proposal"
+    # The sender must be the actor the vendor addressed the proposal to,
+    # as recorded on the report case link (CP-06-005).
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.NAMED_ACTOR
     )
 
     def __init__(
@@ -423,8 +426,8 @@ class RejectCaseProposalReceivedUseCase:
     Spec: CP-06-002, CP-06-004.
     """
 
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4072", "pending sender check for reject case proposal"
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.NAMED_ACTOR
     )
 
     def __init__(
@@ -464,6 +467,7 @@ class RejectCaseProposalReceivedUseCase:
 
         tree = create_reject_case_proposal_received_tree(
             report_id=report_id,
+            sender_actor_id=request.actor_id,
             rejection_reason=rejection_reason,
         )
         result = BTBridge(

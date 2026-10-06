@@ -43,10 +43,15 @@ Nodes
 -----
 - ``SenderIsActiveParticipantNode`` — guards that the sender is a known case
   participant; merged from ``VerifySenderIsParticipantNode``
+- ``SenderIsActiveLedgerParticipantNode`` — guards that the sender is an active
+  participant of the case named by a ledger activity on the blackboard
 - ``SenderIsCaseManagerNode`` — guards that the sender is the case's
   CASE_MANAGER; merged from ``VerifySenderIsCaseActorNode``
 - ``SenderIsNamedActorNode`` — guards that the sender matches a named actor;
   merged from ``VerifySenderIsOwnIdNode``
+- ``SenderIsProposalAddresseeNode`` — guards that the sender is the actor the
+  vendor addressed a CaseProposal to, as recorded on the report case link
+  (``NAMED_ACTOR`` kind; CP-06-005)
 - ``SenderIsExecutingActorNode`` — guards that the sender equals the executing
   actor; merged from ``CheckSenderIsExecutingActorNode``
 - ``SenderIsCaseOwnerNode`` — guards that the sender holds CVDRole.CASE_OWNER;
@@ -75,7 +80,9 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.participants.recipients import is_case_content_recipient
 from vultron.core.predicates.addressing import same_actor_id
 from vultron.core.predicates.roles import has_case_owner_role
 from vultron.enums.roles import CVDRole
@@ -304,6 +311,70 @@ class SenderIsActiveParticipantNode(FindParticipantByActorIdNode):
 
 
 # ---------------------------------------------------------------------------
+# Condition node: ACTIVE_PARTICIPANT (ledger activity on the blackboard)
+# ---------------------------------------------------------------------------
+
+
+class SenderIsActiveLedgerParticipantNode(SenderEntitlementConditionNode):
+    """Guard: sender must be an active participant of the ledger entry's case.
+
+    Reads ``activity`` from the blackboard and takes the case from the
+    ``CaseLedgerEntry`` it carries.
+    Returns ``SUCCESS`` only when the sender is an active participant of that
+    case (:func:`~vultron.core.participants.recipients.is_case_content_recipient`,
+    CM-10-004).
+    An unknown case, a missing sender, an unlisted sender and an inert
+    participant all return ``FAILURE``: there is nothing to replay to a sender
+    the case cannot vouch for, so there is no bootstrap pass-through here.
+
+    Spec: SYNC-03-005, CM-10-004, HP-01-006.
+    """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=True),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity": "/activity"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.activity = self.get_input("activity")
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        entry = getattr(self.activity, "rejected_entry", None)
+        if not isinstance(entry, CaseLedgerEntry):
+            try:
+                entry = _log_entry_from(self.activity, self.name)
+            except VultronError as exc:
+                self.logger.warning("%s: %s", self.name, exc)
+                return Status.FAILURE
+        sender_id = getattr(self.activity, "actor_id", None)
+        if not sender_id:
+            self.logger.warning("%s: activity has no actor_id", self.name)
+            return Status.FAILURE
+
+        # Regime 1: no case means no participant, so the sender is refused.
+        case, failure = self._require_case(entry.case_id)
+        if failure is not None:
+            return failure
+        if not is_case_content_recipient(case, self.datalayer, sender_id):
+            self.feedback_message = (
+                f"Sender '{sender_id}' is not an active participant in case"
+                f" '{entry.case_id}' — REFUSED (SYNC-03-005, CM-10-004)"
+            )
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+        return Status.SUCCESS
+
+
+# ---------------------------------------------------------------------------
 # Condition node: CASE_MANAGER
 # ---------------------------------------------------------------------------
 
@@ -452,6 +523,70 @@ class SenderIsNamedActorNode(SenderEntitlementConditionNode):
             sender_id,
             case_actor_id,
         )
+        return Status.FAILURE
+
+
+# ---------------------------------------------------------------------------
+# Condition node: NAMED_ACTOR (recorded proposal addressee)
+# ---------------------------------------------------------------------------
+
+
+class SenderIsProposalAddresseeNode(SenderEntitlementConditionNode):
+    """Guard: sender must be the actor the CaseProposal was addressed to.
+
+    The vendor records the addressee on its ``VultronReportCaseLink``
+    (``case_creator_id``) when it proposes the case.
+    This guard reads that record and returns ``SUCCESS`` only when the sender
+    is that actor.
+
+    - No link for the report (a relay, or a proposal this actor never made):
+      ``SUCCESS``, because there is nothing to protect and the effect node
+      reports the no-op as ``SKIPPED``.
+    - A link with no recorded addressee: ``FAILURE`` (nobody is entitled).
+    - Any other sender: ``FAILURE``, so the tree ends ``REFUSED`` with the
+      link unchanged.
+
+    Spec: CP-06-005, HP-01-006.
+    """
+
+    def __init__(
+        self,
+        report_id: str,
+        sender_actor_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.report_id = report_id
+        self.sender_actor_id = sender_actor_id
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        link = self.datalayer.read(
+            VultronReportCaseLink.build_id(self.report_id)
+        )
+        if not isinstance(link, VultronReportCaseLink):
+            self.logger.debug(
+                "%s: no report case link for '%s' — nothing to protect",
+                self.name,
+                self.report_id,
+            )
+            return Status.SUCCESS
+
+        addressee = link.case_creator_id
+        if addressee is not None and same_actor_id(
+            self.sender_actor_id, addressee
+        ):
+            return Status.SUCCESS
+
+        self.feedback_message = (
+            f"Sender '{self.sender_actor_id}' is not the actor the"
+            f" CaseProposal for report '{self.report_id}' was addressed to"
+            f" ('{addressee}') — REFUSED (CP-06-005, HP-01-006)"
+        )
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE
 
 
@@ -611,6 +746,7 @@ __all__ = [
     "SenderEntitlementConditionNode",
     # Condition nodes
     "SenderIsActiveParticipantNode",
+    "SenderIsActiveLedgerParticipantNode",
     "SenderIsCaseManagerNode",
     "SenderIsNamedActorNode",
     "SenderIsExecutingActorNode",

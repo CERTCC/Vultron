@@ -17,6 +17,7 @@ related_notes:
   - notes/actor-knowledge-model.md
   - notes/datalayer-design.md
   - notes/devcontainer-tooling.md
+  - notes/case-proposal.md
 relevant_packages:
   - vultron/core/use_cases/received
   - vultron/core/use_cases/triggers
@@ -172,6 +173,10 @@ The `Create(VulnerabilityCase)` from the CASE_MANAGER IS the bootstrap. The
 sender is the CASE_MANAGER (not the report receiver), so the trust anchor the
 receiver validates is `case_manager_id` from the `Accept(CaseProposal)`
 recorded earlier in `accept_case_proposal_received_tree.py`.
+That `Accept` is recorded only when its sender is the actor the vendor addressed
+the proposal to (`case_creator_id`), and never once a case is established for
+the report, so an unrelated actor cannot plant itself as the trust anchor
+(CP-06-005, CBT-02-003).
 
 The `Create(VulnerabilityCase)` payload MUST embed participant objects inline
 so `store_embedded_participants` can seed them on the receiver's replica.

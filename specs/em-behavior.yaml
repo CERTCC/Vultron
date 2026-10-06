@@ -2150,6 +2150,48 @@ groups:
     stories:
     - story_2022_013
     - story_2022_088
+  - id: EMB-17-011
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the CASE_MANAGER re-invites a late accepter to the case's current
+      embargo (EMB-17-003), it MUST commit the fresh `Invite(EmbargoEvent)` as a
+      distinct ledger entry of event type `invite_to_embargo_on_case_reinvite`
+      before it queues the Invite, and a replica MUST replay the entry by
+      applying the invitee's PEC `INVITE` and recording the Invite's `endTime`
+      as its RSVP deadline, without moving EM state (CM-28-013, RSH-08-004).
+    rationale: >-
+      Without a committed entry the replica never learns the participant was
+      re-invited, so its record keeps the lapsed state and deadline while the
+      CASE_MANAGER's shows the fresh ones. The re-invite has no proposer, so the
+      relayed-Invite classifier would read a committed copy as a proposal and
+      move EM state for an embargo that is already current; an event type of its
+      own gets a replay slot that cannot do that (EP-09-007, ADR-0118).
+    verification: >-
+      `test_the_managers_reinvite_is_committed_and_replayed_by_a_replica` drives
+      the full path across per-actor stores: the late Accept reaches the
+      CASE_MANAGER, the re-invite entry is committed and broadcast, and the
+      replica reads the invitee `INVITED` with the manager's deadline and the
+      manager's EM state. `test_embargo_relay_entries_are_replayed.py`
+      classifies the entry shape.
+    testable: true
+    postconditions:
+    - description: >-
+        A ledger entry with event type `invite_to_embargo_on_case_reinvite` is
+        committed in the CASE_MANAGER's store and replayed in every replica's
+        store; the invitee reads `INVITED` with the Invite's deadline on each,
+        and no EM state moves
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-17-003
+    - rel_type: depends_on
+      spec_id: RSH-08-004
+    - rel_type: depends_on
+      spec_id: CM-28-013
+    adr:
+    - ADR-0118
+    stories:
+    - story_2022_013
 
 - id: EMB-18
   title: EM Write-Boundary Consolidation

@@ -32,9 +32,14 @@ from fastapi.testclient import TestClient
 
 import vultron.demo.helpers.sync as sync_module
 import vultron.demo.scenario.fvv_demo as demo
-from test.demo._helpers import make_client, make_testclient_call
+from test.demo._helpers import (
+    make_client,
+    make_testclient_call,
+    patch_chain_shared,
+)
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.cli import main
+from vultron.demo.helpers import invite_chain
 from vultron.demo.helpers.polling import (
     wait_for_contiguous_ledger_coverage,
     wait_for_event_type_in_ledger,
@@ -661,8 +666,8 @@ class TestFvvMilestoneAssertions:
                 return_value=SimpleNamespace(activity=invite),
             ),
             patch.object(ActorSession, "accept_case_invite"),
-            patch.object(demo, "find_case_invite_for_actor"),
-            patch.object(demo, "wait_for_case_on_container"),
+            patch.object(invite_chain, "find_case_invite_for_actor"),
+            patch_chain_shared(demo, "wait_for_case_on_container"),
             patch.object(demo, "as_VulnerabilityCase") as mock_vc,
             patch.object(demo, "run_invite_path_rm_triage"),
             patch.object(demo, "verify_case_active") as mock_m1,
@@ -940,8 +945,8 @@ class TestFinderCaseReplicaWaitBeforeVendor2Triage:
                 return_value=SimpleNamespace(activity=invite),
             ),
             patch.object(ActorSession, "accept_case_invite"),
-            patch.object(demo, "find_case_invite_for_actor"),
-            patch.object(
+            patch.object(invite_chain, "find_case_invite_for_actor"),
+            patch_chain_shared(
                 demo,
                 "wait_for_case_on_container",
                 side_effect=_wait_for_case,
@@ -1249,9 +1254,11 @@ class TestFvvInviteChainSkipsDependents:
             ),
             patch.object(ActorSession, "accept_case_invite") as accept_invite,
             patch.object(
-                demo, "find_case_invite_for_actor", **invite_lookup
+                invite_chain, "find_case_invite_for_actor", **invite_lookup
             ) as find_invite,
-            patch.object(demo, "wait_for_case_on_container") as replica_wait,
+            patch_chain_shared(
+                demo, "wait_for_case_on_container"
+            ) as replica_wait,
             patch.object(demo, "as_VulnerabilityCase") as mock_vc,
             patch.object(demo, "run_invite_path_rm_triage"),
             patch.object(demo, "verify_case_active"),

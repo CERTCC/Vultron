@@ -19,9 +19,7 @@ from vultron.core.behaviors.embargo.expiry_tree import (
     create_honour_late_accept_tree,
     create_invite_expiry_tree,
     create_noop_ledger_entry_tree,
-)
-from vultron.core.behaviors.embargo.rsvp_stamp import (
-    stamp_invite_rsvp_deadline,
+    create_reinvite_stale_accepter_tree,
 )
 from vultron.core.models._helpers import _as_id, claimed_published_iso
 from vultron.core.models.events.embargo import (
@@ -33,10 +31,8 @@ from vultron.core.models.use_case_result import (
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.states.em import EM
 from vultron.core.use_cases._helpers import (
-    add_activity_to_outbox,
     resolve_receiving_actor_id,
     unaddressed_copy_refusal,
 )
@@ -49,10 +45,6 @@ from vultron.core.use_cases.received._embargo_pxa import (
     pxa_embargo_ineligible,
     queue_pxa_reject,
 )
-from vultron.core.use_cases.triggers._helpers import (
-    _prepare_delegated_context,
-)
-from vultron.errors import VultronNotFoundError
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -282,42 +274,32 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
                 and active_embargo_id
                 and accepting_actor_id
             ):
-                actor_id, _ = _prepare_delegated_context(
-                    self._dl, case_id, receiving_actor_id
-                )
-                # The re-invite is a fresh ask, so it carries a fresh deadline
-                # the manager records (ASK-03-004, CM-28-012, CM-28-013);
-                # the lapsed one would lapse it again on the next answer.
-                try:
-                    stamp = stamp_invite_rsvp_deadline(
-                        self._dl, active_embargo_id, self._actor_config
-                    )
-                except VultronNotFoundError as exc:
-                    # The case names this embargo as active, so a missing
-                    # record is the manager's own store's fault (ADR-0087).
-                    raise RuntimeError(
-                        f"cannot stamp the re-invite to embargo"
-                        f" '{active_embargo_id}' on case '{case_id}': {exc}"
-                    ) from exc
-                new_invite_id, _ = self._trigger_activity.propose_embargo(
+                # The CASE_MANAGER-gated tree stamps a fresh deadline the
+                # manager records (ASK-03-004, CM-28-012, CM-28-013), commits
+                # the re-invite and only then queues it (CLP-10-006,
+                # BT-17-001); the lapsed deadline would lapse it again.
+                reinvite_tree = create_reinvite_stale_accepter_tree(
+                    case_id=case_id,
                     embargo_id=active_embargo_id,
-                    case_id=case_id,
-                    actor=actor_id,
-                    to=[accepting_actor_id],
-                    rsvp_deadline=stamp.rsvp_deadline,
-                    published=stamp.published,
-                    min_rsvp_window=stamp.min_rsvp_window,
-                )
-                add_activity_to_outbox(actor_id, new_invite_id, self._dl)
-                EmbargoLifecycle(persistence=self._dl).record_embargo_invite(
-                    case_id=case_id,
                     invitee_id=accepting_actor_id,
-                    rsvp_deadline=stamp.rsvp_deadline,
+                    actor_config=self._actor_config,
+                )
+                result = BTBridge(
+                    datalayer=self._dl,
+                    trigger_activity=self._trigger_activity,
+                    wire_render_port=self._wire_render_port,
+                    sync_port=self._sync_port,
+                ).execute_with_setup(
+                    tree=reinvite_tree,
+                    actor_id=receiving_actor_id,
+                )
+                applied_or_raise(
+                    reinvite_tree, result, label="ReinviteStaleAccepterBT"
                 )
                 logger.info(
                     "accept_invite_to_embargo_on_case: late Accept for"
                     " stale embargo '%s' on case '%s' — re-invited actor"
-                    " '%s' to current embargo '%s' (EMB-17-002)",
+                    " '%s' to current embargo '%s' (EMB-17-003)",
                     embargo_id,
                     case_id,
                     accepting_actor_id,

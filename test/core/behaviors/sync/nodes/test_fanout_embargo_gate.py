@@ -34,7 +34,11 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.embargo.nodes import (
     CollectEmbargoInviteRecipientsNode,
 )
-from vultron.core.behaviors.sync.nodes import SendMissingEntriesNode
+from vultron.core.behaviors.sync.nodes import (
+    AnnounceCaseOnGenesisRejectNode,
+    FindCaseActorNode,
+    SendMissingEntriesNode,
+)
 from vultron.core.behaviors.sync.nodes.embargo_pause import (
     embargo_paused_from_index,
 )
@@ -335,9 +339,56 @@ def test_genesis_reject_from_non_signatory_seeds_no_case(datalayer) -> None:
         sync_port=sync_port,
     )
 
-    assert result.status == Status.SUCCESS
+    # The sender guard (SYNC-03-005) now halts the tree before anything is
+    # written or sent, so the withheld peer gets nothing.
+    assert result.status == Status.FAILURE
     trigger_activity.announce_vulnerability_case.assert_not_called()
     sync_port.send_announce_log_entry.assert_not_called()
+
+
+@pytest.mark.spec("CM-10-004")
+@pytest.mark.spec("CM-10-005")
+def test_genesis_pre_seed_itself_withholds_case_from_non_signatory(
+    datalayer,
+) -> None:
+    """The pre-seed gate holds on its own, behind the sender guard (defence in depth)."""
+    seed_case(datalayer, embargo_active=True)
+    (entry,) = seed_ledger(datalayer, 1)
+    activity = reject_log_entry_activity(
+        entry=WireCaseLedgerEntry.model_validate(
+            entry.model_dump(mode="json")
+        ),
+        context="",
+        actor=NON_SIGNATORY_ID,
+        to=[MANAGER_ID],
+    )
+    event = cast(RejectLogEntryReceivedEvent, extract_event(activity))
+    sync_port = MagicMock(spec=SyncActivityPort)
+    trigger_activity = MagicMock(spec=TriggerActivityPort)
+    tree = py_trees.composites.Sequence(
+        name="PreSeedWithoutSenderGuard",
+        memory=False,
+        children=[
+            FindCaseActorNode(name="FindCaseActor"),
+            AnnounceCaseOnGenesisRejectNode(
+                name="AnnounceCaseOnGenesisReject"
+            ),
+        ],
+    )
+
+    result = BTBridge(
+        datalayer=datalayer,
+        sync_port=sync_port,
+        trigger_activity=trigger_activity,
+    ).execute_with_setup(
+        tree=tree,
+        actor_id=MANAGER_ID,
+        activity=event,
+        sync_port=sync_port,
+    )
+
+    assert result.status == Status.SUCCESS
+    trigger_activity.announce_vulnerability_case.assert_not_called()
 
 
 @pytest.mark.spec("CM-10-005")
