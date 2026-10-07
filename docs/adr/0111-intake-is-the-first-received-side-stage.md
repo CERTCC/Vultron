@@ -115,7 +115,7 @@ Detail 5 stands with the correction that the handler-local helpers are replaced 
 **Fifteen trees bypassed the factory, not two.**
 Detail 7 assumed the two trees composing the CASE_MANAGER gate directly were the only ones outside `create_receive_activity_tree`.
 Defining a receive-side tree as one a received use case calls, the ordering ratchet found fifteen.
-They are held as an exact set (`KNOWN_FACTORIES_BYPASSING_INTAKE`, ARCH-18-001) and each moves with the handler migration that owns its area; the sync announce and reject trees and the dead-letter tree moved in #3935.
+They are held as an exact set (`KNOWN_FACTORIES_BYPASSING_INTAKE`, ARCH-18-001) and each moves with the handler migration that owns its area; the sync announce and reject trees and the dead-letter tree moved in #3935, and the case, report and note trees in #4288.
 `create_commit_log_entry_tree` is not a receive-side tree: it is the subtree the commit node runs, and no received use case calls it, so it is outside the ratchet's definition.
 
 **The commit stage needs a canonical signature.**

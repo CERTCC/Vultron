@@ -550,13 +550,24 @@ class TestNoteUseCases:
         assert result.disposition == HandlerDisposition.REFUSED
 
     @pytest.mark.spec("HP-01-003")
-    def test_create_note_without_note_object_is_refused(self):
+    def test_create_note_without_note_object_is_refused(self, make_payload):
+        from vultron.core.models.received_activity_record import (
+            ReceivedActivityRecord,
+        )
+
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
-        event = MagicMock()
-        event.note = None
+        event = make_payload(
+            as_Create(
+                actor="https://example.org/users/finder",
+                object_=as_Note(
+                    id_="https://example.org/notes/note-none", content="x"
+                ),
+            )
+        ).model_copy(update={"object_": None, "object_id": None})
+        assert event.note is None
 
         result = CreateNoteReceivedUseCase(
             dl,
@@ -566,6 +577,8 @@ class TestNoteUseCases:
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
+        # CLP-10-018: the refused delivery is still archived.
+        assert dl.read(ReceivedActivityRecord.build_id(event.activity_id))
 
     @pytest.mark.spec("HP-01-003")
     def test_create_note_for_unknown_case_is_refused(self, make_payload):

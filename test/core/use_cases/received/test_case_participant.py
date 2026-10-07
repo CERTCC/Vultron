@@ -13,11 +13,13 @@
 """Tests for case participant use-case classes."""
 
 from typing import cast
-from unittest.mock import MagicMock
 
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
+)
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.case_participant import (
     AddCaseParticipantToCaseReceivedUseCase,
@@ -123,6 +125,8 @@ class TestCaseParticipantUseCases:
         ).execute()
         # HP-01-003: an idempotent re-removal is a no-op.
         assert result.disposition == HandlerDisposition.SKIPPED
+        # The tree still ran, so intake archived the delivery (CLP-10-017).
+        assert dl.read(ReceivedActivityRecord.build_id(event.activity_id))
 
     def test_add_case_participant_updates_index(
         self, monkeypatch, make_payload
@@ -215,6 +219,8 @@ class TestCaseParticipantUseCases:
 
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None and "not found" in result.reason
+        # A refused delivery is still archived (CLP-10-017, CLP-10-018).
+        assert dl.read(ReceivedActivityRecord.build_id(event.activity_id))
 
     @pytest.mark.spec("HP-01-003")
     def test_remove_participant_from_unknown_case_is_refused(
@@ -250,27 +256,47 @@ class TestCaseParticipantUseCases:
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
+        assert dl.read(ReceivedActivityRecord.build_id(event.activity_id))
 
     @pytest.mark.spec("HP-01-003")
     @pytest.mark.parametrize(
-        "use_case",
+        "use_case, activity_name",
         [
-            AddCaseParticipantToCaseReceivedUseCase,
-            RemoveCaseParticipantFromCaseReceivedUseCase,
+            (AddCaseParticipantToCaseReceivedUseCase, "as_Add"),
+            (RemoveCaseParticipantFromCaseReceivedUseCase, "as_Remove"),
         ],
     )
-    def test_membership_change_without_ids_is_refused(self, use_case):
+    def test_membership_change_without_ids_is_refused(
+        self, use_case, activity_name, make_payload
+    ):
+        from vultron.wire.as2.vocab.base.objects.activities import transitive
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            as_CaseParticipant,
+        )
+
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
-        event = MagicMock()
-        event.participant_id = None
-        event.case_id = "https://example.org/cases/c"
+        event = make_payload(
+            getattr(transitive, activity_name)(
+                actor="https://example.org/users/owner",
+                object_=as_CaseParticipant(
+                    id_="https://example.org/cases/c/participants/p",
+                    attributed_to="https://example.org/users/coordinator",
+                    context="https://example.org/cases/c",
+                ),
+                target="https://example.org/cases/c",
+            )
+        ).model_copy(update={"object_": None, "object_id": None})
+        assert event.participant_id is None
 
         result = use_case(dl, event).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
+        # The refusal came before the real tree could be built, but the
+        # delivery is still archived (CLP-10-018).
+        assert dl.read(ReceivedActivityRecord.build_id(event.activity_id))
 
     @pytest.mark.spec("HP-01-003")
     def test_create_participant_redelivery_is_skipped(self, make_payload):

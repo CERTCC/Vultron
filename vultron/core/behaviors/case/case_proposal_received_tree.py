@@ -145,6 +145,9 @@ from vultron.core.behaviors.case.nodes.proposal_retry_marker import (
 from vultron.core.behaviors.case.offer_provenance import (
     offer_provenance_from_proposal,
 )
+from vultron.core.behaviors.case.receive_activity_tree import (
+    create_receive_activity_tree,
+)
 from vultron.core.models.report import VulnerabilityReport
 
 if TYPE_CHECKING:
@@ -166,7 +169,8 @@ def create_case_proposal_received_tree(
 ) -> py_trees.behaviour.Behaviour:
     """Return the received-side BT for processing a ``Create(as_CaseProposal)``.
 
-    The tree is a four-branch Selector: the CP-05-005 in-flight guard, the
+    The tree is a Sequence of intake (CLP-10-017) and a four-branch Selector:
+    the CP-05-005 in-flight guard, the
     CP-05-006 already-declined answer, the CP-05-002 admission decision, and the
     accept flow.
 
@@ -304,7 +308,8 @@ def create_case_proposal_received_tree(
             (BT-23-001, BT-23-011).
 
     Returns:
-        A py_trees Selector behaviour ready for ``BTBridge.execute_with_setup``.
+        The root ``Sequence`` (intake, then the idempotency Selector), ready
+        for ``BTBridge.execute_with_setup``.
     """
     bundle = call_out if call_out is not None else CASE_PROPOSAL_DETERMINISTIC
 
@@ -325,7 +330,7 @@ def create_case_proposal_received_tree(
     # Main flow: record admission → resolve case → native init → emit Accept →
     # write marker → emit Create → clear marker
     main_flow = py_trees.composites.Sequence(
-        name="CreateCaseProposalReceivedBT",
+        name="AcceptProposalFlow",
         memory=False,
         children=[
             # Ahead of case_resolution deliberately.  This is the proposal-keyed
@@ -505,13 +510,25 @@ def create_case_proposal_received_tree(
         ],
     )
 
-    return py_trees.composites.Selector(
-        name="CreateCaseProposalIdempotencySelector",
-        memory=False,
-        children=[
-            CheckMarkerExistsNode(proposal_id=proposal_id),
-            resend_decline_arm,
-            decline_arm,
-            accept_arm,
+    # Intake runs ahead of the whole Selector, so every arm — including a
+    # decline and the in-flight guard — leaves the archived Create(CaseProposal)
+    # (CLP-10-017, CLP-10-018).  No commit stage (``case_id=None``): the case
+    # does not exist yet, and the accept arm's CommitNativeLedgerEntriesNode
+    # ledgers the facts it creates (ADR-0041 AC-4).
+    return create_receive_activity_tree(
+        name="CreateCaseProposalReceivedBT",
+        case_id=None,
+        precondition_guards=[],
+        effect_nodes=[
+            py_trees.composites.Selector(
+                name="CreateCaseProposalIdempotencySelector",
+                memory=False,
+                children=[
+                    CheckMarkerExistsNode(proposal_id=proposal_id),
+                    resend_decline_arm,
+                    decline_arm,
+                    accept_arm,
+                ],
+            )
         ],
     )

@@ -91,3 +91,36 @@ def store_only_verdict(
     if node is None or node.outcome is None:
         raise VultronBTInternalError(f"{label}: tree has no store outcome")
     return node.outcome
+
+
+def refuse_after_intake(
+    dl: CasePersistence,
+    request: VultronEvent,
+    reason: str,
+    *,
+    name: str,
+    sync_port: SyncActivityPort | None,
+    wire_render_port: WireRenderPort | None,
+) -> HandlerResult:
+    """Archive the activity, then refuse it.
+
+    For a handler that turns a delivery away before it can build its real
+    tree (a missing id, an untrusted sender): the refusal still leaves the
+    receiver holding what arrived (CLP-10-018).  The intake-only tree writes
+    nothing else.
+
+    Raises:
+        VultronBTInternalError: Intake itself failed (a local fault, not the
+            sender's).
+    """
+    tree, result = run_store_only(
+        dl,
+        request,
+        name=name,
+        sync_port=sync_port,
+        wire_render_port=wire_render_port,
+    )
+    verdict = applied_or_raise(tree, result, label=name)
+    if verdict.disposition is HandlerDisposition.SKIPPED:
+        return verdict  # leader skip: intake never ran, nothing was archived
+    return HandlerResult.refused(reason)

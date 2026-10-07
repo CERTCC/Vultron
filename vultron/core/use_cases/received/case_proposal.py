@@ -91,6 +91,7 @@ from vultron.core.use_cases.received._bt_verdict import (
 from vultron.core.use_cases.received._sender_embargo_proposal import (
     sender_embargo_proposal_inputs,
 )
+from vultron.core.use_cases.received._store_only import refuse_after_intake
 
 logger = logging.getLogger(__name__)
 
@@ -212,8 +213,13 @@ class CreateCaseProposalReceivedUseCase:
             logger.warning(
                 "create_case_proposal_received: no proposal_id — refusing"
             )
-            return HandlerResult.refused(
-                "Create(CaseProposal) carries no proposal id"
+            return refuse_after_intake(
+                self._dl,
+                request,
+                "Create(CaseProposal) carries no proposal id",
+                name="CreateCaseProposalReceivedBT",
+                sync_port=self._sync_port,
+                wire_render_port=self._wire_render_port,
             )
 
         # The report receiver who sent Create(as_CaseProposal) is the activity

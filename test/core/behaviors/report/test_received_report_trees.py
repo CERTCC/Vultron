@@ -16,10 +16,10 @@
 """Tests for received-report behavior trees and use-case integration.
 
 Covers all four report-lifecycle BTs (issue #759 AC-1 through AC-5):
-  - ``CreateReportReceivedBT``    — stores report + activity
+  - ``CreateReportReceivedBT``    — stores report; intake archives activity
   - ``AckReportReceivedBT``      — intake archives activity; forwards own ack
-  - ``CloseReportReceivedBT``    — stores activity + RM → CLOSED
-  - ``InvalidateReportReceivedBT`` — stores activity + RM → INVALID
+  - ``CloseReportReceivedBT``    — intake archives activity; RM → CLOSED
+  - ``InvalidateReportReceivedBT`` — intake archives activity; RM → INVALID
 
 Each BT is tested at three levels:
   1. Node-level (individual storage / transition nodes)
@@ -36,7 +36,6 @@ from py_trees.common import Status
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.report.nodes.storage import (
-    StoreActivityNode,
     StoreReportNode,
 )
 from vultron.core.behaviors.report.received_report_trees import (
@@ -93,20 +92,6 @@ def _archived_by_intake(dl: SqliteDataLayer, activity_id: str) -> bool:
 
     record = dl.read(ReceivedActivityRecord.build_id(activity_id))
     return isinstance(record, ReceivedActivityRecord)
-
-
-def _activity_stored(dl: SqliteDataLayer, activity_id: str) -> bool:
-    """Return True if any activity with *activity_id* is in the DataLayer.
-
-    Activities are stored in type-keyed collections (e.g. ``"Create"``),
-    so ``dl.read(id)`` does not work for them.  This helper tries each
-    known activity type used in these tests.
-    """
-    for type_key in ("Create", "Read", "Reject", "TentativeReject", "Offer"):
-        for record in dl.get_all(type_key):
-            if record.get("id_") == activity_id:
-                return True
-    return False
 
 
 def _make_activity(
@@ -213,61 +198,6 @@ class TestStoreReportNode:
         """StoreReportNode with empty report_id is a no-op SUCCESS."""
         node = StoreReportNode(
             report_id="", report_obj=CoreReport(id_=REPORT_ID)
-        )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
-        assert result.status == Status.SUCCESS
-
-
-# ---------------------------------------------------------------------------
-# StoreActivityNode
-# ---------------------------------------------------------------------------
-
-
-class TestStoreActivityNode:
-    def test_stores_activity_in_dl(self, dl, bridge):
-        """StoreActivityNode persists an activity → SUCCESS."""
-        activity = _make_activity()
-        node = StoreActivityNode(
-            activity_id=ACTIVITY_ID,
-            activity_obj=activity,
-            label="TestActivity",
-        )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
-
-        assert result.status == Status.SUCCESS
-        # Activities are stored in type-keyed collections; dl.read() won't find them.
-        stored = dl.get_all(activity.type_)
-        assert any(r["id_"] == ACTIVITY_ID for r in stored)
-
-    def test_idempotent_second_store(self, dl, bridge):
-        """StoreActivityNode is idempotent — second call is a no-op SUCCESS."""
-        activity = _make_activity()
-        dl.create(activity)  # pre-store
-
-        node = StoreActivityNode(
-            activity_id=ACTIVITY_ID,
-            activity_obj=activity,
-        )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
-        assert result.status == Status.SUCCESS
-
-    def test_no_activity_obj_is_failure(self, dl, bridge, caplog):
-        """StoreActivityNode with activity_obj=None and a set id → FAILURE."""
-        node = StoreActivityNode(
-            activity_id=ACTIVITY_ID,
-            activity_obj=None,
-        )
-        with caplog.at_level(logging.ERROR):
-            result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
-
-        assert result.status == Status.FAILURE
-        assert dl.get_all("Create") == []
-
-    def test_empty_activity_id_is_no_op(self, bridge):
-        """StoreActivityNode with empty activity_id is a no-op SUCCESS."""
-        node = StoreActivityNode(
-            activity_id="",
-            activity_obj=_make_activity(),
         )
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
@@ -494,7 +424,7 @@ def _make_invalidate_report_event() -> InvalidateReportReceivedEvent:
 
 class TestCreateReportReceivedTree:
     def test_happy_path_stores_report_and_activity(self, dl):
-        """Full BT stores both VulnerabilityReport and CreateReport activity."""
+        """Full BT stores the VulnerabilityReport and intake archives the activity."""
         event = _make_create_report_event()
         tree = create_report_received_tree(event)
         bridge = BTBridge(datalayer=dl)
@@ -504,7 +434,7 @@ class TestCreateReportReceivedTree:
 
         assert result.status == Status.SUCCESS
         assert dl.read(REPORT_ID) is not None
-        assert _activity_stored(dl, ACTIVITY_ID)
+        assert _archived_by_intake(dl, ACTIVITY_ID)
 
     def test_idempotent_run_succeeds(self, dl):
         """Second BT execution is idempotent — no-op SUCCESS."""
@@ -530,7 +460,7 @@ class TestCreateReportReceivedUseCase:
         CreateReportReceivedUseCase(dl, event).execute()
 
         assert dl.read(REPORT_ID) is not None
-        assert _activity_stored(dl, ACTIVITY_ID)
+        assert _archived_by_intake(dl, ACTIVITY_ID)
 
     def test_use_case_is_idempotent(self):
         """Calling use case twice does not raise and stays consistent."""
@@ -543,7 +473,7 @@ class TestCreateReportReceivedUseCase:
         CreateReportReceivedUseCase(dl, event).execute()
 
         assert dl.read(REPORT_ID) is not None
-        assert _activity_stored(dl, ACTIVITY_ID)
+        assert _archived_by_intake(dl, ACTIVITY_ID)
 
 
 # ---------------------------------------------------------------------------
@@ -631,7 +561,7 @@ class TestCloseReportReceivedTree:
         )
 
         assert result.status == Status.SUCCESS
-        assert _activity_stored(dl, ACTIVITY_ID)
+        assert _archived_by_intake(dl, ACTIVITY_ID)
 
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
@@ -660,7 +590,7 @@ class TestCloseReportReceivedTree:
         assert any(
             "no vulnerabilitycase for report" in m.lower() for m in msgs
         )
-        assert _activity_stored(dl, ACTIVITY_ID)
+        assert _archived_by_intake(dl, ACTIVITY_ID)
 
     def test_idempotent_rm_transition(self, dl):
         """Already-CLOSED participant stays CLOSED; BT still SUCCESS."""
@@ -687,7 +617,7 @@ class TestCloseReportReceivedUseCase:
         event = _make_close_report_event()
         CloseReportReceivedUseCase(dl, event).execute()
 
-        assert _activity_stored(dl, ACTIVITY_ID)
+        assert _archived_by_intake(dl, ACTIVITY_ID)
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
         participant = cast(CaseParticipant, dl.read(p_id))
@@ -733,7 +663,7 @@ class TestInvalidateReportReceivedTree:
         )
 
         assert result.status == Status.SUCCESS
-        assert _activity_stored(dl, ACTIVITY_ID)
+        assert _archived_by_intake(dl, ACTIVITY_ID)
 
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
@@ -762,7 +692,7 @@ class TestInvalidateReportReceivedTree:
         assert any(
             "no vulnerabilitycase for report" in m.lower() for m in msgs
         )
-        assert _activity_stored(dl, ACTIVITY_ID)
+        assert _archived_by_intake(dl, ACTIVITY_ID)
 
     def test_idempotent_rm_transition(self, dl):
         """Already-INVALID participant stays INVALID; BT still SUCCESS."""
@@ -791,7 +721,7 @@ class TestInvalidateReportReceivedUseCase:
         event = _make_invalidate_report_event()
         InvalidateReportReceivedUseCase(dl, event).execute()
 
-        assert _activity_stored(dl, ACTIVITY_ID)
+        assert _archived_by_intake(dl, ACTIVITY_ID)
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
         participant = cast(CaseParticipant, dl.read(p_id))

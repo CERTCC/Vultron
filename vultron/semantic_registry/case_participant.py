@@ -53,6 +53,7 @@ ENTRIES: list[SemanticEntry] = [
         use_case_class=AddCaseParticipantToCaseReceivedUseCase,
         phrase="{actor} added {object} as a case participant",
         wire_activity_class=_AddParticipantToCaseActivity,
+        include_activity=True,
     ),
     SemanticEntry(
         semantics=MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE,
@@ -61,5 +62,6 @@ ENTRIES: list[SemanticEntry] = [
         use_case_class=RemoveCaseParticipantFromCaseReceivedUseCase,
         phrase="{actor} removed {object} from the case",
         wire_activity_class=_RemoveParticipantFromCaseActivity,
+        include_activity=True,
     ),
 ]

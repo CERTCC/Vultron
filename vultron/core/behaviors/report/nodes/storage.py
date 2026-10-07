@@ -15,18 +15,12 @@
 
 """Idempotent storage action nodes for the report behavior tree.
 
-These nodes persist inbound report-related objects (VulnerabilityReport and
-protocol activities) to the DataLayer in an idempotent way.
+``StoreReportNode`` persists an inbound VulnerabilityReport in an idempotent
+way, delegating existence checks to ``idempotent_store()``, which uses
+``dl.read()`` to avoid a silent catch-all on ``ValueError``.
 
-``StoreReportNode`` delegates existence checks to ``idempotent_store()``,
-which uses ``dl.read()`` to avoid a silent catch-all on ``ValueError``.
-
-``StoreActivityNode`` uses a guarded ``dl.create()`` with a narrow ``ValueError``
-catch.  The ``dl.read()`` approach does not work for ``VultronActivity``
-objects because they are stored in type-keyed collections (e.g. ``"Create"``)
-and cannot be retrieved by URI alone.  A ``ValueError`` from ``dl.create()``
-always means "duplicate" for activities — the SQLite DL raises precisely this
-error on duplicate IDs within a typed collection.
+The received activity is not stored here: intake archives it first
+(CLP-10-017, CLP-10-019).
 
 Per issue #759 AC-1, AC-2, AC-3, AC-4.
 """
@@ -37,7 +31,6 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.services.idempotent_store import idempotent_store
-from vultron.errors import VultronAlreadyExistsError
 
 
 class StoreReportNode(DataLayerActionWithPorts):
@@ -87,78 +80,4 @@ class StoreReportNode(DataLayerActionWithPorts):
             self.report_obj,
             "VulnerabilityReport",
         )
-        return Status.SUCCESS
-
-
-class StoreActivityNode(DataLayerActionWithPorts):
-    """Idempotently store an inbound protocol activity in the DataLayer.
-
-    Returns SUCCESS (no-op) when ``activity_id`` is empty or
-    ``activity_obj`` is None — matching the guard logic in the original
-    procedural handlers.
-    """
-
-    def __init__(
-        self,
-        activity_id: str,
-        activity_obj: Any,
-        label: str = "activity",
-        name: str | None = None,
-    ):
-        """Initialize StoreActivityNode.
-
-        Args:
-            activity_id: ID of the activity to store.
-            activity_obj: The activity object to persist (may be None if
-                absent in the inbound event).
-            label: Human-readable label used in log messages (e.g.
-                ``"CreateReport"``).
-            name: Optional custom node name.
-        """
-        super().__init__(name=name or self.__class__.__name__)
-        self.activity_id = activity_id
-        self.activity_obj = activity_obj
-        self.label = label
-
-    def update(self) -> Status:
-        """Store the activity idempotently.
-
-        Uses a narrow ``ValueError`` catch because ``dl.read()`` cannot look
-        up ``VultronActivity`` objects by URI — they are stored in type-keyed
-        collections (e.g. ``"Create"``, ``"Read"``).  A ``ValueError`` from
-        ``dl.create()`` always indicates a duplicate for activities.
-
-        Returns:
-            SUCCESS when the activity is stored (or already exists);
-            FAILURE if the DataLayer is unavailable or activity_obj is None
-            when activity_id is set (precondition violation).
-        """
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-        if not self.activity_id:
-            self.logger.debug("%s: no activity_id — skipping store", self.name)
-            return Status.SUCCESS
-
-        if self.activity_obj is None:
-            self.logger.error(
-                "%s: activity_obj is None for id '%s' — cannot store",
-                self.name,
-                self.activity_id,
-            )
-            return Status.FAILURE
-
-        try:
-            self.datalayer.create(self.activity_obj)
-            self.logger.info(
-                "Stored %s activity '%s'", self.label, self.activity_id
-            )
-        except VultronAlreadyExistsError:
-            # Duplicate: inbox endpoint may pre-store activities before
-            # dispatching.  This is expected and not an error condition.
-            self.logger.debug(
-                "%s activity '%s' already stored — skipping (idempotent)",
-                self.label,
-                self.activity_id,
-            )
         return Status.SUCCESS

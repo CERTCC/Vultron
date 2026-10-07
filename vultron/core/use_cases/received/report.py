@@ -182,8 +182,8 @@ class CreateReportReceivedUseCase:
             ),
             activity=request,
         )
-        # The tree only stores the report and the activity; each store step is
-        # idempotent and fails only when the DataLayer does.
+        # Intake archives the activity and the tree stores the report; each step
+        # is idempotent and fails only when the DataLayer does.
         return applied_or_raise(tree, result, label="CreateReportReceivedBT")
 
 
