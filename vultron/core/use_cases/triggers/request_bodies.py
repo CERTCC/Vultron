@@ -250,8 +250,8 @@ class CreateCaseRequest(BaseModel):
 
     The actor creates a local VulnerabilityCase and queues a
     CreateCaseActivity in their outbox for delivery to the actors named in
-    ``to``; with no ``to`` nothing is queued (OX-08-001).  A blank recipient
-    is refused here (CS-08-002) rather than queued addressed to no one.
+    ``to``.  With no ``to`` the case is created locally and nothing is
+    queued (OX-08-001); a blank ``to`` entry is refused (CS-08-002).
 
     TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
     """
