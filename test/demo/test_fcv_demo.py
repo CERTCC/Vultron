@@ -38,7 +38,7 @@ from test.demo._helpers import (
 )
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.cli import main
-from vultron.demo.helpers import invite_chain
+from vultron.demo.helpers import coordinated_case, invite_chain
 from vultron.demo.helpers.polling import find_case_invite_for_actor
 
 # ---------------------------------------------------------------------------
@@ -382,15 +382,25 @@ class TestFcvMilestoneAssertions:
                 return_value=coordinator_in_coordinator,
             ),
             patch.object(
-                demo, "reporter_submits_report", return_value=(report, offer)
+                coordinated_case,
+                "get_actor_by_id",
+                return_value=coordinator_in_coordinator,
             ),
-            patch.object(demo, "run_direct_path_rm_triage", return_value=case),
-            patch.object(demo, "wait_for_case_participants"),
-            patch.object(demo, "as_VulnerabilityCase") as mock_vc,
-            patch.object(demo, "run_invite_path_rm_triage"),
-            patch.object(demo, "verify_case_active") as mock_m1,
             patch.object(
-                demo,
+                coordinated_case,
+                "reporter_submits_report",
+                return_value=(report, offer),
+            ),
+            patch.object(
+                coordinated_case,
+                "run_direct_path_rm_triage",
+                return_value=case,
+            ),
+            patch.object(coordinated_case, "wait_for_case_participants"),
+            patch.object(coordinated_case, "as_VulnerabilityCase") as mock_vc,
+            patch.object(coordinated_case, "verify_case_active") as mock_m1,
+            patch.object(
+                coordinated_case,
                 "demo_check",
                 # Patched: test verifies call parameters/ordering, not context-manager
                 # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
@@ -428,12 +438,12 @@ class TestFcvMilestoneAssertions:
         case = self._case()
 
         with (
-            patch.object(demo, "wait_for_participant_rm_state"),
+            patch.object(coordinated_case, "wait_for_participant_rm_state"),
             patch.object(ActorSession, "notify_fix_ready"),
-            patch.object(demo, "wait_for_participant_vf_state"),
-            patch.object(demo, "verify_fix_ready") as mock_m5,
+            patch.object(coordinated_case, "wait_for_participant_vf_state"),
+            patch.object(coordinated_case, "verify_fix_ready") as mock_m5,
             patch.object(
-                demo,
+                coordinated_case,
                 "demo_check",
                 # Patched: test verifies call parameters/ordering, not context-manager
                 # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
@@ -469,14 +479,16 @@ class TestFcvMilestoneAssertions:
             call_order.append("rm_wait")
 
         with (
-            patch.object(demo, "wait_for_participant_rm_state", _rm_wait),
+            patch.object(
+                coordinated_case, "wait_for_participant_rm_state", _rm_wait
+            ),
             patch.object(
                 ActorSession,
                 "notify_fix_ready",
                 side_effect=lambda *a, **kw: call_order.append("fix_ready"),
             ),
-            patch.object(demo, "wait_for_participant_vf_state"),
-            patch.object(demo, "verify_fix_ready"),
+            patch.object(coordinated_case, "wait_for_participant_vf_state"),
+            patch.object(coordinated_case, "verify_fix_ready"),
         ):
             demo._phase_fix_lifecycle(
                 coordinator_client=coordinator_client,
@@ -514,11 +526,13 @@ class TestFcvMilestoneAssertions:
 
         with (
             patch.object(ActorSession, "notify_published"),
-            patch.object(demo, "wait_for_case_em_terminated"),
-            patch.object(demo, "wait_for_participant_vf_state"),
-            patch.object(demo, "verify_publicly_disclosed") as mock_m6,
+            patch.object(coordinated_case, "wait_for_case_em_terminated"),
+            patch.object(coordinated_case, "wait_for_participant_vf_state"),
             patch.object(
-                demo,
+                coordinated_case, "verify_publicly_disclosed"
+            ) as mock_m6,
+            patch.object(
+                coordinated_case,
                 "demo_check",
                 # Patched: test verifies call parameters/ordering, not context-manager
                 # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
@@ -560,12 +574,14 @@ class TestFcvMilestoneAssertions:
 
         with (
             patch.object(ActorSession, "close_case"),
-            patch.object(demo, "wait_for_all_participants_rm_closed"),
-            patch.object(demo, "verify_case_closed") as mock_m7,
-            patch.object(demo, "wait_for_event_type_in_ledger"),
-            patch.object(demo, "wait_for_replica_ledger_coverage"),
             patch.object(
-                demo,
+                coordinated_case, "wait_for_all_participants_rm_closed"
+            ),
+            patch.object(coordinated_case, "verify_case_closed") as mock_m7,
+            patch.object(coordinated_case, "wait_for_event_type_in_ledger"),
+            patch.object(coordinated_case, "wait_for_replica_ledger_coverage"),
+            patch.object(
+                coordinated_case,
                 "demo_check",
                 # Patched: test verifies call parameters/ordering, not context-manager
                 # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
@@ -652,10 +668,14 @@ class TestFinderCaseReplicaWaitBeforeVendorTriage:
 
         with (
             patch_chain_shared(
-                demo, "wait_for_case_on_container", side_effect=_wait_for_case
+                coordinated_case,
+                "wait_for_case_on_container",
+                side_effect=_wait_for_case,
             ),
             patch.object(
-                demo, "run_invite_path_rm_triage", side_effect=_triage
+                coordinated_case,
+                "run_invite_path_rm_triage",
+                side_effect=_triage,
             ),
             patch.object(
                 ActorSession,
@@ -665,21 +685,16 @@ class TestFinderCaseReplicaWaitBeforeVendorTriage:
                 ),
             ),
             patch.object(ActorSession, "accept_case_invite"),
-            patch.object(demo, "wait_for_case_participants"),
+            patch.object(coordinated_case, "wait_for_case_participants"),
             patch.object(invite_chain, "find_case_invite_for_actor"),
             patch.object(
-                demo, "get_actor_by_id", return_value=vendor_in_vendor
+                coordinated_case,
+                "get_actor_by_id",
+                return_value=vendor_in_vendor,
             ),
             patch.object(
-                demo,
+                coordinated_case,
                 "demo_check",
-                # Patched: test verifies call parameters/ordering, not context-manager
-                # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
-                side_effect=lambda _: contextlib.nullcontext(),
-            ),
-            patch.object(
-                demo,
-                "demo_step",
                 # Patched: test verifies call parameters/ordering, not context-manager
                 # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
                 side_effect=lambda _: contextlib.nullcontext(),
@@ -749,18 +764,20 @@ class TestFcvInviteChainSkipsDependents:
 
         with (
             patch_chain_shared(
-                demo, "wait_for_case_on_container"
+                coordinated_case, "wait_for_case_on_container"
             ) as replica_wait,
-            patch.object(demo, "run_invite_path_rm_triage"),
+            patch.object(coordinated_case, "run_invite_path_rm_triage"),
             patch.object(
                 ActorSession, "invite_actor_to_case", **invite_trigger
             ),
             patch.object(ActorSession, "accept_case_invite") as accept_invite,
-            patch.object(demo, "wait_for_case_participants"),
+            patch.object(coordinated_case, "wait_for_case_participants"),
             patch.object(
                 invite_chain, "find_case_invite_for_actor", **invite_lookup
             ) as find_invite,
-            patch.object(demo, "get_actor_by_id", return_value=vendor),
+            patch.object(
+                coordinated_case, "get_actor_by_id", return_value=vendor
+            ),
         ):
             demo._phase_invite_vendor(
                 coordinator_client=coordinator_client,

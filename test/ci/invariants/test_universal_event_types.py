@@ -134,8 +134,8 @@ def test_all_ci_scenarios_have_a_harness_module() -> None:
     those too, so it should not pass here silently.
     """
     entries = json.loads(_CI_SCENARIOS_JSON.read_text())
-    assert len(entries) == 9, (
-        f"expected 9 CI scenarios, got {len(entries)} — if a scenario was "
+    assert len(entries) == 10, (
+        f"expected 10 CI scenarios, got {len(entries)} — if a scenario was "
         "added or removed, update DEMOMA-16 and the notes/ scenario tables"
     )
     missing = [
