@@ -118,7 +118,10 @@ So a case that has had an embargo in force never returns to `NONE` or `PROPOSED`
 
 ### Participant embargo consent
 
-`CaseParticipant.embargo_consents` holds one `EmbargoConsent(embargo_id, state)` row for each entry in the embargo register.
+`CaseParticipant.embargo_consents` holds one `EmbargoConsent(embargo_id, state, rsvp_deadline)` row for each entry in the embargo register.
+The rows live on the participant record, not on the case; the case's full consent table is the union of its participants' rows.
+`rsvp_deadline` is set only on an `INVITED` row, to that invitation's `Invite.end_time` when it has one (CM-28-001), and is cleared when the row leaves `INVITED`.
+It replaces the single `CaseParticipant.invite_rsvp_deadline` field, so a participant can hold concurrent invitations with different deadlines.
 Every row is written: when an embargo is proposed, every current participant gets an `UNINVITED` row for it; when a participant record is created, it gets an `UNINVITED` row for every entry already in the register.
 A missing row is a defect, and reading one raises.
 A participant that joins late stays `UNINVITED` on entries that are no longer in force; it is invited only to the `ACTIVE` embargo and to open revisions.
@@ -126,7 +129,7 @@ A participant that joins late stays `UNINVITED` on entries that are no longer in
 | State | Meaning |
 |---|---|
 | `UNINVITED` | Not asked about this embargo. The start state. |
-| `INVITED` | Asked; no answer yet. |
+| `INVITED` | Asked; no answer yet. Carries the invitation's RSVP deadline, if any. |
 | `AGREED` | Agreed to this embargo: explicitly, as its proposer, by seeding (CM-14-003, CM-14-005), or by carry-over. |
 | `DECLINED` | Explicitly refused this embargo, or withdrew from it (ADR-0093). |
 | `TIMED_OUT` | Invited, and the RSVP deadline passed with no answer (ADR-0118, the pocket veto). Not a refusal. |
@@ -183,7 +186,7 @@ Each change above is caused by one committed protocol message, and replay derive
 | an invitation's RSVP deadline passing, committed as an entry (CM-28-009) | — | `TIME_OUT` on the invitee's row for that invitation's embargo |
 
 An owner whose row for the proposal is `DECLINED` cannot activate it: `AGREE` refuses `DECLINED`, so replay refuses the activation, and the owner is invited again first.
-The RSVP deadline belongs to one invitation (CM-28-001, CM-28-012), so a deadline passing times out only that invitation's row, never the participant's other `INVITED` rows.
+The RSVP deadline belongs to one invitation (CM-28-001, CM-28-012), so its deadline is stored on that invitation's `INVITED` row, and a deadline passing times out only that row, never the participant's other `INVITED` rows.
 
 The two-audience rule (MSM-07-003, MSM-07-004) is retired: the owner's decision for the case has its own activities, and `Accept`/`Reject(Invite(EmbargoEvent))` is always the sender's own consent.
 The direct activation by `Add(EmbargoEvent, target=Case)` is retired, because adding an embargo to the case is what proposing does.
