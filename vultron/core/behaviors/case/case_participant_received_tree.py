@@ -86,6 +86,7 @@ def create_remove_case_participant_received_tree(
     case_id: str,
     sender_id: str,
     removal_activity_id: str,
+    claimed_actor_id: str | None = None,
 ) -> py_trees.composites.Sequence:
     """Create the BT for ``RemoveCaseParticipantFromCaseReceivedUseCase``.
 
@@ -117,6 +118,9 @@ def create_remove_case_participant_received_tree(
         sender_id: The activity's sender, who must be the Case Owner.
         removal_activity_id: The received ``Remove`` activity's id, recorded
             as the removal fact (CM-31-001).
+        claimed_actor_id: The actor the inline participant is attributed to,
+            when it names one; it must match the stored record's actor
+            (CM-31-004), because a replica resolves the record by it.
 
     Returns:
         The root ``Sequence``, ready for ``BTBridge.execute_with_setup()``.
@@ -133,7 +137,9 @@ def create_remove_case_participant_received_tree(
         ),
         precondition_guards=[
             case_manager_admits_removal_guard(
-                participant_id=participant_id, case_id=case_id
+                participant_id=participant_id,
+                case_id=case_id,
+                claimed_actor_id=claimed_actor_id,
             )
         ],
         manager_case_id=case_id,

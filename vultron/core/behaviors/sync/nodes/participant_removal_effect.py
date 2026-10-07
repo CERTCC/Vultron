@@ -33,8 +33,6 @@ own record too (CM-31-006).
 
 from __future__ import annotations
 
-import logging
-
 from py_trees.common import Status
 
 from vultron.core.behaviors.sync.nodes._helpers import (
@@ -51,8 +49,6 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.wire_keys import wire_key
 from vultron.errors import VultronNotFoundError
-
-logger = logging.getLogger(__name__)
 
 #: Ledger ``event_type`` of the Case Owner's removal request, as the guarded
 #: commit derives it from the received activity's semantics.
@@ -86,8 +82,12 @@ class ApplyRemoveCaseParticipantFromLedgerNode(_LedgerEffectNode):
     actor the snapshot's ``object`` is attributed to, through
     ``actor_participant_index`` (CM-19-003), falling back to the record id
     the snapshot names when that id is on the replica's roster — and
-    records the removal fact from the snapshot's activity id.  The record stays on the roster (CM-31-001) and its
-    embargo consent rows are untouched (CM-31-008).
+    records the removal fact from the snapshot's activity id.  Resolving by
+    actor first is safe because the CASE_MANAGER refused any removal whose
+    inline ``attributedTo`` disagrees with the record it judged (CM-31-004),
+    and a replica's own record id may differ from the CASE_MANAGER's.  The
+    record stays on the roster (CM-31-001) and its embargo consent rows are
+    untouched (CM-31-008).
 
     Idempotent: a participant already removed keeps its first removal.
     Lenient on missing data, as the other apply nodes are: a replica that

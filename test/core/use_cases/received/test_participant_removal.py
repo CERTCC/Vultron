@@ -23,6 +23,7 @@ import json
 from typing import Any
 
 import pytest
+from py_trees.common import Status
 
 from test.core.use_cases.received.actor.test_case_joining_planned import (
     route_received,
@@ -40,6 +41,9 @@ from test.core.use_cases.received.test_participant_removal_planned import (
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.core.behaviors.case.case_participant_received_tree import (
     create_remove_case_participant_received_tree,
 )
@@ -55,6 +59,7 @@ from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
 from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.errors import VultronBTInternalError
 from vultron.wire.as2.factories import (
     reject_log_entry_activity,
     remove_participant_from_case_activity,
@@ -191,6 +196,116 @@ def test_replay_does_not_answer_the_removed_participant(
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert len(removal.activities_to("Announce", VENDOR)) == to_vendor
+
+
+@pytest.mark.spec("CM-31-004")
+@pytest.mark.spec("CM-31-007")
+def test_removal_naming_another_actor_than_the_record_is_refused(
+    removal: _RemovalCase,
+) -> None:
+    """The inline ``attributedTo`` must name the record's own actor.
+
+    A replica resolves its copy of the record by that actor, so a mismatch
+    would remove a different participant there — here the CASE_MANAGER —
+    than the one judged at the CASE_MANAGER.
+    """
+    forged = removal.participant(VENDOR).model_copy(
+        update={"attributed_to": MANAGER}
+    )
+    activity = remove_participant_from_case_activity(
+        forged, target=CASE_ID, actor=OWNER
+    )
+
+    result = removal.route(activity)
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert not removal.participant(VENDOR).removed
+    manager_record = removal.dl.read(
+        removal.read_case().actor_participant_index[MANAGER]
+    )
+    assert isinstance(manager_record, CaseParticipant)
+    assert not manager_record.removed
+    assert removal.ledger() == []
+
+
+class _NoticeFailsAdapter(TriggerActivityAdapter):
+    """A trigger-activity port whose removal notice cannot be built."""
+
+    def remove_participant_from_case(self, *args: Any, **kwargs: Any) -> Any:
+        raise RuntimeError("outbox unavailable")
+
+
+@pytest.mark.spec("CM-31-006")
+@pytest.mark.spec("BT-14-001")
+def test_notice_failure_after_commit_is_an_internal_error(
+    removal: _RemovalCase,
+) -> None:
+    """The entry is committed, so a failed notice is never a refusal."""
+    with pytest.raises(VultronBTInternalError):
+        route_received(
+            removal.dl,
+            _owner_removes_vendor(removal),
+            receiving_actor_id=MANAGER,
+            sync_port=SyncActivityAdapter(removal.dl),
+            trigger_activity=_NoticeFailsAdapter(removal.dl),
+        )
+
+    assert [entry.log_object_id for entry in removal.ledger()] == [
+        _REMOVE_ACTIVITY_ID
+    ]
+
+
+@pytest.mark.spec("CM-31-001")
+def test_failed_fact_write_after_commit_is_an_internal_error(
+    removal: _RemovalCase, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A removal fact that cannot be recorded is our fault, not the sender's."""
+    monkeypatch.setattr(
+        RemoveCaseParticipantFromCaseReceivedNode,
+        "update",
+        lambda self: Status.FAILURE,
+    )
+
+    with pytest.raises(VultronBTInternalError):
+        removal.route(_owner_removes_vendor(removal))
+
+    assert len(removal.ledger()) == 1
+
+
+@pytest.mark.spec("CM-24-006")
+def test_removal_on_a_case_without_a_case_manager_is_refused() -> None:
+    """With no CASE_MANAGER on the roster, nobody may apply the removal."""
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=VENDOR)
+    _seed(dl)
+    case = dl.read(CASE_ID)
+    assert isinstance(case, as_VulnerabilityCase)
+    manager_record = case.actor_participant_index[MANAGER]
+    case.case_participants = [
+        p for p in case.case_participants if _as_id(p) != manager_record
+    ]
+    case.actor_participant_index = {
+        actor: record
+        for actor, record in case.actor_participant_index.items()
+        if actor != MANAGER
+    }
+    dl.save(case)
+    record = dl.read(_participant_id(OTHER))
+    assert isinstance(record, CaseParticipant)
+
+    result = route_received(
+        dl,
+        remove_participant_from_case_activity(
+            record, target=CASE_ID, actor=OWNER
+        ),
+        receiving_actor_id=VENDOR,
+        sync_port=SyncActivityAdapter(dl),
+    )
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert "no CASE_MANAGER" in (result.reason or "")
+    stored = dl.read(_participant_id(OTHER))
+    assert isinstance(stored, CaseParticipant)
+    assert not stored.removed
 
 
 # ---------------------------------------------------------------------------

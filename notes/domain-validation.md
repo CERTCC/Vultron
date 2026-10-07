@@ -9,7 +9,7 @@ related_specs:
   - specs/architecture.yaml (ARCH-10-001, ARCH-12-001, ARCH-12-002, ARCH-12-003,
     ARCH-15-001 through ARCH-15-004, ARCH-21-001 through ARCH-21-005)
   - specs/case-management.yaml (CM-18-005, CM-23-001, CM-23-012, CM-27-001
-    through CM-27-003)
+    through CM-27-003, CM-31-001)
   - specs/case-ledger-processing.yaml (CLP-07-002)
   - specs/rm-behavior.yaml (RMB-14-004, RMB-14-005)
   - specs/participant-role-management.yaml (PRM-03-003)
@@ -271,7 +271,9 @@ plus canonical mutators plus an architecture ratchet (CM-27-001, PRM-03-003),
 the same way PRM-03-001 closed it for `case_roles`. The established canonical
 mutators are `add_case_status()` (on `VulnerabilityCase`, CM-27-003) and
 `add_participant_status()` (on `CaseParticipant`, PRM-03-003), alongside the
-existing `add_participant()` / `remove_participant()` for `case_participants`.
+existing `add_participant()` for `case_participants`. The roster has no
+deleting mutator: removal calls `CaseParticipant.record_removal()` and keeps the
+record (CM-31-001, ADR-0116).
 
 ### Where `validate_assignment` goes — and where it must not
 

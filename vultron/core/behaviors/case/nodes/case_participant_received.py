@@ -182,11 +182,41 @@ class RemovalNamesCaseParticipantNode(_RemovalGuardNode):
     """Guard: the ``Remove(CaseParticipant)`` names a participant of the case.
 
     The frame already refuses a record that is not on the case's roster
-    (CM-31-004); any record it resolves passes.
+    (CM-31-004).  The inline participant must also name the stored record's
+    actor when it names one: the ledger entry carries the activity as
+    received, and a replica resolves its own copy of the record by that
+    actor (CM-31-007), so an ``attributedTo`` that disagrees with the record
+    would remove a different participant on every replica than the one
+    judged here — possibly the CASE_MANAGER or the Case Owner.
     """
 
+    def __init__(
+        self,
+        participant_id: str,
+        case_id: str,
+        claimed_actor_id: str | None = None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(
+            participant_id=participant_id, case_id=case_id, name=name
+        )
+        self.claimed_actor_id = claimed_actor_id
+
     def _check(self, record: CaseParticipant) -> Status:
-        return Status.SUCCESS
+        record_actor_id = _as_id(record.attributed_to)
+        if (
+            self.claimed_actor_id is None
+            or self.claimed_actor_id == record_actor_id
+        ):
+            return Status.SUCCESS
+        self.feedback_message = (
+            f"the removal names participant '{self.participant_id}' as"
+            f" '{self.claimed_actor_id}', but that record belongs to"
+            f" '{record_actor_id}' on case '{self.case_id}' — removal REFUSED"
+            " (CM-31-004)"
+        )
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
 
 
 class RemovalTargetIsRemovableNode(_RemovalGuardNode):
@@ -238,7 +268,9 @@ class ParticipantNotYetRemovedNode(
 
 
 def case_manager_admits_removal_guard(
-    participant_id: str, case_id: str
+    participant_id: str,
+    case_id: str,
+    claimed_actor_id: str | None = None,
 ) -> py_trees.composites.Selector:
     """Precondition guard: when this actor is the CASE_MANAGER, the removal is admissible.
 
@@ -247,6 +279,8 @@ def case_manager_admits_removal_guard(
     replica skips it as ``SUCCESS`` (it writes nothing, RSH-08-003), and the
     CASE_MANAGER runs the three removal guards in order, so a removal it
     refuses or skips leaves no ledger entry (CM-31-004, CLP-13-001).
+    *claimed_actor_id* is the actor the inline participant is attributed
+    to, when it names one.
     """
     return create_case_manager_gated_tree(
         name="RemovalAdmissibleIfCaseManager",
@@ -254,7 +288,9 @@ def case_manager_admits_removal_guard(
         body_name="RemovalAdmissible",
         children=[
             RemovalNamesCaseParticipantNode(
-                participant_id=participant_id, case_id=case_id
+                participant_id=participant_id,
+                case_id=case_id,
+                claimed_actor_id=claimed_actor_id,
             ),
             RemovalTargetIsRemovableNode(
                 participant_id=participant_id, case_id=case_id
@@ -279,7 +315,9 @@ class RemoveCaseParticipantFromCaseReceivedNode(DataLayerActionWithPorts):
     Runs after the guarded commit, so the entry's fan-out — whose recipients
     were selected before this write — still reaches the removed participant
     (CM-31-006).  ``FAILURE`` when the record is gone: the guards found it
-    moments earlier in the CASE_MANAGER's own store (Regime 1, ADR-0087).
+    moments earlier in the CASE_MANAGER's own store (Regime 1, ADR-0087), so
+    the handler reads it as an internal fault, never a refusal — the entry
+    is already committed.
     """
 
     def __init__(

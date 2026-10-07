@@ -13,6 +13,7 @@ from vultron.core.behaviors.case.case_participant_received_tree import (
 from vultron.core.behaviors.case.nodes.case_participant_received import (
     EmitParticipantRemovalNoticeNode,
     ParticipantNotYetRemovedNode,
+    RemoveCaseParticipantFromCaseReceivedNode,
 )
 from vultron.core.behaviors.case.nodes.store_received_object import (
     StoreReceivedObjectNode,
@@ -22,6 +23,8 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     exempt,
 )
+from vultron.core.models._helpers import _as_id
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.case_participant import (
     AddCaseParticipantToCaseReceivedEvent,
     CreateCaseParticipantReceivedEvent,
@@ -31,7 +34,6 @@ from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
 )
-from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
@@ -40,6 +42,7 @@ from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
 )
 from vultron.core.use_cases.received._bt_verdict import (
+    case_manager_absence_refusal,
     failure_reason,
     node_failed,
     not_case_manager,
@@ -233,6 +236,11 @@ class RemoveCaseParticipantFromCaseReceivedUseCase:
             case_id=case_id,
             sender_id=request.actor_id,
             removal_activity_id=request.activity_id,
+            claimed_actor_id=(
+                _as_id(request.participant.attributed_to)
+                if isinstance(request.participant, CaseParticipant)
+                else None
+            ),
         )
         result = BTBridge(
             datalayer=self._dl,
@@ -261,10 +269,12 @@ class RemoveCaseParticipantFromCaseReceivedUseCase:
         label = "RemoveCaseParticipantReceivedBT"
         if node_failed(tree, ParticipantNotYetRemovedNode):
             return HandlerResult.skipped(failure_reason(tree, result))
-        if node_failed(tree, EmitParticipantRemovalNoticeNode):
-            # The removal is committed and applied by now; a notice that
-            # could not be built or queued is our fault, not the sender's
-            # (ADR-0095, BT-14-001).
+        if node_failed(
+            tree, RemoveCaseParticipantFromCaseReceivedNode
+        ) or node_failed(tree, EmitParticipantRemovalNoticeNode):
+            # The removal is committed by now; a fact that could not be
+            # recorded, or a notice that could not be built or queued, is
+            # our fault, not the sender's (ADR-0095, BT-14-001).
             raise VultronBTInternalError(
                 f"{label}: {failure_reason(tree, result)}"
             )
@@ -279,13 +289,12 @@ class RemoveCaseParticipantFromCaseReceivedUseCase:
             )
             return verdict
         if not_case_manager(tree):
-            case = self._dl.read_case(case_id)
-            if case is None or resolve_case_manager_id(case, self._dl) is None:
-                # No arm for a case without a CASE_MANAGER (CM-24-006): the
-                # sender guard let it through only as the bootstrap window.
-                return HandlerResult.refused(
-                    f"{label}: case '{case_id}' has no CASE_MANAGER"
-                )
+            # No arm for a case without a CASE_MANAGER (CM-24-006): the
+            # sender guard let it through only as the bootstrap window.
+            if (
+                refusal := case_manager_absence_refusal(self._dl, case_id)
+            ) is not None:
+                return refusal
             # Only the CASE_MANAGER's notice passes the replica's sender
             # guard; the replica stored it and applies the removal from the
             # ledger entry instead (CM-31-007, RSH-08-003).

@@ -365,8 +365,11 @@ KNOWN_LEGACY_EFFECT_NODES: frozenset[_Site] = frozenset(
 # ---------------------------------------------------------------------------
 # 3. Modules that call the gate but build no received tree.  BT-17-008 binds
 #    received trees only: a trigger, expiry or retry tree runs on the actor's
-#    own initiative, and the relay guard is a gate-wrapped condition shared
-#    by received and trigger trees (#4301 keeps their direct gate).
+#    own initiative.  The two ``case_manager_admits_*_guard`` composites are
+#    gate-wrapped read-only conditions passed as a received tree's
+#    ``precondition_guards`` (the embargo Invite tree, the participant
+#    removal tree): they hold no effect and no emit, which is all BT-17-008
+#    governs (#4301 keeps their direct gate).
 # ---------------------------------------------------------------------------
 # permanent: BT-17-008 (binds received-side trees only; #4301 keeps these)
 GATE_CALLERS_OUTSIDE_RECEIVED_TREES: frozenset[_Site] = frozenset(

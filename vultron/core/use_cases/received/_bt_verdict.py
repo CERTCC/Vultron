@@ -168,12 +168,29 @@ def not_case_manager_refusal(
     """
     if not not_case_manager(tree):
         return None
+    if (refusal := case_manager_absence_refusal(dl, case_id)) is not None:
+        return refusal
+    return HandlerResult.refused(f"not the CASE_MANAGER of case '{case_id}'")
+
+
+def case_manager_absence_refusal(
+    dl: CasePersistence, case_id: str
+) -> HandlerResult | None:
+    """The refusal owed when this store has no CASE_MANAGER to defer to.
+
+    ``REFUSED`` for a case this store does not hold and for a case whose
+    roster names no CASE_MANAGER (CM-24-006); ``None`` when the case names
+    one.  A handler whose CASE_MANAGER gate turned this actor away calls it
+    to tell those two cases from a replica that simply is not the
+    CASE_MANAGER, which :func:`not_case_manager_refusal` refuses and some
+    handlers read otherwise.
+    """
     case = dl.read(case_id)
     if not isinstance(case, VulnerabilityCase):
         return HandlerResult.refused(f"unknown case '{case_id}'")
     if resolve_case_manager_id(case, dl) is None:
         return HandlerResult.refused(f"case '{case_id}' has no CASE_MANAGER")
-    return HandlerResult.refused(f"not the CASE_MANAGER of case '{case_id}'")
+    return None
 
 
 def reference_edit_verdict(
@@ -307,6 +324,7 @@ def applied_or_raise(
 
 __all__ = [
     "applied_or_raise",
+    "case_manager_absence_refusal",
     "failure_reason",
     "find_named",
     "find_node",
