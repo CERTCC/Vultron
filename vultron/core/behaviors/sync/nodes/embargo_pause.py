@@ -40,7 +40,7 @@ Who is withheld is the shared selection's answer
 (:mod:`vultron.core.participants.recipients`, CM-10-007): a peer that is not an
 active participant gets no case content, and only a joined peer that is not
 active — the active embargo withholds it, or it was removed (CM-31-001) — has
-its stream paused (``embargo_withheld_participants``).
+its stream paused (``inactive_joined_participants``).
 
 Helpers here raise on a broken invariant and never return ``None`` in place of
 a failure (BT-HELPER-01).
@@ -57,7 +57,7 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.participants.recipients import (
     case_content_recipients,
-    embargo_withheld_participants,
+    inactive_joined_participants,
     is_case_content_recipient,
 )
 from vultron.core.ports.case_persistence import CasePersistence
@@ -212,20 +212,20 @@ def peer_is_withheld(
     return not is_case_content_recipient(case, datalayer, peer_id)
 
 
-def peer_is_embargo_withheld(
+def peer_is_inactive_joined(
     datalayer: CasePersistence, *, case_id: str, peer_id: str
 ) -> bool:
     """Report whether *peer_id* is a joined peer that is not active (CM-10-005).
 
     Such a peer's stream is paused, to be backfilled on admission
     (CM-10-006).  A removed joined peer is paused the same way
-    (``embargo_withheld_participants``); a peer that has not joined is not.
+    (``inactive_joined_participants``); a peer that has not joined is not.
 
     Raises:
         VultronError: *case_id* does not resolve to a case in *datalayer*.
     """
     case = _require_case(datalayer, case_id, peer_id)
-    return peer_id in embargo_withheld_participants(case, datalayer)
+    return peer_id in inactive_joined_participants(case, datalayer)
 
 
 def backfill_admitted_peers(

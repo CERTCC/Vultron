@@ -28,7 +28,7 @@ from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.participants.recipients import (
     case_content_participants,
     case_content_recipients,
-    embargo_withheld_participants,
+    inactive_joined_participants,
     inert_participants,
     invitation_recipients,
     is_case_content_recipient,
@@ -249,5 +249,5 @@ def test_removed_participant_gets_no_case_content(
     assert not is_case_content_recipient(case, dl, _REMOVED)
     assert inert_participants(case, dl) == {_REMOVED}
     # Joined but not active, so its ledger stream is paused for backfill.
-    assert embargo_withheld_participants(case, dl) == [_REMOVED]
+    assert inactive_joined_participants(case, dl) == [_REMOVED]
     assert _REMOVED in case.actor_participant_index

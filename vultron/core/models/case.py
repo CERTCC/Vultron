@@ -610,9 +610,12 @@ class VulnerabilityCase(CoreObject):
         the case carries inline, in roster order (ADR-0116).  A case put on
         the wire carries its participant records inline
         (``_case_for_wire``), so the published view is complete there.  A
-        bare participant reference is not provably active and is left out:
-        a case read from the store holds references only, so in-process
-        callers select recipients through
+        bare participant reference is not provably active and is left out
+        of this list; while any roster entry is a bare reference the AS2
+        dump leaves ``activeParticipants`` out altogether
+        (:meth:`_as2_unpublished_fields`), so the case never publishes a
+        partial view as if it were exact.  A case read from the store holds
+        references only, so in-process callers select recipients through
         :mod:`vultron.core.participants.recipients`, which resolves each
         reference to its record, not through this view.
 
@@ -627,6 +630,20 @@ class VulnerabilityCase(CoreObject):
             if isinstance(entry, CaseParticipant)
             and self.is_active_participant(entry)
         ]
+
+    def _as2_unpublished_fields(self) -> frozenset[str]:
+        """Leave ``activeParticipants`` out while a roster entry is a reference.
+
+        The check needs each participant's record; a bare reference cannot be
+        evaluated, so the view would be partial.  CM-31-003 publishes exactly
+        the active participants, so a partial view is not published at all.
+        """
+        if all(
+            isinstance(entry, CaseParticipant)
+            for entry in self.case_participants
+        ):
+            return frozenset()
+        return frozenset({"active_participants"})
 
 
 def has_case_statuses(case: VulnerabilityCase) -> bool:

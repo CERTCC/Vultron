@@ -468,7 +468,10 @@ validators on `CoreObject` (see `_check_computed_field_inputs` and
   appears in the `by_alias` dump but is not settable, so a round-trip must
   drop it first. The persistence dump (no `by_alias`) omits computed fields
   altogether, so a stored row holds only the facts a view is derived from
-  and cannot contradict a later change to the derivation (#4079). Dropping it
+  and cannot contradict a later change to the derivation (#4079). An object
+  that cannot derive a computed field exactly (a case whose roster holds bare
+  references) leaves it out of the `by_alias` dump too
+  (`_as2_unpublished_fields`), so it never publishes a partial view. Dropping it
   *unconditionally* would silently erase a peer asserting
   adherence its own consent state denies, so ARCH-23-005 requires a supplied
   value that differs from the derived one to be refused instead (#3547).

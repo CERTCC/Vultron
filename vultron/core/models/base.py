@@ -82,7 +82,11 @@ def _type_adapter(return_type: Any) -> TypeAdapter[Any]:
 
 
 def _json_form(return_type: Any, value: Any) -> Any:
-    """Return *value*'s ``mode="json"`` form under its declared *return_type*."""
+    """Return *value*'s ``mode="json"`` form under its declared *return_type*.
+
+    Exact only while the computed field declares no ``@field_serializer``,
+    which :meth:`CoreObject.__pydantic_init_subclass__` enforces.
+    """
     return _type_adapter(return_type).dump_python(value, mode="json")
 
 
@@ -336,8 +340,11 @@ class CoreObject(CoreRecord):
         # extra="forbid" does not reject them.
         obj = handler({k: v for k, v in data.items() if k not in spellings})
 
-        # Each derived value's JSON form comes from its declared return type,
-        # because the persistence dump omits computed fields (CM-31-003).
+        # Each derived value's JSON form comes from its declared return type:
+        # the persistence dump omits computed fields (CM-31-003), and core
+        # does not render the AS2 dump itself (ARCH-20-001).  A computed field
+        # may not declare a field serializer, so the two forms agree
+        # (:meth:`__pydantic_init_subclass__`).
         derived_json = {
             field_name: _json_form(
                 computed[field_name].return_type, getattr(obj, field_name)
@@ -363,6 +370,12 @@ class CoreObject(CoreRecord):
                 violations=violations,
             )
         return obj
+
+    @classmethod
+    def _computed_field_wire_key(cls, name: str) -> str:
+        """The key computed field *name* is emitted under in the AS2 dump."""
+        alias = getattr(cls.model_computed_fields[name], "alias", None)
+        return alias if isinstance(alias, str) else to_camel(name)
 
     @classmethod
     def _computed_field_spellings(cls) -> dict[str, str]:
@@ -560,9 +573,23 @@ class CoreObject(CoreRecord):
             if alias:
                 data.pop(alias, None)
             data.pop(to_camel(name), None)
+        for name in self._as2_unpublished_fields():
+            data.pop(name, None)
+            data.pop(type(self)._computed_field_wire_key(name), None)
         data.update(self._as2_derived_fields())
         data["@context"] = self.context_ or VULTRON_CONTEXT_URI
         return data
+
+    def _as2_unpublished_fields(self) -> frozenset[str]:
+        """Return the computed fields this object cannot publish exactly.
+
+        A computed field is a claim about the object.  When the object does
+        not carry every input the derivation needs, the AS2 form leaves the
+        field out rather than publish a partial value as if it were exact
+        (``VulnerabilityCase.active_participants``, CM-31-003).  The default
+        publishes every computed field.
+        """
+        return frozenset()
 
     def _as2_derived_fields(self) -> dict[str, Any]:
         """Return AS2 keys derived from this object for the delivery form.
@@ -572,6 +599,31 @@ class CoreObject(CoreRecord):
         supplies it here, so the derivation lives on the class it describes.
         """
         return {}
+
+    @classmethod
+    def __pydantic_init_subclass__(cls, **kwargs: Any) -> None:
+        """Refuse a computed field that declares a field serializer.
+
+        :meth:`_check_computed_field_inputs` derives a computed field's JSON
+        form from its return type, because the persistence dump omits it
+        (CM-31-003) and core does not render the AS2 dump itself
+        (ARCH-20-001).  A field serializer would make the published form
+        differ from that derivation, and the object would refuse its own
+        dump (ARCH-23-005), so it is refused when the class is defined.
+        """
+        super().__pydantic_init_subclass__(**kwargs)
+        computed = set(cls.model_computed_fields)
+        serialized = {
+            field
+            for decorator in cls.__pydantic_decorators__.field_serializers.values()
+            for field in decorator.info.fields
+        }
+        if clash := sorted(computed & serialized):
+            raise TypeError(
+                f"{cls.__name__}: computed field(s) {clash} declare a field"
+                " serializer; derive the published value in the property"
+                " instead (ARCH-23-005)"
+            )
 
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)  # type: ignore[arg-type]

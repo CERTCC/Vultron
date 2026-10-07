@@ -21,7 +21,7 @@ exist, and they differ on purpose (ADR-0114 § "Inert and active"):
   participants (:meth:`VulnerabilityCase.is_active_participant`, CM-10-004).
   ``skip_closed=True`` also leaves out participants at RM ``CLOSED``, for
   the fan-out that names CM-23-004.
-- :func:`embargo_withheld_participants` — the joined participants that are
+- :func:`inactive_joined_participants` — the joined participants that are
   not active, whose ledger streams are paused and backfilled on admission
   (CM-10-005, CM-10-006): the active embargo withholds them, or they were
   removed (CM-31-001).
@@ -185,7 +185,7 @@ def inert_participants(
     return set(case.actor_participant_index) - active
 
 
-def embargo_withheld_participants(
+def inactive_joined_participants(
     case: VulnerabilityCase,
     dl: CasePersistence,
     *,

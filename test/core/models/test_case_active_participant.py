@@ -362,3 +362,52 @@ def test_only_the_default_context_reads_back_as_no_override() -> None:
     restored = VulnerabilityCase.model_validate({**wire, "@context": other})
     assert restored.context_ == other
     assert restored.model_dump(by_alias=True)["@context"] == other
+
+
+@pytest.mark.spec("CM-31-003")
+def test_active_participants_is_left_out_while_the_roster_holds_a_reference() -> (
+    None
+):
+    """A case that cannot evaluate every roster entry publishes no view.
+
+    A bare reference cannot be checked, so a published list would be partial;
+    CM-31-003 requires exactly the active participants.  The case still
+    round-trips, and a supplied value is checked against the Python view.
+    """
+    kept = _signatory("kept")
+    case = _carrying_case(kept)
+    case.case_participants.append(f"{CASE_ID}/participants/bare-reference")
+
+    wire = case.model_dump(by_alias=True, mode="json")
+    assert "activeParticipants" not in wire
+    assert "active_participants" not in wire
+    assert VulnerabilityCase.model_validate(wire) == case
+
+    assert (
+        VulnerabilityCase.model_validate(
+            {**wire, "activeParticipants": [kept.id_]}
+        )
+        == case
+    )
+    with pytest.raises(ValidationError):
+        VulnerabilityCase.model_validate(
+            {**wire, "activeParticipants": [f"{CASE_ID}/participants/other"]}
+        )
+
+
+@pytest.mark.spec("CM-31-003")
+def test_a_reference_only_case_publishes_no_view() -> None:
+    """A stored case holds participant references only: no view on the wire."""
+    case = VulnerabilityCase(id_=CASE_ID, attributed_to=ACTOR_ID)
+    case.case_participants.append(f"{CASE_ID}/participants/stored")
+
+    assert case.active_participants == []
+    assert "activeParticipants" not in case.model_dump(by_alias=True)
+
+
+@pytest.mark.spec("CM-31-003")
+def test_an_empty_roster_publishes_an_empty_view() -> None:
+    """With no roster entries the view is exact, and it is empty."""
+    case = VulnerabilityCase(id_=CASE_ID, attributed_to=ACTOR_ID)
+
+    assert case.model_dump(by_alias=True)["activeParticipants"] == []

@@ -154,8 +154,8 @@ def _sealed_class() -> type[CoreObject]:
     """A test-local ``CoreObject`` whose ``is_sealed`` is a computed bool.
 
     The one production computed field (``activeParticipants``) is a list,
-    so the bool contract — including the True side, which a vocabulary of minimal objects
-    never reaches — is exercised on a local subclass.  Callers request
+    so the bool contract — including the True side, which a vocabulary of
+    minimal objects never reaches — is exercised on a local subclass.  Callers request
     ``isolated_core_registries`` so the class stays out of the global
     registries.
     """

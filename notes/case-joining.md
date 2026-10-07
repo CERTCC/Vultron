@@ -182,8 +182,9 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
   `VulnerabilityCase.is_active_participant`, which the shared recipient
   selection calls. `VulnerabilityCase.active_participants` (`activeParticipants`
   on the wire) applies it to the participant records the case carries inline,
-  so it is complete on a case as sent and empty on a stored case that holds
-  references only. Persistence never stores it.
+  so it is complete on a case as sent. While any roster entry is a bare
+  reference (a stored case), the AS2 dump leaves it out rather than publish a
+  partial view. Persistence never stores it.
 - **Catch-up follows the active check.** A participant reinstated into a case
   whose embargo it has not accepted stays inert; it is sent that embargo's
   Invite, and its backfill waits for its consent.
