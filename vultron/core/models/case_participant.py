@@ -300,6 +300,26 @@ class CaseParticipant(CoreObject):
         """
         return self.removal_activity is not None
 
+    def record_removal(self, removal_activity_id: str) -> bool:
+        """Set the removal fact from the ``Remove`` activity that decided it.
+
+        The one write of :attr:`removal_activity` for a removal (CM-31-001):
+        the CASE_MANAGER calls it for the Case Owner's received
+        ``Remove(CaseParticipant)``, and a replica calls it when it replays
+        that activity's ledger entry (CM-31-007), so both record the same
+        fact.  The record stays on the roster, and its status history and
+        embargo consent rows are untouched (CM-31-008).  A participant that
+        is already removed keeps its first removal: the call is a no-op and
+        returns ``False``.  The caller persists the record.
+
+        Returns:
+            ``True`` when the fact was set, ``False`` when already removed.
+        """
+        if self.removed:
+            return False
+        self.removal_activity = removal_activity_id
+        return True
+
     @property
     def rm_closed(self) -> bool:
         """True when any recorded RM state is ``CLOSED``.

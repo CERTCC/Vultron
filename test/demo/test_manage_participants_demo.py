@@ -45,7 +45,7 @@ def test_demo(demo_env, demo_fn, caplog):
     - Coordinator acceptance sent to vendor inbox
     - Coordinator participant created and added to case
     - Coordinator participant status created and added
-    - Coordinator participant removed from case
+    - Coordinator participant removed from active participation, record kept
     - No errors logged
 
     For the reject path, verifies:

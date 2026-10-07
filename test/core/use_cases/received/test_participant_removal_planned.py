@@ -12,10 +12,12 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Planned participant removal and reinstatement (ADR-0116, CM-31).
 
-Strict-``xfail`` goal tests planned under #2257; each test names the issue
-that implements it (``_TRACKED_BY``).  Every test starts from a CASE_MANAGER store holding a
-case with the CASE_MANAGER, a Case Owner, a joined vendor that is
-an ``ACCEPTED`` row for the active embargo, and a second joined vendor.
+Goal tests planned under #2257.  Those still strict-``xfail`` name the issue
+that implements them (``_TRACKED_BY``); the removal itself (CM-31-001,
+CM-31-004 through CM-31-008) landed with #4080.  Every test starts from a
+CASE_MANAGER store holding a case with the CASE_MANAGER, a Case Owner, a
+joined vendor that is an ``ACCEPTED`` row for the active embargo, and a
+second joined vendor.
 
 - CM-31-001 — removal keeps the record and makes the participant inert.
 - CM-31-003 — the case publishes a computed ``activeParticipants``.
@@ -50,6 +52,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -95,12 +98,6 @@ EMBARGO_ID = f"{CASE_ID}/embargo_events/active"
 
 # The issue implementing each CM-31 requirement (ADR-0116).
 _TRACKED_BY = {
-    "CM-31-001": 4080,
-    "CM-31-004": 4080,
-    "CM-31-005": 4080,
-    "CM-31-006": 4080,
-    "CM-31-007": 4080,
-    "CM-31-008": 4080,
     "CM-31-009": 4083,
     "CM-31-010": 4083,
     # The non-manager half is the general RSH-08-003 replica gate.
@@ -136,10 +133,13 @@ class _RemovalCase:
         return participant
 
     def route(self, activity: Any) -> HandlerResult:
+        # A real sync port, so the ledger fan-out leaves its
+        # ``Announce(CaseLedgerEntry)`` activities in the store (CM-31-006).
         return route_received(
             self.dl,
             activity,
             receiving_actor_id=MANAGER,
+            sync_port=SyncActivityAdapter(self.dl),
             trigger_activity=TriggerActivityAdapter(self.dl),
         )
 
@@ -255,7 +255,6 @@ def removal_case() -> _RemovalCase:
     return _RemovalCase(dl=dl, case=_seed(dl))
 
 
-@pytest.mark.xfail(strict=True, reason=_planned("CM-31-001"))
 @pytest.mark.spec("CM-31-001")
 def test_removal_keeps_the_record_on_the_roster(removal_case) -> None:
     """Removal withdraws entitlement; the record, and its index entry, stay."""
@@ -293,7 +292,6 @@ def test_case_publishes_active_participants_and_round_trips(
     )
 
 
-@pytest.mark.xfail(strict=True, reason=_planned("CM-31-004"))
 @pytest.mark.spec("CM-31-004")
 @pytest.mark.parametrize(
     ("sender", "removed"),
@@ -323,7 +321,6 @@ def test_removal_is_refused_unless_the_owner_removes_a_removable_participant(
     assert result.disposition is HandlerDisposition.REFUSED
 
 
-@pytest.mark.xfail(strict=True, reason=_planned("CM-31-004"))
 @pytest.mark.spec("CM-31-004")
 def test_removal_naming_no_participant_of_the_case_is_refused(
     removal_case,
@@ -343,7 +340,6 @@ def test_removal_naming_no_participant_of_the_case_is_refused(
     assert removal_case.read_case().case_participants == before
 
 
-@pytest.mark.xfail(strict=True, reason=_planned("CM-31-004"))
 @pytest.mark.spec("CM-31-004")
 def test_a_second_removal_is_skipped(removal_case) -> None:
     """Removing an already-removed participant is a no-op, reported as such."""
@@ -358,7 +354,6 @@ def test_a_second_removal_is_skipped(removal_case) -> None:
     assert second.disposition is HandlerDisposition.SKIPPED
 
 
-@pytest.mark.xfail(strict=True, reason=_planned("CM-31-005"))
 @pytest.mark.spec("CM-31-005")
 def test_removal_is_one_canonical_ledger_entry_by_the_owner(
     removal_case,
@@ -378,7 +373,6 @@ def test_removal_is_one_canonical_ledger_entry_by_the_owner(
     assert added[0].payload_snapshot.get("actor") == OWNER
 
 
-@pytest.mark.xfail(strict=True, reason=_planned("CM-31-006"))
 @pytest.mark.spec("CM-31-006")
 def test_removed_participant_is_sent_a_direct_remove_naming_it(
     removal_case,
@@ -391,7 +385,6 @@ def test_removed_participant_is_sent_a_direct_remove_naming_it(
     assert getattr(notices[0], "attributed_to", None) == OWNER
 
 
-@pytest.mark.xfail(strict=True, reason=_planned("CM-31-006"))
 @pytest.mark.spec("CM-31-006")
 def test_removal_entry_fans_out_to_the_removed_participant(
     removal_case,
@@ -409,7 +402,6 @@ def test_removal_entry_fans_out_to_the_removed_participant(
     assert added[0].id_ in announced
 
 
-@pytest.mark.xfail(strict=True, reason=_planned("CM-31-007"))
 @pytest.mark.spec("CM-31-007")
 def test_announce_tree_has_a_removal_replay_node() -> None:
     """A replica applies removal from the ledger entry, not the direct notice.
@@ -429,7 +421,6 @@ def test_announce_tree_has_a_removal_replay_node() -> None:
     assert any("Remove" in n and "Participant" in n for n in names), names
 
 
-@pytest.mark.xfail(strict=True, reason=_planned("CM-31-008"))
 @pytest.mark.spec("CM-31-008")
 def test_removal_leaves_embargo_consent_untouched(removal_case) -> None:
     """A removed signatory stays bound by the embargo it accepted."""

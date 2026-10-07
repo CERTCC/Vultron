@@ -336,27 +336,6 @@ class VulnerabilityCase(CoreObject):
             )
         self.actor_participant_index[actor_id] = participant_id
 
-    def remove_participant(self, participant_id: str) -> None:
-        """Remove a participant and update the actor→participant index.
-
-        Args:
-            participant_id: Full URI of the :class:`CaseParticipant` to
-                remove.
-        """
-        self.case_participants = [
-            p
-            for p in self.case_participants
-            if (p.id_ if isinstance(p, CaseParticipant) else p)
-            != participant_id
-        ]
-        actors_to_remove = [
-            actor_id
-            for actor_id, p_id in self.actor_participant_index.items()
-            if p_id == participant_id
-        ]
-        for actor_id in actors_to_remove:
-            del self.actor_participant_index[actor_id]
-
     def add_case_status(self, status: CaseStatus) -> None:
         """Append a CaseStatus to this case's history.
 
