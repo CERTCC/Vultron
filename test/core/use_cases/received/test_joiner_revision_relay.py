@@ -65,10 +65,18 @@ JOINER = "https://example.org/users/joiner"
 
 
 def _relayed_to(dl: SqliteDataLayer, actor_id: str) -> list[VultronActivity]:
+    """The embargo Invites relayed to *actor_id* (not the full-case Invite).
+
+    The full-case Invite (CM-11-010) is also an Invite to the joiner; it
+    carries the CASE_MANAGER's ledger position in ``content`` and is not a
+    relayed proposal (EP-09-011).
+    """
     return [
         a
         for a in (cast(VultronActivity, dl.read(i)) for i in dl.outbox_list())
-        if a.type_ == "Invite" and (a.to or []) == [actor_id]
+        if a.type_ == "Invite"
+        and (a.to or []) == [actor_id]
+        and "logIndex" not in str(a.content or "")
     ]
 
 

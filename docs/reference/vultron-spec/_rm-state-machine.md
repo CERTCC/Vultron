@@ -92,6 +92,9 @@ Received is the entry state for a participant joining a case, reached by several
   `Accept(Invite)` activates the inert record, recording willingness to join and, where an embargo is active, consent to it.
   `Reject(Invite)` closes the record (RM Received → Closed) and retains it as history ([CM-11-007](../../reference/vultron-spec/../specs/protocol.md#cm-11-007)).
   Neither transition constitutes validation of the report: the invitee has seen only a case stub at that point.
+  After the participant joins, the CASE_MANAGER sends the case and the ledger, then a second Invite, the full-case Invite, carrying its ledger position as a floor ([CM-11-010](../../reference/vultron-spec/../specs/protocol.md#cm-11-010)).
+  The participant judges the case by answering it, with its own ledger position: `Accept` (RV, Received → Valid), `TentativeReject` (RI, Received → Invalid) or `Reject` (RC, Received → Closed) ([CM-11-011](../../reference/vultron-spec/../specs/protocol.md#cm-11-011)).
+  A reply behind the floor, or naming a ledger entry the CASE_MANAGER does not hold, is refused ([CM-11-012](../../reference/vultron-spec/../specs/protocol.md#cm-11-012)).
 - **Direct report recipient** — on receiving a report.
 - **Case proposal recipient** — on receiving a `CaseProposal`.
 
@@ -99,12 +102,11 @@ The triage cycle (`RECEIVED → VALID | INVALID → ACCEPTED | DEFERRED`) is a
 distinct subsequent step that the participant runs **after** the full case
 replica has been delivered to it.
 
-!!! note "`Accept(Invite)` does not mean RM Accepted"
-    Two different protocol acts are easily conflated: *joining a case* and
-    *accepting a report for action*. `Accept(Invite)` is the former. A
-    participant cannot accept what it has not seen, and the CASE_MANAGER MUST NOT
-    treat a participant as having committed to the case until it receives an RM
-    status message from that participant confirming the transition.
+!!! note "Two Invites, two different acts"
+    *Joining a case* and *judging a case* are different protocol acts, and each has its own Invite.
+    The stub Invite asks whether the actor will join: `Accept(Invite)` joins it and consents to the embargo, and leaves RM at Received.
+    The full-case Invite asks whether the case is valid: its `Accept` is RV (Received → Valid), and RM Accepted is reached only by a later `Join(VulnerabilityCase)`.
+    A participant cannot accept what it has not seen, so the CASE_MANAGER MUST NOT treat a participant as having committed to the case until it receives an RM status message from that participant confirming the transition.
 
     See [§9.7 Gating Full Case Delivery](tracking-models.md#97-gating-full-case-delivery) for why this matters to case delivery.
 

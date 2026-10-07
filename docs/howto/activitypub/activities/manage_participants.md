@@ -89,6 +89,26 @@ For the full invitation sequence, including the routing rule and its rationale, 
 
 ---
 
+## Judge the case after joining
+
+Once a participant is seated, the CASE_MANAGER sends it a second invitation, `Invite(Actor)` with the case as its `target`, after the case announcement and the ledger replay.
+This full-case Invite carries the CASE_MANAGER's ledger position in the standard ActivityStreams `content` field, as the JSON of the `LedgerPosition` model (`log_index` and `entry_hash`).
+The `target` stays the plain case URI.
+That position is the floor: the participant's reply must reach it.
+
+1. Wait until your copy of the ledger has caught up to the Invite's position.
+   The trigger fails closed with `409` until it has, so retry once replication catches up.
+2. Trigger one reply, naming the Invite in `invite_id`:
+    - `POST /actors/{actor_id}/trigger/accept-full-case-invite` sends `Accept`, and the CASE_MANAGER records Report Valid (`RECEIVED` to `VALID`).
+    - `POST /actors/{actor_id}/trigger/tentative-reject-full-case-invite` sends `TentativeReject`, and the CASE_MANAGER records Report Invalid (`RECEIVED` to `INVALID`).
+    - `POST /actors/{actor_id}/trigger/reject-full-case-invite` sends `Reject`, and the CASE_MANAGER records Report Closed (`RECEIVED` to `CLOSED`).
+3. The reply carries your own ledger position in `content`.
+   The CASE_MANAGER refuses, and writes nothing for, a reply that is behind the Invite's position or names a ledger entry it does not hold.
+
+A later `Join` or `Ignore` moves the participant to `ACCEPTED` or `DEFERRED` as it does for any participant.
+
+---
+
 ## Record a participant's status
 
 Vendor Awareness (CV), Fix Readiness (CF) and Fix Deployed (CD) are all implemented in ActivityStreams as `Add(ParticipantStatus)`.
@@ -125,6 +145,7 @@ See [How to Advance a Case Through Report Management](manage_case.md).
 | `Add(CaseParticipant)` | The roster holds the participant with its roles. |
 | `Add(ParticipantStatus)` | The participant record carries the new status. |
 | `Remove(CaseParticipant)` | The roster no longer lists the participant. |
+| `Accept`, `TentativeReject` or `Reject` of the full-case Invite | The CASE_MANAGER's record of the participant shows RM `VALID`, `INVALID` or `CLOSED`. |
 
 ---
 

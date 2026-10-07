@@ -261,11 +261,26 @@ message is designed: we accept offers and invitations, never bare objects.
   carries the participant's own position, at or beyond the Invite's. Pinning
   the reply to the Invite's position would make every reply on a busy case
   stale.
+- **Only a joined participant may judge the case.** A reply to the full-case
+  Invite from a participant whose record is not `joined` (an inert
+  participant) is refused with a reported reason and writes no ledger entry
+  (CM-11-012); the check keys on the same `joined` fact as
+  `is_active_participant()`, not on embargo consent.
+- **A ledger position travels in AS2 `content`, as the `LedgerPosition`
+  model's own JSON dump.** The full-case Invite and each reply carry
+  `{"logIndex":3,"entryHash":"..."}` (VAM-04-011..014); `target` stays the
+  plain case URI (AKM-02-003), and no AS2 verb gains a field. An empty ledger
+  is `logIndex` -1 with the case's `genesisHash` (CLP-08-004). Only
+  `vultron.wire.as2.factories.ledger_position_content` writes it, and the
+  extractor parses it at the edge and refuses a missing, blank or
+  non-parsing one. The CASE_MANAGER reads the floor from its own stored
+  Invite, never from the copy a reply embeds.
 - **Do not add a `TentativeReject` handler for the stub Invite.** It is not a
   valid reply.
 - **Resolve the case from the stub's `caseId`, never its ID.** Since #4045 the
   stub-Invite reply patterns match only a `VulnerabilityCaseStub` target, so a
-  reply to a full-case Invite matches no pattern until #4050 adds its own.
+  reply to a full-case Invite is told apart by its plain case-URI target
+  (#4050 added its own patterns).
 - **`Reject(Invite(stub))` with no participant record must be REFUSED, not
   treated as a no-op (CM-11-018).** The CASE_MANAGER must hold an inert
   participant record (created at invite-send time, ADR-0114) before it can

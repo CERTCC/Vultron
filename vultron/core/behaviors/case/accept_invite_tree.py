@@ -36,6 +36,7 @@ Tree structure::
             ├── EmitAnnounceCaseToInviteeNode        — queue Announce(VulnerabilityCase)
             ├── BackfillCanonicalLedgerToInviteeNode — send prior ledger to invitee
             ├── EmitAddCaseParticipantNode           — emit Add(CaseParticipant), commit ledger
+            ├── EmitInviteActorToFullCaseNode        — full-case Invite with the ledger tail (CM-11-010)
             └── RelayOpenProposalsToJoinerNode       — Invite to each open embargo proposal (EP-09-011)
 
 Admitting the invitee, announcing the case to it and backfilling the ledger
@@ -54,6 +55,9 @@ import py_trees
 from vultron.core.behaviors.case.nodes import create_case_manager_gated_tree
 from vultron.core.behaviors.case.nodes.accept_invite import (
     EmitAddCaseParticipantNode,
+)
+from vultron.core.behaviors.case.nodes.full_case_invite import (
+    EmitInviteActorToFullCaseNode,
 )
 from vultron.core.behaviors.case.nodes.invite_embargo_consent import (
     _CheckEmbargoActiveStateNode,
@@ -156,6 +160,7 @@ def create_accept_invite_actor_to_case_tree(
                 ├── EmitAnnounceCaseToInviteeNode        — queue Announce to invitee
                 ├── BackfillCanonicalLedgerToInviteeNode — send prior ledger to invitee
                 ├── EmitAddCaseParticipantNode           — emit Add(CaseParticipant), commit ledger
+                ├── EmitInviteActorToFullCaseNode        — full-case Invite with the ledger tail (CM-11-010)
                 └── RelayOpenProposalsToJoinerNode       — Invite to each open embargo proposal (EP-09-011)
 
     The three before the relay follow CM-17-004 steps (5) and (6): the invitee receives the
@@ -229,6 +234,13 @@ def create_accept_invite_actor_to_case_tree(
                     # entries it extends.  Last, it reaches the invitee as the
                     # next entry in chain order.
                     EmitAddCaseParticipantNode(
+                        case_id=case_id, invitee_id=invitee_id
+                    ),
+                    # CM-17-004 step (4): the full-case Invite, queued after
+                    # the last replayed entry and the add-participant entry so
+                    # its ledger tail is the floor the invitee must reach
+                    # before it answers (CM-11-010, ADR-0121).
+                    EmitInviteActorToFullCaseNode(
                         case_id=case_id, invitee_id=invitee_id
                     ),
                     # EP-09-011: the joiner was not on the roster when any

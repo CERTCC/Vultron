@@ -39,6 +39,7 @@ from vultron.core.use_cases.triggers.request_bodies import (
     AcceptActorRecommendationRequest,
     AcceptCaseInviteRequest,
     AcceptCaseOwnershipTransferRequest,
+    FullCaseInviteReplyRequest,
     InviteActorToCaseRequest,
     OfferCaseOwnershipTransferRequest,
     OfferCaseParticipantRoleRequest,
@@ -49,11 +50,14 @@ from vultron.core.use_cases.triggers.requests import (
     AcceptActorRecommendationTriggerRequest,
     AcceptCaseInviteTriggerRequest,
     AcceptCaseOwnershipTransferTriggerRequest,
+    AcceptFullCaseInviteTriggerRequest,
     InviteActorToCaseTriggerRequest,
     OfferCaseOwnershipTransferTriggerRequest,
     OfferCaseParticipantRoleTriggerRequest,
     RejectCaseInviteTriggerRequest,
+    RejectFullCaseInviteTriggerRequest,
     SuggestActorToCaseTriggerRequest,
+    TentativeRejectFullCaseInviteTriggerRequest,
 )
 
 router = APIRouter(prefix="/actors", tags=["Triggers"])
@@ -162,6 +166,117 @@ def trigger_reject_case_invite(
     """
     return run_trigger(
         RejectCaseInviteTriggerRequest(
+            actor_id=actor_id, invite_id=body.invite_id
+        ),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
+    )
+
+
+@router.post(
+    "/{actor_id}/trigger/accept-full-case-invite",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Judge the case valid: Accept(full-case Invite), RV.",
+    description=(
+        "Answers the CASE_MANAGER's full-case Invite with Accept, "
+        "carrying this actor's own ledger position.  Fails with 409 until "
+        "the actor's ledger copy has reached the Invite's position "
+        "(SYNC-10-004, CM-11-012)."
+    ),
+    operation_id="actors_trigger_accept_full_case_invite",
+    response_model=ActivityResult,
+)
+def trigger_accept_full_case_invite(
+    actor_id: str,
+    body: FullCaseInviteReplyRequest,
+    background_tasks: BackgroundTasks,
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> ActivityResult:
+    """
+    Trigger the accept-full-case-invite behavior for the given actor.
+
+    Implements:
+        TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-005, TRIG-03-001, TRIG-03-002,
+        TRIG-04-001, TRIG-12-001
+    """
+    return run_trigger(
+        AcceptFullCaseInviteTriggerRequest(
+            actor_id=actor_id, invite_id=body.invite_id
+        ),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
+    )
+
+
+@router.post(
+    "/{actor_id}/trigger/tentative-reject-full-case-invite",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Judge the case invalid: TentativeReject(full-case Invite), RI.",
+    description=(
+        "Answers the CASE_MANAGER's full-case Invite with TentativeReject, "
+        "carrying this actor's own ledger position.  Fails with 409 until "
+        "the actor's ledger copy has reached the Invite's position "
+        "(SYNC-10-004, CM-11-012)."
+    ),
+    operation_id="actors_trigger_tentative_reject_full_case_invite",
+    response_model=ActivityResult,
+)
+def trigger_tentative_reject_full_case_invite(
+    actor_id: str,
+    body: FullCaseInviteReplyRequest,
+    background_tasks: BackgroundTasks,
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> ActivityResult:
+    """
+    Trigger the tentative-reject-full-case-invite behavior for the given actor.
+
+    Implements:
+        TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-005, TRIG-03-001, TRIG-03-002,
+        TRIG-04-001, TRIG-12-001
+    """
+    return run_trigger(
+        TentativeRejectFullCaseInviteTriggerRequest(
+            actor_id=actor_id, invite_id=body.invite_id
+        ),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
+    )
+
+
+@router.post(
+    "/{actor_id}/trigger/reject-full-case-invite",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Close the case: Reject(full-case Invite), RC.",
+    description=(
+        "Answers the CASE_MANAGER's full-case Invite with Reject, "
+        "carrying this actor's own ledger position.  Fails with 409 until "
+        "the actor's ledger copy has reached the Invite's position "
+        "(SYNC-10-004, CM-11-012)."
+    ),
+    operation_id="actors_trigger_reject_full_case_invite",
+    response_model=ActivityResult,
+)
+def trigger_reject_full_case_invite(
+    actor_id: str,
+    body: FullCaseInviteReplyRequest,
+    background_tasks: BackgroundTasks,
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> ActivityResult:
+    """
+    Trigger the reject-full-case-invite behavior for the given actor.
+
+    Implements:
+        TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-005, TRIG-03-001, TRIG-03-002,
+        TRIG-04-001, TRIG-12-001
+    """
+    return run_trigger(
+        RejectFullCaseInviteTriggerRequest(
             actor_id=actor_id, invite_id=body.invite_id
         ),
         dispatcher=dispatcher,
