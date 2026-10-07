@@ -96,7 +96,6 @@ EMBARGO_ID = f"{CASE_ID}/embargo_events/active"
 # The issue implementing each CM-31 requirement (ADR-0116).
 _TRACKED_BY = {
     "CM-31-001": 4080,
-    "CM-31-003": 4079,
     "CM-31-004": 4080,
     "CM-31-005": 4080,
     "CM-31-006": 4080,
@@ -167,8 +166,22 @@ class _RemovalCase:
             and actor_id in [_as_id(t) for t in getattr(obj, "to", None) or []]
         ]
 
+    def carried_case(self) -> as_VulnerabilityCase:
+        """The stored case with its participant records carried inline.
+
+        The shape a case goes on the wire in (``_case_for_wire``): the stored
+        case holds participant references only, and ``activeParticipants``
+        is derived from the records the case carries (CM-31-003).
+        """
+        case = self.read_case()
+        ids = [_as_id(entry) for entry in case.case_participants]
+        assert all(ids), ids
+        records = [self.dl.read(i) for i in ids if i]
+        assert all(isinstance(r, CaseParticipant) for r in records)
+        return case.model_copy(update={"case_participants": records})
+
     def active_ids(self) -> set[str]:
-        dumped = self.read_case().model_dump(by_alias=True, mode="json")
+        dumped = self.carried_case().model_dump(by_alias=True, mode="json")
         return {getattr(p, "id_", p) for p in dumped["activeParticipants"]}
 
 
@@ -257,23 +270,27 @@ def test_removal_keeps_the_record_on_the_roster(removal_case) -> None:
     assert _participant_id(VENDOR) not in removal_case.active_ids()
 
 
-@pytest.mark.xfail(strict=True, reason=_planned("CM-31-003"))
 @pytest.mark.spec("CM-31-003")
 def test_case_publishes_active_participants_and_round_trips(
     removal_case,
 ) -> None:
     """``activeParticipants`` is computed, published, and read back cleanly.
 
-    Every seeded participant is active (joined and ``ACCEPTED`` for the embargo); that a
-    removed one leaves the view is CM-31-001's test.
+    Every seeded vendor is active (joined and ``ACCEPTED`` for the embargo); that a
+    removed one leaves the view is CM-31-001's test.  The view is read from
+    the case as it goes on the wire, carrying its participant records.
     """
-    case = removal_case.read_case()
+    case = removal_case.carried_case()
 
     dumped = case.model_dump(by_alias=True, mode="json")
     assert "activeParticipants" in dumped
     active = removal_case.active_ids()
     assert {_participant_id(VENDOR), _participant_id(OTHER)} <= active
     assert as_VulnerabilityCase.model_validate(dumped) == case
+    assert (
+        as_VulnerabilityCase.model_validate(case.model_dump(by_alias=True))
+        == case
+    )
 
 
 @pytest.mark.xfail(strict=True, reason=_planned("CM-31-004"))
