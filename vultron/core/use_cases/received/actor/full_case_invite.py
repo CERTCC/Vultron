@@ -39,6 +39,7 @@ from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
     intake_verdict,
     not_case_manager_refusal,
+    rm_declaration_verdict,
     verdict_from_bt,
 )
 
@@ -113,8 +114,10 @@ class _FullCaseInviteReplyReceivedUseCase:
     """The CASE_MANAGER processes a reply to the full-case Invite.
 
     Subclasses name the RM state the reply records (CM-11-011).  A reply the
-    guard refuses (CM-11-012), or one that reaches an actor that is not the
-    case's CASE_MANAGER (HP-01-005), is ``REFUSED`` and writes nothing.
+    guard refuses (CM-11-012), one declaring a backward RM move (RSH-06-002),
+    or one that reaches an actor that is not the case's CASE_MANAGER
+    (HP-01-005), is ``REFUSED`` and writes nothing.  A reply restating the RM
+    state already recorded is ``SKIPPED`` (RSH-08-002).
     """
 
     sender_entitlement: ClassVar[SenderEntitlement] = (
@@ -177,7 +180,14 @@ class _FullCaseInviteReplyReceivedUseCase:
         ).execute_with_setup(
             tree=tree, actor_id=actor_id, activity=request, case_id=case_id
         )
-        verdict = verdict_from_bt(tree, result, label=self.tree_name)
+        # A restated reply (the RM state is already recorded) changes nothing
+        # but the receipt, so it reads SKIPPED like every other RM
+        # declaration (RSH-08-002).
+        verdict = rm_declaration_verdict(
+            tree,
+            verdict_from_bt(tree, result, label=self.tree_name),
+            label=self.tree_name,
+        )
         if verdict.disposition is not HandlerDisposition.REFUSED:
             refusal = not_case_manager_refusal(tree, self._dl, case_id)
             if refusal is not None:

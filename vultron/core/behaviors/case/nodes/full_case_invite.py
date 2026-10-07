@@ -39,7 +39,6 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.core.states.rm import RM
 from vultron.core.sync_helpers import (
     ledger_position_refusal,
     ledger_tail_position,
@@ -125,7 +124,6 @@ class CheckFullCaseReplyNode(DataLayerCondition):
         invite_id: str,
         replier_id: str,
         position: LedgerPosition,
-        rm_state: RM,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
@@ -133,7 +131,6 @@ class CheckFullCaseReplyNode(DataLayerCondition):
         self.invite_id = invite_id
         self.replier_id = replier_id
         self.position = position
-        self.rm_state = rm_state
 
     def _refuse(self, reason: str) -> Status:
         self.feedback_message = reason

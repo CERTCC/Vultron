@@ -43,12 +43,14 @@ from test.support.rm_declaration import (
     CASE_ID,
     CASE_MANAGER_ID,
     PARTICIPANT_ID,
+    STRANGER_ID,
     RMDeclarationCase,
+    assert_anomaly_flagged_and_noted,
     cases_declaring,
     current_status,
-    queued_notes,
     recorded_rm,
     seed_case,
+    status_count,
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -76,7 +78,6 @@ from vultron.wire.as2.factories import (
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Organization
 
-STRANGER_ID = "https://example.org/actors/stranger"
 _INVITE_ID = f"{CASE_ID}/invitations/rm-rule-test"
 
 
@@ -142,13 +143,6 @@ def _deliver(
     ).execute()
 
 
-def _status_count(
-    dl: SqliteDataLayer, participant_id: str = PARTICIPANT_ID
-) -> int:
-    participant = cast(CaseParticipant, dl.read(participant_id))
-    return len(participant.participant_statuses)
-
-
 _DECLARED = (RM.VALID, RM.INVALID, RM.CLOSED)
 
 
@@ -166,25 +160,30 @@ class TestFullCaseInviteRepliesApplyTheSharedRule:
     ) -> None:
         dl = store_for(CASE_MANAGER_ID)
         invite, tail = _seed_with_invite(dl, case.current)
-        before = _status_count(dl)
+        before = status_count(dl)
 
         result = _deliver(dl, case.declared, invite, tail)
 
         assert recorded_rm(dl) == case.expected_rm
         if case.verdict is RMDeclaration.CONFIRMATION:
-            assert _status_count(dl) == before, (
+            assert status_count(dl) == before, (
                 "a confirmation is recorded once (RSH-08-002)"
+            )
+            # The reply has no effect beyond the RM write, so a restatement
+            # is the same no-op it is for the report verdicts (#4316).
+            assert result.disposition is HandlerDisposition.SKIPPED, (
+                result.reason
             )
         elif case.accepted:
             assert result.disposition is HandlerDisposition.APPLIED, (
                 result.reason
             )
-            assert _status_count(dl) == before + 1, "one move, one record"
+            assert status_count(dl) == before + 1, "one move, one record"
         else:
             assert result.disposition is HandlerDisposition.REFUSED, (
                 result.reason
             )
-            assert _status_count(dl) == before, "a refusal writes nothing"
+            assert status_count(dl) == before, "a refusal writes nothing"
 
     @pytest.mark.spec("RSH-06-003")
     @pytest.mark.spec("RSH-06-004")
@@ -198,22 +197,7 @@ class TestFullCaseInviteRepliesApplyTheSharedRule:
         with caplog.at_level(logging.WARNING):
             _deliver(dl, case.declared, invite, tail)
 
-        anomaly_logs = [
-            r.getMessage()
-            for r in caplog.records
-            if r.levelno == logging.WARNING
-            and f"RM {case.anomaly} declared by '{ACTOR_ID}'" in r.getMessage()
-        ]
-        if case.anomaly is None:
-            assert not [
-                r for r in caplog.records if "declared by" in r.getMessage()
-            ]
-        else:
-            assert anomaly_logs, "RSH-06-003: the anomaly must not be silent"
-        notes = queued_notes(dl)
-        assert len(notes) == (1 if case.anomaly == "gap" else 0)
-        if notes:
-            assert ACTOR_ID in (getattr(notes[0], "to", None) or [])
+        assert_anomaly_flagged_and_noted(case, dl, caplog.records)
 
 
 @pytest.mark.executes_as(CASE_MANAGER_ID)
@@ -230,9 +214,9 @@ class TestSenderMustBeTheInvitee:
     ) -> None:
         dl = store_for(CASE_MANAGER_ID)
         invite, tail = _seed_with_invite(dl, RM.RECEIVED)
-        before = _status_count(dl)
+        before = status_count(dl)
 
         result = _deliver(dl, declared, invite, tail, sender=STRANGER_ID)
 
         assert result.disposition is HandlerDisposition.REFUSED
-        assert _status_count(dl) == before
+        assert status_count(dl) == before

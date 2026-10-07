@@ -329,11 +329,14 @@ def test_a_reply_with_unparseable_content_is_refused_at_the_edge(
 
 
 @pytest.mark.spec("RSH-06-006")
+@pytest.mark.spec("RSH-08-002")
 @pytest.mark.parametrize(
-    "second,expected_rm",
+    "second,expected_rm,expected_disposition,new_records",
     [
-        ("accept", RM.VALID),  # CONFIRMATION: idempotent, RM stays VALID
-        ("reject", RM.CLOSED),  # GAP: non-adjacent forward, RM advances
+        # CONFIRMATION: idempotent, RM stays VALID, nothing new recorded.
+        ("accept", RM.VALID, HandlerDisposition.SKIPPED, 0),
+        # GAP: non-adjacent forward, RM advances.
+        ("reject", RM.CLOSED, HandlerDisposition.APPLIED, 1),
     ],
     ids=["confirmation", "gap"],
 )
@@ -341,11 +344,14 @@ def test_confirmation_and_gap_replies_are_accepted(
     joining_case,  # noqa: F811
     second: str,
     expected_rm: RM,
+    expected_disposition: HandlerDisposition,
+    new_records: int,
 ) -> None:
     """Under the DECLARATION rule a repeat or a gap move is accepted (RSH-06-006).
 
     A second Accept (VALID→VALID, a confirmation) is idempotent: the receipt is
-    committed, but no new status record is written.
+    committed, but no new status record is written, so it reads ``SKIPPED``
+    (RSH-08-002).
     A Reject after Accept (VALID→CLOSED, a gap) is a forward move and is also
     accepted, and a new status record *is* written.
     """
@@ -360,13 +366,15 @@ def test_confirmation_and_gap_replies_are_accepted(
     assert _rm_history(joining_case)[-1] == RM.VALID
     tail = _ledger_tail(joining_case)[-1]
     before = len(_ledger_tail(joining_case))
+    records_before = len(_rm_history(joining_case))
 
     result = joining_case.route(
         _full_case_reply_at(second, joining_case, invite, position=tail)
     )
 
-    assert result.disposition is not HandlerDisposition.REFUSED, result.reason
+    assert result.disposition is expected_disposition, result.reason
     assert _rm_history(joining_case)[-1] == expected_rm
+    assert len(_rm_history(joining_case)) == records_before + new_records
     assert len(_ledger_tail(joining_case)) == before + 1, (
         "the receipt is committed even for a confirmation or gap"
     )

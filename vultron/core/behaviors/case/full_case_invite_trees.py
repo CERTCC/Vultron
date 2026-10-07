@@ -131,7 +131,6 @@ def create_full_case_invite_reply_received_tree(
                 invite_id=invite_id,
                 replier_id=replier_id,
                 position=position,
-                rm_state=rm_state,
             ),
             rm_declaration_guard(replier_id, rm_state, case_id),
         ],
