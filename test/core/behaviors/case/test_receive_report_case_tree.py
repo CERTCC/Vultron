@@ -54,6 +54,24 @@ from vultron.core.models.report_case_link import VultronReportCaseLink
 _CASE_ACTOR_SERVICE_URL = "http://case-actor:7999/api/v2"
 
 
+def _event(offer):
+    """The received event for *offer*, as the inbox hands it to a tree."""
+    from vultron.core.models._helpers import _as_id
+    from vultron.core.models.activity import VultronActivity
+    from vultron.core.models.events import MessageSemantics
+    from vultron.core.models.events.report import SubmitReportReceivedEvent
+
+    actor_id = _as_id(offer.actor)
+    assert actor_id is not None
+    return SubmitReportReceivedEvent(
+        semantic_type=MessageSemantics.SUBMIT_REPORT,
+        activity_id=offer.id_,
+        activity_type="Offer",
+        actor_id=actor_id,
+        activity=VultronActivity(id_=offer.id_, type_="Offer", actor=actor_id),
+    )
+
+
 @pytest.fixture(autouse=True)
 def configure_case_actor_url(monkeypatch):
     """Configure VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL for all tests."""
@@ -90,27 +108,27 @@ class TestTreeStructure:
         assert tree is not None
         assert tree.name == "ReceiveReportCaseBT"
         assert isinstance(tree, py_trees.composites.Sequence)
-        assert len(tree.children) == 2
+        assert len(tree.children) == 3  # intake, gate, selector
 
     def test_first_child_is_policy_gate(
         self, report, offer, reporter_actor_id
     ):
-        """First child is CheckAutoCaseCreationEnabledNode."""
+        """After intake, the next child is CheckAutoCaseCreationEnabledNode."""
         tree = create_receive_report_case_tree(
             report_id=report.id_,
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
-        assert isinstance(tree.children[0], CheckAutoCaseCreationEnabledNode)
+        assert isinstance(tree.children[1], CheckAutoCaseCreationEnabledNode)
 
     def test_second_child_is_selector(self, report, offer, reporter_actor_id):
-        """Second child is ReceiveReportCaseSelector (Selector)."""
+        """After the gate comes ReceiveReportCaseSelector (Selector)."""
         tree = create_receive_report_case_tree(
             report_id=report.id_,
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
-        sel = tree.children[1]
+        sel = tree.children[2]
         assert isinstance(sel, py_trees.composites.Selector)
         assert sel.name == "ReceiveReportCaseSelector"
 
@@ -123,7 +141,7 @@ class TestTreeStructure:
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
-        sel = tree.children[1]
+        sel = tree.children[2]
         assert isinstance(sel.children[0], CheckProposalAlreadySentForReport)
 
     def test_selector_second_child_is_flow_sequence(
@@ -135,7 +153,7 @@ class TestTreeStructure:
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
-        flow = tree.children[1].children[1]
+        flow = tree.children[2].children[1]
         assert isinstance(flow, py_trees.composites.Sequence)
         assert flow.name == "ReceiveReportProposalFlow"
 
@@ -146,7 +164,7 @@ class TestTreeStructure:
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
-        flow = tree.children[1].children[1]
+        flow = tree.children[2].children[1]
         assert len(flow.children) == 3
 
     def test_flow_first_child_ensures_case_actor_hosted(
@@ -164,7 +182,7 @@ class TestTreeStructure:
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
-        flow = tree.children[1].children[1]
+        flow = tree.children[2].children[1]
         assert isinstance(flow.children[0], EnsureCaseActorHostedNode)
 
     def test_flow_second_child_is_write_link(
@@ -176,7 +194,7 @@ class TestTreeStructure:
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
-        flow = tree.children[1].children[1]
+        flow = tree.children[2].children[1]
         assert isinstance(flow.children[1], WritePendingReportCaseLinkNode)
 
     def test_flow_third_child_is_propose(
@@ -188,7 +206,7 @@ class TestTreeStructure:
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
-        flow = tree.children[1].children[1]
+        flow = tree.children[2].children[1]
         assert isinstance(flow.children[2], ProposeReportCaseToActorNode)
 
     def test_no_create_case_node(self, report, offer, reporter_actor_id):
@@ -259,7 +277,7 @@ class TestPolicyGate:
             reporter_actor_id=reporter_actor_id,
             actor_config=cfg,
         )
-        gate = tree.children[0]
+        gate = tree.children[1]
         assert isinstance(gate, CheckAutoCaseCreationEnabledNode)
         assert gate.actor_config is cfg
 
@@ -282,7 +300,7 @@ class TestPolicyGate:
             actor_config=ActorConfig(auto_create_case=False),
         )
         result = bridge.execute_with_setup(
-            tree=tree, actor_id=actor.id_, activity=offer
+            tree=tree, actor_id=actor.id_, activity=_event(offer)
         )
         assert result.status == Status.FAILURE
 
@@ -310,7 +328,7 @@ class TestPolicyGate:
             actor_config=ActorConfig(auto_create_case=True),
         )
         result = bridge.execute_with_setup(
-            tree=tree, actor_id=actor.id_, activity=offer
+            tree=tree, actor_id=actor.id_, activity=_event(offer)
         )
         assert result.status == Status.SUCCESS
 
@@ -339,7 +357,7 @@ class TestHappyPath:
             reporter_actor_id=reporter_actor_id,
         )
         result = bridge.execute_with_setup(
-            tree=tree, actor_id=actor.id_, activity=offer
+            tree=tree, actor_id=actor.id_, activity=_event(offer)
         )
         assert result.status == Status.SUCCESS
 
@@ -359,7 +377,7 @@ class TestHappyPath:
             reporter_actor_id=reporter_actor_id,
         )
         bridge.execute_with_setup(
-            tree=tree, actor_id=actor.id_, activity=offer
+            tree=tree, actor_id=actor.id_, activity=_event(offer)
         )
 
         link_id = VultronReportCaseLink.build_id(report.id_)
@@ -395,7 +413,7 @@ class TestHappyPath:
             reporter_actor_id=reporter_actor_id,
         )
         bridge.execute_with_setup(
-            tree=tree, actor_id=actor.id_, activity=offer
+            tree=tree, actor_id=actor.id_, activity=_event(offer)
         )
 
         link = datalayer.read(VultronReportCaseLink.build_id(report.id_))
@@ -425,7 +443,7 @@ class TestHappyPath:
             reporter_actor_id=reporter_actor_id,
         )
         bridge.execute_with_setup(
-            tree=tree, actor_id=actor.id_, activity=offer
+            tree=tree, actor_id=actor.id_, activity=_event(offer)
         )
 
         outbox = datalayer.clone_for_actor(actor.id_).outbox_list()
@@ -449,7 +467,7 @@ class TestHappyPath:
             reporter_actor_id=reporter_actor_id,
         )
         bridge.execute_with_setup(
-            tree=tree, actor_id=actor.id_, activity=offer
+            tree=tree, actor_id=actor.id_, activity=_event(offer)
         )
 
         case = datalayer.find_case_by_report_id(report.id_)
@@ -483,7 +501,7 @@ class TestIdempotency:
                 reporter_actor_id=reporter_actor_id,
             )
             result = bridge.execute_with_setup(
-                tree=tree, actor_id=actor.id_, activity=offer
+                tree=tree, actor_id=actor.id_, activity=_event(offer)
             )
             assert result.status == Status.SUCCESS
 
@@ -504,7 +522,7 @@ class TestIdempotency:
                 reporter_actor_id=reporter_actor_id,
             )
             bridge.execute_with_setup(
-                tree=tree, actor_id=actor.id_, activity=offer
+                tree=tree, actor_id=actor.id_, activity=_event(offer)
             )
 
         links = [
@@ -531,7 +549,7 @@ class TestIdempotency:
             reporter_actor_id=reporter_actor_id,
         )
         bridge.execute_with_setup(
-            tree=tree1, actor_id=actor.id_, activity=offer
+            tree=tree1, actor_id=actor.id_, activity=_event(offer)
         )
 
         count_after_first = len(
@@ -544,7 +562,7 @@ class TestIdempotency:
             reporter_actor_id=reporter_actor_id,
         )
         bridge.execute_with_setup(
-            tree=tree2, actor_id=actor.id_, activity=offer
+            tree=tree2, actor_id=actor.id_, activity=_event(offer)
         )
 
         count_after_second = len(
@@ -576,7 +594,7 @@ class TestIdempotency:
             reporter_actor_id=reporter_actor_id,
         )
         bridge.execute_with_setup(
-            tree=tree1, actor_id=actor.id_, activity=offer
+            tree=tree1, actor_id=actor.id_, activity=_event(offer)
         )
 
         link_id = VultronReportCaseLink.build_id(report.id_)
@@ -594,7 +612,7 @@ class TestIdempotency:
             reporter_actor_id=reporter_actor_id,
         )
         result = bridge.execute_with_setup(
-            tree=tree2, actor_id=actor.id_, activity=offer
+            tree=tree2, actor_id=actor.id_, activity=_event(offer)
         )
 
         assert result.status == py_trees.common.Status.SUCCESS
@@ -626,7 +644,7 @@ class TestIdempotency:
             reporter_actor_id=reporter_actor_id,
         )
         bridge.execute_with_setup(
-            tree=tree1, actor_id=actor.id_, activity=offer
+            tree=tree1, actor_id=actor.id_, activity=_event(offer)
         )
 
         link_id = VultronReportCaseLink.build_id(report.id_)
@@ -645,7 +663,7 @@ class TestIdempotency:
             reporter_actor_id=reporter_actor_id,
         )
         result = bridge.execute_with_setup(
-            tree=tree2, actor_id=actor.id_, activity=offer
+            tree=tree2, actor_id=actor.id_, activity=_event(offer)
         )
         assert result.status == Status.SUCCESS
 
@@ -726,7 +744,7 @@ class TestConcurrentExecution:
                     reporter_actor_id=reporter_actor_id,
                 )
                 result = bridge.execute_with_setup(
-                    tree=tree, actor_id=actor_id, activity=offer
+                    tree=tree, actor_id=actor_id, activity=_event(offer)
                 )
                 with _lock:
                     results[key] = result.status

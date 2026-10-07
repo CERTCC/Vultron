@@ -18,6 +18,9 @@
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
+from vultron.core.behaviors.embargo.proposal_index import (
+    record_embargo_proposal_index,
+)
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
 )
@@ -109,6 +112,55 @@ class CreateAndStoreInviteNode(DataLayerActionWithPorts):
 
         self.feedback_message = f"Stored invite activity '{activity_id}'"
         self.logger.info("%s: %s", self.name, self.feedback_message)
+        return Status.SUCCESS
+
+
+class IndexReceivedEmbargoProposalNode(DataLayerActionWithPorts):
+    """Record ``embargo_id -> invite_id`` on the case once the Invite is applied.
+
+    Lets the accept/reject triggers correlate an embargo with the Invite that
+    proposed it without re-reading the wire activity (ADR-0035 DL-06).  It
+    runs last among the effects, so the correlation is written only after
+    every other half of the receipt has succeeded (ID-04-005).  A partial
+    replica that holds no copy of the case keeps the Invite and indexes
+    nothing (Regime 2, ADR-0087), so it still returns ``SUCCESS``.
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        embargo_id: str,
+        invite_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._case_id = case_id
+        self._embargo_id = embargo_id
+        self._invite_id = invite_id
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+        try:
+            record_embargo_proposal_index(
+                self.datalayer,
+                self._case_id,
+                self._embargo_id,
+                self._invite_id,
+            )
+        except VultronNotFoundError:
+            self.feedback_message = (
+                f"case '{self._case_id}' not held here — proposal"
+                f" '{self._invite_id}' not indexed"
+            )
+            self.logger.info("%s: %s", self.name, self.feedback_message)
+            return Status.SUCCESS
+        self.feedback_message = (
+            f"Indexed proposal '{self._invite_id}' for embargo"
+            f" '{self._embargo_id}' on case '{self._case_id}'"
+        )
+        self.logger.debug("%s: %s", self.name, self.feedback_message)
         return Status.SUCCESS
 
 

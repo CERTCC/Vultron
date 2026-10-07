@@ -26,6 +26,7 @@ from typing import Any
 
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.errors import VultronAlreadyExistsError
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +98,12 @@ def idempotent_store(
         return HandlerResult.skipped(
             f"{label} '{id_key}' arrived as a bare reference"
         )
-    dl.create(obj)
+    try:
+        dl.create(obj)
+    except VultronAlreadyExistsError:
+        # ``read`` found nothing, yet the store holds the id: a record it
+        # cannot read back (or a concurrent write) still means "already held".
+        logger.debug("'%s' already stored — skipping (idempotent)", id_key)
+        return HandlerResult.skipped(f"{label} '{id_key}' already stored")
     logger.info("Stored %s '%s'", label, id_key)
     return HandlerResult.applied()

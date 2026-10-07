@@ -9,6 +9,10 @@ from vultron.core.behaviors.case.nodes import (
     CheckAutoCaseCreationEnabledNode,
     CheckProposalAlreadySentForReport,
 )
+from vultron.core.behaviors.case.nodes.submit_report import (
+    CheckOfferAddressedToReceiverNode,
+    submit_report_received_effects,
+)
 from vultron.core.behaviors.report import received_report_trees
 from vultron.core.behaviors.report.nodes.conditions import (
     CheckRMStateValid,
@@ -27,31 +31,27 @@ from vultron.core.models.events.report import (
     SubmitReportReceivedEvent,
     ValidateReportReceivedEvent,
 )
-from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
 )
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.predicates.addressing import is_addressed_to
 from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
 )
 from vultron.core.use_cases.received._bt_verdict import (
     applied_or_raise,
+    failure_reason,
     node_failed,
     node_succeeded,
     verdict_from_bt,
 )
 from vultron.errors import (
-    VultronAlreadyExistsError,
     VultronBTInternalError,
 )
 
 if TYPE_CHECKING:
     from vultron.config.actor import ActorConfig
-    from vultron.core.models.protocols import PersistableModel
-    from vultron.core.ports.datalayer import StorableRecord
     from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
     from vultron.core.ports.wire_render import WireRenderPort
@@ -64,110 +64,6 @@ from vultron.core.behaviors.sender_entitlement import (
 logger = logging.getLogger(__name__)
 
 
-def _store_dependency_idempotently(
-    dl: CasePersistence,
-    obj: "StorableRecord | PersistableModel",
-    obj_id: str | None,
-    label: str,
-) -> None:
-    """Store *obj* unless it is already present, distinguishing "already there".
-
-    ``create()`` raises ``ValueError`` for two unrelated reasons: the id is taken,
-    and the object cannot be converted to a storage record at all (no ``type_``,
-    or a wire-prefixed one). Catching both and logging "already exists" made a
-    malformed object indistinguishable from a benign duplicate — a silent drop of
-    the very object the use case exists to persist (ARCH-15-001).
-
-    So presence is checked first, and a ``create()`` failure on something we just
-    established was absent is re-raised.
-    """
-    if obj_id and dl.read(obj_id) is not None:
-        logger.debug("%s %s already present — skipping store", label, obj_id)
-        return
-    dl.create(obj)
-    logger.info("Stored %s with ID: %s", label, obj_id)
-
-
-def _store_submit_report_dependencies(
-    dl: CasePersistence, request: SubmitReportReceivedEvent
-) -> None:
-    if request.report is not None:
-        _store_dependency_idempotently(
-            dl, request.report, request.report_id, "VulnerabilityReport"
-        )
-
-    if request.activity is None:
-        return
-
-    try:
-        _store_dependency_idempotently(
-            dl, request.activity, request.activity_id, "SubmitReport activity"
-        )
-    except ValueError as e:
-        logger.debug(
-            "SubmitReport activity %s could not be stored: %s",
-            request.activity_id,
-            e,
-        )
-
-    # Per ADR-0035 DL-06-002: capture domain facts from the inbound Offer so
-    # the receiver's trigger-side validate/invalidate/close paths can look up
-    # the offer record without re-reading the stored wire Offer activity.
-    if request.report_id is None:
-        return
-    offer_to: list[str] = list(request.activity.to or [])
-    offer_record = VultronOfferRecord(
-        offer_id=request.activity_id,
-        report_id=request.report_id,
-        offer_actor_id=request.actor_id,
-        offer_to=offer_to,
-    )
-    try:
-        dl.create(offer_record)
-        logger.info(
-            "Stored VultronOfferRecord for offer '%s'", request.activity_id
-        )
-    except VultronAlreadyExistsError as e:
-        logger.debug(
-            "VultronOfferRecord for offer '%s' already exists: %s",
-            request.activity_id,
-            e,
-        )
-
-
-def _not_primary_recipient_reason(
-    request: SubmitReportReceivedEvent, receiving_actor_id: str
-) -> str | None:
-    """Why *receiving_actor_id* must not act on this Offer, or ``None``.
-
-    Only a ``to`` recipient acts on an ``Offer(Report)`` (HP-09-001,
-    HP-09-002).  Anyone else received a copy that is not addressed to it,
-    which it refuses (HP-01-005): the sender addressed the wrong party, and
-    the receiver's own record says so rather than reporting a processed
-    no-op.
-    """
-    to_list = (request.activity.to or []) if request.activity else []
-    cc_list = (request.activity.cc or []) if request.activity else []
-
-    if is_addressed_to(receiving_actor_id, to_list):
-        return None
-    if is_addressed_to(receiving_actor_id, cc_list):
-        logger.warning(
-            "SubmitReportReceivedUseCase: cc addressing not supported for "
-            "Offer(Report) — discarding activity for report '%s'",
-            request.report_id,
-        )
-        return "receiving actor is only in cc; cc addressing not supported"
-
-    logger.warning(
-        "SubmitReportReceivedUseCase: receiving actor '%s' in neither to nor "
-        "cc — discarding activity for report '%s'",
-        receiving_actor_id,
-        request.report_id,
-    )
-    return "receiving actor is not a recipient of the Offer"
-
-
 def _run_submit_report_case_creation(
     dl: CasePersistence,
     request: SubmitReportReceivedEvent,
@@ -178,11 +74,12 @@ def _run_submit_report_case_creation(
     actor_config: "ActorConfig | None" = None,
     wire_render_port: "WireRenderPort | None" = None,
 ) -> HandlerResult:
-    """Run the receiver-side proposal BT and classify its outcome (#2255).
+    """Run the receive-report BT once and classify its outcome (#2255).
 
-    The report is already stored, so nothing in this BT judges the sender's
-    message: a disabled ``auto_create_case`` gate and an already-sent proposal
-    are no-ops, and any other failure is this actor's own (a missing port, a
+    The tree keeps the report, the Offer and the offer record, refuses an
+    Offer not addressed to the receiver (HP-01-005), and proposes the case.
+    A disabled ``auto_create_case`` gate and an already-sent proposal are
+    no-ops, and any other failure is this actor's own (a missing port, a
     CaseActor that cannot be hosted), so it raises rather than refuses.
     """
     logger.info(
@@ -202,6 +99,7 @@ def _run_submit_report_case_creation(
         offer_id=request.activity_id,
         reporter_actor_id=request.actor_id,
         actor_config=actor_config,
+        received_effects=submit_report_received_effects(request),
     )
     result = bridge.execute_with_setup(
         tree,
@@ -209,7 +107,16 @@ def _run_submit_report_case_creation(
         activity=request,
     )
 
+    if node_failed(tree, CheckOfferAddressedToReceiverNode):
+        return HandlerResult.refused(failure_reason(tree, result))
     if node_failed(tree, CheckAutoCaseCreationEnabledNode):
+        logger.info(
+            "SubmitReportReceivedUseCase: auto_create_case disabled for"
+            " actor '%s' — kept report '%s' and Offer without creating a"
+            " case (pre-case ACK path)",
+            receiving_actor_id,
+            request.report_id,
+        )
         return HandlerResult.skipped("auto_create_case disabled")
     verdict = verdict_from_bt(tree, result, label="ReceiveReportCaseBT")
     if verdict.disposition is HandlerDisposition.REFUSED:
@@ -307,41 +214,25 @@ class SubmitReportReceivedUseCase:
             self._dl, request.receiving_actor_id
         )
 
-        # The report and Offer(Report) activity are stored unconditionally so
-        # that a receiver with auto_create_case=False still retains the data
-        # needed for a subsequent pre-case ACK (Read(Offer(Report))) or an
-        # explicit accept/reject decision (CM-15-001).
-        _store_submit_report_dependencies(self._dl, request)
         if not request.report_id:
+            # Keep the Offer (intake and the store node) and go no further.
+            tree = (
+                receive_report_case_tree.create_keep_offer_without_report_tree(
+                    submit_report_received_effects(request)
+                )
+            )
+            bridge = BTBridge(
+                datalayer=self._dl,
+                wire_render_port=self._wire_render_port,
+                sync_port=self._sync_port,
+            )
+            result = bridge.execute_with_setup(
+                tree, actor_id=receiving_actor_id, activity=request
+            )
+            applied_or_raise(tree, result, label="SubmitReportReceivedBT")
             return HandlerResult.skipped(
                 "Offer carries no report id; nothing to propose a case for"
             )
-
-        refusal_reason = _not_primary_recipient_reason(
-            request, receiving_actor_id
-        )
-        if refusal_reason is not None:
-            return HandlerResult.refused(refusal_reason)
-
-        # Routing-level policy short-circuit: when the receiver opts out of
-        # automatic case creation, do not even invoke the case-creation BT.
-        # This is a dispatch decision (like the recipient checks above), so a
-        # deliberate policy skip is logged at INFO rather than surfacing as a
-        # case-creation FAILURE.  The BT also carries an in-tree
-        # CheckAutoCaseCreationEnabledNode gate for any caller that invokes the
-        # tree directly (CM-15-001, ADR-0015 Option 3).
-        if (
-            self._actor_config is not None
-            and not self._actor_config.auto_create_case
-        ):
-            logger.info(
-                "SubmitReportReceivedUseCase: auto_create_case disabled for "
-                "actor '%s' — stored report '%s' and Offer without creating a "
-                "case (pre-case ACK path)",
-                receiving_actor_id,
-                request.report_id,
-            )
-            return HandlerResult.skipped("auto_create_case disabled")
 
         return _run_submit_report_case_creation(
             self._dl,

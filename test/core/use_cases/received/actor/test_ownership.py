@@ -20,6 +20,9 @@ import pytest
 
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.behaviors.case.nodes.store_received_object import (
+    StoreReceivedObjectNode,
+)
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases.received.actor.ownership import (
@@ -403,6 +406,12 @@ class TestOwnershipTransferUseCases:
             sync_port=SyncActivityAdapter(dl),
         ).execute()
 
+        # The Offer the accept trigger reads back by id is written by a store
+        # node of the same tree, not by execute() (CLP-10-005, AC-4).
+        assert all(
+            isinstance(c.pop("store_offer", None), StoreReceivedObjectNode)
+            for c in calls
+        )
         assert calls == [
             {
                 "case_id": case.id_,

@@ -156,9 +156,6 @@ def _collect_violations() -> frozenset[str]:
 # ---------------------------------------------------------------------------
 KNOWN_VIOLATIONS: frozenset[str] = frozenset(
     {
-        # #3872 — report, embargo, invite, ownership
-        "vultron/core/use_cases/received/report.py",
-        "vultron/core/use_cases/received/actor/ownership.py",
         # #3873 — case lifecycle (add report) and note (remove note): direct
         # writes with no tree at all
         "vultron/core/use_cases/received/case/lifecycle.py",
