@@ -20,7 +20,6 @@ import pytest
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.embargo_register import register
 from vultron.core.behaviors.report.nodes.conditions import (
-    CheckParticipantExists,
     CheckRMStateReceivedOrInvalid,
     CheckRMStateValid,
     EnsureEmbargoExists,
@@ -31,7 +30,6 @@ from vultron.core.behaviors.report.nodes.conditions import (
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor
-from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
@@ -288,75 +286,3 @@ def test_evaluate_case_priority(
         actor_id=actor.id_,
     )
     bt_scenario.assert_success(result)
-
-
-@pytest.mark.spec("BT-03-001")
-def test_check_participant_exists_when_participant_is_present(
-    bt_scenario: BTTestScenario,
-    actor: CaseActor,
-    report: VulnerabilityReport,
-) -> None:
-    """CheckParticipantExists returns SUCCESS when actor has participant."""
-    participant = CaseParticipant(
-        id_="https://example.org/participants/vendor-cp-001",
-        attributed_to=actor.id_,
-        context="https://example.org/cases/case-001",
-    )
-    case = VulnerabilityCase(
-        id_="https://example.org/cases/case-001",
-        name="Participant Case",
-        vulnerability_reports=[report.id_],
-        case_participants=[participant.id_],
-        attributed_to=actor.id_,
-    )
-    bt_scenario.seed(participant, case)
-
-    result = bt_scenario.run(
-        CheckParticipantExists(case_id=case.id_, actor_id=actor.id_),
-        actor_id=actor.id_,
-    )
-    bt_scenario.assert_success(result)
-
-
-@pytest.mark.spec("BT-03-001")
-def test_check_participant_exists_fails_without_case(
-    bt_scenario: BTTestScenario,
-    actor: CaseActor,
-) -> None:
-    """CheckParticipantExists returns FAILURE when case is missing."""
-    result = bt_scenario.run(
-        CheckParticipantExists(
-            case_id="https://example.org/cases/missing",
-            actor_id=actor.id_,
-        ),
-        actor_id=actor.id_,
-    )
-    bt_scenario.assert_failure(result)
-
-
-@pytest.mark.spec("BT-03-001")
-def test_check_participant_exists_fails_without_matching_participant(
-    bt_scenario: BTTestScenario,
-    actor: CaseActor,
-    report: VulnerabilityReport,
-) -> None:
-    """CheckParticipantExists returns FAILURE when actor has no participant."""
-    other_participant = CaseParticipant(
-        id_="https://example.org/participants/other-cp-001",
-        attributed_to="https://example.org/actors/other",
-        context="https://example.org/cases/case-002",
-    )
-    case = VulnerabilityCase(
-        id_="https://example.org/cases/case-002",
-        name="Other Participant Case",
-        vulnerability_reports=[report.id_],
-        case_participants=[other_participant.id_],
-        attributed_to=actor.id_,
-    )
-    bt_scenario.seed(other_participant, case)
-
-    result = bt_scenario.run(
-        CheckParticipantExists(case_id=case.id_, actor_id=actor.id_),
-        actor_id=actor.id_,
-    )
-    bt_scenario.assert_failure(result)

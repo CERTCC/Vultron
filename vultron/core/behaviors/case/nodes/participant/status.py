@@ -60,7 +60,7 @@ from vultron.core.states.cs import (
     CS_vf,
     is_pxa_public_aware,
 )
-from vultron.core.states.rm import RM
+from vultron.core.states.rm import RM, RMRule
 from vultron.errors import VultronAlreadyExistsError
 
 
@@ -96,10 +96,24 @@ class CreateParticipantStatusNode(
         result_out: "dict | None" = None,
         name: str | None = None,
         force_rm_state: bool = False,
+        rm_rule: RMRule = RMRule.TRANSITION,
     ) -> None:
         """Create the node.
 
         Args:
+            actor_id: The subject — the actor whose participant this write
+                records (BTND-10-005).  On the received side it is the sender
+                (``request.actor_id``), never the receiving actor whose store
+                the tree executes in (RSH-08-001).
+            rm_rule: The RM rule the node's own evaluator call applies
+                (BTND-10-003).  ``TRANSITION`` (the default) is the adjacency
+                rule.  ``DECLARATION`` is the received-side acceptance rule
+                for recording what the sender declared about itself: a
+                non-adjacent forward move is recorded and a regression is
+                still refused (RSH-06-001, RSH-06-002, RSH-06-006).  It is
+                not an override — every other rule stays in force, and the
+                RM dimension is still checked — so it is not pinned with
+                ``force_rm_state``.
             force_rm_state: Skip the RM adjacency rule for this write.
 
                 **Do not add new users.**  Set only by the bootstrap writes
@@ -137,6 +151,7 @@ class CreateParticipantStatusNode(
         self._pxa_state = pxa_state
         self._result_out = result_out
         self._force_rm_state = force_rm_state
+        self._rm_rule = rm_rule
 
     def initialise(self) -> None:
         super().initialise()
@@ -286,9 +301,15 @@ class CreateParticipantStatusNode(
             ),
             cvd_role=status_roles,
             case_status=case_status,
+            # The construction-time check is the adjacency rule, so it is
+            # armed only for a TRANSITION write.  A DECLARATION write has had
+            # its RM move adjudicated by this node's own evaluator call above,
+            # which still refuses a regression (RSH-06-002).
             previous_rm_state=(
                 context.current_rm
-                if self._rm_state is not None and not self._force_rm_state
+                if self._rm_state is not None
+                and not self._force_rm_state
+                and self._rm_rule is RMRule.TRANSITION
                 else None
             ),
         )
@@ -326,6 +347,7 @@ class CreateParticipantStatusNode(
             pxa_state=self._pxa_state,
             result_out=self._result_out,
             validate_rm_transition=not self._force_rm_state,
+            rm_rule=self._rm_rule,
         )
         if failure is not None:
             return failure

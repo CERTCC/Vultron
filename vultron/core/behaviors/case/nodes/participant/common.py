@@ -36,7 +36,7 @@ from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.participant_transitions import (
     participant_transition_violations,
 )
-from vultron.core.states.rm import RM
+from vultron.core.states.rm import RM, RMRule
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronValidationError
 
@@ -265,6 +265,7 @@ def validate_participant_status_write(
     pxa_state: "CS_pxa | None",
     result_out: dict | None,
     validate_rm_transition: bool = True,
+    rm_rule: RMRule = RMRule.TRANSITION,
 ) -> "Status | None":
     """Validate a proposed ``ParticipantStatus`` write and report every failure.
 
@@ -285,6 +286,9 @@ def validate_participant_status_write(
             for the enumerated bootstrap writes (``force_rm_state``); every
             other caller, closure included (RMB-14-005), leaves the full rule
             set in force.
+        rm_rule: Passed through to the evaluator.  ``DECLARATION`` only for a
+            received-side write recording the state the sender declared about
+            itself (RSH-06-006); see :class:`~vultron.core.states.rm.RMRule`.
 
     Returns:
         ``Status.FAILURE`` when the write is refused, ``None`` when it is legal
@@ -301,6 +305,7 @@ def validate_participant_status_write(
         requested_pxa=pxa_state,
         actor_roles=context.actor_roles,
         validate_rm_transition=validate_rm_transition,
+        rm_rule=rm_rule,
     )
     if not violations:
         return None

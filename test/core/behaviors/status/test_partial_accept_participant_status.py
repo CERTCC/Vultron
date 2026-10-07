@@ -44,6 +44,18 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.rm_declaration import (
+    ACTOR_ID,
+    CASE_ID,
+    CASE_MANAGER_ID,
+    PARTICIPANT_ID,
+    RMDeclarationCase,
+    all_cases,
+    current_status as _current_status,
+    queued_notes,
+    recorded_rm,
+    seed_case as _seed_case,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -67,7 +79,6 @@ from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.behaviors.sync.nodes.participant_status_effect import (
     ApplyParticipantStatusFromLedgerNode,
 )
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
@@ -107,12 +118,9 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 # Constants
 # ---------------------------------------------------------------------------
 
-ACTOR_ID = "https://example.org/actors/vendor"
-CASE_MANAGER_ID = "https://example.org/actors/case-actor"
-CASE_ID = "https://example.org/cases/case-2235"
-PARTICIPANT_ID = f"{CASE_ID}/participants/vendor"
-CM_PARTICIPANT_ID = f"{CASE_ID}/participants/case-actor"
-CURRENT_STATUS_ID = f"{PARTICIPANT_ID}/statuses/current"
+# The case, its participants and ``store_for`` are shared with the
+# activity-typed RM handler tests, so both paths run against one table of
+# cases (RSH-06-006) — see ``test/support/rm_declaration.py``.
 ASSERTED_STATUS_ID = f"{PARTICIPANT_ID}/statuses/asserted"
 SECOND_STATUS_ID = f"{PARTICIPANT_ID}/statuses/asserted-2"
 
@@ -217,47 +225,6 @@ def _receipt_entries(dl: SqliteDataLayer) -> list[CaseLedgerEntry]:
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture
-def store_for():
-    """Factory: the store belonging to a given actor.
-
-    These tests split between two executing actors — the asserting participant
-    and the case manager — and a BT's store follows its executing actor
-    (ADR-0073), so one shared store cannot serve both. Each test opens the store
-    of the actor it runs as.
-    """
-    created: list[SqliteDataLayer] = []
-
-    def _make(actor_id: str) -> SqliteDataLayer:
-        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
-        created.append(dl)
-        return dl
-
-    yield _make
-    for dl in created:
-        dl.close()
-
-
-def _current_status(
-    rm_state: RM,
-    vf_state: CS_vf | None,
-    pxa_state: CS_pxa,
-) -> as_ParticipantStatus:
-    """The participant's status *before* the inbound assertion arrives."""
-    return as_ParticipantStatus(
-        id_=CURRENT_STATUS_ID,
-        context=CASE_ID,
-        rm=RmDimension(state=rm_state),
-        vf=(VfDimension(state=vf_state) if vf_state is not None else None),
-        case_status=as_CaseStatus(
-            id_=f"{CURRENT_STATUS_ID}/cs",
-            context=CASE_ID,
-            em=EmDimension(state=EM.NONE),
-            pxa=PxaDimension(state=pxa_state),
-        ),
-    )
-
-
 def _asserted_status(
     rm_state: RM,
     vf_state: CS_vf | None,
@@ -287,44 +254,6 @@ def _asserted_status(
         vf=(VfDimension(state=vf_state) if vf_state is not None else None),
         case_status=case_status,
     )
-
-
-def _seed_case(
-    dl: SqliteDataLayer,
-    current: as_ParticipantStatus,
-    asserted: as_ParticipantStatus | None,
-) -> None:
-    """Seed a two-participant case with *current* as the vendor's latest status."""
-    vendor = as_CaseParticipant(
-        id_=PARTICIPANT_ID,
-        context=CASE_ID,
-        attributed_to=ACTOR_ID,
-        case_roles=[CVDRole.CASE_OWNER, CVDRole.VENDOR],
-    )
-    vendor.participant_statuses.append(current)
-    manager = as_CaseParticipant(
-        id_=CM_PARTICIPANT_ID,
-        context=CASE_ID,
-        attributed_to=CASE_MANAGER_ID,
-        case_roles=[CVDRole.CASE_MANAGER],
-    )
-    # attributed_to is what seeds the per-case genesis hash (CLP-08-003);
-    # without it the ledger sits in the pre-genesis bootstrap window and the
-    # guarded commit cannot anchor a chain.
-    case = VulnerabilityCase(
-        id_=CASE_ID,
-        name="Issue 2235 Case",
-        attributed_to=CASE_MANAGER_ID,
-    )
-    case.add_participant(cast(CaseParticipant, vendor))
-    case.add_participant(cast(CaseParticipant, manager))
-
-    dl.create(case)
-    dl.create(vendor)
-    dl.create(manager)
-    dl.create(current)
-    if asserted is not None:
-        dl.create(asserted)
 
 
 class _CaptureOverride(py_trees.behaviour.Behaviour):
@@ -1231,6 +1160,39 @@ class TestRMGapAnomalyFlag:
         assert anomaly["anomaly_type"] == "regression"
         assert anomaly["from_rm"] == RM.ACCEPTED
         assert anomaly["to_rm"] == RM.RECEIVED
+
+
+class TestSharedRMAcceptanceRule:
+    """The ``Add(ParticipantStatus)`` half of the shared RM table (RSH-06-006).
+
+    ``test/core/behaviors/report/test_rm_declaration_adjudication.py`` runs the
+    activity-typed handlers against the same rows; both must record the same
+    RM state and flag the same anomaly.
+    """
+
+    @pytest.mark.spec("RSH-06-001")
+    @pytest.mark.spec("RSH-06-002")
+    @pytest.mark.spec("RSH-06-003")
+    @pytest.mark.spec("RSH-06-006")
+    @pytest.mark.parametrize("case", all_cases())
+    def test_status_path_applies_the_shared_rule(
+        self, case: RMDeclarationCase, store_for, make_payload
+    ):
+        dl = store_for(CASE_MANAGER_ID)
+        current = _current_status(case.current, CS_vf.Vf, CS_pxa.pxa)
+        asserted = _asserted_status(case.declared, CS_vf.Vf, None)
+        _seed_case(dl, current, asserted)
+
+        _run_tree(dl, asserted, CASE_MANAGER_ID, make_payload)
+
+        assert recorded_rm(dl) == case.expected_rm
+        anomaly = py_trees.blackboard.Blackboard.storage.get(
+            "/rm_transition_anomaly"
+        )
+        assert (anomaly or {}).get("anomaly_type") == case.anomaly
+        # The note follows an accepted gap; a wholly refused regression ends
+        # the tree before its effects (RSH-06-004).
+        assert len(queued_notes(dl)) == (1 if case.anomaly == "gap" else 0)
 
 
 # ---------------------------------------------------------------------------

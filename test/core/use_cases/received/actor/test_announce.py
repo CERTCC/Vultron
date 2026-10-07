@@ -476,7 +476,7 @@ class TestAnnounceStoresEmbeddedParticipants:
     Regression tests for #566: ``AnnounceVulnerabilityCaseReceivedUseCase``
     was not calling ``store_embedded_participants`` after saving the case,
     so late-joiner replicas never had independent ``as_CaseParticipant`` records.
-    BT nodes (``CheckParticipantExists``, ``AppendParticipantStatusNode``)
+    BT nodes (``SenderIsActiveParticipantNode``, ``AppendParticipantStatusNode``)
     would then fail with participant-not-found on the Announce path.
     """
 
