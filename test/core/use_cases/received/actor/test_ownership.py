@@ -20,6 +20,9 @@ import pytest
 
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.behaviors.case.nodes.store_received_object import (
+    StoreReceivedObjectNode,
+)
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases.received.actor.ownership import (
@@ -403,6 +406,12 @@ class TestOwnershipTransferUseCases:
             sync_port=SyncActivityAdapter(dl),
         ).execute()
 
+        # The Offer the accept trigger reads back by id is written by a store
+        # node of the same tree, not by execute() (CLP-10-005, AC-4).
+        assert all(
+            isinstance(c.pop("store_offer", None), StoreReceivedObjectNode)
+            for c in calls
+        )
         assert calls == [
             {
                 "case_id": case.id_,
@@ -808,3 +817,43 @@ class TestOwnershipOfferAtNonRecipient:
         assert dl.get(activity.type_.value, activity.id_) is None, (
             "a refused Offer must not be left behind in the bystander's store"
         )
+
+
+class TestOwnershipOfferNamingNoCase:
+    """An Offer that names no case is refused but still kept (CLP-10-018)."""
+
+    def test_refused_and_the_offer_is_archived(self, make_payload):
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.models.received_activity_record import (
+            ReceivedActivityRecord,
+        )
+
+        receiver = "https://test.example/api/v2/actors/test-actor"
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=receiver)
+        case = as_VulnerabilityCase(
+            id_="https://example.org/cases/case_ot_nocase", name="no case"
+        )
+        offer = offer_case_ownership_transfer_activity(
+            case,
+            target="https://example.org/users/coordinator",
+            actor="https://example.org/users/vendor",
+            to=[receiver],
+        )
+        event = make_payload(offer, receiving_actor_id=receiver)
+        # The Offer arrives naming no case.
+        event = event.model_copy(
+            update={
+                "activity": event.activity.model_copy(update={"object_": None})
+            }
+        )
+
+        result = OfferCaseOwnershipTransferReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason and "names no case" in result.reason
+        assert dl.read(ReceivedActivityRecord.build_id(offer.id_)) is not None

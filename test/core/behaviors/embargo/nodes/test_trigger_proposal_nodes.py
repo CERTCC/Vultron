@@ -115,3 +115,42 @@ def test_index_own_proposal_raises_without_a_committed_proposal():
 
     with pytest.raises(RuntimeError, match="no committed proposal id"):
         bt.tick()
+
+
+@pytest.mark.spec("ID-04-005")
+def test_index_received_proposal_records_the_invite():
+    from vultron.core.behaviors.embargo.nodes import (
+        IndexReceivedEmbargoProposalNode,
+    )
+
+    dl, case_id = _store_with_case("index-recv", EM.PROPOSED)
+    embargo_id = f"{case_id}/embargo_events/e3"
+    invite_id = f"{case_id}/invites/i3"
+
+    status = _tick(
+        IndexReceivedEmbargoProposalNode(
+            case_id=case_id, embargo_id=embargo_id, invite_id=invite_id
+        )
+    )
+
+    assert status == py_trees.common.Status.SUCCESS
+    case = dl.read(case_id)
+    assert isinstance(case, VulnerabilityCase)
+    assert case.pending_embargo_proposal_index[embargo_id] == invite_id
+
+
+def test_index_received_proposal_tolerates_a_case_not_held():
+    """A partial replica keeps the Invite and indexes nothing (ADR-0087)."""
+    from vultron.core.behaviors.embargo.nodes import (
+        IndexReceivedEmbargoProposalNode,
+    )
+
+    _store_with_case("index-recv-none", EM.PROPOSED)
+    status = _tick(
+        IndexReceivedEmbargoProposalNode(
+            case_id="https://example.org/cases/not-held",
+            embargo_id="urn:e",
+            invite_id="urn:i",
+        )
+    )
+    assert status == py_trees.common.Status.SUCCESS

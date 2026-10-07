@@ -4,6 +4,9 @@ import logging
 from typing import TYPE_CHECKING, ClassVar
 
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.store_received_object import (
+    StoreReceivedObjectNode,
+)
 from vultron.core.behaviors.case.ownership_transfer_tree import (
     create_accept_ownership_transfer_tree,
     create_offer_ownership_transfer_tree,
@@ -21,12 +24,13 @@ from vultron.core.models.use_case_result import (
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
-from vultron.core.services.idempotent_store import idempotent_store
 from vultron.core.use_cases._helpers import (
     is_recipient,
     resolve_receiving_actor_id,
 )
 from vultron.core.use_cases.received._bt_verdict import (
+    applied_or_raise,
+    intake_verdict,
     not_case_manager,
     verdict_from_bt,
 )
@@ -129,28 +133,13 @@ class OfferCaseOwnershipTransferReceivedUseCase:
             )
             return verdict
 
-        stored = idempotent_store(
-            self._dl,
-            request.activity_type,
-            request.activity_id,
-            request.activity,
-            "OfferCaseOwnershipTransfer",
-            request.activity_id,
-        )
-
         case_id = _as_id(request.activity.object_)
-        if case_id is None:
-            logger.warning(
-                "OfferCaseOwnershipTransferReceived: missing case_id"
-                " on offer '%s' — refusing",
-                request.activity_id,
-            )
-            return HandlerResult.refused(
-                "Offer(ownership transfer) names no case"
-            )
-
         transferee_id = _as_id(request.activity.target)
-        original_actor_id = self._resolve_offering_actor_id(case_id)
+        original_actor_id = (
+            self._resolve_offering_actor_id(case_id)
+            if case_id is not None
+            else None
+        )
 
         # One tree, run once (CLP-10-005).  The guarded commit fires only when
         # receiving_actor_id is the CaseActor (CheckIsCaseManagerNode gate), and
@@ -160,6 +149,13 @@ class OfferCaseOwnershipTransferReceivedUseCase:
             case_id=case_id,
             transferee_id=transferee_id,
             original_actor_id=original_actor_id,
+            store_offer=StoreReceivedObjectNode(
+                request.activity_type,
+                request.activity_id,
+                request.activity,
+                "OfferCaseOwnershipTransfer",
+                request.activity_id,
+            ),
         )
         bridge = BTBridge(
             datalayer=self._dl,
@@ -172,6 +168,18 @@ class OfferCaseOwnershipTransferReceivedUseCase:
             actor_id=receiving_actor_id,
             activity=request,
         )
+        if case_id is None:
+            # The tree kept the Offer (intake and the store node); there is
+            # no case to act on.
+            applied_or_raise(tree, result, label="OfferOwnershipTransferBT")
+            logger.warning(
+                "OfferCaseOwnershipTransferReceived: missing case_id"
+                " on offer '%s' — refusing",
+                request.activity_id,
+            )
+            return HandlerResult.refused(
+                "Offer(ownership transfer) names no case"
+            )
         verdict = verdict_from_bt(
             tree, result, label="OfferOwnershipTransferBT"
         )
@@ -184,8 +192,11 @@ class OfferCaseOwnershipTransferReceivedUseCase:
             return verdict
         if not_case_manager(tree):
             # The cascade is the CASE_MANAGER's; the transferee (an addressee,
-            # checked above) only stores the forwarded Offer.
-            return stored
+            # checked above) only stores the forwarded Offer, so what it did
+            # is what intake and the store did (HP-01-003).
+            return intake_verdict(
+                tree, result, label="OfferOwnershipTransferBT"
+            )
         return verdict
 
 

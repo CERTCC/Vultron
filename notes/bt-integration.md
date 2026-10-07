@@ -367,9 +367,9 @@ never one. Trigger-side bodies get only the direct rule (BT-15-001 governs
 them). Eleven received `execute()` bodies in nine files reached a write this way
 when the rule was widened, most through one shared `_idempotent_create` helper
 and the rest through bespoke ones, invisible to the earlier body-only scan
-because the write sat one call away (ISSUE-3339, ADR-0111). They are held as the
-exact `KNOWN_VIOLATIONS` set, each entry annotated with the issue that retires
-it.
+because the write sat one call away (ISSUE-3339, ADR-0111). Each was held in the
+exact `KNOWN_VIOLATIONS` set, annotated with the issue that retired it; the set is
+now an empty `frozenset()`, and a new entry needs the issue that owns its removal.
 
 ### The Four Received-Side Stages (ADR-0111)
 

@@ -338,25 +338,12 @@ def _phase_ownership_handoff(
     )
     logger.info("─" * 80)
 
-    # Seed stub_summary on the CASE_MANAGER's DataLayer copy so the invite BT
-    # can build the stub Invite (CM-17-010, MV-10-001, #4165).
-    # EmitInviteActorToCaseNode runs in the CASE_MANAGER's received tree and
-    # reads from the CASE_MANAGER's store, not the inviting actor's.
-    # Before the handoff, Vendor1 is the CASE_OWNER and CASE_MANAGER; its
-    # case-actor lives on vendor_client (VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL
-    # points to the vendor container itself, ADR-0041).
-    _case_actor = get_actor_by_id(
-        vendor_client, case_actor_id_on(vendor_client.base_url)
-    )
-    ActorSession(client=vendor_client, actor=_case_actor).with_case(
-        case
-    ).quiet().set_stub_summary("Vulnerability report from Finder")
-
     # Vendor1 invites Coordinator with COORDINATOR role; the chain nests the
     # delivery gate, the accept and the replica wait (ADR-0058, EDF-06-005,
     # #3038).
     run_case_invite_chain(
         case=case,
+        case_manager_client=vendor_client,
         invitee_name="Coordinator",
         invitee_client=coordinator_client,
         invitee=coordinator,
@@ -569,24 +556,11 @@ def _phase_coordinator_invites_vendor2(
     # (PCR-08-007, PCR-08-008).  The check on the delivered Invite below is
     # what holds that property honest.
     #
-    # Seed stub_summary on the CASE_MANAGER's DataLayer copy so the invite BT
-    # can build the stub Invite (CM-17-010, MV-10-001, #4165).
-    # EmitInviteActorToCaseNode runs in the CASE_MANAGER's received tree and
-    # reads from the CASE_MANAGER's store, not the inviting actor's.
-    # The CASE_MANAGER actor was created on vendor_client when the report was
-    # first received (EnsureCaseActorHostedNode runs only in
-    # receive_report_case_tree). Ownership transfer moves the CASE_OWNER but
-    # not the CASE_MANAGER actor — the case participant record still names
-    # http://vendor:7999/api/v2/actors/case-actor (== case_actor_id above).
-    _case_actor = get_actor_by_id(vendor_client, case_actor_id)
-    ActorSession(client=vendor_client, actor=_case_actor).with_case(
-        case
-    ).quiet().set_stub_summary("Vulnerability report from Finder")
-
     # run_case_invite_chain nests the accept and the replica wait inside the
     # delivery gate (ADR-0058 nested-block model, EDF-06-005, #3038).
     run_case_invite_chain(
         case=case,
+        case_manager_client=vendor_client,
         invitee_name="Vendor2",
         invitee_client=vendor2_client,
         invitee=vendor2,

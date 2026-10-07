@@ -831,3 +831,89 @@ class TestSubmitReportDisposition:
             VultronBTInternalError, match="ReceiveReportCaseBT"
         ):
             self._run(to=[self.VENDOR_ID])
+
+
+class TestSubmitReportKeepsWhatArrived:
+    """Report, Offer and offer record survive every non-case disposition.
+
+    The writes are effect nodes of the receive tree, not ``execute()`` work, so
+    each exit has to keep them itself (CM-15-001, CLP-10-018).
+    """
+
+    VENDOR_ID = "https://example.org/actors/vendor"
+    OTHER_ID = "https://example.org/actors/other"
+    FINDER_ID = "https://example.org/users/finder"
+    REPORT_ID = "https://example.org/reports/r-keep-1"
+    OFFER_ID = "https://example.org/activities/offer-keep-1"
+
+    def _run(self, to, report=True, actor_config=None):
+        from vultron.core.models.case_actor import CaseActor
+
+        activity = VultronActivity(
+            id_=self.OFFER_ID,
+            type_="Offer",
+            actor=self.FINDER_ID,
+            to=to,
+        )
+        event = SubmitReportReceivedEvent(
+            semantic_type=MessageSemantics.SUBMIT_REPORT,
+            activity_id=self.OFFER_ID,
+            actor_id=self.FINDER_ID,
+            object_=VulnerabilityReport(id_=self.REPORT_ID)
+            if report
+            else None,
+            activity=activity,
+            receiving_actor_id=self.VENDOR_ID,
+        )
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=self.VENDOR_ID)
+        dl.save(CaseActor(id_=self.VENDOR_ID))
+        result = SubmitReportReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            actor_config=actor_config,
+        ).execute()
+        return result, dl
+
+    def _assert_kept(self, dl, *, record=True):
+        from vultron.core.models.offer_record import VultronOfferRecord
+
+        assert dl.read(self.REPORT_ID) is not None
+        assert self.OFFER_ID in [r.get("id_") for r in dl.get_all("Offer")]
+        assert (
+            dl.read(VultronOfferRecord.build_id(self.OFFER_ID)) is not None
+        ) is record
+
+    @pytest.mark.spec("CM-15-001")
+    def test_auto_create_disabled_keeps_everything(self):
+        from vultron.config.actor import ActorConfig
+
+        result, dl = self._run(
+            [self.VENDOR_ID], actor_config=ActorConfig(auto_create_case=False)
+        )
+        assert result.disposition == HandlerDisposition.SKIPPED
+        self._assert_kept(dl)
+
+    @pytest.mark.spec("CLP-10-018")
+    def test_not_a_recipient_still_keeps_everything(self):
+        result, dl = self._run([self.OTHER_ID])
+        assert result.disposition == HandlerDisposition.REFUSED
+        self._assert_kept(dl)
+        assert dl.get_all("VulnerabilityCase") == []
+
+    @pytest.mark.spec("CLP-10-018")
+    def test_offer_without_report_keeps_the_offer_only(self):
+        result, dl = self._run([self.VENDOR_ID], report=False)
+        assert result.disposition == HandlerDisposition.SKIPPED
+        assert self.OFFER_ID in [r.get("id_") for r in dl.get_all("Offer")]
+        assert dl.read(self.REPORT_ID) is None
+
+    def test_execute_writes_nothing_itself(self):
+        """The ratchet charges nothing to the handler (CLP-10-005)."""
+        import inspect
+
+        from vultron.core.use_cases.received import report
+
+        source = inspect.getsource(report)
+        assert "_store_submit_report_dependencies" not in source
+        assert "_store_dependency_idempotently" not in source

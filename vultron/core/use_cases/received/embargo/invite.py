@@ -14,9 +14,6 @@ from vultron.core.behaviors.embargo.announce_teardown_tree import (
 from vultron.core.behaviors.embargo.nodes import (
     EmbargoProposalNotYetRecordedNode,
 )
-from vultron.core.behaviors.embargo.proposal_index import (
-    record_embargo_proposal_index,
-)
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.embargo import (
     InviteToEmbargoOnCaseReceivedEvent,
@@ -45,10 +42,7 @@ from vultron.core.use_cases.received._embargo_pxa import (
     refuse_pxa_invite,
 )
 from vultron.core.use_cases.received._sender_preflight import sender_refusal
-from vultron.errors import (
-    VultronNotFoundError,
-    VultronProtocolViolationError,
-)
+from vultron.errors import VultronProtocolViolationError
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -320,24 +314,6 @@ class InviteToEmbargoOnCaseReceivedUseCase:
         if verdict.disposition is not HandlerDisposition.APPLIED:
             logger.warning("%s (invite '%s')", verdict.reason, invite_id)
             return verdict
-
-        # Record embargo_id → invite_id in core state so accept/reject
-        # trigger use cases can correlate without re-reading the Invite wire
-        # activity (ADR-0035 DL-06).  A partial replica that holds no copy
-        # of the case keeps the Invite and indexes nothing (Regime 2,
-        # ADR-0087); CanAnswerEmbargoInviteNode has already warned.
-        if embargo_id and invite_id:
-            try:
-                record_embargo_proposal_index(
-                    self._dl, case_id, embargo_id, invite_id
-                )
-            except VultronNotFoundError:
-                logger.info(
-                    "invite '%s': case '%s' not held here — proposal not"
-                    " indexed",
-                    invite_id,
-                    case_id,
-                )
 
         # No deadline is stored on receipt: the CASE_MANAGER recorded the one
         # it stamped at its relay's commit, and a replica records that value

@@ -36,6 +36,9 @@ from vultron.core.behaviors.case.nodes.ownership_transfer import (
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
 )
+from vultron.core.behaviors.case.nodes.store_received_object import (
+    StoreReceivedObjectNode,
+)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -80,9 +83,10 @@ def create_accept_ownership_transfer_tree(
 
 
 def create_offer_ownership_transfer_tree(
-    case_id: str,
+    case_id: str | None,
     transferee_id: str | None,
     original_actor_id: str | None,
+    store_offer: StoreReceivedObjectNode | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for ``OfferCaseOwnershipTransferReceivedUseCase``.
 
@@ -96,16 +100,28 @@ def create_offer_ownership_transfer_tree(
     occurs.
 
     Args:
-        case_id: URI of the case whose ownership is being offered.
+        case_id: URI of the case whose ownership is being offered; ``None``
+            for an Offer that names no case, which is archived and kept but
+            commits and forwards nothing (CLP-10-018).
         transferee_id: URI of the intended new owner; ``None`` skips forwarding.
         original_actor_id: URI of the actor who originated the offer (vendor).
+        store_offer: Effect node that writes the Offer activity the accept
+            trigger reads back by id (DL-06); it runs before the gated
+            forward, after the guards and the commit (CLP-10-017,
+            CLP-10-019).
 
     Returns:
         A ``py_trees`` ``Behaviour`` ready for ``BTBridge.execute_with_setup()``.
     """
     effect_nodes: list[py_trees.behaviour.Behaviour] = []
-    if transferee_id is not None and original_actor_id is not None:
-        effect_nodes = [
+    if store_offer is not None:
+        effect_nodes.append(store_offer)
+    if (
+        case_id is not None
+        and transferee_id is not None
+        and original_actor_id is not None
+    ):
+        effect_nodes.append(
             create_case_manager_gated_tree(
                 name="ForwardOfferToTransfereeCMGated",
                 case_id=case_id,
@@ -116,8 +132,8 @@ def create_offer_ownership_transfer_tree(
                         original_actor_id=original_actor_id,
                     ),
                 ],
-            ),
-        ]
+            )
+        )
     tree = create_receive_activity_tree(
         name="OfferOwnershipTransferBT",
         case_id=case_id,

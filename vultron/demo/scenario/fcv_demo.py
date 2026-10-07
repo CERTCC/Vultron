@@ -331,6 +331,7 @@ def _phase_invite_vendor(
 
     run_case_invite_chain(
         case=case,
+        case_manager_client=coordinator_client,
         invitee_name="Vendor",
         invitee_client=vendor_client,
         invitee=vendor,

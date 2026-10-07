@@ -72,6 +72,7 @@ from vultron.core.behaviors.embargo.nodes import (
     CreateAndStoreInviteNode,
     EmbargoProposalNotYetRecordedNode,
     HasEmbargoActiveNode,
+    IndexReceivedEmbargoProposalNode,
     IsActiveEmbargoNode,
     OwnerMayAutoAcceptEmbargoNode,
     PersistEmbargoEventNode,
@@ -443,6 +444,11 @@ def invite_to_embargo_on_case_tree(
                         ],
                     ),
                 ],
+            ),
+            # DL-06: last, so the index is written only once the Invite has
+            # been applied; the accept/reject triggers read it.
+            IndexReceivedEmbargoProposalNode(
+                case_id=case_id, embargo_id=embargo_id, invite_id=invite_id
             ),
         ],
     )

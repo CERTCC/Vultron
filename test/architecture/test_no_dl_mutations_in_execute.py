@@ -141,7 +141,8 @@ def _collect_violations() -> frozenset[str]:
 
 
 # ---------------------------------------------------------------------------
-# Known pre-existing violations awaiting migration to BT leaf nodes.
+# Known pre-existing violations awaiting migration to BT leaf nodes (empty: every
+# received handler has migrated; a new entry needs its owning issue named).
 #
 # Each file's execute() reaches self._dl.save/create/update/delete — directly
 # or through a use-case helper — bypassing the BT audit trail and the
@@ -154,13 +155,7 @@ def _collect_violations() -> frozenset[str]:
 # Remove an entry in the same commit that migrates it (ARCH-18-002).  The
 # issue named beside each entry owns its removal.
 # ---------------------------------------------------------------------------
-KNOWN_VIOLATIONS: frozenset[str] = frozenset(
-    {
-        # #3872 — report, embargo, invite, ownership
-        "vultron/core/use_cases/received/report.py",
-        "vultron/core/use_cases/received/actor/ownership.py",
-    }
-)
+KNOWN_VIOLATIONS: frozenset[str] = frozenset()
 
 
 def test_no_dl_mutations_in_execute():
