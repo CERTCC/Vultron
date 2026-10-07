@@ -686,6 +686,7 @@ class TestValidateReportReceivedGuardedCommit:
             case_id: str | None = None,
             precondition_guards: list | None = None,
             effect_nodes: list | None = None,
+            **kwargs,
         ):
             commit_tree_calls.append(case_id)
             return original_create(
@@ -693,6 +694,7 @@ class TestValidateReportReceivedGuardedCommit:
                 case_id=case_id,
                 precondition_guards=precondition_guards or [],
                 effect_nodes=effect_nodes or [],
+                **kwargs,
             )
 
         monkeypatch.setattr(

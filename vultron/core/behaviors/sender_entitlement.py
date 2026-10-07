@@ -306,6 +306,8 @@ class SenderIsActiveParticipantNode(FindParticipantByActorIdNode):
     def _resolve_case_id(self) -> str | None:
         if self._case_id_hint:
             return self._case_id_hint
+        if not self.status_id:
+            return None
         assert self.datalayer is not None
         status_raw = self.datalayer.read(self.status_id)
         if status_raw is None:
@@ -321,6 +323,9 @@ class SenderIsActiveParticipantNode(FindParticipantByActorIdNode):
         if case_id is None:
             self.feedback_message = (
                 f"Cannot determine case_id for status '{self.status_id}'"
+                if self.status_id
+                else f"No case in this store to check sender"
+                f" '{self.sender_actor_id}' against"
             )
             self.logger.warning(
                 "%s: %s (HP-01-006, DEMOMA-07-003 step 1)",

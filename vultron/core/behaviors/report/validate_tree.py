@@ -95,6 +95,7 @@ from vultron.core.behaviors.report.nodes import (
     TransitionRMtoValid,
 )
 from vultron.core.behaviors.report.nodes.emit import EmitValidateReportActivity
+from vultron.core.states.rm import RMRule
 
 if TYPE_CHECKING:
     from vultron.core.behaviors.call_out.bundles.validation import (
@@ -113,6 +114,7 @@ def create_validate_report_subtree(
     captured: dict | None = None,
     emit: bool = True,
     name: str = "ValidateReportBT",
+    rm_rule: RMRule = RMRule.TRANSITION,
 ) -> py_trees.behaviour.Behaviour:
     """Build the canonical validate-report subtree.
 
@@ -138,6 +140,11 @@ def create_validate_report_subtree(
             ``False`` on the received side: the activity being handled *is* that
             message, and re-emitting it would loop.
         name: Root node name.
+        rm_rule: The RM rule the participant write is held to.  The trigger
+            side keeps ``TRANSITION``; the received side passes
+            ``DECLARATION``, because the write records the state the sender
+            declared, which the received-side acceptance rule adjudicates
+            (RSH-06-006).
 
     Returns:
         Root node of the validation subtree (a Selector).
@@ -170,6 +177,7 @@ def create_validate_report_subtree(
             report_id=report_id,
             offer_id=offer_id,
             sender_actor_id=sender_actor_id,
+            rm_rule=rm_rule,
         )
     )
 
