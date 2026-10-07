@@ -26,7 +26,9 @@ from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
     unaddressed_copy_refusal,
 )
+from vultron.core.use_cases.received._bt_verdict import applied_or_raise
 from vultron.core.use_cases.received._sender_preflight import sender_refusal
+from vultron.core.use_cases.received._store_only import run_store_only
 
 logger = logging.getLogger(__name__)
 
@@ -62,8 +64,9 @@ class AnnounceEmbargoEventToCaseReceivedUseCase:
         ) is not None:
             return refusal
         # The announcement is canonical case state, so only the CASE_MANAGER
-        # makes it, at every replica (EP-09-003, PCR-03-001, ADR-0115).  No
-        # tree runs here, so the guard runs ahead of the handler's effects.
+        # makes it, at every replica (EP-09-003, PCR-03-001, ADR-0115).  The
+        # guard runs ahead of the store-only tree, so a refused sender leaves
+        # nothing behind.
         if (
             refusal := sender_refusal(
                 self._dl,
@@ -77,6 +80,16 @@ class AnnounceEmbargoEventToCaseReceivedUseCase:
             )
         ) is not None:
             return refusal
+        tree, result = run_store_only(
+            self._dl,
+            request,
+            name="AnnounceEmbargoEventToCaseReceivedBT",
+            sync_port=self._sync_port,
+            wire_render_port=self._wire_render_port,
+        )
+        applied_or_raise(
+            tree, result, label="AnnounceEmbargoEventToCaseReceivedBT"
+        )
         logger.info(
             "Received embargo announcement '%s' — no receiver-side state"
             " change required",

@@ -959,6 +959,60 @@ class SenderIsCaseOwnerNode(SenderEntitlementConditionNode):
         return Status.FAILURE
 
 
+class SenderIsNoteAuthorNode(SenderEntitlementConditionNode):
+    """Guard: sender must be the note's author and an active case participant.
+
+    Reads the note from the executing actor's store and compares its
+    ``attributed_to`` with the sender.
+    Returns ``FAILURE`` for an unknown note, a note with no recorded author, a
+    different sender, and an author who is no longer an active participant of
+    the case (CM-10-004, the rule #2257 records).
+
+    Spec: CM-30-001, CM-10-004, HP-01-006.
+    """
+
+    def __init__(
+        self,
+        note_id: str,
+        sender_actor_id: str,
+        case_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.note_id = note_id
+        self.sender_actor_id = sender_actor_id
+        self.case_id = case_id
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1: the participant check needs the case
+
+        note = self.datalayer.read(self.note_id)
+        author = _as_id(getattr(note, "attributed_to", None))
+        if (
+            author is not None
+            and same_actor_id(self.sender_actor_id, author)
+            and is_case_content_recipient(
+                case, self.datalayer, self.sender_actor_id
+            )
+        ):
+            return Status.SUCCESS
+
+        self.feedback_message = (
+            f"Sender '{self.sender_actor_id}' is not the author of note"
+            f" '{self.note_id}' (author: '{author}') or not an active"
+            f" participant of case '{self.case_id}' — REFUSED"
+            " (CM-30-001, HP-01-006)"
+        )
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
+
 __all__ = [
     # Declaration types
     "SenderEntitlementKind",
@@ -978,4 +1032,5 @@ __all__ = [
     "SenderIsInviteeNode",
     "SenderIsExecutingActorNode",
     "SenderIsCaseOwnerNode",
+    "SenderIsNoteAuthorNode",
 ]

@@ -17,12 +17,14 @@ from vultron.core.behaviors.sync.nodes import (
     IsInviteAcceptEventNode,
     IsParticipantStatusEventNode,
     IsRemoveEmbargoEventNode,
+    IsRemoveNoteEventNode,
 )
 from vultron.core.behaviors.sync.nodes.event_conditions import (
     _ACCEPT_INVITE_ACTOR_TO_CASE_EVENT,
     _ADD_NOTE_TO_CASE_EVENT,
     _ADD_PARTICIPANT_STATUS_EVENT,
     _REMOVE_EMBARGO_EVENT,
+    _REMOVE_NOTE_FROM_CASE_EVENT,
 )
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 
@@ -33,6 +35,7 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
         (IsRemoveEmbargoEventNode, _REMOVE_EMBARGO_EVENT),
         (IsParticipantStatusEventNode, _ADD_PARTICIPANT_STATUS_EVENT),
         (IsAddNoteEventNode, _ADD_NOTE_TO_CASE_EVENT),
+        (IsRemoveNoteEventNode, _REMOVE_NOTE_FROM_CASE_EVENT),
         (IsInviteAcceptEventNode, _ACCEPT_INVITE_ACTOR_TO_CASE_EVENT),
     ],
 )

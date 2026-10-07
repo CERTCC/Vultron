@@ -17,15 +17,8 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.services.case_replica_seeding import (
-    store_embedded_participants,
-)
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import verdict_from_bt
-
-from ._helpers import (
-    _hold_carried_embargo,
-)
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -77,17 +70,6 @@ class EngageCaseReceivedUseCase:
             self._dl, request.receiving_actor_id
         )
 
-        # Persist any inline participant objects carried in the case snapshot
-        # so BT nodes (CheckParticipantExists, AppendParticipantStatusNode) can
-        # locate them by UUID.  Mirrors the Create (#564) and Announce (#566)
-        # paths (CBT-05-005, fixes #573).
-        case_obj = request.case
-        if case_obj is not None:
-            refusal = _hold_carried_embargo(case_obj, self._dl, case_id)
-            if refusal is not None:
-                return refusal
-            store_embedded_participants(case_obj, self._dl, case_id)
-
         logger.info(
             "Actor '%s' engages case '%s' (RM → ACCEPTED)",
             actor_id,
@@ -100,7 +82,9 @@ class EngageCaseReceivedUseCase:
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,
         )
-        tree = create_engage_case_tree(case_id=case_id, actor_id=actor_id)
+        tree = create_engage_case_tree(
+            case_id=case_id, actor_id=actor_id, case_obj=request.case
+        )
         result = bridge.execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,

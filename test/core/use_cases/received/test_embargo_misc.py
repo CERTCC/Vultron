@@ -88,8 +88,11 @@ class TestAnnounceEmbargoEventToCaseReceivedUseCase:
         assert updated.active_embargo is not None
 
     def test_announce_embargo_logs_info(self, make_payload, caplog):
-        """execute() logs receipt at INFO level."""
+        """execute() logs receipt at INFO level and archives the Announce."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.models.received_activity_record import (
+            ReceivedActivityRecord,
+        )
         from vultron.wire.as2.vocab.objects.embargo_event import (
             as_EmbargoEvent,
         )
@@ -112,17 +115,21 @@ class TestAnnounceEmbargoEventToCaseReceivedUseCase:
             dl, case, "https://example.org/users/vendor"
         )
         dl.create(case)
-        event = make_payload(
-            announce_embargo_activity(
-                embargo=embargo,
-                context=case.id_,
-                actor="https://example.org/users/vendor",
-                to=["https://example.org/users/finder"],
-            )
+        activity = announce_embargo_activity(
+            embargo=embargo,
+            context=case.id_,
+            actor="https://example.org/users/vendor",
+            to=["https://example.org/users/finder"],
         )
+        event = make_payload(activity)
 
         with caplog.at_level(logging.INFO):
             AnnounceEmbargoEventToCaseReceivedUseCase(dl, event).execute()
+
+        assert isinstance(
+            dl.read(ReceivedActivityRecord.build_id(activity.id_)),
+            ReceivedActivityRecord,
+        )
 
         assert any(
             "no receiver-side state change required" in r.message

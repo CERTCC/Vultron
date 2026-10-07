@@ -32,11 +32,61 @@ import py_trees
 from vultron.core.behaviors.case.nodes.conditions import (
     CheckIsCaseManagerNode,
 )
+from vultron.core.behaviors.sender_entitlement import SenderIsCaseManagerNode
 
 __all__ = [
     "create_case_manager_gated_tree",
+    "create_role_scoped_sender_guard",
     "create_participant_replica_gated_tree",
 ]
+
+
+def create_role_scoped_sender_guard(
+    name: str,
+    case_id: str,
+    at_case_manager: py_trees.behaviour.Behaviour,
+) -> py_trees.composites.Selector:
+    """A sender guard whose rule depends on the receiver's role (ADR-0115).
+
+    At the CASE_MANAGER the sender must satisfy *at_case_manager*; at any other
+    participant replica the only entitled sender is the CASE_MANAGER itself,
+    because replicas learn of a change from the manager's ledger fan-out
+    (SYNC-02-002), never from a peer's message.
+
+    Structure::
+
+        <name> (Selector)
+        ├── AtCaseManager (Sequence): CheckIsCaseManager, <at_case_manager>
+        └── AtReplica (Sequence): Inverter(CheckIsCaseManager), SenderIsCaseManager
+
+    The Selector fails when the receiver is the manager and *at_case_manager*
+    fails: the replica arm's inverted role check fails too.
+    """
+    return py_trees.composites.Selector(
+        name=name,
+        memory=False,
+        children=[
+            py_trees.composites.Sequence(
+                name="AtCaseManager",
+                memory=False,
+                children=[
+                    CheckIsCaseManagerNode(case_id=case_id),
+                    at_case_manager,
+                ],
+            ),
+            py_trees.composites.Sequence(
+                name="AtReplica",
+                memory=False,
+                children=[
+                    py_trees.decorators.Inverter(
+                        name="InvertIsNotCaseManager",
+                        child=CheckIsCaseManagerNode(case_id=case_id),
+                    ),
+                    SenderIsCaseManagerNode(case_id=case_id),
+                ],
+            ),
+        ],
+    )
 
 
 def _wrap_children(

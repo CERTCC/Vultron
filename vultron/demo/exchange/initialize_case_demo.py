@@ -46,6 +46,7 @@ import logging
 from collections.abc import Callable, Sequence
 
 from vultron.demo.helpers.runner import run_exchange_demos
+from vultron.demo.helpers.workflow import create_case_via_trigger
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
     DataLayerClient,
@@ -63,7 +64,6 @@ from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     add_participant_to_case_activity,
     add_report_to_case_activity,
-    create_case_activity,
     rm_submit_report_activity,
     rm_validate_report_activity,
 )
@@ -73,9 +73,6 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_participant import (
     as_CaseParticipant,
-)
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -138,55 +135,31 @@ def demo_initialize_case(
 
     case = None
     with demo_step("Step 3: Vendor creates vulnerability case"):
-        case = as_VulnerabilityCase(
-            attributed_to=vendor.id_,
+        case = create_case_via_trigger(
+            client,
+            vendor,
             name="RCE Case — Web Framework",
             content="Tracking the RCE vulnerability in the web framework.",
         )
         logger.info("Created case object: %s", logfmt(case))
-        create_case_act = create_case_activity(case, actor=vendor.id_)
-        post_to_inbox_and_wait(client, vendor.id_, create_case_act)
         with demo_check("Case stored in data layer"):
             verify_object_stored(client, case.id_)
         with demo_check("Case state after CreateCaseActivity"):
             log_case_state(client, case.id_, "after CreateCaseActivity")
 
-    with demo_step("Step 4: Vendor adds themselves as case participant"):
-        vendor_participant = as_CaseParticipant(
-            case_roles=[CVDRole.VENDOR],
-            attributed_to=vendor.id_,
-            context=case.id_,
-        )
-        logger.info(
-            "Created vendor participant: %s", logfmt(vendor_participant)
-        )
-        create_vendor_participant_activity = as_Create(
-            actor=vendor.id_,
-            object_=vendor_participant,
-            context=case.id_,
-        )
-        post_to_inbox_and_wait(
-            client, vendor.id_, create_vendor_participant_activity
-        )
-        with demo_check("Vendor participant stored"):
-            verify_object_stored(client, vendor_participant.id_)
-
-        add_vendor_participant_activity = add_participant_to_case_activity(
-            vendor_participant, actor=vendor.id_, target=case.id_
-        )
-        post_to_inbox_and_wait(
-            client, vendor.id_, add_vendor_participant_activity
-        )
-        with demo_check("Vendor added to case participant list"):
+    with demo_step("Step 4: Vendor is registered as case participant"):
+        # The create-case trigger registers the vendor as CASE_OWNER and
+        # CASE_MANAGER, so no Create/Add(CaseParticipant) is injected for it.
+        with demo_check("Vendor is a case participant"):
             vendor_case = log_case_state(
-                client, case.id_, "after vendor AddParticipantToCaseActivity"
+                client, case.id_, "after create-case trigger"
             )
-            if vendor_case and vendor_participant.id_ not in [
-                (ref_id(p) or str(p)) for p in vendor_case.case_participants
-            ]:
+            if (
+                vendor_case
+                and vendor.id_ not in vendor_case.actor_participant_index
+            ):
                 raise ValueError(
-                    f"Vendor participant '{vendor_participant.id_}' not found in"
-                    " case after AddParticipantToCaseActivity"
+                    f"Vendor '{vendor.id_}' is not a participant of the new case"
                 )
         logger.info("Vendor added as participant to case")
 

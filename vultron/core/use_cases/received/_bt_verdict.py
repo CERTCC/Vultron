@@ -55,6 +55,9 @@ from vultron.core.behaviors.case.nodes.conditions import (
 from vultron.core.behaviors.case.nodes.intake import (
     IntakeReceivedActivityNode,
 )
+from vultron.core.behaviors.case.nodes.reference_list import (
+    CaseReferenceEditPendingNode,
+)
 from vultron.core.behaviors.helpers import WIRING_UNAVAILABLE_MESSAGES
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import (
@@ -171,6 +174,32 @@ def not_case_manager_refusal(
     if resolve_case_manager_id(case, dl) is None:
         return HandlerResult.refused(f"case '{case_id}' has no CASE_MANAGER")
     return HandlerResult.refused(f"not the CASE_MANAGER of case '{case_id}'")
+
+
+def reference_edit_verdict(
+    tree: py_trees.behaviour.Behaviour | _HasRoot,
+    verdict: HandlerResult,
+    dl: CasePersistence,
+    case_id: str,
+) -> HandlerResult:
+    """Refine the verdict of a tree that attaches or detaches a case reference.
+
+    Such a tree carries a ``CaseReferenceEditPendingNode`` duplicate guard: its
+    ``FAILURE`` with ``is_duplicate`` set is an idempotent re-delivery, so the
+    handler reports ``SKIPPED`` rather than the default ``REFUSED``.  A tree that otherwise succeeded but
+    whose CASE_MANAGER gate turned this actor away is a refusal (HP-01-005).
+    """
+    pending = find_node(tree, CaseReferenceEditPendingNode)
+    if pending is not None and pending.is_duplicate:
+        return HandlerResult.skipped(
+            BTBridge.get_failure_reason(_root(tree))
+            or "reference edit is already in effect"
+        )
+    if verdict.disposition is HandlerDisposition.APPLIED:
+        refusal = not_case_manager_refusal(tree, dl, case_id)
+        if refusal is not None:
+            return refusal
+    return verdict
 
 
 def failure_reason(

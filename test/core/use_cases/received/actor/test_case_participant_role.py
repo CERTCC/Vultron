@@ -18,6 +18,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.actor.accept_reject_case_participant_role import (
     AcceptCaseParticipantRoleReceivedUseCase,
@@ -291,8 +292,7 @@ class TestAcceptCaseParticipantRoleReceivedUseCase:
         result = AcceptCaseParticipantRoleReceivedUseCase(dl, event).execute()
 
         assert result.disposition is HandlerDisposition.APPLIED
-        stored = dl.get(accept.type_.value, accept.id_)
-        assert stored is not None
+        assert _archived_by_intake(dl, accept.id_)
 
     def test_accept_case_participant_role_idempotent(self, make_payload):
         """Repeated AcceptCaseParticipantRoleReceivedUseCase execution is a no-op."""
@@ -315,8 +315,7 @@ class TestAcceptCaseParticipantRoleReceivedUseCase:
         assert first.disposition is HandlerDisposition.APPLIED
         assert second.disposition is HandlerDisposition.SKIPPED
 
-        stored = dl.get(accept.type_.value, accept.id_)
-        assert stored is not None
+        assert _archived_by_intake(dl, accept.id_)
 
     def test_accept_case_participant_role_logs_acceptance(
         self, caplog, make_payload
@@ -372,12 +371,15 @@ class TestRejectCaseParticipantRoleReceivedUseCase:
             offer, actor=self._CASE_ACTOR_URI
         )
         event = make_payload(reject)
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=self._VENDOR_URI)
 
         with caplog.at_level(logging.WARNING):
             result = RejectCaseParticipantRoleReceivedUseCase(
-                MagicMock(), event
+                dl, event
             ).execute()
 
         assert any("rejected" in r.message.lower() for r in caplog.records)
         # A declined offer leaves nothing on this side to change.
         assert result.disposition is HandlerDisposition.SKIPPED
+        # The run still archives the Reject that arrived (CLP-10-017).
+        assert _archived_by_intake(dl, reject.id_)
