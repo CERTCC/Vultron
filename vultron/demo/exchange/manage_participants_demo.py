@@ -299,6 +299,7 @@ def demo_manage_participants_accept(
                 client, case.id_, "after AddStatusToParticipantActivity"
             )
 
+    # Bound before the step so Step 9 can read it (#2308 ratchet).
     remove_participant = None
     with demo_step("Step 8: Vendor, as Case Owner, removes coordinator"):
         # The Case Owner's request to the CASE_MANAGER (CM-31-004).  The
@@ -308,6 +309,9 @@ def demo_manage_participants_accept(
         )
         post_to_inbox_and_wait(client, vendor.id_, remove_participant)
 
+    # Single-use removal checks, inline for now; extract them into
+    # helpers/verification.py when a second scenario removes a participant
+    # (DEMOMA-17-001).
     with demo_step("Step 9: Verify coordinator record is kept and inert"):
         with demo_check("Coordinator still on the case roster (CM-31-001)"):
             final_case = log_case_state(

@@ -50,6 +50,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.wire_keys import wire_key
+from vultron.errors import VultronNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -84,8 +85,8 @@ class ApplyRemoveCaseParticipantFromLedgerNode(_LedgerEffectNode):
     Resolves the named participant in the replica's own roster — by the
     actor the snapshot's ``object`` is attributed to, through
     ``actor_participant_index`` (CM-19-003), falling back to the record id
-    the snapshot names, when it is on the replica's roster — and records the removal fact from the snapshot's
-    activity id.  The record stays on the roster (CM-31-001) and its
+    the snapshot names when that id is on the replica's roster — and
+    records the removal fact from the snapshot's activity id.  The record stays on the roster (CM-31-001) and its
     embargo consent rows are untouched (CM-31-008).
 
     Idempotent: a participant already removed keeps its first removal.
@@ -119,8 +120,9 @@ class ApplyRemoveCaseParticipantFromLedgerNode(_LedgerEffectNode):
         if case is None:
             return Status.SUCCESS  # Regime 2 (ADR-0087): partial replica, skip
 
-        record = self._replica_record(case, participant_data)
-        if record is None:
+        try:
+            record = self._replica_record(case, participant_data)
+        except VultronNotFoundError:
             self.logger.info(
                 "%s: replica of case '%s' holds no record for the removed"
                 " participant — skipping removal apply",
@@ -150,8 +152,12 @@ class ApplyRemoveCaseParticipantFromLedgerNode(_LedgerEffectNode):
 
     def _replica_record(
         self, case: VulnerabilityCase, participant_data: object
-    ) -> CaseParticipant | None:
-        """The replica's own record for the participant the snapshot names."""
+    ) -> CaseParticipant:
+        """The replica's own record for the participant the snapshot names.
+
+        Raises:
+            VultronNotFoundError: The replica holds no such record.
+        """
         assert self.datalayer is not None
         candidates: list[str] = []
         if isinstance(participant_data, dict):
@@ -169,7 +175,10 @@ class ApplyRemoveCaseParticipantFromLedgerNode(_LedgerEffectNode):
             record = self.datalayer.read(participant_id)
             if isinstance(record, CaseParticipant):
                 return record
-        return None
+        raise VultronNotFoundError(
+            "CaseParticipant",
+            f"no record of the removed participant on case '{case.id_}'",
+        )
 
 
 __all__ = [
