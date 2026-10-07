@@ -268,7 +268,7 @@ the merge-state finding as `outcome: skipped` with the conflicted paths and stop
 #### Step 3 — Run local tests
 
 ```bash
-uv run pytest --tb=short > /tmp/pytest-unit.log 2>&1; rc=$?; tail -20 /tmp/pytest-unit.log; echo "exit: $rc"; (exit $rc)
+uv run pytest -n auto --tb=short > /tmp/pytest-unit.log 2>&1; rc=$?; tail -20 /tmp/pytest-unit.log; echo "exit: $rc"; (exit $rc)
 ```
 
 If `pr_metadata.needs_integration_tests` is true, also run:

@@ -34,7 +34,9 @@ class SvcCreateCaseUseCase(SvcBTTriggerBase[CaseResult]):
     """Create a new VulnerabilityCase and emit a CreateCaseActivity.
 
     The actor creates a local case and queues the activity for delivery to
-    the CaseActor inbox. An optional report_id links an existing
+    the recipients named in ``to``.  With no ``to`` the case is created
+    locally and nothing is queued, because the outbox refuses an activity
+    addressed to no one (OX-08-001).  An optional report_id links an existing
     VulnerabilityReport to the new case.
 
     BT-15-001 audit: protocol-observable case creation and outbound activity
@@ -75,6 +77,7 @@ class SvcCreateCaseUseCase(SvcBTTriggerBase[CaseResult]):
             report_id=self._report_id,
             result_out=self._result_out,
             activity_builder=_build_activity,
+            queue_for_delivery=bool(to),
         )
 
     def _handle_result(self) -> None:

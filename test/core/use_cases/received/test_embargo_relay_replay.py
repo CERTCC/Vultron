@@ -64,7 +64,6 @@ from vultron.core.use_cases.triggers.requests import (
     RejectEmbargoTriggerRequest,
     TerminateEmbargoTriggerRequest,
 )
-from vultron.errors import VultronBTInternalError
 from vultron.semantic_registry import extract_event, use_case_map
 from vultron.wire.as2.factories import em_propose_embargo_activity
 from vultron.wire.as2.parser import parse_activity
@@ -602,21 +601,24 @@ def test_an_invite_answered_before_pxa_is_not_contradicted_on_redelivery():
 @pytest.mark.spec("EMB-01-002")
 @pytest.mark.spec("EP-09-003")
 @pytest.mark.spec("PCR-08-001")
-def test_a_participant_answers_a_peers_invite_with_pxa_set_to_the_case_manager():
-    """The ER goes to the CASE_MANAGER, never to the peer that sent it."""
+@pytest.mark.spec("HP-01-006")
+def test_a_participant_refuses_a_peers_invite_and_answers_nobody():
+    """A peer is no CASE_MANAGER: its Invite is refused and draws no ER.
+
+    A participant takes an Invite from the CASE_MANAGER alone (EP-09-003,
+    PCR-08-001, ADR-0115), so the peer's Invite is refused before the P/X/A
+    check and neither the peer nor the CASE_MANAGER is sent anything.
+    """
     net = _Network("https://example.org/cases/relay-replay-pxa-peer")
     _set_pxa(net, OWNER)
-    invite_id, body = _pxa_invite_body(net, BYSTANDER, OWNER, "peer")
+    _invite_id, body = _pxa_invite_body(net, BYSTANDER, OWNER, "peer")
 
     verdict = net.receive(OWNER, body)
 
     assert verdict.disposition is HandlerDisposition.REFUSED
+    assert "CASE_MANAGER" in (verdict.reason or "")
     assert net.queued(OWNER, to=BYSTANDER) == []
-    (reject,) = net.queued(OWNER, to=MANAGER, type_="Reject")
-    assert reject.to == [MANAGER]
-    sealed = read_sealed_body_dict(net.stores[OWNER], reject.id_)
-    assert sealed is not None
-    assert sealed["object"]["id"] == invite_id
+    assert net.queued(OWNER, to=MANAGER) == []
 
 
 @pytest.mark.spec("EMB-01-002")
@@ -1121,7 +1123,9 @@ def test_an_accept_of_an_invite_the_receiver_does_not_hold_sends_no_er():
     assert body is not None
     body["object"]["id"] = f"{net.case_id}/embargo_proposals/never-sent"
 
-    with pytest.raises(VultronBTInternalError):
-        net.receive(MANAGER, body)
+    # The sender guard refuses an Accept of an Invite the receiver never
+    # recorded before any ER is routed (HP-01-006, ADR-0115).
+    result = net.receive(MANAGER, body)
 
+    assert result.disposition is HandlerDisposition.REFUSED
     assert net.queued(MANAGER, to=OWNER, type_="Reject") == []

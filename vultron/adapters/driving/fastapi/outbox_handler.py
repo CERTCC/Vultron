@@ -86,6 +86,10 @@ from vultron.adapters.outbox_sealed_body import (
 )
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.emitter import ActivityEmitter
+from vultron.errors import (
+    VultronOutboxObjectIntegrityError,
+    VultronOutboxToFieldMissingError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -101,6 +105,14 @@ MAX_TOTAL_ATTEMPTS: int = 12
 #: Keeping this below MAX_TOTAL_ATTEMPTS / ~3 drain passes guarantees the
 #: total budget is not exhausted in a single pass.  See ADR-0066.
 MAX_PER_PASS_ATTEMPTS: int = 3
+
+#: Refusals raised by checking the sealed body itself (OX-08-003, OX-07-001).
+#: The body never changes once sealed (VM-08-003), so a retry is refused the
+#: same way: the row is dead-lettered on its first failure (OX-13-013).
+UNDELIVERABLE_BODY_ERRORS: tuple[type[Exception], ...] = (
+    VultronOutboxToFieldMissingError,
+    VultronOutboxObjectIntegrityError,
+)
 
 # ---------------------------------------------------------------------------
 # Default emitter singleton
@@ -447,9 +459,40 @@ def _bookkeep_failure(
         list(e.failed_recipients) if isinstance(e, DeliveryError) else []
     )
     total = retry.get_outbox_attempt_count(activity_id) + 1
-    if total >= MAX_TOTAL_ATTEMPTS:
+    if isinstance(e, UNDELIVERABLE_BODY_ERRORS):
+        logger.error(
+            "Outbox item '%s' for actor '%s' refused: %s Moved to dead letter"
+            " without retrying (OX-13-013).",
+            activity_id,
+            actor_id,
+            e,
+        )
         _dead_letter(
-            actor_id, activity_id, dl, retry, total, failed_recipients
+            activity_id,
+            dl,
+            retry,
+            total,
+            failed_recipients,
+            reason="undeliverable_body",
+        )
+        return RowOutcome.DEAD_LETTERED
+    if total >= MAX_TOTAL_ATTEMPTS:
+        logger.error(
+            "Activity '%s' exhausted %d delivery attempts for actor"
+            " '%s'; moved to dead letter (OX-13-002)."
+            " Failed recipients: %s",
+            activity_id,
+            total,
+            actor_id,
+            failed_recipients,
+        )
+        _dead_letter(
+            activity_id,
+            dl,
+            retry,
+            total,
+            failed_recipients,
+            reason="max_attempts_exhausted",
         )
         return RowOutcome.DEAD_LETTERED
     retry.set_outbox_attempt_count(activity_id, total)
@@ -471,30 +514,26 @@ def _bookkeep_failure(
 
 
 def _dead_letter(
-    actor_id: str,
     activity_id: str,
     dl: DataLayer,
     retry: OutboxRetryStore,
     total: int,
     failed_recipients: list[str],
+    reason: str,
 ) -> None:
-    """Budget exhausted — dead-letter the activity (OX-13-002), never re-queue."""
+    """Move the activity to the dead-letter store; it is never re-queued.
+
+    Reached when the attempt budget is exhausted (``max_attempts_exhausted``,
+    OX-13-002) or on the first refusal of a sealed body no retry can change
+    (``undeliverable_body``, OX-13-013).
+    """
     # Resolve the ledger entry being replicated, if any (OX-14-001).
     ledger_entry_id = _resolve_ledger_entry_id(activity_id, dl)
     retry.dead_letter_append(
         activity_id,
-        reason="max_attempts_exhausted",
+        reason=reason,
         total_attempts=total,
         failed_recipients=failed_recipients,
         ledger_entry_id=ledger_entry_id,
     )
     retry.clear_outbox_attempt_count(activity_id)
-    logger.error(
-        "Activity '%s' exhausted %d delivery attempts for actor"
-        " '%s'; moved to dead letter (OX-13-002)."
-        " Failed recipients: %s",
-        activity_id,
-        total,
-        actor_id,
-        failed_recipients,
-    )

@@ -45,6 +45,7 @@ from vultron.core.models.use_case_result import (
 from vultron.core.use_cases.triggers import request_bodies, requests
 from vultron.core.use_cases.triggers.request_bodies import (
     CaseTriggerRequest,
+    CreateCaseRequest,
     ProposeEmbargoRequest,
     ProposeEmbargoRevisionRequest,
 )
@@ -321,3 +322,22 @@ def test_end_time_accepts_an_aware_future_datetime(
     built = model.model_validate(_end_time_payload(model, _FUTURE))
     # Typed ``BaseModel``; getattr keeps the type checker out.
     assert getattr(built, "end_time") == _FUTURE  # noqa: B009
+
+
+@pytest.mark.parametrize("to", [[""], ["https://example.org/actors/a", ""]])
+def test_create_case_refuses_a_blank_recipient(to: list[str]) -> None:
+    """A blank ``to`` entry is refused at the edge (CS-08-002), not queued."""
+    with pytest.raises(ValidationError):
+        CreateCaseRequest.model_validate(
+            {"name": "case", "content": "content", "to": to}
+        )
+
+
+@pytest.mark.parametrize("to", [None, [], ["https://example.org/actors/a"]])
+def test_create_case_accepts_absent_empty_or_named_recipients(
+    to: list[str] | None,
+) -> None:
+    built = CreateCaseRequest.model_validate(
+        {"name": "case", "content": "content", "to": to}
+    )
+    assert built.to == to

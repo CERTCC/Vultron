@@ -111,7 +111,9 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
         factory = _make_factory()
 
         tree = remove_embargo_from_case_tree(
-            case_id=case.id_, embargo_id=embargo.id_
+            case_id=case.id_,
+            embargo_id=embargo.id_,
+            sender_actor_id=CASE_MANAGER_ACTOR,
         )
         bridge = BTBridge(
             datalayer=dl,
@@ -149,7 +151,9 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
         embargo_id = cast(str, case.active_embargo_id)
         dl.create(make_case_and_embargo("atrt1c")[1])
         tree = remove_embargo_from_case_tree(
-            case_id=case.id_, embargo_id=embargo_id
+            case_id=case.id_,
+            embargo_id=embargo_id,
+            sender_actor_id=CASE_MANAGER_ACTOR,
         )
         bridge = BTBridge(
             datalayer=dl,
@@ -191,7 +195,9 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
         factory = _make_factory()
 
         tree = remove_embargo_from_case_tree(
-            case_id=case.id_, embargo_id=embargo.id_
+            case_id=case.id_,
+            embargo_id=embargo.id_,
+            sender_actor_id=CASE_MANAGER_ACTOR,
         )
         bridge = BTBridge(
             datalayer=dl,
@@ -220,7 +226,9 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
         dl.create(embargo)
 
         tree = remove_embargo_from_case_tree(
-            case_id=case.id_, embargo_id=embargo.id_
+            case_id=case.id_,
+            embargo_id=embargo.id_,
+            sender_actor_id=CASE_MANAGER_ACTOR,
         )
         bridge = BTBridge(
             datalayer=dl,
@@ -258,7 +266,9 @@ class TestRemoveEmbargoTeardownFailuresSurface:
         factory = _make_factory()
 
         tree = remove_embargo_from_case_tree(
-            case_id=case.id_, embargo_id=embargo.id_
+            case_id=case.id_,
+            embargo_id=embargo.id_,
+            sender_actor_id=CASE_MANAGER_ACTOR,
         )
         bridge = BTBridge(
             datalayer=dl,
@@ -288,7 +298,9 @@ class TestRemoveEmbargoTeardownFailuresSurface:
         factory = _make_factory()
 
         tree = remove_embargo_from_case_tree(
-            case_id=case.id_, embargo_id=embargo.id_
+            case_id=case.id_,
+            embargo_id=embargo.id_,
+            sender_actor_id=CASE_MANAGER_ACTOR,
         )
         bridge = BTBridge(
             datalayer=dl,

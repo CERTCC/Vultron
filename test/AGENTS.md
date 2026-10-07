@@ -12,11 +12,11 @@ need on *every* run; the longer pitfall write-ups live in
 ## ⚠️ Running the Test Suite — ONE RUN RULE (MUST)
 
 ```bash
-uv run pytest --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
+uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
 ```
 
-Run **exactly once**. Do NOT re-run to grep counts, change tail length, or add
-`-q` (suppresses summary line). One run, read the `exit:` line, then the tail.
+Run **exactly once**; never re-run for counts, a longer tail, or `-q`. `-n auto`
+is sized to the slot's cgroup, not `nproc` ([pitfalls](../notes/testing-pitfalls.md)).
 
 **Read `exit:` before the tail — it is the verdict; the tail is only detail.**
 Never pipe the run into `tail` (`… 2>&1 | tail -5`) or through `tee`: a pipeline
@@ -34,7 +34,7 @@ uv run pytest test/test_semantic_activity_patterns.py -v
 ```
 
 If `vultron/demo/` or `test/demo/` was touched, run the full suite:
-`uv run pytest -m "" --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)`.
+`uv run pytest -m "" -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)`.
 
 ---
 

@@ -19,6 +19,8 @@ from unittest.mock import MagicMock
 import pytest
 
 from test.core.use_cases.received.conftest import (
+    seed_case_manager_participant,
+    seed_case_owner_participant,
     seed_store_owner_as_case_manager,
 )
 from vultron.adapters.driven.db_record import StorableRecord
@@ -88,6 +90,14 @@ class TestEmbargoProposalLifecycle:
             context="https://example.org/cases/case_cem1",
             end_time=days_from_now_utc(45),
         )
+        # The store's owner manages the case and the vendor owns it, so the
+        # Create comes from the Case Owner (ADR-0115).
+        seed_store_owner_as_case_manager(dl, case)
+        seed_case_owner_participant(
+            dl, case, "https://example.org/users/vendor"
+        )
+        dl.create(case)
+
         activity = as_Create(
             actor="https://example.org/users/vendor",
             object_=embargo,
@@ -131,6 +141,14 @@ class TestEmbargoProposalLifecycle:
             context="https://example.org/cases/case_cem2",
             end_time=days_from_now_utc(45),
         )
+        # The store's owner manages the case and the vendor owns it, so the
+        # Create comes from the Case Owner (ADR-0115).
+        seed_store_owner_as_case_manager(dl, case)
+        seed_case_owner_participant(
+            dl, case, "https://example.org/users/vendor"
+        )
+        dl.create(case)
+
         activity = as_Create(
             actor="https://example.org/users/vendor",
             object_=embargo,
@@ -168,10 +186,19 @@ class TestEmbargoProposalLifecycle:
             context="https://example.org/cases/case_em2",
             end_time=days_from_now_utc(45),
         )
+        # The vendor's replica receives the CASE_MANAGER's relayed Invite.
+        case_manager_id = "https://example.org/users/case-manager"
+        case = VulnerabilityCase(
+            id_="https://example.org/cases/case_em2",
+            name="Invite Test",
+            attributed_to=case_manager_id,
+        )
+        seed_case_manager_participant(dl, case, case_manager_id)
+        dl.create(case)
         proposal = em_propose_embargo_activity(
             embargo,
             context="https://example.org/cases/case_em2",
-            actor="https://example.org/users/vendor",
+            actor=case_manager_id,
             to=["https://example.org/users/vendor"],
             id_="https://example.org/cases/case_em2/embargo_proposals/1",
         )
@@ -218,6 +245,7 @@ class TestEmbargoProposalLifecycle:
             embargo,
             context=case.id_,
             actor="https://example.org/users/vendor",
+            to=[coordinator_id],
             id_="https://example.org/cases/case_em3/embargo_proposals/1",
         )
         # Start from PROPOSED — the standard pre-condition for activation.
@@ -281,6 +309,7 @@ class TestEmbargoProposalLifecycle:
             embargo,
             context=case,
             actor="https://example.org/users/vendor",
+            to=[coordinator_id],
             id_="https://example.org/cases/case_em3_warn/embargo_proposals/1",
         )
         # Default em_state is NONE — not a valid predecessor for ACTIVE.
@@ -349,6 +378,7 @@ class TestEmbargoProposalLifecycle:
             embargo,
             context=case.id_,
             actor="https://example.org/users/vendor",
+            to=[coordinator_id],
             id_="https://example.org/cases/case_em5/embargo_proposals/1",
         )
         dl.create(case)
@@ -414,6 +444,7 @@ class TestEmbargoProposalLifecycle:
             embargo,
             context=case,
             actor="https://example.org/users/vendor",
+            to=[coordinator_id],
             id_="https://example.org/cases/case_em6/embargo_proposals/1",
         )
         # The receiver is the CASE_MANAGER (CM-24-006, BT-17-005).
@@ -947,6 +978,7 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
             embargo,
             context=case.id_,
             actor=coordinator_id,
+            to=[coordinator_id],
             id_=f"{case_id}/proposals/p1",
         )
         dl.create(proposal)

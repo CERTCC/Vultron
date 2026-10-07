@@ -12,10 +12,13 @@ workflow.
 Run:
 
 ```bash
-uv run pytest --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
+uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
 ```
 
 This is the default local maintainer command.
+`-n auto` runs the tests on parallel `pytest-xdist` workers, one per CPU the container may use.
+The worker count comes from the container's CPU and memory limits, not from `nproc`, so a two-CPU worktree slot gets two workers.
+Set `PYTEST_XDIST_AUTO_NUM_WORKERS` to choose a different count.
 
 ## Run a focused file while iterating
 
@@ -32,7 +35,7 @@ Replace the test path with your target file.
 If you touched any file under `vultron/demo/` or `test/demo/`, run:
 
 ```bash
-uv run pytest -m "" --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
+uv run pytest -m "" -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
 ```
 
 Use this to mirror CI behavior for demo/integration-sensitive changes.

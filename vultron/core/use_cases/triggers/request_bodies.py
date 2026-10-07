@@ -249,7 +249,9 @@ class CreateCaseRequest(BaseModel):
     """Request body for the create-case trigger endpoint.
 
     The actor creates a local VulnerabilityCase and queues a
-    CreateCaseActivity in their outbox for delivery to the CaseActor.
+    CreateCaseActivity in their outbox for delivery to the actors named in
+    ``to``.  With no ``to`` the case is created locally and nothing is
+    queued (OX-08-001); a blank ``to`` entry is refused (CS-08-002).
 
     TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
     """
@@ -259,7 +261,7 @@ class CreateCaseRequest(BaseModel):
     name: NonEmptyString
     content: NonEmptyString
     report_id: NonEmptyString | None = None
-    to: list[str] | None = None
+    to: list[NonEmptyString] | None = None
 
 
 class AddReportToCaseRequest(CaseTriggerRequest):

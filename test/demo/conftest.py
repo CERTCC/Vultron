@@ -35,6 +35,7 @@ from vultron.adapters.driven.datalayer_sqlite import (
     reset_datalayer,
 )
 from vultron.adapters.driven.http_delivery import DeliveryError
+from vultron.adapters.driving.fastapi import outbox_handler
 from vultron.adapters.driving.fastapi.app import create_app
 from vultron.adapters.driving.fastapi.deps import get_actor_dl
 from vultron.adapters.driving.fastapi.main import app as api_app
@@ -522,6 +523,29 @@ def _no_outbox_row_is_dropped(caplog):
     assert not dropped, (
         "the outbox dropped a row nobody sealed:\n" + "\n".join(dropped)
     )
+
+
+@pytest.fixture(autouse=True)
+def _no_outbox_row_is_dead_lettered(caplog):
+    """Fail any demo test during which the outbox dead-lettered a row.
+
+    A scenario that runs to completion can still have left an activity
+    undelivered: the outbox dead-letters it with an ERROR and carries on
+    (OX-13-002, OX-13-013).  A recipient-less ``create-case`` ``Create`` went
+    unnoticed this way, retried on backoff in every scenario built on
+    ``setup_initialized_case``, until this guard.
+    """
+    yield
+    # Keyed on the outbox handler's logger: the inbox dead-letters with the
+    # same wording (IE-06-004), and this guard must not blame the outbox for it.
+    dead = [
+        r.getMessage()
+        for r in caplog.get_records("call")
+        if r.name == outbox_handler.__name__
+        and r.levelno >= logging.ERROR
+        and "moved to dead letter" in r.getMessage().lower()
+    ]
+    assert not dead, "the outbox dead-lettered a row:\n" + "\n".join(dead)
 
 
 @pytest.fixture(autouse=True)

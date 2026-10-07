@@ -762,3 +762,106 @@ def test_get_default_emitter_falls_back_to_http_delivery(monkeypatch):
     monkeypatch.setattr(oh._DEFAULT_EMITTER_SLOT, "value", None)
 
     assert isinstance(oh.get_default_emitter(), oh.HttpDeliveryAdapter)
+
+
+# ---------------------------------------------------------------------------
+# A sealed body delivery refuses is dead-lettered at once (OX-13-013)
+# ---------------------------------------------------------------------------
+
+
+def _sealed(activity_id: str, body: dict[str, object]) -> SealedOutboundBody:
+    return SealedOutboundBody(
+        id_=sealed_body_id(activity_id),
+        activity_id=activity_id,
+        body=json.dumps({"id": activity_id, **body}),
+    )
+
+
+@pytest.mark.spec("OX-13-013")
+@pytest.mark.parametrize(
+    "body",
+    [
+        pytest.param(
+            {
+                "type": "Create",
+                "actor": "https://example.org/actors/vendor",
+                "object": {"type": "VulnerabilityCase", "id": "urn:case:1"},
+            },
+            id="no-recipient",
+        ),
+        pytest.param(
+            {
+                "type": "Create",
+                "actor": "https://example.org/actors/vendor",
+                "to": ["https://example.org/actors/finder"],
+                "object": "urn:case:1",
+            },
+            id="bare-uri-object",
+        ),
+    ],
+)
+def test_undeliverable_body_is_dead_lettered_on_first_refusal(
+    monkeypatch, body
+):
+    """A refused sealed body is dead-lettered once, never retried or slept on."""
+    actor_id = "actor-vendor"
+    activity_id = "urn:uuid:undeliverable"
+    queue = _make_queue(activity_id)
+    mock_dl = _mock_dl_for_ox14(
+        queue, actor_id, activity_id, _sealed(activity_id, body)
+    )
+    mock_dl.get_outbox_attempt_count.return_value = 0
+    attempts = [0]
+    real_handle = oh.handle_outbox_item
+
+    async def counting_handle(a_id, act_id, dl, emitter):
+        attempts[0] += 1
+        await real_handle(a_id, act_id, dl, emitter)
+
+    async def forbidden_sleep(seconds):
+        raise AssertionError(f"backed off {seconds}s on an undeliverable body")
+
+    emitter = MagicMock()
+    monkeypatch.setattr(oh, "handle_outbox_item", counting_handle)
+    monkeypatch.setattr(oh.asyncio, "sleep", forbidden_sleep)
+
+    asyncio.run(oh.outbox_handler(actor_id, mock_dl, emitter=emitter))
+
+    assert attempts[0] == 1
+    emitter.emit.assert_not_called()
+    mock_dl.dead_letter_append.assert_called_once()
+    assert (
+        mock_dl.dead_letter_append.call_args.kwargs["reason"]
+        == "undeliverable_body"
+    )
+    mock_dl.set_outbox_attempt_count.assert_not_called()
+    assert activity_id not in queue
+
+
+@pytest.mark.spec("OX-13-013")
+def test_undeliverable_body_dead_letter_is_logged_with_the_refusal(
+    monkeypatch, caplog
+):
+    """The ERROR names the activity and the refusal, not an attempt budget."""
+    import logging
+
+    actor_id = "actor-vendor"
+    activity_id = "urn:uuid:undeliverable-log"
+    queue = _make_queue(activity_id)
+    body = {"type": "Create", "object": {"type": "Note", "id": "urn:note:1"}}
+    mock_dl = _mock_dl_for_ox14(
+        queue, actor_id, activity_id, _sealed(activity_id, body)
+    )
+    mock_dl.get_outbox_attempt_count.return_value = 0
+
+    with caplog.at_level(logging.ERROR):
+        asyncio.run(oh.outbox_handler(actor_id, mock_dl, emitter=MagicMock()))
+
+    errors = [
+        r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR
+    ]
+    assert any(
+        activity_id in m and "OX-13-013" in m and "OX-08-001" in m
+        for m in errors
+    ), errors
+    assert not any("exhausted" in m for m in errors), errors

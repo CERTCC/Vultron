@@ -63,6 +63,10 @@ def _activity_in_outbox(actor, dl: SqliteDataLayer) -> bool:
     return len(dl.outbox_list()) > 0
 
 
+#: A recipient for the ``Create``; without one nothing is queued (OX-08-001).
+_RECIPIENT = "https://example.org/actors/finder"
+
+
 def _get_outbox_activity_id(actor, dl: SqliteDataLayer) -> str | None:
     """Return the first activity ID in actor's outbox."""
     items = dl.outbox_list()
@@ -124,6 +128,7 @@ class TestSvcCreateCaseUseCase:
             actor_id=self.actor.id_,
             name="Test Vulnerability Case",
             content="A test case for a vulnerability",
+            to=[_RECIPIENT],
         )
         result = SvcCreateCaseUseCase(
             self.dl,
@@ -172,6 +177,7 @@ class TestSvcCreateCaseUseCase:
             name="Test Case With Report",
             content="Case linked to report",
             report_id=report.id_,
+            to=[_RECIPIENT],
         )
         result = SvcCreateCaseUseCase(
             self.dl,
@@ -349,6 +355,7 @@ class TestSvcCreateCaseUseCase:
             actor_id=self.actor.id_,
             name="Test Case",
             content="Test content",
+            to=[_RECIPIENT],
         )
         result = SvcCreateCaseUseCase(
             self.dl,
@@ -366,3 +373,28 @@ class TestSvcCreateCaseUseCase:
         assert outbox_activity_id == activity_id, (
             "Activity ID in outbox should match returned activity ID"
         )
+
+    @pytest.mark.spec("OX-08-001")
+    @pytest.mark.parametrize("to", [None, []], ids=["absent", "empty"])
+    def test_create_case_with_no_recipient_queues_nothing(self, to):
+        """With no ``to`` the case is created but no ``Create`` is queued.
+
+        The outbox refuses an activity addressed to no one (OX-08-001), so a
+        queued row could only ever be dead-lettered (OX-13-013).
+        """
+        request = CreateCaseTriggerRequest(
+            actor_id=self.actor.id_,
+            name="Local Case",
+            content="Test content",
+            to=to,
+        )
+        result = SvcCreateCaseUseCase(
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+        ).execute()
+
+        assert result.case_id is not None
+        assert self.dl.read(result.case_id) is not None
+        assert activity_of(result).get("type") == "Create"
+        assert self.dl.outbox_list() == []

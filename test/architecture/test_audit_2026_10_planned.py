@@ -54,7 +54,7 @@ def test_production_dereferences_an_object_by_api_call():
 @pytest.mark.spec("CM-23-016")
 @pytest.mark.xfail(
     strict=True,
-    reason="CM-23-016: the close-case fan-out still walks the RM table. #4091.",
+    reason="CM-23-016: the close-case fan-out still walks the RM table. Tracked by #4210 (source #4091).",
 )
 def test_replica_closure_does_not_re_derive_rungs_from_the_rm_table():
     assert "RMClosureWriter" not in inspect.getsource(close_case_effect)
