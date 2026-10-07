@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Keep the ``needs-planning`` label on Epics in step with their open children.
 
-An open Epic carries ``needs-planning`` while it has at least one open
-sub-issue of type Concern or Idea (unplanned work).
-The label comes off when none remain.
+An open Epic carries ``needs-planning`` while it has no sub-issues at all (not
+yet planned) or at least one open sub-issue of type Concern or Idea (unplanned
+work).
+The label comes off when it has children and none of them is an open Concern
+or Idea.
 
 The decision (``wanted_label_change``) is a pure function so the test suite can
 pin it without the GitHub API.
@@ -36,9 +38,10 @@ def wanted_label_change(
     ``children`` is ``(state, type_name)`` per direct sub-issue; ``state`` is
     ``"open"`` or ``"closed"`` and ``type_name`` may be empty (untyped).
     """
-    needs = any(
+    kids = list(children)
+    needs = not kids or any(
         state == "open" and type_name in UNPLANNED_TYPES
-        for state, type_name in children
+        for state, type_name in kids
     )
     if needs and not has_label:
         return "add"

@@ -46,8 +46,9 @@ _change = _load_script().wanted_label_change
         (True, [("open", "Concern")], None),
         (True, [("closed", "Concern"), ("closed", "Idea")], "remove"),
         (True, [("open", "Task"), ("open", "Bug"), ("open", "")], "remove"),
-        (True, [], "remove"),
-        (False, [], None),
+        (True, [], None),
+        (False, [], "add"),
+        (True, [("closed", "Task")], "remove"),
         (False, [("closed", "Idea"), ("open", "Feature")], None),
     ],
 )

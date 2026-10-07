@@ -1,5 +1,6 @@
 # Keeps the needs-planning label on Epics in step with their open children:
-# present while the Epic has an open Concern or Idea sub-issue, absent otherwise.
+# present while the Epic has no sub-issues or an open Concern or Idea sub-issue,
+# absent otherwise.
 #
 # Linking, unlinking or retyping an issue does not start a workflow, so the
 # schedule is the backstop for those; opening, closing or reopening any issue
