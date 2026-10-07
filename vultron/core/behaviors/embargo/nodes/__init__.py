@@ -84,6 +84,7 @@ from vultron.core.behaviors.embargo.nodes.manager_consent import (
 )
 from vultron.core.behaviors.embargo.nodes.proposal import (
     CreateAndStoreInviteNode,
+    IndexReceivedEmbargoProposalNode,
     RecordParticipantAcceptanceNode,
     RecordParticipantRejectionNode,
 )
@@ -158,6 +159,7 @@ __all__ = [
     "CommitEmbargoTeardownNode",
     "COMMITTED_ACTIVITY_KEY",
     "IndexOwnEmbargoProposalNode",
+    "IndexReceivedEmbargoProposalNode",
     # The manager's own consent row (EP-09-002, #4180)
     "ManagerHoldsUndecidedEmbargoStakeNode",
     "RecordManagerEmbargoConsentNode",

@@ -33,6 +33,8 @@ the CaseActor — see ``vultron/core/use_cases/received/case/create.py``.
 Structure (ADR-0041):
 
     ReceiveReportCaseBT (Sequence)
+    ├─ IntakeReceivedActivityNode             # Archive the Offer (CLP-10-017)
+    ├─ [received_effects]                     # Keep report/Offer/record, guard
     ├─ CheckAutoCaseCreationEnabledNode       # Gate on auto_create_case policy
     └─ ReceiveReportCaseSelector (Selector)
        ├─ CheckProposalAlreadySentForReport # Early exit if proposal already sent
@@ -45,6 +47,7 @@ Per ADR-0041 and specs/case-proposal.yaml CP-04-001, CP-04-002.
 """
 
 import logging
+from collections.abc import Sequence
 
 import py_trees
 
@@ -56,6 +59,9 @@ from vultron.core.behaviors.case.nodes import (
     ProposeReportCaseToActorNode,
     WritePendingReportCaseLinkNode,
 )
+from vultron.core.behaviors.case.receive_activity_tree import (
+    create_receive_activity_tree,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +71,7 @@ def create_receive_report_case_tree(
     offer_id: str,
     reporter_actor_id: str,
     actor_config: ActorConfig | None = None,
+    received_effects: Sequence[py_trees.behaviour.Behaviour] = (),
 ) -> py_trees.behaviour.Behaviour:
     """
     Create the receiver-side behavior tree for report receipt (ADR-0041).
@@ -86,6 +93,13 @@ def create_receive_report_case_tree(
         actor_config: Optional actor configuration.  Passed to
                       ``CheckAutoCaseCreationEnabledNode`` for the
                       ``auto_create_case`` policy gate (CM-15-001).
+        received_effects: Effect nodes that keep what the Offer carried (the
+                          report, the Offer, the offer record) and the
+                          addressing guard; they run after intake and ahead
+                          of the policy gate, so a receiver that opts out of
+                          case creation still holds them (CM-15-001,
+                          CM-15-005).  See
+                          :func:`~vultron.core.behaviors.case.nodes.submit_report.submit_report_received_effects`.
 
     Returns:
         Root node of the receive-report proposal behavior tree.
@@ -124,10 +138,12 @@ def create_receive_report_case_tree(
         ],
     )
 
-    root = py_trees.composites.Sequence(
+    root = create_receive_activity_tree(
         name="ReceiveReportCaseBT",
-        memory=False,
-        children=[
+        case_id=None,
+        precondition_guards=[],
+        effect_nodes=[
+            *received_effects,
             CheckAutoCaseCreationEnabledNode(actor_config=actor_config),
             case_creation_selector,
         ],
@@ -140,3 +156,19 @@ def create_receive_report_case_tree(
         reporter_actor_id,
     )
     return root
+
+
+def create_keep_offer_without_report_tree(
+    received_effects: Sequence[py_trees.behaviour.Behaviour],
+) -> py_trees.behaviour.Behaviour:
+    """Create the tree for an ``Offer`` that names no report.
+
+    There is no case to propose, so the receiver only archives the Offer
+    (intake) and keeps what it carried (CM-15-001).
+    """
+    return create_receive_activity_tree(
+        name="KeepOfferWithoutReportBT",
+        case_id=None,
+        precondition_guards=[],
+        effect_nodes=list(received_effects),
+    )
