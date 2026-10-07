@@ -94,6 +94,7 @@ from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.participants.recipients import is_case_content_recipient
@@ -434,6 +435,12 @@ class SenderIsCaseManagerNode(SenderEntitlementConditionNode):
     reject-on-missing-case / pre-genesis buffering (SYNC-15-001,
     SYNC-15-004) handles the entry rather than this gate dropping it.
 
+    With ``anchored=True`` there is no pass-through: with no CASE_MANAGER on
+    the replica, the sender must be the CASE_MANAGER recorded as the case's
+    trust anchor when the receiver got the stub Invite (PCR-03-004, #4185),
+    and a sender with no anchor to match is refused.  The full-case Invite
+    uses it: its sender is the one actor the stub Invite introduced.
+
     Reads ``activity`` from the blackboard via INPUT_PORTS.
 
     Merged from ``VerifySenderIsCaseActorNode`` (ADR-0115, AC-2).
@@ -447,7 +454,11 @@ class SenderIsCaseManagerNode(SenderEntitlementConditionNode):
     }
 
     def __init__(
-        self, case_id: str | None = None, name: str | None = None
+        self,
+        case_id: str | None = None,
+        name: str | None = None,
+        *,
+        anchored: bool = False,
     ) -> None:
         """Create the guard.
 
@@ -456,9 +467,23 @@ class SenderIsCaseManagerNode(SenderEntitlementConditionNode):
                 Leave ``None`` for a ledger-entry activity, where the case is
                 read from the entry the activity carries.
             name: Optional node name.
+            anchored: Refuse, rather than pass through, when the replica names
+                no CASE_MANAGER and the receiver recorded no matching trust
+                anchor (PCR-03-004).
         """
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
+        self._anchored = anchored
+
+    def _recorded_anchor(self, case_id: str) -> str | None:
+        """The CASE_MANAGER recorded when the receiver got the stub Invite."""
+        assert self.datalayer is not None
+        pending = self.datalayer.read(
+            VultronPendingCaseInbox.build_id(case_id)
+        )
+        if isinstance(pending, VultronPendingCaseInbox):
+            return pending.case_actor_id
+        return None
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -498,6 +523,16 @@ class SenderIsCaseManagerNode(SenderEntitlementConditionNode):
             if case is not None
             else None
         )
+
+        if case_actor_id is None and self._anchored:
+            case_actor_id = self._recorded_anchor(case_id)
+            if case_actor_id is None:
+                self.feedback_message = (
+                    f"No CASE_MANAGER is known for case '{case_id}' to"
+                    f" match sender '{sender_id}' — REFUSED (HP-01-006)"
+                )
+                self.logger.warning("%s: %s", self.name, self.feedback_message)
+                return Status.FAILURE
 
         if case_actor_id is None:
             self.logger.debug(

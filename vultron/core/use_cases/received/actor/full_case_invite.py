@@ -21,7 +21,6 @@ from vultron.core.behaviors.case.full_case_invite_trees import (
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlement,
     SenderEntitlementKind,
-    exempt,
 )
 from vultron.core.models.events.actor import (
     AcceptInviteActorToFullCaseReceivedEvent,
@@ -59,8 +58,8 @@ class InviteActorToFullCaseReceivedUseCase:
     from the Invite.
     """
 
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4071", "no sender check for the full-case Invite"
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.CASE_MANAGER
     )
 
     def __init__(
