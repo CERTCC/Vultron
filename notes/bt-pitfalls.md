@@ -1285,11 +1285,18 @@ The cause was structural: about fifteen trees each wrapped their effects in
 - **Emit-capable nodes carry one shared marker.**
   The factory raises at construction when a marked node is in `replica_effects`
   and the tree has no named exemption, so a tree that skips the gate cannot be built.
+- **The gate's case id is its own argument.**
+  Several received trees pass `case_id=None` to skip the commit stage
+  (`update_tree`, the close-case tree) yet still gate an emit on a real case.
+  `manager_effects` therefore takes the case to gate on separately from the
+  commit's `case_id`, and the factory orders the stages
+  intake → guards → commit → `replica_effects` → `manager_effects`.
 - **A by-design ungated emit is a named exemption with a reason.**
   The emit speaks for the executing actor or is addressee-gated (the ack echo,
   the offer-role tree, the case-proposal tree, the RSH status tree).
-  A sender check alone is never enough: it says nothing about whether this
-  replica owns the case (#2667).
+  The reason is the recorded decision for that one tree; a sender check added
+  to a tree without a named exemption never passes, because it says nothing
+  about whether this replica owns the case (#2667).
 - **The exemption set is a pinned exemption set** (ARCH-18-001, ARCH-18-005):
   exact equality, each entry citing its decision.
 
