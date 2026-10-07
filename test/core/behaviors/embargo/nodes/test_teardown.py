@@ -28,24 +28,22 @@ from test.core.behaviors.embargo.nodes.conftest import (
     make_case_with_manager,
     setup_blackboard,
 )
+from test.support.embargo_register import propose
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.embargo.nodes.teardown import (
     ApplyEmbargoTeardownNode,
     ClearActiveEmbargoNode,
     HasEmbargoActiveNode,
-    RemoveFromProposedEmbargoesNode,
     SendAnnounceEmbargoEventNode,
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.states.em import EM
+from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase,
-)
 
 ACTOR_ID = "https://example.org/actors/vendor"
 
@@ -109,7 +107,6 @@ class TestHasEmbargoActiveNode:
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
         case, _ = make_case_and_embargo("hea3", em_state=EM.EXITED)
-        object.__setattr__(case, "active_embargo", None)
         dl.create(case)
 
         setup_blackboard(dl)
@@ -143,7 +140,7 @@ class TestClearActiveEmbargoNode:
 
     @pytest.mark.spec("EMB-07-001")
     def test_transitions_em_active_to_exited_and_clears_pointer(self):
-        """Transitions EM.ACTIVE → EXITED and sets active_embargo = None."""
+        """Terminates the ACTIVE entry: EM derives EXITED and no embargo is active."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
@@ -162,27 +159,32 @@ class TestClearActiveEmbargoNode:
         assert updated.current_status.em.state == EM.EXITED
         assert updated.active_embargo is None
 
+    @pytest.mark.spec("EP-08-003")
     @pytest.mark.spec("EP-08-004")
     def test_teardown_forgets_every_open_revision(self):
-        """The replay path clears both open-proposal records, not one entry.
+        """The replay path cancels every open revision and prunes the index.
 
         ``ClearActiveEmbargoNode`` runs ``terminate_active_embargo`` in
-        OBSERVED mode, so a replica applying an announced teardown forgets
-        every revision of the torn-down embargo — the same rule the trigger
-        side applies (EP-08-004, ADR-0113) with no node of its own.
-        ``RemoveFromProposedEmbargoesNode`` ahead of it in the teardown tree
-        removes the torn-down embargo's own entry; this node removes the rest.
+        OBSERVED mode, so a replica applying an announced teardown terminates
+        the embargo in force and cancels every open revision of it in one
+        register step — the same rule the trigger side applies (EP-08-004,
+        ADR-0113, ADR-0122) with no node of its own.  Each cancelled proposal
+        leaves the open-proposal index too (EP-08-003).
         """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
-        case, _embargo = make_case_and_embargo("caen1r", em_state=EM.REVISE)
-        revision_id = f"{case.id_}/embargo_events/revision"
-        case.proposed_embargoes = [revision_id]
+        case, _embargo = make_case_and_embargo("caen1r", em_state=EM.ACTIVE)
+        revisions = [
+            f"{case.id_}/embargo_events/revision",
+            f"{case.id_}/embargo_events/revision2",
+        ]
+        propose(case, *revisions)
         case.pending_embargo_proposal_index = {
-            revision_id: f"{case.id_}/embargo_proposals/revision"
+            rid: f"{rid}/proposal" for rid in revisions
         }
+        assert case.em_state == EM.REVISE
         dl.create(case)
 
         setup_blackboard(dl)
@@ -193,10 +195,15 @@ class TestClearActiveEmbargoNode:
 
         assert node.status == py_trees.common.Status.SUCCESS
         updated = cast(VulnerabilityCase, dl.read(case.id_))
-        assert updated.current_status.em.state == EM.EXITED
+        assert updated.em_state == EM.EXITED
         assert updated.active_embargo is None
-        assert updated.proposed_embargoes == []
+        assert updated.proposed_embargo_ids == []
         assert updated.pending_embargo_proposal_index == {}
+        assert {
+            e.embargo_id: e.status
+            for e in updated.embargo_register
+            if e.embargo_id in revisions
+        } == {rid: EmbargoRegisterStatus.CANCELLED for rid in revisions}
 
     def test_teardown_logged_in_narrative_form(self, caplog):
         """EM ACTIVE → EXITED is logged at INFO (SL-04-001, AC-16)."""
@@ -281,7 +288,6 @@ class TestClearActiveEmbargoNode:
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
         case, _ = make_case_and_embargo("caen3", em_state=EM.EXITED)
-        object.__setattr__(case, "active_embargo", None)
         dl.create(case)
 
         setup_blackboard(dl)
@@ -295,7 +301,12 @@ class TestClearActiveEmbargoNode:
         assert updated.current_status.em.state == EM.EXITED
 
     def test_state_sync_override_for_unexpected_em_state(self, caplog):
-        """Logs WARNING and applies state-sync override for non-standard EM state."""
+        """A teardown with no embargo in force is logged and changes nothing.
+
+        OBSERVED mode no longer forces EM to ``EXITED`` (ADR-0122): the
+        register refuses to terminate an embargo that is not ``ACTIVE``, so
+        the step is logged at WARNING and skipped, leaving the case as it was.
+        """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
@@ -312,9 +323,14 @@ class TestClearActiveEmbargoNode:
             bt.tick()
 
         assert node.status == py_trees.common.Status.SUCCESS
-        assert any("state-sync override" in r.message for r in caplog.records)
+        assert any(
+            r.levelno == logging.WARNING
+            and "case left unchanged" in r.getMessage()
+            for r in caplog.records
+        )
         updated = cast(VulnerabilityCase, dl.read(case.id_))
-        assert updated.current_status.em.state == EM.EXITED
+        assert updated.em_state == EM.NONE
+        assert updated.embargo_register == []
 
     def test_returns_failure_when_case_missing(self):
         """Returns FAILURE when the case is not found in the DataLayer."""
@@ -334,7 +350,7 @@ class TestClearActiveEmbargoNode:
         assert node.status == py_trees.common.Status.FAILURE
 
     def test_single_save_call(self):
-        """Both em_state and active_embargo are committed in a single datalayer.save()."""
+        """The register step deriving EM EXITED is committed in a single datalayer.save()."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
@@ -495,7 +511,6 @@ class TestApplyEmbargoTeardownNode:
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
         case, _ = make_case_and_embargo("atn3", em_state=EM.EXITED)
-        object.__setattr__(case, "active_embargo", None)
         dl.create(case)
 
         setup_blackboard(dl)
@@ -509,7 +524,11 @@ class TestApplyEmbargoTeardownNode:
         assert updated.current_status.em.state == EM.EXITED
 
     def test_state_sync_override_for_unexpected_em_state(self, caplog):
-        """Node logs WARNING and applies override for non-standard EM state."""
+        """A teardown with no embargo in force is logged and changes nothing.
+
+        The delegated ``ClearActiveEmbargoNode`` skips the register step the
+        rules refuse (ADR-0122) rather than forcing EM to ``EXITED``.
+        """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
@@ -526,9 +545,14 @@ class TestApplyEmbargoTeardownNode:
             bt.tick()
 
         assert node.status == py_trees.common.Status.SUCCESS
-        assert any("state-sync override" in r.message for r in caplog.records)
+        assert any(
+            r.levelno == logging.WARNING
+            and "case left unchanged" in r.getMessage()
+            for r in caplog.records
+        )
         updated = cast(VulnerabilityCase, dl.read(case.id_))
-        assert updated.current_status.em.state == EM.EXITED
+        assert updated.em_state == EM.NONE
+        assert updated.embargo_register == []
 
     @pytest.mark.spec("EMB-13-001")
     def test_leaves_consent_rows_and_leaves_nobody_a_signatory(self):
@@ -621,80 +645,6 @@ class TestApplyEmbargoTeardownNode:
         assert node.status == py_trees.common.Status.SUCCESS
         unchanged = cast(VulnerabilityCase, dl.read(case.id_))
         assert unchanged.current_status.em.state == EM.ACTIVE
-
-
-class TestRemoveFromProposedEmbargoesNode:
-    """Tests for RemoveFromProposedEmbargoesNode."""
-
-    @pytest.mark.spec("EP-08-003")
-    def test_removes_embargo_from_both_open_proposal_records(self):
-        """Node prunes proposed_embargoes *and* the index, and returns SUCCESS."""
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
-        case, embargo = make_case_and_embargo("rfp1", em_state=EM.PROPOSED)
-        case.proposed_embargoes.append(embargo.id_)
-        case.pending_embargo_proposal_index[embargo.id_] = (
-            f"{case.id_}/embargo_proposals/1"
-        )
-        dl.create(case)
-
-        setup_blackboard(dl)
-        node = RemoveFromProposedEmbargoesNode(
-            case_id=case.id_, embargo_id=embargo.id_
-        )
-        bt = py_trees.trees.BehaviourTree(root=node)
-        bt.setup()
-        bt.tick()
-
-        assert node.status == py_trees.common.Status.SUCCESS
-        updated = cast(as_VulnerabilityCase, dl.read(case.id_))
-        assert embargo.id_ not in [
-            e if isinstance(e, str) else getattr(e, "id_", None)
-            for e in updated.proposed_embargoes
-        ]
-        assert updated.pending_embargo_proposal_index == {}
-
-    def test_idempotent_when_not_in_proposed(self):
-        """Node returns SUCCESS even if embargo_id is not in proposed_embargoes."""
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
-        case, embargo = make_case_and_embargo("rfp2", em_state=EM.ACTIVE)
-        # embargo NOT in proposed_embargoes
-        dl.create(case)
-
-        setup_blackboard(dl)
-        node = RemoveFromProposedEmbargoesNode(
-            case_id=case.id_, embargo_id=embargo.id_
-        )
-        bt = py_trees.trees.BehaviourTree(root=node)
-        bt.setup()
-        bt.tick()
-
-        assert node.status == py_trees.common.Status.SUCCESS
-
-    def test_returns_failure_when_case_missing(self):
-        """Node returns FAILURE when the case ID is not in the DataLayer."""
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
-        setup_blackboard(dl)
-
-        node = RemoveFromProposedEmbargoesNode(
-            case_id="https://example.org/cases/nonexistent",
-            embargo_id=(
-                "https://example.org/cases/nonexistent/embargo_events/e1"
-            ),
-        )
-        bt = py_trees.trees.BehaviourTree(root=node)
-        bt.setup()
-        bt.tick()
-
-        assert node.status == py_trees.common.Status.FAILURE
 
 
 # ---------------------------------------------------------------------------

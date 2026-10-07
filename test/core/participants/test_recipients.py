@@ -19,6 +19,7 @@ import logging
 
 import pytest
 
+from test.support.embargo_register import activate
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -90,7 +91,7 @@ def _seat(
 def _embargoed_case(dl: SqliteDataLayer) -> VulnerabilityCase:
     """A case under an active embargo with one participant of each kind."""
     case = VulnerabilityCase(id_=_CASE_ID, attributed_to=_SENDER)
-    case.set_embargo(_EMBARGO_ID)
+    activate(case, _EMBARGO_ID)
     _seat(dl, case, _SENDER)
     _seat(dl, case, _SIGNATORY)
     _seat(dl, case, _INVITED, consent=EmbargoConsentState.INVITED)
@@ -239,7 +240,7 @@ def test_removed_participant_gets_no_case_content(
     """
     case = VulnerabilityCase(id_=_CASE_ID, attributed_to=_SENDER)
     if embargo:
-        case.set_embargo(_EMBARGO_ID)
+        activate(case, _EMBARGO_ID)
     _seat(dl, case, _SIGNATORY)
     removed = _seat(dl, case, _REMOVED)
     removed.removal_activity = f"{_CASE_ID}/activities/remove-1"

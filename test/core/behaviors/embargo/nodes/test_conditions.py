@@ -104,7 +104,6 @@ class TestIsActiveEmbargoNode:
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
         case, embargo = make_case_and_embargo("ian2", em_state=EM.PROPOSED)
-        object.__setattr__(case, "active_embargo", None)
         dl.create(case)
 
         setup_blackboard(dl)
@@ -167,8 +166,7 @@ class TestHasActiveEmbargoNode:
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
-        case, _ = make_case_and_embargo("hae2")
-        object.__setattr__(case, "active_embargo", None)
+        case, _ = make_case_and_embargo("hae2", em_state=EM.NONE)
         dl.create(case)
 
         setup_blackboard(dl)
@@ -208,8 +206,7 @@ class TestHasActiveEmbargoNode:
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
-        case, _ = make_case_and_embargo("hae3")
-        object.__setattr__(case, "active_embargo", None)
+        case, _ = make_case_and_embargo("hae3", em_state=EM.NONE)
         dl.create(case)
 
         setup_blackboard(dl)
@@ -338,9 +335,10 @@ class TestIsCloseBlockedByActiveEmbargoNode:
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
-        case, _ = make_case_and_embargo("closeblock")
-        if not has_active_embargo:
-            case.active_embargo = None
+        case, _ = make_case_and_embargo(
+            "closeblock",
+            em_state=EM.ACTIVE if has_active_embargo else EM.NONE,
+        )
         dl.create(case)
 
         setup_blackboard(dl)

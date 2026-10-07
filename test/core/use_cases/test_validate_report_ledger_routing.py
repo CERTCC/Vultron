@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import pytest
 
+from test.support.embargo_register import register
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -129,7 +130,7 @@ def _make_case_at_received(
         name="Test Case at Received",
         attributed_to=vendor_id,
         vulnerability_reports=[report_id],
-        active_embargo=embargo_id,
+        embargo_register=register(active=embargo_id),
     )
     dl.create(case)
 
@@ -360,7 +361,9 @@ class TestCaseActorReceivedWritesLedgerEntry:
             id_=self.CASE_ID,
             name="Ledger Routing Test Case",
             attributed_to=self.CASE_ACTOR_ID,
-            active_embargo=f"{self.CASE_ID}/embargoes/ledger-test",
+            embargo_register=register(
+                active=f"{self.CASE_ID}/embargoes/ledger-test"
+            ),
         )
         case.vulnerability_reports.append(self.REPORT_ID)
 

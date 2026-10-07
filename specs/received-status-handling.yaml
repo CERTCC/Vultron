@@ -683,34 +683,31 @@ groups:
       current.pxa.state)`.
     lint_suppress:
     - missing_story_reference
-  - id: RSH-05-018
+  - id: RSH-05-023
     priority: MUST
     kind: project
     statement: >
       When adjudicating the EM dimension of a received `Add(CaseStatus)`, the
-      receiver MUST accept the asserted EM state if and only if it is identical
-      to the current EM state or it is a valid EM state-machine transition from
-      the current EM state, as determined by `is_valid_em_transition()`. Any
-      other asserted EM value MUST be refused and the current EM value carried
-      forward (RSH-05-016).
+      receiver MUST accept the asserted EM state only when it is identical to
+      the case's EM state derived from its embargo register, and MUST refuse
+      any other asserted EM value, carrying the case's value forward
+      (RSH-05-016).
     rationale: >
-      EM follows a directed state machine
-      (NONE → PROPOSED ↔ ACTIVE ↔ REVISE → EXITED). Out-of-order or
-      backward EM assertions do not correspond to legal protocol events; applying
-      them would corrupt the canonical EM state shared by all participants.
-      Using `is_valid_em_transition()` as the acceptance predicate ensures only
-      structurally valid EM transitions are applied.
+      EM is derived from the case's embargo register, which changes only
+      through the embargo messages that cause each register step (ADR-0122).
+      A status can report EM but never move it: adopting an asserted EM would
+      make the status copy disagree with the register it is derived from.
     verification: >
       Unit tests in `test/core/behaviors/status/test_add_case_status_bt.py`
-      confirm that `FilterCsEmDimensionNode` accepts EM states that satisfy
-      `is_valid_em_transition()` or are identical to the current EM state, and
-      refuses all other asserted EM values by carrying the current value forward.
+      confirm that `FilterCsEmDimensionNode` passes an EM identical to the
+      case's and refuses every other asserted EM value by carrying the
+      case's value forward.
     note: >
       Implemented by `FilterCsEmDimensionNode.update()` in
-      `vultron/core/behaviors/status/nodes/cs_dimension_filter.py`. The predicate
-      is applied as `asserted_em != current_em and not is_valid_em_transition(current_em, asserted_em)`;
-      an identity assertion (`asserted == current`) is always accepted without
-      invoking `is_valid_em_transition()`.
+      `vultron/core/behaviors/status/nodes/cs_dimension_filter.py`, which
+      compares the asserted EM with `VulnerabilityCase.em_state`.
+    adr:
+    - ADR-0122
   - id: RSH-05-019
     priority: MUST
     kind: project

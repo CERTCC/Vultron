@@ -162,13 +162,13 @@ Specs: BTND-07-005, BTND-07-009, BTND-07-010, BTC-01-001.
 
 ## EM State Reads Must Use ReadEmStateNode; Writes Route Through EmbargoLifecycle
 
-**Never read `case.current_status.em` inline inside a BT node** — go through
-`ReadEmStateNode` (`embargo/nodes/em_state.py`; AC-1, #1474). **Never write it
-directly** (EMB-18-001) — every EM write routes through `EmbargoLifecycle`
-(`vultron/core/services/embargo_lifecycle/`); `WriteEmStateNode` was retired
-in issue #2712. Direct field access bypasses the canonical channel: the read is
-invisible to the BT audit trail and lets state diverge from what the canonical
-nodes report. In-node reads call `read_case_em_state()` (same module; raises):
+**Never read `case.em_state` inline inside a BT node** — go through
+`ReadEmStateNode` (`embargo/nodes/em_state.py`; AC-1, #1474). EM is derived
+from the embargo register (ADR-0122): **never apply a register step directly**
+(EMB-18-001) — every embargo change routes through `EmbargoLifecycle`
+(`vultron/core/services/embargo_lifecycle/`; `WriteEmStateNode` was retired
+in issue #2712). Direct access is invisible to the BT audit trail. In-node
+reads call `read_case_em_state()` (same module; raises):
 `notes/embargo-lifecycle.md` § "Guidance for Agents". Source: CONCERN-2559
 
 ---

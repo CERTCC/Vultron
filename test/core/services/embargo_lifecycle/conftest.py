@@ -24,6 +24,7 @@ from typing import cast
 
 import pytest
 
+from test.support.embargo_register import activate, propose
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -38,7 +39,6 @@ from vultron.core.models.case_participant import (
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.states.cs import CS_pxa
-from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -66,9 +66,13 @@ def _make_case(
     dl: SqliteDataLayer,
     owner_id: str,
     extra_participant_ids: list[str] | None = None,
-    em_state: EM = EM.NONE,
 ) -> tuple[VulnerabilityCase, list[CaseParticipant]]:
     """Create a VulnerabilityCase with an owner participant.
+
+    The case starts with an empty embargo register (EM ``NONE``); a test that
+    needs another EM state builds the register with
+    :mod:`test.support.embargo_register` once its embargoes exist, because EM
+    is derived from the register (ADR-0122).
 
     Returns the case and the list of CaseParticipant objects created.
     """
@@ -76,7 +80,6 @@ def _make_case(
         name="Test embargo case",
         attributed_to=owner_id,
     )
-    case.append_case_status(em_state=em_state)
 
     owner_participant = VendorParticipant(
         attributed_to=owner_id,
@@ -211,13 +214,12 @@ def _case_awaiting_activation(
     open proposal either way.  Returns the case, the owner's participant and
     the active embargo id (``None`` on a first activation).
     """
-    case, participants = _make_case(
-        dl, owner_id, em_state=EM.REVISE if replaces else EM.PROPOSED
-    )
+    case, participants = _make_case(dl, owner_id)
     owner_p = participants[0]
     active_id = _make_embargo(dl, case.id_).id_ if replaces else None
-    case.active_embargo = active_id
-    case.proposed_embargoes = [activated_id]
+    if active_id is not None:
+        activate(case, active_id)
+    propose(case, activated_id)
     dl.save(case)
     if active_id is not None:
         _seed_consent(dl, owner_p.id_, active_id, EmbargoConsentState.ACCEPTED)
@@ -234,9 +236,9 @@ def _assert_activation_wrote_nothing(
 ) -> None:
     """EM, ``active_embargo``, the proposals and the owner's consent unchanged."""
     untouched = cast(VulnerabilityCase, dl.read(case.id_))
-    assert untouched.current_status.em.state == case.current_status.em.state
+    assert untouched.em_state == case.em_state
     assert untouched.active_embargo_id == active_id
-    assert untouched.proposed_embargoes == [activated_id]
+    assert untouched.proposed_embargo_ids == [activated_id]
     owner = cast(CaseParticipant, dl.read(owner_p.id_))
     assert {r.embargo_id: r.state.value for r in owner.embargo_consents} == (
         {} if active_id is None else {active_id: "ACCEPTED"}

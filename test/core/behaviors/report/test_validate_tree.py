@@ -26,6 +26,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.embargo_register import register
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.report.validate_tree import (
@@ -205,7 +206,7 @@ def case(datalayer, actor_id, report):
         name="Validate-tree test case",
         attributed_to=actor_id,
         vulnerability_reports=[report.id_],
-        active_embargo=f"{actor_id}/embargoes/test-embargo",
+        embargo_register=register(active=f"{actor_id}/embargoes/test-embargo"),
     )
     datalayer.create(case_obj)
     _seed_case_participant(datalayer, case_obj, actor_id, "vendor")
@@ -729,7 +730,9 @@ def test_tree_execution_actor_isolation():
             name="Validate-tree isolation case",
             attributed_to=actor_id,
             vulnerability_reports=[report_id],
-            active_embargo=f"{actor_id}/embargoes/test-embargo",
+            embargo_register=register(
+                active=f"{actor_id}/embargoes/test-embargo"
+            ),
         )
         dl.create(case_obj)
         _seed_case_participant(dl, case_obj, actor_id, slug)

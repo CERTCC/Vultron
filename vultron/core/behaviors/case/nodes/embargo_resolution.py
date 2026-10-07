@@ -88,12 +88,12 @@ class CaseEmbargoAlreadyInitializedNode(DataLayerConditionWithPorts):
 
     The evidence is the case's EM state, read through ``ReadEmStateNode``:
     any state other than ``EM.NONE`` means initialization has run, because
-    the EM machine never returns to ``NONE`` once it has left it and
+    the register never returns EM to ``NONE`` once it has left it and
     ``PROPOSED`` is never persisted at creation (EP-04-002).  The
     active-embargo reference is *not* the evidence: termination clears it
     while the state stays ``EXITED``, and a guard keyed on it let a
     redelivery after exit into the creation arm, which stored a fresh
-    ``EmbargoEvent`` before the EM machine refused ``EXITED → PROPOSED``
+    ``EmbargoEvent`` before the register refused a proposal after ``EXITED``
     (#3986).  ``EM.NONE`` is FAILURE, so a half-built case finishes
     initialization, and a case left at ``NONE`` by refusal (EP-04-008) falls
     through to the eligibility arm, which refuses it again.  Skipping the

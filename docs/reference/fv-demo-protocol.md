@@ -224,7 +224,7 @@ Entries can arrive out of order; a replica that receives an entry ahead of its p
 |:------|:------|
 | Ledger coverage contiguous to the Vendor's tail | Finder replica |
 | Matching `actorParticipantIndex` | both replicas |
-| Matching `activeEmbargo` | both replicas |
+| Matching active embargo (the register's `ACTIVE` entry) | both replicas |
 | Matching ledger tail hash | both replicas |
 | No case data | dedicated `case-actor` container |
 

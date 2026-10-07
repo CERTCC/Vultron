@@ -344,7 +344,7 @@ groups:
       (`TestEP04SenderProposalAtCaseCreation`) confirms that when both parties carry a
       proposal at case creation the shorter is the active embargo and the longer is registered
       through `EmbargoLifecycle.propose_embargo`, leaving `em_state` at `EM.REVISE` with the
-      loser in `proposed_embargoes`; `test/core/behaviors/case/nodes/test_embargo_resolution.py`
+      loser in `proposed_embargo_ids`; `test/core/behaviors/case/nodes/test_embargo_resolution.py`
       pins the duration table. The same class's
       `test_a_second_proposal_for_the_same_report_registers_no_second_revision` and
       `test/core/behaviors/case/nodes/test_embargo.py`
@@ -1072,7 +1072,8 @@ groups:
     statement: >-
       The record of open embargo proposals MUST NOT retain a proposal that has been
       accepted or rejected, or whose embargo has terminated. An implementation that
-      records open proposals MUST remove an entry when the proposal is decided.
+      records open proposals MUST take an entry out of that record when the proposal
+      is decided.
     rationale: >-
       EP-08-002 orders the set of open proposals, so a set that retains decided
       proposals can select one that is no longer open. Ordering an unpruned record is
@@ -1080,28 +1081,26 @@ groups:
       answer, which is why the retention rule is stated alongside the ordering rule
       rather than left as hygiene.
     note: >-
-      Two records of overlapping state are involved: `pending_embargo_proposal_index`
-      and `VulnerabilityCase.proposed_embargoes`. Before #3470 **neither** was fully
-      pruned — the index had one writer and no remover, and `proposed_embargoes` was
-      pruned only on teardown by `RemoveFromProposedEmbargoesNode`, which
-      `reject_proposed_embargo_bt` did not include, so a rejected proposal stayed in
-      both records. Both are now pruned together by
-      `VulnerabilityCase.discard_proposed_embargo`, called from every `EmbargoLifecycle`
-      decision (owner accept, owner reject, activation, termination) and from
-      `RemoveFromProposedEmbargoesNode` — on teardown unconditionally, and in the
-      received `Reject(Invite)` tree gated on the rejecting actor being the case owner,
-      so a replica forgets the proposal the owner rejected while a participant's
-      Reject (consent, not a decision) prunes nothing. This requirement covers every
-      record of open proposals on every replica, not just the index.
+      The open proposals are the embargo register's `PROPOSED` entries (ADR-0122):
+      `VulnerabilityCase.proposed_embargo_ids` is a view of the register, so a decided
+      proposal leaves it by changing status (`ACTIVE`, `REJECTED`, `CANCELLED`), and the
+      entry itself stays in the register as history. The relay record
+      `pending_embargo_proposal_index` is pruned in the same register step
+      (`VulnerabilityCase.apply_embargo_register_step`), so the two cannot disagree.
+      Before #3470 neither record was fully pruned, and a rejected proposal stayed in
+      both. A participant's Reject (consent, not a decision) changes no entry. This
+      requirement covers every record of open proposals on every replica.
     verification: >-
       A unit test asserts that accepting a proposal, rejecting a proposal, and
       tearing down an embargo each leave no corresponding entry in the open-proposal
-      record.
+      record; `test/core/models/test_embargo_register.py` asserts the relay record
+      leaves with the proposal.
     relationships:
     - rel_type: constrains
       spec_id: EP-08-002
     adr:
     - ADR-0100
+    - ADR-0122
     stories:
     - story_2022_014
   - id: EP-08-004
@@ -1109,8 +1108,9 @@ groups:
     kind: protocol
     statement: >-
       When an embargo terminates (EM `ACTIVE` or `REVISE` → `EXITED`), the implementation MUST
-      remove every open proposal from the record of open embargo proposals, not only the entry
-      for the terminated embargo itself. Every proposal open while EM is `ACTIVE` or `REVISE` is
+      close every open proposal, cancelling it in the same embargo register step that
+      terminates the embargo (ADR-0122), not only the entry for the terminated embargo
+      itself. Every proposal open while EM is `ACTIVE` or `REVISE` is
       a revision of the active embargo, and a revision of an embargo that no longer exists
       cannot be accepted.
     rationale: >-
@@ -1121,17 +1121,17 @@ groups:
       proposals about it.
     note: >-
       Before this rule termination pruned the terminated embargo's own id and left its open
-      revisions in both records, where the next default selection after `EXITED → PROPOSED`
-      could pick a revision of a dead embargo as the earliest-expiring candidate (#3836). The
-      rule lives in `EmbargoLifecycle.terminate_active_embargo`, which calls
-      `VulnerabilityCase.discard_all_proposed_embargoes` — the whole-record sibling of the
-      per-proposal pruner `discard_proposed_embargo`, clearing both records together — and
-      applies on every replica without extra work: the teardown replay node
-      (`ClearActiveEmbargoNode`) runs the same method in `OBSERVED` mode (#3914).
+      revisions open, where a later default selection could pick a revision of a dead
+      embargo as the earliest-expiring candidate (#3836). The register now enforces it: a
+      step that leaves an entry `TERMINATED` while another is `PROPOSED` is refused
+      (ADR-0122 invariant 3), so `EmbargoLifecycle.terminate_active_embargo` applies
+      `TERMINATE` and the `CANCEL` of every proposal as one step. It applies on every
+      replica without extra work: the teardown replay node (`ClearActiveEmbargoNode`) runs
+      the same method in `OBSERVED` mode (#3914).
     verification: >-
       Unit tests in `test/core/services/embargo_lifecycle/test_activation.py` assert that
-      terminating an embargo while revisions of it are pending leaves both
-      `proposed_embargoes` and `pending_embargo_proposal_index` empty, in `STRICT` and in
+      terminating an embargo while revisions of it are pending leaves no open proposal and an
+      empty `pending_embargo_proposal_index`, in `STRICT` and in
       `OBSERVED` mode; `test/core/behaviors/embargo/nodes/test_teardown.py` asserts the same
       through `ClearActiveEmbargoNode`, and
       `test/core/use_cases/triggers/embargo/test_terminate.py` through the terminate trigger.

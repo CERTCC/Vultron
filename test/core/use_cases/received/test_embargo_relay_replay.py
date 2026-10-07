@@ -26,6 +26,7 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.embargo_register import activate
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -94,9 +95,9 @@ class _Network:
             case_manager_actor_id=MANAGER,
         )
         case_read = cast(VulnerabilityCase, manager_dl.read(case_id))
-        case_read.current_status.em.state = em_state
         if em_state is EM.ACTIVE:
-            case_read.active_embargo = embargo.id_
+            activate(case_read, embargo.id_)
+        assert case_read.em_state == em_state
         manager_dl.save(case_read)
         # Every participant has signed the active embargo, so each is active
         # while it is in force and a case-content send reaches it (CM-10-004).

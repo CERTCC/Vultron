@@ -25,7 +25,6 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi import status
 
-from vultron.adapters.driven.db_record import object_to_record
 from vultron.core.states.em import EM
 
 from .conftest import make_case_manager
@@ -187,18 +186,16 @@ def test_trigger_terminate_embargo_clears_active_embargo(
 
 
 def test_trigger_terminate_embargo_invalid_em_state_returns_409(
-    client_triggers, dl, actor, case_with_embargo
+    client_triggers, dl, actor, case_with_proposal
 ):
     """terminate-embargo returns HTTP 409 when EM state is not ACTIVE or REVISE.
 
-    Guards against bypassing the EM machine: even if active_embargo is set,
-    terminating from a state with no TERMINATE transition (e.g. PROPOSED) must
-    be rejected.
+    A case at PROPOSED has an open proposal but no embargo in force, so there
+    is nothing to terminate (ADR-0122: EM is derived from the register, and
+    only an ACTIVE entry can be TERMINATED).
     """
-    case_obj, _ = case_with_embargo
-    stored = dl.read(case_obj.id_)
-    stored.current_status.em.state = EM.PROPOSED
-    dl.update(stored.id_, object_to_record(stored))
+    case_obj, _, _ = case_with_proposal
+    assert dl.read(case_obj.id_).em_state == EM.PROPOSED
     make_case_manager(case_obj.id_, actor.id_, dl)  # EP-09-008
 
     resp = client_triggers.post(

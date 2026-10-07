@@ -114,7 +114,6 @@ from vultron.core.behaviors.embargo.nodes.teardown import (
     ApplyEmbargoTeardownNode,
     ClearActiveEmbargoNode,
     HasEmbargoActiveNode,
-    RemoveFromProposedEmbargoesNode,
     SendAnnounceEmbargoEventNode,
 )
 from vultron.core.behaviors.embargo.nodes.terminate import (
@@ -144,7 +143,6 @@ __all__ = [
     "HasEmbargoActiveNode",
     "ClearActiveEmbargoNode",
     "ApplyEmbargoTeardownNode",
-    "RemoveFromProposedEmbargoesNode",
     "SendAnnounceEmbargoEventNode",
     # Relay (EP-09)
     "EMBARGO_INVITE_EVENT_TYPE",

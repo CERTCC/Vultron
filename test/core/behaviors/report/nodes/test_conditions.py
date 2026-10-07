@@ -18,6 +18,7 @@
 import pytest
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.embargo_register import register
 from vultron.core.behaviors.report.nodes.conditions import (
     CheckParticipantExists,
     CheckRMStateReceivedOrInvalid,
@@ -186,7 +187,9 @@ def test_ensure_embargo_exists_when_case_has_active_embargo(
     case = VulnerabilityCase(
         name="Embargoed Case",
         vulnerability_reports=[report.id_],
-        active_embargo="https://example.org/embargoes/embargo-001",
+        embargo_register=register(
+            active="https://example.org/embargoes/embargo-001"
+        ),
         attributed_to=actor.id_,
     )
     bt_scenario.seed(case)

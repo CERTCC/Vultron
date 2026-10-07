@@ -11,20 +11,19 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Active-embargo EM operations: activate and terminate.
+"""Active-embargo register operations: activate and terminate.
 
-Both operate on ``case.active_embargo`` directly rather than answering an
+Both change the register's ``ACTIVE`` entry directly rather than answering an
 invite — activation is a replica's sync of an announced activation (the
 creation-time accept is ``initialize_creation_embargo`` in ``creation.py``,
-one write per EP-04-002), termination is
-the ``ET`` teardown that also exits every participant's consent and decides
-every open proposal (EP-08-004).
+one write per EP-04-002), termination is the ``ET`` teardown that
+terminates the embargo in force and cancels every open proposal
+in the same step (EP-08-004, ADR-0122).
 """
 
 import logging
 
-from vultron.core.models._helpers import _as_id
-from vultron.core.models.dimensions import EmDimension
+from vultron.core.models.embargo_register import termination_changes
 from vultron.core.services.embargo_lifecycle.pec_activation import (
     _PecActivationMixin,
 )
@@ -32,7 +31,7 @@ from vultron.core.services.embargo_lifecycle.results import (
     EmbargoLifecycleResult,
     TransitionMode,
 )
-from vultron.core.states.em import EM, EM_Trigger
+from vultron.core.states.embargo_register import TerminationReason
 from vultron.errors import VultronInvalidStateTransitionError
 
 logger = logging.getLogger(__name__)
@@ -45,80 +44,75 @@ class _ActivationOperationsMixin(_PecActivationMixin):
         self,
         *,
         case_id: str,
+        reason: TerminationReason,
         actor_id: str | None = None,
         transition_mode: TransitionMode = TransitionMode.STRICT,
-        em_before: EM | None = None,
     ) -> EmbargoLifecycleResult:
         """Terminate the active embargo on a case.
 
-        Drives ``ACTIVE → EXITED`` (or ``REVISE → EXITED``), clears
-        ``case.active_embargo``, forgets **every** open proposal in both
-        records (EP-08-004, ADR-0113: one active embargo makes every open
-        proposal a revision of it, and a revision of an embargo that no
-        longer exists cannot be accepted).  No participant's consent is
-        written: with EM ``EXITED`` and no active embargo nobody is bound, and
-        nothing more can be consented to (ADR-0118, ADR-0122).  The teardown
-        replay node runs this in ``OBSERVED`` mode, so the rule holds on
-        every replica.
+        One register step: the ``ACTIVE`` entry is ``TERMINATED`` with
+        *reason* and every ``PROPOSED`` entry is ``CANCELLED`` (EP-08-004,
+        ADR-0113: one active embargo makes every open proposal a revision of
+        it, and a revision of an embargo that no longer exists cannot be
+        accepted), so EM derives ``EXITED``.  No participant's consent is
+        written: with no ``ACTIVE`` entry nobody is bound, and nothing more
+        can be consented to (ADR-0118, ADR-0122).  The teardown replay node
+        runs this in ``OBSERVED`` mode, so the rule holds on every replica;
+        there, a case already ``EXITED`` is left as it is.
 
         Args:
             case_id: ID of the ``VulnerabilityCase`` to update.
+            reason: Why the embargo ended.  Required on the step and logged;
+                not stored on the entry until #4293 carries it on the wire.
             actor_id: Optional ID of the terminating actor (logging only).
             transition_mode: ``STRICT`` (default) or ``OBSERVED``.
-            em_before: When provided, the service uses this value directly
-                instead of reading it from the case.
 
         Returns:
             :class:`EmbargoLifecycleResult` describing what changed.
 
         Raises:
             VultronNotFoundError: If *case_id* does not resolve to a case.
-            VultronInvalidStateTransitionError: In ``STRICT`` mode, if the EM
-                state does not allow TERMINATE or ``active_embargo`` is
-                ``None``.
+            VultronInvalidStateTransitionError: In ``STRICT`` mode, if the
+                case has no active embargo to terminate.
         """
         case = self._read_case(case_id)
-
-        if em_before is None:
-            em_before = case.current_status.em.state
-        assert em_before is not None
-
-        # In STRICT mode, require an active embargo to be identified
-        embargo_id = _as_id(case.active_embargo)
-        if transition_mode == TransitionMode.STRICT and embargo_id is None:
-            raise VultronInvalidStateTransitionError(
-                f"Case '{case_id}' has no active embargo to terminate."
+        em_before = case.em_state
+        embargo_id = case.active_embargo_id
+        if embargo_id is None:
+            if transition_mode == TransitionMode.STRICT:
+                raise VultronInvalidStateTransitionError(
+                    f"Case '{case_id}' has no active embargo to terminate."
+                )
+            logger.warning(
+                "OBSERVED mode: case '%s' has no active embargo to terminate"
+                " (EM %s); case left unchanged",
+                case_id,
+                em_before,
             )
+            return self._unchanged_result(em_before)
 
-        em_after = self._drive_em_transition(
-            case_id=case_id,
-            em_before=em_before,
-            trigger=EM_Trigger.TERMINATE,
+        if not self._apply_register_step(
+            case,
+            termination_changes(case.embargo_register, reason),
             transition_mode=transition_mode,
-            fallback_dest=EM.EXITED,
             actor_id=actor_id,
-        )
-
-        case.current_status.em = EmDimension(state=em_after)
-        case.active_embargo = None
-        # Termination decides every open proposal, not only the terminated
-        # embargo's own entry (EP-08-004).
-        case.discard_all_proposed_embargoes()
-
+        ):
+            return self._unchanged_result(em_before)
         self._persistence.save(case)
 
         logger.info(
-            "Actor '%s' terminated embargo '%s' on case '%s' (EM %s → %s)",
+            "Actor '%s' terminated embargo '%s' on case '%s' (%s; EM %s → %s)",
             actor_id,
             embargo_id,
             case_id,
+            reason,
             em_before,
-            em_after,
+            case.em_state,
         )
 
         return EmbargoLifecycleResult(
             em_before=em_before,
-            em_after=em_after,
+            em_after=case.em_state,
             case_changed=True,
             case_embargo_changed=True,
         )
@@ -133,10 +127,11 @@ class _ActivationOperationsMixin(_PecActivationMixin):
     ) -> EmbargoLifecycleResult:
         """Activate an embargo on a case, driving EM state to ACTIVE.
 
-        Drives ``PROPOSED → ACTIVE`` (or ``REVISE → ACTIVE``) via the ACCEPT
-        trigger and sets ``case.active_embargo`` to *embargo_id*.  In ``STRICT``
-        mode only PROPOSED and REVISE are valid sources.  In ``OBSERVED`` mode
-        the transition is applied unconditionally (state-sync override).
+        Activates *embargo_id*'s register entry and supersedes
+        any ``ACTIVE`` one in the same step, so EM derives ``ACTIVE``.  In
+        ``STRICT`` mode the entry must be an open proposal.  In ``OBSERVED``
+        mode a replica that never saw the proposal records it first, and a
+        step the register refuses is skipped (EP-09-007).
 
         When this replaces an active embargo A with *embargo_id* (B), the
         case owner's acceptance of B is recorded (activation is the owner's
@@ -166,13 +161,12 @@ class _ActivationOperationsMixin(_PecActivationMixin):
                 write.
             VultronValidationError: If either embargo record is not an
                 ``EmbargoEvent``.
-            VultronInvalidStateTransitionError: In ``STRICT`` mode, if the EM
-                state does not allow an ACCEPT trigger (valid sources: PROPOSED,
-                REVISE).
+            VultronInvalidStateTransitionError: In ``STRICT`` mode, if
+                *embargo_id* is not an open proposal of the case.
         """
         case = self._read_case(case_id)
 
-        em_before = case.current_status.em.state
+        em_before = case.em_state
         previous_embargo_id = case.active_embargo_id
         # Read the activated (and any replaced) embargo and decide the
         # EP-05-001 arm before anything is written (fail closed, EMB-18-003).
@@ -181,16 +175,15 @@ class _ActivationOperationsMixin(_PecActivationMixin):
             activated_embargo_id=embargo_id,
         )
 
-        em_after = self._drive_em_transition(
-            case_id=case_id,
-            em_before=em_before,
-            trigger=EM_Trigger.ACCEPT,
+        if not self._activate_entry(
+            case,
+            embargo_id,
             transition_mode=transition_mode,
-            fallback_dest=EM.ACTIVE,
             actor_id=actor_id,
-        )
-
-        self._save_activation(case, em_after=em_after, embargo_id=embargo_id)
+        ):
+            return self._unchanged_result(em_before)
+        self._persistence.save(case)
+        em_after = case.em_state
 
         # The embargo in force changed: the same consent effect as the owner
         # path of accept_embargo_invite (EP-05-001; on a replacement the

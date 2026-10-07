@@ -15,8 +15,9 @@
 ``reject_embargo_invite``.
 
 Both have two-audience semantics (MSM-07-003, MSM-07-004): the case owner's
-answer drives the shared EM machine and *decides* the proposal, while any
-actor's answer records that actor's own consent on its participant record.
+answer *decides* the proposal — ``ACTIVATE`` or ``REJECT`` on its embargo
+register entry, from which EM is derived (ADR-0122) — while any actor's
+answer records that actor's own consent on its participant record.
 Consent is per embargo (CM-10-001): a signatory's answer to a *proposed*
 revision is about those terms only, and consent to the active embargo is
 re-evaluated only when the owner activates a revision (EP-05-001).
@@ -25,7 +26,7 @@ re-evaluated only when the owner activates a revision (EP-05-001).
 import logging
 
 from vultron.core.models._helpers import _as_id
-from vultron.core.models.dimensions import EmDimension
+from vultron.core.models.embargo_register import rejection_changes
 from vultron.core.services.embargo_lifecycle.pec_activation import (
     _PecActivationMixin,
 )
@@ -34,7 +35,6 @@ from vultron.core.services.embargo_lifecycle.results import (
     ParticipantConsentChange,
     TransitionMode,
 )
-from vultron.core.states.em import EM, EM_Trigger
 
 logger = logging.getLogger(__name__)
 
@@ -49,14 +49,13 @@ class _AnswerOperationsMixin(_PecActivationMixin):
         embargo_id: str,
         actor_id: str,
         transition_mode: TransitionMode = TransitionMode.STRICT,
-        em_before: EM | None = None,
     ) -> EmbargoLifecycleResult:
         """Accept an embargo invite on a case.
 
-        If *actor_id* is the case owner (``attributed_to``), drives the EM
-        state machine ``PROPOSED → ACTIVE`` (or ``REVISE → ACTIVE``) and
-        activates the embargo via ``case.set_embargo(embargo_id)``.  When
-        that replaces active embargo A with revision B, the consent rows are
+        If *actor_id* is the case owner (``attributed_to``), activates
+        the embargo's register entry, superseding any embargo in force, so EM
+        derives ``ACTIVE``.  When that replaces active embargo A with
+        revision B, the consent rows are
         settled against B (EP-05-001, MSM-07-005): a B that ends no later than
         A carries every signatory over, and under a longer B the signatories
         who have not accepted it have lapsed by derivation (CM-18-001).  The
@@ -73,8 +72,6 @@ class _AnswerOperationsMixin(_PecActivationMixin):
             embargo_id: ID of the ``EmbargoEvent`` being accepted.
             actor_id: ID of the accepting actor.
             transition_mode: ``STRICT`` (default) or ``OBSERVED``.
-            em_before: When provided, the service uses this value directly
-                instead of reading it from the case.
 
         Returns:
             :class:`EmbargoLifecycleResult` describing what changed.
@@ -86,72 +83,51 @@ class _AnswerOperationsMixin(_PecActivationMixin):
                 (EMB-18-003, EP-05-001) — in either mode, before any write.
             VultronValidationError: If (owner path) either embargo record is
                 not an ``EmbargoEvent``.
-            VultronInvalidStateTransitionError: If the EM state does not allow
-                an ACCEPT transition (``STRICT`` mode, owner only), or if the
-                owner would drive EM to ACTIVE but P/X/A is set (``STRICT``
-                mode, owner only, per EMB-02-002).  Non-owner callers record
+            VultronInvalidStateTransitionError: If the embargo is not an
+                open proposal the register can activate (``STRICT`` mode,
+                owner only), or if the owner would activate it but P/X/A is
+                set (``STRICT`` mode, owner only, per EMB-02-002).  Non-owner callers record
                 PEC state only and are not blocked by P/X/A.
         """
         case = self._read_case(case_id)
-
-        if em_before is None:
-            em_before = case.current_status.em.state
-        assert em_before is not None
-        em_after = em_before
-        case_mutated = False
-        case_embargo_changed = False
+        em_before = case.em_state
         participant_changes: list[ParticipantConsentChange] = []
 
         is_owner = _as_id(case.attributed_to) == actor_id
         active_embargo_id = case.active_embargo_id
-        already_active = (
-            em_before == EM.ACTIVE and active_embargo_id == embargo_id
-        )
+        activates = is_owner and active_embargo_id != embargo_id
 
         # The owner's accept activates B: read B (and any embargo A it
         # replaces) and decide the EP-05-001 arm *before* anything is
-        # written, so an unreadable record fails closed with EM,
-        # active_embargo, the proposal records and consent untouched
-        # (EMB-18-003).
+        # written, so an unreadable record fails closed with the register and
+        # consent untouched (EMB-18-003).
         ends_no_later = (
             self._activation_arm(
                 previous_embargo_id=active_embargo_id,
                 activated_embargo_id=embargo_id,
             )
-            if is_owner and not already_active
+            if activates
             else None
         )
 
-        if is_owner and not already_active:
-            # Guard only applies when owner would drive the EM machine (EMB-02-002).
+        case_mutated = False
+        if activates:
+            # Guard only applies when the owner activates (EMB-02-002).
             if transition_mode == TransitionMode.STRICT:
                 self._assert_pxa_embargo_eligible(
                     case.current_status.pxa.state,
                     case_id,
                     "accept embargo invite",
                 )
-            em_after = self._drive_em_transition(
-                case_id=case_id,
-                em_before=em_before,
-                trigger=EM_Trigger.ACCEPT,
+            # The owner's accept decides the proposal: activation takes it
+            # out of the open proposals (EP-08-003).
+            case_mutated = self._activate_entry(
+                case,
+                embargo_id,
                 transition_mode=transition_mode,
-                fallback_dest=EM.ACTIVE,
                 actor_id=actor_id,
             )
-            if em_after != em_before:
-                case.current_status.em = EmDimension(state=em_after)
-                case_mutated = True
-            # Sync active_embargo independently: handle OBSERVED mode where
-            # em_after == em_before == ACTIVE but active_embargo points elsewhere
-            if active_embargo_id != embargo_id:
-                case.set_embargo(embargo_id)
-                case_mutated = True
-                case_embargo_changed = True
-
-        if is_owner and case.discard_proposed_embargo(embargo_id):
-            # The owner's accept decides the proposal: it is no longer open
-            # (EP-08-003).  A participant's accept is consent, not a decision.
-            case_mutated = True
+        em_after = case.em_state
 
         if case_mutated:
             self._persistence.save(case)
@@ -162,7 +138,7 @@ class _AnswerOperationsMixin(_PecActivationMixin):
             self._record_actor_acceptance(case, actor_id, embargo_id)
         )
 
-        if is_owner and not already_active:
+        if case_mutated:
             # B is now the embargo in force: carry A's signatories over to it
             # when it ends no later (EP-05-001).  The owner's row already
             # holds B, so it is never lapsed.
@@ -199,7 +175,7 @@ class _AnswerOperationsMixin(_PecActivationMixin):
             em_before=em_before,
             em_after=em_after,
             case_changed=case_mutated or bool(participant_changes),
-            case_embargo_changed=case_embargo_changed,
+            case_embargo_changed=case_mutated,
             participant_changes=participant_changes,
         )
 
@@ -210,21 +186,16 @@ class _AnswerOperationsMixin(_PecActivationMixin):
         embargo_id: str,
         actor_id: str,
         transition_mode: TransitionMode = TransitionMode.STRICT,
-        em_before: EM | None = None,
         record_consent: bool = True,
     ) -> EmbargoLifecycleResult:
         """Reject an embargo proposal or revision on a case.
 
-        If *actor_id* is the case owner, drives the EM state machine:
-            - ``PROPOSED → NONE``  (initial proposal rejected, ER)
-            - ``REVISE → ACTIVE``        (revision rejected, EJ; returns to
-              the prior terms)
-
-        — but only when the rejected proposal is the last one open.  Several
-        proposals may be open at once and each is decided on its own
-        (EP-08-001): while another stays open the owner's Reject only forgets
-        this one (EP-08-003) and EM keeps its state, so the case never leaves
-        ``PROPOSED``/``REVISE`` with a proposal still awaiting an answer.
+        If *actor_id* is the case owner and the embargo is an open proposal,
+        its register entry is rejected (ER, or EJ for a revision).
+        EM is derived from what is left: ``NONE`` or ``ACTIVE`` when no other
+        proposal is open, and still ``PROPOSED``/``REVISE`` while one is
+        (EP-08-001), so the case never leaves negotiation with a proposal
+        still awaiting an answer (ADR-0122).
 
         Per EMB-04-002, a REVISE rejection that would return the case to ACTIVE
         is blocked in STRICT mode when P/X/A is set — callers must invoke
@@ -249,8 +220,6 @@ class _AnswerOperationsMixin(_PecActivationMixin):
             embargo_id: ID of the ``EmbargoEvent`` being rejected.
             actor_id: ID of the rejecting actor.
             transition_mode: ``STRICT`` (default) or ``OBSERVED``.
-            em_before: When provided, the service uses this value directly
-                instead of reading it from the case.
             record_consent: ``False`` when the caller has already recorded
                 the rejecting actor's consent effect through
                 :meth:`record_embargo_rejection` (the received Reject tree
@@ -263,57 +232,41 @@ class _AnswerOperationsMixin(_PecActivationMixin):
             VultronNotFoundError: If *case_id* does not resolve to a case.
             VultronValidationError: If *embargo_id* is neither the active
                 embargo nor an open proposal of the case.
-            VultronInvalidStateTransitionError: If the EM state does not allow
-                a REJECT transition (``STRICT`` mode, owner only), or if the
-                case is in REVISE state with P/X/A set (``STRICT`` mode only,
-                per EMB-04-002 — use terminate_active_embargo instead).
+            VultronInvalidStateTransitionError: If the case's owner rejects
+                a revision of the embargo in force with P/X/A set
+                (``STRICT`` mode only, per EMB-04-002 — use
+                terminate_active_embargo instead).
         """
         case = self._read_case(case_id)
-
-        if em_before is None:
-            em_before = case.current_status.em.state
-        assert em_before is not None
-        em_after = em_before
-        case_mutated = False
+        em_before = case.em_state
 
         is_owner = _as_id(case.attributed_to) == actor_id
-        # Classify before anything is written (and before the owner's prune):
-        # an unknown embargo is a protocol error (ADR-0093), not a consent
-        # change.
+        # Classify before anything is written (and before the owner's
+        # decision): an unknown embargo is a protocol error (ADR-0093), not a
+        # consent change.
         is_active = self._assert_rejectable(case, embargo_id)
-        # EP-08-001: another open proposal keeps the negotiation open, so the
-        # owner's Reject of this one decides only this one.
-        others_open = any(
-            open_id != embargo_id for open_id in case.proposed_embargo_ids
+        decides = is_owner and not is_active
+
+        if (
+            decides
+            and transition_mode == TransitionMode.STRICT
+            and case.active_embargo_id is not None
+        ):
+            # EMB-04-002: with P/X/A set the case must be terminated (ET),
+            # not kept on the prior terms.
+            self._assert_pxa_embargo_eligible(
+                case.current_status.pxa.state,
+                case_id,
+                "reject embargo revision (use terminate_active_embargo when P/X/A is set)",
+            )
+        case_mutated = decides and self._apply_register_step(
+            case,
+            rejection_changes(embargo_id),
+            transition_mode=transition_mode,
+            actor_id=actor_id,
         )
 
-        if is_owner and (is_active or not others_open):
-            # In STRICT mode, block REVISE→ACTIVE when P/X/A is set (EMB-04-002):
-            # the case must be terminated (ET), not returned to ACTIVE.
-            if (
-                transition_mode == TransitionMode.STRICT
-                and em_before == EM.REVISE
-            ):
-                self._assert_pxa_embargo_eligible(
-                    case.current_status.pxa.state,
-                    case_id,
-                    "reject embargo revision (use terminate_active_embargo when P/X/A is set)",
-                )
-            # OBSERVED fallback: REVISE reject → ACTIVE; otherwise → NONE
-            fallback = EM.ACTIVE if em_before == EM.REVISE else EM.NONE
-            em_after = self._drive_em_transition(
-                case_id=case_id,
-                em_before=em_before,
-                trigger=EM_Trigger.REJECT,
-                transition_mode=transition_mode,
-                fallback_dest=fallback,
-                actor_id=actor_id,
-            )
-            if em_after != em_before:
-                case.current_status.em = EmDimension(state=em_after)
-                case_mutated = True
-
-        # Consent after the EM guards (a refused transition writes nothing).
+        # Consent after the register guards (a refused step writes nothing).
         # The owner's EJ changes no record (MSM-07-004).
         participant_changes = (
             self._rejection_consent(
@@ -323,13 +276,10 @@ class _AnswerOperationsMixin(_PecActivationMixin):
             else []
         )
 
-        if is_owner and case.discard_proposed_embargo(embargo_id):
-            # The owner's reject decides the proposal (EP-08-003).
-            case_mutated = True
-
         if case_mutated:
             self._persistence.save(case)
 
+        em_after = case.em_state
         logger.info(
             "Actor '%s' rejected embargo '%s' on case '%s' (EM %s → %s)",
             actor_id,

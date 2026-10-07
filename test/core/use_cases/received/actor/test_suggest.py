@@ -23,6 +23,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_owner_participant,
     seed_case_participant,
 )
+from test.support.embargo_register import activate
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -371,7 +372,6 @@ class TestOwnerDirectInviteAtCaseManager:
 
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.models.case_participant import CaseParticipant
-        from vultron.core.states.em import EM
         from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.objects.embargo_event import (
             as_EmbargoEvent,
@@ -402,8 +402,7 @@ class TestOwnerDirectInviteAtCaseManager:
                 context=case.id_,
             )
             dl.create(embargo)
-            case.active_embargo = embargo.id_
-            case.append_case_status(em_state=EM.ACTIVE)
+            activate(case, embargo.id_)
         dl.create(case)
         return dl
 

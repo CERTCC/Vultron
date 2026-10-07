@@ -18,6 +18,7 @@
 import py_trees
 import pytest
 
+from test.support.embargo_register import activate, propose, terminate
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
@@ -61,9 +62,31 @@ def make_case_and_embargo(
         context=case.id_,
         end_time=days_from_now_utc(45),
     )
-    case.active_embargo = embargo.id_
-    case.append_case_status(em_state=em_state)
+    _drive_register_to(case, embargo, em_state)
     return case, embargo
+
+
+def _drive_register_to(
+    case: VulnerabilityCase, embargo: as_EmbargoEvent, em_state: EM
+) -> None:
+    """Drive *case*'s embargo register so its derived EM is *em_state*.
+
+    EM is derived from the register (ADR-0122), so each state is reached by
+    the register steps that produce it: ``PROPOSED`` holds *embargo* as an
+    open proposal; ``ACTIVE`` has it in force; ``REVISE`` adds a second open
+    proposal (``.../embargo_events/e2``) beside it; ``EXITED`` terminates it;
+    ``NONE`` leaves the register empty.
+    """
+    if em_state == EM.NONE:
+        return
+    if em_state == EM.PROPOSED:
+        propose(case, embargo)
+        return
+    activate(case, embargo)
+    if em_state == EM.REVISE:
+        propose(case, f"{case.id_}/embargo_events/e2")
+    elif em_state == EM.EXITED:
+        terminate(case)
 
 
 def make_case_with_manager(

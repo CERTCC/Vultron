@@ -32,6 +32,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
     make_case_and_embargo,
     setup_blackboard,
 )
+from test.support.embargo_register import propose
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.embargo.nodes.proposal import (
     ALREADY_DECLINED_PREFIX,
@@ -172,14 +173,14 @@ class TestRecordParticipantAcceptanceNodeFailsClosed:
     ) -> tuple[VulnerabilityCase, str, str, str]:
         """A REVISE case owned by OWNER: active A (maybe unheld), proposed B."""
         case, active = make_case_and_embargo(
-            "rpa1", em_state=EM.REVISE, attributed_to=OWNER
+            "rpa1", em_state=EM.ACTIVE, attributed_to=OWNER
         )
         revision = as_EmbargoEvent(
             id_=f"{case.id_}/embargo_events/e2",
             context=case.id_,
             end_time=days_from_now_utc(90),
         )
-        case.proposed_embargoes = [revision.id_]
+        propose(case, revision)
         owner_p = as_CaseParticipant(
             attributed_to=OWNER,
             context=case.id_,
@@ -223,7 +224,7 @@ class TestRecordParticipantAcceptanceNodeFailsClosed:
         untouched = cast(VulnerabilityCase, dl.read(case.id_))
         assert untouched.current_status.em.state == EM.REVISE
         assert untouched.active_embargo_id == active_id
-        assert untouched.proposed_embargoes == [revision_id]
+        assert untouched.proposed_embargo_ids == [revision_id]
         owner_p = cast(CaseParticipant, dl.read(owner_p_id))
         assert owner_p.is_signatory(active_id)
         assert owner_p.consent_for(revision_id) is None
@@ -254,7 +255,7 @@ class TestRecordParticipantAcceptanceNodeFailsClosed:
         untouched = cast(VulnerabilityCase, dl.read(case.id_))
         assert untouched.current_status.em.state == EM.REVISE
         assert untouched.active_embargo_id == active_id
-        assert untouched.proposed_embargoes == [revision_id]
+        assert untouched.proposed_embargo_ids == [revision_id]
         owner_p = cast(CaseParticipant, dl.read(owner_p_id))
         assert owner_p.is_signatory(active_id)
         assert owner_p.consent_for(revision_id) is None
@@ -282,7 +283,7 @@ class TestRecordParticipantAcceptanceNodeFailsClosed:
         untouched = cast(VulnerabilityCase, dl.read(case.id_))
         assert untouched.current_status.em.state == EM.REVISE
         assert untouched.active_embargo_id == active_id
-        assert untouched.proposed_embargoes == [revision_id]
+        assert untouched.proposed_embargo_ids == [revision_id]
         owner_p = cast(CaseParticipant, dl.read(owner_p_id))
         assert owner_p.is_signatory(active_id)
         assert owner_p.consent_for(revision_id) is None

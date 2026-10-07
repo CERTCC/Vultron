@@ -51,11 +51,7 @@ from vultron.core.states.cs import (
     _pxa_transitions,
     _vf_transitions,
 )
-from vultron.core.states.em import (
-    EM,
-    EM_Trigger,
-    _transitions as _em_transitions,
-)
+from vultron.core.states.em import EM
 from vultron.core.states.rm import (
     RM,
     RM_VALIDATED,
@@ -216,7 +212,9 @@ class _ScalarDimension(ValidatedAssignmentMixin, BaseModel):
 class EmDimension(_ScalarDimension):
     """Embargo Management state dimension object.
 
-    Holds the case-level EM state and owns immutable transition validation.
+    Holds the case-level EM state a status carries.  It has no transitions:
+    EM is derived from the case's embargo register (ADR-0122), and a case
+    stamps the derived value onto its current status.
     Replaces CaseStatus.em_state (SDO-01-001, SDO-03-001).
     """
 
@@ -226,16 +224,6 @@ class EmDimension(_ScalarDimension):
     @classmethod
     def validate_state(cls, v: object) -> EM:
         return _coerce_em(v)
-
-    def transition(self, trigger: EM_Trigger) -> "EmDimension":
-        """Return a new EmDimension with the state after applying *trigger*.
-
-        Raises VultronInvalidStateTransitionError on invalid trigger.
-        """
-        new_state = _apply_transition(
-            self.state, trigger, _em_transitions, "EmDimension"
-        )
-        return self.model_copy(update={"state": EM(str(new_state))})
 
     def is_active(self) -> bool:
         return self.state in (EM.ACTIVE, EM.REVISE)

@@ -26,6 +26,7 @@ from vultron.adapters.outbox_sealed_body import (
     seal_outbound_body,
 )
 from vultron.core.models.base import CoreObject
+from vultron.core.models.embargo_register import carry_embargo_inline
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.embargo_ordering import read_embargo_event
@@ -157,7 +158,9 @@ def _case_for_wire(
     updates: dict[str, Any] = {}
     embargo = _carried_embargo(dl, case, case_id)
     if embargo is not None:
-        updates["active_embargo"] = embargo
+        updates["embargo_register"] = carry_embargo_inline(
+            case.embargo_register, embargo
+        )
     for field_name in _CARRIED_LIST_FIELDS:
         carried = _carried_list(dl, case, case_id, field_name)
         if carried is not None:

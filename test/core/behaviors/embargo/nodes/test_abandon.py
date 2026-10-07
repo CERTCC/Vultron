@@ -32,6 +32,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
     make_case_with_manager,
     setup_blackboard,
 )
+from test.support.embargo_register import propose
 from test.support.ledger import committed_event_types
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -78,10 +79,9 @@ def _proposed_case(
     participant holds a *consent* row.
     """
     case, _cm, dl = make_case_with_manager(
-        suffix, em_state=EM.PROPOSED, other_consent=consent
+        suffix, em_state=EM.NONE, other_consent=consent
     )
     case = cast(VulnerabilityCase, dl.read(case.id_))
-    case.active_embargo = None
     proposals: dict[str, str] = {}
     for d in days:
         embargo = as_EmbargoEvent(
@@ -98,7 +98,7 @@ def _proposed_case(
         )
         dl.create(embargo)
         dl.create(invite)
-        case.proposed_embargoes.append(embargo.id_)
+        propose(case, embargo.id_)
         proposals[embargo.id_] = invite.id_
     if indexed:
         case.pending_embargo_proposal_index = dict(proposals)

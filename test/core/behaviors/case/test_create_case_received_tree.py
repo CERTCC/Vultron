@@ -10,6 +10,7 @@ the Create whatever the verdict (CLP-10-018).
 import pytest
 from py_trees.common import Status
 
+from test.support.embargo_register import register
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.create_case_received_tree import (
@@ -136,7 +137,11 @@ def test_refusal_carries_the_chosen_routes_reason(dl, make_payload):
     """A trusted-route refusal is that route's, not a later arm's gate."""
     dl.save(_link())
     case = _case().model_copy(
-        update={"active_embargo": f"{_CASE_ID}/embargo_events/unheld"}
+        update={
+            "embargo_register": register(
+                active=f"{_CASE_ID}/embargo_events/unheld"
+            )
+        }
     )
 
     tree, result, route, _ = _run(dl, make_payload, _CREATOR, case)

@@ -28,7 +28,6 @@ Extracted from lifecycle.py to keep that module under the BTND-07-004
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.embargo.nodes.em_state import read_case_em_state
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
@@ -41,7 +40,7 @@ from vultron.core.services.embargo_lifecycle import (
     TransitionMode,
 )
 from vultron.core.states.em import EM
-from vultron.errors import BtNodePreconditionError, VultronError
+from vultron.errors import VultronError
 
 
 class DecideRejectedEmbargoProposalNode(DataLayerActionWithPorts):
@@ -104,12 +103,6 @@ class DecideRejectedEmbargoProposalNode(DataLayerActionWithPorts):
             return Status.SUCCESS
 
         try:
-            em_before = read_case_em_state(self.datalayer, self.case_id)
-        except BtNodePreconditionError as exc:
-            self.feedback_message = str(exc)
-            return Status.FAILURE
-
-        try:
             result = EmbargoLifecycle(
                 persistence=self.datalayer
             ).reject_embargo_invite(
@@ -117,7 +110,6 @@ class DecideRejectedEmbargoProposalNode(DataLayerActionWithPorts):
                 embargo_id=self.embargo_id,
                 actor_id=self.rejecting_actor_id,
                 transition_mode=self.transition_mode,
-                em_before=em_before,
                 # RecordParticipantRejectionNode runs first on both paths and
                 # has already applied the owner's consent effect (MSM-07-004).
                 record_consent=False,
@@ -176,7 +168,7 @@ class OwnerRejectsRevisionAfterDisclosureNode(DataLayerConditionWithPorts):
 
         if (
             _as_id(case.attributed_to) == self.rejecting_actor_id
-            and case.current_status.em.state == EM.REVISE
+            and case.em_state == EM.REVISE
             and case.proposed_embargo_ids == [self.embargo_id]
             and not pxa_is_embargo_eligible(case.current_status.pxa.state)
         ):

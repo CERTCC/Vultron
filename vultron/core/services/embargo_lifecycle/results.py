@@ -13,7 +13,7 @@
 
 """Public value types returned and accepted by :class:`EmbargoLifecycle`.
 
-``TransitionMode`` selects how strictly an operation drives the EM machine;
+``TransitionMode`` selects how strictly an operation applies its register step;
 ``EmbargoLifecycleResult`` (with its per-participant ``ParticipantConsentChange``
 entries) is what every operation returns.
 """
@@ -26,7 +26,7 @@ from vultron.core.states.em import EM
 
 
 class TransitionMode(StrEnum):
-    """Controls how strict the EM state machine is during a transition.
+    """Controls how strictly an embargo register step is applied.
 
     ``STRICT``   — Used where the executing actor *decides* the
                    transition: a trigger's CASE_MANAGER arm and the
@@ -40,9 +40,9 @@ class TransitionMode(StrEnum):
 
     ``OBSERVED`` — Used where the executing actor *follows* a decision the
                    CASE_MANAGER already committed: received-side recording and
-                   ledger replay (EP-09-007).  The service syncs local state
-                   even if the local machine would not have initiated that
-                   transition.
+                   ledger replay (EP-09-007).  A step the register refuses
+                   is logged and skipped, leaving the case unchanged; the
+                   register is never forced (ADR-0122).
     """
 
     STRICT = "STRICT"
