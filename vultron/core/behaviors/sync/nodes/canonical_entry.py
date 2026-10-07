@@ -85,6 +85,9 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("Invite", "VulnerabilityCaseStub"),
     ("Accept", "Invite"),
     ("Reject", "Invite"),
+    # RI: the full-case Invite's tentative refusal (VAM-04-013).  A stub
+    # Invite has no TentativeReject (CM-11-007).
+    ("TentativeReject", "Invite"),
     ("Announce", "VulnerabilityCase"),
     ("Offer", "CaseParticipant"),
     ("Add", "CaseParticipant"),

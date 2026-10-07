@@ -24,7 +24,8 @@ Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 
 import json
 import logging
-from typing import Any, cast
+from collections.abc import Callable
+from typing import Any, TypeVar, cast
 
 from pydantic import ValidationError
 
@@ -33,6 +34,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.dimensions import (
     EmDimension,
 )
+from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.states.em import EM
 from vultron.enums.object_types import VultronObjectType
 from vultron.enums.roles import CVDRole
@@ -56,13 +58,17 @@ from vultron.wire.as2.vocab.activities.case import (
     _OfferCaseParticipantRoleActivity,
     _RejectCaseOwnershipTransferActivity,
     _RejectCaseParticipantRoleActivity,
+    _RmAcceptFullCaseInviteActivity,
     _RmAcceptInviteToCaseActivity,
     _RmCloseCaseActivity,
     _RmDeferCaseActivity,
     _RmEngageCaseActivity,
     _RmInviteToCaseActivity,
+    _RmInviteToFullCaseActivity,
     _RmRejectCloseCaseActivity,
+    _RmRejectFullCaseInviteActivity,
     _RmRejectInviteToCaseActivity,
+    _RmTentativeRejectFullCaseInviteActivity,
     _UpdateCaseActivity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.intransitive import (
@@ -894,6 +900,183 @@ def rm_reject_invite_to_case_activity(
         raise VultronActivityConstructionError(
             "rm_reject_invite_to_case_activity: invalid arguments"
         ) from exc
+
+
+def ledger_position_content(position: LedgerPosition) -> str:
+    """Return the ``content`` string that carries a ledger position.
+
+    ``content`` is the existing AS2 slot, used here for a machine-readable
+    record (VAM-04-011..014).  The string is the ``LedgerPosition`` model's own
+    JSON dump under its wire aliases, ``{"logIndex": 3, "entryHash": "..."}``;
+    the receiver parses it back with ``LedgerPosition.model_validate_json``.
+    This is the only place the string is produced.
+    """
+    return position.model_dump_json(by_alias=True)
+
+
+def rm_invite_to_full_case_activity(
+    invitee: as_Actor | str,
+    case: VulnerabilityCase | str,
+    ledger_tail: LedgerPosition,
+    **kwargs,
+) -> as_Invite:
+    """Build an Invite(Actor)[target=VulnerabilityCase] — the full-case Invite.
+
+    The CASE_MANAGER asks a joined participant to judge the case (CM-11-010,
+    VAM-04-011, ADR-0121).  The participant already holds the case from the
+    Announce, so the target is the plain case URI (AKM-02-003).  The
+    CASE_MANAGER's *ledger_tail*, the floor the participant's reply must
+    reach, travels in ``content`` (see :func:`ledger_position_content`).
+
+    Args:
+        invitee: The ``as_Actor`` (or actor URI) being asked.
+        case: The case, or its URI.
+        ledger_tail: The CASE_MANAGER's ledger position when it issues the
+            Invite.
+        **kwargs: Optional AS2 fields forwarded to the constructor (``actor``,
+            ``to``, ``id_``, ...).  ``context`` defaults to the case URI.
+
+    Returns:
+        An ``as_Invite`` whose ``object_`` is the invited actor, whose
+        ``target`` is the case URI and whose ``content`` carries the position.
+
+    Raises:
+        VultronActivityConstructionError: If Pydantic validation fails.
+    """
+    case_id = case if isinstance(case, str) else case.id_
+    if isinstance(invitee, str):
+        invitee = as_Actor(id_=invitee)
+    try:
+        return _RmInviteToFullCaseActivity(
+            object_=invitee,
+            target=case_id,
+            content=ledger_position_content(ledger_tail),
+            **with_case_context(kwargs, case_id),
+        )
+    except ValidationError as exc:
+        logger.warning(
+            "rm_invite_to_full_case_activity: invalid arguments: %s", exc
+        )
+        raise VultronActivityConstructionError(
+            "rm_invite_to_full_case_activity: invalid arguments"
+        ) from exc
+
+
+def _as_full_case_invite(invite: as_Invite) -> _RmInviteToFullCaseActivity:
+    """Return *invite* as the full-case Invite class the replies embed.
+
+    The counterpart of :func:`_as_case_invite`: an Invite the participant
+    holds came through intake as the generic ``as_Invite``, and is validated
+    on from its JSON form.
+
+    A read-back rehydrates the Invite's ``target`` into the stored case; the
+    reply addresses the case by URI, as the Invite did (AKM-02-003).
+
+    Raises:
+        VultronActivityConstructionError: when *invite* is not a full-case
+            Invite (no case URI target, or no ledger position in ``content``).
+    """
+    if isinstance(invite, _RmInviteToFullCaseActivity):
+        return invite
+    data = json.loads(
+        invite.model_dump_json(by_alias=True, serialize_as_any=True)
+    )
+    target = data.get("target")
+    if isinstance(target, dict):
+        data["target"] = target.get("id")
+    try:
+        return _RmInviteToFullCaseActivity.model_validate(data)
+    except ValidationError as exc:
+        raise VultronActivityConstructionError(
+            f"activity '{data.get('id')}' is not a full-case Invite"
+        ) from exc
+
+
+_Reply = TypeVar("_Reply")
+
+
+def _full_case_reply(
+    reply_class: Callable[..., _Reply],
+    label: str,
+    invite: as_Invite,
+    ledger_tail: LedgerPosition,
+    kwargs: dict[str, Any],
+) -> _Reply:
+    try:
+        return reply_class(
+            object_=_as_full_case_invite(invite),
+            content=ledger_position_content(ledger_tail),
+            **kwargs,
+        )
+    except ValidationError as exc:
+        logger.warning("%s: invalid arguments: %s", label, exc)
+        raise VultronActivityConstructionError(
+            f"{label}: invalid arguments"
+        ) from exc
+
+
+def rm_accept_full_case_invite_activity(
+    invite: as_Invite,
+    ledger_tail: LedgerPosition,
+    **kwargs,
+) -> as_Accept:
+    """Build Accept(full-case Invite) — RV, carrying the replier's position.
+
+    The participant judges the case valid (CM-11-011, VAM-04-012).
+    *ledger_tail* is the replier's own ledger position when it decided.
+
+    Raises:
+        VultronActivityConstructionError: If Pydantic validation fails.
+    """
+    return _full_case_reply(
+        _RmAcceptFullCaseInviteActivity,
+        "rm_accept_full_case_invite_activity",
+        invite,
+        ledger_tail,
+        kwargs,
+    )
+
+
+def rm_tentative_reject_full_case_invite_activity(
+    invite: as_Invite,
+    ledger_tail: LedgerPosition,
+    **kwargs,
+) -> as_Reject:
+    """Build TentativeReject(full-case Invite) — RI, carrying the position.
+
+    The participant judges the case invalid (CM-11-011, VAM-04-013).
+
+    Raises:
+        VultronActivityConstructionError: If Pydantic validation fails.
+    """
+    return _full_case_reply(
+        _RmTentativeRejectFullCaseInviteActivity,
+        "rm_tentative_reject_full_case_invite_activity",
+        invite,
+        ledger_tail,
+        kwargs,
+    )
+
+
+def rm_reject_full_case_invite_activity(
+    invite: as_Invite,
+    ledger_tail: LedgerPosition,
+    **kwargs,
+) -> as_Reject:
+    """Build Reject(full-case Invite) — RC, carrying the replier's position.
+
+    The participant closes the case (CM-11-011, VAM-04-014).
+
+    Raises:
+        VultronActivityConstructionError: If Pydantic validation fails.
+    """
+    return _full_case_reply(
+        _RmRejectFullCaseInviteActivity,
+        "rm_reject_full_case_invite_activity",
+        invite,
+        ledger_tail,
+        kwargs,
+    )
 
 
 def reject_close_case_activity(

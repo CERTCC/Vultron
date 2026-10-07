@@ -300,6 +300,36 @@ RejectInviteActorToCasePattern = ActivityPattern(
     activity_=TAtype.REJECT,
     object_=InviteActorToCasePattern,
 )
+InviteActorToFullCasePattern = ActivityPattern(
+    description=(
+        "The full-case Invite: Invite(Actor)[target=VulnerabilityCase]"
+        " (VAM-04-011, CM-11-010).  The target is the plain case URI"
+        " (AKM-02-003), which a permissive pattern accepts; the stub Invite's"
+        " target is a VulnerabilityCaseStub object, whose type does not match,"
+        " so the two Invites are told apart by their target."
+    ),
+    activity_=TAtype.INVITE,
+    object_=AOtype.ACTOR,
+    target_=VOtype.VULNERABILITY_CASE,
+)
+AcceptInviteActorToFullCasePattern = ActivityPattern(
+    description="RV: Accept(Invite(Actor)[target=VulnerabilityCase]) (VAM-04-012).",
+    activity_=TAtype.ACCEPT,
+    object_=InviteActorToFullCasePattern,
+)
+TentativeRejectInviteActorToFullCasePattern = ActivityPattern(
+    description=(
+        "RI: TentativeReject(Invite(Actor)[target=VulnerabilityCase])"
+        " (VAM-04-013).  The stub Invite has no TentativeReject (CM-11-007)."
+    ),
+    activity_=TAtype.TENTATIVE_REJECT,
+    object_=InviteActorToFullCasePattern,
+)
+RejectInviteActorToFullCasePattern = ActivityPattern(
+    description="RC: Reject(Invite(Actor)[target=VulnerabilityCase]) (VAM-04-014).",
+    activity_=TAtype.REJECT,
+    object_=InviteActorToFullCasePattern,
+)
 CloseCasePattern = ActivityPattern(
     activity_=TAtype.LEAVE, object_=VOtype.VULNERABILITY_CASE
 )

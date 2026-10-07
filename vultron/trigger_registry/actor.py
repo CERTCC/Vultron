@@ -27,15 +27,23 @@ from vultron.core.use_cases.triggers.actor import (
     SvcRejectCaseInviteUseCase,
     SvcSuggestActorToCaseUseCase,
 )
+from vultron.core.use_cases.triggers.full_case_invite import (
+    SvcAcceptFullCaseInviteUseCase,
+    SvcRejectFullCaseInviteUseCase,
+    SvcTentativeRejectFullCaseInviteUseCase,
+)
 from vultron.core.use_cases.triggers.requests import (
     AcceptActorRecommendationTriggerRequest,
     AcceptCaseInviteTriggerRequest,
     AcceptCaseOwnershipTransferTriggerRequest,
+    AcceptFullCaseInviteTriggerRequest,
     InviteActorToCaseTriggerRequest,
     OfferCaseOwnershipTransferTriggerRequest,
     OfferCaseParticipantRoleTriggerRequest,
     RejectCaseInviteTriggerRequest,
+    RejectFullCaseInviteTriggerRequest,
     SuggestActorToCaseTriggerRequest,
+    TentativeRejectFullCaseInviteTriggerRequest,
 )
 from vultron.trigger_registry._entry import (
     GENERAL_TRIGGER_SPECS,
@@ -69,6 +77,33 @@ ENTRIES: list[TriggerEntry] = [
         verb="reject-case-invite",
         request_model=RejectCaseInviteTriggerRequest,
         use_case_class=SvcRejectCaseInviteUseCase,
+        result_type=ActivityResult,
+        exposure=TriggerExposure.GENERAL_PURPOSE,
+        bt_backed=True,
+        spec_ids=_PARTICIPANT,
+    ),
+    TriggerEntry(
+        verb="accept-full-case-invite",
+        request_model=AcceptFullCaseInviteTriggerRequest,
+        use_case_class=SvcAcceptFullCaseInviteUseCase,
+        result_type=ActivityResult,
+        exposure=TriggerExposure.GENERAL_PURPOSE,
+        bt_backed=True,
+        spec_ids=_PARTICIPANT,
+    ),
+    TriggerEntry(
+        verb="tentative-reject-full-case-invite",
+        request_model=TentativeRejectFullCaseInviteTriggerRequest,
+        use_case_class=SvcTentativeRejectFullCaseInviteUseCase,
+        result_type=ActivityResult,
+        exposure=TriggerExposure.GENERAL_PURPOSE,
+        bt_backed=True,
+        spec_ids=_PARTICIPANT,
+    ),
+    TriggerEntry(
+        verb="reject-full-case-invite",
+        request_model=RejectFullCaseInviteTriggerRequest,
+        use_case_class=SvcRejectFullCaseInviteUseCase,
         result_type=ActivityResult,
         exposure=TriggerExposure.GENERAL_PURPOSE,
         bt_backed=True,

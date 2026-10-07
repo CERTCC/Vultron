@@ -21,12 +21,14 @@ Case Actor / CASE_MANAGER delegation activities.
 
 import json
 import logging
+from collections.abc import Callable
 from typing import Any, cast
 
 from pydantic import BaseModel, ValidationError
 
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.ownership_transfer_offer_record import (
     VultronOwnershipTransferOfferRecord,
 )
@@ -46,8 +48,12 @@ from vultron.wire.as2.factories import (
     offer_case_participant_activity,
     recommend_actor_activity,
     reject_actor_recommendation_activity,
+    rm_accept_full_case_invite_activity,
     rm_accept_invite_to_case_activity,
     rm_invite_to_case_activity,
+    rm_invite_to_full_case_activity,
+    rm_reject_full_case_invite_activity,
+    rm_tentative_reject_full_case_invite_activity,
 )
 from vultron.wire.as2.factories.case import (
     accept_case_ownership_transfer_activity,
@@ -264,6 +270,124 @@ class _ActorsMixin:
                 activity.id_,
             )
         return _seal(self._dl, activity)
+
+    def invite_actor_to_full_case(
+        self,
+        invitee_id: str,
+        case_id: str,
+        actor: str,
+        ledger_log_index: int,
+        ledger_entry_hash: str,
+        to: list[str] | None = None,
+        id_: str | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist the full-case ``Invite(Actor)[target=Case]``."""
+        extra: dict[str, Any] = {"actor": actor, "to": to}
+        if id_ is not None:
+            extra["id_"] = id_
+        activity = rm_invite_to_full_case_activity(
+            invitee=invitee_id,
+            case=case_id,
+            ledger_tail=LedgerPosition(
+                log_index=ledger_log_index, entry_hash=ledger_entry_hash
+            ),
+            **extra,
+        )
+        try:
+            self._dl.create(activity)
+        except VultronAlreadyExistsError:
+            logger.warning(
+                "invite_actor_to_full_case: activity '%s' already exists"
+                " — skipping",
+                activity.id_,
+            )
+        return _seal(self._dl, activity)
+
+    def _full_case_reply(
+        self,
+        builder: Callable[..., Any],
+        label: str,
+        invite_id: str,
+        actor: str,
+        position: LedgerPosition,
+    ) -> tuple[str, str]:
+        """Persist the reply *builder* makes to the stored full-case Invite."""
+        invite = _stored_case_invite(self._dl, invite_id)
+        invite_actor_id = _as_id(getattr(invite, "actor", None))
+        if not invite_actor_id:
+            raise VultronValidationError(
+                f"{label}: invite '{invite_id}' has no routable actor field;"
+                " cannot derive the reply's recipient"
+            )
+        activity = builder(
+            invite=invite,
+            ledger_tail=position,
+            actor=actor,
+            to=[invite_actor_id],
+        )
+        try:
+            self._dl.create(activity)
+        except VultronAlreadyExistsError:
+            logger.warning(
+                "%s: activity '%s' already exists — skipping",
+                label,
+                activity.id_,
+            )
+        return _seal(self._dl, activity)
+
+    def accept_full_case_invite(
+        self,
+        invite_id: str,
+        actor: str,
+        ledger_log_index: int,
+        ledger_entry_hash: str,
+    ) -> tuple[str, str]:
+        """Create and persist ``Accept(full-case Invite)`` — RV."""
+        return self._full_case_reply(
+            rm_accept_full_case_invite_activity,
+            "accept_full_case_invite",
+            invite_id,
+            actor,
+            LedgerPosition(
+                log_index=ledger_log_index, entry_hash=ledger_entry_hash
+            ),
+        )
+
+    def tentative_reject_full_case_invite(
+        self,
+        invite_id: str,
+        actor: str,
+        ledger_log_index: int,
+        ledger_entry_hash: str,
+    ) -> tuple[str, str]:
+        """Create and persist ``TentativeReject(full-case Invite)`` — RI."""
+        return self._full_case_reply(
+            rm_tentative_reject_full_case_invite_activity,
+            "tentative_reject_full_case_invite",
+            invite_id,
+            actor,
+            LedgerPosition(
+                log_index=ledger_log_index, entry_hash=ledger_entry_hash
+            ),
+        )
+
+    def reject_full_case_invite(
+        self,
+        invite_id: str,
+        actor: str,
+        ledger_log_index: int,
+        ledger_entry_hash: str,
+    ) -> tuple[str, str]:
+        """Create and persist ``Reject(full-case Invite)`` — RC."""
+        return self._full_case_reply(
+            rm_reject_full_case_invite_activity,
+            "reject_full_case_invite",
+            invite_id,
+            actor,
+            LedgerPosition(
+                log_index=ledger_log_index, entry_hash=ledger_entry_hash
+            ),
+        )
 
     def accept_case_participant_offer(
         self,
