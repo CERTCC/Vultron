@@ -373,10 +373,20 @@ print(json2md(add_finder_participant_to_case()))
 
 ## Remove Case Participant from Case
 
-- **Protocol role:** Removes a participant from the case roster.
-- **Triggering transition:** none — roster operation.
+- **Protocol role:** The Case Owner's request to the CASE_MANAGER to remove a participant from active participation.
+  Removal withdraws the participant's entitlement to case content; the participant's record stays on the case roster.
+- **Triggering transition:** none — the participant's record gains a removal fact.
 - **Wire activity:** `Remove(CaseParticipant)` with `target` = case URI.
   The case MUST be named in `target`; a `Remove` that names the case only in `origin` is not recognized as this message.
+- **Who may send:**
+  The CASE_MANAGER accepts it only from the Case Owner.
+  It refuses a removal of the CASE_MANAGER's or the Case Owner's participant, and a removal that names no participant of the case.
+  A participant replica accepts it only from the CASE_MANAGER, as the direct notice below, and writes nothing from it.
+- **Ledger:** the Case Owner's received `Remove` is the one ledger entry for the removal.
+  Every replica applies the removal from that entry, the removed participant's own included.
+- **Notice:** the CASE_MANAGER then sends the removed participant a direct `Remove(CaseParticipant)` naming it, with `actor` set to the CASE_MANAGER and `attributedTo` set to the Case Owner.
+  The notice is not ledgered.
+- **Spec:** [Participant Removal](../vultron-spec/interactions.md#114-participant-removal-n).
 - **Example artifact:** [remove_participant_from_case.json](../examples/remove_participant_from_case.json).
 
 ```python exec="true" idprefix=""

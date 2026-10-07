@@ -35,6 +35,7 @@ from vultron.core.behaviors.sync.nodes import (
     ApplyOfferReportFromLedgerNode,
     ApplyOwnershipTransferFromLedgerNode,
     ApplyParticipantStatusFromLedgerNode,
+    ApplyRemoveCaseParticipantFromLedgerNode,
     ApplyRemoveNoteFromLedgerNode,
     BufferPreGenesisEntryNode,
     CheckHashOrRejectOnMismatchNode,
@@ -54,6 +55,7 @@ from vultron.core.behaviors.sync.nodes import (
     IsOwnershipTransferEventNode,
     IsParticipantStatusEventNode,
     IsRejectEmbargoInviteEventNode,
+    IsRemoveCaseParticipantEventNode,
     IsRemoveEmbargoEventNode,
     IsRemoveNoteEventNode,
     IsSubmitReportEventNode,
@@ -233,6 +235,12 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
                 "InviteAccept",
                 IsInviteAcceptEventNode,
                 ApplyInviteAcceptFromLedgerNode,
+            ),
+            # The Case Owner's removal of a participant (CM-31-007).
+            _event_effect_slot(
+                "RemoveCaseParticipant",
+                IsRemoveCaseParticipantEventNode,
+                ApplyRemoveCaseParticipantFromLedgerNode,
             ),
             _event_effect_slot(
                 "CloseCase",

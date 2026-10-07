@@ -33,8 +33,8 @@ Submodules:
 - ``effects``: Ledger-apply side-effect nodes (note, invite-accept)
 - ``participant_status_effect``: Ledger-apply of ``ParticipantStatus``, with the
   monotonic-RM ratchet (ADR-0061)
-- ``offer_report_effect``, ``ownership_effects``, ``ownership_offer_effect``:
-  per-effect ledger-apply nodes
+- ``offer_report_effect``, ``ownership_effects``, ``ownership_offer_effect``,
+  ``participant_removal_effect``: per-effect ledger-apply nodes
 
 The ``close_case`` effect is not here: it composes the case participant-status
 writer, so it lives in :mod:`vultron.core.behaviors.case.nodes.close_case_effect`.
@@ -107,6 +107,10 @@ from vultron.core.behaviors.sync.nodes.ownership_offer_effect import (
     ApplyOfferOwnershipTransferFromLedgerNode,
     IsOfferOwnershipTransferEventNode,
 )
+from vultron.core.behaviors.sync.nodes.participant_removal_effect import (
+    ApplyRemoveCaseParticipantFromLedgerNode,
+    IsRemoveCaseParticipantEventNode,
+)
 from vultron.core.behaviors.sync.nodes.participant_status_effect import (
     ApplyParticipantStatusFromLedgerNode,
     EmitImpossibleStateFaultNode,
@@ -162,6 +166,9 @@ __all__ = [
     "ApplyOwnershipTransferFromLedgerNode",
     "ApplyOfferOwnershipTransferFromLedgerNode",
     "IsOfferOwnershipTransferEventNode",
+    # participant_removal_effect (CM-31-007)
+    "ApplyRemoveCaseParticipantFromLedgerNode",
+    "IsRemoveCaseParticipantEventNode",
     # receive
     "LogDeliveryConfirmationNode",
     "PersistReceivedLogEntryNode",

@@ -236,6 +236,9 @@ _TRIGGER_ACTIVITY_PORT_SEMANTICS = frozenset(
         # to a peer that has no case yet before replaying entries (SYNC-15-002).
         MessageSemantics.REJECT_CASE_LEDGER_ENTRY,
         MessageSemantics.REJECT_OFFER_CASE_PARTICIPANT,
+        # REMOVE_CASE_PARTICIPANT_FROM_CASE sends the removed participant its
+        # direct Remove(CaseParticipant) notice (CM-31-006).
+        MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE,
         # UPDATE_CASE broadcasts Announce(VulnerabilityCase) to the
         # participants (CM-06-001); the adapter builds and seals it
         # (VM-08-003).
