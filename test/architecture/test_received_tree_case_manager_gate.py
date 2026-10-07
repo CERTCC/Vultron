@@ -263,6 +263,35 @@ KNOWN_LEGACY_EFFECT_NODES: frozenset[_Site] = frozenset(
         ),
         # owner: #4307
         (
+            f"{_C}/announce_case_received_tree.py",
+            "create_announce_vulnerability_case_received_tree",
+        ),
+        # owner: #4307
+        (
+            f"{_C}/case_participant_received_tree.py",
+            "create_add_case_participant_received_tree",
+        ),
+        # owner: #4307
+        (
+            f"{_C}/case_participant_received_tree.py",
+            "create_remove_case_participant_received_tree",
+        ),
+        # owner: #4307
+        (f"{_N}/create_note_tree.py", "create_note_tree"),
+        # owner: #4307
+        (
+            f"{_R}/received_report_trees.py",
+            "create_close_report_received_tree",
+        ),
+        # owner: #4307
+        (
+            f"{_R}/received_report_trees.py",
+            "create_invalidate_report_received_tree",
+        ),
+        # owner: #4307
+        (f"{_R}/received_report_trees.py", "create_report_received_tree"),
+        # owner: #4307
+        (
             f"{_C}/create_case_received_tree.py",
             "create_create_case_received_tree",
         ),
@@ -329,13 +358,18 @@ GATE_CALLERS_OUTSIDE_RECEIVED_TREES: frozenset[_Site] = frozenset(
 # 4. Which received tree uses each named exemption (constant name → site).
 #    Each entry is the decision recorded in replica_emit_exemptions.py.
 # ---------------------------------------------------------------------------
-# permanent: BT-17-008 (the ack echo, offer-role and RSH status decisions)
+# permanent: BT-17-008 (ack echo, offer-role, case-proposal, RSH status decisions)
 REPLICA_EMIT_EXEMPTION_USES: frozenset[tuple[str, str, str]] = frozenset(
     {
         (
             "ACK_ECHO",
             f"{_R}/received_report_trees.py",
             "create_ack_report_received_tree",
+        ),
+        (
+            "CASE_PROPOSAL",
+            f"{_C}/case_proposal_received_tree.py",
+            "create_case_proposal_received_tree",
         ),
         (
             "OFFER_ROLE",

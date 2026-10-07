@@ -44,6 +44,7 @@ from vultron.primitives import NonEmptyString
 
 __all__ = [
     "ACK_ECHO",
+    "CASE_PROPOSAL",
     "OFFER_ROLE",
     "REPLICA_EMIT_EXEMPTIONS",
     "RSH_STATUS",
@@ -95,6 +96,26 @@ OFFER_ROLE: Final = ReplicaEmitExemption(
     ),
 )
 
+CASE_PROPOSAL: Final = ReplicaEmitExemption(
+    name="case-proposal",
+    reason=(
+        "Create(CaseProposal) is answered by its addressee, which builds the"
+        " case it was offered: no case and no CASE_MANAGER exist yet to gate"
+        " on (the tree has no commit stage), and the Accept or Reject, the"
+        " bootstrap Create(VulnerabilityCase) and the creation-time revision"
+        " relay are the executing actor's own acts as the new case's creator"
+        " (CP-05-002, ADR-0041, EP-04-011)."
+    ),
+    covers=frozenset(
+        {
+            "EmitAcceptCaseProposalNode",
+            "EmitCreateVulnerabilityCaseNode",
+            "EmitRejectCaseProposalNode",
+            "RelayCreationTimeRevisionNode",
+        }
+    ),
+)
+
 RSH_STATUS: Final = ReplicaEmitExemption(
     name="rsh-status",
     reason=(
@@ -113,7 +134,7 @@ REPLICA_EMIT_EXEMPTIONS: Final[Mapping[str, ReplicaEmitExemption]] = (
     MappingProxyType(
         {
             exemption.name: exemption
-            for exemption in (ACK_ECHO, OFFER_ROLE, RSH_STATUS)
+            for exemption in (ACK_ECHO, OFFER_ROLE, CASE_PROPOSAL, RSH_STATUS)
         }
     )
 )

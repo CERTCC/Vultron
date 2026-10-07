@@ -1308,9 +1308,8 @@ The cause was structural: about fifteen trees each wrapped their effects in
   The factory refuses an exemption not in `REPLICA_EMIT_EXEMPTIONS`, an
   ungated emitter outside `covers`, and an exemption that covers nothing in the
   tree (stale).
-  The registered decisions are the ack echo, the offer-role tree and the RSH
-  status tree; the case-proposal tree gets its exemption when it moves onto the
-  factory (#4307).
+  The registered decisions are the ack echo, the offer-role tree, the
+  case-proposal tree and the RSH status tree.
   A sender check added to a tree without a named exemption never passes,
   because it says nothing about whether this replica owns the case (#2667).
 - **`effect_nodes` is the unchecked legacy form, kept while trees migrate.**
