@@ -246,6 +246,10 @@ groups:
       `object_` field; a bare URI reference or `as_Link` is not permitted because
       the recipient has no access to the sender's DataLayer and cannot resolve the
       reference to determine the activity's semantic type.
+    note: >-
+      The rule binds the activity's own `object_`. An `Invite(EmbargoEvent)` nested as the
+      object of an ER may name its terms by URI: the ER answers the Invite by id and type,
+      both inline, and needs no terms (ADR-0123).
     verification: >-
       Enforced at runtime in `vultron/adapters/driving/fastapi/outbox_delivery.py`;
       `VultronValidationError` is raised when `object_` is a bare string URI rather

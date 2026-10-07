@@ -23,15 +23,22 @@ CLI (``uv run adr-index``):
 from __future__ import annotations
 
 import argparse
+import datetime as _dt
 import re
 import sys
 from pathlib import Path
 
+from vultron.metadata.adr.lifecycle import (
+    EPOCH_STATUS,
+    epoch_for,
+    today_utc,
+)
 from vultron.metadata.adr.loader import (
     SKIP_FILES,
     _find_repo_root,
     _iter_adr_paths,
     load_adr_post,
+    load_adr_registry,
 )
 from vultron.metadata.adr.schema import AdrFrontmatter
 from vultron.metadata.base import (
@@ -107,6 +114,9 @@ def generate_index(repo_root: Path | None = None) -> str:
         post = load_adr_post(path, root)
         fm = validate(AdrFrontmatter, post.metadata, path=path, root=root)
         entry = _entry(path, adr_dir)
+        if fm.revision > 1:
+            # The decision has changed since it was first recorded.
+            entry += f" *(revision {fm.revision})*"
 
         if fm.status in (AdrStatus.ACCEPTED, AdrStatus.ACCEPTED_PROVISIONAL):
             suffix = (
@@ -215,8 +225,34 @@ def duplicate_numbers(repo_root: Path | None = None) -> dict[str, list[str]]:
     return {n: f for n, f in claims.items() if len(f) > 1}
 
 
+def epoch_report(
+    repo_root: Path | None = None, today: _dt.date | None = None
+) -> str:
+    """Return a table of each live ADR's epoch, status and revision.
+
+    The epoch depends on today's date, so it is reported here and not written
+    into ``index.md``, which ``--check`` compares byte for byte.
+    """
+    root = repo_root or _find_repo_root()
+    today = today or today_utc()
+    rows = [
+        "ADR | epoch | status | revision | updated",
+        "--- | --- | --- | --- | ---",
+    ]
+    for rel_path, fm in load_adr_registry(root).items():
+        if fm.status not in EPOCH_STATUS.values():
+            continue
+        rows.append(
+            f"{Path(rel_path).name.split('-', 1)[0]} | "
+            f"{int(epoch_for(fm.updated, today))} | {fm.status.value}"
+            f"{' (override)' if fm.status_override else ''} | "
+            f"{fm.revision} | {fm.updated}"
+        )
+    return "\n".join(rows)
+
+
 def main() -> None:
-    """CLI entry point: ``uv run adr-index [--check|--write]``."""
+    """CLI entry point: ``uv run adr-index [--check|--write|--epochs]``."""
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument(
@@ -227,9 +263,17 @@ def main() -> None:
     mode.add_argument(
         "--write", action="store_true", help="Rewrite docs/adr/index.md."
     )
+    mode.add_argument(
+        "--epochs",
+        action="store_true",
+        help="Print each live ADR's lifecycle epoch and revision (ADR-0120).",
+    )
     args = parser.parse_args()
 
     root = _find_repo_root()
+    if args.epochs:
+        print(epoch_report(root))
+        return
     index_path = root / "docs" / "adr" / "index.md"
     desired = generate_index(root)
 

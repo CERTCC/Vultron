@@ -1,9 +1,11 @@
 ---
 title: "FCCV-handoff Scenario: Finder + C1 → C2 + Vendor"
+# consequent_actor names the dump actor recorded on the consequent entry:
+# C1 is 'vendor', C2 is 'coordinator', the Vendor is 'vendor2'.
 causal_edges:
   - antecedent: validate_report
     consequent: engage_case
-    consequent_actor: c1
+    consequent_actor: vendor
     note: >
       C1 validates the report before engaging the case.
   - antecedent: engage_case
@@ -18,12 +20,12 @@ causal_edges:
       C1 invites C2 after the case is active.
   - antecedent: invite_actor_to_case
     consequent: accept_invite_actor_to_case
-    consequent_actor: c2
+    consequent_actor: coordinator
     note: >
       C2 accepts C1's invitation; acceptance follows the invite.
   - antecedent: accept_invite_actor_to_case
     consequent: accept_case_ownership_transfer
-    consequent_actor: c2
+    consequent_actor: coordinator
     note: >
       C2 accepts the ownership transfer from C1 only after C2 has joined the
       case; the ownership-transfer acceptance must follow C2's participation
@@ -36,12 +38,12 @@ causal_edges:
       the ownership acceptance.
   - antecedent: invite_actor_to_case
     consequent: accept_invite_actor_to_case
-    consequent_actor: vendor
+    consequent_actor: vendor2
     note: >
       The Vendor accepts C2's invitation; acceptance follows the invite.
   - antecedent: validate_report
     consequent: close_case
-    consequent_actor: c2
+    consequent_actor: coordinator
     note: >
       Closure requires a validated, engaged case.  C2, as the post-handoff
       case owner, commits the final close entry.
@@ -52,13 +54,13 @@ causal_edges:
       Notes require an active case.
   - antecedent: offer_case_ownership_transfer
     consequent: accept_case_ownership_transfer
-    consequent_actor: c2
+    consequent_actor: coordinator
     note: >
       The Case Actor records C1's ownership offer before forwarding it to C2
       (ADR-0053); C2's acceptance follows the recorded offer.
   - antecedent: report_submitted
     consequent: validate_report
-    consequent_actor: c1
+    consequent_actor: vendor
     observable: false
     note: >
       Report submission by the Finder is an out-of-band API call that

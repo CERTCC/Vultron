@@ -28,13 +28,14 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 import yaml
 
+from vultron.adapters.utils import strip_id_prefix
 from vultron.demo.helpers.harness import DUMP_CRASHED_REASON
 from vultron.demo.helpers.ledger_dump import (
     DUMP_MANIFEST_FILENAME,
@@ -1118,9 +1119,78 @@ def load_narrative_edges(narrative_path: str | Path) -> list[dict]:
     return edges
 
 
+def load_actor_names(demo_name: str) -> dict[str, str]:
+    """Return ``{routeKey: actorName}`` from the scenario's dump manifest.
+
+    The manifest is the dump's own record of which actor was read under which
+    in-container route key (``vultron.demo.helpers.ledger_dump``), plus any
+    actor that acted without holding a replica (``unreplicatedActors``).  A
+    ledger entry's recorded actor, stripped of its URI prefix, is a
+    ``routeKey``; the ``actorName`` beside it is the replica directory name and
+    the vocabulary of a narrative's ``consequent_actor`` tag.
+
+    Returns an empty mapping when no manifest (or no devlogs directory) exists,
+    so a caller cannot mistake "nothing to resolve against" for "nothing to
+    check" (DEMOMA-22-005).
+    """
+    search_root = _DEVLOGS_DIR / demo_name
+    if not search_root.is_dir():
+        return {}
+    names: dict[str, str] = {}
+    for manifest in _read_dump_manifests(search_root):
+        records = [
+            *(manifest.get("actors") or []),
+            *(manifest.get("unreplicatedActors") or []),
+        ]
+        for record in records:
+            if not isinstance(record, dict):
+                continue
+            route_key = record.get("routeKey")
+            actor_name = record.get("actorName")
+            if isinstance(route_key, str) and isinstance(actor_name, str):
+                names[route_key] = actor_name
+    return names
+
+
+def recorded_actor_name(
+    entry: dict, actor_names: Mapping[str, str]
+) -> tuple[str | None, str]:
+    """Resolve who performed *entry*, as ``(actorName or None, recorded id)``.
+
+    Reads ``payloadSnapshot.actor`` (an id string, or an object carrying one),
+    strips the id prefix, and looks the result up as a ``routeKey`` in
+    *actor_names*.  ``None`` means the recorded actor is absent from the
+    manifest or the entry records none; the second element is what was
+    recorded, for diagnostics.
+    """
+    raw = payload(entry).get("actor")
+    if isinstance(raw, dict):
+        raw = raw.get("id") or raw.get("@id")
+    if not isinstance(raw, str) or not raw:
+        return None, ""
+    recorded = strip_id_prefix(raw)
+    return actor_names.get(recorded), recorded
+
+
+def _describe_recorded_actors(
+    entries: list[dict], actor_names: Mapping[str, str]
+) -> str:
+    """Render the actors recorded on *entries* for a mismatch message."""
+    parts: list[str] = []
+    for entry in entries:
+        name, recorded = recorded_actor_name(entry, actor_names)
+        parts.append(
+            repr(name)
+            if name is not None
+            else f"<unresolved: {recorded or 'no actor recorded'}>"
+        )
+    return ", ".join(dict.fromkeys(parts))
+
+
 def check_causal_edges(
     replicas: dict[str, list[dict]],
     edges: list[dict],
+    actor_names: Mapping[str, str] | None = None,
 ) -> list[str]:
     """Assert that each declared observable causal edge appears in log-index order.
 
@@ -1128,6 +1198,16 @@ def check_causal_edges(
     whose ``eventType`` matches the ``antecedent`` and ``consequent`` fields
     and verifies that at least one antecedent entry appears before at least
     one consequent entry (i.e. ``min(antecedent_indices) < max(consequent_indices)``).
+
+    When *actor_names* is given (``{routeKey: actorName}`` from the dump
+    manifest, see ``load_actor_names``) and the edge carries a
+    ``consequent_actor`` tag, the consequent candidates are restricted to
+    entries whose recorded actor resolves to that tag (DEMOMA-22-004,
+    DEMOMA-22-005).  An edge whose tag matches no recorded consequent entry, or
+    whose consequent actor is absent from the manifest, is a violation.
+    Passing ``None`` skips the actor check (structural callers with synthetic
+    ledgers); passing ``{}`` means "no manifest", so every tagged edge is
+    unresolvable and fails.
 
     Returns a list of violation strings (empty = all edges satisfied).
     Diagnostic output names the unsatisfied edge and the indices that were
@@ -1156,9 +1236,24 @@ def check_causal_edges(
         ant_indices = [
             log_index(e) for e in auth if event_type(e) == antecedent
         ]
-        con_indices = [
-            log_index(e) for e in auth if event_type(e) == consequent
-        ]
+        con_entries = [e for e in auth if event_type(e) == consequent]
+        con_indices = [log_index(e) for e in con_entries]
+
+        if actor_names is not None and consequent_actor and con_entries:
+            matching = [
+                e
+                for e in con_entries
+                if recorded_actor_name(e, actor_names)[0] == consequent_actor
+            ]
+            if not matching:
+                violations.append(
+                    f"Edge [{antecedent!r} → {consequent!r}]: "
+                    f"consequent_actor {consequent_actor!r} matches no "
+                    f"recorded {consequent!r} entry; recorded actor(s): "
+                    f"{_describe_recorded_actors(con_entries, actor_names)}"
+                )
+                continue
+            con_indices = [log_index(e) for e in matching]
 
         if not ant_indices:
             violations.append(

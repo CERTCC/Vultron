@@ -32,9 +32,11 @@ Tree structure::
             ├── MaybeSignEmbargoConsentNode          — sign when an embargo is in force
             ├── PersistInviteeParticipantNode        — dl.create, attach, save case
             ├── AdvanceInviteeToReceivedNode         — advance to RM.RECEIVED via writer
+            ├── AdvanceInviteeVFToVendorAwareNode    — record VF Vf for VENDOR (CM-11-009)
             ├── EmitAnnounceCaseToInviteeNode        — queue Announce(VulnerabilityCase)
             ├── BackfillCanonicalLedgerToInviteeNode — send prior ledger to invitee
-            └── EmitAddCaseParticipantNode           — emit Add(CaseParticipant), commit ledger
+            ├── EmitAddCaseParticipantNode           — emit Add(CaseParticipant), commit ledger
+            └── RelayOpenProposalsToJoinerNode       — Invite to each open embargo proposal (EP-09-011)
 
 Admitting the invitee, announcing the case to it and backfilling the ledger
 are the CASE_MANAGER's (PCR-08-009); every other participant learns of the
@@ -57,6 +59,9 @@ from vultron.core.behaviors.case.nodes.invite_embargo_consent import (
     _CheckEmbargoActiveStateNode,
     _SignEmbargoConsentLeafNode,
 )
+from vultron.core.behaviors.case.nodes.invite_inert_participant import (
+    AdvanceInviteeVFToVendorAwareNode,
+)
 from vultron.core.behaviors.case.nodes.invite_ledger_backfill import (
     BackfillCanonicalLedgerToInviteeNode,
     CapturePreCommitBackfillTargetNode,
@@ -69,6 +74,9 @@ from vultron.core.behaviors.case.nodes.invite_participant import (
 from vultron.core.behaviors.case.nodes.invite_participant_persist import (
     AdvanceInviteeToReceivedNode,
     PersistInviteeParticipantNode,
+)
+from vultron.core.behaviors.case.nodes.invite_revision_relay import (
+    RelayOpenProposalsToJoinerNode,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
@@ -88,11 +96,10 @@ class MaybeSignEmbargoConsentNode(py_trees.composites.Selector):
     revision.  Not signing would leave it inert (CM-10-004) under terms that
     still hold.  One difference from the other signatories remains: the
     revision Invite was relayed (EP-09-002) before this joiner was on the
-    roster, so it was never asked about the revision.  If the owner then
-    activates longer terms, it lapses (EP-05-001) without having had the
-    chance to accept them.  That gap closes when the stub Invite seats the
-    invitee on the roster before it joins (#4048), so that the relay reaches
-    it like any other non-closed participant (ADR-0114).
+    roster, so the relay never reached it.  ``RelayOpenProposalsToJoinerNode``
+    closes that gap at the end of the accept effects (EP-09-011): the joiner
+    is sent an Invite for each open proposal, so it can accept the revision
+    and be a signatory of it at activation, or lapse per ADR-0093.
     """
 
     def __init__(
@@ -148,9 +155,10 @@ def create_accept_invite_actor_to_case_tree(
                 ├── AdvanceInviteeToReceivedNode         — advance to RM.RECEIVED via writer
                 ├── EmitAnnounceCaseToInviteeNode        — queue Announce to invitee
                 ├── BackfillCanonicalLedgerToInviteeNode — send prior ledger to invitee
-                └── EmitAddCaseParticipantNode           — emit Add(CaseParticipant), commit ledger
+                ├── EmitAddCaseParticipantNode           — emit Add(CaseParticipant), commit ledger
+                └── RelayOpenProposalsToJoinerNode       — Invite to each open embargo proposal (EP-09-011)
 
-    The last three follow CM-17-004 steps (5) and (6): the invitee receives the
+    The three before the relay follow CM-17-004 steps (5) and (6): the invitee receives the
     case snapshot, then the prior ledger in log-index order, and only then the
     add-participant entry — whose commit fans out to the invitee too, because
     ``PersistInviteeParticipantNode`` has already put it in
@@ -199,6 +207,9 @@ def create_accept_invite_actor_to_case_tree(
                     AdvanceInviteeToReceivedNode(
                         case_id=case_id, invitee_id=invitee_id
                     ),
+                    AdvanceInviteeVFToVendorAwareNode(
+                        case_id=case_id, invitee_id=invitee_id
+                    ),
                     # CM-17-004 steps (5) and (6): seed the invitee's case,
                     # then backfill the prior ledger in log-index order.
                     EmitAnnounceCaseToInviteeNode(
@@ -218,6 +229,12 @@ def create_accept_invite_actor_to_case_tree(
                     # entries it extends.  Last, it reaches the invitee as the
                     # next entry in chain order.
                     EmitAddCaseParticipantNode(
+                        case_id=case_id, invitee_id=invitee_id
+                    ),
+                    # EP-09-011: the joiner was not on the roster when any
+                    # open proposal was relayed, so it is invited now, after
+                    # it holds the case and the ledger up to its own entry.
+                    RelayOpenProposalsToJoinerNode(
                         case_id=case_id, invitee_id=invitee_id
                     ),
                 ],

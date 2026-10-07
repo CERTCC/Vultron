@@ -30,6 +30,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -800,7 +801,14 @@ class TestInviteeIsTheAddressee:
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert "names 2 'to' recipients" in (result.reason or "")
-        assert dl.outbox_list() == []
+        # Only the ProcessingFault answers it: no Invite is relayed (MSM-05-001).
+        (queued,) = dl.outbox_list()
+        sealed = read_sealed_body_dict(dl, queued)
+        assert sealed is not None
+        assert sealed["object"]["type"] == "ProcessingFault"
+        assert sealed["object"]["failureClass"].endswith(
+            "MisroutedEmbargoInvite"
+        )
         for participant_id in (invitee_p_id, other_p_id, coord_p_id):
             participant = self._read_participant(dl, participant_id)
             assert participant.consent_for(embargo_id) is None

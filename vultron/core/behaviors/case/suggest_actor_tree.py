@@ -46,9 +46,15 @@ import logging
 
 import py_trees
 
+from vultron.core.behaviors.case.nodes.accept_invite import (
+    EmitAddCaseParticipantNode,
+)
 from vultron.core.behaviors.case.nodes.actor import (
     EmitInviteActorToCaseNode,
     EvaluateDefaultRolesNode,
+)
+from vultron.core.behaviors.case.nodes.invite_inert_participant import (
+    CreateInertInviteeParticipantNode,
 )
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
@@ -241,12 +247,25 @@ def create_recommend_actor_to_case_received_tree(
                 case_id=case_id,
                 recommendation_id=recommendation_id,
                 injected_roles=suggested_roles,
+                # CM-11-019: the Case Owner's direct invite MUST give explicit
+                # roles; no VENDOR default for the owner-direct path.
+                require_explicit_roles=True,
             ),
             EmitInviteActorToCaseNode(
                 invitee_id=recommended_id,
                 case_id=case_id,
                 attributed_to=recommender_id,
                 recommendation_id=recommendation_id,
+            ),
+            # AC-1: record the inert participant at invite-send time
+            # (ADR-0114, CM-11-006).
+            CreateInertInviteeParticipantNode(
+                invitee_id=recommended_id,
+                case_id=case_id,
+                recommendation_id=recommendation_id,
+            ),
+            EmitAddCaseParticipantNode(
+                case_id=case_id, invitee_id=recommended_id
             ),
         ],
     )
@@ -395,6 +414,20 @@ def create_accept_actor_recommendation_received_tree(
                         invitee_id=invitee_id,
                         case_id=case_id,
                         roles=roles,
+                    ),
+                    # AC-1: record the inert participant at invite-send time
+                    # (ADR-0114, CM-11-006). Roles from the stored Offer are
+                    # passed in directly; the blackboard is empty in this BT
+                    # execution (create_accept_actor_recommendation_received_tree
+                    # docstring, ISSUE-1745).
+                    CreateInertInviteeParticipantNode(
+                        invitee_id=invitee_id,
+                        case_id=case_id,
+                        recommendation_id=recommendation_id,
+                        roles=roles,
+                    ),
+                    EmitAddCaseParticipantNode(
+                        case_id=case_id, invitee_id=invitee_id
                     ),
                 ],
                 body_name="AcceptActorRecommendationEffects",

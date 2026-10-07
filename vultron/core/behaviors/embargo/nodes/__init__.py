@@ -77,6 +77,11 @@ from vultron.core.behaviors.embargo.nodes.manager_commit import (
     EmbargoActivityBuilder,
     IndexOwnEmbargoProposalNode,
 )
+from vultron.core.behaviors.embargo.nodes.manager_consent import (
+    ManagerHoldsUndecidedEmbargoStakeNode,
+    RecordManagerEmbargoConsentNode,
+    record_manager_embargo_consent_tree,
+)
 from vultron.core.behaviors.embargo.nodes.proposal import (
     CreateAndStoreInviteNode,
     RecordParticipantAcceptanceNode,
@@ -153,6 +158,10 @@ __all__ = [
     "CommitEmbargoTeardownNode",
     "COMMITTED_ACTIVITY_KEY",
     "IndexOwnEmbargoProposalNode",
+    # The manager's own consent row (EP-09-002, #4180)
+    "ManagerHoldsUndecidedEmbargoStakeNode",
+    "RecordManagerEmbargoConsentNode",
+    "record_manager_embargo_consent_tree",
     "EmbargoActivityBuilder",
     # Relay ledger replay (EP-09-007)
     "ApplyEmbargoProposalFromLedgerNode",

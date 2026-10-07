@@ -237,6 +237,7 @@ def test_accept_of_unrecorded_invite_is_refused(
     invite = rm_invite_to_case_activity(
         as_Actor(id_=_IMPOSTOR_ID),
         target=as_VulnerabilityCaseStub(case_id=owned_case.id_),
+        roles=[CVDRole.VENDOR],
         actor=_OWNER_ID,
         id_=f"{owned_case.id_}/invitations/forged",
     )

@@ -1,5 +1,6 @@
 ---
 status: accepted-provisional
+status_override: Set by the epoch lint rollout (#4196); the status predates the check and awaits a human's review against its epoch.
 date: 2026-08-05
 created: 2026-08-05
 updated: 2026-08-05

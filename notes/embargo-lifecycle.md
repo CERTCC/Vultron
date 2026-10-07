@@ -18,8 +18,10 @@ description: >
   with ER any proposal it receives at P/X/A (EMB-01-002), and the replica that
   leaves a CASE_MANAGER-declared teardown to its entry (RSH-03-004); a
   non-manager replica's cascade teardown ask is a pending assertion, so a
-  repeat P/X/A signal queues no second ask (SYNC-11-002); and who may send
-  each received embargo message (ADR-0115, HP-01-006).
+  repeat P/X/A signal queues no second ask (SYNC-11-002); who may send
+  each received embargo message (ADR-0115, HP-01-006); and the P/X/A
+  refusal tree, whose ER is its own decision record (HP-01-003, ID-04-005,
+  ADR-0123).
 related_specs:
   - specs/case-management.yaml
   - specs/embargo-policy.yaml
@@ -32,6 +34,7 @@ related_specs:
   - specs/behavior-tree-integration.yaml
   - specs/handler-protocol.yaml
   - specs/case-ledger-processing.yaml
+  - specs/idempotency.yaml
 related_notes:
   - notes/embargo-default-semantics.md
   - notes/bt-integration.md
@@ -283,18 +286,31 @@ EMB-02-002 are enforced as explicit pre-flight guards in
 `InviteToEmbargoOnCaseReceivedUseCase.execute()` and
 `AcceptInviteToEmbargoOnCaseReceivedUseCase.execute()` respectively (implemented
 in [#1484](https://github.com/CERTCC/Vultron/issues/1484)); the refusal lives in
-`vultron/core/use_cases/received/_embargo_pxa.py`. The Invite refusal stores the
-Invite and the `EmbargoEvent` it carries, because the store keeps an Invite's
-object by reference and the ER factory needs the proposal whole (#4104). It
-answers where any Invite answer goes: the CASE_MANAGER answers the proposer, and a
-participant answers the CASE_MANAGER, never a peer (EP-09-003, PCR-08-001). It sends
-no ER for an Invite addressed to someone else (EP-09-010) or one naming terms the
-receiver does not hold (Regime 2, ADR-0087). An Invite the receiver already
-answered (`pending_embargo_proposal_index` maps its embargo to it) is skipped, so a
-later P/X/A never contradicts an earlier answer. "Already stored" is not that
-signal: FastAPI ingress stores the Invite before dispatch. The refusal itself
-records no decision, so a repeated refusal answers twice (#4140). Moving this
-refusal into the receive tree is #3872.
+`vultron/core/use_cases/received/_embargo_pxa.py`, which runs
+`RefuseEmbargoInviteBT` (`vultron/core/behaviors/embargo/refusal_tree.py`). The
+Invite refusal stores the Invite and the `EmbargoEvent` it carries, because the
+store keeps an Invite's object by reference and the ER factory needs the
+proposal (#4104). It answers where any Invite answer goes: the CASE_MANAGER
+answers the proposer, and a participant answers the CASE_MANAGER, never a peer
+(EP-09-003, PCR-08-001). It sends no ER for an Invite addressed to someone else
+(EP-09-010). An Invite that names its terms by URI only is answered all the
+same: the ER names the Invite by id and needs no terms (ADR-0123, #4181). An
+Invite the receiver already answered (`pending_embargo_proposal_index` maps its
+embargo to it) is skipped, so a later P/X/A never contradicts an earlier answer.
+"Already stored" is not that signal: FastAPI ingress stores the Invite before
+dispatch.
+
+The ER is itself the record of the refusal (#4140). Its id derives from the
+rejecting actor and the Invite (`TriggerActivityPort.requeue_embargo_refusal`),
+and a node of the tree queues it, not `execute()` (CLP-10-020), so a repeated
+delivery of the Invite or of its Accept finds the ER sent and is `SKIPPED`
+(HP-01-003, CLP-13-001). The sealed ER is written before the queue append, so
+the latch is ahead of the work it stands for (ID-04-005): an ER sealed but no
+longer pending is queued again under its own id, which the receiver
+deduplicates, rather than read as delivered. An Invite that breaks a shape rule
+is a different kind of fault: one naming no `to` recipient or several
+(EP-09-010), or no embargo, is received but not understood and is answered with
+`Create(ProcessingFault)`, not ER (MSM-05-001).
 
 **A participant answers a revision on a P/X/A case with ER, never ET**
 (EMB-03-003, EMB-01-002, ADR-0118). This is the one statement of the rule. A
@@ -504,6 +520,13 @@ do about it? The answer, in order:
    (CM-28-013). Proposing terms is consenting to them (ADR-0093), so an Invite
    to the proposer asks an answered question — and the response call-out could
    let a proposer decline its own proposal, a state the protocol has no name for.
+   The manager is not invited either, so the same commit writes the rows no
+   Invite will: the proposer's `ACCEPTED`, and the manager's own when it is a
+   participant with a stake beyond the container roles (`CASE_MANAGER`,
+   `COORDINATOR`) — `ACCEPTED` by the embargo-proposal policy call-out, else
+   `DECLINED`; an owner-manager's consent stays its decision as owner
+   (EP-09-002, EP-09-005, `nodes/manager_consent.py`, #4180). The manager's row
+   is written in its own store only; a replica learns it from no entry.
 4. A participant answers the Invite addressed to it (`Accept`/`Reject` to the
    CASE_MANAGER) through the response decision tree. On receipt it writes **no**
    case, consent or deadline state; consent moves when the CASE_MANAGER commits

@@ -23,14 +23,14 @@ causal_edges:
       The Coordinator accepts Vendor1's invitation; acceptance follows the invite.
   - antecedent: accept_invite_actor_to_case
     consequent: offer_case_participant
-    consequent_actor: coordinator
+    consequent_actor: case-actor
     note: >
       After joining, the Coordinator suggests Vendor2 via the actor-suggestion
       flow (ADR-0026).  The offer can only be submitted by a participant, so the
       Coordinator's acceptance must precede it.
   - antecedent: offer_case_participant
     consequent: accept_actor_recommendation
-    consequent_actor: vendor
+    consequent_actor: case-actor
     note: >
       Vendor1, as case owner, approves the Coordinator's suggestion.
   - antecedent: accept_actor_recommendation

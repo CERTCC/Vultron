@@ -115,7 +115,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0038 Replace Six-Kind Spec Taxonomy with Four-Tier Portability Hierarchy](0038-four-tier-specification-taxonomy.md)
 - [ADR-0039 Resolve Wire Ambiguity Between OFFER\_CASE\_MANAGER\_ROLE and OFFER\_CASE\_OWNERSHIP\_TRANSFER via Dedicated Object Type](0039-offer-case-participant-role-wire-type.md)
 - [ADR-0040 Introduce UseCaseResult Envelope; Do Not Introduce UseCaseRequest](0040-use-case-result-envelope.md)
-- [ADR-0041 CASE_MANAGER-Authoritative Case Initialization](0041-caseactor-authoritative-case-initialization.md)
+- [ADR-0041 CASE_MANAGER-Authoritative Case Initialization](0041-caseactor-authoritative-case-initialization.md) *(revision 2)*
 - [ADR-0042 Deliver All Inter-Actor Communication over HTTP; Retire the In-Process ASGI Delivery Shortcut](0042-http-only-inter-actor-delivery.md) — partially superseded by 0109-a-container-emits-only-as-actors-it-hosts.md
 - [ADR-0043 Use the ADR `status` Field as the Confidence Signal (Extend Its Vocabulary Rather Than Add a New Field)](0043-adr-status-as-confidence-signal.md)
 - [ADR-0044 Adopt py_trees Typed Ports for BT Node Blackboard Contracts](0044-py-trees-typed-ports-adoption.md)
@@ -165,7 +165,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0093 `DECLINE` Is Legal from `SIGNATORY` — Consent Withdrawal Is a First-Class PEC Action](0093-signatory-declined-pec-transition.md) — partially superseded by docs/adr/0122-per-embargo-participant-consent.md
 - [ADR-0094 Replace flake8, isort and black with ruff, and declare lint exclusions instead of discovering them](0094-ruff-replaces-flake8-isort-black.md)
 - [ADR-0095 Received-Side `HandlerResult` Carries a Handler Disposition Across the Dispatcher Boundary](0095-received-side-handler-result.md)
-- [ADR-0096 A Protocol Default Embargo Replaces the Pre-Case Phase](0096-protocol-default-embargo.md)
+- [ADR-0096 A Protocol Default Embargo Replaces the Pre-Case Phase](0096-protocol-default-embargo.md) *(revision 2)*
 - [ADR-0097 The Capability Layer: Four Call-Out Shapes, Core-Declared Typed-Port Contracts, and Sentinel as a Call-In Pattern](0097-capability-layer-four-shapes-and-core-declared-contracts.md)
 - [ADR-0098 Demo scenarios self-register at import time; every scenario table and the CI matrix become derived artifacts](0098-demo-scenarios-self-register.md)
 - [ADR-0099 One Object Model: AS2 Is a Serialization of the Core Model, Not a Parallel Hierarchy](0099-one-object-model-as2-is-a-serialization.md)
@@ -196,6 +196,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0120 ADR Lifecycle: Three Epochs and Tiered Edits](0120-adr-lifecycle-epochs-and-edit-tiers.md)
 - [ADR-0121 A Joined Participant Judges the Case by Answering a Full-Case Invite; Status Is Self-Declared and Asserted Only for Existing Participants](0121-joined-participant-judges-the-case-by-full-case-invite.md)
 - [ADR-0122 Participant Embargo Consent Is Recorded per (Participant, Embargo)](0122-per-embargo-participant-consent.md)
+- [ADR-0123 An Embargo Invite May Name Its Terms by URI](0123-embargo-invite-may-name-its-terms-by-uri.md)
 
 ## Rejected ADRs
 

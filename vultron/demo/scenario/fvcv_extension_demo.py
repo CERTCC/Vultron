@@ -395,7 +395,8 @@ def _phase_coordinator_suggests_vendor2(
         ActorSession(
             client=coordinator_client, actor=coordinator_in_coordinator
         ).with_case(case).quiet().suggest_actor_to_case(
-            suggested_actor_id=vendor2.id_
+            suggested_actor_id=vendor2.id_,
+            roles=[CVDRole.VENDOR],
         )
     logger.info(
         "Coordinator sent suggest-actor-to-case for Vendor2 (%s)", vendor2.id_

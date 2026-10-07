@@ -84,6 +84,9 @@ from vultron.core.behaviors.embargo.nodes import (
     ValidateCaseExistsNode,
     case_manager_admits_proposal_guard,
 )
+from vultron.core.behaviors.embargo.nodes.manager_consent import (
+    record_manager_embargo_consent_tree,
+)
 from vultron.core.behaviors.embargo.response_decision_tree import (
     create_embargo_response_decision_tree,
 )
@@ -355,6 +358,12 @@ def invite_to_embargo_on_case_tree(
             embargo_id=embargo_id,
             proposer_id=proposer_id,
             actor_config=actor_config,
+        ),
+        # EP-09-002: the relay skips the manager, so it writes its own row.
+        record_manager_embargo_consent_tree(
+            case_id=case_id,
+            embargo_id=embargo_id,
+            proposer_id=proposer_id,
         ),
     ]
     root = create_receive_activity_tree(

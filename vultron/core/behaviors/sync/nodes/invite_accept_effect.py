@@ -78,6 +78,21 @@ class ApplyInviteAcceptFromLedgerNode(_LedgerEffectNode):
             return Status.SUCCESS  # Regime 2 (ADR-0087): partial replica, skip
 
         if invitee_id in case.actor_participant_index:
+            participant_id = case.actor_participant_index[invitee_id]
+            existing = self.datalayer.read(participant_id)
+            if isinstance(existing, CaseParticipant) and not existing.joined:
+                # Inert stub record (ADR-0114, CM-11-006): Accept has arrived,
+                # so promote the participant to fully joined.
+                existing.joined = True
+                self.datalayer.save(existing)
+                self.logger.info(
+                    "%s: promoted inert participant '%s' to joined=True"
+                    " for case '%s' (ADR-0114, SYNC-02-002)",
+                    self.name,
+                    invitee_id,
+                    case_id,
+                )
+                return Status.SUCCESS
             self.logger.debug(
                 "%s: invitee '%s' already in actor_participant_index"
                 " for case '%s' — idempotent no-op",
