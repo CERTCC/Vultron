@@ -1,0 +1,56 @@
+# Keeps the needs-planning label on Epics in step with their open children:
+# present while the Epic has an open Concern or Idea sub-issue, absent otherwise.
+#
+# Linking, unlinking or retyping an issue does not start a workflow, so the schedule is
+# the backstop for those; open/close/reopen/retype of any issue triggers a run.
+# The reconcile is idempotent and covers every open Epic, so one job serves all
+# triggers. Labels set with GITHUB_TOKEN raise no further workflow runs.
+
+name: Epic needs-planning label
+
+on:
+  issues:
+    types: [opened, closed, reopened, deleted, transferred]
+  schedule:
+    - cron: "23 * * * *"  # Hourly
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Report the label changes without making them
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    name: Reconcile needs-planning on Epics
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Reconcile the label
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DRY_RUN: ${{ inputs.dry-run && '--dry-run' || '' }}
+        # DRY_RUN is deliberately unquoted: empty must expand to no argument.
+        run: python3 -I .github/scripts/reconcile_needs_planning.py $DRY_RUN
+      - name: Notify CI failure
+        if: failure() && github.event_name == 'schedule'
+        uses: ./.github/actions/notify-failure
+        with:
+          mode: notify
+          workflow-label: ci:workflow-epic-needs-planning
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Close CI failure issue
+        if: success() && github.event_name == 'schedule'
+        uses: ./.github/actions/notify-failure
+        with:
+          mode: close
+          workflow-label: ci:workflow-epic-needs-planning
+          token: ${{ secrets.GITHUB_TOKEN }}
