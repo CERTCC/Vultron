@@ -21,7 +21,7 @@ blackboard ``activity.log_entry``.  They are used as preconditions in the
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
@@ -92,7 +92,23 @@ class _ActivityEventNode(DataLayerConditionWithPorts):
             self.activity = None
 
 
-class IsRemoveEmbargoEventNode(_ActivityEventNode):
+class _SingleEventTypeNode(_ActivityEventNode):
+    """Base for an ``Is*EventNode`` that matches exactly one ``event_type``.
+
+    A subclass sets :attr:`matched_event_type`; the node returns SUCCESS iff
+    the entry's ``event_type`` equals it (BTND-08-001, SYNC-12-001).
+    """
+
+    matched_event_type: ClassVar[str]
+
+    def update(self) -> Status:
+        entry = _require_log_entry(self.activity, self.name)
+        if entry.event_type == self.matched_event_type:
+            return Status.SUCCESS
+        return Status.FAILURE
+
+
+class IsRemoveEmbargoEventNode(_SingleEventTypeNode):
     """Precondition: return SUCCESS when this log entry IS a remove-embargo event.
 
     Used as the precondition in the ``EmbargoTeardownEffects`` slot of
@@ -115,14 +131,10 @@ class IsRemoveEmbargoEventNode(_ActivityEventNode):
     Per BTND-08-001, BTND-08-002, BT-06-001, SYNC-12-001.
     """
 
-    def update(self) -> Status:
-        entry = _require_log_entry(self.activity, self.name)
-        if entry.event_type == _REMOVE_EMBARGO_EVENT:
-            return Status.SUCCESS
-        return Status.FAILURE
+    matched_event_type = _REMOVE_EMBARGO_EVENT
 
 
-class IsParticipantStatusEventNode(_ActivityEventNode):
+class IsParticipantStatusEventNode(_SingleEventTypeNode):
     """Precondition: return SUCCESS when this log entry IS a participant-status event.
 
     Used as the precondition in the ``ParticipantStatusEffects`` Selector's
@@ -142,14 +154,10 @@ class IsParticipantStatusEventNode(_ActivityEventNode):
     Per BTND-08-001, BTND-08-002, DEMOMA-07-003 step 3, SYNC-12-001.
     """
 
-    def update(self) -> Status:
-        entry = _require_log_entry(self.activity, self.name)
-        if entry.event_type == _ADD_PARTICIPANT_STATUS_EVENT:
-            return Status.SUCCESS
-        return Status.FAILURE
+    matched_event_type = _ADD_PARTICIPANT_STATUS_EVENT
 
 
-class IsAddNoteEventNode(_ActivityEventNode):
+class IsAddNoteEventNode(_SingleEventTypeNode):
     """Precondition: return SUCCESS when this log entry IS an add-note event.
 
     Used as the precondition in the ``NoteEffects`` Selector's inner
@@ -169,14 +177,10 @@ class IsAddNoteEventNode(_ActivityEventNode):
     Per BTND-08-001, BTND-08-002, SYNC-02-002, SYNC-12-001.
     """
 
-    def update(self) -> Status:
-        entry = _require_log_entry(self.activity, self.name)
-        if entry.event_type == _ADD_NOTE_TO_CASE_EVENT:
-            return Status.SUCCESS
-        return Status.FAILURE
+    matched_event_type = _ADD_NOTE_TO_CASE_EVENT
 
 
-class IsRemoveNoteEventNode(_ActivityEventNode):
+class IsRemoveNoteEventNode(_SingleEventTypeNode):
     """Precondition: SUCCESS when this log entry IS a remove-note event.
 
     Precondition of the ``RemoveNoteEffects`` slot, in the same
@@ -185,14 +189,10 @@ class IsRemoveNoteEventNode(_ActivityEventNode):
     Per BTND-08-001, BTND-08-002, SYNC-02-002, SYNC-12-001, RSH-08-004.
     """
 
-    def update(self) -> Status:
-        entry = _require_log_entry(self.activity, self.name)
-        if entry.event_type == _REMOVE_NOTE_FROM_CASE_EVENT:
-            return Status.SUCCESS
-        return Status.FAILURE
+    matched_event_type = _REMOVE_NOTE_FROM_CASE_EVENT
 
 
-class IsInviteAcceptEventNode(_ActivityEventNode):
+class IsInviteAcceptEventNode(_SingleEventTypeNode):
     """Precondition: return SUCCESS when this log entry IS an accept-invite event.
 
     Used as the precondition in the ``InviteAcceptEffects`` Selector's inner
@@ -212,14 +212,10 @@ class IsInviteAcceptEventNode(_ActivityEventNode):
     Per BTND-08-001, BTND-08-002, SYNC-02-002, DEMOMA-07-003, SYNC-12-001.
     """
 
-    def update(self) -> Status:
-        entry = _require_log_entry(self.activity, self.name)
-        if entry.event_type == _ACCEPT_INVITE_ACTOR_TO_CASE_EVENT:
-            return Status.SUCCESS
-        return Status.FAILURE
+    matched_event_type = _ACCEPT_INVITE_ACTOR_TO_CASE_EVENT
 
 
-class IsCloseCaseEventNode(_ActivityEventNode):
+class IsCloseCaseEventNode(_SingleEventTypeNode):
     """Precondition: return SUCCESS when this log entry IS a close-case event.
 
     Used as the precondition in the ``CloseCaseEffects`` Selector's inner
@@ -239,14 +235,10 @@ class IsCloseCaseEventNode(_ActivityEventNode):
     Per BTND-08-001, BTND-08-002, CM-23-003, SYNC-12-001.
     """
 
-    def update(self) -> Status:
-        entry = _require_log_entry(self.activity, self.name)
-        if entry.event_type == _CLOSE_CASE_EVENT:
-            return Status.SUCCESS
-        return Status.FAILURE
+    matched_event_type = _CLOSE_CASE_EVENT
 
 
-class IsSubmitReportEventNode(_ActivityEventNode):
+class IsSubmitReportEventNode(_SingleEventTypeNode):
     """Precondition: return SUCCESS when this log entry IS an add_report_to_case event.
 
     Used as the precondition in the ``OfferReportEffects`` Selector's inner
@@ -266,14 +258,10 @@ class IsSubmitReportEventNode(_ActivityEventNode):
     Per BTND-08-001, BTND-08-002, SYNC-02-002, ISSUE-2134.
     """
 
-    def update(self) -> Status:
-        entry = _require_log_entry(self.activity, self.name)
-        if entry.event_type == _ADD_REPORT_TO_CASE_EVENT:
-            return Status.SUCCESS
-        return Status.FAILURE
+    matched_event_type = _ADD_REPORT_TO_CASE_EVENT
 
 
-class IsOwnershipTransferEventNode(_ActivityEventNode):
+class IsOwnershipTransferEventNode(_SingleEventTypeNode):
     """Precondition: return SUCCESS when this log entry IS an ownership-transfer event.
 
     Used as the precondition in the ``OwnershipTransferEffects`` Selector's
@@ -294,11 +282,7 @@ class IsOwnershipTransferEventNode(_ActivityEventNode):
     Per BTND-08-001, BTND-08-002, CM-21-007, SYNC-02-002, SYNC-12-001.
     """
 
-    def update(self) -> Status:
-        entry = _require_log_entry(self.activity, self.name)
-        if entry.event_type == _ACCEPT_CASE_OWNERSHIP_TRANSFER_EVENT:
-            return Status.SUCCESS
-        return Status.FAILURE
+    matched_event_type = _ACCEPT_CASE_OWNERSHIP_TRANSFER_EVENT
 
 
 def is_relayed_embargo_invite(
@@ -382,7 +366,7 @@ class IsEmbargoInviteRelayEventNode(_EmbargoInviteEventNode):
     _match_relay = True
 
 
-class IsAcceptEmbargoInviteEventNode(_ActivityEventNode):
+class IsAcceptEmbargoInviteEventNode(_SingleEventTypeNode):
     """Precondition: this entry is an ``accept_invite_to_embargo_on_case`` event.
 
     Used in the ``EmbargoAcceptanceEffects`` slot of
@@ -391,14 +375,10 @@ class IsAcceptEmbargoInviteEventNode(_ActivityEventNode):
     Per EP-09-007, RSH-08-004, BTND-08-001, SYNC-12-001.
     """
 
-    def update(self) -> Status:
-        entry = _require_log_entry(self.activity, self.name)
-        if entry.event_type == _ACCEPT_EMBARGO_INVITE_EVENT:
-            return Status.SUCCESS
-        return Status.FAILURE
+    matched_event_type = _ACCEPT_EMBARGO_INVITE_EVENT
 
 
-class IsRejectEmbargoInviteEventNode(_ActivityEventNode):
+class IsRejectEmbargoInviteEventNode(_SingleEventTypeNode):
     """Precondition: this entry is a ``reject_invite_to_embargo_on_case`` event.
 
     Used in the ``EmbargoRejectionEffects`` slot of
@@ -407,14 +387,10 @@ class IsRejectEmbargoInviteEventNode(_ActivityEventNode):
     Per EP-09-007, RSH-08-004, BTND-08-001, SYNC-12-001.
     """
 
-    def update(self) -> Status:
-        entry = _require_log_entry(self.activity, self.name)
-        if entry.event_type == _REJECT_EMBARGO_INVITE_EVENT:
-            return Status.SUCCESS
-        return Status.FAILURE
+    matched_event_type = _REJECT_EMBARGO_INVITE_EVENT
 
 
-class IsEmbargoAbandonmentEventNode(_ActivityEventNode):
+class IsEmbargoAbandonmentEventNode(_SingleEventTypeNode):
     """Precondition: this entry is the CASE_MANAGER's abandonment of a proposal.
 
     Matches :data:`EMBARGO_ABANDONMENT_EVENT_TYPE`.  Used in the
@@ -423,14 +399,10 @@ class IsEmbargoAbandonmentEventNode(_ActivityEventNode):
     Per EMB-16-001, EP-09-007, RSH-08-004, BTND-08-001, SYNC-12-001.
     """
 
-    def update(self) -> Status:
-        entry = _require_log_entry(self.activity, self.name)
-        if entry.event_type == EMBARGO_ABANDONMENT_EVENT_TYPE:
-            return Status.SUCCESS
-        return Status.FAILURE
+    matched_event_type = EMBARGO_ABANDONMENT_EVENT_TYPE
 
 
-class IsEmbargoReinviteEventNode(_ActivityEventNode):
+class IsEmbargoReinviteEventNode(_SingleEventTypeNode):
     """Precondition: this entry is the CASE_MANAGER's re-invite of a stale accepter.
 
     Matches :data:`~vultron.core.models.rsvp_deadline.EMBARGO_REINVITE_EVENT_TYPE`.
@@ -439,14 +411,10 @@ class IsEmbargoReinviteEventNode(_ActivityEventNode):
     Per EMB-17-003, CM-28-013, EP-09-007, RSH-08-004, BTND-08-001, SYNC-12-001.
     """
 
-    def update(self) -> Status:
-        entry = _require_log_entry(self.activity, self.name)
-        if entry.event_type == EMBARGO_REINVITE_EVENT_TYPE:
-            return Status.SUCCESS
-        return Status.FAILURE
+    matched_event_type = EMBARGO_REINVITE_EVENT_TYPE
 
 
-class IsInviteExpiryEventNode(_ActivityEventNode):
+class IsInviteExpiryEventNode(_SingleEventTypeNode):
     """Precondition: this entry is the CASE_MANAGER's expiry of an embargo Invite.
 
     Matches :data:`~vultron.core.models.rsvp_deadline.INVITE_EXPIRED_EVENT_TYPE`.
@@ -455,14 +423,10 @@ class IsInviteExpiryEventNode(_ActivityEventNode):
     Per CM-28-009, CM-28-014, ADR-0118, BTND-08-001, SYNC-12-001.
     """
 
-    def update(self) -> Status:
-        entry = _require_log_entry(self.activity, self.name)
-        if entry.event_type == INVITE_EXPIRED_EVENT_TYPE:
-            return Status.SUCCESS
-        return Status.FAILURE
+    matched_event_type = INVITE_EXPIRED_EVENT_TYPE
 
 
-class IsInviteExpiryNoopEventNode(_ActivityEventNode):
+class IsInviteExpiryNoopEventNode(_SingleEventTypeNode):
     """Precondition: this entry is the CASE_MANAGER's no-op expiry acknowledgement.
 
     Matches :data:`~vultron.core.models.rsvp_deadline.INVITE_EXPIRED_NOOP_EVENT_TYPE`.
@@ -474,14 +438,10 @@ class IsInviteExpiryNoopEventNode(_ActivityEventNode):
     Per EMB-17-004, CM-28-009, ADR-0118, BTND-08-001, SYNC-12-001.
     """
 
-    def update(self) -> Status:
-        entry = _require_log_entry(self.activity, self.name)
-        if entry.event_type == INVITE_EXPIRED_NOOP_EVENT_TYPE:
-            return Status.SUCCESS
-        return Status.FAILURE
+    matched_event_type = INVITE_EXPIRED_NOOP_EVENT_TYPE
 
 
-class IsHonourLateAcceptEventNode(_ActivityEventNode):
+class IsHonourLateAcceptEventNode(_SingleEventTypeNode):
     """Precondition: this entry is the CASE_MANAGER's honour-late-accept decision.
 
     Matches :data:`~vultron.core.models.rsvp_deadline.HONOUR_LATE_ACCEPT_EVENT_TYPE`.
@@ -493,8 +453,4 @@ class IsHonourLateAcceptEventNode(_ActivityEventNode):
     Per EMB-17-001, ADR-0118, BTND-08-001, SYNC-12-001.
     """
 
-    def update(self) -> Status:
-        entry = _require_log_entry(self.activity, self.name)
-        if entry.event_type == HONOUR_LATE_ACCEPT_EVENT_TYPE:
-            return Status.SUCCESS
-        return Status.FAILURE
+    matched_event_type = HONOUR_LATE_ACCEPT_EVENT_TYPE
