@@ -1,8 +1,9 @@
 # Keeps the needs-planning label on Epics in step with their open children:
 # present while the Epic has an open Concern or Idea sub-issue, absent otherwise.
 #
-# Linking, unlinking or retyping an issue does not start a workflow, so the schedule is
-# the backstop for those; open/close/reopen/retype of any issue triggers a run.
+# Linking, unlinking or retyping an issue does not start a workflow, so the
+# schedule is the backstop for those; opening, closing or reopening any issue
+# triggers a run.
 # The reconcile is idempotent and covers every open Epic, so one job serves all
 # triggers. Labels set with GITHUB_TOKEN raise no further workflow runs.
 
