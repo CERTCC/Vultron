@@ -66,8 +66,8 @@ def create_add_note_to_case_received_tree(
     (CLP-10-017) and the ordering ratchet can assert factory coverage.  The
     attach effect is passed as ``manager_effects``, so the factory gates it
     with :func:`create_case_manager_gated_tree` (BT-17-008) rather than a
-    hand-rolled Selector: the obvious ``Success`` fallback could not distinguish
-    "not the case manager" from "am the case manager and the attach failed"
+    hand-rolled Selector: the obvious ``Success`` fallback could not
+    distinguish "not the case manager" from "am the case manager and the attach failed"
     (BTND-07-005; cf. the fake-SUCCESS rule in ``AGENTS.md``).
 
     Args:

@@ -139,8 +139,9 @@ def _check_effect_arguments(
     if gate_arguments_without_effects:
         raise VultronWiringError(
             f"{where}: manager_case_id, manager_gate_name,"
-            " manager_body_name and manager_case_may_be_absent configure the gate around"
-            " manager_effects; pass them only with manager_effects"
+            " manager_body_name and manager_case_may_be_absent configure"
+            " the gate around manager_effects; pass them only with"
+            " manager_effects"
             " (BT-17-008)"
         )
 

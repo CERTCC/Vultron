@@ -33,10 +33,11 @@ to enforce CLP-10-006 ordering (ledger commit before effect nodes).
 
 Every effect in this workflow is the CASE_MANAGER's, so each tree's effect
 section is passed as ``manager_effects``, which the factory wraps in the
-CASE_MANAGER gate (BT-17-001, BT-17-008, BTND-07-005).  The same handler runs on every participant that holds a copy of
-the message; the gate is what keeps a participant that is *not* the case's
-CASE_MANAGER from forwarding, accepting, or inviting as itself (#3752).  The
-handler then reports the skip as a refusal (HP-01-005).
+CASE_MANAGER gate (BT-17-001, BT-17-008, BTND-07-005).  The same handler
+runs on every participant that holds a copy of the message; the gate is
+what keeps a participant that is *not* the case's CASE_MANAGER from
+forwarding, accepting, or inviting as itself (#3752).  The handler then
+reports the skip as a refusal (HP-01-005).
 
 BT leaf nodes for this workflow are in the
 :mod:`vultron.core.behaviors.case.nodes.suggest_actor` subpackage.

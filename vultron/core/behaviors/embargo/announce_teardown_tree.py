@@ -316,7 +316,10 @@ def invite_to_embargo_on_case_tree(
     embargo to this Invite's id) commits nothing and the handler reports it
     as a repeat (CLP-13-001, HP-01-003).  Each arm ends by writing that
     index (DL-06), so it is written only once the Invite has been applied in
-    whichever arm ran.
+    whichever arm ran.  The participant-replica arm sits in
+    ``replica_effects`` and so runs before the factory's CASE_MANAGER gate;
+    the two arms are mutually exclusive on the same role check, and neither
+    changes who holds the role, so their order does not matter.
 
     **A participant replica stores and answers** the Invite addressed to it
     and writes nothing else (EP-09-003).  The intake stores the Invite; when
