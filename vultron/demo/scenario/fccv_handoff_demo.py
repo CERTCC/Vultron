@@ -345,6 +345,7 @@ def _phase_ownership_handoff(
     # the accept and the replica wait (ADR-0058, EDF-06-005, #3038).
     run_case_invite_chain(
         case=case,
+        case_manager_client=c1_client,
         invitee_name="C2",
         invitee_client=c2_client,
         invitee=c2,
@@ -512,6 +513,7 @@ def _phase_c2_invites_vendor(
     # delivery gate (ADR-0058 nested-block model, EDF-06-005, #3038).
     run_case_invite_chain(
         case=case,
+        case_manager_client=c1_client,
         invitee_name="Vendor",
         invitee_client=vendor_client,
         invitee=vendor,

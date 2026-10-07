@@ -26,6 +26,12 @@ def _fresh_failures():
     reset_demo_failures()
 
 
+@pytest.fixture(autouse=True)
+def stub_summary_seed():
+    """Override the conftest stub: these tests exercise the real seed."""
+    yield
+
+
 @pytest.fixture
 def chain_mocks():
     """Stub every collaborator the chain calls; yield them by name."""
@@ -236,3 +242,70 @@ def test_step_and_gate_labels_are_pinned(chain_mocks):
         "Vendor accepts the case invitation",
         "Vendor's DataLayer received case replica",
     ]
+
+
+def test_chain_seeds_stub_summary_on_case_manager_before_inviting(chain_mocks):
+    """The CASE_MANAGER builds the stub Invite from its own case copy, which
+    has no ``stub_summary`` until seeded (CM-17-010, MV-10-001, #4285)."""
+    order: list[str] = []
+    manager_client = MagicMock()
+    chain_mocks.invite.side_effect = lambda *a, **k: (
+        order.append("invite"),
+        SimpleNamespace(activity=MagicMock(id_="urn:t:inv")),
+    )[1]
+    with (
+        patch.object(
+            invite_chain,
+            "find_case_actor_participant_id",
+            return_value="urn:t:case-actor",
+        ),
+        patch.object(
+            invite_chain,
+            "get_actor_by_id",
+            return_value=mock_actor("urn:t:ca"),
+        ) as get_actor,
+        patch.object(
+            ActorSession,
+            "set_stub_summary",
+            side_effect=lambda *a, **k: order.append("seed"),
+        ) as seed,
+    ):
+        _run(case_manager_client=manager_client)
+
+    get_actor.assert_called_once_with(manager_client, "urn:t:case-actor")
+    seed.assert_called_once()
+    assert order == ["seed", "invite"]
+
+
+def test_chain_without_case_manager_client_does_not_seed(chain_mocks):
+    with patch.object(ActorSession, "set_stub_summary") as seed:
+        _run()
+    seed.assert_not_called()
+
+
+def test_every_scenario_chain_with_an_inviter_is_ordered_after_a_seed():
+    """A scenario's first inviter-triggered chain must seed ``stub_summary``.
+
+    Docker CI is the only place a missing seed shows (the in-process demo
+    tests patch ``set_stub_summary`` out), so pin it statically: within each
+    scenario module, the first ``run_case_invite_chain`` call that passes
+    ``inviter=`` must also pass ``case_manager_client=`` (#4285).
+    """
+    import ast
+    from pathlib import Path
+
+    scenario_dir = Path(invite_chain.__file__).parents[1] / "scenario"
+    offenders = []
+    for path in sorted(scenario_dir.glob("*_demo.py")):
+        for node in ast.walk(ast.parse(path.read_text())):
+            if not (
+                isinstance(node, ast.Call)
+                and getattr(node.func, "id", None) == "run_case_invite_chain"
+            ):
+                continue
+            keywords = {k.arg for k in node.keywords}
+            if "inviter" in keywords:
+                if "case_manager_client" not in keywords:
+                    offenders.append(f"{path.name}:{node.lineno}")
+                break
+    assert not offenders, offenders

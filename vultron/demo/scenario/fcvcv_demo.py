@@ -326,17 +326,6 @@ def _phase_report_submission(
                 case_id=case.id_,
             )
 
-        # Seed stub_summary on the CASE_MANAGER's DataLayer copy so the invite
-        # BT can build the stub Invite (CM-17-010, MV-10-001, #4165).
-        # EmitInviteActorToCaseNode runs in the CASE_MANAGER's received tree
-        # and reads from the CASE_MANAGER's store, not the inviting actor's.
-        _case_actor = get_actor_by_id(
-            c1_client, case_actor_id_on(c1_client.base_url)
-        )
-        ActorSession(client=c1_client, actor=_case_actor).with_case(
-            case
-        ).quiet().set_stub_summary("Vulnerability report")
-
         # C1 invites V1 with CVDRole.VENDOR.  Everything that depends on the
         # invite — the delivery gate, V1's accept, the replica waits and V1's
         # RM triage — is nested inside the block that produces what it needs,
@@ -365,6 +354,7 @@ def _phase_report_submission(
 
         run_case_invite_chain(
             case=case,
+            case_manager_client=c1_client,
             invitee_name="V1",
             invitee_client=v1_client,
             invitee=v1,

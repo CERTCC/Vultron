@@ -270,6 +270,7 @@ def _phase_report_submission(
         # gate, the accept and the replica wait (ADR-0058, EDF-06-005, #3038).
         run_case_invite_chain(
             case=case,
+            case_manager_client=vendor_client,
             invitee_name="Vendor2",
             invitee_client=vendor2_client,
             invitee=vendor2,

@@ -317,21 +317,11 @@ def _phase_invite_vendor_reject(
 
     vendor_in_vendor = get_actor_by_id(vendor_client, vendor.id_)
 
-    # Seed stub_summary on the CASE_MANAGER's DataLayer copy so the invite BT
-    # can build the stub Invite (CM-17-010, MV-10-001, #4165).
-    # EmitInviteActorToCaseNode runs in the CASE_MANAGER's received tree and
-    # reads from the CASE_MANAGER's store, not the inviting actor's store.
-    _case_actor = get_actor_by_id(
-        coordinator_client, case_actor_id_on(coordinator_client.base_url)
-    )
-    ActorSession(client=coordinator_client, actor=_case_actor).with_case(
-        case
-    ).quiet().set_stub_summary("Vulnerability report")
-
     # The chain's gate and Vendor's reject are nested inside the invite step
     # (ADR-0058 nested-block model, EDF-06-005, #3038).
     run_case_invite_chain(
         case=case,
+        case_manager_client=coordinator_client,
         invitee_name="Vendor",
         invitee_client=vendor_client,
         invitee=vendor,

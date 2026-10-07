@@ -18,6 +18,7 @@ import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from unittest.mock import Mock, patch
 from urllib.parse import urlparse
 
 import anyio.to_thread
@@ -656,3 +657,23 @@ def client():
             configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
             api_app.state.emitter = previous_app_emitter
             app_v2.state.node_base_url = previous_node_base_url
+
+
+@pytest.fixture(autouse=True)
+def stub_summary_seed():
+    """Skip ``stub_summary`` seeding when the case manager's client is a mock.
+
+    Seeding is infrastructure the mock-driven scenario tests do not exercise;
+    a real client (in-process app) still seeds, since its Invite needs it
+    (#4285).  ``test_invite_chain`` overrides this fixture to test the seed.
+    """
+    from vultron.demo.helpers import invite_chain
+
+    real = invite_chain._seed_stub_summary
+
+    def seed(client, case):
+        if not isinstance(client, Mock):
+            real(client, case)
+
+    with patch.object(invite_chain, "_seed_stub_summary", seed):
+        yield
