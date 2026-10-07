@@ -29,31 +29,24 @@ stored and ignored, so the replica's state silently stops following the case
 * each entry outside the relay is matched by none, so the issue that adds its
   replay is told to move it here.
 
-The full committed-versus-replayed inventory for every event type is #3814's.
+The full committed-versus-replayed inventory for every event type is
+``test_ledger_event_types_are_replayed.py``.
 """
 
 from typing import Any
 
-import py_trees
 import pytest
-from py_trees.common import Status
 
-from test.core.behaviors.sync.nodes.conftest import (
-    _make_event,
-    _to_persistable_entry,
-)
-from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.sync.announce_tree import (
-    create_announce_log_entry_tree,
+from test.architecture._announce_slots import (
+    CASE_ID,
+    MANAGER,
+    PROPOSER,
+    REPLICA,
+    matching_slots,
 )
 from vultron.core.behaviors.sync.nodes.event_conditions import (
     EMBARGO_ABANDONMENT_EVENT_TYPE,
-    _ActivityEventNode,
 )
-from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_ledger import HashChainLedgerRecord
-from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.rsvp_deadline import (
     EMBARGO_REINVITE_EVENT_TYPE,
@@ -64,12 +57,7 @@ from vultron.core.models.rsvp_deadline import (
     INVITE_EXPIRED_NOOP_SNAPSHOT_TYPE,
     INVITE_EXPIRED_SNAPSHOT_TYPE,
 )
-from vultron.enums.roles import CVDRole
 
-MANAGER = "https://example.org/actors/case-manager"
-PROPOSER = "https://example.org/actors/proposer"
-REPLICA = "https://example.org/actors/replica"
-CASE_ID = "https://example.org/cases/relay-ratchet"
 EMBARGO = {
     "type": "EmbargoEvent",
     "id": f"{CASE_ID}/embargo_events/e1",
@@ -135,6 +123,10 @@ REPLAYED: dict[str, tuple[str, dict[str, Any]]] = {
         MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE.value,
         {"type": "Remove", "actor": MANAGER, "object": EMBARGO},
     ),
+    "activation": (
+        MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE.value,
+        {"type": "Add", "actor": PROPOSER, "object": EMBARGO},
+    ),
     "invite expiry": (
         INVITE_EXPIRED_EVENT_TYPE,
         {
@@ -163,68 +155,11 @@ REPLAYED: dict[str, tuple[str, dict[str, Any]]] = {
 
 #: Embargo event types outside the revision relay, and who owns them.
 OUTSIDE_THE_RELAY: dict[str, str] = {
-    MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE.value: (
-        "committed, not yet replayed — #3814 (ledger replay for every"
-        " committed event type)"
-    ),
     MessageSemantics.CREATE_EMBARGO_EVENT.value: "stores an object; commits nothing",
     MessageSemantics.ANNOUNCE_EMBARGO_EVENT_TO_CASE.value: (
         "no receiver-side state change; commits nothing"
     ),
 }
-
-
-def _effect_slot_conditions() -> list[_ActivityEventNode]:
-    """The positive event conditions of the announce tree's effect slots.
-
-    A condition under an ``Inverter`` is the slot's skip arm, not its match.
-    """
-    return [
-        node
-        for node in create_announce_log_entry_tree().iterate()
-        if isinstance(node, _ActivityEventNode)
-        and not isinstance(node.parent, py_trees.decorators.Inverter)
-    ]
-
-
-def _replica_store() -> SqliteDataLayer:
-    """A replica holding the case, so the relay classifier sees the manager."""
-    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=REPLICA)
-    case = VulnerabilityCase(id_=CASE_ID, attributed_to=PROPOSER)
-    manager = CaseParticipant(
-        attributed_to=MANAGER,
-        context=CASE_ID,
-        case_roles=[CVDRole.CASE_MANAGER],
-    )
-    dl.create(manager)
-    case.actor_participant_index[MANAGER] = manager.id_
-    dl.create(case)
-    return dl
-
-
-def _matching_slots(event_type: str, snapshot: dict[str, Any]) -> list[str]:
-    dl = _replica_store()
-    entry = _to_persistable_entry(
-        HashChainLedgerRecord(
-            case_id=CASE_ID,
-            log_index=0,
-            object_id=f"urn:{event_type}",
-            event_type=event_type,
-            payload_snapshot={"context": CASE_ID, **snapshot},
-            prev_log_hash="0" * 64,
-        )
-    )
-    matched = []
-    for condition in _effect_slot_conditions():
-        py_trees.blackboard.Blackboard.storage.clear()
-        result = BTBridge(datalayer=dl).execute_with_setup(
-            tree=condition,
-            actor_id=REPLICA,
-            activity=_make_event(entry, actor_id=MANAGER),
-        )
-        if result.status == Status.SUCCESS:
-            matched.append(condition.name)
-    return matched
 
 
 @pytest.mark.spec("RSH-08-004")
@@ -245,7 +180,7 @@ def test_every_embargo_semantic_is_classified():
 @pytest.mark.parametrize("shape", sorted(REPLAYED))
 def test_each_relay_entry_has_exactly_one_replay_slot(shape):
     event_type, snapshot = REPLAYED[shape]
-    matched = _matching_slots(event_type, snapshot)
+    matched = matching_slots(event_type, snapshot)
     assert len(matched) == 1, f"{shape}: {matched}"
 
 
@@ -253,4 +188,4 @@ def test_each_relay_entry_has_exactly_one_replay_slot(shape):
 @pytest.mark.parametrize("event_type", sorted(OUTSIDE_THE_RELAY))
 def test_entries_outside_the_relay_have_no_slot_yet(event_type):
     """A slot here means the type is replayed: move it to ``REPLAYED``."""
-    assert _matching_slots(event_type, {"actor": MANAGER}) == []
+    assert matching_slots(event_type, {"actor": MANAGER}) == []
