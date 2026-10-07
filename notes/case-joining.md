@@ -23,8 +23,11 @@ related_notes:
   - notes/participant-role-management.md
   - notes/sync-ledger-replication.md
   - notes/stub-objects.md
+  - notes/wire-core-boundary.md
 relevant_packages:
   - vultron/core/participants/recipients.py
+  - vultron/core/models/case.py
+  - vultron/core/models/case_participant.py
   - vultron/core/behaviors/case/nodes/invite_participant.py
   - vultron/core/behaviors/case/nodes/invite_ledger_backfill.py
   - vultron/core/behaviors/case/nodes/on_behalf_guards.py
@@ -173,6 +176,15 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
   that is not removed or never joined. The CASE_MANAGER no longer emits `Add`
   after a stub-Invite acceptance; replicas learn of a new member from the
   `Accept(Invite)` entry (CM-31-012).
+- **Where the fact and the check live (#4079).** The fact is
+  `CaseParticipant.removal_activity`: the id of the `Remove` activity, or
+  `None` (`removed` reads it). The one check is
+  `VulnerabilityCase.is_active_participant`, which the shared recipient
+  selection calls. `VulnerabilityCase.active_participants` (`activeParticipants`
+  on the wire) applies it to the participant records the case carries inline,
+  so it is complete on a case as sent. While any roster entry is a bare
+  reference (a stored case), the AS2 dump leaves it out rather than publish a
+  partial view. Persistence never stores it.
 - **Catch-up follows the active check.** A participant reinstated into a case
   whose embargo it has not accepted stays inert; it is sent that embargo's
   Invite, and its backfill waits for its consent.

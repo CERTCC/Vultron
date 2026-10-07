@@ -1009,3 +1009,28 @@ def test_is_generic_object_ref_sees_through_the_non_empty_string_branch():
     assert _is_generic_object_ref(as_ObjectRequiredRef)
     # A *narrowed* reference is still not a generic one.
     assert not _is_generic_object_ref(as_ActorRef)
+
+
+@pytest.mark.spec("CM-31-003")
+def test_computed_active_participants_is_not_in_the_stored_row() -> None:
+    """The persistence record carries the facts, not the derived view."""
+    from vultron.core.models.case import VulnerabilityCase
+    from vultron.core.models.case_participant import CaseParticipant
+
+    case_id = "https://example.org/cases/stored-row"
+    participant = CaseParticipant(
+        id_=f"{case_id}/participants/p1",
+        attributed_to="https://example.org/actors/p1",
+        context=case_id,
+    )
+    case = VulnerabilityCase(
+        id_=case_id,
+        attributed_to="https://example.org/actors/p1",
+        case_participants=[participant],
+    )
+    assert case.active_participants == [participant.id_]
+
+    data = Record.from_obj(case).data_
+
+    assert "active_participants" not in data
+    assert "activeParticipants" not in data

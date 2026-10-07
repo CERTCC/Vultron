@@ -50,6 +50,7 @@ from vultron.core.behaviors.sync.nodes.fanout import (
 from vultron.core.behaviors.sync.reject_tree import (
     create_reject_log_entry_tree,
 )
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
@@ -411,3 +412,55 @@ def test_embargo_invite_still_reaches_non_signatory(datalayer) -> None:
         "/embargo_invite_recipients"
     ]
     assert NON_SIGNATORY_ID in recipients
+
+
+def _remove(datalayer, actor_id: str) -> None:
+    """Record the removal fact on *actor_id*'s participant (CM-31-001)."""
+    participant = datalayer.read(f"{actor_id}/participant")
+    assert isinstance(participant, CaseParticipant)
+    participant.removal_activity = f"{CASE_ID}/activities/remove-{actor_id}"
+    datalayer.save(participant)
+
+
+@pytest.mark.spec("CM-31-001", "CM-10-005")
+@pytest.mark.parametrize("embargo_active", [False, True])
+def test_fanout_pauses_a_removed_signatory(
+    bridge, datalayer, embargo_active: bool
+) -> None:
+    """A removed signatory gets no entry, and its stream is paused.
+
+    It is joined but not active, so the collectors name it as withheld
+    whatever the embargo, and the send node pauses it from this entry.
+    """
+    seed_case(datalayer, embargo_active=embargo_active)
+    _remove(datalayer, SIGNATORY_ID)
+    entries = seed_ledger(datalayer, 2)
+    sync_port = MagicMock(spec=SyncActivityPort)
+
+    fan_out(bridge, entries[1], sync_port)
+
+    assert all(SIGNATORY_ID not in to for _, to in sends(sync_port))
+    assert paused_from(datalayer, SIGNATORY_ID) == 1
+
+
+@pytest.mark.spec("CM-31-001", "CM-10-005")
+def test_replay_sends_nothing_to_a_removed_signatory(
+    bridge, datalayer
+) -> None:
+    """A removed peer's Reject replays nothing and pauses its stream there."""
+    seed_case(datalayer, embargo_active=True)
+    _remove(datalayer, SIGNATORY_ID)
+    entries = seed_ledger(datalayer, 2)
+    sync_port = MagicMock(spec=SyncActivityPort)
+
+    result = replay(
+        bridge,
+        entries,
+        peer_id=SIGNATORY_ID,
+        from_index=0,
+        sync_port=sync_port,
+    )
+
+    assert result.status == Status.SUCCESS
+    sync_port.send_announce_log_entry.assert_not_called()
+    assert paused_from(datalayer, SIGNATORY_ID) == 1

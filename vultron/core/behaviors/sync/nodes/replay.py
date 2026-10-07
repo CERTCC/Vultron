@@ -37,7 +37,7 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.behaviors.sync.nodes.embargo_pause import (
     clear_embargo_pause,
-    peer_is_embargo_withheld,
+    peer_is_inactive_joined,
     peer_is_withheld,
     record_embargo_pause,
     send_ledger_suffix,
@@ -259,7 +259,8 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
     """Replay the ledger suffix a peer's ``Reject(CaseLedgerEntry)`` asks for.
 
     A peer that is not an active participant (CM-10-004) is sent nothing.
-    When the active embargo is what withholds it, its stream is paused from
+    When it is a joined participant that is not active (the active embargo
+    withholds it, or it was removed, CM-31-001), its stream is paused from
     the first entry it asked for, and the backfill that admits it starts there
     (CM-10-005, CM-10-006). An admitted peer's
     replay clears any recorded pause: it resends everything past the
@@ -329,12 +330,13 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
 
         # CM-10-005: replay is case content too. A peer that is not an active
         # participant gets nothing — not even the gap it asked for — and when
-        # the embargo is what withholds it, its pause starts at that gap.
+        # it is joined but not active (embargo-withheld or removed), its
+        # pause starts at that gap.
         try:
             withheld = peer_is_withheld(
                 datalayer, case_id=entry.case_id, peer_id=peer_id
             )
-            paused = withheld and peer_is_embargo_withheld(
+            paused = withheld and peer_is_inactive_joined(
                 datalayer, case_id=entry.case_id, peer_id=peer_id
             )
         except VultronError as exc:
