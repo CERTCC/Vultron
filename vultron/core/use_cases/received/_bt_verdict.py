@@ -185,8 +185,8 @@ def reference_edit_verdict(
     """Refine the verdict of a tree that attaches or detaches a case reference.
 
     Such a tree carries a ``CaseReferenceEditPendingNode`` duplicate guard: its
-    ``FAILURE`` with ``is_duplicate`` set is an idempotent re-delivery, so the handler reports ``SKIPPED``
-    rather than the default ``REFUSED``.  A tree that otherwise succeeded but
+    ``FAILURE`` with ``is_duplicate`` set is an idempotent re-delivery, so the
+    handler reports ``SKIPPED`` rather than the default ``REFUSED``.  A tree that otherwise succeeded but
     whose CASE_MANAGER gate turned this actor away is a refusal (HP-01-005).
     """
     pending = find_node(tree, CaseReferenceEditPendingNode)

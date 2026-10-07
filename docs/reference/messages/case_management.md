@@ -75,6 +75,9 @@ print(json2md(update_case()))
 - **Protocol role:** Links a `VulnerabilityReport` to an existing case.
 - **Triggering transition:** none — a report can be added at any RM state.
 - **Wire activity:** `Add(VulnerabilityReport)` with `target` = case URI.
+- **Who may send:**
+  The CASE_MANAGER accepts it only from the Case Owner, and a participant replica accepts it only from the CASE_MANAGER.
+  Any other sender is refused and the report is not attached.
 - **Example artifact:** [add_report_to_case.json](../examples/add_report_to_case.json).
 
 ```python exec="true" idprefix=""
