@@ -53,6 +53,7 @@ from vultron.demo.helpers.polling import (
     find_embargo_invite_for_actor,
     resolve_case_actor_store_id,
     wait_for_case_em_state,
+    wait_for_embargo_proposal_indexed,
     wait_for_participant_embargo_accepted,
     wait_for_participant_embargo_consent,
 )
@@ -115,10 +116,21 @@ def _answer_relayed_invite(
     """
     answered = False
     with demo_gate(f"{label} received the relayed Invite of {embargo_id}"):
-        find_embargo_invite_for_actor(
+        assert answerer.case is not None, "answerer is not bound to a case"
+        case_id = str(answerer.case.id_)
+        invite_id = find_embargo_invite_for_actor(
             client=answerer.client,
             embargo_id=embargo_id,
             invitee_id=answerer.actor.id_,
+            timeout_seconds=INVITE_TIMEOUT_SECONDS,
+        )
+        # Intake archives the Invite before the received tree indexes it, and
+        # the accept trigger finds the Invite through that index.
+        wait_for_embargo_proposal_indexed(
+            client=answerer.client,
+            case_id=case_id,
+            embargo_id=embargo_id,
+            invite_id=invite_id,
             timeout_seconds=INVITE_TIMEOUT_SECONDS,
         )
         with demo_step(f"{label} accepts the embargo"):
