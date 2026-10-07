@@ -23,13 +23,26 @@ because both of its callers' modules import each other's neighbours.
 """
 
 import logging
-from typing import Any
+from typing import Literal, TypedDict
 
 from vultron.core.states.rm import (
     RM,
     RMDeclaration,
     classify_rm_declaration,
 )
+
+
+class RMAnomaly(TypedDict):
+    """The RSH-06 anomaly record published on ``BB_RM_ANOMALY``.
+
+    Read by
+    :class:`~vultron.core.behaviors.status.nodes.rm_anomaly.EmitRMGapNoteNode`
+    to compose the RSH-06-005 note fields.
+    """
+
+    anomaly_type: Literal["gap", "regression"]
+    from_rm: RM
+    to_rm: RM
 
 
 def rm_anomaly(
@@ -39,7 +52,7 @@ def rm_anomaly(
     sender_actor_id: str,
     log: logging.Logger | logging.LoggerAdapter,
     node_name: str,
-) -> dict[str, Any] | None:
+) -> RMAnomaly | None:
     """Return the RSH-06 anomaly record for an RM declaration, or ``None``.
 
     The single place a received-side RM declaration is judged anomalous, shared
@@ -52,10 +65,11 @@ def rm_anomaly(
 
     The returned dict is what
     :class:`~vultron.core.behaviors.status.nodes.rm_anomaly.EmitRMGapNoteNode`
-    reads from ``BB_RM_ANOMALY`` to post the RSH-06-004 clarification note:
-    ``{"anomaly_type": "gap"|"regression", "from_rm": RM, "to_rm": RM}``.
+    reads from ``BB_RM_ANOMALY`` to post the RSH-06-004 clarification note
+    (:class:`RMAnomaly`).
     """
     verdict = classify_rm_declaration(current, declared)
+    anomaly_type: Literal["gap", "regression"]
     if verdict is RMDeclaration.GAP:
         anomaly_type = "gap"
         outcome = "accepting the sender-authoritative state (RSH-06-001)"
@@ -73,8 +87,6 @@ def rm_anomaly(
         declared,
         outcome,
     )
-    return {
-        "anomaly_type": anomaly_type,
-        "from_rm": current,
-        "to_rm": declared,
-    }
+    return RMAnomaly(
+        anomaly_type=anomaly_type, from_rm=current, to_rm=declared
+    )

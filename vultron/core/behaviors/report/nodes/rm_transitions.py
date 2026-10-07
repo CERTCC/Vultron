@@ -44,6 +44,9 @@ from py_trees.common import Status
 from py_trees.ports import PortInformation
 
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.participant.common import (
+    resolve_participant_state_from_dl,
+)
 from vultron.core.behaviors.case.nodes.participant.status import (
     CreateParticipantStatusNode,
 )
@@ -196,12 +199,11 @@ class TransitionRMtoValid(DataLayerActionWithPorts):
     The one remaining window — a transient DataLayer error on the final save —
     leaves the participant at ``VALID`` and the link one step behind, but the
     next tick re-runs and the two records reconverge rather than diverging
-    permanently: a same-state ``VALID → VALID`` participant write passes
-    validation and the link save retries.  That re-run appends a redundant
-    ``RM.VALID`` ``ParticipantStatus`` rung (state converges, history does not
-    dedupe); in normal operation ``CheckRMStateValid`` short-circuits the whole
-    validate tree once the link is ``VALID``, so this node is not re-entered for
-    an already-valid report except on the rare save-retry path.
+    permanently: the link save retries.  That re-run does not append a
+    second ``RM.VALID`` ``ParticipantStatus`` rung: the node skips the
+    case-scoped write when the participant already records ``RM.VALID``
+    (RSH-08-002).  The same skip covers a store that holds no link, where
+    ``CheckRMStateValid`` can never short-circuit the validate tree.
     """
 
     def __init__(
@@ -262,6 +264,25 @@ class TransitionRMtoValid(DataLayerActionWithPorts):
         assert self.datalayer is not None
         return _read_report_case_link(self.datalayer, self.report_id)
 
+    def _participant_already_valid(self, case_id: str) -> bool:
+        """True when the subject's participant already records ``RM.VALID``.
+
+        A case or participant this store does not hold is ``False``: the
+        write node then runs and reports the absence itself.
+        """
+        assert self.datalayer is not None
+        subject = self.sender_actor_id or self.actor_id
+        case = self.datalayer.read_case(case_id)
+        if case is None or subject is None:
+            return False
+        participant_id = case.actor_participant_index.get(subject)
+        if participant_id is None:
+            return False
+        current_rm, _, _ = resolve_participant_state_from_dl(
+            self.datalayer, participant_id
+        )
+        return current_rm == RM.VALID
+
     def update(self) -> Status:
         """Validate the link, advance the participant, then latch the link.
 
@@ -316,18 +337,29 @@ class TransitionRMtoValid(DataLayerActionWithPorts):
             self.logger.error("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
-        result = BTBridge(datalayer=self.datalayer).execute_with_setup(
-            self._status_node,
-            actor_id=self.actor_id or "",
-            case_id=case_id,
-        )
-        if result.status != Status.SUCCESS:
-            self.feedback_message = (
-                "case-scoped RM.VALID write did not succeed"
-                f" ({result.status.name})"
+        if self._participant_already_valid(case_id):
+            # A restated VALID is a confirmation, recorded once (RSH-08-002):
+            # in a store with no link to latch, the link check above cannot
+            # short-circuit, so without this a redelivery appends a rung.
+            self.logger.debug(
+                "%s: participant already RM.VALID for report '%s'; no new"
+                " ParticipantStatus (RSH-08-002)",
+                self.name,
+                self.report_id,
             )
-            self.logger.error("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
+        else:
+            result = BTBridge(datalayer=self.datalayer).execute_with_setup(
+                self._status_node,
+                actor_id=self.actor_id or "",
+                case_id=case_id,
+            )
+            if result.status != Status.SUCCESS:
+                self.feedback_message = (
+                    "case-scoped RM.VALID write did not succeed"
+                    f" ({result.status.name})"
+                )
+                self.logger.error("%s: %s", self.name, self.feedback_message)
+                return Status.FAILURE
 
         # 3. Latch RM.VALID on the link only after the participant advanced,
         #    and only when the link already existed.  Latching an *absent*

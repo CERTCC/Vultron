@@ -130,7 +130,7 @@ groups:
     rationale: Receiving handlers store nested objects by iterating the embedded collection and persisting each object individually
       to the local DataLayer. ActivityStreamRef allows bare URI strings, so Pydantic accepts the field without error — but
       handlers only persist non-string entries (materialized objects). Bare URI strings are silently skipped; the receiver
-      cannot seed CaseParticipant records from string-only refs, causing downstream BT failures (e.g., `CheckParticipantExists`
+      cannot seed CaseParticipant records from string-only refs, causing downstream BT failures (e.g., `SenderIsActiveParticipantNode`
       returns FAILURE for a participant the receiver was never told about).
     verification: Inspection of `vultron/wire/as2/vocab/` confirms that `ActivityStreamRef` fields accept bare URI strings
       without error; integration tests in `test/demo/test_case_proposal_round_trip.py` confirm that `CaseParticipant`

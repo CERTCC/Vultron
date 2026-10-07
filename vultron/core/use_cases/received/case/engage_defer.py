@@ -18,7 +18,10 @@ from vultron.core.models.use_case_result import (
 )
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
-from vultron.core.use_cases.received._bt_verdict import verdict_from_bt
+from vultron.core.use_cases.received._bt_verdict import (
+    rm_declaration_verdict,
+    verdict_from_bt,
+)
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -94,6 +97,8 @@ class EngageCaseReceivedUseCase:
             case_id=case_id,
         )
 
+        # Not rm_declaration_verdict: a restated Join still runs the
+        # CASE_MANAGER's case broadcast, so it is not a no-op.
         verdict = verdict_from_bt(tree, result, label="EngageCaseBT")
         if verdict.disposition is HandlerDisposition.REFUSED:
             logger.warning(
@@ -164,7 +169,11 @@ class DeferCaseReceivedUseCase:
             case_id=case_id,
         )
 
-        verdict = verdict_from_bt(tree, result, label="DeferCaseBT")
+        verdict = rm_declaration_verdict(
+            tree,
+            verdict_from_bt(tree, result, label="DeferCaseBT"),
+            label="DeferCaseBT",
+        )
         if verdict.disposition is HandlerDisposition.REFUSED:
             logger.warning(
                 "DeferCaseBT did not succeed for actor '%s' / case '%s': %s",

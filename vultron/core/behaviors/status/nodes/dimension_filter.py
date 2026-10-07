@@ -55,7 +55,7 @@ from vultron.core.behaviors.ledger_patch import PARTICIPANT_STATUS_PATCH_KEYS
 from vultron.core.behaviors.status.nodes._adjudication import (
     _adjudicate_dimensions,
 )
-from vultron.core.behaviors.status.nodes.rm_rule import rm_anomaly
+from vultron.core.behaviors.status.nodes.rm_rule import RMAnomaly, rm_anomaly
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import ParticipantStatus
@@ -226,7 +226,7 @@ class FilterParticipantStatusDimensionsNode(DataLayerConditionWithPorts):
         self,
         refused: tuple[str, ...],
         filtered: ParticipantStatus | None,
-        rm_anomaly: dict | None = None,
+        rm_anomaly: RMAnomaly | None = None,
     ) -> None:
         """Publish (or clear) the filter outcome on the blackboard.
 

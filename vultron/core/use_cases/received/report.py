@@ -45,6 +45,7 @@ from vultron.core.use_cases.received._bt_verdict import (
     find_node,
     node_failed,
     node_succeeded,
+    rm_declaration_verdict,
     verdict_from_bt,
 )
 from vultron.errors import (
@@ -146,6 +147,21 @@ def _log_refusal(verdict: HandlerResult, activity_id: str) -> HandlerResult:
             "Refused activity '%s': %s", activity_id, verdict.reason
         )
     return verdict
+
+
+def _case_id_for_report(
+    dl: CasePersistence, report_id: str | None
+) -> str | None:
+    """Return the id of this store's case for *report_id*, or ``None``.
+
+    A pre-flight read for the tree factories, not a domain mutation
+    (CLP-10-005).  ``None`` is a real answer: the receiver may not hold the
+    case yet, and the tree then refuses the activity itself.
+    """
+    if report_id is None:
+        return None
+    case = dl.find_case_by_report_id(report_id)
+    return case.id_ if case is not None else None
 
 
 class CreateReportReceivedUseCase:
@@ -296,14 +312,11 @@ class ValidateReportReceivedUseCase:
             receiving_actor_id,
         )
 
-        # Resolve case_id for the guarded-commit subtree (pre-flight lookup,
-        # not domain-significant mutation).
-        case = self._dl.find_case_by_report_id(report_id)
-        case_id = getattr(case, "id_", None)
+        case_id = _case_id_for_report(self._dl, report_id)
         if case_id is None:
             logger.debug(
                 "ValidateReportReceivedUseCase: no case found for report '%s'"
-                " — guarded commit will be skipped",
+                " — the sender guard will refuse the activity",
                 report_id,
             )
 
@@ -375,15 +388,9 @@ class InvalidateReportReceivedUseCase:
         receiving_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
         )
-        # Pre-flight lookup of the case the sender guard and the RM
-        # adjudication read; not a domain-significant mutation.
-        case = (
-            self._dl.find_case_by_report_id(request.report_id)
-            if request.report_id
-            else None
-        )
+        # The case the sender guard and the RM adjudication read.
         tree = create_invalidate_report_received_tree(
-            request, case_id=getattr(case, "id_", None)
+            request, case_id=_case_id_for_report(self._dl, request.report_id)
         )
         bridge = BTBridge(
             datalayer=self._dl,
@@ -396,9 +403,15 @@ class InvalidateReportReceivedUseCase:
             actor_id=receiving_actor_id,
             activity=request,
         )
-        return _log_refusal(
-            verdict_from_bt(tree, result, label="InvalidateReportReceivedBT"),
-            request.activity_id,
+        return rm_declaration_verdict(
+            tree,
+            _log_refusal(
+                verdict_from_bt(
+                    tree, result, label="InvalidateReportReceivedBT"
+                ),
+                request.activity_id,
+            ),
+            label="InvalidateReportReceivedBT",
         )
 
 
@@ -430,13 +443,9 @@ class AckReportReceivedUseCase:
         )
 
         # Resolve case_id for the guarded-commit subtree.
-        report_id = request.report_id
-        case_id: str | None = None
-        if report_id is not None:
-            case = self._dl.find_case_by_report_id(report_id)
-            case_id = getattr(case, "id_", None)
-
-        tree = create_ack_report_received_tree(request, case_id=case_id)
+        tree = create_ack_report_received_tree(
+            request, case_id=_case_id_for_report(self._dl, request.report_id)
+        )
         bridge = BTBridge(
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
@@ -485,15 +494,9 @@ class CloseReportReceivedUseCase:
         receiving_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
         )
-        # Pre-flight lookup of the case the sender guard and the RM
-        # adjudication read; not a domain-significant mutation.
-        case = (
-            self._dl.find_case_by_report_id(request.report_id)
-            if request.report_id
-            else None
-        )
+        # The case the sender guard and the RM adjudication read.
         tree = create_close_report_received_tree(
-            request, case_id=getattr(case, "id_", None)
+            request, case_id=_case_id_for_report(self._dl, request.report_id)
         )
         bridge = BTBridge(
             datalayer=self._dl,
@@ -506,7 +509,11 @@ class CloseReportReceivedUseCase:
             actor_id=receiving_actor_id,
             activity=request,
         )
-        return _log_refusal(
-            verdict_from_bt(tree, result, label="CloseReportReceivedBT"),
-            request.activity_id,
+        return rm_declaration_verdict(
+            tree,
+            _log_refusal(
+                verdict_from_bt(tree, result, label="CloseReportReceivedBT"),
+                request.activity_id,
+            ),
+            label="CloseReportReceivedBT",
         )

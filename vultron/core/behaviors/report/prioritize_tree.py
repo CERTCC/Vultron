@@ -199,10 +199,10 @@ def create_defer_case_tree(
     root = create_receive_activity_tree(
         name="DeferCaseBT",
         case_id=case_id,
+        sender_guard=SenderIsActiveParticipantNode(
+            status_id="", sender_actor_id=actor_id, case_id=case_id
+        ),
         precondition_guards=[
-            SenderIsActiveParticipantNode(
-                status_id="", sender_actor_id=actor_id, case_id=case_id
-            ),
             rm_declaration_guard(actor_id, RM.DEFERRED, case_id),
         ],
         effect_nodes=record_rm_declaration(

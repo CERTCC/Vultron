@@ -67,7 +67,7 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.cs import CS_pxa, CS_vf
-from vultron.core.states.rm import RM
+from vultron.core.states.rm import RM, RMDeclaration
 from vultron.core.use_cases.received.case.engage_defer import (
     DeferCaseReceivedUseCase,
     EngageCaseReceivedUseCase,
@@ -197,11 +197,27 @@ class TestActivityTypedHandlersApplyTheSharedRule:
         result = _deliver(dl, case.declared, make_payload)
 
         assert recorded_rm(dl) == case.expected_rm
-        if case.accepted:
-            assert result.disposition in (
-                HandlerDisposition.APPLIED,
-                HandlerDisposition.SKIPPED,
-            ), result.reason
+        if case.verdict is RMDeclaration.CONFIRMATION:
+            assert _status_count(dl) == before, (
+                "a confirmation is recorded once (RSH-08-002)"
+            )
+            # Engage still runs the CASE_MANAGER's broadcast, and validate
+            # skips only on its report-link latch (absent in this store), so
+            # neither is a pure no-op; the rest report the restatement as
+            # skipped.
+            if case.declared in (RM.ACCEPTED, RM.VALID):
+                assert result.disposition is HandlerDisposition.APPLIED, (
+                    result.reason
+                )
+            else:
+                assert result.disposition is HandlerDisposition.SKIPPED, (
+                    result.reason
+                )
+        elif case.accepted:
+            assert result.disposition is HandlerDisposition.APPLIED, (
+                result.reason
+            )
+            assert _status_count(dl) == before + 1, "one move, one record"
         else:
             assert result.disposition is HandlerDisposition.REFUSED
             assert _status_count(dl) == before, "a refusal writes nothing"
@@ -343,7 +359,7 @@ class TestActAndDeclarationAreOneMove:
         with caplog.at_level(logging.WARNING):
             act = _deliver(dl, RM.INVALID, make_payload)
 
-        assert act.disposition is HandlerDisposition.APPLIED, act.reason
+        assert act.disposition is HandlerDisposition.SKIPPED, act.reason
         assert _status_count(dl) == before, "a confirmation is recorded once"
         assert _transitions(_rm_history(dl)[seeded:]) == [
             (RM.RECEIVED, RM.INVALID)
@@ -352,3 +368,29 @@ class TestActAndDeclarationAreOneMove:
         assert not [
             r for r in caplog.records if "declared by" in r.getMessage()
         ]
+
+
+@pytest.mark.executes_as(CASE_MANAGER_ID)
+class TestAnomalyFlagDoesNotLeakAcrossRuns:
+    """A gap flagged by one run posts no note in a later run (RSH-06-004).
+
+    ``BB_RM_ANOMALY`` lives on py_trees' process-global blackboard, so the
+    guard must clear it on every tick; otherwise a later confirmation would
+    re-post the earlier run's clarification note.
+    """
+
+    @pytest.mark.spec("RSH-06-004")
+    @pytest.mark.spec("RSH-08-002")
+    def test_confirmation_after_a_gap_posts_no_note(
+        self, store_for, make_payload
+    ):
+        dl = store_for(CASE_MANAGER_ID)
+        _seed(dl, RM.VALID)
+        _deliver(dl, RM.CLOSED, make_payload)
+        assert len(queued_notes(dl)) == 1, "precondition: one gap note"
+
+        # The sender is now recorded CLOSED: a restated CLOSED confirms.
+        result = _deliver(dl, RM.CLOSED, make_payload)
+
+        assert result.disposition is HandlerDisposition.SKIPPED, result.reason
+        assert len(queued_notes(dl)) == 1, "the confirmation posts no note"

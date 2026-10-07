@@ -46,6 +46,7 @@ from typing import cast
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
@@ -81,6 +82,19 @@ CASE_ID = "https://example.org/cases/c-routing-guard-test"
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
+
+def _spy_executing_actor(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Record the ``actor_id`` every BT run executes as (BT-17-006)."""
+    executed_as: list[str] = []
+    original = BTBridge.execute_with_setup
+
+    def _spy(self, tree, actor_id, *args, **kwargs):
+        executed_as.append(actor_id)
+        return original(self, tree, actor_id, *args, **kwargs)
+
+    monkeypatch.setattr(BTBridge, "execute_with_setup", _spy)
+    return executed_as
 
 
 def _make_dl(
@@ -253,7 +267,9 @@ class TestInvalidateReportReceivedSubject:
     @pytest.mark.parametrize(
         "store_owner_id", [RECEIVING_ACTOR_ID, SENDER_ACTOR_ID]
     )
-    def test_fallback_runs_in_the_store_owners_replica(self, store_owner_id):
+    def test_fallback_runs_in_the_store_owners_replica(
+        self, store_owner_id, monkeypatch
+    ):
         """With no receiving_actor_id, the tree runs in the store it was handed.
 
         Parametrized over both actors so the assertion cannot pass by
@@ -266,12 +282,18 @@ class TestInvalidateReportReceivedSubject:
             actor_id=store_owner_id,
         )
 
+        executed_as = _spy_executing_actor(monkeypatch)
+
         result = InvalidateReportReceivedUseCase(
             dl=dl,
             request=_make_invalidate_event(receiving_actor_id=None),
         ).execute()
 
         assert result.disposition == HandlerDisposition.APPLIED, result.reason
+        assert executed_as == [store_owner_id], (
+            "absent receiving_actor_id, the tree executes as the store's"
+            " owner, never as the sender (BT-17-006)"
+        )
         assert _rm_state(dl, SENDER_ACTOR_ID) == RM.INVALID, (
             "the store the use case was handed holds the write, whoever owns"
             " it, and the write is the sender's"
@@ -331,7 +353,9 @@ class TestCloseReportReceivedSubject:
     @pytest.mark.parametrize(
         "store_owner_id", [RECEIVING_ACTOR_ID, SENDER_ACTOR_ID]
     )
-    def test_fallback_runs_in_the_store_owners_replica(self, store_owner_id):
+    def test_fallback_runs_in_the_store_owners_replica(
+        self, store_owner_id, monkeypatch
+    ):
         """With no receiving_actor_id, the tree runs in the store it was handed.
 
         Parametrized over both actors so the assertion cannot pass by
@@ -344,12 +368,18 @@ class TestCloseReportReceivedSubject:
             actor_id=store_owner_id,
         )
 
+        executed_as = _spy_executing_actor(monkeypatch)
+
         result = CloseReportReceivedUseCase(
             dl=dl,
             request=_make_close_report_event(receiving_actor_id=None),
         ).execute()
 
         assert result.disposition == HandlerDisposition.APPLIED, result.reason
+        assert executed_as == [store_owner_id], (
+            "absent receiving_actor_id, the tree executes as the store's"
+            " owner, never as the sender (BT-17-006)"
+        )
         assert _rm_state(dl, SENDER_ACTOR_ID) == RM.CLOSED
         assert _rm_state(dl, RECEIVING_ACTOR_ID) == RM.INVALID
 

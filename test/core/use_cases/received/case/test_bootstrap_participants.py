@@ -16,7 +16,7 @@
 
 Covers:
   CBT-05-005  Embedded as_CaseParticipant objects are stored as independent
-              DataLayer records so BT nodes (CheckParticipantExists,
+              DataLayer records so BT nodes (SenderIsActiveParticipantNode,
               AppendParticipantStatusNode) can look them up by UUID.
   CBT-05-006  AddParticipantStatusBT succeeds on the reporter's replica after
               bootstrap (regression for #563 — M4 timeout in two-actor demo).
@@ -145,7 +145,7 @@ def create_event(make_payload, case_with_two_participants):
 class TestBootstrapParticipantStorage:
     """CBT-05-005 — bootstrap Create stores embedded participants in DataLayer.
 
-    BT nodes ``CheckParticipantExists`` (#561) and ``AppendParticipantStatus``
+    BT nodes ``SenderIsActiveParticipantNode`` (#561) and ``AppendParticipantStatus``
     (#562) look up participants by UUID via ``datalayer.read(participant_id)``.
     After a bootstrap ``Create(as_VulnerabilityCase)`` those participant records
     MUST exist as independent DataLayer entries so the BT nodes can find them.

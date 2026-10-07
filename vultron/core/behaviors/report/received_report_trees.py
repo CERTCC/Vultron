@@ -96,7 +96,8 @@ def create_validate_report_received_tree(
 
     When ``case_id`` is provided, a guarded-commit subtree is inserted before
     the validation effects so receipt is recorded before any RM state
-    transitions run (CLP-10-006).  Pass ``None`` to skip ledger commit.
+    transitions run (CLP-10-006).  With ``None`` the sender guard has no case
+    to check the sender against, so the tree refuses the activity.
 
     The validation subtree itself is built by
     :func:`~vultron.core.behaviors.report.validate_tree.create_validate_report_subtree`
@@ -112,7 +113,7 @@ def create_validate_report_received_tree(
         ├── Intake
         ├── SenderIsActiveParticipantNode           # HP-01-006
         ├── AdjudicateRMDeclarationNode(VALID)      # RSH-06-006
-        ├── GuardedCommitCaseLedgerEntryBT (only if case_id)  # CLP-10-006
+        ├── GuardedCommitCaseLedgerEntryBT          # CLP-10-006
         ├── ValidateReportBT (Selector)
         │   ├── CheckRMStateValid(sender_actor_id)      # idempotency exit
         │   └── ValidationFlow (Sequence)
@@ -135,8 +136,9 @@ def create_validate_report_received_tree(
         offer_id: ID of the Offer activity that carried the report.
         sender_actor_id: Actor ID of the message sender (the validating actor).
             Used by validation nodes instead of the blackboard ``actor_id``.
-        case_id: ID of the VulnerabilityCase linked to this report.  Required
-            for the guarded-commit step; pass ``None`` to skip ledger commit.
+        case_id: ID of the VulnerabilityCase linked to this report, which
+            the sender guard, the RM adjudication and the guarded commit
+            read; ``None`` when this store holds no case for the report.
 
     Returns:
         Root node of the ``ValidateReportReceivedBT`` Sequence.
@@ -152,12 +154,12 @@ def create_validate_report_received_tree(
     root = create_receive_activity_tree(
         name="ValidateReportReceivedBT",
         case_id=case_id,
+        sender_guard=SenderIsActiveParticipantNode(
+            status_id="",
+            sender_actor_id=sender_actor_id,
+            case_id=case_id,
+        ),
         precondition_guards=[
-            SenderIsActiveParticipantNode(
-                status_id="",
-                sender_actor_id=sender_actor_id,
-                case_id=case_id,
-            ),
             rm_declaration_guard(sender_actor_id, RM.VALID, case_id),
         ],
         effect_nodes=[validation, rm_gap_note(sender_actor_id, case_id)],
