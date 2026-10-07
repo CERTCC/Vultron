@@ -33,6 +33,8 @@ relevant_packages:
   - vultron/core/behaviors/case/nodes/invite_ledger_backfill.py
   - vultron/core/behaviors/case/nodes/on_behalf_guards.py
   - vultron/core/behaviors/case/nodes/case_participant_received.py
+  - vultron/core/behaviors/case/case_participant_received_tree.py
+  - vultron/core/behaviors/sync/nodes/participant_removal_effect.py
   - vultron/core/behaviors/case/nodes/accept_invite.py
   - vultron/core/models/case.py
   - vultron/core/states/rm.py
@@ -186,6 +188,18 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
   so it is complete on a case as sent. While any roster entry is a bare
   reference (a stored case), the AS2 dump leaves it out rather than publish a
   partial view. Persistence never stores it.
+- **Where the removal pipeline lives (#4080).** The received tree is
+  `create_remove_case_participant_received_tree`: a role-scoped sender guard
+  (Case Owner at the manager, CASE_MANAGER at a replica), the three removal
+  guards behind `case_manager_admits_removal_guard`, the guarded commit, then
+  the CASE_MANAGER-gated effect (`RemoveCaseParticipantFromCaseReceivedNode`,
+  via `CaseParticipant.record_removal`) and notice
+  (`EmitParticipantRemovalNoticeNode`, port method
+  `remove_participant_from_case`). Replicas replay the entry through
+  `ApplyRemoveCaseParticipantFromLedgerNode`, which resolves the record by
+  actor through `actor_participant_index`. At a replica the received tree
+  writes nothing: the manager's notice is `SKIPPED`, anyone else's `Remove` is
+  `REFUSED`. Reinstatement (#4081) mirrors each piece.
 - **Catch-up follows the active check.** A participant reinstated into a case
   whose embargo it has not accepted stays inert; it is sent that embargo's
   Invite, and its backfill waits for its consent.

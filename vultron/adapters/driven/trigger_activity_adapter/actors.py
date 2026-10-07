@@ -48,6 +48,7 @@ from vultron.wire.as2.factories import (
     offer_case_participant_activity,
     recommend_actor_activity,
     reject_actor_recommendation_activity,
+    remove_participant_from_case_activity,
     rm_accept_full_case_invite_activity,
     rm_accept_invite_to_case_activity,
     rm_invite_to_case_activity,
@@ -638,6 +639,39 @@ class _ActorsMixin:
         except VultronAlreadyExistsError:
             logger.warning(
                 "add_participant_to_case: activity '%s' already exists"
+                " — skipping",
+                activity.id_,
+            )
+        return _seal(self._dl, activity)
+
+    def remove_participant_from_case(
+        self,
+        participant_id: str,
+        case_id: str,
+        actor: str,
+        attributed_to: str,
+        to: list[str],
+    ) -> tuple[str, str]:
+        """Create and persist the ``Remove(as_CaseParticipant, Case)`` notice.
+
+        The participant goes inline as the store holds it, removal fact
+        included.  Returns ``(activity_id, activity_blob)`` (CM-31-006).
+        """
+        participant = _to_wire(
+            self._dl.read(participant_id), as_CaseParticipant
+        )
+        activity = remove_participant_from_case_activity(
+            participant=participant,
+            target=case_id,
+            actor=actor,
+            attributed_to=attributed_to,
+            to=to,
+        )
+        try:
+            self._dl.create(activity)
+        except VultronAlreadyExistsError:
+            logger.warning(
+                "remove_participant_from_case: activity '%s' already exists"
                 " — skipping",
                 activity.id_,
             )

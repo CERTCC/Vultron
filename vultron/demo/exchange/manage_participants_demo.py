@@ -21,7 +21,8 @@ This demo script showcases two participant management paths:
 1. Accept path: vendor invites coordinator → coordinator accepts →
    vendor creates coordinator participant → vendor adds participant to case →
    coordinator creates participant status → coordinator adds status to
-   participant → vendor removes participant from case
+   participant → vendor, as Case Owner, removes the participant from active
+   participation (the record stays on the case, ADR-0116)
 2. Reject path: vendor invites coordinator → coordinator rejects →
    coordinator is not added to the case
 
@@ -104,7 +105,8 @@ def _setup_case_with_vendor(
     1. Finder submits report to vendor
     2. Vendor validates the report
     3. Vendor creates a as_VulnerabilityCase
-    4. Vendor creates a VendorParticipant and adds it to the case
+    4. Vendor creates its participant — Vendor, Case Owner and
+       CASE_MANAGER (CM-02-015) — and adds it to the case
     5. Report is linked to the case
 
     Returns the created as_VulnerabilityCase.
@@ -141,8 +143,11 @@ def _setup_case_with_vendor(
     post_to_inbox_and_wait(client, vendor.id_, create_case_act)
     verify_object_stored(client, case.id_)
 
+    # The creating vendor is the case's Case Owner and CASE_MANAGER
+    # (CM-02-015): a case is never without a CASE_MANAGER (CM-24-006), and
+    # the removal in the accept path is the Case Owner's request to it.
     vendor_participant = as_CaseParticipant(
-        case_roles=[CVDRole.VENDOR],
+        case_roles=[CVDRole.VENDOR, CVDRole.CASE_OWNER, CVDRole.CASE_MANAGER],
         attributed_to=vendor.id_,
         context=case.id_,
     )
@@ -184,8 +189,10 @@ def demo_manage_participants_accept(
     5. Vendor adds coordinator participant to case (AddParticipantToCaseActivity)
     6. Coordinator creates a as_ParticipantStatus (CreateStatusForParticipantActivity)
     7. Coordinator adds the status to their participant (AddStatusToParticipantActivity)
-    8. Vendor removes coordinator participant from case (RemoveParticipantFromCaseActivity)
-    9. Verify coordinator no longer in case participant list
+    8. Vendor, as Case Owner, removes the coordinator participant
+       (RemoveParticipantFromCaseActivity)
+    9. Verify the coordinator's record stays on the case and carries the
+       removal fact (CM-31-001)
 
     This follows the accept branch in
     docs/howto/activitypub/activities/manage_participants.md.
@@ -292,14 +299,21 @@ def demo_manage_participants_accept(
                 client, case.id_, "after AddStatusToParticipantActivity"
             )
 
-    with demo_step("Step 8: Vendor removes coordinator from case"):
+    # Bound before the step so Step 9 can read it (#2308 ratchet).
+    remove_participant = None
+    with demo_step("Step 8: Vendor, as Case Owner, removes coordinator"):
+        # The Case Owner's request to the CASE_MANAGER (CM-31-004).  The
+        # vendor holds both roles here, so it posts to its own inbox.
         remove_participant = remove_participant_from_case_activity(
             coordinator_participant, actor=vendor.id_, target=case.id_
         )
         post_to_inbox_and_wait(client, vendor.id_, remove_participant)
 
-    with demo_step("Step 9: Verify coordinator no longer in case"):
-        with demo_check("Coordinator absent from case participant list"):
+    # Single-use removal checks, inline for now; extract them into
+    # helpers/verification.py when a second scenario removes a participant
+    # (DEMOMA-17-001).
+    with demo_step("Step 9: Verify coordinator record is kept and inert"):
+        with demo_check("Coordinator still on the case roster (CM-31-001)"):
             final_case = log_case_state(
                 client, case.id_, "after RemoveParticipantFromCaseActivity"
             )
@@ -308,18 +322,55 @@ def demo_manage_participants_accept(
             participant_ids = [
                 (ref_id(p) or str(p)) for p in final_case.case_participants
             ]
-            if coordinator_participant.id_ in participant_ids:
+            if coordinator_participant.id_ not in participant_ids:
                 raise ValueError(
-                    f"Coordinator participant '{coordinator_participant.id_}' "
-                    f"still present after remove. Participants: {participant_ids}"
+                    f"Coordinator participant '{coordinator_participant.id_}'"
+                    " was deleted by the removal; it must stay on the roster."
+                    f" Participants: {participant_ids}"
+                )
+            if (
+                final_case.actor_participant_index.get(coordinator.id_)
+                != coordinator_participant.id_
+            ):
+                raise ValueError(
+                    f"Coordinator actor '{coordinator.id_}' left the"
+                    " actor_participant_index after removal."
+                    f" Index: {final_case.actor_participant_index}"
+                )
+        with demo_check("Coordinator record carries the removal fact"):
+            record = client.get(client.dl_path(coordinator_participant.id_))
+            if record.get("removalActivity") != remove_participant.id_:
+                raise ValueError(
+                    f"Coordinator participant '{coordinator_participant.id_}'"
+                    " does not record the removal: removalActivity="
+                    f"{record.get('removalActivity')!r}, expected"
+                    f" '{remove_participant.id_}'"
                 )
             logger.info(
-                "✓ Coordinator participant removed from case successfully"
+                "✓ Coordinator removed from active participation;"
+                " its record stays on the case"
             )
+        with demo_check("CASE_MANAGER sent the coordinator a removal notice"):
+            # The vendor is the CASE_MANAGER, so its store holds the notice it
+            # sent (CM-31-006); the owner's request is not the notice.
+            stored = client.get(client.dl_path("Removes/")) or {}
+            notices = [
+                notice
+                for notice in stored.values()
+                if notice.get("id") != remove_participant.id_
+                and ref_id(notice.get("object_"))
+                == coordinator_participant.id_
+                and coordinator.id_ in (notice.get("to") or [])
+            ]
+            if len(notices) != 1:
+                raise ValueError(
+                    "Expected one Remove(CaseParticipant) notice to the"
+                    f" coordinator, found {len(notices)}"
+                )
 
     logger.info(
         "✅ DEMO COMPLETE (accept path): Coordinator added, status set,"
-        " then removed from case."
+        " then removed from active participation."
     )
 
 
