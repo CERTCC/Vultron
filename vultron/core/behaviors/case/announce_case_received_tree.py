@@ -22,8 +22,9 @@ intake archives the Announce first (CLP-10-017).
 carries no ``case_id`` and commits nothing — a documented exemption from
 CLP-10-013, not an oversight.  Only the CASE_MANAGER sends this Announce, and
 the receiver trusts it only from the CASE_MANAGER it already knows (PCR-03-001,
-PCR-03-004), so the receiver is a participant replica, never the manager the
-commit stage is gated on.  A replica learns of case state from the ledger
+PCR-03-004), so the receiver is a participant replica, not the manager the
+commit stage is gated on (a manager's self-Announce would only duplicate the
+entry it already holds).  A replica learns of case state from the ledger
 fan-out (SYNC-02-002).  The commit gate here could only ever skip, and the
 effect node cannot move ahead of a commit as a guard: seeding the case is
 itself the write.

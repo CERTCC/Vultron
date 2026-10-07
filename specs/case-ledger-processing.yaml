@@ -1013,7 +1013,7 @@ groups:
       `case_id=None` and omit the commit stage rather than commit an entry the
       canonical-entry check would refuse. `Announce(VulnerabilityCase)` is the one
       canonical signature exempt from the commit — only the CASE_MANAGER sends it and
-      only a participant replica, which cannot be the CASE_MANAGER, receives it
+      only a participant replica, never the CASE_MANAGER itself, receives it
       (PCR-03-004), so its tree also passes `case_id=None`.
     rationale: 'Amended with ADR-0111: the rule as first written required a commit for
       every factory-built tree, which the CASE_MANAGER refused for an
