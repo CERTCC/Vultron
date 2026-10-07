@@ -31,7 +31,8 @@ The docs work that followed (Concern #4284) showed that revision 1 left five pro
 1. "Never asked" was a missing row, so the machine had no named start state.
 2. "Signatory", "lapsed" and "exited" were drawn as states, though they overlap and are only reads.
 3. The case kept no record of its past embargoes: a superseded, rejected or terminated embargo vanished from it, so "every embargo on the case" could not be listed.
-4. EM had its own transition table, which could disagree with the embargoes the case held. Rejecting one of two open proposals took EM to `NONE` with the other still open.
+4. EM had its own transition table, which could disagree with the embargoes the case held.
+   Rejecting one of two open proposals took EM to `NONE` with the other still open.
 5. The case owner's activation rode on the same `Accept(Invite(EmbargoEvent))` every participant sends, with its meaning switched by who sent it (MSM-07-003/004).
 
 The question: **what records hold a case's embargoes and each participant's consent to them, so that every state is named and written, and EM, "signatory" and "lapsed" are read from them?**
@@ -80,15 +81,18 @@ Entries are appended and never removed.
 | `REJECT` | `PROPOSED → REJECTED` |
 | `SUPERSEDE` | `ACTIVE → SUPERSEDED`, in the same step as another entry's `ACTIVATE` |
 | `TERMINATE` | `ACTIVE → TERMINATED`, with a reason: `END_TIME_REACHED`, `EARLY` or a threat signal |
-| `CANCEL` | `PROPOSED → CANCELLED` |
+| `CANCEL` | `PROPOSED → CANCELLED`, in the same step as a `TERMINATE`, or on a threat signal while no entry is `ACTIVE` |
 
 `REJECTED`, `SUPERSEDED`, `CANCELLED` and `TERMINATED` are final.
+`CANCEL` is legal only when the embargo question has become moot: in the same step as a `TERMINATE`, or when a threat signal (CS `P`, `X` or `A`) arrives while no entry is `ACTIVE` (EMB-16-001).
 Every change to the register MUST keep these invariants, and a change that would break one is refused:
 
 1. At most one entry is `ACTIVE` and at most one is `TERMINATED`, and never one of each.
 2. A `SUPERSEDED` entry exists only alongside exactly one `ACTIVE` or `TERMINATED` entry.
-3. A `CANCELLED` entry exists only when the embargo question became moot: an entry is `TERMINATED`, or a threat signal (CS `P`, `X` or `A`) arrived while no entry was `ACTIVE` (EMB-16-001).
-4. Once an entry is `TERMINATED`, no entry is added and none changes.
+3. No entry is `PROPOSED` while an entry is `TERMINATED`.
+4. Once a step has left an entry `TERMINATED`, no later step adds or changes an entry.
+
+A step is the whole change one entry causes, so `TERMINATE` and the `CANCEL` of every `PROPOSED` entry happen in one step and are checked together.
 
 `PROPOSED` and `ACTIVE` keep the glossary's meaning of *Proposed Embargo* and *Active Embargo*.
 The EM states use the same words for an aggregate over the whole register, so prose qualifies the bare words: "`EM.ACTIVE`" for the case, "register status `ACTIVE`" for one embargo.
@@ -109,7 +113,8 @@ The EM transition table and `EMAdapter` are retired; their callers move to regis
 
 Every former EM transition is a register change: propose adds a `PROPOSED` entry, accept is `ACTIVATE` (with `SUPERSEDE` of any current `ACTIVE`), reject is `REJECT`, and terminate is `TERMINATE` with every open proposal `CANCELLED`.
 Rejecting one of two open proposals leaves EM `PROPOSED` (or `REVISE`), because the other is still open.
-Invariant 2 means a case that has had an embargo in force never returns to `NONE` or `PROPOSED`.
+An `ACTIVE` entry leaves that status only by `SUPERSEDE`, in the step that activates another entry, or by `TERMINATE`, after which invariant 4 allows no change.
+So a case that has had an embargo in force never returns to `NONE` or `PROPOSED`.
 
 ### Participant embargo consent
 
@@ -150,8 +155,9 @@ Neither is a state, and neither is drawn on the state machine.
 
 - **Signatory**: the participant's row for the register's `ACTIVE` entry is `AGREED`.
   The content gate (CM-10-004) reads `participant.is_signatory(case.active_embargo_id)` when an embargo is in force.
-- **Lapsed**: the participant has an `AGREED` row for some `SUPERSEDED` entry, an entry is `ACTIVE`, and the participant's row for it is neither `AGREED` nor `DECLINED`.
+- **Lapsed**: an entry is `ACTIVE`, the participant's row for it is neither `AGREED` nor `DECLINED`, and, following `replaces` back from the `ACTIVE` entry, the first entry whose row is `AGREED` or `DECLINED` has an `AGREED` row.
   It was bound, and the embargo in force has since become something it did not agree to.
+  A participant that withdrew from a later embargo, and so has a `DECLINED` row on it, has not lapsed when a further revision replaces that one.
 
 After termination no entry is `ACTIVE`, so nobody is a signatory and nobody has lapsed.
 `ParticipantStatus.consent`, the computed `embargo_adherence` and the stored scalar are removed.
@@ -164,13 +170,20 @@ Each change above is caused by one committed protocol message, and replay derive
 | Message | Register | Consent rows |
 |---|---|---|
 | `Invite(EmbargoEvent)` proposing a new embargo | `PROPOSE` | `UNINVITED` for every participant; the proposer `AGREE`; each invitee `INVITE` |
+| `Invite(EmbargoEvent)` for an embargo already in the register: a re-invite, a late joiner's invite, or the fresh invite of EMB-17 | — | the invitee `INVITE` |
+| a message that creates a participant record | — | the new participant `UNINVITED` for every register entry |
+| case initialization seeding (CM-14-003, CM-14-005) | — | the case owner and the reporter `AGREE` on the `ACTIVE` entry |
+| `Accept` of the full-case Invite (ADR-0121) | — | the joiner `AGREE` on the `ACTIVE` entry |
 | `Accept(Invite(EmbargoEvent))`, from any participant, the owner included | — | the sender `AGREE` |
 | `Reject(Invite(EmbargoEvent))` | — | the sender `DECLINE`; on the `ACTIVE` entry this is withdrawal, which also declines each open proposal the sender had agreed to |
-| `Accept(EmbargoEvent, target=Case)`, the case owner only | `ACTIVATE`, and `SUPERSEDE` of any `ACTIVE` entry | the owner `AGREE`; `CARRY_OVER` when the revision ends no later than the one it replaces |
+| `Accept(EmbargoEvent, target=Case)`, the case owner only | `ACTIVATE`, and `SUPERSEDE` of any `ACTIVE` entry | the owner `AGREE` unless its row is already `AGREED`; `CARRY_OVER` when the revision ends no later than the one it replaces |
 | `Reject(EmbargoEvent, target=Case)`, the case owner only | `REJECT` | — |
-| `Remove(EmbargoEvent, target=Case)` | `TERMINATE`, and `CANCEL` of each `PROPOSED` entry | — |
-| a case status entry setting `P`, `X` or `A` | `TERMINATE` (reason: threat signal) or, with no `ACTIVE` entry, `CANCEL` of each `PROPOSED` entry | — |
-| the RSVP deadline passing, committed as an entry | — | `TIME_OUT` on each of the participant's `INVITED` rows |
+| `Remove(EmbargoEvent, target=Case)`, from the case owner, or from the CASE_MANAGER when delegated (ADR-0118, EMB-03-003) | `TERMINATE`, and `CANCEL` of each `PROPOSED` entry | — |
+| a committed case status entry setting `P`, `X` or `A` | with an `ACTIVE` entry, `TERMINATE` (reason: threat signal) and `CANCEL` of each `PROPOSED` entry; with none, `CANCEL` of each `PROPOSED` entry | — |
+| an invitation's RSVP deadline passing, committed as an entry (CM-28-009) | — | `TIME_OUT` on the invitee's row for that invitation's embargo |
+
+An owner whose row for the proposal is `DECLINED` cannot activate it: `AGREE` refuses `DECLINED`, so replay refuses the activation, and the owner is invited again first.
+The RSVP deadline belongs to one invitation (CM-28-001, CM-28-012), so a deadline passing times out only that invitation's row, never the participant's other `INVITED` rows.
 
 The two-audience rule (MSM-07-003, MSM-07-004) is retired: the owner's decision for the case has its own activities, and `Accept`/`Reject(Invite(EmbargoEvent))` is always the sender's own consent.
 The direct activation by `Add(EmbargoEvent, target=Case)` is retired, because adding an embargo to the case is what proposing does.
@@ -181,7 +194,8 @@ Replay refuses `END_TIME_REACHED` on an entry published before the embargo's end
 No new AS2 property is introduced.
 
 An embargo reaches its end time through either of two requests, which share one idempotent termination path: the CASE_MANAGER's lazy check when it next handles the case, or an outside request such as a Sentinel monitoring embargo timers.
-Whichever arrives second is a no-op.
+Both commit the CASE_MANAGER's `Remove(EmbargoEvent, target=Case)` with `content` `END_TIME_REACHED`.
+A request that arrives after the entry is `TERMINATED` commits nothing and is answered as already done, so it never reaches the register and never breaks invariant 4.
 The termination runs the full cascade: `TERMINATED` with its reason, every open proposal `CANCELLED`, EM `EXITED`, and the teardown announcement.
 
 ### Consequences
@@ -193,7 +207,8 @@ The termination runs the full cascade: `TERMINATED` with its reason, every open 
 - Good, because rejecting one of two open proposals no longer resets EM.
 - Good, because an embargo that reaches its end time is recorded as ended, so the content gate stops withholding content under an embargo that has expired.
 - Bad, because rows grow to participants × register entries per case and are never pruned; at the expected scale (up to hundreds of participants, a handful of embargoes per case) this is small.
-- Bad, because the wire format changes: the consent row states, the owner's activation and rejection activities, and the termination `content` value. The prototype owes no compatibility.
+- Bad, because the wire format changes: the consent row states, the owner's activation and rejection activities, and the termination `content` value.
+  The prototype owes no compatibility.
 - Bad, because stored `CaseParticipant` and `VulnerabilityCase` records in the old shape no longer load (`extra="forbid"`); the prototype keeps no migration.
 - Bad, because every reader of EM state, the old scalar, `EMAdapter` and the two-audience rule must be revisited.
 

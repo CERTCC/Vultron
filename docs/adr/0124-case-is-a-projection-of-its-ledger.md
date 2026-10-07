@@ -24,7 +24,8 @@ CM-23-016 already says a replica is the case as seeded plus the ledger entries s
 Tracing participant embargo consent for Concern #4284 showed that the CASE_MANAGER's case and its replicas are not kept in step by one rule:
 
 - The CASE_MANAGER changes its case in its lifecycle code, and each replica runs a separate replay path that calls into that lifecycle code again against its own copy.
-- Several writes have no replay at all. The inert invitee's `INVITED` and `DECLINED` rows, the CASE_MANAGER's own policy-based consent, and the joiner's consent on accepting the full-case Invite are written only on the CASE_MANAGER.
+- Several writes have no replay at all.
+  The inert invitee's `INVITED` and `DECLINED` rows, the CASE_MANAGER's own policy-based consent, and the joiner's consent on accepting the full-case Invite are written only on the CASE_MANAGER.
 - Some writes depend on things a replica does not have: the CASE_MANAGER's local policy, or the clock at the moment it ran.
 - No test compares a case rebuilt from its ledger with the CASE_MANAGER's case.
 
@@ -59,7 +60,8 @@ A replica whose ledger tail hash matches the CASE_MANAGER's (SYNC-00-002) theref
 No node is expected to rebuild a case that way in normal operation; the property is what makes a replica faithful, and a test asserts it.
 
 Ledger entries are the protocol messages themselves: invites, accepts, rejects, proposals, status updates, terminations.
-They carry no separate state-change payload.
+The CASE_MANAGER's records of clock-driven acts, such as an expired invitation (CM-28-009), are entries too; they are attributed and committed like messages.
+Entries carry no separate state-change payload.
 The state of the case is what replaying them produces.
 
 ### One replay function
@@ -70,9 +72,11 @@ The CASE_MANAGER and every replica use it, and it is the only code that changes 
 The function is pure:
 
 - Its result depends only on the entry and the case before it.
-- It reads no clock. Any time it needs comes from the entry, such as its `published` timestamp, or from the case.
+- It reads no clock.
+  Any time it needs comes from the entry, such as its `published` timestamp, or from the case.
 - It reads no local policy, configuration or store state outside the case.
-- An entry it cannot apply, because a transition is illegal from the current state or an invariant would break, is refused. On a replica that means an earlier entry is missing, which the gap handling resolves (`LedgerGapBuffer`); it is never patched over.
+- An entry it cannot apply, because a transition is illegal from the current state or an invariant would break, is refused.
+  On a replica that means an earlier entry is missing, which the gap handling resolves (`LedgerGapBuffer`); it is never patched over.
 
 Two kinds of decision are not pure, and both are therefore committed as messages before they change anything:
 
@@ -85,11 +89,15 @@ The CASE_MANAGER never edits its case directly.
 It decides on an act, checks the act's consequence, records the act, and only then derives the new case from the record:
 
 1. **Decide.** Guards read the current case and refuse the act if it is not allowed.
-2. **Trial apply.** The replay function applies the entry to a copy of the case, and every invariant is checked. A refusal here stops the act, and nothing is recorded or sent.
-3. **Complete the act.** A received message has already arrived (intake, ADR-0111). A message the CASE_MANAGER sends is complete when it is written to its own outbox (ADR-0119).
+2. **Trial apply.** The replay function applies the entry to a copy of the case, and every invariant is checked.
+   A refusal here stops the act, and nothing is recorded or sent.
+3. **Complete the act.** A received message has already arrived (intake, ADR-0111).
+   A message the CASE_MANAGER sends is complete when it is written to its own outbox (ADR-0119).
 4. **Commit.** The entry recording the act is committed to the ledger.
-5. **Apply.** The replay function applies the entry to the case. Because the function is pure, a successful trial guarantees this step succeeds, and the trial copy may be kept as the result.
-6. **Consequent acts.** Messages sent because of this act, and the `Announce(CaseLedgerEntry)` that replicates the entry, follow, each recorded as its own act.
+5. **Apply.** The replay function applies the entry to the case.
+   Because the function is pure, a successful trial guarantees this step succeeds, and the trial copy may be kept as the result.
+6. **Consequent acts.** Messages sent because of this act follow, each recorded as its own act.
+   The `Announce(CaseLedgerEntry)` that replicates the entry is delivery of the record, not an act, and is not itself recorded (CLP-07).
 
 The copy in step 2 changes only by applying the entry.
 Editing its fields directly would derive the CASE_MANAGER's case from different code than its replicas use, which is the drift this ADR removes.
@@ -97,6 +105,7 @@ What is committed is the message, never the modified copy.
 
 This is a narrowing of the received-side order of ADR-0111 (intake, guards, commit, effects): changes to case state move out of "effects" into the shared replay step, and only outside acts remain effects.
 It keeps ADR-0119's order for sent messages: the outbox write completes the act, and the commit follows it.
+ADR-0119 is itself `proposed`; until it is accepted, the commit-before-outbox rule in `vultron/core/behaviors/case/AGENTS.md` governs today's code, and this ADR's step 3 lands with it.
 
 ### A replica
 
