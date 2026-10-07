@@ -1268,3 +1268,29 @@ pass broke the first pass's fix.*
 - **A peer broadcast node must not mask delivery failure**: it returns FAILURE
   when broadcast preparation or outbox enqueueing fails, never a guaranteed
   SUCCESS fallback (BT-14-001). See `notes/peer-broadcast-failure-semantics.md`.
+
+---
+
+## A Received Tree Gets Its CASE_MANAGER Gate From the Factory (BT-17-008)
+
+The gate was added to received trees one at a time, and every manual sibling
+scan found the next miss (#3746, #2667, #3752, #3823, #3825).
+The cause was structural: about fifteen trees each wrapped their effects in
+`create_case_manager_gated_tree` by hand, so a new tree could simply leave it out.
+
+- **`create_receive_activity_tree` is the one place that applies the gate.**
+  It takes `manager_effects` (wrapped by the factory, after the commit) and
+  `replica_effects` (run on every replica, ungated).
+  A received-tree module does not call `create_case_manager_gated_tree` itself.
+- **Emit-capable nodes carry one shared marker.**
+  The factory raises at construction when a marked node is in `replica_effects`
+  and the tree has no named exemption, so a tree that skips the gate cannot be built.
+- **A by-design ungated emit is a named exemption with a reason.**
+  The emit speaks for the executing actor or is addressee-gated (the ack echo,
+  the offer-role tree, the case-proposal tree, the RSH status tree).
+  A sender check alone is never enough: it says nothing about whether this
+  replica owns the case (#2667).
+- **The exemption set is a pinned exemption set** (ARCH-18-001, ARCH-18-005):
+  exact equality, each entry citing its decision.
+
+*Source: ISSUE-3830.*

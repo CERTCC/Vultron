@@ -748,7 +748,11 @@ groups:
       executing actor is the actor the emit speaks for. A received-side tree
       MUST NOT emit, as the executing actor's own act, an activity that another
       actor authored, and MUST NOT emit an activity whose only recipient is the
-      executing actor.
+      executing actor. `create_receive_activity_tree` MUST be the only place a
+      received-side tree acquires that gate: it MUST take the gated effects as
+      `manager_effects` and the ungated effects as `replica_effects`, and it
+      MUST refuse an emit-capable node in `replica_effects` unless the tree
+      declares a named exemption carrying a reason.
     rationale: >-
       The AckReport received tree emitted `Read(Offer)` under the receiver's name for
       acknowledgements it never authored, and at the CASE_MANAGER its sole recipient was
@@ -759,11 +763,12 @@ groups:
     verification: >-
       `test_every_effect_is_inside_the_case_manager_gate` in
       `test/core/behaviors/case/test_suggest_actor_tree.py` checks gate
-      placement for the suggest-actor trees. The corpus-wide structural check
-      over every received-tree factory, with an explicit allowlist for
-      addressee-gated trees, is the ratchet owned by #3830; until it lands, a
-      reviewer checks each new or changed received tree's emit nodes against
-      this requirement.
+      placement for the suggest-actor trees. The corpus-wide check is the
+      ratchet owned by #3830: no received-tree module calls
+      `create_case_manager_gated_tree` itself, and the factory refuses an
+      emit-capable node in `replica_effects` unless the tree carries a named
+      exemption. The exemption set is pinned to reality in both directions
+      (ARCH-18-001, ARCH-18-005).
     relationships:
     - rel_type: refines
       spec_id: BT-17-001
