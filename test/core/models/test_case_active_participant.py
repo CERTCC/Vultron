@@ -13,6 +13,7 @@
 """The one active-participant predicate (CM-10-004, ADR-0114, #4046 AC-1)."""
 
 import pytest
+from pydantic import ValidationError
 
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -177,3 +178,179 @@ def test_closed_participant_stays_active(embargo: bool) -> None:
 def test_no_statuses_is_not_closed() -> None:
     participant = CaseParticipant(attributed_to=ACTOR_ID, context=CASE_ID)
     assert not participant.rm_closed
+
+
+# ---------------------------------------------------------------------------
+# The removal fact and the computed activeParticipants view (#4079, ADR-0116)
+# ---------------------------------------------------------------------------
+
+REMOVAL_ID = f"{CASE_ID}/activities/remove-1"
+
+
+@pytest.mark.spec("CM-31-001", "CS-08-002")
+def test_removal_fact_is_stored_and_can_be_set_and_cleared() -> None:
+    """The fact is a stored ``NonEmptyString | None``, set and cleared directly.
+
+    No field stores the active answer: ``removed`` reads the fact, and the
+    record round-trips with it through both serializations.
+    """
+    participant = _participant()
+    assert participant.removal_activity is None
+    assert not participant.removed
+
+    participant.removal_activity = REMOVAL_ID
+    assert participant.removed
+    for dumped in (
+        participant.model_dump(mode="json"),
+        participant.model_dump(by_alias=True),
+    ):
+        restored = CaseParticipant.model_validate(dumped)
+        assert restored.removal_activity == REMOVAL_ID
+        assert restored == participant
+    assert (
+        participant.model_dump(by_alias=True)["removalActivity"] == REMOVAL_ID
+    )
+
+    participant.removal_activity = None
+    assert not participant.removed
+
+
+@pytest.mark.spec("CS-08-001")
+@pytest.mark.parametrize("blank", ["", "   "])
+def test_removal_fact_refuses_a_blank_value(blank: str) -> None:
+    """If present, then non-empty: at construction and on assignment."""
+    with pytest.raises(ValidationError):
+        CaseParticipant(
+            attributed_to=ACTOR_ID, context=CASE_ID, removal_activity=blank
+        )
+    participant = _participant()
+    with pytest.raises(ValidationError):
+        participant.removal_activity = blank
+    assert participant.removal_activity is None
+
+
+@pytest.mark.spec("CM-31-002")
+def test_no_participant_property_reads_as_active() -> None:
+    """The active answer lives on the case; the record holds only its inputs."""
+    names = set(dir(CaseParticipant)) | set(CaseParticipant.model_fields)
+    assert not sorted(n for n in names if "active" in n.lower())
+
+
+@pytest.mark.spec("CM-31-001", "CM-31-002", "CM-10-004")
+@pytest.mark.parametrize("embargo", [False, True])
+@pytest.mark.parametrize(
+    "consents",
+    [
+        {},
+        {EMBARGO_ID: S.INVITED},
+        {EMBARGO_ID: S.DECLINED},
+        {EMBARGO_ID: S.ACCEPTED},
+    ],
+    ids=["never-asked", "invited", "declined", "signatory"],
+)
+def test_removed_participant_is_inert_whatever_its_consent(
+    embargo: bool, consents: dict[str, EmbargoConsentState]
+) -> None:
+    """A removed participant is inert, embargo or not, signatory or not."""
+    case = _case(embargo=embargo)
+    participant = _participant(consents=consents)
+    participant.removal_activity = REMOVAL_ID
+
+    assert not case.is_active_participant(participant)
+    case.case_participants[:] = [participant]
+    assert case.active_participants == []
+
+
+@pytest.mark.spec("CM-31-002")
+def test_clearing_the_fact_makes_a_signatory_active_again() -> None:
+    """The check turns false to true when the fact is cleared (#4081, #4084)."""
+    case = _case(embargo=True)
+    participant = _participant(consents={EMBARGO_ID: S.ACCEPTED})
+    participant.removal_activity = REMOVAL_ID
+    assert not case.is_active_participant(participant)
+
+    participant.removal_activity = None
+
+    assert case.is_active_participant(participant)
+
+
+def _carrying_case(*participants: CaseParticipant) -> VulnerabilityCase:
+    case = _case(embargo=True)
+    case.case_participants[:] = list(participants)
+    return case
+
+
+def _signatory(name: str, **kwargs: object) -> CaseParticipant:
+    return CaseParticipant(
+        id_=f"{CASE_ID}/participants/{name}",
+        attributed_to=f"https://example.org/actors/{name}",
+        context=CASE_ID,
+        embargo_consents=[
+            EmbargoConsent(embargo_id=EMBARGO_ID, state=S.ACCEPTED)
+        ],
+        **kwargs,  # type: ignore[arg-type]
+    )
+
+
+@pytest.mark.spec("CM-31-003")
+def test_active_participants_lists_the_active_records_in_roster_order() -> (
+    None
+):
+    """The view is the case-level check over the records the case carries."""
+    first = _signatory("first")
+    removed = _signatory("removed", removal_activity=REMOVAL_ID)
+    unjoined = _signatory("unjoined", joined=False)
+    last = _signatory("last")
+    case = _carrying_case(last, removed, unjoined, first)
+    case.case_participants.append(f"{CASE_ID}/participants/bare-reference")
+
+    assert case.active_participants == [last.id_, first.id_]
+
+
+@pytest.mark.spec("CM-31-003", "ARCH-12-003", "ARCH-23-005")
+def test_active_participants_is_published_by_alias_and_round_trips() -> None:
+    """Serialized by alias, never stored, and read back despite forbid."""
+    case = _carrying_case(
+        _signatory("kept"), _signatory("removed", removal_activity=REMOVAL_ID)
+    )
+
+    wire = case.model_dump(by_alias=True, mode="json")
+    assert wire["activeParticipants"] == [f"{CASE_ID}/participants/kept"]
+    assert VulnerabilityCase.model_validate(wire) == case
+    assert (
+        VulnerabilityCase.model_validate(case.model_dump(by_alias=True))
+        == case
+    )
+
+    stored = case.model_dump(mode="json")
+    assert "active_participants" not in stored
+    assert "activeParticipants" not in stored
+    assert VulnerabilityCase.model_validate(stored) == case
+
+
+@pytest.mark.spec("CM-31-003")
+def test_active_participants_is_not_in_the_stored_row() -> None:
+    """The persistence record carries the facts, not the derived view."""
+    from vultron.adapters.driven.db_record import Record
+
+    case = _carrying_case(_signatory("kept"))
+    data = Record.from_obj(case).data_
+
+    assert "active_participants" not in data
+    assert "activeParticipants" not in data
+
+
+@pytest.mark.spec("ARCH-23-005")
+def test_contradicting_active_participants_is_refused() -> None:
+    """A supplied view that disagrees with the carried records is refused."""
+    case = _carrying_case(
+        _signatory("kept"), _signatory("removed", removal_activity=REMOVAL_ID)
+    )
+    wire = case.model_dump(by_alias=True, mode="json")
+    wire["activeParticipants"] = [
+        f"{CASE_ID}/participants/kept",
+        f"{CASE_ID}/participants/removed",
+    ]
+
+    with pytest.raises(ValidationError):
+        VulnerabilityCase.model_validate(wire)

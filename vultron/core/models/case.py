@@ -21,7 +21,7 @@ import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any, ClassVar, Literal
 
-from pydantic import Field, ValidationInfo, model_validator
+from pydantic import Field, ValidationInfo, computed_field, model_validator
 
 from vultron.core.models._helpers import (
     INBOUND_CONTEXT_KEY,
@@ -564,11 +564,14 @@ class VulnerabilityCase(CoreObject):
 
         1. it has joined the case — seated by the case initialization
            sequence or accepted its stub Invite (``participant.joined``);
-        2. when this case has an active embargo (:attr:`embargo_in_force`),
+        2. it has not been removed (``participant.removed``, CM-31-001);
+        3. when this case has an active embargo (:attr:`embargo_in_force`),
            its consent row for the active embargo is ``ACCEPTED``
            (:meth:`CaseParticipant.is_signatory`, CM-18-001).
 
-        Every other participant is **inert**.  RM ``CLOSED`` is deliberately
+        Every other participant is **inert**.  A removed participant is inert
+        whatever its embargo consent: a removed signatory stays bound but
+        receives no content (CM-31-008, ADR-0116).  RM ``CLOSED`` is deliberately
         not part of this check: a closed participant still receives the
         ledger entries that let its replica learn how the case ended (the
         ``case_fully_closed`` signal, CM-23-002), and only the sends that
@@ -579,7 +582,7 @@ class VulnerabilityCase(CoreObject):
         selected through :mod:`vultron.core.participants.recipients`, which
         resolves each roster entry to its record and asks this method.
         """
-        if not participant.joined:
+        if not participant.joined or participant.removed:
             return False
         if not self.embargo_in_force:
             return True
@@ -596,6 +599,34 @@ class VulnerabilityCase(CoreObject):
         it.
         """
         return self.active_embargo_id is not None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def active_participants(self) -> list[str]:
+        """The ids of the participants this case finds active (CM-31-003).
+
+        Published as ``activeParticipants`` and never stored as a field: it
+        is :meth:`is_active_participant` applied to every participant record
+        the case carries inline, in roster order (ADR-0116).  A case put on
+        the wire carries its participant records inline
+        (``_case_for_wire``), so the published view is complete there.  A
+        bare participant reference is not provably active and is left out:
+        a case read from the store holds references only, so in-process
+        callers select recipients through
+        :mod:`vultron.core.participants.recipients`, which resolves each
+        reference to its record, not through this view.
+
+        Reading a dump back in strips a value that matches the derived one
+        and refuses one that contradicts it (``CoreObject``'s computed-field
+        check, ARCH-23-005), so a case's own dump round-trips despite
+        ``extra="forbid"``.
+        """
+        return [
+            entry.id_
+            for entry in self.case_participants
+            if isinstance(entry, CaseParticipant)
+            and self.is_active_participant(entry)
+        ]
 
 
 def has_case_statuses(case: VulnerabilityCase) -> bool:

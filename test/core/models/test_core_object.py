@@ -430,11 +430,11 @@ def test_retired_core_alias_word_match_spares_longer_names():
 def test_core_object_strips_computed_field_input(isolated_core_registries):
     """Cleanup #1: a ``@computed_field`` value in the payload is dropped.
 
-    A computed field appears in ``model_dump()`` output but is not settable.
+    A computed field appears in the ``by_alias`` dump but is not settable.
     Under ``extra="forbid"`` it would be rejected on re-validation unless
     stripped first; the value is re-derived, never taken from the injected
-    key.  No production class has a computed field (ARCH-23-005), so a local
-    subclass carries one.
+    key.  A local subclass carries one, so the contract is tested apart from
+    any production field (ARCH-23-005).
     """
     from typing import Literal
 
