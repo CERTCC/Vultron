@@ -74,6 +74,7 @@ from vultron.core.behaviors.sync.nodes.event_conditions import (
     IsParticipantStatusEventNode,
     IsRejectEmbargoInviteEventNode,
     IsRemoveEmbargoEventNode,
+    IsRemoveNoteEventNode,
     IsSubmitReportEventNode,
 )
 from vultron.core.behaviors.sync.nodes.fanout import (
@@ -94,6 +95,7 @@ from vultron.core.behaviors.sync.nodes.ledger_authority import (
 )
 from vultron.core.behaviors.sync.nodes.note_effect import (
     ApplyNoteFromLedgerNode,
+    ApplyRemoveNoteFromLedgerNode,
 )
 from vultron.core.behaviors.sync.nodes.offer_report_effect import (
     ApplyOfferReportFromLedgerNode,
@@ -134,6 +136,7 @@ __all__ = [
     "IsRemoveEmbargoEventNode",
     "IsParticipantStatusEventNode",
     "IsAddNoteEventNode",
+    "IsRemoveNoteEventNode",
     "IsInviteAcceptEventNode",
     "IsCloseCaseEventNode",
     "IsSubmitReportEventNode",
@@ -149,6 +152,7 @@ __all__ = [
     "IsInviteExpiryNoopEventNode",
     # effects
     "ApplyNoteFromLedgerNode",
+    "ApplyRemoveNoteFromLedgerNode",
     "ApplyInviteAcceptFromLedgerNode",
     # participant_status_effect
     "ApplyParticipantStatusFromLedgerNode",

@@ -45,6 +45,7 @@ from vultron.errors import VultronWiringError
 _REMOVE_EMBARGO_EVENT = "remove_embargo_event_from_case"
 _ADD_PARTICIPANT_STATUS_EVENT = "add_participant_status_to_participant"
 _ADD_NOTE_TO_CASE_EVENT = "add_note_to_case"
+_REMOVE_NOTE_FROM_CASE_EVENT = "remove_note_from_case"
 _ACCEPT_INVITE_ACTOR_TO_CASE_EVENT = "accept_invite_actor_to_case"
 _CLOSE_CASE_EVENT = "close_case"
 _ADD_REPORT_TO_CASE_EVENT = "add_report_to_case"
@@ -171,6 +172,22 @@ class IsAddNoteEventNode(_ActivityEventNode):
     def update(self) -> Status:
         entry = _require_log_entry(self.activity, self.name)
         if entry.event_type == _ADD_NOTE_TO_CASE_EVENT:
+            return Status.SUCCESS
+        return Status.FAILURE
+
+
+class IsRemoveNoteEventNode(_ActivityEventNode):
+    """Precondition: SUCCESS when this log entry IS a remove-note event.
+
+    Precondition of the ``RemoveNoteEffects`` slot, in the same
+    ``Selector(Seq(Is, Apply), Inverter(Is))`` shape as the add-note slot.
+
+    Per BTND-08-001, BTND-08-002, SYNC-02-002, SYNC-12-001, RSH-08-004.
+    """
+
+    def update(self) -> Status:
+        entry = _require_log_entry(self.activity, self.name)
+        if entry.event_type == _REMOVE_NOTE_FROM_CASE_EVENT:
             return Status.SUCCESS
         return Status.FAILURE
 

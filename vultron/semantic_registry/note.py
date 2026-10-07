@@ -57,5 +57,6 @@ ENTRIES: list[SemanticEntry] = [
         event_class=RemoveNoteFromCaseReceivedEvent,
         use_case_class=RemoveNoteFromCaseReceivedUseCase,
         phrase="{actor} removed a note from the case",
+        include_activity=True,
     ),
 ]

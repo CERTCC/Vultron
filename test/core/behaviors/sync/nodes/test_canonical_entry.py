@@ -418,3 +418,25 @@ def test_invite_with_a_case_stub_target_resolves_to_the_stub_signature():
         payload_snapshot=snapshot,
         event_type="invite_actor_to_case",
     )
+
+
+@pytest.mark.spec("CLP-07-011")
+@pytest.mark.spec("VAM-07-003")
+def test_remove_note_snapshot_is_a_canonical_signature():
+    """``Remove(Note)[target=case]`` is accepted as a canonical payload."""
+    snapshot = {
+        "type": "Remove",
+        "actor": OWNER_ACTOR_ID,
+        "published": now_utc().isoformat(),
+        "object": {
+            "type": "Note",
+            "id": "https://example.org/notes/note-prov",
+        },
+        "target": CASE_ID,
+        "context": CASE_ID,
+    }
+    _validate_canonical_entry(
+        case_id=CASE_ID,
+        payload_snapshot=snapshot,
+        event_type="remove_note_from_case",
+    )

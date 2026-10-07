@@ -704,6 +704,76 @@ class TestAnnounceLogEntryAppliesNoteAttachment:
         assert updated.notes == []
 
 
+class TestAnnounceLogEntryAppliesNoteRemoval:
+    """A replica receiving remove_note_from_case detaches the note (RSH-08-004)."""
+
+    @pytest.mark.spec("SYNC-12-001")
+    @pytest.mark.spec("RSH-08-004")
+    def test_participant_detaches_note_on_remove_note_entry(
+        self, bridge, datalayer, case_actor, case_obj
+    ):
+        case_obj.notes.append(NOTE_ID)
+        datalayer.save(case_obj)
+        entry = _to_persistable_entry(
+            HashChainLedgerRecord(
+                case_id=CASE_ID,
+                log_index=0,
+                object_id="https://example.org/activities/remove-note-0",
+                event_type="remove_note_from_case",
+                payload_snapshot={"object": NOTE_ID},
+                prev_log_hash=case_obj.genesis_hash,
+            )
+        )
+        event = _make_event(entry, actor_id=case_actor.id_)
+
+        result = bridge.execute_with_setup(
+            tree=create_announce_log_entry_tree(),
+            actor_id=PARTICIPANT_ACTOR_ID,
+            activity=event,
+            sync_port=MagicMock(spec=SyncActivityPort),
+        )
+
+        assert result.status == Status.SUCCESS
+        updated = datalayer.read(CASE_ID)
+        assert updated is not None
+        assert NOTE_ID not in updated.notes
+
+
+class TestAnnounceLogEntryAppliesReportAddition:
+    """A replica receiving add_report_to_case lists the report (RSH-08-004)."""
+
+    @pytest.mark.spec("SYNC-12-001")
+    @pytest.mark.spec("RSH-08-004")
+    def test_participant_lists_report_on_add_report_entry(
+        self, bridge, datalayer, case_actor, case_obj
+    ):
+        """An entry with no offer still converges the report list."""
+        report_id = "https://example.org/reports/added-later"
+        entry = _to_persistable_entry(
+            HashChainLedgerRecord(
+                case_id=CASE_ID,
+                log_index=0,
+                object_id="https://example.org/activities/add-report-0",
+                event_type="add_report_to_case",
+                payload_snapshot={"object": report_id},
+                prev_log_hash=case_obj.genesis_hash,
+            )
+        )
+        event = _make_event(entry, actor_id=case_actor.id_)
+
+        result = bridge.execute_with_setup(
+            tree=create_announce_log_entry_tree(),
+            actor_id=PARTICIPANT_ACTOR_ID,
+            activity=event,
+            sync_port=MagicMock(spec=SyncActivityPort),
+        )
+
+        assert result.status == Status.SUCCESS
+        updated = datalayer.read(CASE_ID)
+        assert updated is not None
+        assert list(updated.vulnerability_reports) == [report_id]
+
+
 PARTICIPANT_STATUS_ID = "https://example.org/statuses/status-1"
 PARTICIPANT_ID = "https://example.org/participants/reporter-participant"
 

@@ -35,6 +35,7 @@ from vultron.core.behaviors.sync.nodes import (
     ApplyOfferReportFromLedgerNode,
     ApplyOwnershipTransferFromLedgerNode,
     ApplyParticipantStatusFromLedgerNode,
+    ApplyRemoveNoteFromLedgerNode,
     BufferPreGenesisEntryNode,
     CheckHashOrRejectOnMismatchNode,
     CheckLedgerEntryAlreadyStoredNode,
@@ -54,6 +55,7 @@ from vultron.core.behaviors.sync.nodes import (
     IsParticipantStatusEventNode,
     IsRejectEmbargoInviteEventNode,
     IsRemoveEmbargoEventNode,
+    IsRemoveNoteEventNode,
     IsSubmitReportEventNode,
     LogDeliveryConfirmationNode,
     PersistReceivedLogEntryNode,
@@ -221,6 +223,11 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
                 "Note",
                 IsAddNoteEventNode,
                 ApplyNoteFromLedgerNode,
+            ),
+            _event_effect_slot(
+                "RemoveNote",
+                IsRemoveNoteEventNode,
+                ApplyRemoveNoteFromLedgerNode,
             ),
             _event_effect_slot(
                 "InviteAccept",

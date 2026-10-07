@@ -7,10 +7,12 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.add_report_received_tree import (
+    create_add_report_to_case_received_tree,
+)
 from vultron.core.behaviors.case.receive_close_case_tree import (
     create_close_case_received_tree,
 )
-from vultron.core.models._helpers import _as_id
 from vultron.core.models.events.case import (
     AddReportToCaseReceivedEvent,
     CloseCaseReceivedEvent,
@@ -20,10 +22,10 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
     find_named,
+    reference_edit_verdict,
     verdict_from_bt,
 )
 
@@ -34,6 +36,7 @@ if TYPE_CHECKING:
 
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlement,
+    SenderEntitlementKind,
     exempt,
 )
 
@@ -41,13 +44,21 @@ logger = logging.getLogger(__name__)
 
 
 class AddReportToCaseReceivedUseCase:
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4070", "no sender check defined for report-to-case addition"
+    """Attach a received report to the case and commit a canonical ledger entry.
+
+    Only the CASE_MANAGER attaches the report and commits; replicas apply the
+    ledger fan-out.  The sender must be the Case Owner; anyone else is
+    ``REFUSED`` with the report not attached (CM-30-002).  A report the case
+    already lists is ``SKIPPED``.
+    """
+
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.CASE_OWNER
     )
 
     def __init__(
         self,
-        dl: CasePersistence,
+        dl: CaseOutboxPersistence,
         request: AddReportToCaseReceivedEvent,
         sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
@@ -66,27 +77,42 @@ class AddReportToCaseReceivedUseCase:
             return HandlerResult.refused(
                 "Add(Report, Case) is missing its report id or case id"
             )
-        case = self._dl.read_case(case_id)
-
-        if case is None:
+        if self._dl.read_case(case_id) is None:
             logger.warning("add_report_to_case: case '%s' not found", case_id)
             return HandlerResult.refused(f"unknown case '{case_id}'")
 
-        existing_report_ids = [_as_id(r) for r in case.vulnerability_reports]
-        if report_id in existing_report_ids:
-            logger.info(
-                "Report '%s' already in case '%s' — skipping (idempotent)",
+        tree = create_add_report_to_case_received_tree(
+            report_id=report_id,
+            case_id=case_id,
+            sender_id=request.actor_id,
+        )
+        result = BTBridge(
+            datalayer=self._dl,
+            wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
+        ).execute_with_setup(
+            tree=tree,
+            actor_id=resolve_receiving_actor_id(
+                self._dl, request.receiving_actor_id
+            ),
+            activity=request,
+        )
+        verdict = reference_edit_verdict(
+            tree,
+            verdict_from_bt(
+                tree, result, label="GuardedAttachReportAndCommitBT"
+            ),
+            self._dl,
+            case_id,
+        )
+        if verdict.disposition is HandlerDisposition.REFUSED:
+            logger.warning(
+                "add_report_to_case: report '%s' in case '%s' refused: %s",
                 report_id,
                 case_id,
+                verdict.reason,
             )
-            return HandlerResult.skipped(
-                f"report '{report_id}' already in case '{case_id}'"
-            )
-
-        case.vulnerability_reports.append(report_id)
-        self._dl.save(case)
-        logger.info("Added report '%s' to case '%s'", report_id, case_id)
-        return HandlerResult.applied()
+        return verdict
 
 
 class CloseCaseReceivedUseCase:
