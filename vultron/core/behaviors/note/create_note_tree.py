@@ -22,7 +22,8 @@ attaches it to the associated VulnerabilityCase.
 
 Structure:
 
-    CreateNoteBT (Sequence)
+    CreateNoteBT (Sequence, via create_receive_activity_tree)
+    ├─ IntakeReceivedActivityNode  # Archive the Create(Note) as received
     ├─ SaveNoteNode          # Upsert note into DataLayer (idempotent)
     └─ AttachNoteToCaseNode  # Attach note to case if case_id present (idempotent)
 
@@ -33,6 +34,9 @@ import logging
 
 import py_trees
 
+from vultron.core.behaviors.case.receive_activity_tree import (
+    create_receive_activity_tree,
+)
 from vultron.core.behaviors.note.nodes import (
     AttachNoteToCaseNode,
     SaveNoteNode,
@@ -64,10 +68,11 @@ def create_note_tree(
     Returns:
         Root node of the CreateNoteBT behavior tree (Sequence).
     """
-    root = py_trees.composites.Sequence(
+    root = create_receive_activity_tree(
         name="CreateNoteBT",
-        memory=False,
-        children=[
+        case_id=None,
+        precondition_guards=[],
+        effect_nodes=[
             SaveNoteNode(note_obj=note_obj),
             AttachNoteToCaseNode(note_id=note_obj.id_, case_id=case_id),
         ],

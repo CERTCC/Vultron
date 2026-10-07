@@ -192,27 +192,18 @@ def _composes_through_shared_factory(
 #: run no intake node (CLP-10-017).  Exact set (ARCH-18-001): remove an
 #: entry in the commit that moves the factory (ARCH-18-002).
 #: ADR-0111 detail 7 named the two that composed the CASE_MANAGER gate
-#: directly; those moved with #3870.  The rest were found by this ratchet and
-#: move with the handler migration that owns their area (#3871–#3874).
+#: directly; those moved with #3870.  The rest moved with #3871–#3874, #3935
+#: and #4288.  What remains synthesises an entry or runs after a received
+#: activity was already handled; none processes a received activity of its
+#: own, so each entry below names the spec or ADR that keeps it here.
 #: ``create_commit_log_entry_tree`` is not in the set: it is the subtree the
 #: commit node runs, not a tree a received handler calls (#3935).
 KNOWN_FACTORIES_BYPASSING_INTAKE: frozenset[str] = frozenset(
     {
-        # case
-        "create_add_case_participant_received_tree",
-        "create_announce_vulnerability_case_received_tree",
-        "create_case_proposal_received_tree",
-        "create_remove_case_participant_received_tree",
-        # report
-        "create_close_report_received_tree",
-        "create_invalidate_report_received_tree",
-        "create_report_received_tree",
-        # note
-        "create_note_tree",
         # embargo — a CM-10-006 follow-on, not a receive-activity tree: it is
-        # given no activity and runs after the EMB-17 honored late Accept, a
-        # tree-less path in AcceptInviteToEmbargoOnCaseReceivedUseCase whose
-        # writes predate it. Leaves with that path's move onto a tree (#3871).
+        # given no activity and sends what the fan-out withheld once the gate
+        # admits a participant, so it has no received activity to archive
+        # (CM-10-006, ADR-0118).
         "embargo_admission_backfill_tree",
         # expiry tree — the CASE_MANAGER-gated expiry evaluation called from
         # AcceptInviteToEmbargoOnCaseReceivedUseCase; synthesises and commits an

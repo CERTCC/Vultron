@@ -136,7 +136,7 @@ class _CasesMixin:
         The declined Leave is reconstructed from the case attributed to the
         ``close_sender`` (the Case Owner), then wrapped in an ``as:Reject``
         sent by ``actor`` (the Case Actor) back to the owner.  The inbound
-        Leave is not yet persisted when this runs (``StoreActivityNode`` runs
+        Leave is not yet persisted when this runs (intake archives it
         later in the tree), so the decline is threaded to it via
         ``in_reply_to`` rather than read back from the DataLayer.
         """

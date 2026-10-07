@@ -83,10 +83,7 @@ from vultron.core.behaviors.report.nodes.rm_transitions import (
     TransitionRMtoValid,
     _ReportPhaseRMTransition,
 )
-from vultron.core.behaviors.report.nodes.storage import (
-    StoreActivityNode,
-    StoreReportNode,
-)
+from vultron.core.behaviors.report.nodes.storage import StoreReportNode
 
 __all__ = [
     # conditions
@@ -131,7 +128,6 @@ __all__ = [
     "EmitCloseReportActivity",
     # storage
     "StoreReportNode",
-    "StoreActivityNode",
     # re-exported from helpers (backward compat)
     "UpdateActorOutbox",
 ]
