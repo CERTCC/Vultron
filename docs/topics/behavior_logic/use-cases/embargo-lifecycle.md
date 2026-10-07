@@ -65,6 +65,12 @@ Activating an embargo reads both the record being activated and the one it repla
 A sender carries the embargo record inline with the case, and a receiver stores that record before the case that names it, so a case naming an embargo the receiver lacks is refused rather than stored.
 A receiver refuses an inline embargo record whose context is a different case, so a sender cannot plant one case's embargo under another's id.
 
+A receiver also checks who sent each embargo message before it changes anything (ADR-0115).
+The case manager takes a proposal only from an active participant, and takes an acceptance or rejection only from the actor the recorded invitation was addressed to.
+It takes an embargo record being created, added or removed only from the case owner or from itself.
+Every other participant takes an embargo message only from the case manager.
+A message from any other sender is refused and changes no state.
+
 The transitions themselves are small and fixed:
 
 | Message received | Precondition | Result |

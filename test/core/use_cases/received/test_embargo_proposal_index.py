@@ -116,8 +116,11 @@ class TestInviteToEmbargoRecordsIndex:
 
         actor = as_Service(id_=actor_id, name="Vendor")
         dl.create(actor)
+        # The vendor is the CASE_MANAGER, so its own proposal is adjudicated
+        # here and its index is written (ADR-0115: a replica takes a
+        # proposal from the CASE_MANAGER only).
         case, _cm = _make_case_with_case_manager(
-            dl, actor_id, em_state=EM.NONE
+            dl, actor_id, em_state=EM.NONE, manager_id=actor_id
         )
 
         embargo = as_EmbargoEvent(
@@ -165,8 +168,11 @@ class TestInviteToEmbargoRecordsIndex:
 
         actor = as_Service(id_=actor_id, name="Vendor")
         dl.create(actor)
+        # The vendor is the CASE_MANAGER, so its own proposal is adjudicated
+        # here and its index is written (ADR-0115: a replica takes a
+        # proposal from the CASE_MANAGER only).
         case, _cm = _make_case_with_case_manager(
-            dl, actor_id, em_state=EM.NONE
+            dl, actor_id, em_state=EM.NONE, manager_id=actor_id
         )
 
         embargo = as_EmbargoEvent(
@@ -521,8 +527,19 @@ class TestReceivedRejectPrunesOpenProposals:
         dl.save(case_obj)
 
         def received_reject_by(actor_id: str):
+            # Each participant answers the Invite the manager relayed to it
+            # (EP-09-002); only the invitee may answer it (EP-09-010).
+            relayed = em_propose_embargo_activity(
+                embargo=embargo,
+                context=case.id_,
+                actor=self._REPLICA,
+                attributed_to=self._OWNER,
+                to=[actor_id],
+                id_=f"{case.id_}/embargo_invites/{actor_id.rsplit('/', 1)[-1]}",
+            )
+            dl.create(relayed)
             reject = em_reject_embargo_activity(
-                proposal=proposal,
+                proposal=relayed,
                 context=case.id_,
                 actor=actor_id,
                 to=[self._REPLICA],
@@ -635,7 +652,7 @@ class TestRejectEventCarriesCaseAndEmbargoIds:
         )
         dl.create(embargo)
         proposal = em_propose_embargo_activity(
-            embargo=embargo, context=case.id_, actor=actor_id
+            embargo=embargo, context=case.id_, actor=actor_id, to=[actor_id]
         )
         dl.create(proposal)
         # A Reject must name an open proposal (or the active embargo).
@@ -670,9 +687,14 @@ class TestRejectEventCarriesCaseAndEmbargoIds:
             ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 
-        # dl.read must NOT have been called with the proposal/invite ID
-        assert proposal.id_ not in dl_read_calls, (
-            f"dl.read({proposal.id_!r}) was called — invite wire re-read must be eliminated"
+        # The use case takes the case and embargo from the event, never from
+        # a re-read of the Invite.  The only reads of the recorded Invite are
+        # the two sender guards' lookups of its invitee: the handler's
+        # pre-flight and the tree's sender stage (EP-09-010).
+        assert dl_read_calls.count(proposal.id_) == 2, (
+            f"dl.read({proposal.id_!r}) was called"
+            f" {dl_read_calls.count(proposal.id_)} times — only the two"
+            " sender guards may read the recorded Invite"
         )
 
         assert event.case_id == case.id_

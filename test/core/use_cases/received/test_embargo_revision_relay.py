@@ -97,6 +97,14 @@ def _active_case_with_revision(
     case_read.current_status.em.state = EM.ACTIVE
     case_read.active_embargo = embargo_a.id_
     dl.save(case_read)
+    # Under an active embargo only a signatory is an active participant
+    # (CM-10-004), and only an active participant's proposal is acted on
+    # (ADR-0115), so the proposer is bound to embargo A.
+    proposer_record_id = case_read.actor_participant_index.get(PROPOSER)
+    if proposer_record_id is not None:
+        proposer_record = cast(CaseParticipant, dl.read(proposer_record_id))
+        proposer_record.sign_embargo(embargo_a.id_)
+        dl.save(proposer_record)
 
     revision = as_EmbargoEvent(
         id_=f"{case_id}/embargo_events/revision",
@@ -567,6 +575,10 @@ def test_counter_revision_at_revise_commits_without_a_transition(make_payload):
         end_time=days_from_now_utc(75),
     )
     dl.create(counter)
+    # OTHER_A is bound to the active embargo, so its counter is admissible.
+    other_a = _participant_of(dl, case_id, OTHER_A)
+    other_a.sign_embargo(_active_id(dl, case_id))
+    dl.save(other_a)
 
     verdict = _deliver(
         dl,

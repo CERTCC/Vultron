@@ -47,6 +47,7 @@ from vultron.core.behaviors.embargo.nodes import (
     ValidateCaseExistsNode,
 )
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
+from vultron.core.behaviors.sender_entitlement import SenderIsInviteeNode
 from vultron.core.behaviors.sync.nodes.embargo_backfill import (
     BackfillAdmittedParticipantsNode,
 )
@@ -81,6 +82,9 @@ def accept_invite_to_embargo_tree(
     root = create_receive_activity_tree(
         name="AcceptInviteToEmbargoBT",
         case_id=case_id,
+        sender_guard=SenderIsInviteeNode(
+            invite_id=invite_id, sender_actor_id=accepting_actor_id
+        ),
         precondition_guards=[ValidateCaseExistsNode(case_id=case_id)],
         effect_nodes=[
             create_case_manager_gated_tree(
@@ -173,6 +177,7 @@ def reject_invite_to_embargo_tree(
 
         RejectInviteToEmbargoBT (Sequence)
         ├─ IntakeReceivedActivityNode
+        ├─ SenderIsInviteeNode                # sender guard (ADR-0115)
         ├─ IsRejectableEmbargoNode            # read-only guard (CLP-10-009)
         ├─ GuardedCommitCaseLedgerEntryBT
         └─ AnswerRejectedEmbargo (CASE_MANAGER gate)
@@ -207,6 +212,9 @@ def reject_invite_to_embargo_tree(
     root = create_receive_activity_tree(
         name="RejectInviteToEmbargoBT",
         case_id=case_id,
+        sender_guard=SenderIsInviteeNode(
+            invite_id=invite_id, sender_actor_id=rejecting_actor_id
+        ),
         precondition_guards=[
             IsRejectableEmbargoNode(case_id=case_id, embargo_id=embargo_id),
         ],

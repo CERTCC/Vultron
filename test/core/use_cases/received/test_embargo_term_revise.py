@@ -14,6 +14,9 @@
 
 from typing import cast
 
+from test.core.use_cases.received.conftest import (
+    seed_case_manager_participant,
+)
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import HandlerDisposition
@@ -29,6 +32,10 @@ from vultron.wire.as2.factories import (
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
+
+# The CASE_MANAGER is not the receiving store's owner, so the receiver is a
+# participant replica and the sender is the CASE_MANAGER (ADR-0115).
+_CASE_MANAGER = "https://example.org/users/case-manager"
 
 
 class TestEmbargoTermRevise:
@@ -60,13 +67,14 @@ class TestEmbargoTermRevise:
         )
         # Start from PROPOSED — the standard pre-condition for activation.
         case.append_case_status(em_state=EM.PROPOSED)
+        seed_case_manager_participant(dl, case, _CASE_MANAGER)
         dl.create(case)
         dl.create(embargo)
 
         activity = add_embargo_to_case_activity(
             embargo,
             target=as_VulnerabilityCase(id_=case.id_),
-            actor="https://example.org/users/vendor",
+            actor=_CASE_MANAGER,
             to=["https://example.org/users/coord"],
         )
         event = make_payload(activity)
@@ -107,13 +115,14 @@ class TestEmbargoTermRevise:
             end_time=days_from_now_utc(45),
         )
         # Default em_state is NONE — not a valid predecessor for ACTIVE.
+        seed_case_manager_participant(dl, case, _CASE_MANAGER)
         dl.create(case)
         dl.create(embargo)
 
         activity = add_embargo_to_case_activity(
             embargo,
             target=as_VulnerabilityCase(id_=case.id_),
-            actor="https://example.org/users/vendor",
+            actor=_CASE_MANAGER,
             to=["https://example.org/users/coord"],
         )
         event = make_payload(activity)
@@ -153,12 +162,14 @@ class TestEmbargoTermRevise:
         )
         case.proposed_embargoes.append(embargo.id_)
         case.append_case_status(em_state=EM.PROPOSED)
+        seed_case_manager_participant(dl, case, _CASE_MANAGER)
         dl.create(case)
 
         activity = remove_embargo_from_case_activity(
             embargo,
             origin=as_VulnerabilityCase(id_=case.id_),
-            actor="https://example.org/users/coord",
+            actor=_CASE_MANAGER,
+            to=["https://example.org/users/coord"],
         )
         event = make_payload(
             activity, receiving_actor_id="https://example.org/users/coord"
@@ -204,12 +215,14 @@ class TestEmbargoTermRevise:
         )
         case.active_embargo = embargo.id_
         case.append_case_status(em_state=EM.ACTIVE)
+        seed_case_manager_participant(dl, case, _CASE_MANAGER)
         dl.create(case)
 
         activity = remove_embargo_from_case_activity(
             embargo,
             origin=as_VulnerabilityCase(id_=case.id_),
-            actor="https://example.org/users/coord",
+            actor=_CASE_MANAGER,
+            to=["https://example.org/users/coord"],
         )
         event = make_payload(
             activity, receiving_actor_id="https://example.org/users/coord"
@@ -253,12 +266,14 @@ class TestEmbargoTermRevise:
         )
         case.active_embargo = embargo.id_
         case.append_case_status(em_state=EM.PROPOSED)
+        seed_case_manager_participant(dl, case, _CASE_MANAGER)
         dl.create(case)
 
         activity = remove_embargo_from_case_activity(
             embargo,
             origin=as_VulnerabilityCase(id_=case.id_),
-            actor="https://example.org/users/coord",
+            actor=_CASE_MANAGER,
+            to=["https://example.org/users/coord"],
         )
         event = make_payload(
             activity, receiving_actor_id="https://example.org/users/coord"

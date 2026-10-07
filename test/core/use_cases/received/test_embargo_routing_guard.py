@@ -80,8 +80,12 @@ def _make_embargo_case(
     )
     p1_id = f"{case_id}/participants/p1"
     case.actor_participant_index[author_id] = p1_id
+    # The author owns the case, so it may terminate the embargo (ADR-0115).
     p1 = as_CaseParticipant(
-        id_=p1_id, context=case_id, attributed_to=author_id
+        id_=p1_id,
+        context=case_id,
+        attributed_to=author_id,
+        case_roles=[CVDRole.CASE_OWNER],
     )
     dl.create(p1)
 
@@ -210,13 +214,30 @@ class TestInviteToEmbargoRoutingGuard:
         """
         dl, _case_actor, _case, embargo = self._setup()
 
+        # The invitee's replica takes the Invite from the CASE_MANAGER, which
+        # relays the author's proposal (ADR-0115).
         proposal = em_propose_embargo_activity(
             embargo,
             context=self.CASE_ID,
-            actor=self.AUTHOR_ID,
+            actor=self.CASE_ACTOR_ID,
+            attributed_to=self.AUTHOR_ID,
             to=[self.INVITEE_ID],
             id_=f"{self.CASE_ID}/proposals/1",
         )
+        # The invitee holds its own replica of the case.
+        replica = SqliteDataLayer(
+            "sqlite:///:memory:", actor_id=self.INVITEE_ID
+        )
+        for obj_id in [
+            _case.id_,
+            embargo.id_,
+            *(str(p) for p in _case.case_participants),
+            *(str(p) for p in _case.actor_participant_index.values()),
+        ]:
+            obj = dl.read(obj_id)
+            if obj is not None and replica.read(obj_id) is None:
+                replica.create(obj)
+        dl = replica
         dl.create(proposal)
 
         event = make_payload(proposal, receiving_actor_id=self.INVITEE_ID)
@@ -224,6 +245,7 @@ class TestInviteToEmbargoRoutingGuard:
             dl,
             event,
             sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
@@ -259,10 +281,12 @@ class TestAcceptInviteToEmbargoRoutingGuard:
         case.current_status.em.state = EM.PROPOSED
         dl.save(case)
 
+        # The CASE_MANAGER relayed the Invite to the coordinator, who answers.
         proposal = em_propose_embargo_activity(
             embargo,
             context=case.id_,
-            actor=self.COORD_ID,
+            actor=self.CASE_ACTOR_ID,
+            to=[self.COORD_ID],
             id_=f"{self.CASE_ID}/proposals/1",
         )
         dl.create(proposal)
