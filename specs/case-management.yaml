@@ -4742,7 +4742,8 @@ groups:
     statement: >-
       `VulnerabilityCase` MUST expose a computed `activeParticipants` collection on the wire holding
       exactly the participants the CM-31-002 check finds active. It MUST NOT be stored, and reading a
-      serialized case back in MUST ignore or recompute it rather than refuse it.
+      serialized case back in MUST recompute it rather than refuse it as an unknown key; a supplied
+      value that contradicts the recomputed one is refused (ARCH-23-005).
     rationale: >-
       `case_participants` stays the full roster that role resolution and `actor_participant_index`
       read (CM-19-001). Publishing the active set as its own collection makes
