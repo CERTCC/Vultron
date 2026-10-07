@@ -234,6 +234,8 @@ print(json2md(rm_invite_to_case()))
 - **Protocol role:** The invited actor accepts and joins the case at RM Received.
   The CASE_MANAGER records the acceptance in the ledger, seats the participant, and then sends `Announce(VulnerabilityCase)` to seed the new participant's replica ([CM-17-004](../specs/protocol.md#cm-17-004)).
 - **Wire activity:** `Accept(Invite(Actor, target=VulnerabilityCaseStub))`.
+  It joins the case and consents to the active embargo; it does not judge the case.
+  The participant judges the case by answering the full-case Invite that follows.
 - **Example artifact:** [accept_invite_to_case.json](../examples/accept_invite_to_case.json).
 
 ```python exec="true" idprefix=""
@@ -256,6 +258,47 @@ from vultron.wire.as2.vocab.examples.vocab_examples import reject_invite_to_case
 
 print(json2md(reject_invite_to_case()))
 ```
+
+---
+
+## Invite Actor to Full Case
+
+- **Protocol role:** After a participant joins, the CASE_MANAGER sends `Announce(VulnerabilityCase)`, starts the ledger replay, and then asks the participant to judge the case with the full-case Invite ([CM-11-010](../specs/protocol.md#cm-11-010), [ADR-0121](../../adr/0121-joined-participant-judges-the-case-by-full-case-invite.md)).
+  The participant already holds the case, so the Invite names it by URI and asks one question: is this case valid?
+- **Triggering transition:** none — the Invite asks; the reply moves RM.
+- **Wire activity:** `Invite(Actor, target=VulnerabilityCase)`.
+  The `object` is the participant, and the `target` is the plain case URI ([AKM-02-003](../specs/protocol.md#akm-02-003)).
+  The CASE_MANAGER's ledger position when it issued the Invite travels in the standard AS2 `content` field, as the JSON dump of the `LedgerPosition` model, for example `{"logIndex":3,"entryHash":"<hash>"}`.
+  It is a floor: the participant's reply must reach at least this point in the ledger ([VAM-04-011](../specs/protocol.md#vam-04-011)).
+  An empty ledger is `logIndex` -1 with the case's `genesisHash` as `entryHash` ([CLP-08-004](../specs/protocol.md#clp-08-004)).
+- **Ask kind:** the Invite closes on `Accept`, `TentativeReject` or `Reject` of it (`INVITE_ACTOR_TO_FULL_CASE_REPLY_TYPES`).
+
+---
+
+## Accept Full-Case Invite
+
+- **Protocol role:** The participant judges the case valid (RV).
+  The CASE_MANAGER records RM Received → Valid ([CM-11-011](../specs/protocol.md#cm-11-011)).
+- **Wire activity:** `Accept(Invite(Actor, target=VulnerabilityCase))`.
+  The reply carries the participant's own ledger position in `content`, in the same form as the Invite ([VAM-04-012](../specs/protocol.md#vam-04-012)).
+  The CASE_MANAGER refuses a reply whose position is behind the Invite's, or names an entry its ledger does not hold, and writes nothing ([CM-11-012](../specs/protocol.md#cm-11-012)).
+
+---
+
+## Tentatively Reject Full-Case Invite
+
+- **Protocol role:** The participant judges the case invalid (RI).
+  The CASE_MANAGER records RM Received → Invalid.
+  The stub Invite has no `TentativeReject`, because accepting a stub judges nothing ([CM-11-007](../specs/protocol.md#cm-11-007)).
+- **Wire activity:** `TentativeReject(Invite(Actor, target=VulnerabilityCase))`, carrying the participant's ledger position in `content` ([VAM-04-013](../specs/protocol.md#vam-04-013)).
+
+---
+
+## Reject Full-Case Invite
+
+- **Protocol role:** The participant closes the case (RC).
+  The CASE_MANAGER records RM Received → Closed, and the participant stops receiving case content.
+- **Wire activity:** `Reject(Invite(Actor, target=VulnerabilityCase))`, carrying the participant's ledger position in `content` ([VAM-04-014](../specs/protocol.md#vam-04-014)).
 
 ---
 

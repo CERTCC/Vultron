@@ -21,9 +21,11 @@ from vultron.core.models.events.actor import (
     AcceptCaseOwnershipTransferReceivedEvent,
     AcceptCaseParticipantRoleReceivedEvent,
     AcceptInviteActorToCaseReceivedEvent,
+    AcceptInviteActorToFullCaseReceivedEvent,
     AcceptOfferCaseParticipantReceivedEvent,
     AnnounceVulnerabilityCaseReceivedEvent,
     InviteActorToCaseReceivedEvent,
+    InviteActorToFullCaseReceivedEvent,
     OfferActorToCaseReceivedEvent,
     OfferCaseOwnershipTransferReceivedEvent,
     OfferCaseParticipantReceivedEvent,
@@ -31,16 +33,20 @@ from vultron.core.models.events.actor import (
     RejectCaseOwnershipTransferReceivedEvent,
     RejectCaseParticipantRoleReceivedEvent,
     RejectInviteActorToCaseReceivedEvent,
+    RejectInviteActorToFullCaseReceivedEvent,
     RejectOfferCaseParticipantReceivedEvent,
+    TentativeRejectInviteActorToFullCaseReceivedEvent,
 )
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.use_cases.received.actor import (
     AcceptCaseOwnershipTransferReceivedUseCase,
     AcceptCaseParticipantRoleReceivedUseCase,
     AcceptInviteActorToCaseReceivedUseCase,
+    AcceptInviteActorToFullCaseReceivedUseCase,
     AcceptOfferCaseParticipantReceivedUseCase,
     AnnounceVulnerabilityCaseReceivedUseCase,
     InviteActorToCaseReceivedUseCase,
+    InviteActorToFullCaseReceivedUseCase,
     OfferActorToCaseReceivedUseCase,
     OfferCaseOwnershipTransferReceivedUseCase,
     OfferCaseParticipantReceivedUseCase,
@@ -48,7 +54,9 @@ from vultron.core.use_cases.received.actor import (
     RejectCaseOwnershipTransferReceivedUseCase,
     RejectCaseParticipantRoleReceivedUseCase,
     RejectInviteActorToCaseReceivedUseCase,
+    RejectInviteActorToFullCaseReceivedUseCase,
     RejectOfferCaseParticipantReceivedUseCase,
+    TentativeRejectInviteActorToFullCaseReceivedUseCase,
 )
 from vultron.semantic_registry._entry import SemanticEntry
 from vultron.wire.as2.extractor import (
@@ -56,8 +64,10 @@ from vultron.wire.as2.extractor import (
     AcceptCaseOwnershipTransferActivityPattern,
     AcceptCaseParticipantRolePattern,
     AcceptInviteActorToCasePattern,
+    AcceptInviteActorToFullCasePattern,
     AnnounceVulnerabilityCasePattern,
     InviteActorToCasePattern,
+    InviteActorToFullCasePattern,
     OfferActorToCasePattern,
     OfferCaseOwnershipTransferActivityPattern,
     OfferCaseParticipantRolePattern,
@@ -65,6 +75,8 @@ from vultron.wire.as2.extractor import (
     RejectCaseOwnershipTransferActivityPattern,
     RejectCaseParticipantRolePattern,
     RejectInviteActorToCasePattern,
+    RejectInviteActorToFullCasePattern,
+    TentativeRejectInviteActorToFullCasePattern,
 )
 from vultron.wire.as2.extractor._instances import SuggestActorToCasePattern
 from vultron.wire.as2.vocab.activities.actor import (
@@ -81,9 +93,13 @@ from vultron.wire.as2.vocab.activities.case import (
     _OfferCaseParticipantRoleActivity,
     _RejectCaseOwnershipTransferActivity,
     _RejectCaseParticipantRoleActivity,
+    _RmAcceptFullCaseInviteActivity,
     _RmAcceptInviteToCaseActivity,
     _RmInviteToCaseActivity,
+    _RmInviteToFullCaseActivity,
+    _RmRejectFullCaseInviteActivity,
     _RmRejectInviteToCaseActivity,
+    _RmTentativeRejectFullCaseInviteActivity,
 )
 
 ENTRIES: list[SemanticEntry] = [
@@ -204,6 +220,42 @@ ENTRIES: list[SemanticEntry] = [
         use_case_class=RejectInviteActorToCaseReceivedUseCase,
         phrase="{actor} declined the case invitation",
         wire_activity_class=_RmRejectInviteToCaseActivity,
+        include_activity=True,
+    ),
+    SemanticEntry(
+        semantics=MessageSemantics.INVITE_ACTOR_TO_FULL_CASE,
+        pattern=InviteActorToFullCasePattern,
+        event_class=InviteActorToFullCaseReceivedEvent,
+        use_case_class=InviteActorToFullCaseReceivedUseCase,
+        phrase="{actor} invited {object} to judge the case",
+        wire_activity_class=_RmInviteToFullCaseActivity,
+        include_activity=True,
+    ),
+    SemanticEntry(
+        semantics=MessageSemantics.ACCEPT_INVITE_ACTOR_TO_FULL_CASE,
+        pattern=AcceptInviteActorToFullCasePattern,
+        event_class=AcceptInviteActorToFullCaseReceivedEvent,
+        use_case_class=AcceptInviteActorToFullCaseReceivedUseCase,
+        phrase="{actor} judged the case valid",
+        wire_activity_class=_RmAcceptFullCaseInviteActivity,
+        include_activity=True,
+    ),
+    SemanticEntry(
+        semantics=MessageSemantics.TENTATIVE_REJECT_INVITE_ACTOR_TO_FULL_CASE,
+        pattern=TentativeRejectInviteActorToFullCasePattern,
+        event_class=TentativeRejectInviteActorToFullCaseReceivedEvent,
+        use_case_class=TentativeRejectInviteActorToFullCaseReceivedUseCase,
+        phrase="{actor} judged the case invalid",
+        wire_activity_class=_RmTentativeRejectFullCaseInviteActivity,
+        include_activity=True,
+    ),
+    SemanticEntry(
+        semantics=MessageSemantics.REJECT_INVITE_ACTOR_TO_FULL_CASE,
+        pattern=RejectInviteActorToFullCasePattern,
+        event_class=RejectInviteActorToFullCaseReceivedEvent,
+        use_case_class=RejectInviteActorToFullCaseReceivedUseCase,
+        phrase="{actor} closed the case",
+        wire_activity_class=_RmRejectFullCaseInviteActivity,
         include_activity=True,
     ),
     SemanticEntry(

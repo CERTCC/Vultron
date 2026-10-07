@@ -348,6 +348,22 @@ ROW_SPECS: tuple[RowSpec, ...] = (
         page="case_management",
     ),
     RowSpec(
+        semantics=MessageSemantics.INVITE_ACTOR_TO_FULL_CASE,
+        page="case_management",
+    ),
+    RowSpec(
+        semantics=MessageSemantics.ACCEPT_INVITE_ACTOR_TO_FULL_CASE,
+        page="case_management",
+    ),
+    RowSpec(
+        semantics=MessageSemantics.TENTATIVE_REJECT_INVITE_ACTOR_TO_FULL_CASE,
+        page="case_management",
+    ),
+    RowSpec(
+        semantics=MessageSemantics.REJECT_INVITE_ACTOR_TO_FULL_CASE,
+        page="case_management",
+    ),
+    RowSpec(
         semantics=MessageSemantics.ANNOUNCE_VULNERABILITY_CASE,
         page="case_management",
     ),

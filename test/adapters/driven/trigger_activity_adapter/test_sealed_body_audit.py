@@ -133,6 +133,19 @@ class _World:
         archive_received(self.dl, self.dl.read(invite_id))
         return invite_id
 
+    def full_case_invite_id(self) -> str:
+        """A full-case Invite as the invitee holds it (archived by intake)."""
+        invite_id, _ = self.adapter.invite_actor_to_full_case(
+            invitee_id=_PEER,
+            case_id=self.case_id,
+            actor=_ACTOR,
+            to=[_PEER],
+            ledger_log_index=3,
+            ledger_entry_hash="ab" * 32,
+        )
+        archive_received(self.dl, self.dl.read(invite_id))
+        return invite_id
+
     def recommendation_id(self) -> str:
         rec_id, _ = self.adapter.suggest_actor_to_case(
             recommended_id=_PEER,
@@ -320,6 +333,34 @@ RECIPES: dict[str, Recipe] = {
     ),
     "reject_case_invite": lambda w: w.adapter.reject_case_invite(
         invite_id=w.invite_id(), actor=_PEER
+    ),
+    "invite_actor_to_full_case": lambda w: w.adapter.invite_actor_to_full_case(
+        invitee_id=_PEER,
+        case_id=w.case_id,
+        actor=_ACTOR,
+        to=[_PEER],
+        ledger_log_index=3,
+        ledger_entry_hash="ab" * 32,
+    ),
+    "accept_full_case_invite": lambda w: w.adapter.accept_full_case_invite(
+        invite_id=w.full_case_invite_id(),
+        actor=_PEER,
+        ledger_log_index=3,
+        ledger_entry_hash="ab" * 32,
+    ),
+    "tentative_reject_full_case_invite": lambda w: (
+        w.adapter.tentative_reject_full_case_invite(
+            invite_id=w.full_case_invite_id(),
+            actor=_PEER,
+            ledger_log_index=3,
+            ledger_entry_hash="ab" * 32,
+        )
+    ),
+    "reject_full_case_invite": lambda w: w.adapter.reject_full_case_invite(
+        invite_id=w.full_case_invite_id(),
+        actor=_PEER,
+        ledger_log_index=3,
+        ledger_entry_hash="ab" * 32,
     ),
     "suggest_actor_to_case": lambda w: w.adapter.suggest_actor_to_case(
         recommended_id=_PEER, case_id=w.case_id, actor=_PEER, to=[_ACTOR]

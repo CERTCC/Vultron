@@ -51,6 +51,7 @@ from vultron.core.use_cases.triggers.request_bodies import (
     CloseCaseRequest,
     CloseReportRequest,
     CreateCaseRequest,
+    FullCaseInviteReplyRequest,
     InvalidateReportRequest,
     InviteActorToCaseRequest,
     OfferCaseOwnershipTransferRequest,
@@ -272,6 +273,36 @@ class RejectCaseInviteTriggerRequest(
     """
 
 
+class AcceptFullCaseInviteTriggerRequest(
+    TriggerRequest[ActivityResult], FullCaseInviteReplyRequest
+):
+    """Trigger request for a joined participant to judge the case valid (RV).
+
+    Emits ``Accept(full-case Invite)`` carrying the participant's own ledger
+    position, queued in its outbox for the CASE_MANAGER (CM-11-011).
+    """
+
+
+class TentativeRejectFullCaseInviteTriggerRequest(
+    TriggerRequest[ActivityResult], FullCaseInviteReplyRequest
+):
+    """Trigger request for a joined participant to judge the case invalid (RI).
+
+    Emits ``TentativeReject(full-case Invite)`` carrying the participant's own
+    ledger position (CM-11-011).
+    """
+
+
+class RejectFullCaseInviteTriggerRequest(
+    TriggerRequest[ActivityResult], FullCaseInviteReplyRequest
+):
+    """Trigger request for a joined participant to close the case (RC).
+
+    Emits ``Reject(full-case Invite)`` carrying the participant's own ledger
+    position (CM-11-011).
+    """
+
+
 class AcceptActorRecommendationTriggerRequest(
     TriggerRequest[ActivityResult], AcceptActorRecommendationRequest
 ):
@@ -379,6 +410,7 @@ __all__ = [
     "AcceptActorRecommendationTriggerRequest",
     "AcceptCaseInviteTriggerRequest",
     "AcceptCaseOwnershipTransferTriggerRequest",
+    "AcceptFullCaseInviteTriggerRequest",
     "AcceptEmbargoTriggerRequest",
     "AddNoteToCaseTriggerRequest",
     "AddObjectToCaseTriggerRequest",
@@ -389,6 +421,8 @@ __all__ = [
     "CloseReportTriggerRequest",
     "CreateCaseTriggerRequest",
     "DeferCaseTriggerRequest",
+    "RejectFullCaseInviteTriggerRequest",
+    "TentativeRejectFullCaseInviteTriggerRequest",
     "EngageCaseTriggerRequest",
     "InvalidateReportTriggerRequest",
     "InviteActorToCaseTriggerRequest",
