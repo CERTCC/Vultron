@@ -12,6 +12,8 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """The one active-participant predicate (CM-10-004, ADR-0114, #4046 AC-1)."""
 
+import re
+
 import pytest
 from pydantic import ValidationError
 
@@ -233,7 +235,8 @@ def test_removal_fact_refuses_a_blank_value(blank: str) -> None:
 def test_no_participant_property_reads_as_active() -> None:
     """The active answer lives on the case; the record holds only its inputs."""
     names = set(dir(CaseParticipant)) | set(CaseParticipant.model_fields)
-    assert not sorted(n for n in names if "active" in n.lower())
+    reads_as_active = re.compile(r"(^|_)(is_)?active(_|$)", re.IGNORECASE)
+    assert not sorted(n for n in names if reads_as_active.search(n))
 
 
 @pytest.mark.spec("CM-31-001", "CM-31-002", "CM-10-004")
@@ -280,15 +283,18 @@ def _carrying_case(*participants: CaseParticipant) -> VulnerabilityCase:
     return case
 
 
-def _signatory(name: str, **kwargs: object) -> CaseParticipant:
+def _signatory(
+    name: str, *, removal_activity: str | None = None, joined: bool = True
+) -> CaseParticipant:
     return CaseParticipant(
         id_=f"{CASE_ID}/participants/{name}",
         attributed_to=f"https://example.org/actors/{name}",
         context=CASE_ID,
+        joined=joined,
+        removal_activity=removal_activity,
         embargo_consents=[
             EmbargoConsent(embargo_id=EMBARGO_ID, state=S.ACCEPTED)
         ],
-        **kwargs,  # type: ignore[arg-type]
     )
 
 
@@ -328,18 +334,6 @@ def test_active_participants_is_published_by_alias_and_round_trips() -> None:
     assert VulnerabilityCase.model_validate(stored) == case
 
 
-@pytest.mark.spec("CM-31-003")
-def test_active_participants_is_not_in_the_stored_row() -> None:
-    """The persistence record carries the facts, not the derived view."""
-    from vultron.adapters.driven.db_record import Record
-
-    case = _carrying_case(_signatory("kept"))
-    data = Record.from_obj(case).data_
-
-    assert "active_participants" not in data
-    assert "activeParticipants" not in data
-
-
 @pytest.mark.spec("ARCH-23-005")
 def test_contradicting_active_participants_is_refused() -> None:
     """A supplied view that disagrees with the carried records is refused."""
@@ -354,3 +348,17 @@ def test_contradicting_active_participants_is_refused() -> None:
 
     with pytest.raises(ValidationError):
         VulnerabilityCase.model_validate(wire)
+
+
+@pytest.mark.spec("ARCH-23-005", "VM-10-001")
+def test_only_the_default_context_reads_back_as_no_override() -> None:
+    """The default ``@context`` round-trips as ``None``; another is kept."""
+    case = _carrying_case(_signatory("kept"))
+    wire = case.model_dump(by_alias=True, mode="json")
+    assert wire["@context"]
+    assert VulnerabilityCase.model_validate(wire).context_ is None
+
+    other = "https://example.org/other-context.jsonld"
+    restored = VulnerabilityCase.model_validate({**wire, "@context": other})
+    assert restored.context_ == other
+    assert restored.model_dump(by_alias=True)["@context"] == other

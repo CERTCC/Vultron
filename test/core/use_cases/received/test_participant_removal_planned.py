@@ -174,10 +174,9 @@ class _RemovalCase:
         is derived from the records the case carries (CM-31-003).
         """
         case = self.read_case()
-        records = [
-            self.dl.read(_as_id(entry) or "")
-            for entry in case.case_participants
-        ]
+        ids = [_as_id(entry) for entry in case.case_participants]
+        assert all(ids), ids
+        records = [self.dl.read(i) for i in ids if i]
         assert all(isinstance(r, CaseParticipant) for r in records)
         return case.model_copy(update={"case_participants": records})
 

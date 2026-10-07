@@ -468,7 +468,8 @@ validators on `CoreObject` (see `_check_computed_field_inputs` and
   appears in the `by_alias` dump but is not settable, so a round-trip must
   drop it first. The persistence dump (no `by_alias`) omits computed fields
   altogether, so a stored row holds only the facts a view is derived from
-  and cannot contradict a later change to the derivation (#4079). Dropping it *unconditionally* would silently erase a peer asserting
+  and cannot contradict a later change to the derivation (#4079). Dropping it
+  *unconditionally* would silently erase a peer asserting
   adherence its own consent state denies, so ARCH-23-005 requires a supplied
   value that differs from the derived one to be refused instead (#3547).
   `_check_computed_field_inputs` is a `mode="wrap"` validator: it records every
