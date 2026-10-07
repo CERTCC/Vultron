@@ -21,8 +21,8 @@ from vultron.core.models.use_case_result import (
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.services.idempotent_store import idempotent_store
 from vultron.core.use_cases._helpers import (
-    _idempotent_create,
     is_recipient,
     resolve_receiving_actor_id,
 )
@@ -129,7 +129,7 @@ class OfferCaseOwnershipTransferReceivedUseCase:
             )
             return verdict
 
-        stored = _idempotent_create(
+        stored = idempotent_store(
             self._dl,
             request.activity_type,
             request.activity_id,

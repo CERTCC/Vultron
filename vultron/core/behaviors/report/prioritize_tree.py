@@ -30,6 +30,8 @@ Per specs/behavior-tree-integration.yaml BT-06 requirements.
 Structure:
 
     EngageCaseBT (Sequence)
+    ├─ HoldCarriedEmbargoNode                        # Only when the Engage carried a case snapshot
+    ├─ StoreEmbeddedParticipantsNode                 # Only when the Engage carried a case snapshot
     ├─ CheckParticipantExists                        # Precondition: actor has a participant record
     ├─ GuardedCommitCaseLedgerEntryBT                  # Record receipt before effects (CLP-10-006)
     ├─ TransitionParticipantRMtoAccepted             # Update RM state to ACCEPTED
@@ -59,6 +61,10 @@ from vultron.core.behaviors.case.engage_defer_trigger_tree import (
     defer_case_trigger_bt,
     engage_case_trigger_bt,
 )
+from vultron.core.behaviors.case.nodes.carried_snapshot import (
+    HoldCarriedEmbargoNode,
+    StoreEmbeddedParticipantsNode,
+)
 from vultron.core.behaviors.case.nodes.participant.status import (
     CreateParticipantStatusNode,
 )
@@ -79,6 +85,7 @@ from vultron.core.behaviors.report.nodes.conditions import (
     CheckRMStateAccepted,
     CheckRMStateDeferred,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.rm import RM
 
 if TYPE_CHECKING:
@@ -94,6 +101,7 @@ logger = logging.getLogger(__name__)
 def create_engage_case_tree(
     case_id: str,
     actor_id: str,
+    case_obj: VulnerabilityCase | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """
     Create behavior tree for the engage_case workflow.
@@ -109,14 +117,26 @@ def create_engage_case_tree(
     Args:
         case_id: ID of VulnerabilityCase being engaged
         actor_id: ID of Actor whose RM state transitions to ACCEPTED
+        case_obj: The case snapshot the Engage carried, if any.  Its embargo
+            is held and its inline participants are stored before the
+            participant guard looks for them (CBT-05-005, EMB-18-003).
 
     Returns:
         Root node of the engage_case behavior tree (Sequence)
     """
+    snapshot_steps: list[py_trees.behaviour.Behaviour] = (
+        []
+        if case_obj is None
+        else [
+            HoldCarriedEmbargoNode(case_obj, case_id),
+            StoreEmbeddedParticipantsNode(case_obj, case_id),
+        ]
+    )
     root = create_receive_activity_tree(
         name="EngageCaseBT",
         case_id=case_id,
         precondition_guards=[
+            *snapshot_steps,
             CheckParticipantExists(case_id=case_id, actor_id=actor_id),
         ],
         effect_nodes=[

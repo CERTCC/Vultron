@@ -61,7 +61,7 @@ class VultronOwnershipTransferOfferRecord(CoreObject):
 
     ``id_`` is set to ``offer_id`` directly so that ``dl.read(offer_id)``
     finds this record — matching what the HTTP-inbox path stores for the
-    same Offer via ``_idempotent_create``.
+    same Offer via ``idempotent_store``.
 
     ``actor_id`` and ``target_id`` are what let the adapter layer rebuild a wire
     ``_OfferCaseOwnershipTransferActivity`` from this record when a replica's

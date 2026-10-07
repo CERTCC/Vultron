@@ -38,15 +38,15 @@ class CreateReportReceivedUseCase:
 
 - Accept `(dl, request)` in `__init__`; `execute()` takes no arguments and returns
   a `UseCaseResult` subtype (`HandlerResult` received-side), never `None`
-  (HP-01-001, UCORG-05-001, ADR-0095); ratchet
-  `test/architecture/test_use_case_execute_returns_result.py`
+  (HP-01-001, UCORG-05-001, ADR-0095); ratcheted in `test/architecture/`
 - Report a `HandlerDisposition`, never `InboxOutcome` (HP-01-004); write with
   `dl.save()`/`dl.create()`, never hand-built records (HP-08-001); both ratcheted
-  under `test/architecture/` (`test_use_cases_no_inbox_outcome.py`,
-  `test_no_record_level_persistence_in_core.py`)
+  in `test/architecture/`
+- Store-only received handlers call `run_store_only` (`received/_store_only.py`),
+  never a bespoke store; verdict via `store_only_verdict`
 - Register in `SEMANTIC_REGISTRY` (`vultron/semantic_registry/`)
-- Dispatcher raises `VultronApiHandlerNotFoundError` for unrecognised
-  semantic types; do **not** add per-handler type validation decorators
+- Dispatcher raises `VultronApiHandlerNotFoundError` for unknown semantic types;
+  do **not** add per-handler type validation decorators
 
 ---
 

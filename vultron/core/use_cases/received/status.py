@@ -7,6 +7,9 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.store_received_object import (
+    StoreReceivedObjectNode,
+)
 from vultron.core.behaviors.status.add_case_status_tree import (
     add_case_status_tree,
 )
@@ -35,13 +38,16 @@ from vultron.core.models.use_case_result import (
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.use_cases._helpers import (
-    _idempotent_create,
     resolve_receiving_actor_id,
 )
 from vultron.core.use_cases.received._bt_verdict import (
     find_named,
     node_failed,
     verdict_from_bt,
+)
+from vultron.core.use_cases.received._store_only import (
+    run_store_only,
+    store_only_verdict,
 )
 
 if TYPE_CHECKING:
@@ -98,13 +104,22 @@ class CreateCaseStatusReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        return _idempotent_create(
+        tree, result = run_store_only(
             self._dl,
-            request.object_type,
-            request.status_id,
-            request.status,
-            "CaseStatus",
-            request.activity_id,
+            request,
+            name="CreateCaseStatusReceivedBT",
+            sync_port=self._sync_port,
+            wire_render_port=self._wire_render_port,
+            store_node=StoreReceivedObjectNode(
+                request.object_type,
+                request.status_id,
+                request.status,
+                "CaseStatus",
+                request.activity_id,
+            ),
+        )
+        return store_only_verdict(
+            tree, result, label="CreateCaseStatusReceivedBT"
         )
 
 
@@ -197,9 +212,7 @@ class AddCaseStatusToCaseReceivedUseCase:
 
 class CreateParticipantStatusReceivedUseCase:
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#3871",
-        "store-only intake of Create(ParticipantStatus); no sender check "
-        "until the handler moves onto the shared intake tree",
+        "#4070", "no sender check defined for participant status creation"
     )
 
     def __init__(
@@ -216,13 +229,22 @@ class CreateParticipantStatusReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        return _idempotent_create(
+        tree, result = run_store_only(
             self._dl,
-            request.object_type,
-            request.status_id,
-            request.status,
-            "ParticipantStatus",
-            request.activity_id,
+            request,
+            name="CreateParticipantStatusReceivedBT",
+            sync_port=self._sync_port,
+            wire_render_port=self._wire_render_port,
+            store_node=StoreReceivedObjectNode(
+                request.object_type,
+                request.status_id,
+                request.status,
+                "ParticipantStatus",
+                request.activity_id,
+            ),
+        )
+        return store_only_verdict(
+            tree, result, label="CreateParticipantStatusReceivedBT"
         )
 
 

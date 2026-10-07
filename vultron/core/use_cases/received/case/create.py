@@ -3,26 +3,29 @@
 import logging
 from typing import ClassVar
 
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.create_case_received_tree import (
+    create_create_case_received_tree,
+)
+from vultron.core.behaviors.case.nodes.replica_bootstrap import (
+    ClassifyBootstrapRouteNode,
+)
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlement,
     exempt,
 )
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.case import CreateCaseReceivedEvent
-from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.core.models.use_case_result import HandlerResult
-from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
+)
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
-from vultron.core.services.case_replica_seeding import (
-    store_embedded_participants,
-)
-from vultron.errors import VultronAlreadyExistsError
-
-from ._helpers import (
-    _find_report_case_link,
-    _hold_carried_embargo,
+from vultron.core.use_cases._helpers import resolve_receiving_actor_id
+from vultron.core.use_cases.received._bt_verdict import (
+    find_node,
+    verdict_from_bt,
 )
 
 logger = logging.getLogger(__name__)
@@ -34,12 +37,13 @@ class CreateCaseReceivedUseCase:
     Receiving this message means *someone else* created the case and is
     notifying us.  We do NOT create our own case infrastructure here.
 
-    Bootstrap trust path (CBT-01-005 / CBT-01-006):
-    1. Locate the ``VultronReportCaseLink`` for any report listed in the case.
-    2. Validate that the sender matches ``link.case_creator_id``.
-    3. Extract the ``CaseActor`` ID from the ``CASE_MANAGER`` participant.
-    4. Seed a local replica of the case via the case-replica BT.
-    5. Update the link with ``case_id`` and ``case_manager_id``.
+    The trust decision and every write run in
+    :func:`~vultron.core.behaviors.case.create_case_received_tree.create_create_case_received_tree`
+    (CLP-10-005, CLP-10-007): a sender the receiver expected (a pending
+    ``VultronReportCaseLink``, CBT-01-005 / CBT-01-006), a redelivery of a
+    bootstrap already accepted, or a CASE_MANAGER bootstrapping a participant
+    directly (ADR-0041 AC-5).  ``execute()`` builds the tree, runs it once, and
+    reports the outcome.
     """
 
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
@@ -60,7 +64,6 @@ class CreateCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        actor_id = request.actor_id
         case_id = request.case_id
 
         if request.case is None:
@@ -81,191 +84,32 @@ class CreateCaseReceivedUseCase:
                 "Create(VulnerabilityCase) case object has no id"
             )
 
-        case_obj = request.case
-        link = _find_report_case_link(actor_id, self._dl)
-
-        if link is not None:
-            # Bootstrap trust path — CBT-01-005 / CBT-01-006
-            return self._handle_bootstrap(actor_id, case_id, case_obj, link)
-        if self._already_bootstrapped(actor_id, case_id):
+        tree = create_create_case_received_tree(
+            request.case, case_id, request.actor_id
+        )
+        result = BTBridge(
+            datalayer=self._dl,
+            wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
+        ).execute_with_setup(
+            tree=tree,
+            actor_id=resolve_receiving_actor_id(
+                self._dl, request.receiving_actor_id
+            ),
+            activity=request,
+        )
+        verdict = verdict_from_bt(tree, result, label="CreateCaseReceivedBT")
+        if verdict.disposition is not HandlerDisposition.APPLIED:
+            return verdict
+        classify = find_node(tree, ClassifyBootstrapRouteNode)
+        route = classify.route if classify is not None else None
+        if route is not None and route.name == "redelivery":
             # Redelivery of a bootstrap already accepted (CBT-01-006).
             return HandlerResult.skipped(
                 f"bootstrap of case '{case_id}' already accepted"
             )
-        # Non-owner participant path (ADR-0041 AC-5)
-        return self._handle_direct_participant_bootstrap(
-            actor_id, case_id, case_obj
-        )
-
-    def _already_bootstrapped(self, actor_id: str, case_id: str) -> bool:
-        """True if a ReportCaseLink already binds *case_id* to *actor_id*."""
-        return any(
-            isinstance(obj, VultronReportCaseLink)
-            and obj.case_id == case_id
-            and obj.case_creator_id == actor_id
-            for obj in self._dl.list_objects("ReportCaseLink")
-        )
-
-    def _store_replica(
-        self, case_id: str, case_obj: VulnerabilityCase
-    ) -> bool:
-        """Persist *case_obj* unless a replica exists; True if it was stored."""
-        if self._dl.read_case(case_id) is not None:
-            logger.info(
-                "create_case_received: case '%s' already exists as replica "
-                "— skipping re-seed",
-                case_id,
-            )
-            return False
-        try:
-            self._dl.create(case_obj)
-        except VultronAlreadyExistsError:
-            logger.info(
-                "create_case_received: case '%s' persisted concurrently "
-                "— idempotent",
-                case_id,
-            )
-            return False
-        return True
-
-    def _handle_direct_participant_bootstrap(
-        self,
-        actor_id: str,
-        case_id: str,
-        case_obj: VulnerabilityCase,
-    ) -> HandlerResult:
-        """Seed the case replica when the receiver is a non-owner participant.
-
-        Under ADR-0041 AC-5, CaseActor bootstraps reporters/finders directly by
-        including them in the ``to`` field of ``Create(VulnerabilityCase)``.
-        The reporter side has no ``VultronReportCaseLink``, so the standard
-        trust path is unavailable.  We fall back to trusting the CaseActor
-        identity embedded in the case snapshot: only accept when the sender's
-        actor ID matches the CASE_MANAGER participant in the snapshot.
-        """
-        case_manager_id = resolve_case_manager_id(case_obj, self._dl)
-        if case_manager_id is None or case_manager_id != actor_id:
-            logger.warning(
-                "create_case_received: no ReportCaseLink for case '%s' and "
-                "sender '%s' is not the CaseActor — refusing",
-                case_id,
-                actor_id,
-            )
-            return HandlerResult.refused(
-                f"untrusted Create of case '{case_id}': no ReportCaseLink and"
-                f" sender '{actor_id}' is not its CASE_MANAGER (ADR-0041 AC-5)"
-            )
-        if (
-            refusal := _hold_carried_embargo(case_obj, self._dl, case_id)
-        ) is not None:
-            return refusal
-        stored = self._store_replica(case_id, case_obj)
-        store_embedded_participants(case_obj, self._dl, case_id)
-        if not stored:
-            return HandlerResult.skipped(f"case '{case_id}' already seeded")
-        logger.info(
-            "create_case_received: stored case '%s' replica for non-owner"
-            " participant from CaseActor '%s' (ADR-0041 AC-5)",
-            case_id,
-            actor_id,
-        )
-        return HandlerResult.applied()
-
-    def _handle_bootstrap(
-        self,
-        actor_id: str,
-        case_id: str,
-        case_obj: VulnerabilityCase,
-        link: VultronReportCaseLink,
-    ) -> HandlerResult:
-        """Validate trust and seed the case replica."""
-        # CBT-01-005: sender must match the actor we sent the report to
-        if link.case_creator_id is not None:
-            if actor_id != link.case_creator_id:
-                logger.warning(
-                    "create_case_received: bootstrap rejected for case '%s' — "
-                    "sender does not match trusted case creator "
-                    "(CBT-01-005)",
-                    case_id,
-                )
-                return HandlerResult.refused(
-                    f"bootstrap of case '{case_id}' rejected: sender"
-                    f" '{actor_id}' is not the trusted case creator"
-                    " (CBT-01-005)"
-                )
-        else:
-            logger.warning(
-                "create_case_received: no case_creator_id in link "
-                "for case '%s'; accepting bootstrap unchecked",
-                case_id,
-            )
-
-        # CBT-01-003: extract CaseActor from CASE_MANAGER participant
-        case_actor_id = resolve_case_manager_id(case_obj, self._dl)
-        if case_actor_id is None:
-            logger.warning(
-                "create_case_received: no CASE_MANAGER participant found in "
-                "bootstrap snapshot for case '%s'; Announce validation will "
-                "be bypassed",
-                case_id,
-            )
-
-        # CBT-05-008 / CBT-01-007: all participants MUST be inline typed objects.
-        # Refuse before persisting anything so bootstrap is atomic: the full
-        # payload must be valid before any state is committed ("examine the
-        # shipment before shelving its contents").
-        participants = getattr(case_obj, "case_participants", []) or []
-        bare = [p for p in participants if isinstance(p, str)]
-        if bare:
-            reason = (
-                f"Bootstrap Create(VulnerabilityCase) for case '{case_id}'"
-                f" contains {len(bare)} bare-URI participant reference(s);"
-                f" inline typed objects required (CBT-01-007, CBT-05-008)"
-            )
-            logger.warning("create_case_received: %s", reason)
-            return HandlerResult.refused(reason)
-
-        logger.info(
-            "create_case_received: bootstrap accepted for case '%s' from "
-            "'%s'; seeding replica (CBT-01-006)",
-            case_id,
-            actor_id,
-        )
-
-        # Hold the embargo the case names before the replica is saved, and
-        # refuse a case naming one this store cannot read (EMB-18-003).
-        if (
-            refusal := _hold_carried_embargo(case_obj, self._dl, case_id)
-        ) is not None:
-            return refusal
-
-        # Seed the local case replica
-        # Idempotency guard (CBT-01-006, ID-04-004)
-        stored = self._store_replica(case_id, case_obj)
-        if stored:
-            logger.info(
-                "create_case_received: replica case '%s' persisted", case_id
-            )
-
-        # CBT-01-006: persist trust anchors in the link
-        link.case_id = case_id
-        link.case_manager_id = case_actor_id
-        self._dl.save(link)
-        logger.info(
-            "create_case_received: ReportCaseLink updated with case_id='%s' "
-            "and case_manager_id='%s' (CBT-01-006)",
-            case_id,
-            case_actor_id,
-        )
-
-        # CBT-05-005: store any embedded participant objects so that BT nodes
-        # (``CheckParticipantExists``, ``AppendParticipantStatusNode``) can
-        # find them by UUID via ``datalayer.read(participant_id)``.
-        # This must happen regardless of the idempotency guard above because
-        # the inbox router may have already seeded the case before dispatch.
-        store_embedded_participants(case_obj, self._dl, case_id)
-        if not stored:
-            # The trust anchors and embedded objects above are re-applied
+        if route is not None and not route.replica_stored:
+            # The trust anchors and embedded objects are re-applied
             # idempotently; only the replica itself already existed.
             return HandlerResult.skipped(f"case '{case_id}' already seeded")
         return HandlerResult.applied()

@@ -107,6 +107,35 @@ class TestEngageDeferCaseBTFailureReason:
 
         assert result.disposition == HandlerDisposition.REFUSED
 
+    def test_engage_naming_an_unheld_embargo_is_refused_and_stores_nothing(
+        self, dl, actor_id, case_id
+    ):
+        """EMB-18-003: a carried snapshot naming an unreadable embargo is
+        refused before its participants are stored."""
+        participant = CaseParticipant(
+            id_=f"{case_id}/participants/vendor",
+            attributed_to=actor_id,
+            context=case_id,
+        )
+        case = VulnerabilityCase(
+            id_=case_id,
+            name="engage snapshot",
+            active_embargo=f"{case_id}/embargo_events/unheld",
+            case_participants=[participant],
+        )
+        event = EngageCaseReceivedEvent(
+            activity_id="https://example.org/activities/engage-002",
+            actor_id=actor_id,
+            object_=case,
+            semantic_type=MessageSemantics.ENGAGE_CASE,
+        )
+
+        result = EngageCaseReceivedUseCase(dl, event).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert "EMB-18-003" in (result.reason or "")
+        assert dl.read(participant.id_) is None
+
     def test_engage_case_failure_reason_is_nonempty(
         self, dl, actor_id, case_id, caplog
     ):
