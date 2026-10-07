@@ -56,6 +56,7 @@ import logging
 from collections.abc import Callable, Sequence
 
 from vultron.demo.helpers.runner import run_exchange_demos
+from vultron.demo.helpers.workflow import create_case_via_trigger
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
     DataLayerClient,
@@ -69,11 +70,8 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     setup_demo_logging,
     verify_object_stored,
 )
-from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
-    add_participant_to_case_activity,
     add_report_to_case_activity,
-    create_case_activity,
     rm_close_case_activity,
     rm_close_report_activity,
     rm_defer_case_activity,
@@ -82,13 +80,9 @@ from vultron.wire.as2.factories import (
     rm_submit_report_activity,
     rm_validate_report_activity,
 )
-from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-    as_Create,
-)
 
 # Vultron imports
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -130,32 +124,11 @@ def setup_report_and_case(
     )
     post_to_inbox_and_wait(client, vendor.id_, validate_activity)
 
-    case = as_VulnerabilityCase(
-        attributed_to=vendor.id_,
-        name=case_name,
-        content=case_content,
-    )
-    create_case_act = create_case_activity(case, actor=vendor.id_)
-    post_to_inbox_and_wait(client, vendor.id_, create_case_act)
-
-    vendor_participant = as_CaseParticipant(
-        case_roles=[CVDRole.VENDOR],
-        attributed_to=vendor.id_,
-        context=case.id_,
+    case = create_case_via_trigger(
+        client, vendor, name=case_name, content=case_content
     )
 
-    create_vendor_participant = as_Create(
-        actor=vendor.id_,
-        object_=vendor_participant,
-        context=case.id_,
-    )
-    post_to_inbox_and_wait(client, vendor.id_, create_vendor_participant)
-
-    add_vendor_participant = add_participant_to_case_activity(
-        vendor_participant, actor=vendor.id_, target=case.id_
-    )
-    post_to_inbox_and_wait(client, vendor.id_, add_vendor_participant)
-
+    # The trigger-minted case already lists the vendor as participant.
     add_report = add_report_to_case_activity(
         report, actor=vendor.id_, target=case.id_
     )

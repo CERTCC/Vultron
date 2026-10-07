@@ -549,11 +549,6 @@ def test_case_proposal_accept_from_addressee_with_trailing_slash_is_applied(
     assert reloaded.case_manager_id == sender
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="CM-30-001: Remove(Note) from neither author nor owner is applied. Tracked by #4230 (source #4074).",
-)
 @pytest.mark.spec("CM-30-001")
 def test_note_removal_by_stranger_is_refused(
     cm_store, owned_case, make_payload
@@ -581,11 +576,6 @@ def test_note_removal_by_stranger_is_refused(
     assert cm_store.outbox_list() == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="CM-30-002: Add(VulnerabilityReport) from a non-owner is applied. Tracked by #4230 (source #4074).",
-)
 @pytest.mark.spec("CM-30-002")
 def test_report_addition_by_non_owner_is_refused(
     cm_store, owned_case, make_payload

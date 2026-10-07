@@ -66,6 +66,7 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("Reject", "Offer"),  # close_report (RC)
     ("Read", "Offer"),  # ack_report (RK, ADR-0021)
     ("Add", "Note"),
+    ("Remove", "Note"),  # remove_note_from_case
     ("Add", "VulnerabilityReport"),  # add_report_to_case
     ("Add", "CaseStatus"),  # add_case_status_to_case
     ("Add", "ParticipantStatus"),
