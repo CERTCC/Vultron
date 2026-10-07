@@ -18,39 +18,19 @@ own rather than only on "no ERROR SUMMARY" — a demo whose checks silently
 stopped running would otherwise still pass (#2241).
 """
 
-import importlib
 import logging
 
 import pytest
-from _pytest.monkeypatch import MonkeyPatch
 
-from test.demo._helpers import make_client, make_testclient_call
+from test.demo._helpers import route_exchange_demo_at_testclient
 from vultron.demo.exchange import report_with_embargo_demo as demo
-from vultron.demo.helpers import runner
 
 
 @pytest.fixture(scope="module")
 def demo_env(client):
-    """Route the demo's client at the in-process TestClient.
-
-    Besides patching ``DataLayerClient.call``, the runner's client has to be
-    *built* with the test server's base URL: this demo drives the Reporter
-    through ``ActorSession``, which refuses a client whose base URL is not the
-    authority that hosts the actor (DEMOMA-26-002), and the actors here are
-    hosted under the TestClient's ``http://testserver``.
-    """
-    mp = MonkeyPatch()
-    base = str(client.base_url).rstrip("/") + "/api/v2"
-    try:
-        mp.setattr(demo, "BASE_URL", base)
-        mp.setattr(
-            demo.DataLayerClient, "call", make_testclient_call(client, base)
-        )
-        mp.setattr(runner, "DataLayerClient", lambda: make_client(base))
+    """Route the demo's client at the in-process TestClient (DEMOMA-26-002)."""
+    with route_exchange_demo_at_testclient(client, demo):
         yield
-    finally:
-        mp.undo()
-        importlib.reload(demo)
 
 
 @pytest.mark.spec("EP-04-003")

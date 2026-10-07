@@ -252,7 +252,7 @@ def demo_propose_and_activate_embargo(
     ``Invite(EmbargoEvent)`` the CASE_MANAGER relays to them and post
     ``accept-embargo`` — the vendor's records its consent, the coordinator's,
     as case owner, activates the embargo.  The helper then checks every replica
-    for ``EM.ACTIVE`` and the coordinator's replica for ``PEC.SIGNATORY`` on all
+    for ``EM.ACTIVE`` and the coordinator's replica for an ``ACCEPTED`` consent row on all
     three participants (DEMOMA-20-002, DEMOMA-20-009).
 
     Args:
@@ -328,11 +328,9 @@ def demo_propose_embargo_revision(
 
     *owner* may be the same session as *proposing*; it is then never sent an
     Invite and answers its own proposal.  *accepting* must be neither.
-    The owner answers only once the acceptor's answer is in
-    ``accepted_embargo_ids`` at the CASE_MANAGER: a signatory's answer to a
-    revision leaves its consent state unchanged (EP-09-004), but an owner that
-    activates a longer revision first lapses every signatory without that id
-    (EP-05-001).
+    The owner answers only once the acceptor's ``ACCEPTED`` row for the revision
+    is committed at the CASE_MANAGER, so the owner does not decide ahead of it
+    (ADR-0122).
 
     Args:
         proposing: The proposer, bound to its own container.

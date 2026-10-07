@@ -24,7 +24,8 @@ Sub-modules
 - :mod:`~vultron.demo.helpers.polling` — ``_poll_until``,
   ``find_case_invite_for_actor``, ``find_cp_offer_for_case``,
   ``find_case_actor_participant_id``, ``find_ownership_transfer_offer_for_actor``,
-  ``resolve_case_actor_store_id``, ``wait_for_object_stored``, and all
+  ``resolve_case_actor_store_id``, ``wait_for_object_stored``,
+  ``wait_for_report_submission_stored``, and all
   ``wait_for_*`` helpers.
 - :mod:`~vultron.demo.helpers.embargo` — ``make_embargo_event`` factory and
   ``publish_embargo_policy`` (``PUT /actors/{slug}/embargo-policy``, EP-02).
@@ -131,6 +132,7 @@ from vultron.demo.helpers.polling import (
     wait_for_participant_vf_state,
     wait_for_participants_on_replicas,
     wait_for_pending_inbox_quiescent,
+    wait_for_report_submission_stored,
 )
 from vultron.demo.helpers.runner import (
     check_all_containers,

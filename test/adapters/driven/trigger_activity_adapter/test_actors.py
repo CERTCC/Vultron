@@ -84,6 +84,7 @@ class TestInviteActorToCaseWithInlineEmbargo:
             id_=case_id,
             name="CVE-2025-009",
             attributed_to=_ACTOR,
+            stub_summary="Security issue — embargo active, details after acceptance",
             case_statuses=[
                 CaseStatus(
                     context=case_id,

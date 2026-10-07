@@ -578,7 +578,10 @@ class TestEmitInviteActorToCaseNodeCommitsBeforeQueuing:
         from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 
         case = as_VulnerabilityCase(
-            id_=AC3_CASE_ID, name="AC3 commit order", attributed_to=ACTOR_ID
+            id_=AC3_CASE_ID,
+            name="AC3 commit order",
+            attributed_to=ACTOR_ID,
+            stub_summary="Security issue — details shared after acceptance",
         )
         dl.create(case)
 

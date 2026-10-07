@@ -236,6 +236,7 @@ def _invite_response_body(activity_type: str) -> dict[str, object]:
                 "type": "VulnerabilityCaseStub",
                 "id": "https://example.org/cases/case-1/stub",
                 "caseId": "https://example.org/cases/case-1",
+                "summary": "Security issue — details shared after acceptance",
             },
             "to": ["https://example.org/actors/coordinator"],
         },

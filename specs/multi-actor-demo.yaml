@@ -3705,6 +3705,11 @@ groups:
       The invariant harness MUST assert, for each scenario, that every causal
       edge declared in that scenario's narrative appears in the observed case
       ledger, with the antecedent's log index preceding the consequent's.
+      The harness MUST also check each edge's actor tag against the ledger:
+      the consequent entry considered MUST be one whose recorded `actor`
+      resolves, through the scenario's dump manifest, to the edge's
+      `consequent_actor`, and an edge with no such entry, or whose recorded
+      actor is absent from the manifest, MUST fail.
     rationale: >-
       The case ledger records `log_index` in causal order (ADR-0079,
       CLP-14-001) and the invariant harness already reads the per-scenario

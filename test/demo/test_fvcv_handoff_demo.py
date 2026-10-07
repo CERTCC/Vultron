@@ -1197,11 +1197,21 @@ class TestFinderCaseReplicaWaitBeforeVendor2Triage:
                 "demo_step",
                 side_effect=lambda _: __import__("contextlib").nullcontext(),
             ),
+            # set_stub_summary is seeding infrastructure not under test here.
+            patch.object(ActorSession, "set_stub_summary"),
+            patch.object(
+                demo,
+                "get_actor_by_id",
+                return_value=self._actor("urn:t:case-actor"),
+            ),
         ):
+            case_actor_client = MagicMock()
+            case_actor_client.get.return_value = {}
             demo._phase_coordinator_invites_vendor2(
                 finder_client=finder_client,
                 vendor_client=vendor_client,
                 coordinator_client=coordinator_client,
+                case_actor_client=case_actor_client,
                 vendor2_client=vendor2_client,
                 finder=self._actor("urn:t:finder"),
                 vendor=self._actor("urn:t:vendor"),
@@ -1365,12 +1375,23 @@ class TestPhaseOwnershipHandoffForwardedOfferId:
                 # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
                 side_effect=lambda _: contextlib.nullcontext(),
             ),
+            # set_stub_summary is seeding infrastructure; stub it out so it
+            # does not consume a trigger_seq slot before the invite call.
+            patch.object(ActorSession, "set_stub_summary"),
+            patch.object(
+                demo,
+                "get_actor_by_id",
+                return_value=self._actor("urn:test:case-actor"),
+            ),
         ):
+            case_actor_client = MagicMock()
+            case_actor_client.get.return_value = {}
             mock_vc.model_validate.return_value = case
             demo._phase_ownership_handoff(
                 finder_client=finder_client,
                 vendor_client=vendor_client,
                 coordinator_client=coordinator_client,
+                case_actor_client=case_actor_client,
                 finder=self._actor("urn:test:finder"),
                 vendor=self._actor("urn:test:vendor"),
                 vendor_in_vendor=vendor_in_vendor,
@@ -1761,12 +1782,23 @@ class TestPhaseOwnershipHandoffGatesOnCaseActorCommit:
                 "demo_step",
                 side_effect=lambda _: contextlib.nullcontext(),
             ),
+            # set_stub_summary is seeding infrastructure; stub it out so it
+            # does not consume a trigger_seq slot before the invite call.
+            patch.object(ActorSession, "set_stub_summary"),
+            patch.object(
+                demo,
+                "get_actor_by_id",
+                return_value=self._actor("urn:test:case-actor"),
+            ),
         ):
+            case_actor_client = MagicMock()
+            case_actor_client.get.return_value = {}
             mock_vc.model_validate.return_value = case
             demo._phase_ownership_handoff(
                 finder_client=clients["finder"],
                 vendor_client=clients["vendor"],
                 coordinator_client=clients["coordinator"],
+                case_actor_client=case_actor_client,
                 finder=self._actor("urn:test:finder"),
                 vendor=self._actor("urn:test:vendor"),
                 vendor_in_vendor=self._actor("urn:test:vendor"),
@@ -1861,6 +1893,12 @@ class TestPhaseOwnershipHandoffGatesOnCaseActorCommit:
                 "demo_step",
                 side_effect=lambda _: contextlib.nullcontext(),
             ),
+            patch.object(ActorSession, "set_stub_summary"),
+            patch.object(
+                demo,
+                "get_actor_by_id",
+                return_value=self._actor("urn:test:case-actor"),
+            ),
         ):
             client = MagicMock()
             client.get.return_value = {}
@@ -1869,6 +1907,7 @@ class TestPhaseOwnershipHandoffGatesOnCaseActorCommit:
                 finder_client=client,
                 vendor_client=client,
                 coordinator_client=client,
+                case_actor_client=client,
                 finder=actor,
                 vendor=actor,
                 vendor_in_vendor=actor,
@@ -1962,6 +2001,13 @@ class TestFvcvHandoffOwnershipHandoffSkipsDependents:
                 demo, "find_ownership_transfer_offer_for_actor", **offer_lookup
             ) as find_offer,
             patch.object(demo, "as_VulnerabilityCase") as mock_vc,
+            # set_stub_summary is seeding infrastructure not under test here.
+            patch.object(ActorSession, "set_stub_summary"),
+            patch.object(
+                demo,
+                "get_actor_by_id",
+                return_value=self._actor("urn:test:case-actor"),
+            ),
         ):
             mock_vc.model_validate.return_value = case
             # Must not raise: every failure is accumulated, never escaped.
@@ -1969,6 +2015,7 @@ class TestFvcvHandoffOwnershipHandoffSkipsDependents:
                 finder_client=finder_client,
                 vendor_client=vendor_client,
                 coordinator_client=coordinator_client,
+                case_actor_client=self._client(),
                 finder=self._actor("urn:test:finder"),
                 vendor=self._actor("urn:test:vendor"),
                 vendor_in_vendor=self._actor("urn:test:vendor"),
@@ -2064,11 +2111,19 @@ class TestFvcvHandoffVendor2InviteChainSkipsDependents:
                 invite_chain, "find_case_invite_for_actor", **invite_lookup
             ) as find_invite,
             patch.object(demo, "wait_for_case_participants"),
+            # set_stub_summary is seeding infrastructure not under test here.
+            patch.object(ActorSession, "set_stub_summary"),
+            patch.object(
+                demo,
+                "get_actor_by_id",
+                return_value=self._actor("urn:t:case-actor"),
+            ),
         ):
             demo._phase_coordinator_invites_vendor2(
                 finder_client=finder_client,
                 vendor_client=vendor_client,
                 coordinator_client=coordinator_client,
+                case_actor_client=self._client(),
                 vendor2_client=vendor2_client,
                 finder=self._actor("urn:t:finder"),
                 vendor=self._actor("urn:t:vendor"),

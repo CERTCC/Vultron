@@ -132,6 +132,10 @@ def _setup_case_with_vendor(
         attributed_to=vendor.id_,
         name="UAF Case — Memory Allocator",
         content="Tracking the use-after-free in the memory allocator.",
+        stub_summary=(
+            "Use-after-free in memory allocator"
+            " — details shared after acceptance."
+        ),
     )
     create_case_act = create_case_activity(case, actor=vendor.id_)
     post_to_inbox_and_wait(client, vendor.id_, create_case_act)
@@ -197,7 +201,7 @@ def demo_manage_participants_accept(
         invite = rm_invite_to_case_activity(
             coordinator,
             actor=vendor.id_,
-            target=case.id_,
+            target=case,
             to=[coordinator.id_],
             content=f"Inviting you to participate in {case.name}.",
         )
@@ -352,7 +356,7 @@ def demo_manage_participants_reject(
         invite = rm_invite_to_case_activity(
             coordinator,
             actor=vendor.id_,
-            target=case.id_,
+            target=case,
             to=[coordinator.id_],
             content=f"Inviting you to participate in {case.name}.",
         )

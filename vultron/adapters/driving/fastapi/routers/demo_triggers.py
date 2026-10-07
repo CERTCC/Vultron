@@ -68,12 +68,14 @@ from vultron.core.use_cases.triggers.request_bodies import (
     NotifyFixDeployedRequest,
     NotifyFixReadyRequest,
     NotifyPublishedRequest,
+    SetStubSummaryRequest,
     SyncLogEntryRequest,
 )
 from vultron.core.use_cases.triggers.requests import (
     AddNoteToCaseTriggerRequest,
     AddParticipantStatusTriggerRequest,
     LeaveCaseTriggerRequest,
+    SetStubSummaryTriggerRequest,
     SyncLogEntryTriggerRequest,
 )
 from vultron.errors import VultronCanonicalEntryError
@@ -354,6 +356,46 @@ def demo_sync_log_entry(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Log entry commit did not persist.",
         ) from None
+
+
+@router.post(
+    "/{actor_id}/demo/set-stub-summary",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="[Demo] Seed stub_summary on the actor's DataLayer copy of a case.",
+    description=(
+        "Demo-only scaffold. "
+        "Seeds ``stub_summary`` on the actor's local DataLayer copy of the "
+        "case so that a subsequent ``invite-actor-to-case`` trigger can build "
+        "the stub Invite (CM-17-010, MV-10-001, #4165). "
+        "Only available in ``RunMode.PROTOTYPE``."
+    ),
+    operation_id="actors_demo_set_stub_summary",
+    response_model=StatusResult,
+)
+def demo_set_stub_summary(
+    actor_id: str,
+    body: SetStubSummaryRequest,
+    background_tasks: BackgroundTasks,
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> StatusResult:
+    """Seed stub_summary on the actor's DataLayer copy of a case (demo scaffold).
+
+    Call this before ``invite-actor-to-case`` to satisfy the stub-Invite
+    precondition (CM-17-010, MV-10-001).
+
+    Implements: CM-17-010, MV-10-001, TRIG-09-001, TRIG-09-004.
+    """
+    return run_trigger(
+        SetStubSummaryTriggerRequest(
+            actor_id=actor_id,
+            case_id=body.case_id,
+            stub_summary=body.stub_summary,
+        ),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
+    )
 
 
 @router.get(

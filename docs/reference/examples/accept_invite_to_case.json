@@ -22,7 +22,8 @@
       "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
       "type": "VulnerabilityCaseStub",
       "id": "urn:uuid:5ee42b3b-ef6a-42db-9953-7684b8e2095f/stub",
-      "caseId": "urn:uuid:5ee42b3b-ef6a-42db-9953-7684b8e2095f"
+      "caseId": "urn:uuid:5ee42b3b-ef6a-42db-9953-7684b8e2095f",
+      "summary": "A memory-corruption vulnerability in widget — details shared after acceptance."
     },
     "object": {
       "@context": "https://www.w3.org/ns/activitystreams",

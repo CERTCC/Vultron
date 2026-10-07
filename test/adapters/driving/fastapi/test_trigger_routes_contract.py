@@ -156,6 +156,10 @@ _BODIES: dict[str, dict[str, Any]] = {
         "object_id": _CASE,
         "event_type": "contract",
     },
+    "set-stub-summary": {
+        "case_id": _CASE,
+        "stub_summary": "Test stub summary",
+    },
 }
 
 #: Verbs whose route runs more than one trigger: ``notify-fix-ready`` is the

@@ -167,7 +167,11 @@ def test_store_nested_inbox_object_stores_the_parsed_case_stub(
 ):
     """A case stub is stored as the ``as_VulnerabilityCaseStub`` parsed."""
     activity = _parsed_announce(
-        {"type": "VulnerabilityCaseStub", "caseId": "urn:uuid:case-stub-001"}
+        {
+            "type": "VulnerabilityCaseStub",
+            "caseId": "urn:uuid:case-stub-001",
+            "summary": "Security issue — details shared after acceptance",
+        }
     )
     assert type(activity.object_) is as_VulnerabilityCaseStub
 

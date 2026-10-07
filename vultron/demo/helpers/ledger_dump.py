@@ -120,6 +120,10 @@ class LedgerDumpReport:
     records: list[ActorLedgerRecord] = field(default_factory=list)
     reason: str | None = None
     """Explicit summary; overrides the one derived from *records*."""
+    unreplicated: dict[str, str] = field(default_factory=dict)
+    """``{actorName: routeKey}`` of actors that acted in the case but hold no
+    ledger replica to dump (e.g. an invitee that rejected). Recorded so the
+    invariant harness can resolve them as the recorded actor of an entry."""
 
     @property
     def ledger_file_count(self) -> int:
@@ -155,6 +159,10 @@ class LedgerDumpReport:
             "targetCount": len(self.records),
             "reason": self.summary(),
             "actors": [record.as_manifest_entry() for record in self.records],
+            "unreplicatedActors": [
+                {"actorName": name, "routeKey": route_key}
+                for name, route_key in self.unreplicated.items()
+            ],
         }
 
 
@@ -383,6 +391,7 @@ def dump_case_ledgers(
     case: as_VulnerabilityCase,
     targets: list[LedgerDumpTarget],
     output_root: pathlib.Path | None = None,
+    unreplicated: dict[str, str] | None = None,
 ) -> LedgerDumpReport:
     """Export every target's case-ledger view, then write the dump manifest.
 
@@ -395,6 +404,9 @@ def dump_case_ledgers(
         case: The case whose ledgers are exported.
         targets: Actors to export, in output order.
         output_root: Devlogs root; defaults to ``DEVLOGS_DIR``.
+        unreplicated: ``{actorName: routeKey}`` of actors that acted in the
+            case but have no replica to dump; written to the manifest so
+            their entries' recorded actor still resolves to a name.
 
     Returns:
         The dump report, also persisted as the manifest.
@@ -408,7 +420,11 @@ def dump_case_ledgers(
     slug = case_id_slug(case_id)
     case_key = strip_id_prefix(case_id)
 
-    report = LedgerDumpReport(demo_name=demo_name, case_id=case_id or None)
+    report = LedgerDumpReport(
+        demo_name=demo_name,
+        case_id=case_id or None,
+        unreplicated=dict(unreplicated or {}),
+    )
     try:
         for target in targets:
             record = ActorLedgerRecord(
