@@ -15,8 +15,11 @@
 
 """Tree factories for received Add/Remove CaseParticipant activities.
 
-Each factory returns a minimal ``py_trees`` behaviour that wraps the
-corresponding leaf node for use with ``BTBridge.execute_with_setup()``.
+Each factory composes the corresponding leaf node through
+:func:`~vultron.core.behaviors.case.receive_activity_tree.create_receive_activity_tree`
+so intake archives the received activity first (CLP-10-017) and a refused
+delivery still leaves its record (CLP-10-018).  The tree carries no
+``case_id`` for the commit stage: these activities are not ledgered here.
 """
 
 import logging
@@ -26,6 +29,9 @@ import py_trees
 from vultron.core.behaviors.case.nodes.case_participant_received import (
     AddCaseParticipantToCaseReceivedNode,
     RemoveCaseParticipantFromCaseReceivedNode,
+)
+from vultron.core.behaviors.case.receive_activity_tree import (
+    create_receive_activity_tree,
 )
 
 logger = logging.getLogger(__name__)
@@ -42,11 +48,18 @@ def create_add_case_participant_received_tree(
         case_id: URI of the case to add the participant to.
 
     Returns:
-        A ``py_trees`` ``Behaviour`` ready for ``BTBridge.execute_with_setup()``.
+        The root ``Sequence``, ready for ``BTBridge.execute_with_setup()``.
     """
-    root = AddCaseParticipantToCaseReceivedNode(
-        participant_id=participant_id,
-        case_id=case_id,
+    root = create_receive_activity_tree(
+        name="AddCaseParticipantReceivedBT",
+        case_id=None,
+        precondition_guards=[],
+        effect_nodes=[
+            AddCaseParticipantToCaseReceivedNode(
+                participant_id=participant_id,
+                case_id=case_id,
+            )
+        ],
     )
     logger.debug(
         "Created AddCaseParticipantReceivedBT for participant='%s' case='%s'",
@@ -67,11 +80,18 @@ def create_remove_case_participant_received_tree(
         case_id: URI of the case to remove the participant from.
 
     Returns:
-        A ``py_trees`` ``Behaviour`` ready for ``BTBridge.execute_with_setup()``.
+        The root ``Sequence``, ready for ``BTBridge.execute_with_setup()``.
     """
-    root = RemoveCaseParticipantFromCaseReceivedNode(
-        participant_id=participant_id,
-        case_id=case_id,
+    root = create_receive_activity_tree(
+        name="RemoveCaseParticipantReceivedBT",
+        case_id=None,
+        precondition_guards=[],
+        effect_nodes=[
+            RemoveCaseParticipantFromCaseReceivedNode(
+                participant_id=participant_id,
+                case_id=case_id,
+            )
+        ],
     )
     logger.debug(
         "Created RemoveCaseParticipantReceivedBT"

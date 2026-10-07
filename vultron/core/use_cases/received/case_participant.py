@@ -33,6 +33,7 @@ from vultron.core.use_cases._helpers import (
 )
 from vultron.core.use_cases.received._bt_verdict import verdict_from_bt
 from vultron.core.use_cases.received._store_only import (
+    refuse_after_intake,
     run_store_only,
     store_only_verdict,
 )
@@ -103,9 +104,14 @@ class AddCaseParticipantToCaseReceivedUseCase:
             logger.warning(
                 "add_case_participant_to_case: missing participant_id or case_id"
             )
-            return HandlerResult.refused(
+            return refuse_after_intake(
+                self._dl,
+                request,
                 "Add(CaseParticipant, Case) is missing its participant id or"
-                " case id"
+                " case id",
+                name="AddCaseParticipantReceivedBT",
+                sync_port=self._sync_port,
+                wire_render_port=self._wire_render_port,
             )
         tree = create_add_case_participant_received_tree(
             participant_id=participant_id,
@@ -173,24 +179,22 @@ class RemoveCaseParticipantFromCaseReceivedUseCase:
             logger.warning(
                 "remove_case_participant_from_case: missing participant_id or case_id"
             )
-            return HandlerResult.refused(
+            return refuse_after_intake(
+                self._dl,
+                request,
                 "Remove(CaseParticipant, Case) is missing its participant id"
-                " or case id"
+                " or case id",
+                name="RemoveCaseParticipantReceivedBT",
+                sync_port=self._sync_port,
+                wire_render_port=self._wire_render_port,
             )
         # The node treats an absent participant as idempotent SUCCESS, so the
-        # no-op has to be told apart here to report it as SKIPPED.
+        # no-op has to be told apart here to report it as SKIPPED.  The tree
+        # still runs so intake archives the delivery (CLP-10-017).
         case = self._dl.read_case(case_id)
-        if case is not None and participant_id not in [
+        already_absent = case is not None and participant_id not in [
             _as_id(p) for p in case.case_participants
-        ]:
-            logger.info(
-                "Participant '%s' not in case '%s' — skipping (idempotent)",
-                participant_id,
-                case_id,
-            )
-            return HandlerResult.skipped(
-                f"participant '{participant_id}' not in case '{case_id}'"
-            )
+        ]
         tree = create_remove_case_participant_received_tree(
             participant_id=participant_id,
             case_id=case_id,
@@ -222,6 +226,15 @@ class RemoveCaseParticipantFromCaseReceivedUseCase:
                 verdict.reason,
             )
             return verdict
+        if already_absent:
+            logger.info(
+                "Participant '%s' not in case '%s' — skipping (idempotent)",
+                participant_id,
+                case_id,
+            )
+            return HandlerResult.skipped(
+                f"participant '{participant_id}' not in case '{case_id}'"
+            )
         logger.info(
             "Removed participant '%s' from case '%s'",
             participant_id,

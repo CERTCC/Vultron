@@ -95,20 +95,6 @@ def _archived_by_intake(dl: SqliteDataLayer, activity_id: str) -> bool:
     return isinstance(record, ReceivedActivityRecord)
 
 
-def _activity_stored(dl: SqliteDataLayer, activity_id: str) -> bool:
-    """Return True if any activity with *activity_id* is in the DataLayer.
-
-    Activities are stored in type-keyed collections (e.g. ``"Create"``),
-    so ``dl.read(id)`` does not work for them.  This helper tries each
-    known activity type used in these tests.
-    """
-    for type_key in ("Create", "Read", "Reject", "TentativeReject", "Offer"):
-        for record in dl.get_all(type_key):
-            if record.get("id_") == activity_id:
-                return True
-    return False
-
-
 def _make_activity(
     id_: str = ACTIVITY_ID,
     type_: str = "Create",
@@ -494,7 +480,7 @@ def _make_invalidate_report_event() -> InvalidateReportReceivedEvent:
 
 class TestCreateReportReceivedTree:
     def test_happy_path_stores_report_and_activity(self, dl):
-        """Full BT stores both VulnerabilityReport and CreateReport activity."""
+        """Full BT stores the VulnerabilityReport and intake archives the activity."""
         event = _make_create_report_event()
         tree = create_report_received_tree(event)
         bridge = BTBridge(datalayer=dl)
@@ -504,7 +490,7 @@ class TestCreateReportReceivedTree:
 
         assert result.status == Status.SUCCESS
         assert dl.read(REPORT_ID) is not None
-        assert _activity_stored(dl, ACTIVITY_ID)
+        assert _archived_by_intake(dl, ACTIVITY_ID)
 
     def test_idempotent_run_succeeds(self, dl):
         """Second BT execution is idempotent — no-op SUCCESS."""
@@ -530,7 +516,7 @@ class TestCreateReportReceivedUseCase:
         CreateReportReceivedUseCase(dl, event).execute()
 
         assert dl.read(REPORT_ID) is not None
-        assert _activity_stored(dl, ACTIVITY_ID)
+        assert _archived_by_intake(dl, ACTIVITY_ID)
 
     def test_use_case_is_idempotent(self):
         """Calling use case twice does not raise and stays consistent."""
@@ -543,7 +529,7 @@ class TestCreateReportReceivedUseCase:
         CreateReportReceivedUseCase(dl, event).execute()
 
         assert dl.read(REPORT_ID) is not None
-        assert _activity_stored(dl, ACTIVITY_ID)
+        assert _archived_by_intake(dl, ACTIVITY_ID)
 
 
 # ---------------------------------------------------------------------------
@@ -631,7 +617,7 @@ class TestCloseReportReceivedTree:
         )
 
         assert result.status == Status.SUCCESS
-        assert _activity_stored(dl, ACTIVITY_ID)
+        assert _archived_by_intake(dl, ACTIVITY_ID)
 
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
@@ -660,7 +646,7 @@ class TestCloseReportReceivedTree:
         assert any(
             "no vulnerabilitycase for report" in m.lower() for m in msgs
         )
-        assert _activity_stored(dl, ACTIVITY_ID)
+        assert _archived_by_intake(dl, ACTIVITY_ID)
 
     def test_idempotent_rm_transition(self, dl):
         """Already-CLOSED participant stays CLOSED; BT still SUCCESS."""
@@ -687,7 +673,7 @@ class TestCloseReportReceivedUseCase:
         event = _make_close_report_event()
         CloseReportReceivedUseCase(dl, event).execute()
 
-        assert _activity_stored(dl, ACTIVITY_ID)
+        assert _archived_by_intake(dl, ACTIVITY_ID)
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
         participant = cast(CaseParticipant, dl.read(p_id))
@@ -733,7 +719,7 @@ class TestInvalidateReportReceivedTree:
         )
 
         assert result.status == Status.SUCCESS
-        assert _activity_stored(dl, ACTIVITY_ID)
+        assert _archived_by_intake(dl, ACTIVITY_ID)
 
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
@@ -762,7 +748,7 @@ class TestInvalidateReportReceivedTree:
         assert any(
             "no vulnerabilitycase for report" in m.lower() for m in msgs
         )
-        assert _activity_stored(dl, ACTIVITY_ID)
+        assert _archived_by_intake(dl, ACTIVITY_ID)
 
     def test_idempotent_rm_transition(self, dl):
         """Already-INVALID participant stays INVALID; BT still SUCCESS."""
@@ -791,7 +777,7 @@ class TestInvalidateReportReceivedUseCase:
         event = _make_invalidate_report_event()
         InvalidateReportReceivedUseCase(dl, event).execute()
 
-        assert _activity_stored(dl, ACTIVITY_ID)
+        assert _archived_by_intake(dl, ACTIVITY_ID)
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
         participant = cast(CaseParticipant, dl.read(p_id))

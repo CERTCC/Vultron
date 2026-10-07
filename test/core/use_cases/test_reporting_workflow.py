@@ -19,6 +19,9 @@ Test the reporting workflow
 import pytest
 
 from vultron.core.models.events import MessageSemantics
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
+)
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.case import CreateCaseReceivedUseCase
 from vultron.core.use_cases.received.report import (
@@ -129,8 +132,8 @@ def test_submit_report_persists_activity_and_report(reporter, report, dl):
         expected=HandlerDisposition.REFUSED,
     )
 
-    # check side effects
-    assert dl.read(activity.id_) is not None
+    # The refused delivery is still archived by intake (CLP-10-018).
+    assert dl.read(ReceivedActivityRecord.build_id(activity.id_)) is not None
     assert dl.read(report.id_) is not None
 
 
@@ -164,8 +167,8 @@ def test_tentative_reject_triggers_invalidation(reporter, report, dl):
         expected=HandlerDisposition.REFUSED,
     )
 
-    # check side effects
-    assert dl.read(activity.id_) is not None
+    # The refused delivery is still archived by intake (CLP-10-018).
+    assert dl.read(ReceivedActivityRecord.build_id(activity.id_)) is not None
 
 
 def test_create_case_from_untrusted_sender_is_refused(coordinator, case, dl):
@@ -191,5 +194,5 @@ def test_reject_offer_triggers_close_report(reporter, report, dl):
         expected=HandlerDisposition.REFUSED,
     )
 
-    # check side effects
-    assert dl.read(activity.id_) is not None
+    # The refused delivery is still archived by intake (CLP-10-018).
+    assert dl.read(ReceivedActivityRecord.build_id(activity.id_)) is not None

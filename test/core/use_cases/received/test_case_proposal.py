@@ -42,6 +42,9 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.pending_create_case_activity import (
     PendingCreateCaseActivity,
 )
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
+)
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.use_case_result import HandlerDisposition
@@ -860,6 +863,8 @@ class TestCaseProposalDisposition:
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason and "declined" in result.reason
         assert list(dl.list_objects("VulnerabilityCase")) == []
+        # CLP-10-018: the refused Create(CaseProposal) is still archived.
+        assert len(list(dl.list_objects("ReceivedActivityRecord"))) == 1
 
     @pytest.mark.spec("HP-01-003")
     @pytest.mark.spec("CP-05-006")
@@ -899,12 +904,15 @@ class TestCaseProposalDisposition:
         event = make_payload(activity).model_copy(
             update={"receiving_actor_id": _CASE_ACTOR_URI, "object_": None}
         )
+        dl = self._case_actor_dl()
         result = CreateCaseProposalReceivedUseCase(
-            self._case_actor_dl(),
+            dl,
             event,
-            sync_port=SyncActivityAdapter(self._case_actor_dl()),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
         assert result.disposition == HandlerDisposition.REFUSED
+        # CLP-10-018: refused before the real tree could be built, yet kept.
+        assert dl.read(ReceivedActivityRecord.build_id(event.activity_id))
 
     @pytest.mark.spec("ARCH-20-001")
     @pytest.mark.spec("HP-01-003")
