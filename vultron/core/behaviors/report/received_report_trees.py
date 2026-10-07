@@ -17,12 +17,13 @@
 Behavior tree factories for received-side report use cases.
 
 Each factory produces a ``py_trees.composites.Sequence`` that implements the
-inbound protocol handling for one of the four report-lifecycle activities:
+inbound protocol handling (intake archives each received activity first,
+CLP-10-017) for one of the four report-lifecycle activities:
 
-- ``CreateReport`` — store VulnerabilityReport + CreateReport activity
-- ``AckReport``    — store AckReport activity
-- ``CloseReport``  — store CloseReport activity + transition RM → CLOSED
-- ``InvalidateReport`` — store InvalidateReport activity + RM → INVALID
+- ``CreateReport`` — store VulnerabilityReport
+- ``AckReport``    — forward the acknowledgement
+- ``CloseReport``  — transition RM → CLOSED
+- ``InvalidateReport`` — transition RM → INVALID
 
 Trees are run via ``BTBridge.execute_with_setup()`` in the corresponding use
 case.

@@ -16,10 +16,10 @@
 """Tests for received-report behavior trees and use-case integration.
 
 Covers all four report-lifecycle BTs (issue #759 AC-1 through AC-5):
-  - ``CreateReportReceivedBT``    — stores report + activity
+  - ``CreateReportReceivedBT``    — stores report; intake archives activity
   - ``AckReportReceivedBT``      — intake archives activity; forwards own ack
-  - ``CloseReportReceivedBT``    — stores activity + RM → CLOSED
-  - ``InvalidateReportReceivedBT`` — stores activity + RM → INVALID
+  - ``CloseReportReceivedBT``    — intake archives activity; RM → CLOSED
+  - ``InvalidateReportReceivedBT`` — intake archives activity; RM → INVALID
 
 Each BT is tested at three levels:
   1. Node-level (individual storage / transition nodes)
@@ -36,7 +36,6 @@ from py_trees.common import Status
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.report.nodes.storage import (
-    StoreActivityNode,
     StoreReportNode,
 )
 from vultron.core.behaviors.report.received_report_trees import (
@@ -199,61 +198,6 @@ class TestStoreReportNode:
         """StoreReportNode with empty report_id is a no-op SUCCESS."""
         node = StoreReportNode(
             report_id="", report_obj=CoreReport(id_=REPORT_ID)
-        )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
-        assert result.status == Status.SUCCESS
-
-
-# ---------------------------------------------------------------------------
-# StoreActivityNode
-# ---------------------------------------------------------------------------
-
-
-class TestStoreActivityNode:
-    def test_stores_activity_in_dl(self, dl, bridge):
-        """StoreActivityNode persists an activity → SUCCESS."""
-        activity = _make_activity()
-        node = StoreActivityNode(
-            activity_id=ACTIVITY_ID,
-            activity_obj=activity,
-            label="TestActivity",
-        )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
-
-        assert result.status == Status.SUCCESS
-        # Activities are stored in type-keyed collections; dl.read() won't find them.
-        stored = dl.get_all(activity.type_)
-        assert any(r["id_"] == ACTIVITY_ID for r in stored)
-
-    def test_idempotent_second_store(self, dl, bridge):
-        """StoreActivityNode is idempotent — second call is a no-op SUCCESS."""
-        activity = _make_activity()
-        dl.create(activity)  # pre-store
-
-        node = StoreActivityNode(
-            activity_id=ACTIVITY_ID,
-            activity_obj=activity,
-        )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
-        assert result.status == Status.SUCCESS
-
-    def test_no_activity_obj_is_failure(self, dl, bridge, caplog):
-        """StoreActivityNode with activity_obj=None and a set id → FAILURE."""
-        node = StoreActivityNode(
-            activity_id=ACTIVITY_ID,
-            activity_obj=None,
-        )
-        with caplog.at_level(logging.ERROR):
-            result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
-
-        assert result.status == Status.FAILURE
-        assert dl.get_all("Create") == []
-
-    def test_empty_activity_id_is_no_op(self, bridge):
-        """StoreActivityNode with empty activity_id is a no-op SUCCESS."""
-        node = StoreActivityNode(
-            activity_id="",
-            activity_obj=_make_activity(),
         )
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS

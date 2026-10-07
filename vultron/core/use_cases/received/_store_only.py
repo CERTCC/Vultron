@@ -120,5 +120,7 @@ def refuse_after_intake(
         sync_port=sync_port,
         wire_render_port=wire_render_port,
     )
-    applied_or_raise(tree, result, label=name)
+    verdict = applied_or_raise(tree, result, label=name)
+    if verdict.disposition is HandlerDisposition.SKIPPED:
+        return verdict  # leader skip: intake never ran, nothing was archived
     return HandlerResult.refused(reason)

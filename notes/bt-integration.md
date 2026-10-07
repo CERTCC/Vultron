@@ -426,11 +426,11 @@ reason in the test. Intake archives nothing when the event carries no activity,
 so a semantic-registry entry must set `include_activity=True` (#4288 set it for
 add/remove-case-participant and create-note). A handler that turns a delivery
 away before it can build its tree uses `refuse_after_intake`
-(`use_cases/received/_store_only.py`) so the refusal still leaves the archive. Calling the
-factory is not enough: the ratchet checks that the factory *returns* the shared
-factory's result, because a tree that nests it under a hand-built root (as the
-close-case tree did, a Selector whose first arm guarded ahead of intake) runs
-something before intake. Those are a second exact set,
+(`use_cases/received/_store_only.py`) so the refusal still leaves the archive.
+Calling the factory is not enough: the ratchet checks that the factory
+*returns* the shared factory's result, because a tree that nests it under a
+hand-built root (as the close-case tree did, a Selector whose first arm guarded
+ahead of intake) runs something before intake. Those are a second exact set,
 `KNOWN_FACTORIES_NESTING_INTAKE`, empty since #3870 lifted the close-case
 tree's intake to its root. A tree that needs a branch ahead of the receipt
 commit wraps the branch: outer factory with `case_id=None` (intake, no commit),
