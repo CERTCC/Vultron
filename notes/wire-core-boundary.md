@@ -13,6 +13,7 @@ description: >
 related_specs:
   - specs/architecture.yaml (ARCH-12-001, ARCH-12-002, ARCH-12-003, ARCH-20-008,
     ARCH-20-009, ARCH-21-002, ARCH-22-001, ARCH-23-005)
+  - specs/case-management.yaml (CM-31-003)
   - specs/code-style.yaml (CS-08-001, CS-08-002)
   - specs/error-handling.yaml (EH-07-001, EH-07-003)
   - specs/message-validation.yaml (MV-01-001, MV-04-003, MV-10-001, MV-11-001
@@ -28,6 +29,7 @@ related_notes:
   - notes/activity-factories.md
   - notes/domain-validation.md
   - notes/status-dimension-objects.md
+  - notes/case-joining.md
 relevant_packages:
   - vultron/core/models
   - vultron/wire/as2/vocab
@@ -461,10 +463,16 @@ validators on `CoreObject` (see `_check_computed_field_inputs` and
 `_drop_alias_shadowed_field_names`):
 
 - **Strip a matching computed field; refuse a contradicted one** (landed,
-  #3695). A `@computed_field` (`embargo_adherence`, ADR-0056; retired by
-  ADR-0122, no production class declares one now) appears in
-  `model_dump()` output but is not settable, so a round-trip must drop it
-  first. Dropping it *unconditionally* would silently erase a peer asserting
+  #3695). A `@computed_field` (`VulnerabilityCase.activeParticipants`,
+  CM-31-003; formerly `embargo_adherence`, ADR-0056, retired by ADR-0122)
+  appears in the `by_alias` dump but is not settable, so a round-trip must
+  drop it first. The persistence dump (no `by_alias`) omits computed fields
+  altogether, so a stored row holds only the facts a view is derived from
+  and cannot contradict a later change to the derivation (#4079). An object
+  that cannot derive a computed field exactly (a case whose roster holds bare
+  references) leaves it out of the `by_alias` dump too
+  (`_as2_unpublished_fields`), so it never publishes a partial view. Dropping it
+  *unconditionally* would silently erase a peer asserting
   adherence its own consent state denies, so ARCH-23-005 requires a supplied
   value that differs from the derived one to be refused instead (#3547).
   `_check_computed_field_inputs` is a `mode="wrap"` validator: it records every

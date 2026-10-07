@@ -442,7 +442,8 @@ forward), and publishes both `BB_CASE_STATUS_DIM_FILTER` (for
 no new state is carried (RSH-05-005).
 
 `FinalizeCsFilterNode` is a REJECTION_VALIDATORS member: it MUST appear in
-`precondition_guards`, never in `effect_nodes` (CLP-10-009).
+`precondition_guards`, never among the effects (`replica_effects`,
+`manager_effects` or the legacy `effect_nodes`; CLP-10-009).
 
 ### Blackboard keys
 

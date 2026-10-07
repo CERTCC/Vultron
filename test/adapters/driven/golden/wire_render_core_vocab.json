@@ -105,6 +105,7 @@
   },
   "VulnerabilityCase": {
     "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "activeParticipants": [],
     "actorParticipantIndex": {},
     "caseActivity": [],
     "caseParticipants": [],

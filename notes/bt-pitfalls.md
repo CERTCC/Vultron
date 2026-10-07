@@ -1281,25 +1281,53 @@ The cause was structural: about fifteen trees each wrapped their effects in
 `create_case_manager_gated_tree` by hand, so a new tree could simply leave it out.
 
 - **`create_receive_activity_tree` is the one place that applies the gate.**
-  It takes `manager_effects` (wrapped by the factory, after the commit) and
-  `replica_effects` (run on every replica, ungated).
+  It takes `manager_effects` (wrapped by the factory in a `CaseManagerGate`,
+  after the commit) and `replica_effects` (run on every replica, ungated).
+  `manager_gate_name` names the gate (default `{name}IfCaseManager`) and
+  `manager_case_may_be_absent` passes through to `CheckIsCaseManagerNode`.
   A received-tree module does not call `create_case_manager_gated_tree` itself.
 - **Emit-capable nodes carry one shared marker.**
-  The factory raises at construction when a marked node is in `replica_effects`
-  and the tree has no named exemption, so a tree that skips the gate cannot be built.
+  `EmitCapable` (`vultron/core/behaviors/emit_capable.py`) is mixed into
+  `_EmitSingleActivityBase`, `_SendEmbargoActivityBase`,
+  `RelayEmbargoInviteToEachNode`, `BroadcastCaseUpdateNode`, `QueueToOutboxNode`,
+  `UpdateActorOutbox` and the few hand-rolled outbox writers.
+  The factory raises `VultronWiringError` at construction when a marked node sits
+  in `replica_effects` outside every `CaseManagerGate` and no exemption covers it,
+  so a tree that skips the gate cannot be built.
+  An emit nested in a gate a shared helper built (the embargo relay guard) is
+  inside the gate and passes; the participant-replica gate is not a
+  CASE_MANAGER gate and does not.
+  Only `create_case_manager_gated_tree` constructs a `CaseManagerGate`, so the
+  type always carries the role check.
+- **Ledger replication carries no marker.**
+  A node that sends through `SyncActivityPort` or runs
+  `create_commit_log_entry_tree` (whose fan-out announces the entry) is gated by
+  ledger authority, not the case role: only the store holding the canonical log
+  mints and fans out (`DeclineForeignLedgerCommitNode`, ADR-0073). Those classes
+  are a pinned set, `LEDGER_REPLICATION_SENDERS`, so a new one is classified.
 - **The gate's case id is its own argument.**
   Several received trees pass `case_id=None` to skip the commit stage
   (`update_tree`, the close-case tree) yet still gate an emit on a real case.
-  `manager_effects` therefore takes the case to gate on separately from the
+  `manager_case_id` therefore names the case to gate on separately from the
   commit's `case_id`, and the factory orders the stages
   intake → guards → commit → `replica_effects` → `manager_effects`.
 - **A by-design ungated emit is a named exemption with a reason.**
-  The emit speaks for the executing actor or is addressee-gated (the ack echo,
-  the offer-role tree, the case-proposal tree, the RSH status tree).
-  The reason is the recorded decision for that one tree; a sender check added
-  to a tree without a named exemption never passes, because it says nothing
-  about whether this replica owns the case (#2667).
-- **The exemption set is a pinned exemption set** (ARCH-18-001, ARCH-18-005):
-  exact equality, each entry citing its decision.
+  `replica_emit_exemption` takes a `ReplicaEmitExemption`
+  (`vultron/core/behaviors/replica_emit_exemptions.py`): a name, the reason, and
+  `covers`, the emit classes the decision admits.
+  The factory refuses an exemption not in `REPLICA_EMIT_EXEMPTIONS`, an
+  ungated emitter outside `covers`, and an exemption that covers nothing in the
+  tree (stale).
+  The registered decisions are the ack echo, the offer-role tree, the
+  case-proposal tree and the RSH status tree.
+  A sender check added to a tree without a named exemption never passes,
+  because it says nothing about whether this replica owns the case (#2667).
+- **`effect_nodes` is the unchecked legacy form, kept while trees migrate.**
+  It cannot be mixed with the two new kinds, so a tree migrates whole.
+- **The ratchets** live in `test/architecture/test_received_tree_case_manager_gate.py`
+  (ARCH-18-001, ARCH-18-005): `KNOWN_DIRECT_GATE_CALLERS` and
+  `KNOWN_LEGACY_EFFECT_NODES` shrink to empty, one `# owner:` per entry
+  (#4300, #4301, #4302, #3825, #4307); the exemption uses and the gate callers
+  that build no received tree are pinned exemption sets.
 
 *Source: ISSUE-3830.*
