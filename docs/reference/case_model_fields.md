@@ -27,7 +27,7 @@ Defined in `vultron/core/models/case.py`.
 | `vulnerability_reports` | Reports associated with this case (objects or URIs) |
 | `case_statuses` | Append-only history of `CaseStatus` snapshots |
 | `notes` | URIs of notes attached to the case |
-| `embargo_register` | One entry per embargo ever proposed on the case, appended and never removed: the embargo (object or URI), its status (`PROPOSED`, `ACTIVE`, `REJECTED`, `SUPERSEDED`, `CANCELLED` or `TERMINATED`) and the embargo an activated revision replaced. The case's EM state, its active embargo and its open proposals are all read from it (ADR-0122) |
+| `embargo_register` | One entry per embargo ever proposed on the case, appended and never removed: the embargo (object or URI), its status (`PROPOSED`, `ACTIVE`, `REJECTED`, `SUPERSEDED`, `CANCELLED` or `TERMINATED`) and the embargo an activated revision replaced. The case's Embargo Management (EM) state, its active embargo and its open proposals are all read from it (ADR-0122) |
 | `pending_embargo_proposal_index` | Map: embargo URI → the proposal activity that offered it, for open proposals only |
 | `recommendation_recommender_index` | Map: actor-recommendation URI → the participant who made it |
 | `case_activity` | Activity IDs recorded against this case (not the case ledger — see `genesis_hash`) |
@@ -72,7 +72,7 @@ Stored in `VulnerabilityCase.case_statuses`.
 
 | Field | Description |
 |---|---|
-| `em` | `EmDimension` — the Embargo Management (EM) state (None / Proposed / Active / Revise / eXited) |
+| `em` | `EmDimension` — the Embargo Management (EM) state (None / Proposed / Active / Revise / eXited). On a case's status this is a copy the case stamps from its `embargo_register`, so it never disagrees with the register (ADR-0122) |
 | `pxa` | `PxaDimension` — the Publication/eXploit/Active-attacks (PXA) state |
 | `context` | The URI of the case this status belongs to |
 | `attributed_to` | The actor who reported this status (optional) |
