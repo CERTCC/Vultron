@@ -36,6 +36,7 @@ from vultron.core.behaviors.case.case_actor_identity import (
     case_actor_identity,
 )
 from vultron.core.behaviors.case.offer_provenance import find_offer_for_report
+from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.helpers import (
     DataLayerAction,
     _EmitSingleActivityBase,
@@ -136,7 +137,7 @@ class ProposeReportCaseToActorNode(_EmitSingleActivityBase):
         return Status.SUCCESS
 
 
-class RequeuePendingCreateCaseActivityNode(DataLayerAction):
+class RequeuePendingCreateCaseActivityNode(DataLayerAction, EmitCapable):
     """Re-queue a persisted ``Create(VulnerabilityCase)`` obligation.
 
     Crash recovery: when the process died between persisting a
