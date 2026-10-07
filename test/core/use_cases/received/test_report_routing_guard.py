@@ -10,21 +10,29 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Unit tests for InvalidateReportReceivedUseCase and CloseReportReceivedUseCase
-BT execution under the receiving actor's identity (BT-17-006).
+"""Unit tests for InvalidateReportReceivedUseCase and CloseReportReceivedUseCase:
+which store the tree runs in, and whose RM state it writes.
 
-Pins the BT-17-006 requirement: ``execute_with_setup`` MUST be called with the
-*receiving* actor so the RM-transition BT updates the RECEIVING actor's
-participant, not the sender's.  Before the fix both use cases passed
-``request.actor_id`` (the sender) instead.
+Two rules, deliberately kept apart (``notes/bt-pitfalls.md`` § "The Store Is
+Not the Subject"):
 
-When ``receiving_actor_id`` is absent, the answer is the actor whose store the
-use case was handed — see ``resolve_receiving_actor_id``.  It is *not*
-``request.actor_id``: falling back to the sender is the defect BT-17-006 exists
-to forbid, and under ADR-0073 it would also route every read and write into an
-actor other than the one whose replica is being updated.  The fallback tests
-below therefore pin the store owner, and do it by parametrizing over which
-actor owns the store so that the store is demonstrably what decides.
+- **The store** — BT-17-006: ``execute_with_setup`` MUST be called with the
+  *receiving* actor, so the tree reads and writes the receiver's own replica.
+  When ``receiving_actor_id`` is absent, the answer is the actor whose store the
+  use case was handed — see ``resolve_receiving_actor_id``.  It is *not*
+  ``request.actor_id``: falling back to the sender would route every read and
+  write into an actor other than the one whose replica is being updated
+  (ADR-0073).  The fallback tests therefore parametrize over which actor owns
+  the store, so the store is demonstrably where the write lands.
+- **The subject** — RSH-08-001, HP-00-001: a received activity is an assertion
+  about the *sender's* state, so the RM write is about ``request.actor_id``.
+  ``TentativeReject(Offer(Report))`` moves the sender's participant to
+  ``INVALID`` and ``Reject(Offer(Report))`` moves it to ``CLOSED``; the
+  receiving actor's own participant is unchanged.
+
+These tests once read "the tree runs as the receiver" as "the write is about the
+receiver" and pinned the receiver's RM moving (CONCERN-3473, #3812); they now
+pin the sender's, and still pin the store.
 
 The trees for these use cases do NOT contain ``GuardedCommitCaseLedgerEntryBT``
 (unlike the AckReport and CloseCase trees), so the routing assertion is on RM
@@ -198,15 +206,17 @@ def _make_close_report_event(
 # ---------------------------------------------------------------------------
 
 
-class TestInvalidateReportReceivedActorId:
-    """BT-17-006: execute_with_setup runs under receiving_actor_id, not actor_id.
+class TestInvalidateReportReceivedSubject:
+    """The tree runs as the receiver (BT-17-006); the write is the sender's.
 
-    The RM-INVALID transition targets the RECEIVING actor's CaseParticipant.
-    Before the fix, actor_id (sender) was passed instead.
+    ``TentativeReject(Offer(Report))`` declares the *sender's* RM state
+    (RSH-08-001), so the sender's participant reaches INVALID and the
+    receiving actor's participant is unchanged.
     """
 
-    def test_receiving_actor_participant_transitions_to_invalid(self):
-        """RM.INVALID transition targets the receiving actor's participant."""
+    @pytest.mark.spec("RSH-08-001")
+    def test_sender_participant_transitions_to_invalid(self):
+        """RM.INVALID is recorded for the sender, the activity's subject."""
         dl = _make_dl(receiving_rm=RM.RECEIVED, sender_rm=RM.RECEIVED)
 
         InvalidateReportReceivedUseCase(
@@ -216,12 +226,15 @@ class TestInvalidateReportReceivedActorId:
             ),
         ).execute()
 
-        assert _rm_state(dl, RECEIVING_ACTOR_ID) == RM.INVALID, (
-            "Receiving actor's participant must transition to RM.INVALID"
+        assert _rm_state(dl, SENDER_ACTOR_ID) == RM.INVALID, (
+            "the sender's participant must reach RM.INVALID: the activity"
+            " declares the sender's state (RSH-08-001)"
         )
 
-    def test_sender_participant_unchanged_when_receiving_actor_differs(self):
-        """Sender's participant RM state is not touched (BT-17-006 regression)."""
+    @pytest.mark.spec("RSH-08-001")
+    @pytest.mark.spec("BT-17-006")
+    def test_receiving_actor_participant_unchanged(self):
+        """The receiving actor's own RM does not move on receipt."""
         dl = _make_dl(receiving_rm=RM.RECEIVED, sender_rm=RM.RECEIVED)
 
         InvalidateReportReceivedUseCase(
@@ -231,47 +244,39 @@ class TestInvalidateReportReceivedActorId:
             ),
         ).execute()
 
-        assert _rm_state(dl, SENDER_ACTOR_ID) == RM.RECEIVED, (
-            "Sender's participant must remain RM.RECEIVED; only the receiving"
-            " actor's participant should be transitioned (BT-17-006)"
+        assert _rm_state(dl, RECEIVING_ACTOR_ID) == RM.RECEIVED, (
+            "the receiving actor is not the mover, so its participant must"
+            " stay RM.RECEIVED (RSH-08-001)"
         )
 
+    @pytest.mark.spec("BT-17-006")
     @pytest.mark.parametrize(
         "store_owner_id", [RECEIVING_ACTOR_ID, SENDER_ACTOR_ID]
     )
-    def test_fallback_is_the_store_owner_when_receiving_actor_id_is_none(
-        self, store_owner_id
-    ):
-        """With no receiving_actor_id, the executing actor is the store's owner.
+    def test_fallback_runs_in_the_store_owners_replica(self, store_owner_id):
+        """With no receiving_actor_id, the tree runs in the store it was handed.
 
         Parametrized over both actors so the assertion cannot pass by
-        coincidence: whichever actor owns the store is the one whose
-        participant transitions, and the request's ``actor_id`` (always the
-        sender) does not change the answer.
+        coincidence: whichever actor owns the store, the write lands in *that*
+        store's replica, and it is always about the sender.
         """
-        other_id = (
-            SENDER_ACTOR_ID
-            if store_owner_id == RECEIVING_ACTOR_ID
-            else RECEIVING_ACTOR_ID
-        )
         dl = _make_dl(
             receiving_rm=RM.RECEIVED,
             sender_rm=RM.RECEIVED,
             actor_id=store_owner_id,
         )
 
-        InvalidateReportReceivedUseCase(
+        result = InvalidateReportReceivedUseCase(
             dl=dl,
             request=_make_invalidate_event(receiving_actor_id=None),
         ).execute()
 
-        assert _rm_state(dl, store_owner_id) == RM.INVALID, (
-            "the store's own actor is the executing actor when the request"
-            " carries no receiving_actor_id"
+        assert result.disposition == HandlerDisposition.APPLIED, result.reason
+        assert _rm_state(dl, SENDER_ACTOR_ID) == RM.INVALID, (
+            "the store the use case was handed holds the write, whoever owns"
+            " it, and the write is the sender's"
         )
-        assert _rm_state(dl, other_id) == RM.RECEIVED, (
-            "no other actor's participant may be transitioned"
-        )
+        assert _rm_state(dl, RECEIVING_ACTOR_ID) == RM.RECEIVED
 
 
 # ---------------------------------------------------------------------------
@@ -279,17 +284,18 @@ class TestInvalidateReportReceivedActorId:
 # ---------------------------------------------------------------------------
 
 
-class TestCloseReportReceivedActorId:
-    """BT-17-006: execute_with_setup runs under receiving_actor_id, not actor_id.
+class TestCloseReportReceivedSubject:
+    """The tree runs as the receiver (BT-17-006); the write is the sender's.
 
-    The RM-CLOSED transition targets the RECEIVING actor's CaseParticipant.
-    Before the fix, actor_id (sender) was passed instead.
+    ``Reject(Offer(Report))`` declares the *sender's* RM state (RSH-08-001), so
+    the sender's participant reaches CLOSED and the receiving actor's
+    participant is unchanged.
     """
 
-    def test_receiving_actor_participant_transitions_to_closed(self):
-        """RM.CLOSED transition targets the receiving actor's participant."""
-        # RM.CLOSED is only reachable from RM.INVALID, ACCEPTED, or DEFERRED
-        dl = _make_dl(receiving_rm=RM.INVALID, sender_rm=RM.RECEIVED)
+    @pytest.mark.spec("RSH-08-001")
+    def test_sender_participant_transitions_to_closed(self):
+        """RM.CLOSED is recorded for the sender, the activity's subject."""
+        dl = _make_dl(receiving_rm=RM.RECEIVED, sender_rm=RM.INVALID)
 
         CloseReportReceivedUseCase(
             dl=dl,
@@ -298,13 +304,16 @@ class TestCloseReportReceivedActorId:
             ),
         ).execute()
 
-        assert _rm_state(dl, RECEIVING_ACTOR_ID) == RM.CLOSED, (
-            "Receiving actor's participant must transition to RM.CLOSED"
+        assert _rm_state(dl, SENDER_ACTOR_ID) == RM.CLOSED, (
+            "the sender's participant must reach RM.CLOSED: the activity"
+            " declares the sender's state (RSH-08-001)"
         )
 
-    def test_sender_participant_unchanged_when_receiving_actor_differs(self):
-        """Sender's participant RM state is not touched (BT-17-006 regression)."""
-        dl = _make_dl(receiving_rm=RM.INVALID, sender_rm=RM.RECEIVED)
+    @pytest.mark.spec("RSH-08-001")
+    @pytest.mark.spec("BT-17-006")
+    def test_receiving_actor_participant_unchanged(self):
+        """The receiving actor's own RM does not move on receipt."""
+        dl = _make_dl(receiving_rm=RM.INVALID, sender_rm=RM.INVALID)
 
         CloseReportReceivedUseCase(
             dl=dl,
@@ -313,54 +322,36 @@ class TestCloseReportReceivedActorId:
             ),
         ).execute()
 
-        assert _rm_state(dl, SENDER_ACTOR_ID) == RM.RECEIVED, (
-            "Sender's participant must remain RM.RECEIVED; only the receiving"
-            " actor's participant should be transitioned (BT-17-006)"
+        assert _rm_state(dl, RECEIVING_ACTOR_ID) == RM.INVALID, (
+            "the receiving actor is not the mover, so its participant must"
+            " stay RM.INVALID (RSH-08-001)"
         )
 
+    @pytest.mark.spec("BT-17-006")
     @pytest.mark.parametrize(
         "store_owner_id", [RECEIVING_ACTOR_ID, SENDER_ACTOR_ID]
     )
-    def test_fallback_is_the_store_owner_when_receiving_actor_id_is_none(
-        self, store_owner_id
-    ):
-        """With no receiving_actor_id, the executing actor is the store's owner.
+    def test_fallback_runs_in_the_store_owners_replica(self, store_owner_id):
+        """With no receiving_actor_id, the tree runs in the store it was handed.
 
         Parametrized over both actors so the assertion cannot pass by
-        coincidence.  Only the store's owner starts at RM.INVALID, since that
-        is the actor whose RM.CLOSED transition must be reachable.
+        coincidence: whichever actor owns the store, the write lands in *that*
+        store's replica, and it is always about the sender.
         """
-        other_id = (
-            SENDER_ACTOR_ID
-            if store_owner_id == RECEIVING_ACTOR_ID
-            else RECEIVING_ACTOR_ID
-        )
         dl = _make_dl(
-            receiving_rm=(
-                RM.INVALID
-                if store_owner_id == RECEIVING_ACTOR_ID
-                else RM.RECEIVED
-            ),
-            sender_rm=(
-                RM.INVALID
-                if store_owner_id == SENDER_ACTOR_ID
-                else RM.RECEIVED
-            ),
+            receiving_rm=RM.INVALID,
+            sender_rm=RM.INVALID,
             actor_id=store_owner_id,
         )
 
-        CloseReportReceivedUseCase(
+        result = CloseReportReceivedUseCase(
             dl=dl,
             request=_make_close_report_event(receiving_actor_id=None),
         ).execute()
 
-        assert _rm_state(dl, store_owner_id) == RM.CLOSED, (
-            "the store's own actor is the executing actor when the request"
-            " carries no receiving_actor_id"
-        )
-        assert _rm_state(dl, other_id) == RM.RECEIVED, (
-            "no other actor's participant may be transitioned"
-        )
+        assert result.disposition == HandlerDisposition.APPLIED, result.reason
+        assert _rm_state(dl, SENDER_ACTOR_ID) == RM.CLOSED
+        assert _rm_state(dl, RECEIVING_ACTOR_ID) == RM.INVALID
 
 
 # ---------------------------------------------------------------------------
@@ -381,38 +372,66 @@ class TestCloseInvalidateDisposition:
     @pytest.mark.spec("HP-01-003")
     def test_close_is_applied(self):
         result = CloseReportReceivedUseCase(
-            dl=_make_dl(receiving_rm=RM.INVALID),
+            dl=_make_dl(sender_rm=RM.INVALID),
             request=_make_close_report_event(),
         ).execute()
         assert result.disposition == HandlerDisposition.APPLIED
 
     @pytest.mark.spec("HP-01-003")
     @pytest.mark.spec("RMB-14-004")
+    @pytest.mark.spec("RSH-08-001")
     def test_close_from_received_is_applied(self):
-        """RECEIVED → CLOSED is an RM transition (ADR-0114), so it applies.
-
-        The assertion reads the *receiving* actor's RM state because that is
-        the subject the handler writes today.  RSH-08-001 makes the sender the
-        subject; #3812 tracks that fix and will move this assertion to the
-        sender.
-        """
+        """RECEIVED → CLOSED is an RM transition (ADR-0114), so it applies."""
         dl = _make_dl()
         result = CloseReportReceivedUseCase(
             dl=dl, request=_make_close_report_event()
         ).execute()
         assert result.disposition == HandlerDisposition.APPLIED, result.reason
-        assert _rm_state(dl, RECEIVING_ACTOR_ID) == RM.CLOSED
+        assert _rm_state(dl, SENDER_ACTOR_ID) == RM.CLOSED
 
     @pytest.mark.spec("HP-01-003")
-    @pytest.mark.spec("VP-02-004")
-    def test_close_from_valid_is_refused(self):
-        """VALID → CLOSED is not an RM transition, so the Close is refused."""
+    @pytest.mark.spec("RSH-06-001")
+    @pytest.mark.spec("RSH-06-006")
+    def test_close_from_valid_is_a_recorded_gap(self):
+        """VALID → CLOSED is a non-adjacent forward move, so it is recorded.
+
+        VALID has no close edge (VP-02-004), which binds an actor moving its
+        own RM; a *declared* forward jump is accepted under the received-side
+        rule, never refused for adjacency (RSH-06-006).
+        """
+        dl = _make_dl(sender_rm=RM.VALID)
         result = CloseReportReceivedUseCase(
-            dl=_make_dl(receiving_rm=RM.VALID),
-            request=_make_close_report_event(),
+            dl=dl, request=_make_close_report_event()
+        ).execute()
+        assert result.disposition == HandlerDisposition.APPLIED, result.reason
+        assert _rm_state(dl, SENDER_ACTOR_ID) == RM.CLOSED
+
+    @pytest.mark.spec("HP-01-003")
+    @pytest.mark.spec("RSH-06-002")
+    def test_invalidate_from_accepted_is_refused(self):
+        """ACCEPTED → INVALID is a regression: refused, recorded state kept."""
+        dl = _make_dl(sender_rm=RM.ACCEPTED)
+        result = InvalidateReportReceivedUseCase(
+            dl=dl, request=_make_invalidate_event()
         ).execute()
         assert result.disposition == HandlerDisposition.REFUSED
-        assert result.reason and "Invalid RM transition" in result.reason
+        assert result.reason and "RSH-06-002" in result.reason
+        assert _rm_state(dl, SENDER_ACTOR_ID) == RM.ACCEPTED
+
+    @pytest.mark.spec("HP-01-006")
+    def test_invalidate_from_a_non_participant_is_refused(self):
+        """A sender with no participant record in the case is turned away."""
+        dl = _make_dl()
+        stranger = "https://example.org/actors/stranger-report-guard"
+        event = _make_invalidate_event().model_copy(
+            update={"actor_id": stranger}
+        )
+        result = InvalidateReportReceivedUseCase(
+            dl=dl, request=event
+        ).execute()
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert _rm_state(dl, SENDER_ACTOR_ID) == RM.RECEIVED
+        assert _rm_state(dl, RECEIVING_ACTOR_ID) == RM.RECEIVED
 
     @pytest.mark.spec("HP-01-003")
     def test_invalidate_without_local_case_is_refused(self):

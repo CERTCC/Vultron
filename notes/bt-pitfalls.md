@@ -955,13 +955,15 @@ Source: ISSUE-2238
 
 The two rules above pick **which store** a received-side tree runs in. They say
 nothing about **whose state** the tree writes, and conflating them produced two
-RM handlers that advance the wrong participant (CONCERN-3473, ADR-0108). The
-report-invalid and report-closed received trees pass `actor_id=receiving_actor_id`
-to `CreateParticipantStatusNode`, and the tests that pin them
-(`test/core/use_cases/received/test_report_routing_guard.py`) assert that *the
-receiving actor's* participant goes INVALID/CLOSED — reading "the tree runs as B"
-as "the write is about B". The report-valid handler beside them correctly passes
-`sender_actor_id`.
+RM handlers that advanced the wrong participant (CONCERN-3473, ADR-0108). The
+report-invalid and report-closed received trees passed
+`actor_id=receiving_actor_id` to `CreateParticipantStatusNode`, and the tests that
+pinned them (`test/core/use_cases/received/test_report_routing_guard.py`) asserted
+that *the receiving actor's* participant went INVALID/CLOSED — reading "the tree
+runs as B" as "the write is about B". The report-valid handler beside them passed
+`sender_actor_id`. #3812 fixed both: the factories no longer take an actor at all
+and read the subject from `request.actor_id`, and the tests were inverted to pin
+the sender's write while still pinning the store.
 
 The rule (RSH-08-001): a received activity is an assertion about the **sender's**
 state (HP-00-001), so the subject of every received-side RM write is

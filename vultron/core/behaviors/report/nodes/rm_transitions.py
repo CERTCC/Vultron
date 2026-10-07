@@ -52,7 +52,7 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.states.rm import RM, is_rm_write_permitted
+from vultron.core.states.rm import RM, RMRule, is_rm_write_permitted
 
 
 def _read_report_case_link(
@@ -210,6 +210,7 @@ class TransitionRMtoValid(DataLayerActionWithPorts):
         offer_id: str,
         sender_actor_id: str | None = None,
         name: str | None = None,
+        rm_rule: RMRule = RMRule.TRANSITION,
     ) -> None:
         """Initialize the combined RM.VALID transition node.
 
@@ -221,6 +222,11 @@ class TransitionRMtoValid(DataLayerActionWithPorts):
                 When ``None``, the executing actor's blackboard ``actor_id`` is
                 used as a fallback (BTND-10-005, ADR-0089).
             name: Optional custom node name (defaults to ``"TransitionRMtoValid"``).
+            rm_rule: The RM rule the case-scoped participant write is held to;
+                passed to :class:`CreateParticipantStatusNode`.  The received
+                side passes ``DECLARATION`` (RSH-06-006).  The report-link
+                latch keeps its own adjacency check either way: it is the
+                report-phase record, not the sender's participant.
         """
         super().__init__(name=name or "TransitionRMtoValid")
         self.report_id = report_id
@@ -236,6 +242,7 @@ class TransitionRMtoValid(DataLayerActionWithPorts):
             d_state=None,
             pxa_state=None,
             name="CreateRMValidStatus",
+            rm_rule=rm_rule,
         )
 
     INPUT_PORTS: dict[str, PortInformation] = {

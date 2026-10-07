@@ -51,16 +51,28 @@ case state, applying the state machine's acceptance rule to the *sender's*
 declaration whichever message carried it (RSH-06-006, RSH-08-001); every other
 participant applies the ledger (PCR-03-001, RSH-08-003).
 
-Three defects follow from that rule being unstated, and each is an implementation
+Three defects followed from that rule being unstated, each an implementation
 issue under epic #3472:
 
-- **Subject.** The report-invalid and report-closed received trees advance the
-  *receiving* actor's RM; the valid handler advances the sender's. See
-  [bt-pitfalls.md](bt-pitfalls.md) § "The Store Is Not the Subject".
-- **Acceptance rule.** The activity-typed RM handlers validate adjacency only and
-  never check the sender is a participant; `FilterParticipantStatusDimensionsNode`
-  accepts forward moves, refuses backward ones and posts the RSH-06 note. The
-  activity-typed handlers adopt the latter (RSH-06-006).
+- **Subject** (fixed, #3812). The report-invalid and report-closed received trees
+  advanced the *receiving* actor's RM; the valid handler advanced the sender's.
+  All three now write the sender's. See [bt-pitfalls.md](bt-pitfalls.md) § "The
+  Store Is Not the Subject".
+- **Acceptance rule** (fixed, #3813). The activity-typed RM handlers validated
+  adjacency only and never checked the sender was a participant. Report valid,
+  invalid and closed and engage/defer now share the rule
+  `FilterParticipantStatusDimensionsNode` applies, from one place:
+  `classify_rm_declaration` (`core/states/rm.py`) classifies the move,
+  `rm_anomaly` (`status/nodes/rm_rule.py`) logs and flags it, and
+  `report/rm_declaration_tree.py` composes the guard
+  (`AdjudicateRMDeclarationNode`, before the commit) and the effects (an
+  idempotent write with `rm_rule=RMRule.DECLARATION`, then `EmitRMGapNoteNode`).
+  The write node keeps its own evaluator call, held to the declaration rule
+  rather than adjacency (BTND-10-003). Tests on both paths run one table,
+  `test/support/rm_declaration.py`. The full-case Invite replies RSH-06-006 also
+  names are not yet on this rule (#4311). Neither path posts the RSH-06-004 note
+  for a wholly refused regression, because the refusal ends the tree before its
+  effects (#4310).
 - **Pipeline.** Every received tree gates its *commit* on `CheckIsCaseManagerNode`
   but runs its *effects* at every inbox, so `Add(EmbargoEvent)`,
   `Remove(EmbargoEvent)` and `Add(CaseStatus)` move a replica's state from any

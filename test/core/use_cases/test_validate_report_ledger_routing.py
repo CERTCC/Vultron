@@ -172,6 +172,30 @@ def _make_case_at_received(
     return case, offer
 
 
+def _add_participant_at_received(
+    dl: SqliteDataLayer, case: VulnerabilityCase, actor_id: str
+) -> None:
+    """Add *actor_id* to *case* as a participant at RM.RECEIVED.
+
+    The caller saves *case* afterwards.
+    """
+    participant = as_CaseParticipant(
+        attributed_to=actor_id,
+        context=case.id_,
+        case_roles=[CVDRole.VENDOR],
+        participant_statuses=[
+            as_ParticipantStatus(
+                attributed_to=actor_id,
+                context=case.id_,
+                rm=RmDimension(state=RM.RECEIVED),
+            )
+        ],
+    )
+    dl.create(participant)
+    case.actor_participant_index[actor_id] = participant.id_
+    case.case_participants.append(participant.id_)
+
+
 def _ledger_event_types(dl: SqliteDataLayer) -> list[str]:
     """Return all ``event_type`` values in the DataLayer's CaseLedgerEntry set."""
     return [
@@ -372,6 +396,10 @@ class TestCaseActorReceivedWritesLedgerEntry:
         dl.create(cm_participant)
         case.case_participants.append(cm_participant.id_)
         case.actor_participant_index[self.CASE_ACTOR_ID] = cm_participant.id_
+        # The sender must be a participant of the case the CaseActor manages:
+        # its declaration is refused before the commit otherwise (HP-01-006),
+        # and RM.RECEIVED is the state it holds before validate-report.
+        _add_participant_at_received(dl, case, self.VENDOR_ID)
         dl.save(case)
         dl.create(
             VultronReportCaseLink(
@@ -498,33 +526,9 @@ class TestCaseActorReceivedWritesLedgerEntry:
 
         dl = self._make_case_actor_dl()
 
-        # Register VENDOR as a case participant so TransitionRMtoValid can
-        # persist the status record.
-        case = dl.read(self.CASE_ID)
-        assert isinstance(case, VulnerabilityCase)
-        from vultron.core.models.case_actor import CaseActor
-
-        vendor_svc = CaseActor(id_=self.VENDOR_ID)
-        dl.save(vendor_svc)
-        # RM.RECEIVED is the state the sender holds before validate-report;
-        # RECEIVED -> VALID is a legal move, START -> VALID is not (ISSUE-2548).
-        vendor_p = as_CaseParticipant(
-            attributed_to=self.VENDOR_ID,
-            context=self.CASE_ID,
-            case_roles=[CVDRole.COORDINATOR],
-            participant_statuses=[
-                as_ParticipantStatus(
-                    attributed_to=self.VENDOR_ID,
-                    context=self.CASE_ID,
-                    rm=RmDimension(state=RM.RECEIVED),
-                )
-            ],
-        )
-        dl.create(vendor_p)
-        case.case_participants.append(vendor_p.id_)
-        case.actor_participant_index[self.VENDOR_ID] = vendor_p.id_
-        dl.save(case)
-
+        # The fixture registers VENDOR as a RM.RECEIVED participant so
+        # TransitionRMtoValid can persist the status record; RECEIVED -> VALID
+        # is a legal move, START -> VALID would be a gap (ISSUE-2548).
         ValidateReportReceivedUseCase(
             dl,
             self._make_validate_event(),  # actor_id=VENDOR, receiving=CASE_ACTOR,
@@ -642,6 +646,9 @@ class TestFullValidateReportLedgerChain:
         case_actor_dl.create(ca_participant)
         ca_case.case_participants.append(ca_participant.id_)
         ca_case.actor_participant_index[case_actor_id] = ca_participant.id_
+        # The vendor is a participant of the case the CaseActor manages; the
+        # CaseActor refuses a declaration from anyone else (HP-01-006).
+        _add_participant_at_received(case_actor_dl, ca_case, self.VENDOR_ID)
         case_actor_dl.save(ca_case)
 
         # ── Step 5: dispatch ValidateReportReceivedUseCase on case_actor_dl ───

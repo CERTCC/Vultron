@@ -27,15 +27,17 @@ if TYPE_CHECKING:
 
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlement,
-    exempt,
+    SenderEntitlementKind,
 )
 
 logger = logging.getLogger(__name__)
 
 
 class EngageCaseReceivedUseCase:
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4070", "no sender check defined for engage"
+    # The sender declares its own RM state; only a participant of the case may
+    # (HP-01-006, RSH-06-006).
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.ACTIVE_PARTICIPANT
     )
 
     def __init__(
@@ -104,8 +106,10 @@ class EngageCaseReceivedUseCase:
 
 
 class DeferCaseReceivedUseCase:
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4070", "no sender check defined for defer"
+    # The sender declares its own RM state; only a participant of the case may
+    # (HP-01-006, RSH-06-006).
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.ACTIVE_PARTICIPANT
     )
 
     def __init__(

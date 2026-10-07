@@ -135,7 +135,7 @@ class _CheckParticipantRMStateBase(DataLayerConditionWithPorts):
 
     def __init__(
         self,
-        case_id: str,
+        case_id: str | None,
         actor_id: str,
         name: str | None = None,
     ) -> None:
@@ -207,6 +207,20 @@ class CheckRMStateDeferred(_CheckParticipantRMStateBase):
     """
 
     _target_rm = RM.DEFERRED
+
+
+class CheckParticipantRMState(_CheckParticipantRMStateBase):
+    """Guard: actor RM is already *target_rm*; a restated move is recorded once."""
+
+    def __init__(
+        self,
+        case_id: str | None,
+        actor_id: str,
+        target_rm: RM,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(case_id=case_id, actor_id=actor_id, name=name)
+        self._target_rm = target_rm
 
 
 class EnsureEmbargoExists(CaseIdInputPortMixin, DataLayerConditionWithPorts):

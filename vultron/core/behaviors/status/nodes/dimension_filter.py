@@ -55,15 +55,11 @@ from vultron.core.behaviors.ledger_patch import PARTICIPANT_STATUS_PATCH_KEYS
 from vultron.core.behaviors.status.nodes._adjudication import (
     _adjudicate_dimensions,
 )
+from vultron.core.behaviors.status.nodes.rm_rule import rm_anomaly
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.protocols import PersistableModel
-from vultron.core.states.rm import (
-    RM,
-    is_monotonic_rm_forward,
-    is_valid_rm_transition,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -279,42 +275,6 @@ class FilterParticipantStatusDimensionsNode(DataLayerConditionWithPorts):
         )
         self._set_output(BB_RM_ANOMALY, rm_anomaly)
 
-    def _detect_rm_anomaly(
-        self,
-        refused: list[str],
-        current_rm: RM,
-        asserted_rm: RM,
-    ) -> dict | None:
-        """Return an anomaly dict when an RM transition anomaly is detected.
-
-        Returns ``None`` when there is nothing anomalous to record.
-        """
-        if "rm" in refused:
-            return {
-                "anomaly_type": "regression",
-                "from_rm": current_rm,
-                "to_rm": asserted_rm,
-            }
-        if (
-            current_rm not in (RM.CLOSED, asserted_rm)
-            and not is_valid_rm_transition(current_rm, asserted_rm)
-            and is_monotonic_rm_forward(current_rm, asserted_rm)
-        ):
-            self.logger.warning(
-                "%s: non-adjacent forward RM jump %s → %s for participant"
-                " '%s'; accepting sender-authoritative state (RSH-06-001)",
-                self.name,
-                current_rm,
-                asserted_rm,
-                self.participant_id,
-            )
-            return {
-                "anomaly_type": "gap",
-                "from_rm": current_rm,
-                "to_rm": asserted_rm,
-            }
-        return None
-
     def _resolve_asserted(self) -> ParticipantStatus | None:
         """Return the asserted status as a core model, DataLayer first."""
         assert self.datalayer is not None
@@ -360,14 +320,19 @@ class FilterParticipantStatusDimensionsNode(DataLayerConditionWithPorts):
         refused, update_fields = _adjudicate_dimensions(
             current, asserted, roles=list(participant.case_roles)
         )
-        rm_anomaly = self._detect_rm_anomaly(
-            refused, current.rm.state, asserted.rm.state
+        anomaly = rm_anomaly(
+            current.rm.state,
+            asserted.rm.state,
+            sender_actor_id=_as_id(participant.attributed_to)
+            or self.participant_id,
+            log=self.logger,
+            node_name=self.name,
         )
 
         if not update_fields:
             # No dimension filtering needed; publish the anomaly flag only.
-            if rm_anomaly is not None:
-                self._set_output(BB_RM_ANOMALY, rm_anomaly)
+            if anomaly is not None:
+                self._set_output(BB_RM_ANOMALY, anomaly)
             return Status.SUCCESS
 
         # ``name`` on a ParticipantStatus is a derived state summary (the wire
@@ -393,11 +358,11 @@ class FilterParticipantStatusDimensionsNode(DataLayerConditionWithPorts):
             self._publish((), None)
             # Still publish the anomaly even on a wholly-refused assertion:
             # the receiver detected an anomaly and must emit a note (RSH-06).
-            if rm_anomaly is not None:
-                self._set_output(BB_RM_ANOMALY, rm_anomaly)
+            if anomaly is not None:
+                self._set_output(BB_RM_ANOMALY, anomaly)
             return Status.FAILURE
 
-        self._publish(tuple(refused), filtered, rm_anomaly=rm_anomaly)
+        self._publish(tuple(refused), filtered, rm_anomaly=anomaly)
         self.feedback_message = (
             f"Partially accepted status '{self.status_id}' for participant"
             f" '{self.participant_id}': {self._carry_summary(refused)}"
