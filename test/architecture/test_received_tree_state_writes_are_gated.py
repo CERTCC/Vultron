@@ -114,12 +114,6 @@ KNOWN_UNGATED_STATE_WRITES: frozenset[_Write] = frozenset(
         ),
         # owner: #3814
         (
-            f"{_C}/case_participant_received_tree.py",
-            "create_remove_case_participant_received_tree",
-            "RemoveCaseParticipantFromCaseReceivedNode",
-        ),
-        # owner: #3814
-        (
             f"{_C}/ownership_transfer_tree.py",
             "create_accept_ownership_transfer_tree",
             "AcceptCaseOwnershipTransferNode",
@@ -267,6 +261,7 @@ REPLICA_STATE_WRITES: dict[_Write, str] = {
             "ApplyOfferReportFromLedgerNode",
             "ApplyOwnershipTransferFromLedgerNode",
             "ApplyParticipantStatusFromLedgerNode",
+            "ApplyRemoveCaseParticipantFromLedgerNode",
             "ApplyRemoveNoteFromLedgerNode",
             "ApplyRmVerdictFromLedgerNode",
         )
