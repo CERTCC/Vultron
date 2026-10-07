@@ -280,6 +280,7 @@ class RejectInviteActorToCaseReceivedUseCase:
 
         tree = create_reject_invite_actor_to_case_received_tree(
             case_id=case_id,
+            invitee_id=request.actor_id or None,
         )
         result = BTBridge(
             datalayer=self._dl,

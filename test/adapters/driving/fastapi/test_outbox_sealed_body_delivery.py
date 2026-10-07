@@ -80,7 +80,11 @@ def _deliver(dl, activity_id: str) -> tuple[str, str, list[str]]:
 @pytest.mark.spec("VM-08-003")
 def test_the_emitter_receives_the_blob_the_adapter_returned_to_core(dl):
     """Port blob == sealed body == delivered body, byte for byte."""
-    case = as_VulnerabilityCase(name="CVE-2026-0002", attributed_to=_ACTOR)
+    case = as_VulnerabilityCase(
+        name="CVE-2026-0002",
+        attributed_to=_ACTOR,
+        stub_summary="Security issue — details shared after acceptance",
+    )
     dl.create(case)
     adapter = TriggerActivityAdapter(dl)
 
@@ -109,7 +113,12 @@ def test_the_invite_case_stub_survives_to_the_emitter(dl):
     stored case and then collapsed it to a bare URI, which is how the enriched
     stub CM-17-002 requires was being lost before delivery.
     """
-    case = as_VulnerabilityCase(name="CVE-2026-0003", attributed_to=_ACTOR)
+    _stub_summary = "Security issue — details shared after acceptance"
+    case = as_VulnerabilityCase(
+        name="CVE-2026-0003",
+        attributed_to=_ACTOR,
+        stub_summary=_stub_summary,
+    )
     dl.create(case)
     activity_id, _ = TriggerActivityAdapter(dl).invite_actor_to_case(
         invitee_id=_INVITEE, case_id=case.id_, actor=_ACTOR, to=[_INVITEE]
@@ -122,6 +131,7 @@ def test_the_invite_case_stub_survives_to_the_emitter(dl):
         "type": "VulnerabilityCaseStub",
         "id": f"{case.id_}/stub",
         "caseId": case.id_,
+        "summary": _stub_summary,
     }
     assert delivered["context"] == case.id_
 
@@ -189,6 +199,7 @@ def test_ledger_snapshot_equals_delivered_body_end_to_end(dl):
         id_=case_id,
         name="e2e",
         attributed_to=_ACTOR,
+        stub_summary="Security issue — e2e sealed ledger test",
         case_participants=[manager],
         actor_participant_index={_ACTOR: str(manager.id_)},
         case_statuses=[

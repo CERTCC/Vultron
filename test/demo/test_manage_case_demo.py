@@ -10,40 +10,18 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-import importlib
 
 import pytest
-from _pytest.monkeypatch import MonkeyPatch
 
-from test.demo._helpers import make_testclient_call
+from test.demo._helpers import route_exchange_demo_at_testclient
 from vultron.demo.exchange import manage_case_demo as demo
 
 
 @pytest.fixture(scope="module")
 def demo_env(client):
-    """Sets up the demo environment, patching BASE_URL and DataLayerClient.call."""
-    mp = MonkeyPatch()
-    base = str(client.base_url).rstrip("/") + "/api/v2"
-    try:
-        mp.setattr(demo, "BASE_URL", base)
-        mp.setattr(
-            demo.DataLayerClient, "call", make_testclient_call(client, base)
-        )
-        # The trigger-minted case goes through an ActorSession, which checks
-        # that the client's base URL hosts the actor (DEMOMA-26-002).
-        _original_base_url_default = demo.DataLayerClient.model_fields[
-            "base_url"
-        ].default
-        demo.DataLayerClient.model_fields["base_url"].default = base
-        demo.DataLayerClient.model_rebuild(force=True)
+    """Routes the demo's clients at the in-process TestClient."""
+    with route_exchange_demo_at_testclient(client, demo):
         yield
-    finally:
-        mp.undo()
-        demo.DataLayerClient.model_fields[
-            "base_url"
-        ].default = _original_base_url_default
-        demo.DataLayerClient.model_rebuild(force=True)
-        importlib.reload(demo)
 
 
 @pytest.mark.parametrize(

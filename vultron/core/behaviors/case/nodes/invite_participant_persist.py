@@ -25,6 +25,7 @@ Composed by ``create_accept_invite_actor_to_case_tree`` (BTND-07-003).
 import logging
 
 from py_trees.common import Status
+from py_trees.ports import NoDataAvailable
 
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.participant.status import (
@@ -56,6 +57,7 @@ class PersistInviteeParticipantNode(DataLayerActionWithPorts):
         "invitee_already_participant": PortInformation(
             data_type=object, required=True
         ),
+        "invitee_joined": PortInformation(data_type=object, required=False),
         "new_invite_participant": PortInformation(
             data_type=object, required=True
         ),
@@ -66,6 +68,7 @@ class PersistInviteeParticipantNode(DataLayerActionWithPorts):
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {
             "invitee_already_participant": "/invitee_already_participant",
+            "invitee_joined": "/invitee_joined",
             "new_invite_participant": "/new_invite_participant",
             "invitee_case": "/invitee_case",
         }
@@ -75,6 +78,11 @@ class PersistInviteeParticipantNode(DataLayerActionWithPorts):
         self.invitee_already_participant = self.get_input(
             "invitee_already_participant"
         )
+        self._invitee_joined_bb: bool | None = None
+        try:
+            self._invitee_joined_bb = self.get_input("invitee_joined")
+        except (NoDataAvailable, NotImplementedError):
+            pass
         self.new_invite_participant = self.get_input("new_invite_participant")
         self.invitee_case = self.get_input("invitee_case")
 
@@ -84,6 +92,27 @@ class PersistInviteeParticipantNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
 
         if self.invitee_already_participant:
+            # When the participant record is inert (joined=False, ADR-0114,
+            # CM-11-006), set joined=True now that the Accept has been
+            # processed; the participant is transitioning from inert to active.
+            invitee_joined = self._invitee_joined_bb
+            if invitee_joined is False:
+                participant = self.new_invite_participant
+                if not isinstance(participant, CaseParticipant):
+                    self.logger.error(
+                        "%s: inert participant not on blackboard for '%s'",
+                        self.name,
+                        self.invitee_id,
+                    )
+                    return Status.FAILURE
+                participant.joined = True
+                self.datalayer.save(participant)
+                self.logger.info(
+                    "%s: promoted inert participant '%s' to joined=True"
+                    " (ADR-0114, CM-11-006)",
+                    self.name,
+                    participant.id_,
+                )
             return Status.SUCCESS
 
         participant = self.new_invite_participant

@@ -513,6 +513,7 @@ def _invite_stub_wire(sample_actor) -> dict:
         id_=_CASE_URI,
         name="CVE-2025-0001 in widget",
         summary="A summary of the case",
+        stub_summary="RCE in widget — details withheld pending disclosure",
         attributed_to=_ACTOR_URI,
     )
     result = rm_invite_to_case_activity(
@@ -534,13 +535,6 @@ def test_rm_invite_stub_carries_no_case_content(sample_actor):
     assert stub.get("summary") != "A summary of the case"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "CM-17-010: the stub does not yet carry an owner-chosen summary."
-        " Tracked by #4165."
-    ),
-)
 @pytest.mark.spec("CM-17-010")
 def test_rm_invite_stub_carries_a_non_empty_summary(sample_actor):
     """The stub carries a non-empty ``summary`` beside its identity (CM-17-010)."""
@@ -548,6 +542,29 @@ def test_rm_invite_stub_carries_a_non_empty_summary(sample_actor):
     assert set(stub) == {"@context", "type", "id", "caseId", "summary"}
     assert isinstance(stub["summary"], str)
     assert stub["summary"].strip()
+
+
+@pytest.mark.spec("CM-17-010")
+def test_rm_invite_to_case_refuses_when_no_stub_summary():
+    """The factory refuses when the case carries no ``stub_summary`` (CM-17-010, AC-2).
+
+    The case owner MUST set ``stub_summary`` before emitting a stub Invite;
+    the factory raises rather than silently falling back to the case name or
+    any other default.
+    """
+    case = as_VulnerabilityCase(
+        id_=_CASE_URI,
+        name="CVE-2025-0001 in widget",
+        summary="A summary of the case",
+        attributed_to=_ACTOR_URI,
+        # stub_summary intentionally absent
+    )
+    with pytest.raises(VultronActivityConstructionError, match="stub_summary"):
+        rm_invite_to_case_activity(
+            invitee=_ACTOR_URI,
+            target=case,
+            actor=_ACTOR_URI,
+        )
 
 
 @pytest.mark.spec("AF-04-001")
@@ -813,6 +830,7 @@ def test_rm_invite_stub_is_enriched_from_an_inline_active_embargo(
     case = VulnerabilityCase(
         id_=case_id,
         name="CVE-2025-010",
+        stub_summary="Memory corruption under embargo",
         attributed_to="https://example.org/actors/coordinator",
         case_statuses=[
             CaseStatus(
@@ -867,6 +885,7 @@ def test_enriched_stub_carries_only_the_embargo_terms(sample_actor):
         id_=case_id,
         name="CVE-2025-011",
         summary="Case content the invitee must not see",
+        stub_summary="Vulnerability under active embargo",
         attributed_to=_ACTOR_URI,
         case_statuses=[
             CaseStatus(

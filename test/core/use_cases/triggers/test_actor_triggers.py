@@ -112,7 +112,10 @@ def _make_case_with_case_manager(
     dl: SqliteDataLayer, owner_actor_id: str, case_actor_id: str
 ) -> as_VulnerabilityCase:
     case = as_VulnerabilityCase(
-        attributed_to=owner_actor_id, name="Test Case", content="Content"
+        attributed_to=owner_actor_id,
+        name="Test Case",
+        content="Content",
+        stub_summary="Security issue — details shared after acceptance",
     )
     owner_participant = as_CaseParticipant(
         attributed_to=owner_actor_id,
@@ -143,7 +146,10 @@ def _shared_case_with_case_manager(
     (ADR-0073); each holds its replica of the same case.
     """
     case = as_VulnerabilityCase(
-        attributed_to=owner_actor_id, name="Test Case", content="Content"
+        attributed_to=owner_actor_id,
+        name="Test Case",
+        content="Content",
+        stub_summary="Security issue — details shared after acceptance",
     )
     owner_participant = as_CaseParticipant(
         attributed_to=owner_actor_id,
@@ -527,16 +533,40 @@ class TestInviteRolesAndEmbargoEnrichment:
         assert invite.roles == ["vendor"]
         assert wire["roles"] == ["vendor"]
 
-    @pytest.mark.spec("CM-16-003")
-    def test_no_roles_requested_gives_the_default_vendor_role(
-        self, make_payload
-    ):
-        """With no roles named, the CASE_MANAGER assigns the default role."""
+    @pytest.mark.spec("CM-11-019")
+    def test_no_roles_requested_is_refused(self, make_payload):
+        """CM-11-019: no roles given → CASE_MANAGER refuses to emit the Invite.
+
+        The owner sends its Offer with no roles; the CASE_MANAGER's
+        EvaluateDefaultRolesNode returns FAILURE rather than defaulting to
+        VENDOR, so OfferActorToCaseReceivedUseCase returns REFUSED.
+        """
+        from vultron.core.use_cases.received.actor.suggest import (
+            OfferActorToCaseReceivedUseCase,
+        )
+
         harness = _OwnerDirectInvite()
+        offer = harness.trigger(roles=None)
 
-        _invite, wire = harness.invite(make_payload)
+        from vultron.adapters.driven.sync_activity_adapter import (
+            SyncActivityAdapter,
+        )
 
-        assert wire["roles"] == ["vendor"]
+        offer_obj = harness.owner_dl.read(offer["id"])
+        assert offer_obj is not None
+        event = make_payload(offer_obj, receiving_actor_id=harness.manager.id_)
+        result = OfferActorToCaseReceivedUseCase(
+            harness.manager_dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(harness.manager_dl),
+            sync_port=SyncActivityAdapter(harness.manager_dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        assert result.disposition.value == "refused", (
+            f"Expected REFUSED when no roles given, got {result.disposition}"
+        )
+        assert result.reason is not None
 
     @pytest.mark.spec("CM-17-007")
     def test_invite_is_the_case_managers_attributed_to_the_owner(
@@ -544,7 +574,7 @@ class TestInviteRolesAndEmbargoEnrichment:
     ):
         harness = _OwnerDirectInvite()
 
-        _invite, wire = harness.invite(make_payload)
+        _invite, wire = harness.invite(make_payload, roles=[CVDRole.VENDOR])
 
         assert wire["actor"] == harness.manager.id_
         assert wire.get("attributedTo") == harness.owner.id_
@@ -556,7 +586,7 @@ class TestInviteRolesAndEmbargoEnrichment:
         """The Invite stub carries activeEmbargo.endTime and emState=ACTIVE."""
         harness = _OwnerDirectInvite(with_active_embargo=True)
 
-        _invite, wire = harness.invite(make_payload)
+        _invite, wire = harness.invite(make_payload, roles=[CVDRole.VENDOR])
 
         target = wire.get("target", {})
         active_embargo = target.get("activeEmbargo")
@@ -573,7 +603,7 @@ class TestInviteRolesAndEmbargoEnrichment:
     def test_no_embargo_fields_when_not_active(self, make_payload):
         harness = _OwnerDirectInvite()
 
-        _invite, wire = harness.invite(make_payload)
+        _invite, wire = harness.invite(make_payload, roles=[CVDRole.VENDOR])
 
         target = wire.get("target", {})
         assert target.get("activeEmbargo") is None
@@ -642,12 +672,54 @@ class TestRolesThreadingIntegration:
         )
         assert CVDRole.VENDOR in participant.case_roles
 
-    @pytest.mark.spec("CM-16-003")
-    def test_no_roles_gives_the_default_vendor_role(self, make_payload):
-        participant = self._run_round_trip(
-            roles=None, make_payload=make_payload
+    @pytest.mark.spec("CM-11-019")
+    def test_no_roles_is_refused_not_defaulted(self, make_payload):
+        """CM-11-019: no roles → CASE_MANAGER refuses rather than defaulting to VENDOR.
+
+        The CASE_MANAGER must not substitute VENDOR when the inviter provides
+        no roles. The full-round-trip fails at the CASE_MANAGER's receipt of
+        the owner's Offer because EvaluateDefaultRolesNode returns FAILURE.
+        """
+        from vultron.adapters.driven.sync_activity_adapter import (
+            SyncActivityAdapter,
         )
-        assert participant.case_roles == [CVDRole.VENDOR]
+        from vultron.core.use_cases.received.actor.suggest import (
+            OfferActorToCaseReceivedUseCase,
+        )
+
+        harness = _OwnerDirectInvite()
+        offer = harness.trigger(roles=None)
+
+        offer_obj = harness.manager_dl.read(offer["id"])
+        if offer_obj is None:
+            offer_obj = harness.owner_dl.read(offer["id"])
+        assert offer_obj is not None, "Offer not found in either store"
+        event = make_payload(offer_obj, receiving_actor_id=harness.manager.id_)
+        result = OfferActorToCaseReceivedUseCase(
+            harness.manager_dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(harness.manager_dl),
+            sync_port=SyncActivityAdapter(harness.manager_dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        assert result.disposition.value == "refused", (
+            f"Expected REFUSED when no roles given, got {result.disposition}"
+        )
+        # No Invite should have been emitted by the CASE_MANAGER
+        queued = harness.manager_dl.outbox_list()
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+            as_Invite,
+        )
+
+        invites = [
+            harness.manager_dl.read(item)
+            for item in queued
+            if isinstance(harness.manager_dl.read(item), as_Invite)
+        ]
+        assert not invites, (
+            "CASE_MANAGER must not emit an Invite when no roles are given"
+        )
 
 
 class TestSvcSuggestActorToCaseUseCase:

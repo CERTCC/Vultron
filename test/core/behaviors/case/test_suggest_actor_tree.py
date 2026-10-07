@@ -31,9 +31,15 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from vultron.core.behaviors.case.nodes.accept_invite import (
+    EmitAddCaseParticipantNode,
+)
 from vultron.core.behaviors.case.nodes.actor import (
     EmitInviteActorToCaseNode,
     EvaluateDefaultRolesNode,
+)
+from vultron.core.behaviors.case.nodes.invite_inert_participant import (
+    CreateInertInviteeParticipantNode,
 )
 from vultron.core.behaviors.case.suggest_actor_tree import (
     ActorAlreadyParticipantNode,
@@ -72,10 +78,14 @@ class TestEvaluateDefaultRolesNode:
 
     def setup_method(self):
         py_trees.blackboard.Blackboard.enable_activity_stream()
+        # Inject explicit roles so the default path does not interfere with
+        # tests that only check the node's structural properties. Tests that
+        # cover the no-roles failure path create their own node without roles.
         self.node = EvaluateDefaultRolesNode(
             suggested_actor_id=_RECOMMENDED,
             case_id=_CASE_ID,
             recommendation_id=_REC_ID,
+            injected_roles=["vendor"],
         )
         self.node.setup()
         self.node.initialise()
@@ -101,8 +111,8 @@ class TestEvaluateDefaultRolesNode:
         """AC-1: EvaluateDefaultRolesNode accepts recommendation_id."""
         assert self.node.recommendation_id == _REC_ID
 
-    def test_returns_success_unconditionally(self):
-        """returns SUCCESS unconditionally in the prototype."""
+    def test_returns_success_when_roles_injected(self):
+        """Returns SUCCESS when injected roles are provided."""
         result = self.node.update()
         assert result == Status.SUCCESS
 
@@ -141,6 +151,7 @@ class TestEvaluateDefaultRolesNode:
             suggested_actor_id=_RECOMMENDED,
             case_id=_CASE_ID,
             recommendation_id=rec_id_2,
+            injected_roles=["vendor"],
         )
         node2.setup()
         node2.initialise()
@@ -191,6 +202,62 @@ class TestEvaluateDefaultRolesNode:
         assert raw is None, (
             f"Blackboard key '{expected_key}' must not be written when "
             f"_compute_roles() returns empty list, got {raw!r}"
+        )
+
+    @pytest.mark.spec("CM-16-003")
+    def test_defaults_to_vendor_when_no_roles_given(self):
+        """CM-16-003: when no injected roles, _compute_roles() returns VENDOR.
+
+        The default _compute_roles() applies the protocol default (VENDOR) so
+        the suggest-actor path works without explicit roles from the recommender.
+        CM-11-019 (no-roles Invite refused) is enforced downstream by
+        CreateInertInviteeParticipantNode, not here.
+        """
+        node = EvaluateDefaultRolesNode(
+            suggested_actor_id=_RECOMMENDED,
+            case_id=_CASE_ID,
+            recommendation_id=_REC_ID,
+        )
+        node.setup()
+        node.initialise()
+        result = node.update()
+        assert result == Status.SUCCESS
+        # Blackboard key must be written with the VENDOR default
+        expected_key = (
+            f"/suggested_roles_{_REC_ID.rsplit('/', maxsplit=1)[-1]}"
+        )
+        raw = py_trees.blackboard.Blackboard.storage.get(expected_key)
+        assert raw == [CVDRole.VENDOR], (
+            f"Expected VENDOR default at '{expected_key}', got {raw!r}"
+        )
+
+    @pytest.mark.spec("CM-11-019")
+    def test_require_explicit_roles_fails_when_no_roles_given(self):
+        """CM-11-019: require_explicit_roles=True → FAILURE when no roles.
+
+        The owner-direct invite path sets require_explicit_roles=True so the
+        Case Owner must supply roles explicitly; no VENDOR default is applied.
+        """
+        node = EvaluateDefaultRolesNode(
+            suggested_actor_id=_RECOMMENDED,
+            case_id=_CASE_ID,
+            recommendation_id=_REC_ID,
+            require_explicit_roles=True,
+        )
+        node.setup()
+        node.initialise()
+        result = node.update()
+        assert result == Status.FAILURE
+        assert node.feedback_message, "feedback_message must be set on FAILURE"
+        assert "inviter must give" in node.feedback_message, (
+            f"Expected CM-11-019 message, got: {node.feedback_message!r}"
+        )
+        expected_key = (
+            f"/suggested_roles_{_REC_ID.rsplit('/', maxsplit=1)[-1]}"
+        )
+        raw = py_trees.blackboard.Blackboard.storage.get(expected_key)
+        assert raw is None, (
+            f"Blackboard key must not be written when FAILURE, got {raw!r}"
         )
 
 
@@ -813,7 +880,7 @@ class TestDuplicateDetectionTreeStructure:
 
     @pytest.mark.spec("CM-17-007")
     def test_owner_direct_invite_structure(self):
-        """CASE_OWNER arm: owner check, roles, then the Invite — after the duplicates."""
+        """CASE_OWNER arm: owner check, roles, Invite, inert participant, Add."""
         owner = self._duplicate_selector().children[3]
         assert isinstance(owner, py_trees.composites.Sequence)
         assert owner.name == "OwnerDirectInvite"
@@ -821,6 +888,8 @@ class TestDuplicateDetectionTreeStructure:
             SenderIsCaseOwnerNode,
             EvaluateDefaultRolesNode,
             EmitInviteActorToCaseNode,
+            CreateInertInviteeParticipantNode,
+            EmitAddCaseParticipantNode,
         ]
         check = owner.children[0]
         assert isinstance(check, SenderIsCaseOwnerNode)

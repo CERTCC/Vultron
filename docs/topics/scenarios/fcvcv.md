@@ -23,14 +23,14 @@ causal_edges:
       V1 and C2 each accept C1's invitation; acceptances follow the invites.
   - antecedent: accept_invite_actor_to_case
     consequent: offer_case_participant
-    consequent_actor: c2
+    consequent_actor: case-actor
     note: >
       After C2 joins, C2 suggests V2 to the case via the actor-suggestion flow
       (ADR-0026).  The offer can only be made by a participant, so C2's
       acceptance must precede the offer.
   - antecedent: offer_case_participant
     consequent: accept_actor_recommendation
-    consequent_actor: c1
+    consequent_actor: case-actor
     note: >
       C1, as case owner, approves C2's suggestion.  The recommendation
       acceptance follows the offer.

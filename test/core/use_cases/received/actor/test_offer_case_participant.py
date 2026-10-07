@@ -127,6 +127,7 @@ def _seed_dl_for_case_actor(
         id_=CASE_ID,
         name="OfferRoundTripTest",
         attributed_to=CASE_OWNER_ID,
+        stub_summary="Security issue — details shared after acceptance",
         # What OfferActorToCaseReceivedUseCase records when the recommendation
         # arrives (CM-16-004): the decision handlers read the recommender
         # from here, and refuse a decision on a recommendation never recorded.
@@ -166,6 +167,7 @@ def _build_offer_activity(
     to: list[str] | None = None,
     cc: list[str] | None = None,
     origin: str | None = RECOMMENDATION_ID,
+    roles: list | None = None,
     recommended_id: str = RECOMMENDED_ID,
 ):
     recommended = as_Actor(id_=recommended_id)
@@ -176,6 +178,7 @@ def _build_offer_activity(
         actor=actor,
         to=to or [CASE_OWNER_ID],
         cc=cc or [],
+        roles=roles,
         id_=OFFER_ID,
         **extra,
     )
@@ -325,9 +328,52 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
             AcceptOfferCaseParticipantReceivedEvent, extract_event(accept)
         )
 
+    def _event_with_stored_offer(
+        self,
+        dl: SqliteDataLayer,
+        origin: str | None = RECOMMENDATION_ID,
+    ) -> AcceptOfferCaseParticipantReceivedEvent:
+        """Build Accept(Offer(CaseParticipant)) and store offer + participant in DL.
+
+        CM-11-019: the use case reads roles from the stored Offer's object_.
+        Dehydration stores object_ as a bare IRI; the IRI is followed at read
+        time via dl.read(). So both the Offer and its CaseParticipant object
+        must be stored in the DL for the roles to be found.
+
+        ``_seed_dl_for_case_actor`` already stores the same offer (via
+        ``_record_offer``); ``dl.save`` overwrites any prior record so both
+        the participant and the offer carry the expected roles.
+        """
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            as_CaseParticipant,
+        )
+
+        offer = _build_offer_activity(origin=origin, roles=[CVDRole.VENDOR])
+        # Store the CaseParticipant object so the IRI follow-up in the use
+        # case (AKM-03-001) succeeds and returns the roles.
+        # dl.save() is used instead of dl.create() because _record_offer
+        # (called by _seed_dl_for_case_actor) may have already stored these
+        # records; save() overwrites without raising VultronAlreadyExistsError.
+        participant = offer.object_
+        if isinstance(participant, as_CaseParticipant):
+            dl.save(participant)
+        dl.save(offer)
+        accept = accept_case_participant_offer_activity(
+            offer,
+            target=_case_ref(CASE_ID),
+            actor=CASE_OWNER_ID,
+            to=[CASE_ACTOR_ID],
+        )
+        return cast(
+            AcceptOfferCaseParticipantReceivedEvent, extract_event(accept)
+        )
+
     def test_executes_without_error(self):
+        # CM-11-019: use _event_with_stored_offer so the DL has the offer's
+        # roles and CreateInertInviteeParticipantNode can resolve them.
         dl, _ = _seed_dl_for_case_actor()
-        event = self._event()
+        event = self._event_with_stored_offer(dl)
         result = AcceptOfferCaseParticipantReceivedUseCase(
             dl,
             event,
@@ -556,7 +602,9 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
         )
         dl.save(case)
 
-        event = self._event()
+        # CM-11-019: store the offer with roles so CreateInertInviteeParticipantNode
+        # can resolve them and the use case is APPLIED.
+        event = self._event_with_stored_offer(dl)
         result = AcceptOfferCaseParticipantReceivedUseCase(
             dl,
             event,
@@ -837,6 +885,7 @@ def _seed_dl_for_ac1() -> SqliteDataLayer:
         id_=AC1_CASE_ID,
         name="AC1RolesThreading",
         attributed_to=AC1_CASE_OWNER_ID,
+        stub_summary="Security issue — details shared after acceptance",
         # Recorded when the recommendation arrived (CM-16-004); the Accept
         # handler refuses a decision on a recommendation never recorded.
         recommendation_recommender_index={
@@ -1100,6 +1149,62 @@ class TestAcceptOfferCaseParticipantRolesThreading:
             "the Invite must carry the recorded Offer's roles, not the reply's"
         )
 
+    @pytest.mark.spec("CM-11-019")
+    def test_participant_case_roles_empty_refused_per_cm11019(self):
+        """CM-11-019: Accept(Offer) with empty roles is REFUSED.
+
+        Store an Offer whose CaseParticipant carries ``case_roles=[]``.
+        ``_require_recorded_offer`` returns ``roles=None``, so
+        ``CreateInertInviteeParticipantNode`` (CM-11-019) returns FAILURE and
+        the overall use-case result is REFUSED.  No inert participant is
+        created.
+        """
+        from vultron.core.models.case import VulnerabilityCase
+
+        dl = _seed_dl_for_ac1()
+
+        # Store an Offer with empty roles so _require_recorded_offer returns
+        # roles=None → CreateInertInviteeParticipantNode refuses (CM-11-019).
+        empty_roles_offer = offer_case_participant_activity(
+            as_Actor(id_=AC1_INVITEE_ID),
+            target=_case_ref(AC1_CASE_ID),
+            actor=AC1_CASE_ACTOR_ID,
+            to=[AC1_CASE_OWNER_ID],
+            id_=OFFER_ID,
+            origin=RECOMMENDATION_ID,
+            roles=[],
+        )
+        dl.create(cast(CaseParticipant, empty_roles_offer.object_))
+        dl.create(empty_roles_offer)
+        accept = accept_case_participant_offer_activity(
+            empty_roles_offer,
+            target=_case_ref(AC1_CASE_ID),
+            actor=AC1_CASE_OWNER_ID,
+            to=[AC1_CASE_ACTOR_ID],
+        )
+        event = cast(
+            AcceptOfferCaseParticipantReceivedEvent, extract_event(accept)
+        )
+
+        result = AcceptOfferCaseParticipantReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+        assert result.disposition is HandlerDisposition.REFUSED, (
+            f"Expected REFUSED for no-roles Accept(Offer), got {result.disposition}"
+        )
+
+        # No inert participant should have been created.
+        reloaded_case = dl.read(AC1_CASE_ID)
+        assert isinstance(reloaded_case, VulnerabilityCase)
+        assert AC1_INVITEE_ID not in reloaded_case.actor_participant_index, (
+            "CM-11-019: no inert participant must be created for a no-roles "
+            "Accept(Offer(CaseParticipant))"
+        )
+
     @pytest.mark.spec("CM-16-019")
     def test_participant_takes_only_the_recorded_roles(self):
         """Full round trip: the admitted participant holds the recorded roles.
@@ -1107,15 +1212,15 @@ class TestAcceptOfferCaseParticipantRolesThreading:
         The reply's forged CASE_OWNER never reaches the Invite, so the invitee
         is admitted as VENDOR only (CM-16-019).
         """
-        from vultron.core.use_cases.received.actor.invite import (
-            AcceptInviteActorToCaseReceivedUseCase,
-        )
-        from vultron.enums.roles import CVDRole
+        self._test_participant_case_roles_empty_after_full_round_trip_invite_obj()
+
+    def _test_participant_case_roles_empty_after_full_round_trip_invite_obj(
+        self,
+    ):
+        """Helper: find the Invite stored during step 1 of the round-trip."""
 
         dl = _seed_dl_for_ac1()
         event = self._build_accept_offer_event(dl)
-
-        # Step 1: CaseActor receives Accept(Offer(CaseParticipant)) → emits Invite
         AcceptOfferCaseParticipantReceivedUseCase(
             dl,
             event,
@@ -1141,6 +1246,10 @@ class TestAcceptOfferCaseParticipantRolesThreading:
         from vultron.core.models.events.actor import (
             AcceptInviteActorToCaseReceivedEvent,
         )
+        from vultron.core.use_cases.received.actor.invite import (
+            AcceptInviteActorToCaseReceivedUseCase,
+        )
+        from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.base.objects.activities.transitive import (
             as_Invite,
         )
