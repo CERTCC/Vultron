@@ -12,6 +12,7 @@ related_specs:
   - specs/architecture.yaml (ARCH-12-003, ARCH-12-006, ARCH-23-003, ARCH-23-005)
   - specs/embargo-policy.yaml (EP-02-004)
   - specs/case-proposal.yaml (CP-05-005)
+  - specs/case-management.yaml (CM-11-017)
 related_notes:
   - notes/domain-model-separation.md
   - notes/architecture-hexagonal.md
@@ -283,12 +284,17 @@ absent, falls back to `dl.read(...)`, it usually only works because a prior
 delivery happened to store the value; that hidden dependency on delivery order
 is a latent race, not a safety net.
 
+The smell does not apply when the message's copy is not authoritative.
 `_read_invite_roles()` in
-`vultron/core/behaviors/case/nodes/invite_participant.py` (ISSUE-2719) read invite
-roles from the DataLayer rather than from the received activity. A protocol field
-that is *present in the message* must be read from the message; treating the
-DataLayer as a substitute source silently tolerates a message that never carried
-it.
+`vultron/core/behaviors/case/nodes/invite_participant.py` reads the roles of
+a stub Invite from the Invite the CASE_MANAGER recorded when it sent it, never
+from the copy the invitee's `Accept` embeds: the sender wrote that copy, so
+taking roles from it lets any sender choose its own (CM-11-017, #3733).
+A missing recorded Invite is a refusal (CM-11-019), not a cue to fall back to
+the embedded copy.
+A protocol field that is *present in the message* and is the sender's own
+assertion is read from the message; a field that grants standing is read from
+the receiver's record of what it sent.
 
 **How to apply:**
 
@@ -308,7 +314,8 @@ This is the same message-primacy principle as the semantic-content rule in
 message-subject-identity rule in
 [notes/wire-core-boundary.md](wire-core-boundary.md).
 
-*Source: ISSUE-2719 — `_read_invite_roles()` DataLayer fallback.*
+*Source: ISSUE-2719 — `_read_invite_roles()` DataLayer fallback; ISSUE-4071 —
+roles from the recorded Invite.*
 
 ## Received Activity Artifacts: Inline Sub-Field Snapshots Are Intentional
 

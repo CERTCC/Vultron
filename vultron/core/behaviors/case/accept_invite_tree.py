@@ -85,6 +85,7 @@ from vultron.core.behaviors.case.nodes.invite_revision_relay import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.sender_entitlement import SenderIsInviteeNode
 
 
 class MaybeSignEmbargoConsentNode(py_trees.composites.Selector):
@@ -138,6 +139,7 @@ class _TrySignEmbargoConsentSequence(py_trees.composites.Sequence):
 def create_accept_invite_actor_to_case_tree(
     case_id: str,
     invitee_id: str,
+    invite_id: str,
 ) -> py_trees.composites.Sequence:
     """Return the BT for handling an inbound ``Accept(Invite(actor, case))``.
 
@@ -148,6 +150,7 @@ def create_accept_invite_actor_to_case_tree(
     The returned Sequence::
 
         AcceptInviteActorToCaseBT (memory=False)
+        ├── SenderIsInviteeNode                    — sender is the recorded invitee
         ├── CheckInviteeNotAlreadyParticipantNode  — idempotency guard
         ├── CapturePreCommitBackfillTargetNode     — snapshot ledger for resume case
         ├── GuardedCommitCaseLedgerEntryBT         — record receipt (CLP-10-006)
@@ -178,9 +181,16 @@ def create_accept_invite_actor_to_case_tree(
     SUCCESS with ``invitee_already_participant = True`` so the tree continues
     to the commit + backfill steps without re-creating the participant.
 
+    The sender guard refuses an Accept unless its sender is the invitee of the
+    stub Invite this store recorded for the case, before anything is written
+    (CM-11-017, HP-01-006, ADR-0115).
+
     Args:
         case_id: ID of the VulnerabilityCase the invitee accepted.
-        invitee_id: Actor ID of the actor who accepted the invitation.
+        invitee_id: Actor ID of the actor who accepted the invitation (the
+            reply's sender).
+        invite_id: ID of the recorded stub Invite being accepted; its roles,
+            not the reply's embedded copy, become the participant's.
 
     Returns:
         Configured ``Sequence`` ready for execution via
@@ -189,6 +199,11 @@ def create_accept_invite_actor_to_case_tree(
     return create_receive_activity_tree(
         name="AcceptInviteActorToCaseBT",
         case_id=case_id,
+        sender_guard=SenderIsInviteeNode(
+            invite_id=invite_id,
+            sender_actor_id=invitee_id,
+            case_id=case_id,
+        ),
         precondition_guards=[
             CheckInviteeNotAlreadyParticipantNode(
                 case_id=case_id, invitee_id=invitee_id
@@ -201,7 +216,9 @@ def create_accept_invite_actor_to_case_tree(
                 case_id=case_id,
                 children=[
                     CreateInviteeParticipantNode(
-                        case_id=case_id, invitee_id=invitee_id
+                        case_id=case_id,
+                        invitee_id=invitee_id,
+                        invite_id=invite_id,
                     ),
                     MaybeSignEmbargoConsentNode(
                         case_id=case_id, invitee_id=invitee_id

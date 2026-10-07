@@ -37,10 +37,11 @@ When run as a script, this module will:
 4. Run both demo workflows (accept and reject)
 5. Verify side effects in the data layer
 
-Note on direct inbox communication:
-This demo uses direct inbox-to-inbox communication between actors, per the
-Vultron prototype design. Actors post activities directly to each other's
-inboxes.
+Note on puppeteering:
+The vendor asks the CASE_MANAGER to invite the coordinator by trigger, and the
+coordinator answers the Invite the CASE_MANAGER sent and recorded by trigger.
+A reply to an Invite the CASE_MANAGER has no record of is refused (CM-11-017),
+so the demo does not build the Invite or the reply itself.
 """
 
 # Standard library imports
@@ -49,6 +50,7 @@ from collections.abc import Callable, Sequence
 
 from vultron.core.states.rm import RM
 from vultron.demo.actor_session import ActorSession
+from vultron.demo.helpers.polling import find_case_invite_for_actor
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.seeding import get_actor_by_id
 from vultron.demo.helpers.verification import _check_participant_rm_state_in
@@ -65,11 +67,6 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     setup_demo_logging,
 )
 from vultron.enums.roles import CVDRole
-from vultron.wire.as2.factories import (
-    rm_accept_invite_to_case_activity,
-    rm_invite_to_case_activity,
-    rm_reject_invite_to_case_activity,
-)
 
 # Vultron imports
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -116,6 +113,43 @@ def _find_case_manager_actor(
     return None
 
 
+def _invite_coordinator(
+    client: DataLayerClient,
+    case: as_VulnerabilityCase,
+    vendor: as_Actor,
+    coordinator: as_Actor,
+    invite_actor_id: str,
+) -> str:
+    """Have the vendor trigger the stub Invite and return its delivered id.
+
+    The CASE_MANAGER sends and records the Invite (CM-17-007, ADR-0109), so
+    the coordinator answers that Invite and not one the demo builds: a reply
+    to an Invite the CASE_MANAGER has no record of is refused (CM-11-017).
+    The trigger also records the inert participant at invite-send time
+    (ADR-0114, CM-11-006).
+    """
+    # Seed stub_summary on the CASE_MANAGER's DataLayer copy: the invite BT
+    # reads the case from the CASE_MANAGER's store and the BT-created case
+    # has none (CM-17-010, MV-10-001, #4165).
+    ActorSession(
+        client=client, actor=get_actor_by_id(client, invite_actor_id)
+    ).with_case(case).quiet().set_stub_summary(
+        "Vulnerability report — details shared after acceptance."
+    )
+    ActorSession(client=client, actor=vendor).with_case(
+        case
+    ).quiet().invite_actor_to_case(
+        invitee_id=str(coordinator.id_), roles=[CVDRole.COORDINATOR]
+    )
+    invite_id = find_case_invite_for_actor(
+        client=client.model_copy(update={"actor_id": coordinator.id_}),
+        case_id=case.id_,
+        invitee_id=str(coordinator.id_),
+    )
+    logger.info("CASE_MANAGER Invite for coordinator: %s", invite_id)
+    return invite_id
+
+
 def demo_invite_actor_accept(
     client: DataLayerClient,
     finder: as_Actor,
@@ -128,8 +162,9 @@ def demo_invite_actor_accept(
     Steps:
     1. Setup: initialize case (report submitted + validated, case created,
        finder participant added)
-    2. Vendor invites coordinator to case (RmInviteToCaseActivity → coordinator inbox)
-    3. Coordinator accepts invitation (RmAcceptInviteToCaseActivity → vendor inbox)
+    2. Vendor fires the invite-actor-to-case trigger; the CASE_MANAGER invites
+       the coordinator
+    3. Coordinator fires the accept-case-invite trigger
     4. Verify coordinator appears in case participant list
 
     This follows the accept branch in
@@ -148,32 +183,16 @@ def demo_invite_actor_accept(
             f"No CASE_MANAGER participant found for case '{case.id_}' (CM-02-014, CM-02-015)"
         )
 
-    invite = None
+    invite_id = ""
     with demo_step("Step 2: Vendor invites coordinator to case"):
-        invite = rm_invite_to_case_activity(
-            coordinator,
-            actor=invite_actor_id,
-            target=case,
-            to=[coordinator.id_],
-            attributed_to=vendor.id_,
-            roles=[CVDRole.COORDINATOR],
-            content=f"We're inviting you to participate in {case.name}.",
+        invite_id = _invite_coordinator(
+            client, case, vendor, coordinator, invite_actor_id
         )
-        logger.info("Sending invite: %s", logfmt(invite))
-        post_to_inbox_and_wait(client, coordinator.id_, invite)
 
     with demo_step("Step 3: Coordinator accepts invitation"):
-        # PCR-08-008: Accept must be addressed to the Case Actor inbox.
-        # The invite's actor field carries the Case Actor ID.
-        accept_recipient = invite_actor_id
-        accept = rm_accept_invite_to_case_activity(
-            invite,
-            actor=coordinator.id_,
-            to=[accept_recipient],
-            content=f"Accepting invitation to participate in {case.name}.",
-        )
-        logger.info("Sending accept: %s", logfmt(accept))
-        post_to_inbox_and_wait(client, accept_recipient, accept)
+        ActorSession(
+            client=client, actor=coordinator
+        ).quiet().accept_case_invite(invite_id=invite_id)
 
     with demo_step("Step 4: Verify coordinator added as case participant"):
         with demo_check("Coordinator present in case participant list"):
@@ -210,9 +229,8 @@ def demo_invite_actor_reject(
 
     ADR-0114 / CM-11-006: the invite-actor-to-case trigger is called first so
     that ``CreateInertInviteeParticipantNode`` records an inert
-    ``CaseParticipant`` for coordinator at invite-send time.  The invite
-    activity is then also posted to coordinator's inbox directly (exchange-demo
-    pattern) so coordinator can reject it.  After the Reject,
+    ``CaseParticipant`` for coordinator at invite-send time.  Coordinator
+    then rejects the Invite the CASE_MANAGER recorded.  After the Reject,
     ``ApplyInviteRejectToParticipantNode`` closes the inert record at
     RM ``CLOSED`` (CM-11-007) — coordinator is present in
     ``actor_participant_index`` but never active (DEMOMA-27-002).
@@ -221,8 +239,8 @@ def demo_invite_actor_reject(
     1. Setup: initialize case (report submitted + validated, case created,
        finder participant added)
     2. Vendor fires invite-actor-to-case trigger (creates inert participant,
-       CM-11-006) and delivers the invite to coordinator's inbox
-    3. Coordinator rejects invitation (RmRejectInviteToCaseActivity → vendor inbox)
+       CM-11-006) and delivers the invite
+    3. Coordinator fires the reject-case-invite trigger
     4. Verify coordinator is in actor_participant_index at RM.CLOSED (never active)
 
     This follows the reject branch in
@@ -241,51 +259,18 @@ def demo_invite_actor_reject(
             f"No CASE_MANAGER participant found for case '{case.id_}' (CM-02-014, CM-02-015)"
         )
 
-    invite = None
+    invite_id = ""
     with demo_step(
         "Step 2: Vendor fires invite-actor-to-case trigger and delivers invite"
     ):
-        # Seed stub_summary on the CASE_MANAGER's DataLayer copy: the invite BT
-        # reads the case from the CASE_MANAGER's store and the BT-created case
-        # has none (CM-17-010, MV-10-001, #4165).
-        ActorSession(
-            client=client, actor=get_actor_by_id(client, invite_actor_id)
-        ).with_case(case).quiet().set_stub_summary(
-            "Vulnerability report — details shared after acceptance."
+        invite_id = _invite_coordinator(
+            client, case, vendor, coordinator, invite_actor_id
         )
-        # Fire the trigger so CreateInertInviteeParticipantNode records the inert
-        # participant on the CASE_MANAGER side at invite-send time (ADR-0114,
-        # CM-11-006).
-        ActorSession(client=client, actor=vendor).with_case(
-            case
-        ).quiet().invite_actor_to_case(
-            invitee_id=str(coordinator.id_), roles=[CVDRole.COORDINATOR]
-        )
-        # Also post the invite directly to coordinator's inbox (exchange-demo
-        # delivery pattern) so coordinator has an invite to reject in Step 3.
-        invite = rm_invite_to_case_activity(
-            coordinator,
-            actor=invite_actor_id,
-            target=case,
-            to=[coordinator.id_],
-            attributed_to=vendor.id_,
-            roles=[CVDRole.COORDINATOR],
-            content=f"We're inviting you to participate in {case.name}.",
-        )
-        logger.info("Sending invite: %s", logfmt(invite))
-        post_to_inbox_and_wait(client, coordinator.id_, invite)
 
     with demo_step("Step 3: Coordinator rejects invitation"):
-        # PCR-08-008: Reject must also be addressed to the Case Actor inbox.
-        reject_recipient = invite_actor_id
-        reject = rm_reject_invite_to_case_activity(
-            invite,
-            actor=coordinator.id_,
-            to=[reject_recipient],
-            content=f"Declining the invitation to participate in {case.name}.",
-        )
-        logger.info("Sending reject: %s", logfmt(reject))
-        post_to_inbox_and_wait(client, reject_recipient, reject)
+        ActorSession(
+            client=client, actor=coordinator
+        ).quiet().reject_case_invite(invite_id=invite_id)
 
     with demo_step(
         "Step 4: Verify coordinator in actor_participant_index at RM.CLOSED"

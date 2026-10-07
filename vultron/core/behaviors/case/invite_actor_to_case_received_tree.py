@@ -36,12 +36,14 @@ from vultron.core.behaviors.case.nodes.role_gates import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.sender_entitlement import SenderIsInviteeNode
 
 logger = logging.getLogger(__name__)
 
 
 def create_reject_invite_actor_to_case_received_tree(
     case_id: str,
+    invite_id: str,
     invitee_id: str | None = None,
 ) -> py_trees.composites.Sequence:
     """Received-side BT for ``Reject(Invite(actor, case))`` on the CaseActor inbox.
@@ -52,10 +54,16 @@ def create_reject_invite_actor_to_case_received_tree(
     participant record: RM ``CLOSED``, VF ``Vf``, PEC ``DECLINED`` (when an
     embargo is in force) — AC-3 (CM-11-007, CM-11-009, ADR-0114).
 
+    The sender must be the invitee of the stub Invite this store recorded for
+    the case, or the Reject is refused before anything is written (CM-11-017,
+    HP-01-006, ADR-0115).
+
     Args:
         case_id: ID of the VulnerabilityCase referenced by the invite.
-        invitee_id: Actor ID of the rejecting invitee.  Required for AC-3
-            effects; omit only when the invitee cannot be resolved.
+        invitee_id: Actor ID of the rejecting invitee (the reply's sender).
+            Required for AC-3 effects; omit only when the invitee cannot be
+            resolved, in which case the sender guard refuses.
+        invite_id: ID of the recorded stub Invite the Reject answers.
 
     Returns:
         Root ``RejectInviteActorToCaseReceivedBT`` Sequence node.
@@ -80,6 +88,11 @@ def create_reject_invite_actor_to_case_received_tree(
         case_id=case_id if case_id else None,
         precondition_guards=[],
         effect_nodes=effect_nodes,
+        sender_guard=SenderIsInviteeNode(
+            invite_id=invite_id,
+            sender_actor_id=invitee_id or "",
+            case_id=case_id or None,
+        ),
     )
 
 

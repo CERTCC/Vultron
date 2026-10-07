@@ -1145,7 +1145,10 @@ groups:
       `Invite(Actor, VulnerabilityCase)` — the full-case Invite — queued after
       the last replayed ledger entry, referencing the case by ID and carrying
       the `log_index` and `entry_hash` of its own ledger tail when it issued
-      the Invite.
+      the Invite. A receiver MUST refuse a full-case Invite whose sender is not
+      the case's CASE_MANAGER, as recorded on its replica or, before the
+      replica exists, as the trust anchor recorded from the stub Invite
+      (PCR-03-004), and a receiver with neither MUST refuse it.
     rationale: >-
       The participant already holds the case from the Announce, so the Invite
       only asks the question and carries no copy of the case. Delivery to each
@@ -1154,6 +1157,8 @@ groups:
       is the floor the participant must reach before answering (ADR-0121).
     verification: A test confirms the full-case Invite is queued after the last
       replayed ledger entry and carries the CASE_MANAGER's ledger tail position.
+      Tests confirm a full-case Invite from the CASE_MANAGER is accepted, and
+      one from any other actor, or with no known CASE_MANAGER, is refused.
     adr:
     - ADR-0121
     stories:
