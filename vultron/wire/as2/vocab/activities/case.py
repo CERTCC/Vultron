@@ -17,10 +17,11 @@ Custom Activity Streams Activities for VulnerabilityCase objects.
 Each activity should have a VulnerabilityCase object as either its target or object.
 """
 
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from pydantic import Field, model_validator
 
+from vultron.core.models.ledger_position import LedgerPosition
 from vultron.primitives import NonEmptyString
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
@@ -33,6 +34,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Leave,
     as_Offer,
     as_Reject,
+    as_TentativeReject,
     as_Update,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor, as_ActorRef
@@ -366,6 +368,109 @@ class _RmRejectInviteToCaseActivity(as_Reject):
     def set_in_reply_to_from_invite(self):
         if self.in_reply_to is None:
             object.__setattr__(self, "in_reply_to", self.object_.id_)
+        return self
+
+
+def _check_ledger_position_content(activity: Any, what: str) -> None:
+    """Require *activity*'s ``content`` to be a ledger position's JSON dump.
+
+    The position travels in the standard AS2 ``content`` slot as the
+    ``LedgerPosition`` model's own JSON dump (VAM-04-011..014), so a missing,
+    blank or non-parsing ``content`` is not a full-case message.
+    """
+    content = activity.content
+    if not isinstance(content, str) or not content.strip():
+        raise ValueError(
+            f"{what} must carry its ledger position as JSON in `content`"
+        )
+    LedgerPosition.model_validate_json(content)
+
+
+class _RmInviteToFullCaseActivity(as_Invite):
+    """The CASE_MANAGER asks a joined participant to judge the case.
+
+    ``Invite(Actor)[target=VulnerabilityCase]`` — the full-case Invite
+    (VAM-04-011, CM-11-010, ADR-0121).  The ``target`` is the plain case URI:
+    the invitee already holds the case from the Announce (AKM-02-003).  The
+    CASE_MANAGER's ledger position when it issued the Invite, the floor the
+    participant's reply must reach, is the JSON dump of a
+    :class:`~vultron.core.models.ledger_position.LedgerPosition` in
+    ``content``.
+
+    Declares ``object_`` in :attr:`inline_required_refs`: the invitee is a
+    peer the sender holds no record of (see :class:`_RmInviteToCaseActivity`).
+    """
+
+    object_: as_Actor = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+    target: NonEmptyString = Field(...)
+
+    inline_required_refs: ClassVar[frozenset[str]] = frozenset({"object_"})
+
+    @model_validator(mode="after")
+    def _content_is_a_ledger_position(self):
+        _check_ledger_position_content(self, "the full-case Invite")
+        return self
+
+
+def _check_full_case_reply(reply: Any) -> None:
+    """Shared rules of the three replies to the full-case Invite.
+
+    A reply carries the replier's ledger position in ``content``
+    (CM-11-011) and answers the Invite it embeds.
+    """
+    _check_ledger_position_content(reply, "a reply to the full-case Invite")
+    if reply.in_reply_to is None:
+        object.__setattr__(reply, "in_reply_to", reply.object_.id_)
+
+
+class _RmAcceptFullCaseInviteActivity(as_Accept):
+    """The participant judges the case valid: RV, ``RECEIVED → VALID``.
+
+    `object_`: the `_RmInviteToFullCaseActivity` being accepted.  Carries the
+    replier's ledger position (VAM-04-012, CM-11-011).
+    """
+
+    object_: _RmInviteToFullCaseActivity = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+
+    @model_validator(mode="after")
+    def _validate_reply(self):
+        _check_full_case_reply(self)
+        return self
+
+
+class _RmTentativeRejectFullCaseInviteActivity(as_TentativeReject):
+    """The participant judges the case invalid: RI, ``RECEIVED → INVALID``.
+
+    Carries the replier's ledger position (VAM-04-013, CM-11-011).
+    """
+
+    object_: _RmInviteToFullCaseActivity = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+
+    @model_validator(mode="after")
+    def _validate_reply(self):
+        _check_full_case_reply(self)
+        return self
+
+
+class _RmRejectFullCaseInviteActivity(as_Reject):
+    """The participant closes the case: RC, ``RECEIVED → CLOSED``.
+
+    Carries the replier's ledger position (VAM-04-014, CM-11-011).
+    """
+
+    object_: _RmInviteToFullCaseActivity = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+
+    @model_validator(mode="after")
+    def _validate_reply(self):
+        _check_full_case_reply(self)
         return self
 
 

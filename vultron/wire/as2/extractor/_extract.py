@@ -31,6 +31,7 @@ from vultron.wire.as2.extractor._builders import (
     _build_object_kwargs,
     _get_id,
     _to_domain_obj,
+    ledger_position_from_content,
     proposed_embargo_from,
 )
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
@@ -110,6 +111,13 @@ def extract_intent(
         extra_kwargs["proposed_embargo"] = proposed_embargo_from(
             carrier, activity_id=activity.id_
         )
+
+    if "ledger_tail" in event_class.model_fields:
+        # The full-case Invite and its replies each carry a ledger position as
+        # the JSON dump of a LedgerPosition in ``content`` (VAM-04-011..014).
+        # It is parsed here, at the edge, so core receives the model
+        # (ADR-0032); an absent or unparseable one is refused with a reason.
+        extra_kwargs["ledger_tail"] = ledger_position_from_content(activity)
 
     if "proposer_profile" in event_class.model_fields:
         # Create(CaseProposal)'s actor is the proposer's inline profile

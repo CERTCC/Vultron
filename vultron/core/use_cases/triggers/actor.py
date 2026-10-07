@@ -66,7 +66,10 @@ from vultron.core.use_cases.triggers.requests import (
     SuggestActorToCaseTriggerRequest,
 )
 from vultron.enums.roles import CVDRole
-from vultron.errors import VultronNotFoundError, VultronValidationError
+from vultron.errors import (
+    VultronNotFoundError,
+    VultronValidationError,
+)
 
 logger = logging.getLogger(__name__)
 

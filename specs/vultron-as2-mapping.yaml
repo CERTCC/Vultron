@@ -416,17 +416,29 @@ groups:
     kind: protocol
     statement: >-
       The full-case Invite (CM-11-010) MUST be represented as
-      `Invite(Actor)[target=VulnerabilityCase]`, with the case referenced by its ID and
-      the CASE_MANAGER's ledger position carried on the Invite.
+      `Invite(Actor)[target=VulnerabilityCase]`, with the case referenced by its plain
+      URI in `target` (AKM-02-003) and the CASE_MANAGER's ledger position carried in the
+      Invite's `content`. The `content` string MUST be the JSON dump, under the model's
+      wire aliases, of the core `LedgerPosition` model, for example
+      `{"logIndex":3,"entryHash":"<hash>"}`, and MUST be produced only by
+      `vultron.wire.as2.factories`. The position of an empty ledger is `logIndex` -1 with
+      the case's `genesisHash` as `entryHash` (CLP-08-004). A receiver MUST parse
+      `content` with `LedgerPosition.model_validate_json` at the parse edge and MUST
+      refuse an activity whose `content` is missing, blank or does not parse, naming the
+      activity and writing nothing (ADR-0032).
     rationale: >-
       The participant already holds the case from the replica, so the Invite references
       it by ID. Because the stub is its own type (VAM-04-004, CM-11-013), this shape and
       the stub Invite differ in their target's `type` and are classified without a
-      lookup.
+      lookup. `content` is the existing AS2 slot, used here for a machine-readable
+      record, so no AS2 verb gains a field.
     verification: >-
       A unit test confirms that an `Invite` whose `target` is a `VulnerabilityCase`
       matches the full-case Invite pattern and not the stub Invite pattern, and that one
       whose `target` is a `VulnerabilityCaseStub` matches only the stub Invite pattern.
+      Tests confirm the factory's `content` round-trips through
+      `LedgerPosition.model_validate_json` and that a missing, blank or non-parsing
+      `content` is refused at extraction.
     adr:
     - ADR-0121
     - ADR-0114
@@ -439,7 +451,7 @@ groups:
     statement: >-
       The RV reply to the full-case Invite MUST be represented as
       `Accept(Invite(Actor)[target=VulnerabilityCase])`, carrying the replier's ledger
-      position (CM-11-011).
+      position in `content`, in the form VAM-04-011 defines (CM-11-011).
     verification: >-
       A unit test confirms that `Accept(Invite(Actor)[target=VulnerabilityCase])`
       matches the full-case Invite's RV pattern and not the stub Invite's `Accept`
@@ -455,7 +467,7 @@ groups:
     statement: >-
       The RI reply to the full-case Invite MUST be represented as
       `TentativeReject(Invite(Actor)[target=VulnerabilityCase])`, carrying the replier's
-      ledger position (CM-11-011).
+      ledger position in `content`, in the form VAM-04-011 defines (CM-11-011).
     verification: >-
       A unit test confirms that
       `TentativeReject(Invite(Actor)[target=VulnerabilityCase])` matches the full-case
@@ -472,7 +484,7 @@ groups:
     statement: >-
       The RC reply to the full-case Invite MUST be represented as
       `Reject(Invite(Actor)[target=VulnerabilityCase])`, carrying the replier's ledger
-      position (CM-11-011).
+      position in `content`, in the form VAM-04-011 defines (CM-11-011).
     verification: >-
       A unit test confirms that `Reject(Invite(Actor)[target=VulnerabilityCase])`
       matches the full-case Invite's RC pattern and not the stub Invite's `Reject`

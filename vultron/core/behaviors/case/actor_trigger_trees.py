@@ -35,7 +35,10 @@ import py_trees
 
 from vultron.core.behaviors.case.nodes.invite_response import (
     EmitAcceptCaseInviteNode,
+    EmitAcceptFullCaseInviteNode,
     EmitRejectCaseInviteNode,
+    EmitRejectFullCaseInviteNode,
+    EmitTentativeRejectFullCaseInviteNode,
 )
 from vultron.core.behaviors.case.nodes.ownership_transfer import (
     EmitAcceptCaseOwnershipTransferNode,
@@ -45,6 +48,7 @@ from vultron.core.behaviors.case.nodes.suggest_actor.accept_offer import (
     EmitAcceptCaseParticipantOfferNode,
 )
 from vultron.core.behaviors.sender.send_tree import sender_side_bt
+from vultron.core.models.ledger_position import LedgerPosition
 
 logger = logging.getLogger(__name__)
 
@@ -127,6 +131,44 @@ def reject_case_invite_trigger_bt(
         ],
     )
     logger.debug("Created RejectCaseInviteTriggerBT for invite=%s", invite_id)
+    return root
+
+
+def full_case_invite_reply_trigger_bt(
+    emit_node: type[
+        EmitAcceptFullCaseInviteNode
+        | EmitTentativeRejectFullCaseInviteNode
+        | EmitRejectFullCaseInviteNode
+    ],
+    invite_id: str,
+    position: LedgerPosition,
+    captured: dict | None = None,
+) -> py_trees.behaviour.Behaviour:
+    """Return the trigger-side BT for a reply to the full-case Invite.
+
+    Emits the reply (RV, RI or RC, by *emit_node*) from the participant's
+    identity, carrying its own ledger *position* (CM-11-011); the factory
+    derives the recipient from the persisted Invite.
+
+    Args:
+        emit_node: The emit node class naming the reply.
+        invite_id: ID of the full-case Invite being answered.
+        position: The participant's own ledger position.
+        captured: Optional dict; ``captured["activity"]`` is set on success.
+
+    Returns:
+        Sequence containing a single emit node.
+    """
+    root = py_trees.composites.Sequence(
+        name=f"{emit_node.__name__}TriggerBT",
+        memory=False,
+        children=[
+            emit_node(
+                invite_id=invite_id, position=position, captured=captured
+            )
+        ],
+    )
+    logger.debug("Created %s for invite=%s", root.name, invite_id)
     return root
 
 

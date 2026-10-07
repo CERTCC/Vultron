@@ -360,6 +360,67 @@ class TriggerActivityPort(Protocol):
         """
         ...
 
+    def invite_actor_to_full_case(
+        self,
+        invitee_id: str,
+        case_id: str,
+        actor: str,
+        ledger_log_index: int,
+        ledger_entry_hash: str,
+        to: list[str] | None = None,
+        id_: str | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist the full-case ``Invite(Actor)[target=Case]``.
+
+        ``actor`` MUST be the CASE_MANAGER's ID.  The Invite references the
+        case by ID and carries the CASE_MANAGER's ledger tail
+        (``ledger_log_index``, ``ledger_entry_hash``) as the floor the
+        invitee's reply must reach (CM-11-010, VAM-04-011).
+        Returns ``(activity_id, activity_blob)``.
+        """
+        ...
+
+    def accept_full_case_invite(
+        self,
+        invite_id: str,
+        actor: str,
+        ledger_log_index: int,
+        ledger_entry_hash: str,
+    ) -> tuple[str, str]:
+        """Create and persist ``Accept(full-case Invite)`` — RV (VAM-04-012).
+
+        The reply carries the replier's own ledger position
+        (``ledger_log_index``, ``ledger_entry_hash``).  The ``to:`` field is
+        the Invite's sender.  Returns ``(activity_id, activity_blob)``.
+        """
+        ...
+
+    def tentative_reject_full_case_invite(
+        self,
+        invite_id: str,
+        actor: str,
+        ledger_log_index: int,
+        ledger_entry_hash: str,
+    ) -> tuple[str, str]:
+        """Create and persist ``TentativeReject(full-case Invite)`` — RI (VAM-04-013).
+
+        Returns ``(activity_id, activity_blob)``.
+        """
+        ...
+
+    def reject_full_case_invite(
+        self,
+        invite_id: str,
+        actor: str,
+        ledger_log_index: int,
+        ledger_entry_hash: str,
+    ) -> tuple[str, str]:
+        """Create and persist ``Reject(full-case Invite)`` — RC (VAM-04-014).
+
+        Returns ``(activity_id, activity_blob)``.
+        """
+        ...
+
     def accept_case_invite(
         self,
         invite_id: str,

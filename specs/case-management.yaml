@@ -1183,14 +1183,17 @@ groups:
       The CASE_MANAGER MUST refuse a reply to the full-case Invite whose ledger
       position is behind the Invite's, or names an entry its own ledger does not
       hold at that index. It MUST accept a reply at or beyond the Invite's
-      position.
+      position. It MUST also refuse a reply from a participant that has not
+      joined the case (an inert participant), and write nothing.
     rationale: >-
       The Invite's position is a floor, not a pin. A reply behind it was made
       without seeing what the participant was asked to judge; a reply beyond it
       is better informed. Pinning the reply to the Invite's position would make
       every reply on a busy case stale (ADR-0121).
     verification: Tests confirm a reply behind the floor, or naming an entry the
-      ledger does not hold, is refused, and a reply beyond the floor is accepted.
+      ledger does not hold, is refused, a reply beyond the floor is accepted, and a reply from a
+      participant that has not joined is refused and writes no ledger
+      entry.
     adr:
     - ADR-0121
     stories:

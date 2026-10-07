@@ -12,13 +12,11 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Planned wire behaviour for joining a case (ADR-0114, ADR-0070, #4006).
 
-Strict-``xfail`` tests for requirements introduced by the case-joining plan
-and not yet implemented: the case stub's own wire identity (CM-11-013) and
-the full-case Invite and its replies being distinguishable from the stub
-Invite and its replies (CM-11-011, VAM-04-011 through VAM-04-014).  Each
-test flips to passing once the issue named in its reason lands; see
-``notes/case-joining.md`` and ``notes/spec-authoring-rules.md`` § "Never
-Raise the Ceiling — Use a Strict ``xfail``".
+Tests for requirements introduced by the case-joining plan: the case stub's
+own wire identity (CM-11-013) and the full-case Invite and its replies being
+distinguishable from the stub Invite and its replies (CM-11-011, VAM-04-011
+through VAM-04-014).  They were strict-``xfail`` until #4045 and #4050
+landed; see ``notes/case-joining.md``.
 """
 
 import pytest
@@ -117,13 +115,6 @@ def test_stub_invite_target_has_its_own_type_and_id() -> None:
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "CM-11-011: Accept/TentativeReject/Reject of the full-case Invite"
-        " are recognised apart from the stub-Invite replies. Tracked by #4050."
-    ),
-)
 @pytest.mark.spec("CM-11-011")
 def test_full_case_invite_replies_have_their_own_semantics() -> None:
     """RV, RI and RC replies to ``Invite(Actor, VulnerabilityCase)`` route apart.
@@ -132,8 +123,6 @@ def test_full_case_invite_replies_have_their_own_semantics() -> None:
     RM transitions (``R → V``, ``R → I``, ``R → C``), so the receiver must
     classify each as its own message — distinct from one another, from the
     replies to the stub Invite (which judge nothing), and never ``UNKNOWN``.
-    Today ``Accept(Invite(Actor, VulnerabilityCase))`` classifies exactly
-    as the stub-Invite Accept does.
     """
     stub, full = _stub_invite(), _full_case_invite()
     stub_reply_semantics = {
@@ -150,20 +139,9 @@ def test_full_case_invite_replies_have_their_own_semantics() -> None:
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "VAM-04-011: Invite(Actor)[target=VulnerabilityCase] and the stub"
-        " Invite match different patterns. Tracked by #4050."
-    ),
-)
 @pytest.mark.spec("VAM-04-011")
 def test_full_case_invite_and_stub_invite_match_different_patterns() -> None:
-    """The ``target`` type alone tells the two Invites apart.
-
-    Today the stub carries ``type`` ``VulnerabilityCase``, so both Invites
-    match the one Invite pattern.
-    """
+    """The ``target`` type alone tells the two Invites apart."""
     stub = find_matching_semantics(_stub_invite())
     full = find_matching_semantics(_full_case_invite())
 
@@ -172,13 +150,6 @@ def test_full_case_invite_and_stub_invite_match_different_patterns() -> None:
     assert stub != full
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "VAM-04-012: Accept of the full-case Invite matches the RV pattern,"
-        " not the stub Invite's Accept pattern. Tracked by #4050."
-    ),
-)
 @pytest.mark.spec("VAM-04-012")
 def test_full_case_invite_accept_is_not_the_stub_accept() -> None:
     """``Accept(Invite(Actor)[target=VulnerabilityCase])`` is RV, not joining."""
@@ -188,32 +159,15 @@ def test_full_case_invite_accept_is_not_the_stub_accept() -> None:
     assert full != _semantics_of("accept", _stub_invite())
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "VAM-04-013: TentativeReject of the full-case Invite matches the RI"
-        " pattern; TentativeReject of a stub matches none. Tracked by #4050."
-    ),
-)
 @pytest.mark.spec("VAM-04-013")
 def test_full_case_invite_tentative_reject_is_ri_and_stub_has_none() -> None:
-    """Only the full-case Invite can be tentatively rejected (CM-11-007).
-
-    Today ``TentativeReject`` of either Invite matches no pattern.
-    """
+    """Only the full-case Invite can be tentatively rejected (CM-11-007)."""
     assert _semantics_of("tentative_reject", _full_case_invite()) not in (
         _UNKNOWN
     )
     assert _semantics_of("tentative_reject", _stub_invite()) in _UNKNOWN
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "VAM-04-014: Reject of the full-case Invite matches the RC pattern,"
-        " not the stub Invite's Reject pattern. Tracked by #4050."
-    ),
-)
 @pytest.mark.spec("VAM-04-014")
 def test_full_case_invite_reject_is_not_the_stub_reject() -> None:
     """``Reject(Invite(Actor)[target=VulnerabilityCase])`` is RC on the case."""

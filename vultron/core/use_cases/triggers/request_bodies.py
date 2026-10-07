@@ -297,6 +297,20 @@ class AcceptCaseInviteRequest(BaseModel):
     invite_id: NonEmptyString
 
 
+class FullCaseInviteReplyRequest(BaseModel):
+    """Request body for the three full-case Invite reply trigger endpoints.
+
+    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
+    invite_id identifies the full-case Invite the participant is answering
+    (CM-11-010).  The reply's ledger position is this actor's own, read from
+    its store; the caller does not supply it (CM-11-011).
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    invite_id: NonEmptyString
+
+
 class RejectCaseInviteRequest(BaseModel):
     """Request body for the reject-case-invite trigger endpoint.
 
