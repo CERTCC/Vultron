@@ -195,8 +195,9 @@ General information about architectural decision records is available at <https:
 - [ADR-0119 The Case Ledger Records Completed Acts](0119-case-ledger-records-completed-acts.md)
 - [ADR-0120 ADR Lifecycle: Three Epochs and Tiered Edits](0120-adr-lifecycle-epochs-and-edit-tiers.md)
 - [ADR-0121 A Joined Participant Judges the Case by Answering a Full-Case Invite; Status Is Self-Declared and Asserted Only for Existing Participants](0121-joined-participant-judges-the-case-by-full-case-invite.md)
-- [ADR-0122 Participant Embargo Consent Is Recorded per (Participant, Embargo)](0122-per-embargo-participant-consent.md)
+- [ADR-0122 Participant Embargo Consent Is Recorded per (Participant, Embargo), Against an Embargo Register on the Case](0122-per-embargo-participant-consent.md) *(revision 2)*
 - [ADR-0123 An Embargo Invite May Name Its Terms by URI](0123-embargo-invite-may-name-its-terms-by-uri.md)
+- [ADR-0124 The Case Is a Projection of Its Ledger: One Replay Function for the CASE_MANAGER and Every Replica](0124-case-is-a-projection-of-its-ledger.md)
 
 ## Rejected ADRs
 
