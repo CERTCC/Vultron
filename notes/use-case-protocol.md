@@ -13,6 +13,7 @@ description: >
 related_specs:
   - specs/use-case-organization.yaml
   - specs/handler-protocol.yaml
+  - specs/case-ledger-processing.yaml
   - specs/inbox-orchestration.yaml
   - specs/triggerable-behaviors.yaml
 related_notes:
@@ -369,11 +370,12 @@ Two things are easy to get wrong here:
   layer to synthesize a verdict when no handler ran, so `_handle()` now
   returns `REFUSED("unroutable: …")` there.
 
-Most `SKIPPED` decisions also do not live in `execute()` — `_idempotent_create`
-and peers in `vultron/core/use_cases/_helpers.py` return without storing when the
+Most `SKIPPED` decisions also do not live in `execute()` — `idempotent_store`
+(`vultron/core/services/idempotent_store.py`) and peers in
+`vultron/core/use_cases/_helpers.py` return without storing when the
 record already exists. Five handlers delegate their whole duplicate-skip decision
 there, so that layer has to return a disposition too or `SKIPPED` is unreachable
-for the commonest skip in the codebase. `_idempotent_create` therefore returns a
+for the commonest skip in the codebase. `idempotent_store` therefore returns a
 `HandlerResult` (`SKIPPED` with a reason, or `APPLIED`) describing its own act;
 escalating a skip to `REFUSED` stays the calling handler's verdict (#2255).
 

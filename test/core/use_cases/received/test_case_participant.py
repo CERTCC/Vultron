@@ -273,9 +273,13 @@ class TestCaseParticipantUseCases:
         assert result.disposition == HandlerDisposition.REFUSED
 
     @pytest.mark.spec("HP-01-003")
-    def test_create_participant_redelivery_is_skipped(self):
+    def test_create_participant_redelivery_is_skipped(self, make_payload):
+        from vultron.wire.as2.factories import create_participant_activity
         from vultron.wire.as2.vocab.objects.case_participant import (
             as_CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
         )
 
         dl = SqliteDataLayer(
@@ -287,10 +291,16 @@ class TestCaseParticipantUseCases:
             attributed_to="https://example.org/users/coordinator",
             context="https://example.org/cases/caseCP",
         )
-        event = MagicMock()
-        event.object_type = participant.type_
-        event.participant_id = participant.id_
-        event.participant = participant
+        event = make_payload(
+            create_participant_activity(
+                participant,
+                target="https://example.org/cases/caseCP",
+                actor="https://example.org/users/coordinator",
+                context=as_VulnerabilityCase(
+                    id_="https://example.org/cases/caseCP", name="CP"
+                ),
+            )
+        )
 
         first = CreateCaseParticipantReceivedUseCase(dl, event).execute()
         again = CreateCaseParticipantReceivedUseCase(dl, event).execute()

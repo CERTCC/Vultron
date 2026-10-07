@@ -18,7 +18,7 @@
 These nodes persist inbound report-related objects (VulnerabilityReport and
 protocol activities) to the DataLayer in an idempotent way.
 
-``StoreReportNode`` delegates existence checks to ``_idempotent_create()``,
+``StoreReportNode`` delegates existence checks to ``idempotent_store()``,
 which uses ``dl.read()`` to avoid a silent catch-all on ``ValueError``.
 
 ``StoreActivityNode`` uses a guarded ``dl.create()`` with a narrow ``ValueError``
@@ -36,7 +36,7 @@ from typing import Any
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
-from vultron.core.use_cases._helpers import _idempotent_create
+from vultron.core.services.idempotent_store import idempotent_store
 from vultron.errors import VultronAlreadyExistsError
 
 
@@ -80,7 +80,7 @@ class StoreReportNode(DataLayerActionWithPorts):
             self.logger.debug("%s: no report_id — skipping store", self.name)
             return Status.SUCCESS
 
-        _idempotent_create(
+        idempotent_store(
             self.datalayer,
             "VulnerabilityReport",
             self.report_id,

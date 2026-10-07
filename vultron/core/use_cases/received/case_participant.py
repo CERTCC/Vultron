@@ -8,6 +8,9 @@ from vultron.core.behaviors.case.case_participant_received_tree import (
     create_add_case_participant_received_tree,
     create_remove_case_participant_received_tree,
 )
+from vultron.core.behaviors.case.nodes.store_received_object import (
+    StoreReceivedObjectNode,
+)
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlement,
     exempt,
@@ -26,10 +29,13 @@ from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.use_cases._helpers import (
-    _idempotent_create,
     resolve_receiving_actor_id,
 )
 from vultron.core.use_cases.received._bt_verdict import verdict_from_bt
+from vultron.core.use_cases.received._store_only import (
+    run_store_only,
+    store_only_verdict,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -53,13 +59,22 @@ class CreateCaseParticipantReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        return _idempotent_create(
+        tree, result = run_store_only(
             self._dl,
-            request.object_type,
-            request.participant_id,
-            request.participant,
-            "CaseParticipant",
-            request.activity_id,
+            request,
+            name="CreateCaseParticipantReceivedBT",
+            sync_port=self._sync_port,
+            wire_render_port=self._wire_render_port,
+            store_node=StoreReceivedObjectNode(
+                request.object_type,
+                request.participant_id,
+                request.participant,
+                "CaseParticipant",
+                request.activity_id,
+            ),
+        )
+        return store_only_verdict(
+            tree, result, label="CreateCaseParticipantReceivedBT"
         )
 
 

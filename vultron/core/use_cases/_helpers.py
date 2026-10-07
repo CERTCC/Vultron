@@ -6,7 +6,6 @@ All helpers are private to the use-cases package (prefix ``_``).
 
 import hashlib
 import logging
-from typing import Any
 
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.activity import VultronActivity
@@ -203,78 +202,6 @@ def unaddressed_copy_refusal(
         verdict.reason,
     )
     return verdict
-
-
-def _idempotent_create(
-    dl: CasePersistence,
-    type_key: str | None,
-    id_key: str | None,
-    obj: Any,
-    label: str,
-    activity_id: str | None = None,
-) -> HandlerResult:
-    """Guard against duplicate object creation.
-
-    Checks whether *id_key* is already present in the DataLayer.  If so, logs
-    and returns without storing.  Otherwise stores *obj* (if not ``None``) via
-    ``dl.create``.
-
-    An object carrying an id but **no ``type_``** is a *reference*, not something
-    that can be stored: ``type_`` is what selects the storage table, so
-    ``Record.from_obj`` refuses it outright.  The extractor produces exactly such
-    a stub — ``CoreObject(id_=…, type_=None)`` — when an inbound activity names
-    its object by bare URI, or by an object with no type.  That stub is load
-    bearing: ``event.object_id`` is *derived* from ``object_``, so it is how the id
-    survives at all; it simply is not a storable record.
-
-    Storing it was attempted anyway, which aborted the enclosing BT
-    (``CreateReportReceivedBT`` among them).  Such a reference is skipped here with
-    a warning naming it as one, because there is nothing to store — this is the
-    "Bare Object URI" case the Actor Knowledge Model describes, where the sender
-    should have inlined the object and the recipient legitimately has no copy.
-
-    Args:
-        dl: The DataLayer to read/write.
-        type_key: Object type used as the DataLayer collection key.
-        id_key: Object ID to check for existence.
-        obj: The domain object to persist when not already present.
-        label: Human-readable label used in log messages (e.g. ``"Note"``).
-        activity_id: Activity ID used in warning log when *obj* is ``None``.
-
-    Returns:
-        What this helper did, as a ``HandlerResult`` a handler can return
-        directly: ``APPLIED`` when *obj* was stored, and ``SKIPPED`` (with a
-        reason) on every exit that stored nothing.  ``SKIPPED`` describes the
-        helper's own act; whether a caller should report a missing or
-        bare-reference object as ``REFUSED`` instead is the caller's verdict
-        (#2255), not this helper's.  Callers that ignore the value are
-        unaffected.
-    """
-    if not type_key or not id_key:
-        return HandlerResult.skipped(f"no {label} type or id to store under")
-    if dl.read(id_key) is not None:
-        # Routine idempotency skip — infrastructure, not protocol story
-        # (SL-04-007).  Fires on essentially every received-side activity.
-        logger.debug("'%s' already stored — skipping (idempotent)", id_key)
-        return HandlerResult.skipped(f"{label} '{id_key}' already stored")
-    if obj is None:
-        logger.warning("no %s object for event '%s'", label, activity_id)
-        return HandlerResult.skipped(f"no {label} object to store")
-    if getattr(obj, "type_", None) is None:
-        logger.warning(
-            "%s '%s' arrived as a bare reference with no type (activity '%s'):"
-            " the sender named it by URI instead of inlining it, so there is no"
-            " object to store — recording nothing (Actor Knowledge Model)",
-            label,
-            id_key,
-            activity_id,
-        )
-        return HandlerResult.skipped(
-            f"{label} '{id_key}' arrived as a bare reference"
-        )
-    dl.create(obj)
-    logger.info("Stored %s '%s'", label, id_key)
-    return HandlerResult.applied()
 
 
 def resolve_case(case_id: str, dl: CasePersistence):

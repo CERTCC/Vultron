@@ -81,16 +81,38 @@ class TestAnnounceEmbargoEventToCaseReceivedUseCase:
         assert updated.active_embargo is not None
 
     def test_announce_embargo_logs_info(self, make_payload, caplog):
-        """execute() logs receipt at INFO level."""
-        dl = MagicMock()
-        mock_event = MagicMock()
-        mock_event.activity_id = "https://example.org/activities/ann1"
-        mock_event.receiving_actor_id = "https://example.org/users/finder"
-        mock_event.activity.to = ["https://example.org/users/finder"]
-        mock_event.activity.cc = []
+        """execute() logs receipt at INFO level and archives the Announce."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.models.received_activity_record import (
+            ReceivedActivityRecord,
+        )
+        from vultron.wire.as2.vocab.objects.embargo_event import (
+            as_EmbargoEvent,
+        )
+
+        finder = "https://example.org/users/finder"
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=finder)
+        case_id = "https://example.org/cases/case_aem2"
+        embargo = as_EmbargoEvent(
+            id_=f"{case_id}/embargo_events/e1",
+            context=case_id,
+            end_time=days_from_now_utc(45),
+        )
+        activity = announce_embargo_activity(
+            embargo=embargo,
+            context=case_id,
+            actor="https://example.org/users/vendor",
+            to=[finder],
+        )
+        event = make_payload(activity)
 
         with caplog.at_level(logging.INFO):
-            AnnounceEmbargoEventToCaseReceivedUseCase(dl, mock_event).execute()
+            AnnounceEmbargoEventToCaseReceivedUseCase(dl, event).execute()
+
+        assert isinstance(
+            dl.read(ReceivedActivityRecord.build_id(activity.id_)),
+            ReceivedActivityRecord,
+        )
 
         assert any(
             "no receiver-side state change required" in r.message
@@ -254,7 +276,7 @@ class TestPxaEmbargoIneligible:
         return False (fail-open) so that processing continues normally
         when no materialized CaseStatus exists.
         """
-        from unittest.mock import MagicMock, PropertyMock
+        from unittest.mock import PropertyMock
 
         mock_case = MagicMock()
         mock_case.type_ = "VulnerabilityCase"
