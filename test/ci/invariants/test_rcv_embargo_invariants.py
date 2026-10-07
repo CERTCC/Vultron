@@ -26,10 +26,8 @@ Spec: DEMOMA-20, CLP-07.
 from __future__ import annotations
 
 from itertools import pairwise
-from pathlib import Path
 
 import pytest
-import yaml
 
 from test.ci.invariants.common import (
     auth_entries,
@@ -39,7 +37,6 @@ from test.ci.invariants.common import (
     event_type,
     load_devlogs,
     log_index,
-    payload,
 )
 from test.ci.invariants.universal_harness import make_universal_invariant_tests
 from vultron.core.behaviors.embargo.nodes import (
@@ -49,17 +46,6 @@ from vultron.core.behaviors.embargo.nodes import (
 from vultron.core.models.events.base import MessageSemantics
 
 _DEMO_NAME = "rcv-embargo"
-
-#: The Coordinator is the case owner; the seed config fixes its actor id.
-_COORDINATOR_SEED = (
-    Path(__file__).parents[3]
-    / "docker"
-    / "seed-configs"
-    / "seed-coordinator.yaml"
-)
-_COORDINATOR_ACTOR_ID: str = yaml.safe_load(_COORDINATOR_SEED.read_text())[
-    "local_actor"
-]["id"]
 
 #: Event types the CASE_MANAGER commits for the embargo, in the order the
 #: scenario drives them: the proposal (and the relayed invitations, which share
@@ -144,10 +130,11 @@ def test_rcv_embargo_events_recorded_in_order(
     The earliest entry of each type must precede the latest entry of the next:
     the proposal and its relayed invitations share one type, as do the
     participants' acceptances, so the check is on the first and last of each
-    rather than on a single entry.  The Vendor's acceptance shares the type
-    with the owner's, so the owner's own acceptance is then pinned separately:
-    the owner is the Coordinator, whose actor id the demo's seed config fixes,
-    and their acceptance must precede the termination.
+    rather than on a single entry.  The owner's and the Vendor's acceptances
+    share a type, and the committed entries do not name the answering
+    participant, so this proves that acceptance precedes termination, not
+    whose; the owner's own acceptance is asserted by the scenario
+    (DEMOMA-20-009, signatories on the Coordinator's replica).
 
     Spec: DEMOMA-20-006.
     """
@@ -169,20 +156,6 @@ def test_rcv_embargo_events_recorded_in_order(
         if min(indices[earlier]) >= max(indices[later])
     ]
     assert not violations, "\n".join(violations)
-
-    accept_type = MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value
-    owner = _COORDINATOR_ACTOR_ID
-    owner_accepts = [
-        log_index(e)
-        for e in auth
-        if event_type(e) == accept_type and payload(e).get("actor") == owner
-    ]
-    assert owner_accepts, f"case owner {owner!r} never accepted the embargo"
-    teardown = min(indices[EMBARGO_TEARDOWN_EVENT_TYPE])
-    assert min(owner_accepts) < teardown, (
-        f"owner's acceptance {sorted(owner_accepts)} does not precede the"
-        f" termination at {teardown}"
-    )
 
 
 @pytest.mark.case_ledger_invariants
