@@ -381,6 +381,7 @@ print(json2md(add_finder_participant_to_case()))
 - **Who may send:**
   The CASE_MANAGER accepts it only from the Case Owner.
   It refuses a removal of the CASE_MANAGER's or the Case Owner's participant, and a removal that names no participant of the case.
+  It also refuses a removal whose participant gives an `attributedTo` other than the actor of the record it names, because each replica finds its own copy of the record by that actor.
   A participant replica accepts it only from the CASE_MANAGER, as the direct notice below, and writes nothing from it.
 - **Ledger:** the Case Owner's received `Remove` is the one ledger entry for the removal.
   Every replica applies the removal from that entry, the removed participant's own included.
