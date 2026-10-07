@@ -46,9 +46,11 @@ from typing import Literal
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.polling import (
     assert_received_from,
+    find_case_actor_participant_id,
     find_case_invite_for_actor,
     wait_for_case_on_container,
 )
+from vultron.demo.helpers.seeding import get_actor_by_id
 from vultron.demo.utils import (
     DataLayerClient,
     demo_check,
@@ -62,6 +64,9 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 )
 
 logger = logging.getLogger(__name__)
+
+DEMO_STUB_SUMMARY = "Vulnerability report — details shared after acceptance."
+"""The owner-chosen summary every demo stub Invite carries (CM-17-010)."""
 
 
 @dataclass(frozen=True)
@@ -95,6 +100,7 @@ def run_case_invite_chain(
     invitee: as_Actor,
     invitee_in_own_container: as_Actor,
     inviter: CaseInviter | None = None,
+    case_manager_client: DataLayerClient | None = None,
     respond: Literal["accept", "reject"] = "accept",
     invite_timeout: float = 15.0,
     replica_timeout: float | None = None,
@@ -113,6 +119,13 @@ def run_case_invite_chain(
             used to puppeteer the answer.
         inviter: The participant that triggers the invite.  ``None`` when the
             CaseActor invites on its own (ADR-0026 recommend-actor path).
+        case_manager_client: Client for the container hosting the case's
+            CASE_MANAGER.  When given, the chain seeds ``stub_summary`` on the
+            CASE_MANAGER's copy of the case before the inviter triggers the
+            Invite: the CASE_MANAGER builds the stub Invite from its own
+            store, and a case created by the normal flow has no summary
+            (CM-17-010, MV-10-001, #4285).  Needed only on the first chain of
+            a case; the seed persists.
         respond: ``"accept"`` waits for the case replica afterwards;
             ``"reject"`` does not, because a rejected invitee gets none.
         invite_timeout: Seconds to wait for the Invite to be delivered.
@@ -138,6 +151,9 @@ def run_case_invite_chain(
             then=then,
         )
 
+    if case_manager_client is not None:
+        _seed_stub_summary(case_manager_client, case)
+
     if inviter is None:
         answer(
             f"{invitee_name} received invite from CaseActor (ADR-0026 path)"
@@ -162,6 +178,24 @@ def run_case_invite_chain(
         answer(
             f"{invitee_name} invite delivered to {invitee_name}'s DataLayer"
         )
+
+
+def _seed_stub_summary(
+    case_manager_client: DataLayerClient, case: as_VulnerabilityCase
+) -> None:
+    """Seed ``stub_summary`` on the CASE_MANAGER's DataLayer copy of *case*."""
+    case_manager_id = find_case_actor_participant_id(
+        case_manager_client, case.id_
+    )
+    if case_manager_id is None:
+        raise ValueError(
+            f"No CASE_MANAGER participant found for case '{case.id_}'"
+            " (CM-02-014, CM-02-015)"
+        )
+    ActorSession(
+        client=case_manager_client,
+        actor=get_actor_by_id(case_manager_client, case_manager_id),
+    ).with_case(case).quiet().set_stub_summary(DEMO_STUB_SUMMARY)
 
 
 def _await_and_answer(

@@ -320,6 +320,7 @@ def _phase_report_submission(
 
         run_case_invite_chain(
             case=case,
+            case_manager_client=c1_client,
             invitee_name="C2",
             invitee_client=c2_client,
             invitee=c2,
