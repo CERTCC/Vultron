@@ -53,6 +53,7 @@ from vultron.core.behaviors.case.nodes.participant.status import (
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.states.rm import RM, RMRule, is_rm_write_permitted
@@ -264,18 +265,17 @@ class TransitionRMtoValid(DataLayerActionWithPorts):
         assert self.datalayer is not None
         return _read_report_case_link(self.datalayer, self.report_id)
 
-    def _participant_already_valid(self, case_id: str) -> bool:
-        """True when the subject's participant already records ``RM.VALID``.
+    def _participant_already_valid(self, case: VulnerabilityCase) -> bool:
+        """True when the sender's participant already records ``RM.VALID``.
 
-        A case or participant this store does not hold is ``False``: the
-        write node then runs and reports the absence itself.
+        Without a ``sender_actor_id``, or for a participant this case does
+        not hold, the answer is ``False``: the write node then runs and
+        reports the outcome itself.
         """
         assert self.datalayer is not None
-        subject = self.sender_actor_id or self.actor_id
-        case = self.datalayer.read_case(case_id)
-        if case is None or subject is None:
+        if self.sender_actor_id is None:
             return False
-        participant_id = case.actor_participant_index.get(subject)
+        participant_id = case.actor_participant_index.get(self.sender_actor_id)
         if participant_id is None:
             return False
         current_rm, _, _ = resolve_participant_state_from_dl(
@@ -337,7 +337,10 @@ class TransitionRMtoValid(DataLayerActionWithPorts):
             self.logger.error("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
-        if self._participant_already_valid(case_id):
+        case, failure = self._require_case(case_id)
+        if failure is not None:
+            return failure
+        if self._participant_already_valid(case):
             # A restated VALID is a confirmation, recorded once (RSH-08-002):
             # in a store with no link to latch, the link check above cannot
             # short-circuit, so without this a redelivery appends a rung.
