@@ -74,6 +74,7 @@ from vultron.core.behaviors.case.receive_activity_tree import (
 from vultron.core.behaviors.case_status_snapshot import (
     EmitCaseStatusUpdateNode,
 )
+from vultron.core.behaviors.replica_emit_exemptions import RSH_STATUS
 from vultron.core.behaviors.sender_entitlement import (
     SenderIsActiveParticipantNode,
     SenderIsCaseOwnerNode,
@@ -197,7 +198,7 @@ def add_participant_status_tree(
                 status_obj_fallback=status_obj,
             ),
         ],
-        effect_nodes=[
+        replica_effects=[
             append_participant_status_tree(
                 status_id=status_id,
                 participant_id=participant_id,
@@ -241,6 +242,7 @@ def add_participant_status_tree(
                 name="EmitRMGapNote",
             ),
         ],
+        replica_emit_exemption=RSH_STATUS,
     )
     logger.debug(
         "Created AddParticipantStatusBT for status=%s participant=%s"

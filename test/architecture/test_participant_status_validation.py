@@ -109,6 +109,22 @@ _DECLARED_EXCLUSIONS: dict[str, str] = {
         " asserting-actor roles in hand, and refuses via ProcessingFault"
         " rather than by rejecting a local write (RSH-05-021)"
     ),
+    # Replica-apply path for the activity-typed RM moves (RSH-08-004, #3814):
+    # the same third disposition as participant_status_effect.py.  It writes
+    # the RM state the CASE_MANAGER's committed act records for its sender,
+    # ratcheted (RSH-05-007), checking only the actor-independent
+    # composite-state entailments; adjacency is the CASE_MANAGER's, and
+    # re-deriving it from a lagging replica is what CM-23-016 forbids.
+    "vultron/core/behaviors/sync/nodes/rm_verdict_effect.py": (
+        "replica-apply path — applies the RM state a committed act records;"
+        " no re-adjudication of adjacency or roles (RSH-08-004, CM-23-016)"
+    ),
+    # Replica-apply of add_case_status_to_case: PxaDimension for the
+    # case-level carry-forward, like cs_dimension_filter.py (ADR-0080).
+    "vultron/core/behaviors/sync/nodes/case_status_effect.py": (
+        "replica-apply CaseStatus carry-forward — PxaDimension for case-level"
+        " PXA, not participant-level (ADR-0080, RSH-05-019)"
+    ),
     # Shared evaluator infrastructure — constructs dimension objects to read
     # the participant's *current* state from a stored ParticipantStatus (the
     # carry-forward step in resolve_transition_context_or_report).  Not a

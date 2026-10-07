@@ -15,6 +15,7 @@ from vultron.core.behaviors.case.receive_activity_tree import (
 from vultron.core.behaviors.embargo.nodes import (
     ApplyEmbargoAbandonmentFromLedgerNode,
     ApplyEmbargoAcceptanceFromLedgerNode,
+    ApplyEmbargoActivationFromLedgerNode,
     ApplyEmbargoInviteFromLedgerNode,
     ApplyEmbargoProposalFromLedgerNode,
     ApplyEmbargoReinviteFromLedgerNode,
@@ -23,12 +24,14 @@ from vultron.core.behaviors.embargo.nodes import (
     ApplyHonourLateAcceptFromLedgerNode,
     ApplyInviteExpiryFromLedgerNode,
     ApplyInviteExpiryNoopFromLedgerNode,
+    IsAddEmbargoEventNode,
 )
 from vultron.core.behaviors.sender_entitlement import (
     SenderIsCaseManagerNode,
     SenderIsNamedActorNode,
 )
 from vultron.core.behaviors.sync.nodes import (
+    ApplyCaseStatusFromLedgerNode,
     ApplyInviteAcceptFromLedgerNode,
     ApplyNoteFromLedgerNode,
     ApplyOfferOwnershipTransferFromLedgerNode,
@@ -37,10 +40,12 @@ from vultron.core.behaviors.sync.nodes import (
     ApplyParticipantStatusFromLedgerNode,
     ApplyRemoveCaseParticipantFromLedgerNode,
     ApplyRemoveNoteFromLedgerNode,
+    ApplyRmVerdictFromLedgerNode,
     BufferPreGenesisEntryNode,
     CheckHashOrRejectOnMismatchNode,
     CheckLedgerEntryAlreadyStoredNode,
     IsAcceptEmbargoInviteEventNode,
+    IsAddCaseStatusEventNode,
     IsAddNoteEventNode,
     IsCloseCaseEventNode,
     IsEmbargoAbandonmentEventNode,
@@ -58,6 +63,7 @@ from vultron.core.behaviors.sync.nodes import (
     IsRemoveCaseParticipantEventNode,
     IsRemoveEmbargoEventNode,
     IsRemoveNoteEventNode,
+    IsRmVerdictEventNode,
     IsSubmitReportEventNode,
     LogDeliveryConfirmationNode,
     PersistReceivedLogEntryNode,
@@ -185,6 +191,21 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
                 "EmbargoTeardown",
                 IsRemoveEmbargoEventNode,
                 ApplyEmbargoTeardownNode,
+            ),
+            _event_effect_slot(
+                "EmbargoActivation",
+                IsAddEmbargoEventNode,
+                ApplyEmbargoActivationFromLedgerNode,
+            ),
+            _event_effect_slot(
+                "CaseStatus",
+                IsAddCaseStatusEventNode,
+                ApplyCaseStatusFromLedgerNode,
+            ),
+            _event_effect_slot(
+                "RmVerdict",
+                IsRmVerdictEventNode,
+                ApplyRmVerdictFromLedgerNode,
             ),
             py_trees.composites.Selector(
                 name="ParticipantStatusEffects",

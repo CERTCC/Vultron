@@ -24,6 +24,7 @@ from vultron.core.behaviors.case.update_support import (
     broadcast_case_update,
     find_excluded_actor_ids,
 )
+from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
@@ -168,7 +169,7 @@ class ApplyCaseUpdateNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class BroadcastCaseUpdateNode(DataLayerActionWithPorts):
+class BroadcastCaseUpdateNode(DataLayerActionWithPorts, EmitCapable):
     """Broadcast the updated case to eligible participants (CM-06-001).
 
     MUST be wrapped in a ``CheckIsCaseManagerNode`` gate: only the case's

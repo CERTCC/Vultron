@@ -121,6 +121,18 @@ def is_valid_em_transition(source: EM, dest: EM) -> bool:
     )
 
 
+def is_em_assertion_acceptable(current: EM, asserted: EM) -> bool:
+    """Return True if a received CaseStatus may move EM *current* → *asserted*.
+
+    The EM acceptance rule for a received ``CaseStatus`` (RSH-05-018): the
+    asserted state is the current one, or a valid EM transition from it.  The
+    CASE_MANAGER's ``FilterCsEmDimensionNode`` and the replica's
+    ``ApplyCaseStatusFromLedgerNode`` both apply it, so the two sides of the
+    ledger cannot adjudicate EM differently.
+    """
+    return asserted == current or is_valid_em_transition(current, asserted)
+
+
 def create_em_machine() -> Machine:
     """
     Generates a new Embargo Management State Machine

@@ -39,7 +39,6 @@ from vultron.core.behaviors.case.nodes.case_participant_received import (
     case_manager_admits_removal_guard,
 )
 from vultron.core.behaviors.case.nodes.role_gates import (
-    create_case_manager_gated_tree,
     create_role_scoped_sender_guard,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
@@ -137,23 +136,19 @@ def create_remove_case_participant_received_tree(
                 participant_id=participant_id, case_id=case_id
             )
         ],
-        effect_nodes=[
-            create_case_manager_gated_tree(
-                name="GuardedRemoveParticipantBT",
+        manager_case_id=case_id,
+        manager_gate_name="GuardedRemoveParticipantBT",
+        manager_effects=[
+            RemoveCaseParticipantFromCaseReceivedNode(
+                participant_id=participant_id,
                 case_id=case_id,
-                children=[
-                    RemoveCaseParticipantFromCaseReceivedNode(
-                        participant_id=participant_id,
-                        case_id=case_id,
-                        removal_activity_id=removal_activity_id,
-                    ),
-                    EmitParticipantRemovalNoticeNode(
-                        participant_id=participant_id,
-                        case_id=case_id,
-                        requesting_actor_id=sender_id,
-                    ),
-                ],
-            )
+                removal_activity_id=removal_activity_id,
+            ),
+            EmitParticipantRemovalNoticeNode(
+                participant_id=participant_id,
+                case_id=case_id,
+                requesting_actor_id=sender_id,
+            ),
         ],
     )
     logger.debug(

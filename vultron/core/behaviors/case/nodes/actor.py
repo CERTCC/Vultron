@@ -51,6 +51,7 @@ from vultron.core.behaviors.case.nodes.participant.roles import (
 )
 from vultron.core.behaviors.case.offer_provenance import find_offer_for_report
 from vultron.core.behaviors.delegated_authorship import delegated_authorship
+from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     _EmitSingleActivityBase,
@@ -207,7 +208,7 @@ class EmitInviteActorToCaseNode(_EmitSingleActivityBase):
         )
 
 
-class ProposeCaseToActorNode(DataLayerActionWithPorts):
+class ProposeCaseToActorNode(DataLayerActionWithPorts, EmitCapable):
     """Send ``Create(as_CaseProposal)`` to the registered case-actor service.
 
     Reads ``case_id`` and ``case_actor_id`` from the blackboard (written by
