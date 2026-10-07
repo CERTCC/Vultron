@@ -271,7 +271,10 @@ def test_stub_invite_creates_inert_invitee_participant(actor_store) -> None:
     invitee, _ = actor_store("Vendor")
     dl.create(invitee)
     case = VulnerabilityCase(
-        attributed_to=manager.id_, name="Joining", content="Content"
+        attributed_to=manager.id_,
+        name="Joining",
+        content="Content",
+        stub_summary="Joining summary",
     )
     embargo = as_EmbargoEvent(
         id_=f"{case.id_}/embargo/e1",
@@ -468,7 +471,10 @@ def test_stub_invite_has_deadline_and_unanswered_invitee_never_blocks_closure(
     invitee, _ = actor_store("Vendor")
     dl.create(invitee)
     case = VulnerabilityCase(
-        attributed_to=manager.id_, name="Unanswered", content="Content"
+        attributed_to=manager.id_,
+        name="Unanswered",
+        content="Content",
+        stub_summary="Unanswered summary",
     )
     manager_record = seed_store_owner_as_case_manager(dl, case)
     dl.create(case)
@@ -794,7 +800,10 @@ def test_stub_invite_writes_only_the_invitee_birth_status(
     invitee, _ = actor_store("Vendor")
     dl.create(invitee)
     case = VulnerabilityCase(
-        attributed_to=manager.id_, name="Birth", content="Content"
+        attributed_to=manager.id_,
+        name="Birth",
+        content="Content",
+        stub_summary="Birth summary",
     )
     seed_store_owner_as_case_manager(dl, case)
     dl.create(case)

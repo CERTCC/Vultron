@@ -379,7 +379,10 @@ class TestOwnerDirectInviteAtCaseManager:
 
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=TEST_ACTOR_ID)
         case = as_VulnerabilityCase(
-            id_=self._CASE_ID, name="OwnerDirect", attributed_to=self._OWNER_ID
+            id_=self._CASE_ID,
+            name="OwnerDirect",
+            attributed_to=self._OWNER_ID,
+            stub_summary="Security issue — details shared after acceptance",
         )
         seed_case_manager(dl, case, TEST_ACTOR_ID)
         owner = CaseParticipant(

@@ -2370,13 +2370,14 @@ groups:
       consent needs the case's identity, a human-readable account of what it is asked to
       join, and the embargo terms (CM-17-002); the Invite envelope says who is asking.
       The case name can itself be an opsec concern, so the summary is chosen for the
-      invitee, not copied from the case. #4165 owns emitting it. Whether the stub should
+      invitee, not copied from the case. #4165 implemented this. Whether the stub should
       name the coordinator and the Case Owner explicitly, for Invites relayed by a third
       party, is the open Idea #4184; until it is decided the rule above stands.
     verification: >-
       `test/wire/as2/factories/test_case_factories.py::test_rm_invite_stub_carries_a_non_empty_summary`
-      is a strict xfail naming #4165 that asserts a stub projected from a full case
-      serialises with only `id`, `type`, `caseId` and a non-empty `summary`.
+      asserts a stub projected from a full case serialises with only `id`, `type`,
+      `caseId` and a non-empty `summary`; #4165 removed the strict-xfail marker when the
+      factory was implemented.
       `test_rm_invite_stub_carries_no_case_content` and
       `test_enriched_stub_carries_only_the_embargo_terms` in the same file assert the
       stub carries no other case content, and that an embargo-active stub adds only

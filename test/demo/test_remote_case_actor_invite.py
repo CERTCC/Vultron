@@ -251,6 +251,7 @@ def _seed_case(
     case_kwargs: dict = dict(
         id_=case_id,
         name="remote CaseActor invite",
+        stub_summary="Security issue — details shared after acceptance",
         attributed_to=topo.ca_actor_id,
         case_participants=[manager, owner_participant],
         actor_participant_index={

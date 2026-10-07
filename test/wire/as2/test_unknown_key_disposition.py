@@ -514,6 +514,7 @@ def test_embargoed_invite_stub_is_judged_as_the_stub(
     case_id = "https://example.org/cases/1"
     stub = as_VulnerabilityCaseStub(
         case_id=case_id,
+        summary="Security issue — embargo active, details after acceptance",
         active_embargo="https://example.org/embargoes/1",
         case_status=CaseStatus(
             context=case_id, em=EmDimension(state=EM.ACTIVE)
@@ -630,28 +631,18 @@ def test_partition_and_expansion_resolve_the_same_case_class(
 @pytest.mark.parametrize(
     "summary",
     [
-        pytest.param(
-            None,
-            id="absent",
-            marks=pytest.mark.xfail(
-                strict=True,
-                reason=(
-                    "MV-10-001: a stub with no summary is not yet refused."
-                    " Tracked by #4165."
-                ),
-            ),
-        ),
+        pytest.param(None, id="absent"),
         pytest.param("", id="empty"),
         pytest.param("   ", id="blank"),
     ],
 )
 def test_a_stub_without_a_summary_is_refused(summary: str | None) -> None:
-    """A receiver refuses a stub whose ``summary`` is absent or blank.
+    """A receiver refuses a stub whose ``summary`` is absent or blank (MV-10-001).
 
-    The summary is what tells the invitee what it is asked to join
-    (MV-10-001); a stub without one gives no basis for consent.  A blank
-    summary is already refused by the shared non-empty string type; an
-    absent one is not yet (#4165).
+    The summary is what tells the invitee what it is asked to join; a stub
+    without one gives no basis for consent.  Blank/empty values are refused by
+    the ``NonEmptyString`` type; an absent value is refused by the inbound
+    validator added by #4165.
     """
     target: dict[str, Any] = {
         "type": "VulnerabilityCaseStub",

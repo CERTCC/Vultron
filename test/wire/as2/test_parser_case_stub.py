@@ -50,6 +50,7 @@ def _enriched_stub() -> dict:
         "type": "VulnerabilityCaseStub",
         "id": _STUB_ID,
         "caseId": _CASE_ID,
+        "summary": "Security issue — embargo active, details shared after acceptance",
         "activeEmbargo": {
             "type": "EmbargoEvent",
             "id": f"{_CASE_ID}/embargoes/e0",

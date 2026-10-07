@@ -50,7 +50,10 @@ _UNKNOWN = {
 
 def _full_case() -> as_VulnerabilityCase:
     return as_VulnerabilityCase(
-        id_=_CASE_ID, name="JOINING-WIRE", attributed_to=_MANAGER_ID
+        id_=_CASE_ID,
+        name="JOINING-WIRE",
+        attributed_to=_MANAGER_ID,
+        stub_summary="Security issue — details shared after acceptance",
     )
 
 

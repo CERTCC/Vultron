@@ -147,12 +147,17 @@ def add_coordinator_participant_to_case() -> as_Add:
 def rm_invite_to_case() -> as_Invite:
     _vendor = vendor()
     _coordinator = _COORDINATOR
-    _case = case()
+    _case = case(
+        stub_summary=(
+            "A memory-corruption vulnerability in widget"
+            " — details shared after acceptance."
+        )
+    )
     _activity = rm_invite_to_case_activity(
         _coordinator,
         id_=f"{_case.id_}/invitation/1",
         actor=_vendor.id_,
-        target=_case.id_,
+        target=_case,
         to=_coordinator.id_,
         content=f"We're inviting you to participate in {_case.name}.",
         **_example_stamp(),
@@ -227,7 +232,12 @@ def coordinator_participant() -> as_CaseParticipant:
 
 
 def invite_to_case():
-    _case = case()
+    _case = case(
+        stub_summary=(
+            "A memory-corruption vulnerability in widget"
+            " — details shared after acceptance."
+        )
+    )
     _coordinator = _COORDINATOR
     _vendor = vendor()
 
@@ -235,7 +245,7 @@ def invite_to_case():
         _coordinator,
         id_=f"{_case.id_}/invitation/1",
         actor=_vendor.id_,
-        target=_case.id_,
+        target=_case,
         to=_coordinator.id_,
         content=f"We're inviting you to participate in case {_case.name}.",
         **_example_stamp(),

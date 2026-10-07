@@ -304,6 +304,19 @@ class ActorSession:
         """Engage the bound case, advancing RM to ACCEPTED (engage-case)."""
         return self._post("engage-case", {"case_id": self._require_case_id()})
 
+    def set_stub_summary(self, stub_summary: str) -> WireTriggerResult:
+        """Seed stub_summary on this actor's DataLayer copy of the bound case.
+
+        Demo-only scaffold: sets ``stub_summary`` so a subsequent
+        :meth:`invite_actor_to_case` call can build the stub Invite
+        (CM-17-010, MV-10-001, #4165).
+        """
+        return self._post(
+            "set-stub-summary",
+            {"case_id": self._require_case_id(), "stub_summary": stub_summary},
+            path_prefix="demo",
+        )
+
     def invite_actor_to_case(
         self, *, invitee_id: str, roles: list[CVDRole] | None = None
     ) -> WireActivityResult:
