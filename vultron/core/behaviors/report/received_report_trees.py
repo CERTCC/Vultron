@@ -273,31 +273,41 @@ def create_ack_report_received_tree(
 def create_close_report_received_tree(
     request: CloseReportReceivedEvent,
     actor_id: str,
+    case_id: str | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for the CloseReportReceived workflow.
 
-    Handles receipt of a ``Reject(VulnerabilityReport)`` (CloseReport) activity.
+    Handles receipt of a ``Reject(Offer(VulnerabilityReport))`` (CloseReport)
+    activity, a canonical ``("Reject", "Offer")`` signature.
 
     Steps (Sequence via :func:`create_receive_activity_tree`):
     1. Intake archives the ``Reject`` as received (CLP-10-017); the activity
        stays archived when a later step refuses (CLP-10-018).
     2. Resolve this actor's case for the report (``RequireCaseForReport``,
-       which also publishes ``/case_id`` for downstream nodes).
-    3. Transition actor's RM state → CLOSED in that case via the canonical
+       which also publishes ``/case_id`` for downstream nodes).  It is a
+       precondition guard, so a receiver without the case refuses *before* the
+       commit and no canonical entry is written for an assertion that is then
+       refused (CLP-10-009).
+    3. Guarded commit (only when ``case_id`` is provided and the receiving
+       actor holds ``CVDRole.CASE_MANAGER``) records the activity before the
+       effect runs (CLP-10-006, CLP-10-013).
+    4. Transition actor's RM state → CLOSED in that case via the canonical
        :class:`~vultron.core.behaviors.case.nodes.participant.status\
 .CreateParticipantStatusNode` writer (ADR-0089).
 
-    Steps 2–3 return FAILURE when the case is not in this actor's store.  They
-    used to soft-pass with SUCCESS, which reported a state transition that never
-    happened (ARCH-15-001, ISSUE-2548).  The handler reports the failure as a
-    refusal of an activity about an unknown case (#2255); the activity
-    archived in step 1 still records that it arrived.
+    Steps 2 and 4 return FAILURE when the case is not in this actor's store.
+    They used to soft-pass with SUCCESS, which reported a state transition
+    that never happened (ARCH-15-001, ISSUE-2548).  The handler reports the
+    failure as a refusal of an activity about an unknown case (#2255); the
+    activity archived in step 1 still records that it arrived.
 
     Args:
         request: The parsed inbound domain event.
         actor_id: The receiving actor whose RM state transitions to CLOSED.
             Passed explicitly so the subject actor is never inferred from the
             blackboard (BTND-10-005, ADR-0089).
+        case_id: ID of the VulnerabilityCase linked to the report, resolved by
+            the caller; ``None`` omits the commit stage.
 
     Returns:
         Root node of the ``CloseReportReceivedBT`` Sequence.
@@ -306,10 +316,11 @@ def create_close_report_received_tree(
 
     root = create_receive_activity_tree(
         name="CloseReportReceivedBT",
-        case_id=None,
-        precondition_guards=[],
+        case_id=case_id,
+        precondition_guards=[
+            RequireCaseForReport(report_id=request.report_id)
+        ],
         effect_nodes=[
-            RequireCaseForReport(report_id=request.report_id),
             CreateParticipantStatusNode(
                 actor_id=actor_id,
                 rm_state=RM.CLOSED,
@@ -321,9 +332,10 @@ def create_close_report_received_tree(
         ],
     )
     logger.debug(
-        "Created CloseReportReceivedBT for report=%s activity=%s",
+        "Created CloseReportReceivedBT for report=%s activity=%s case=%s",
         request.report_id,
         activity_id,
+        case_id,
     )
     return root
 
@@ -331,23 +343,27 @@ def create_close_report_received_tree(
 def create_invalidate_report_received_tree(
     request: InvalidateReportReceivedEvent,
     actor_id: str,
+    case_id: str | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for the InvalidateReportReceived workflow.
 
-    Handles receipt of a ``TentativeReject(VulnerabilityReport)``
-    (InvalidateReport) activity.
+    Handles receipt of a ``TentativeReject(Offer(VulnerabilityReport))``
+    (InvalidateReport) activity, a canonical ``("TentativeReject", "Offer")``
+    signature.
 
     Steps (Sequence via :func:`create_receive_activity_tree`):
     1. Intake archives the ``TentativeReject`` as received (CLP-10-017); the
        activity stays archived when a later step refuses (CLP-10-018).
-    2. Resolve this actor's case for the report (``RequireCaseForReport``,
-       which also publishes ``/case_id`` for downstream nodes).
-    3. Transition actor's RM state → INVALID in that case via the canonical
+    2. Resolve this actor's case for the report (``RequireCaseForReport``) as a
+       precondition guard, ahead of the commit (CLP-10-009).
+    3. Guarded commit (only when ``case_id`` is provided and the receiving
+       actor holds ``CVDRole.CASE_MANAGER``) (CLP-10-006, CLP-10-013).
+    4. Transition actor's RM state → INVALID in that case via the canonical
        :class:`~vultron.core.behaviors.case.nodes.participant.status\
 .CreateParticipantStatusNode` writer (ADR-0089).
 
-    Steps 2–3 return FAILURE when the case is not in this actor's store, for the
-    same reason as ``create_close_report_received_tree`` (ARCH-15-001,
+    Steps 2 and 4 return FAILURE when the case is not in this actor's store,
+    for the same reason as ``create_close_report_received_tree`` (ARCH-15-001,
     ISSUE-2548).
 
     Args:
@@ -355,6 +371,8 @@ def create_invalidate_report_received_tree(
         actor_id: The receiving actor whose RM state transitions to INVALID.
             Passed explicitly so the subject actor is never inferred from the
             blackboard (BTND-10-005, ADR-0089).
+        case_id: ID of the VulnerabilityCase linked to the report, resolved by
+            the caller; ``None`` omits the commit stage.
 
     Returns:
         Root node of the ``InvalidateReportReceivedBT`` Sequence.
@@ -363,10 +381,11 @@ def create_invalidate_report_received_tree(
 
     root = create_receive_activity_tree(
         name="InvalidateReportReceivedBT",
-        case_id=None,
-        precondition_guards=[],
+        case_id=case_id,
+        precondition_guards=[
+            RequireCaseForReport(report_id=request.report_id)
+        ],
         effect_nodes=[
-            RequireCaseForReport(report_id=request.report_id),
             CreateParticipantStatusNode(
                 actor_id=actor_id,
                 rm_state=RM.INVALID,
@@ -378,8 +397,9 @@ def create_invalidate_report_received_tree(
         ],
     )
     logger.debug(
-        "Created InvalidateReportReceivedBT for report=%s activity=%s",
+        "Created InvalidateReportReceivedBT for report=%s activity=%s case=%s",
         request.report_id,
         activity_id,
+        case_id,
     )
     return root

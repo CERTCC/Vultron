@@ -122,9 +122,9 @@ copy after the guards; intake writing it would seed a replica ahead of trust
 (PCR-03-004). Never add a store node or helper for the received activity (CLP-10-019). Intake reads the `VultronEvent` from `/activity`: run any
 factory-built tree with `activity=<event>` or it fails with `ACTIVITY_UNAVAILABLE`.
 The commit runs only for a canonical `(type, object)` signature (CLP-10-013);
-`Update(VulnerabilityCase)` has none, so its tree passes `case_id=None`. Intake-only
-handlers report via `intake_verdict()`. Full write-up: `notes/bt-integration.md`
-§ "The Four Received-Side Stages".
+`Update(VulnerabilityCase)` has none and `Announce(VulnerabilityCase)` is exempt
+(#4304), so both pass `case_id=None`. Intake-only handlers report via
+`intake_verdict()`. Full write-up: `notes/bt-integration.md` § "The Four Received-Side Stages".
 
 ---
 

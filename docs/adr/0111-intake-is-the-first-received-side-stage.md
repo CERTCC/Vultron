@@ -123,6 +123,9 @@ CLP-10-013 required every factory-built tree to pass `case_id` and commit.
 `Update(VulnerabilityCase)` has no canonical payload signature, so the CASE_MANAGER refused its own commit the moment the update tree moved onto the factory.
 CLP-10-013 is amended to require the commit exactly when the received `(type, object)` pair is a canonical signature; the update tree and the sync trees pass `case_id=None`.
 
+One canonical signature is exempt (#4304): `Announce(VulnerabilityCase)` is sent only by the CASE_MANAGER and received only by a participant replica, which is never the manager the commit is gated on, so its tree also passes `case_id=None`.
+The `Add(CaseParticipant)`, `Reject(Offer)` and `TentativeReject(Offer)` trees, which a CASE_MANAGER does receive, commit.
+
 **An owner's `Update(VulnerabilityCase)` is not a ledgered assertion (#3936).**
 ADR-0108 says case state flows through the case manager and the ledger, and the ledger carries completed acts (ADR-0119).
 An `Update(VulnerabilityCase)` is neither: the message is a request to change case fields that no production code sends (`update_case_activity` is called only by the vocabulary examples), it has no story in the protocol's use cases, and its one visible effect, the CM-06-001 broadcast, duplicates what `Announce(CaseLedgerEntry)` fan-out already does for every ledgered change.

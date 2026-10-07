@@ -446,6 +446,12 @@ publishes the update through its `Announce` broadcast (CM-06-001) as before.
 That is a decision, not a gap: an owner's update is deliberately not a ledgered
 assertion (ADR-0111, #3936).
 
+`Announce(VulnerabilityCase)` is the one canonical signature that also passes
+`case_id=None` (#4304): only the CASE_MANAGER sends it and only a participant
+replica receives it, so the commit gate could only skip. Any other tree whose
+activity is canonical passes `case_id`, with its refusing nodes in
+`precondition_guards`.
+
 ### Trigger/Received Parity
 
 The BTBridge requirement applies equally to **trigger-side** and

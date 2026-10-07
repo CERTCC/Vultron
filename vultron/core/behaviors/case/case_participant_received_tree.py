@@ -18,8 +18,14 @@
 Each factory composes the corresponding leaf node through
 :func:`~vultron.core.behaviors.case.receive_activity_tree.create_receive_activity_tree`
 so intake archives the received activity first (CLP-10-017) and a refused
-delivery still leaves its record (CLP-10-018).  The tree carries no
-``case_id`` for the commit stage: these activities are not ledgered here.
+delivery still leaves its record (CLP-10-018).
+
+``Add(CaseParticipant)`` is a canonical ledger signature, so its tree passes
+``case_id`` and the CASE_MANAGER commits an entry for it (CLP-10-013); the
+refusals of its effect are mirrored by a precondition guard so nothing is
+committed for an ``Add`` that is then refused (CLP-10-009).
+``Remove(CaseParticipant)`` is not a canonical signature, so its tree carries
+no ``case_id`` and commits nothing.
 """
 
 import logging
@@ -28,6 +34,7 @@ import py_trees
 
 from vultron.core.behaviors.case.nodes.case_participant_received import (
     AddCaseParticipantToCaseReceivedNode,
+    CheckParticipantAddableNode,
     RemoveCaseParticipantFromCaseReceivedNode,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
@@ -52,8 +59,12 @@ def create_add_case_participant_received_tree(
     """
     root = create_receive_activity_tree(
         name="AddCaseParticipantReceivedBT",
-        case_id=None,
-        precondition_guards=[],
+        case_id=case_id,
+        precondition_guards=[
+            CheckParticipantAddableNode(
+                participant_id=participant_id, case_id=case_id
+            )
+        ],
         effect_nodes=[
             AddCaseParticipantToCaseReceivedNode(
                 participant_id=participant_id,

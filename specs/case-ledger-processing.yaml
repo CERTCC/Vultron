@@ -1011,14 +1011,22 @@ groups:
       received activity has no canonical signature — `Update(VulnerabilityCase)`, the
       `Announce(CaseLedgerEntry)` replication envelope (CLP-10-004) — MUST pass
       `case_id=None` and omit the commit stage rather than commit an entry the
-      canonical-entry check would refuse.
+      canonical-entry check would refuse. `Announce(VulnerabilityCase)` is the one
+      canonical signature exempt from the commit — only the CASE_MANAGER sends it and
+      only a participant replica, which cannot be the CASE_MANAGER, receives it
+      (PCR-03-004), so its tree also passes `case_id=None`.
     rationale: 'Amended with ADR-0111: the rule as first written required a commit for
       every factory-built tree, which the CASE_MANAGER refused for an
       `Update(VulnerabilityCase)` the moment the update tree moved onto the factory
       (#3870). ADR-0111 (#3936) records that an owner''s `Update(VulnerabilityCase)`
       is deliberately not a ledgered assertion: no production code sends it, it
       has no protocol story, and `Announce(CaseLedgerEntry)` fan-out already
-      carries every ledgered case change (ADR-0108). Original rationale: a rejection validator
+      carries every ledgered case change (ADR-0108). The `Announce(VulnerabilityCase)`
+      exemption (#4304) is of a different kind: the signature is canonical, but the
+      commit stage runs only at the CASE_MANAGER and its receiver is never the
+      CASE_MANAGER, so a `case_id` would only make the gate skip. The `Add(CaseParticipant)`,
+      `Reject(Offer)` and `TentativeReject(Offer)` trees carry canonical signatures
+      their CASE_MANAGER receivers do ledger, so they commit (#4304). Original rationale: a rejection validator
       (FAILURE-on-mismatch, read-only) belongs before
       the commit; an effects node (writes, enqueues, state mutations) belongs after.
       Mixing the two — placing a rejection validator in effect_nodes — creates a window
@@ -1031,7 +1039,9 @@ groups:
     verification: '`create_update_case_received_tree` passes `case_id=None` and its
       structure test asserts no `GuardedCommitCaseLedgerEntryBT` child; a tree for a
       canonical signature passes `case_id` and the ordering ratchet finds the commit
-      after the guards.'
+      after the guards. A receive-side test per tree asserts the CASE_MANAGER commits
+      the entry and any other receiver skips it, and that the `Announce(VulnerabilityCase)`
+      tree has no commit child.'
     adr:
     - ADR-0111
     relationships:

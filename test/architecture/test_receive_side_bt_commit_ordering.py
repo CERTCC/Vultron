@@ -111,6 +111,8 @@ REJECTION_VALIDATORS = {
     "CheckCsEphemeralStateNode",
     "CheckCsHistoryPrefixNode",
     "FinalizeCsFilterNode",
+    "RequireCaseForReport",
+    "CheckParticipantAddableNode",
 }
 
 RECEIVE_ACTIVITY_TREE_CALL = "create_receive_activity_tree"

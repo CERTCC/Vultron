@@ -139,6 +139,21 @@ def _run_submit_report_case_creation(
     return verdict
 
 
+def _case_id_for_report(
+    dl: CasePersistence, report_id: str | None
+) -> str | None:
+    """The id of this store's case for *report_id*, or ``None``.
+
+    A pre-flight lookup for the guarded-commit stage, not a domain-significant
+    mutation: the tree's own ``RequireCaseForReport`` guard still decides
+    whether an absent case refuses the activity.
+    """
+    if report_id is None:
+        return None
+    case = dl.find_case_by_report_id(report_id)
+    return getattr(case, "id_", None)
+
+
 def _log_refusal(verdict: HandlerResult, activity_id: str) -> HandlerResult:
     if verdict.disposition is HandlerDisposition.REFUSED:
         logger.warning(
@@ -295,8 +310,7 @@ class ValidateReportReceivedUseCase:
 
         # Resolve case_id for the guarded-commit subtree (pre-flight lookup,
         # not domain-significant mutation).
-        case = self._dl.find_case_by_report_id(report_id)
-        case_id = getattr(case, "id_", None)
+        case_id = _case_id_for_report(self._dl, report_id)
         if case_id is None:
             logger.debug(
                 "ValidateReportReceivedUseCase: no case found for report '%s'"
@@ -368,7 +382,9 @@ class InvalidateReportReceivedUseCase:
             self._dl, request.receiving_actor_id
         )
         tree = create_invalidate_report_received_tree(
-            request, actor_id=receiving_actor_id
+            request,
+            actor_id=receiving_actor_id,
+            case_id=_case_id_for_report(self._dl, request.report_id),
         )
         bridge = BTBridge(
             datalayer=self._dl,
@@ -414,11 +430,7 @@ class AckReportReceivedUseCase:
         )
 
         # Resolve case_id for the guarded-commit subtree.
-        report_id = request.report_id
-        case_id: str | None = None
-        if report_id is not None:
-            case = self._dl.find_case_by_report_id(report_id)
-            case_id = getattr(case, "id_", None)
+        case_id = _case_id_for_report(self._dl, request.report_id)
 
         tree = create_ack_report_received_tree(request, case_id=case_id)
         bridge = BTBridge(
@@ -466,7 +478,9 @@ class CloseReportReceivedUseCase:
             self._dl, request.receiving_actor_id
         )
         tree = create_close_report_received_tree(
-            request, actor_id=receiving_actor_id
+            request,
+            actor_id=receiving_actor_id,
+            case_id=_case_id_for_report(self._dl, request.report_id),
         )
         bridge = BTBridge(
             datalayer=self._dl,

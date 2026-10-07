@@ -25,9 +25,51 @@ BTND-07-003.
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    DataLayerConditionWithPorts,
+)
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_participant import CaseParticipant
+
+
+class CheckParticipantAddableNode(DataLayerConditionWithPorts):
+    """Check that an ``Add(CaseParticipant)`` names a case and participant we hold.
+
+    The read-only twin of the refusals in
+    :class:`AddCaseParticipantToCaseReceivedNode`, placed before the commit so
+    an ``Add`` the receiver would refuse leaves no canonical ledger entry
+    behind (CLP-10-009).
+
+    Returns ``SUCCESS`` when both the case and the ``CaseParticipant`` record
+    resolve in the receiver's store, ``FAILURE`` otherwise.
+    """
+
+    def __init__(
+        self,
+        participant_id: str,
+        case_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.participant_id = participant_id
+        self.case_id = case_id
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+        _, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1: case must exist (ADR-0087)
+        if not isinstance(
+            self.datalayer.read(self.participant_id), CaseParticipant
+        ):
+            self.feedback_message = (
+                f"participant '{self.participant_id}' not found"
+            )
+            return Status.FAILURE
+        return Status.SUCCESS
 
 
 class AddCaseParticipantToCaseReceivedNode(DataLayerActionWithPorts):
