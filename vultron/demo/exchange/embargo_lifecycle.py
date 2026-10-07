@@ -17,8 +17,9 @@ Three helpers drive one embargo transition each through the real trigger
 endpoints, so the behavior tree of every actor runs (they puppeteer; none
 injects an activity into an inbox):
 
-- :func:`demo_propose_and_activate_embargo` — a first proposal, ``EM.NONE`` to
-  ``EM.ACTIVE`` (DEMOMA-20-002);
+- :func:`demo_propose_and_activate_embargo` — a proposal brought to
+  ``EM.ACTIVE``, from ``EM.NONE`` or, for a case that already holds the
+  default embargo (EP-04-001), as a revision of it (DEMOMA-20-002);
 - :func:`demo_propose_embargo_revision` — revised terms, ``EM.ACTIVE`` to
   ``EM.REVISE`` and back (DEMOMA-21-002);
 - :func:`demo_terminate_embargo` — ``EM.ACTIVE`` to ``EM.EXITED``

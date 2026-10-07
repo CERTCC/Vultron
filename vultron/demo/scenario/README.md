@@ -40,6 +40,7 @@ decorate it — then run `uv run demo-scenarios --write`.
 | `fvcv-extension` | `fvcv_extension_demo.py` | Finder + Vendor1 + Coordinator + Vendor2 | Coordinator-suggested second vendor |
 | `fvcv-handoff` | `fvcv_handoff_demo.py` | Finder + Vendor1 → Coordinator + Vendor2 | Case-ownership transfer to coordinator |
 | `fvv` | `fvv_demo.py` | Finder + Vendor1 + Vendor2 | Direct invitation of a second vendor |
+| `rcv-embargo` | `rcv_embargo_demo.py` | Reporter + Coordinator + Vendor | Embargo revision after submission and deliberate termination |
 
 <!-- END GENERATED SCENARIO TABLE -->
 

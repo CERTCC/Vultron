@@ -42,7 +42,6 @@ canonical order for every scenario table.
 | Scenario | Tracking issue | Spec IDs | What it would demonstrate |
 |---|---|---|---|
 | `fcvd` | #1227 | DEMOMA-24, DEMOMA-16-014 | V develops the fix; D deploys it in their own environment (d→D, gated on the CSB-15-004 causal precondition) |
-| `rcv-embargo` | #1222 | DEMOMA-20, DEMOCI-07 | R+C+V; post-submission negotiation (variation b) + deliberate termination (variation e); EP→EA→ET arc |
 | `rcvv-embargo` | #1222 | DEMOMA-21, DEMOCI-07 | R+C+V1+V2; variations b+c+f+d; EP→EA→EV→EJ→auto-collapse via CS.P; V2 late-invite |
 | `vc` | #2591 | DEMOMA-25, DEMOMA-16-015 | V self-reports and owns the case; C joins as Observer |
 
@@ -101,9 +100,9 @@ they sit in the [planned scenario register](#planned-scenario-register) as
 |----------|-------|-------------|--------|
 | Pre-submission negotiation | *(new Idea, child of epic #1083)* | EP before report submission (variation a); blocked by EP-04-003 protocol gap — no mechanism for reporter to include embargo proposal with/before report; see `notes/embargo-default-semantics.md` | idea-stage |
 
-The RCV-embargo and RCVV-embargo scenarios from this group are specified, so
-they sit in the [planned scenario register](#planned-scenario-register) as
-`rcv-embargo` and `rcvv-embargo` instead.
+The RCVV-embargo scenario from this group is specified, so it sits in the
+[planned scenario register](#planned-scenario-register) as `rcvv-embargo`
+instead.  The RCV-embargo scenario is built and registered.
 
 ### Cross-cutting variations (composable with any scenario)
 

@@ -43,5 +43,10 @@
     "demo": "fvv",
     "test_file": "test/ci/invariants/test_fvv_invariants.py",
     "full_suite_only": true
+  },
+  {
+    "demo": "rcv-embargo",
+    "test_file": "test/ci/invariants/test_rcv_embargo_invariants.py",
+    "full_suite_only": false
   }
 ]

@@ -83,6 +83,7 @@ nav:
       - FVCV-handoff: 'topics/scenarios/fvcv-handoff.md'
       - FCCV-extension: 'topics/scenarios/fccv-extension.md'
       - FCCV-handoff: 'topics/scenarios/fccv-handoff.md'
+      - RCV-embargo: 'topics/scenarios/rcv-embargo.md'
     - Activity Vocabulary Design: 'topics/activity_vocabulary_design.md'
     - Reference Implementation Architecture: 'topics/reference_architecture.md'
     - Future Work:

@@ -2347,6 +2347,29 @@ groups:
     - rel_type: refines
       spec_id: DEMOMA-25-001
 
+  - id: DEMOMA-16-016
+    priority: MUST
+    kind: project
+    verification_debt: '#2573'
+    statement: >-
+      The RCV-embargo scenario expected-event-types list MUST include
+      `invite_actor_to_case`, `accept_invite_actor_to_case`,
+      `invite_to_embargo_on_case`, `accept_invite_to_embargo_on_case` and
+      `remove_embargo_event_from_case` in addition to the universal types
+      (DEMOMA-16-001), because the Coordinator invites the Vendor and the Vendor
+      accepts, the Reporter's embargo proposal and its relayed invitations are
+      committed, the owner and the Vendor accept it, and the Coordinator
+      terminates the embargo.
+    rationale: >-
+      The embargo event types are the ones the CASE_MANAGER's commit path emits
+      (DEMOMA-20-006); the harness imports them from that code, so a rename
+      there fails the harness rather than leaving it checking a stale string.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-16-001
+    - rel_type: refines
+      spec_id: DEMOMA-20-006
+
   - id: DEMOMA-16-014
     priority: MUST
     kind: project
@@ -2965,15 +2988,19 @@ groups:
     Specifies the rcv-embargo demo scenario: a 3-party CVD case with Reporter
     (R), Coordinator (C), and Vendor (V), exercising embargo lifecycle variations
     (b) post-submission negotiation and (e) deliberate early termination. After
-    report submission and case setup, R proposes an embargo (EP); C accepts (EA),
-    advancing EM to ACTIVE with all three parties as SIGNATORY. The fix lifecycle
-    then proceeds. Before the natural embargo window expires, C deliberately
-    terminates the embargo (ET), advancing EM to EXITED. The case continues to
-    the normal P-transition and closure sequence. This scenario is the first to
-    exercise: (a) embargo proposal initiated after report submission (variation
-    b), (b) the full EP→EA→ET arc (propose, activate, terminate without revision),
-    (c) each party's consent row for the embargo passing through INVITED → ACCEPTED
-    (signatory to the active embargo) for all three parties.
+    report submission and case setup, R proposes an embargo (EP). Case creation
+    has already activated the default embargo (EP-04-001), so the case is at
+    EM.ACTIVE before R proposes and R's proposal revises that embargo
+    (ACTIVE → REVISE). V and C accept (EA); C, as case owner, activates the
+    revision, returning EM to ACTIVE with the revision as the active embargo and
+    all three parties as SIGNATORY to it. The fix lifecycle then proceeds. Before
+    the natural embargo window expires, C deliberately terminates the embargo
+    (ET), advancing EM to EXITED. The case continues to the normal P-transition
+    and closure sequence. This scenario is the first to exercise: (a) embargo
+    proposal initiated after report submission (variation b), (b) the full
+    EP→EA→ET arc (propose, activate, terminate without a further revision),
+    (c) each party's consent row for the revised embargo passing through
+    INVITED → ACCEPTED (signatory to the active embargo) for all three parties.
   specs:
   - id: DEMOMA-20-001
     priority: MUST
@@ -3026,7 +3053,10 @@ groups:
       The sequence was first written in the peer voice ("coordinator polls for
       the EP message"); under ADR-0113 the proposal reaches the other
       participants only as the CASE_MANAGER's relayed Invite, and their replicas
-      move only through the ledger (#3918).
+      move only through the ledger (#3918). A case opened by a report already
+      holds the default embargo (EP-04-001), so in the rcv-embargo scenario the
+      sequence runs as a revision (`ACTIVE → REVISE → ACTIVE`); from `EM.NONE`
+      it runs `NONE → PROPOSED → ACTIVE`. The helper is the same either way.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001

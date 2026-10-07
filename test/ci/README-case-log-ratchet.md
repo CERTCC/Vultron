@@ -29,6 +29,7 @@ in each row is derived from the scenario name by convention rather than stored
 | FVCV-extension | `test/ci/invariants/test_fvcv_extension_invariants.py` |  |
 | FVCV-handoff | `test/ci/invariants/test_fvcv_handoff_invariants.py` | ✓ |
 | FVV | `test/ci/invariants/test_fvv_invariants.py` |  |
+| RCV embargo | `test/ci/invariants/test_rcv_embargo_invariants.py` | ✓ |
 
 <!-- END GENERATED SCENARIO TABLE -->
 

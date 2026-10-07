@@ -34,17 +34,18 @@ event type to a harness constant, therefore fails this check until the table
 follows — see [demo-scenario-registry.md](demo-scenario-registry.md) § "The
 generate-vs-check split".
 
-| Scenario | validate_report | add_participant_status_to_participant | close_case | add_note_to_case | engage_case | invite_actor_to_case | offer_case_participant | accept_invite_actor_to_case | accept_actor_recommendation | accept_case_ownership_transfer | reject_invite_actor_to_case |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| fccv-extension    | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |
-| fccv-handoff      | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   | ✓ |   |
-| fcv               | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |   |
-| fcv-reject        | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   | ✓ |
-| fcvcv             | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |
-| fv                | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   |   |   |
-| fvcv-extension    | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |
-| fvcv-handoff      | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   | ✓ |   |
-| fvv               | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |   |
+| Scenario | validate_report | add_participant_status_to_participant | close_case | add_note_to_case | engage_case | invite_actor_to_case | offer_case_participant | accept_invite_actor_to_case | accept_actor_recommendation | accept_case_ownership_transfer | reject_invite_actor_to_case | invite_to_embargo_on_case | accept_invite_to_embargo_on_case | remove_embargo_event_from_case |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| fccv-extension    | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   |   |
+| fccv-handoff      | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   | ✓ |   |   |   |   |
+| fcv               | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |   |   |   |   |
+| fcv-reject        | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   | ✓ |   |   |   |
+| fcvcv             | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   |   |
+| fv                | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   |   |   |   |   |   |
+| fvcv-extension    | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   |   |
+| fvcv-handoff      | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   | ✓ |   |   |   |   |
+| fvv               | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |   |   |   |   |
+| rcv-embargo       | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |   | ✓ | ✓ | ✓ |
 
 **Notes:**
 
@@ -138,8 +139,8 @@ advance the CVD protocol state and are recorded in the replicated case ledger.
 
 ### Why the minimum set is sufficient
 
-The minimum set (`fv`, `fvcv-handoff`, `fcvcv`, `fcv-reject`) covers every
-`event_type` column and the ownership-transfer path. The additional
+The minimum set (`fv`, `fvcv-handoff`, `fcvcv`, `fcv-reject`, `rcv-embargo`)
+covers every `event_type` column and the ownership-transfer path. The additional
 dimensions (CVD role variation, multi-vendor fix paths, embargo phases) are
 either:
 
@@ -152,7 +153,9 @@ either:
 The full-suite-only scenarios add regression depth but not breadth relative to
 the minimum set's event-type and protocol-path coverage. (`fcv-reject` is a
 minimum-set member because it cannot be covered by any other scenario:
-`reject_invite_actor_to_case` is unique to the invitation-rejection path.)
+`reject_invite_actor_to_case` is unique to the invitation-rejection path;
+`rcv-embargo` is one for the same reason, as the only source of the embargo
+proposal, acceptance and termination event types.)
 
 ## Minimum PR Validation Set (DEMOCI-06-002)
 
@@ -177,6 +180,7 @@ canonical order, everywhere".
 | fvcv-extension | covered by fcvcv | Same offer+invite+accept coverage; no additional phases |
 | fvcv-handoff | ✓ (member) | Adds `invite_actor_to_case` + `accept_invite_actor_to_case` + ownership-transfer protocol path |
 | fvv | covered by fvcv-handoff | Same invite+accept coverage; no additional phases |
+| rcv-embargo | ✓ (member) | Adds `invite_to_embargo_on_case` + `accept_invite_to_embargo_on_case` + `remove_embargo_event_from_case` — the only scenario that proposes, activates and terminates an embargo |
 
 ### Coverage proof
 
@@ -195,6 +199,9 @@ The minimum set covers every distinct event type:
 | accept_actor_recommendation | fcvcv |
 | accept_case_ownership_transfer | fvcv-handoff |
 | reject_invite_actor_to_case | fcv-reject |
+| invite_to_embargo_on_case | rcv-embargo |
+| accept_invite_to_embargo_on_case | rcv-embargo |
+| remove_embargo_event_from_case | rcv-embargo |
 
 Every non-member row above — the scenarios whose `Covered by minimum set` cell
 names a covering member rather than `✓ (member)` — produces no event type the
