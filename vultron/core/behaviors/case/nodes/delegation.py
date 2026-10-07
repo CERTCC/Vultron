@@ -29,6 +29,7 @@ from typing import cast
 from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.helpers import (
     DataLayerAction,
     _EmitSingleActivityBase,
@@ -42,7 +43,7 @@ from vultron.enums.roles import CVDRole
 logger = logging.getLogger(__name__)
 
 
-class AutoAcceptCaseParticipantRoleNode(DataLayerAction):
+class AutoAcceptCaseParticipantRoleNode(DataLayerAction, EmitCapable):
     """Auto-accept a CaseParticipantRole offer on behalf of the local actor (ADR-0039).
 
     When the local actor receives an ``Offer(CaseParticipantRole)`` it MUST

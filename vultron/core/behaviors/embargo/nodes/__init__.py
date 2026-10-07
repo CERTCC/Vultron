@@ -26,6 +26,11 @@ from vultron.core.behaviors.embargo.nodes.abandon import (
     LeaveAbandonmentToCaseManagerNode,
     ReadOpenEmbargoProposalsNode,
 )
+from vultron.core.behaviors.embargo.nodes.activation_effect import (
+    EMBARGO_ACTIVATION_EVENT_TYPE,
+    ApplyEmbargoActivationFromLedgerNode,
+    IsAddEmbargoEventNode,
+)
 from vultron.core.behaviors.embargo.nodes.cascade import (
     PersistEmbargoEventNode,
 )
@@ -144,6 +149,10 @@ __all__ = [
     "ClearActiveEmbargoNode",
     "ApplyEmbargoTeardownNode",
     "SendAnnounceEmbargoEventNode",
+    # Activation ledger replay (RSH-08-004, #3814)
+    "EMBARGO_ACTIVATION_EVENT_TYPE",
+    "ApplyEmbargoActivationFromLedgerNode",
+    "IsAddEmbargoEventNode",
     # Relay (EP-09)
     "EMBARGO_INVITE_EVENT_TYPE",
     "CollectEmbargoInviteRecipientsNode",

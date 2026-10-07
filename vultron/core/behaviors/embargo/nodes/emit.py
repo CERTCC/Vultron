@@ -17,11 +17,12 @@
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.use_cases._helpers import add_activity_to_outbox
 
 
-class _SendEmbargoActivityBase(DataLayerActionWithPorts):
+class _SendEmbargoActivityBase(DataLayerActionWithPorts, EmitCapable):
     """Abstract base for embargo activity emit nodes (BTND-07-005).
 
     Implements the common guard/factory-dispatch/outbox-write skeleton:

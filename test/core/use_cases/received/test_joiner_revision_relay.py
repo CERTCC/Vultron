@@ -84,6 +84,7 @@ def _relayed_to(dl: SqliteDataLayer, actor_id: str) -> list[VultronActivity]:
 def _join(dl: SqliteDataLayer, case_id: str, make_payload):
     invite = rm_invite_to_case_activity(
         as_Actor(id_=JOINER),
+        to=[JOINER],
         target=case_id,
         actor=MANAGER,
         roles=[CVDRole.VENDOR],

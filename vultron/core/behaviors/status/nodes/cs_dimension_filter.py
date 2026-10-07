@@ -51,7 +51,8 @@ from vultron.core.behaviors.ledger_patch import (
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import EmDimension, PxaDimension
 from vultron.core.models.protocols import PersistableModel
-from vultron.core.states.cs import is_monotonic_pxa_forward
+from vultron.core.states.cs import is_pxa_assertion_acceptable
+from vultron.core.states.em import is_em_assertion_acceptable
 
 logger = logging.getLogger(__name__)
 
@@ -195,7 +196,7 @@ class FilterCsEmDimensionNode(_CsStatusGuardBase):
 
         current_em = case.em_state
         asserted_em = asserted.em.state
-        if asserted_em != current_em:
+        if not is_em_assertion_acceptable(current_em, asserted_em):
             acc["refused"].append("em")
             acc["update_fields"]["em"] = EmDimension(state=current_em)
             # Same shape as the PXA refusal warning below (#3039): the case
@@ -268,9 +269,7 @@ class FilterCsPxaDimensionNode(DataLayerConditionWithPorts):
         # A remote peer may have skipped steps between messages; strict
         # single-step adjacency (is_valid_pxa_transition) applies only to
         # local write nodes (CSB-16-002).
-        if asserted_pxa != current_pxa and not is_monotonic_pxa_forward(
-            current_pxa, asserted_pxa
-        ):
+        if not is_pxa_assertion_acceptable(current_pxa, asserted_pxa):
             acc["refused"].append("pxa")
             acc["update_fields"]["pxa"] = PxaDimension(state=current_pxa)
             # The case ID comes from the accumulator: this node has no

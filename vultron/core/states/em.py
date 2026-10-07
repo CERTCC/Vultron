@@ -52,6 +52,19 @@ class EM(StrEnum):
     X = EXITED
 
 
+def is_em_assertion_acceptable(current: EM, asserted: EM) -> bool:
+    """Return True if a received CaseStatus's EM may be accepted.
+
+    The EM acceptance rule for a received ``CaseStatus`` (RSH-05-023): EM is
+    derived from the case's embargo register (ADR-0122), so a status can
+    only carry the EM the receiver already derives — it never moves EM.  The
+    CASE_MANAGER's ``FilterCsEmDimensionNode`` and the replica's
+    ``ApplyCaseStatusFromLedgerNode`` both apply it, so the two sides of the
+    ledger cannot adjudicate EM differently.
+    """
+    return asserted == current
+
+
 # Named EM state subsets (SM-07-001 style convenience constants)
 # Example: EM_NEGOTIATING groups states where embargo negotiation is ongoing
 EM_NEGOTIATING = (EM.PROPOSED, EM.REVISE)

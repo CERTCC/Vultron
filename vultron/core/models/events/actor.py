@@ -155,6 +155,12 @@ class AcceptInviteActorToCaseReceivedEvent(VultronEvent):
         return stub_case_id(self.inner_target)
 
     @property
+    def invite_id(self) -> str | None:
+        """The Invite the reply answers; the CASE_MANAGER's record of it, not
+        the copy embedded here, governs the reply (CM-11-017)."""
+        return self.object_id
+
+    @property
     def invitee_id(self) -> str | None:
         return self.inner_object_id
 

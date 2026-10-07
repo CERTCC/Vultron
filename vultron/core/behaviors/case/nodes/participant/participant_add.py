@@ -28,6 +28,7 @@ from vultron.core.behaviors.case.nodes.participant.common import (
 from vultron.core.behaviors.case.nodes.participant.status import (
     CreateParticipantStatusNode,
 )
+from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
@@ -472,7 +473,9 @@ class SeedParticipantAsSignatoryNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class QueueAddParticipantNotificationNode(DataLayerActionWithPorts):
+class QueueAddParticipantNotificationNode(
+    DataLayerActionWithPorts, EmitCapable
+):
     """Queue Add(CaseParticipant) outbox notification for the sender actor."""
 
     def __init__(

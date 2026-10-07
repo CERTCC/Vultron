@@ -13,6 +13,7 @@ related_specs:
   - specs/cs-behavior.yaml
   - specs/embargo-policy.yaml
   - specs/em-behavior.yaml
+  - specs/sync-ledger-replication.yaml
 related_notes:
   - notes/embargo-lifecycle.md
   - notes/bt-integration.md
@@ -38,10 +39,10 @@ the other forms relate to it. CONCERN-3473's inventory found, per state machine:
 
 | Machine | Act (activity-typed) | Declaration (status-typed) | Ledger |
 |---|---|---|---|
-| RM | `Accept`/`TentativeReject`/`Reject(Offer(Report))`, `Join`/`Ignore(Case)`, `Leave(Case)` | `Add(ParticipantStatus).rmState` | `add_participant_status_to_participant`, `close_case` |
-| EM | `Accept`/`Reject(Invite(EmbargoEvent))`, `Add`/`Remove(EmbargoEvent)` | `Add(CaseStatus).emState`, embedded `caseStatus` | `remove_embargo_event_from_case`; the revision relay's `invite_to_embargo_on_case` (proposal and each relayed Invite) and `accept`/`reject_invite_to_embargo_on_case` (#3915) |
+| RM | `Accept`/`TentativeReject`/`Reject(Offer(Report))`, `Join`/`Ignore(Case)`, `Leave(Case)` | `Add(ParticipantStatus).rmState` | `add_participant_status_to_participant`, `close_case`; `validate_report`, `engage_case`, `defer_case`, the full-case Invite replies (#3814); `invalidate_report`, `close_report` replayed but not yet committed (#4304) |
+| EM | `Accept`/`Reject(Invite(EmbargoEvent))`, `Add`/`Remove(EmbargoEvent)` | `Add(CaseStatus).emState`, embedded `caseStatus` | `add_embargo_event_to_case` (#3814), `remove_embargo_event_from_case`; the revision relay's `invite_to_embargo_on_case` (proposal and each relayed Invite) and `accept`/`reject_invite_to_embargo_on_case` (#3915) |
 | CS V/F/D | — | `Add(ParticipantStatus).vfdState` | `add_participant_status_to_participant` |
-| CS P/X/A | — | `Add(CaseStatus).pxaState`, embedded `caseStatus` | **none** |
+| CS P/X/A | — | `Add(CaseStatus).pxaState`, embedded `caseStatus` | `add_case_status_to_case` (#3814) |
 | PEC | side-effects of EM acts only (MSM-07) | derived, never asserted | via participant status |
 
 The act and the declaration are **two layers of one move**, both expected, and
@@ -64,15 +65,20 @@ issue under epic #3472:
 - **Pipeline.** Every received tree gates its *commit* on `CheckIsCaseManagerNode`
   but runs its *effects* at every inbox, so `Add(EmbargoEvent)`,
   `Remove(EmbargoEvent)` and `Add(CaseStatus)` move a replica's state from any
-  sender. Those effects exist because the ledger does not yet carry every
-  transition — `create_announce_log_entry_tree` replays only a fixed subset of
-  event types and
-  has no node for `add_case_status_to_case`, the report verdicts, or
-  engage/defer. Order of repair is fixed: add the replay nodes (RSH-08-004), then
+  sender. Those effects existed because the ledger did not carry every
+  transition. Order of repair is fixed: add the replay nodes (RSH-08-004), then
   gate the effects (RSH-08-003). Gating first blinds every replica. The
-  embargo Invite path is the first done in that order (#3915): its relay
+  embargo Invite path was the first done in that order (#3915): its relay
   entries are replayed, and the participant's Invite tree now stores and
-  answers without writing state (EP-09-003).
+  answers without writing state (EP-09-003). The replay half of the rest is
+  #3814: `create_announce_log_entry_tree` now replays `add_case_status_to_case`
+  (under the RSH-05-023/019 rules), `add_embargo_event_to_case` (through
+  `EmbargoLifecycle`), and the activity-typed RM moves — the report verdicts and
+  engage/defer, and the full-case Invite replies — onto the *sender's*
+  participant. Every committed event type is
+  classified, from code, in
+  `test/architecture/test_ledger_event_types_are_replayed.py`; the gating half
+  follows.
 
 What is **not** changed: the CS dimensions, the PEC side-effect model, the single
 `ParticipantStatus` writer, and this note's two-gate design for adoption.
@@ -431,7 +437,8 @@ forward), and publishes both `BB_CASE_STATUS_DIM_FILTER` (for
 no new state is carried (RSH-05-005).
 
 `FinalizeCsFilterNode` is a REJECTION_VALIDATORS member: it MUST appear in
-`precondition_guards`, never in `effect_nodes` (CLP-10-009).
+`precondition_guards`, never among the effects (`replica_effects`,
+`manager_effects` or the legacy `effect_nodes`; CLP-10-009).
 
 ### Blackboard keys
 

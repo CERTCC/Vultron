@@ -16,6 +16,7 @@ from vultron.core.behaviors.case.nodes.invite_participant import (
 )
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlement,
+    SenderEntitlementKind,
     exempt,
 )
 from vultron.core.models.events.actor import (
@@ -143,8 +144,8 @@ class AcceptInviteActorToCaseReceivedUseCase:
     events, and outbox work live in leaf nodes of the BT.
     """
 
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4070", "no sender check for accept invite"
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.INVITEE
     )
 
     def __init__(
@@ -164,14 +165,19 @@ class AcceptInviteActorToCaseReceivedUseCase:
     def execute(self) -> HandlerResult:
         request = self._request
         case_id = request.case_id
-        invitee_id = request.invitee_id
-        if case_id is None or invitee_id is None:
+        invite_id = request.invite_id
+        if case_id is None or request.invitee_id is None or not invite_id:
             logger.warning(
-                "accept_invite_actor_to_case: missing case_id or invitee_id"
+                "accept_invite_actor_to_case: missing case_id, invitee_id"
+                " or invite_id"
             )
             return HandlerResult.refused(
-                "Accept(Invite) is missing its case id or invitee id"
+                "Accept(Invite) is missing its case id, invitee id or"
+                " Invite id"
             )
+        # The invitee is the reply's sender, never the actor the embedded
+        # copy of the Invite names (CM-11-017).
+        invitee_id = request.actor_id
 
         # The BT runs as the *receiving* actor: the inbox-stamped
         # receiving_actor_id, else the owner of the store we hold (BT-17-006).
@@ -183,9 +189,13 @@ class AcceptInviteActorToCaseReceivedUseCase:
             self._dl, request.receiving_actor_id
         )
 
+        # The reply's sender is the invitee: the tree's sender guard refuses
+        # any sender that is not the recorded Invite's invitee, so the
+        # participant is never taken from the embedded copy (CM-11-017).
         tree = create_accept_invite_actor_to_case_tree(
             case_id=case_id,
             invitee_id=invitee_id,
+            invite_id=invite_id,
         )
         result = BTBridge(
             datalayer=self._dl,
@@ -236,8 +246,8 @@ class RejectInviteActorToCaseReceivedUseCase:
     other receiver of a copy refuses (HP-01-005).
     """
 
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4070", "no sender check for reject invite"
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.INVITEE
     )
 
     def __init__(
@@ -262,14 +272,14 @@ class RejectInviteActorToCaseReceivedUseCase:
             request.invite_id,
         )
         case_id = request.case_id or ""
-        if not case_id:
+        if not case_id or not request.invite_id:
             logger.warning(
-                "RejectInviteActorToCase: missing case_id for invite '%s'"
-                " — refusing",
+                "RejectInviteActorToCase: missing case_id or invite_id for"
+                " invite '%s' — refusing",
                 request.invite_id,
             )
             return HandlerResult.refused(
-                "Reject(Invite) is missing its case id"
+                "Reject(Invite) is missing its case id or Invite id"
             )
 
         # The store we hold *is* the receiving actor's, so this resolves
@@ -280,6 +290,7 @@ class RejectInviteActorToCaseReceivedUseCase:
 
         tree = create_reject_invite_actor_to_case_received_tree(
             case_id=case_id,
+            invite_id=request.invite_id,
             invitee_id=request.actor_id or None,
         )
         result = BTBridge(

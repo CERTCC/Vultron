@@ -215,6 +215,7 @@ def joining_case() -> Any:
 
     stub_invite = rm_invite_to_case_activity(
         invitee,
+        to=[invitee.id_],
         target=case,
         actor=case_actor_id,
         roles=[CVDRole.VENDOR],

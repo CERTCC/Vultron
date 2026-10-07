@@ -480,6 +480,13 @@ groups:
       has already observed. Lateral moves at the same rank
       (`VALID` <-> `INVALID`) are re-adjudication, not regression, and are
       applied unchanged.
+    note: >
+      The predicate is `is_rm_replay_acceptable(local_rm, recorded_rm)` in
+      `vultron/core/states/rm.py`. Two replay nodes apply it, so they cannot
+      ratchet differently: `ApplyParticipantStatusFromLedgerNode` on this
+      event type, and `ApplyRmVerdictFromLedgerNode` on the activity-typed RM
+      moves (report verdicts, engage/defer, full-case Invite replies;
+      RSH-08-004).
     verification: Unit tests in `test/core/behaviors/status/test_partial_accept_participant_status.py` confirm applying an
       `Announce(CaseLedgerEntry)` never moves a replica's RM state backward on the RM progress scale.
     stories:
@@ -701,11 +708,19 @@ groups:
       Unit tests in `test/core/behaviors/status/test_add_case_status_bt.py`
       confirm that `FilterCsEmDimensionNode` passes an EM identical to the
       case's and refuses every other asserted EM value by carrying the
-      case's value forward.
+      case's value forward;
+      `test/core/behaviors/sync/nodes/test_case_status_effect.py` confirms
+      the same of `ApplyCaseStatusFromLedgerNode`.
     note: >
-      Implemented by `FilterCsEmDimensionNode.update()` in
-      `vultron/core/behaviors/status/nodes/cs_dimension_filter.py`, which
-      compares the asserted EM with `VulnerabilityCase.em_state`.
+      The predicate is `is_em_assertion_acceptable(current_em, asserted_em)` in
+      `vultron/core/states/em.py`, which accepts only `asserted == current`.
+      Two nodes apply it, so the CASE_MANAGER and its replicas adjudicate EM
+      alike: `FilterCsEmDimensionNode` in
+      `vultron/core/behaviors/status/nodes/cs_dimension_filter.py` on a
+      received `Add(CaseStatus)`, comparing with `VulnerabilityCase.em_state`,
+      and `ApplyCaseStatusFromLedgerNode` in
+      `vultron/core/behaviors/sync/nodes/case_status_effect.py` on the
+      `add_case_status_to_case` ledger entry (RSH-08-004).
     adr:
     - ADR-0122
   - id: RSH-05-019
@@ -735,11 +750,11 @@ groups:
       and refuses non-monotone-forward assertions by carrying the current value
       forward.
     note: >
-      Implemented by `FilterCsPxaDimensionNode.update()` in
-      `vultron/core/behaviors/status/nodes/cs_dimension_filter.py`. The predicate
-      is `asserted_pxa != current_pxa and not is_monotonic_pxa_forward(current_pxa, asserted_pxa)`;
-      CSB-16-002 strict single-step adjacency applies only to local write nodes,
-      not to the received-side filter.
+      The predicate is `is_pxa_assertion_acceptable(current_pxa, asserted_pxa)`
+      in `vultron/core/states/cs.py`, applied by `FilterCsPxaDimensionNode` on a
+      received `Add(CaseStatus)` and by `ApplyCaseStatusFromLedgerNode` on the
+      `add_case_status_to_case` ledger entry (RSH-08-004). CSB-16-002 strict
+      single-step adjacency applies only to local write nodes, not to either.
   - id: RSH-05-020
     priority: MUST
     kind: project
@@ -1284,14 +1299,21 @@ groups:
       received-side effect under RSH-08-003 MUST NOT land before the replay
       node for the transition it wrote exists.
     rationale: >
-      Replicas currently replay only a fixed subset of event types; the case-status entry
-      committed on every embargo or public-state change, and the report
-      valid/invalid/closed and engage/defer entries, have none. Removing the
-      direct-receipt effects before the ledger carries those transitions would
-      leave replicas blind (ADR-0108 § 4).
-    verification: An architecture ratchet in `test/architecture/` derives the committed `event_type` set from the
-      receive-side commit path and asserts each member is matched by an `Is*EventNode` reachable from
-      `create_announce_log_entry_tree` (any module under `vultron/core/behaviors/sync/nodes/`, not only
-      `event_conditions.py`) or listed in a declared-no-effect set held to bidirectional equality (TB-10-002).
+      Replicas replayed only a fixed subset of event types; the case-status entry
+      committed on every embargo or public-state change, the embargo activation,
+      and the report valid/invalid/closed and engage/defer entries had none
+      until #3814. Removing the direct-receipt effects before the ledger carries
+      those transitions would leave replicas blind (ADR-0108 § 4).
+    verification: >
+      `test/architecture/test_ledger_event_types_are_replayed.py` derives the
+      committed `event_type` set from code (`_ledger_commit_inventory.py`: the
+      receive-side commit path, plus every explicit `event_type=` commit under
+      `vultron/core`) and asserts each member is matched by exactly one
+      effect-slot condition of `create_announce_log_entry_tree`, found by tree
+      position rather than by class or module, or is listed in the
+      declared-no-effect set; the classification equals the committed set
+      (TB-10-002). The types still violating this requirement are an exact
+      known-violation set, each naming the open issue that owns it, which only
+      shrinks (ARCH-18-001).
     adr:
     - ADR-0108

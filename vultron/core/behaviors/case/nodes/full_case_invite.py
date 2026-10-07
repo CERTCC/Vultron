@@ -46,7 +46,6 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.core.predicates.addressing import same_actor_id
 from vultron.core.states.rm import RM, is_valid_rm_transition
 from vultron.core.sync_helpers import (
     ledger_position_refusal,
@@ -111,9 +110,9 @@ class CheckFullCaseReplyNode(DataLayerCondition):
 
     - the Invite it answers is not one this CASE_MANAGER issued, or carries
       no ledger position;
-    - its sender is not the actor the Invite asked, holds no participant
-      record (CM-11-001), or has not joined the case (an inert participant
-      may answer only the Invites addressed to it before it joins);
+    - its sender holds no participant record (CM-11-001), or has not joined
+      the case (an inert participant may answer only the Invites addressed
+      to it before it joins);
     - its RM state cannot take the transition the reply asks for (a
       duplicate or contradictory reply, CM-11-011), so no receipt is
       committed for a transition the apply stage would refuse;
@@ -122,6 +121,8 @@ class CheckFullCaseReplyNode(DataLayerCondition):
 
     The floor is read from the CASE_MANAGER's own stored Invite, never from
     the copy the reply embeds.
+    That the sender is the Invite's invitee is the sender-entitlement guard's
+    to establish, ahead of this node (``SenderIsInviteeNode``, HP-01-007).
     """
 
     def __init__(
@@ -168,13 +169,6 @@ class CheckFullCaseReplyNode(DataLayerCondition):
         if floor is None:
             return self._refuse(
                 f"Invite '{self.invite_id}' carries no ledger position"
-            )
-        if not same_actor_id(
-            _as_id(getattr(invite, "object_", None)) or "", self.replier_id
-        ):
-            return self._refuse(
-                f"'{self.replier_id}' is not the actor Invite"
-                f" '{self.invite_id}' asked"
             )
         participant_id = case.actor_participant_index.get(self.replier_id)
         participant = (

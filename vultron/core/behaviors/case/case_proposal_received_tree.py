@@ -148,6 +148,7 @@ from vultron.core.behaviors.case.offer_provenance import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.replica_emit_exemptions import CASE_PROPOSAL
 from vultron.core.models.report import VulnerabilityReport
 
 if TYPE_CHECKING:
@@ -519,7 +520,8 @@ def create_case_proposal_received_tree(
         name="CreateCaseProposalReceivedBT",
         case_id=None,
         precondition_guards=[],
-        effect_nodes=[
+        replica_emit_exemption=CASE_PROPOSAL,
+        replica_effects=[
             py_trees.composites.Selector(
                 name="CreateCaseProposalIdempotencySelector",
                 memory=False,

@@ -149,7 +149,7 @@ def _log_refusal(verdict: HandlerResult, activity_id: str) -> HandlerResult:
 
 class CreateReportReceivedUseCase:
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4071", "no sender check defined for report creation"
+        "#4325", "no sender check defined for report creation"
     )
 
     def __init__(
@@ -189,7 +189,7 @@ class CreateReportReceivedUseCase:
 
 class SubmitReportReceivedUseCase:
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4071", "no sender check defined for report submission"
+        "#4325", "no sender check defined for report submission"
     )
 
     def __init__(
@@ -250,7 +250,7 @@ class SubmitReportReceivedUseCase:
 
 class ValidateReportReceivedUseCase:
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4071", "no sender check defined for report validation"
+        "#4325", "no sender check defined for report validation"
     )
 
     def __init__(
@@ -342,7 +342,7 @@ class ValidateReportReceivedUseCase:
 
 class InvalidateReportReceivedUseCase:
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4071", "no sender check defined for report invalidation"
+        "#4325", "no sender check defined for report invalidation"
     )
 
     def __init__(
@@ -388,7 +388,7 @@ class InvalidateReportReceivedUseCase:
 
 class AckReportReceivedUseCase:
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4071",
+        "#4325",
         "sender is internal echo route (SenderIsExecutingActorNode inside effect node), not an entitlement guard",
     )
 
@@ -440,7 +440,7 @@ class AckReportReceivedUseCase:
 
 class CloseReportReceivedUseCase:
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4071", "no sender check defined for report closure"
+        "#4325", "no sender check defined for report closure"
     )
 
     def __init__(
