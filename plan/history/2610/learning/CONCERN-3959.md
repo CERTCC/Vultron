@@ -34,6 +34,7 @@ Make the assertion two-sided (`uncovered == MAX_UNCOVERED_PROTOCOL_SPECS`) with 
 Governing specs: SR-05-005, ARCH-18-001, MS-10-006
 
 **Resolved**: 2026-10-07 — implementation tracked in #4315.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/4317>.
 
 Planning outcome: the suggested two-sided equality was rejected because a
 two-sided count pin races every concurrent PR
