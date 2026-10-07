@@ -126,6 +126,11 @@ KNOWN_DIRECT_GATE_CALLERS: frozenset[_Site] = frozenset(
         ),
         # owner: #4300
         (f"{_C}/update_tree.py", "create_update_case_received_tree"),
+        # owner: #4300 — full-case Invite reply tree, added by #4305
+        (
+            f"{_C}/full_case_invite_trees.py",
+            "create_full_case_invite_reply_received_tree",
+        ),
         # owner: #4301
         (
             f"{_E}/announce_teardown_tree.py",
@@ -215,6 +220,16 @@ KNOWN_LEGACY_EFFECT_NODES: frozenset[_Site] = frozenset(
         ),
         # owner: #4300
         (f"{_C}/update_tree.py", "create_update_case_received_tree"),
+        # owner: #4300 — full-case Invite trees, added by #4305
+        (
+            f"{_C}/full_case_invite_trees.py",
+            "create_full_case_invite_reply_received_tree",
+        ),
+        # owner: #4300
+        (
+            f"{_C}/full_case_invite_trees.py",
+            "create_invite_actor_to_full_case_received_tree",
+        ),
         # owner: #4301
         (f"{_E}/announce_teardown_tree.py", "add_embargo_to_case_tree"),
         # owner: #4301
