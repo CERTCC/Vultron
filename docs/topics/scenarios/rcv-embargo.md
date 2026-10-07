@@ -70,7 +70,7 @@ The Coordinator then ends the embargo deliberately, before the vulnerability is 
 ### 1. Report submission
 
 The Reporter submits the report, the Coordinator validates it and engages the case, and the Vendor joins by invitation.
-The default embargo is active from case creation, so the case is at EM `ACTIVE`.
+The default embargo is active from case creation, so the case is at Embargo Management (EM) state `ACTIVE`.
 
 *Antecedent:* Reporter has knowledge of the vulnerability.
 
