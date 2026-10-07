@@ -40,8 +40,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DRY_RUN: ${{ inputs.dry-run && '--dry-run' || '' }}
-        # DRY_RUN is deliberately unquoted: empty must expand to no argument.
-        run: python3 -I .github/scripts/reconcile_needs_planning.py $DRY_RUN
+        # An array keeps an empty DRY_RUN from becoming an empty argument.
+        run: |
+          args=()
+          if [ -n "$DRY_RUN" ]; then args+=(--dry-run); fi
+          python3 -I .github/scripts/reconcile_needs_planning.py "${args[@]}"
       - name: Notify CI failure
         if: failure() && github.event_name == 'schedule'
         uses: ./.github/actions/notify-failure
