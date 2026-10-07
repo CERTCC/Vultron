@@ -110,6 +110,22 @@ class TestStageOrder:
         assert isinstance(gate, CaseManagerGate)
         assert gate.name == "EmitIfCaseManager"
         assert list(gate.gated_branch.children) == [first, second]
+        assert gate.gated_branch.name == "EmitIfCaseManagerBody"
+
+    def test_the_manager_body_takes_its_own_name(self) -> None:
+        tree = create_receive_activity_tree(
+            name="SampleBT",
+            case_id=CASE_ID,
+            precondition_guards=[],
+            manager_effects=[_Emitter("First"), _Emitter("Second")],
+            manager_case_id=CASE_ID,
+            manager_gate_name="EmitIfCaseManager",
+            manager_body_name="EmitEffects",
+        )
+
+        gate = tree.children[-1]
+        assert isinstance(gate, CaseManagerGate)
+        assert gate.gated_branch.name == "EmitEffects"
 
     def test_the_gate_takes_its_own_case_id_when_the_commit_is_omitted(
         self,
@@ -174,6 +190,7 @@ class TestStageOrder:
         [
             {"manager_case_id": CASE_ID},
             {"manager_gate_name": "EmitIfCaseManager"},
+            {"manager_body_name": "EmitEffects"},
             {"manager_case_may_be_absent": True},
         ],
     )

@@ -28,9 +28,6 @@ import logging
 
 import py_trees
 
-from vultron.core.behaviors.case.nodes.role_gates import (
-    create_case_manager_gated_tree,
-)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -67,8 +64,9 @@ def create_add_note_to_case_received_tree(
     Composed through :func:`create_receive_activity_tree`, which supplies the
     intake node and the guarded commit, so the tree cannot opt out of either
     (CLP-10-017) and the ordering ratchet can assert factory coverage.  The
-    attach effect is gated by :func:`create_case_manager_gated_tree` rather
-    than hand-rolled: the obvious ``Success`` fallback could not distinguish
+    attach effect is passed as ``manager_effects``, so the factory gates it
+    with :func:`create_case_manager_gated_tree` (BT-17-008) rather than a
+    hand-rolled Selector: the obvious ``Success`` fallback could not distinguish
     "not the case manager" from "am the case manager and the attach failed"
     (BTND-07-005; cf. the fake-SUCCESS rule in ``AGENTS.md``).
 
@@ -83,13 +81,9 @@ def create_add_note_to_case_received_tree(
         name="GuardedAttachAndCommitBT",
         case_id=case_id,
         precondition_guards=[],
-        effect_nodes=[
-            create_case_manager_gated_tree(
-                name="GuardedAttachNoteBT",
-                case_id=case_id,
-                children=[
-                    AttachNoteToCaseNode(note_id=note_id, case_id=case_id)
-                ],
-            ),
+        manager_effects=[
+            AttachNoteToCaseNode(note_id=note_id, case_id=case_id)
         ],
+        manager_case_id=case_id,
+        manager_gate_name="GuardedAttachNoteBT",
     )

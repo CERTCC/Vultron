@@ -1283,8 +1283,10 @@ The cause was structural: about fifteen trees each wrapped their effects in
 - **`create_receive_activity_tree` is the one place that applies the gate.**
   It takes `manager_effects` (wrapped by the factory in a `CaseManagerGate`,
   after the commit) and `replica_effects` (run on every replica, ungated).
-  `manager_gate_name` names the gate (default `{name}IfCaseManager`) and
-  `manager_case_may_be_absent` passes through to `CheckIsCaseManagerNode`.
+  `manager_gate_name` names the gate (default `{name}IfCaseManager`),
+  `manager_body_name` names the Sequence wrapping several effects (default
+  `{gate}Body`), and `manager_case_may_be_absent` passes through to
+  `CheckIsCaseManagerNode`.
   A received-tree module does not call `create_case_manager_gated_tree` itself.
 - **Emit-capable nodes carry one shared marker.**
   `EmitCapable` (`vultron/core/behaviors/emit_capable.py`) is mixed into
@@ -1319,7 +1321,12 @@ The cause was structural: about fifteen trees each wrapped their effects in
   ungated emitter outside `covers`, and an exemption that covers nothing in the
   tree (stale).
   The registered decisions are the ack echo, the offer-role tree, the
-  case-proposal tree and the RSH status tree.
+  case-proposal tree, the RSH and case-status trees, the engage and defer RM
+  gap notes, and the embargo-Invite answer.
+  Two more are not design decisions but preserved behaviour, each naming the
+  issue that deletes it: the Remove(EmbargoEvent) teardown announce, which a
+  replica re-sends as its own act (#4323), and the genesis pre-seed behind the
+  reject-log-entry tree's hand-rolled check (#4324).
   A sender check added to a tree without a named exemption never passes,
   because it says nothing about whether this replica owns the case (#2667).
 - **`effect_nodes` is the unchecked legacy form, kept while trees migrate.**
@@ -1327,7 +1334,18 @@ The cause was structural: about fifteen trees each wrapped their effects in
 - **The ratchets** live in `test/architecture/test_received_tree_case_manager_gate.py`
   (ARCH-18-001, ARCH-18-005): `KNOWN_DIRECT_GATE_CALLERS` and
   `KNOWN_LEGACY_EFFECT_NODES` shrink to empty, one `# owner:` per entry
-  (#4300, #4301, #4302, #3825, #4307); the exemption uses and the gate callers
-  that build no received tree are pinned exemption sets.
+  (#3825, #4307 remain); the exemption uses and the gate callers that build no
+  received tree are pinned exemption sets.
+  `KNOWN_DIRECT_GATE_CALLERS` is already empty (#4300, #4301, #4302).
+- **The factory runs `manager_effects` last, so an effect that must follow the
+  gate has to move.**
+  Where a replica-side step followed the gate only because the gated work had
+  to finish first, and the gate and the participant-replica arm are mutually
+  exclusive and cover every receiver, the step goes at the end of each arm
+  (the embargo-Invite proposal index).
+  A gated subtree nested inside a conditional branch, which cannot become
+  `manager_effects` without reshaping the branch, is a standalone helper
+  outside the received-tree modules and is pinned in
+  `GATE_CALLERS_OUTSIDE_RECEIVED_TREES` (the embargo admission backfill).
 
 *Source: ISSUE-3830.*
