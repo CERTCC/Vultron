@@ -37,6 +37,7 @@ from test.ci.invariants.common import (
     event_type,
     load_devlogs,
     log_index,
+    payload,
 )
 from test.ci.invariants.universal_harness import make_universal_invariant_tests
 from vultron.core.behaviors.embargo.nodes import (
@@ -130,7 +131,11 @@ def test_rcv_embargo_events_recorded_in_order(
     The earliest entry of each type must precede the latest entry of the next:
     the proposal and its relayed invitations share one type, as do the
     participants' acceptances, so the check is on the first and last of each
-    rather than on a single entry.
+    rather than on a single entry.  The Vendor's acceptance shares the type
+    with the owner's, so the owner's own acceptance is then pinned separately:
+    the owner is the actor of the one ``invite_actor_to_case`` entry (the
+    Coordinator invites the Vendor), and their acceptance must precede the
+    termination.
 
     Spec: DEMOMA-20-006.
     """
@@ -152,6 +157,22 @@ def test_rcv_embargo_events_recorded_in_order(
         if min(indices[earlier]) >= max(indices[later])
     ]
     assert not violations, "\n".join(violations)
+
+    accept_type = MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value
+    invites = [e for e in auth if event_type(e) == "invite_actor_to_case"]
+    owner = payload(invites[0]).get("actor") if invites else None
+    assert owner, "cannot identify the case owner from invite_actor_to_case"
+    owner_accepts = [
+        log_index(e)
+        for e in auth
+        if event_type(e) == accept_type and payload(e).get("actor") == owner
+    ]
+    assert owner_accepts, f"case owner {owner!r} never accepted the embargo"
+    teardown = min(indices[EMBARGO_TEARDOWN_EVENT_TYPE])
+    assert min(owner_accepts) < teardown, (
+        f"owner's acceptance {sorted(owner_accepts)} does not precede the"
+        f" termination at {teardown}"
+    )
 
 
 @pytest.mark.case_ledger_invariants

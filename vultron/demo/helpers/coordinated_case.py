@@ -323,6 +323,9 @@ def everyone_reports_published(
     Per DEMOMA-07-003(4) the Coordinator (as CASE_OWNER) triggers CS.P.  The
     embargo is ended by then in ``rcv-embargo`` and still active in ``fcv``;
     either way it reads ``EM.EXITED`` once the Coordinator has reported.
+    In ``rcv-embargo`` the two ``EM.EXITED`` checks below only confirm what the
+    termination phase already established (the canonical case is asserted by
+    the scenario); in ``fcv`` they check the embargo ending at publication.
     """
     with demo_step(
         f"Actor {ref_id(coordinator_in_coordinator)} reports vulnerability"

@@ -36,7 +36,6 @@ Spec: DEMOMA-20, DEMOCI-07 (GitHub issue #2071).
 """
 
 import logging
-import sys
 from dataclasses import dataclass
 
 from vultron.core.states.em import EM
@@ -62,6 +61,7 @@ from vultron.demo.helpers.polling import (
     wait_for_case_em_state,
     wait_for_case_em_terminated,
 )
+from vultron.demo.helpers.runner import check_all_containers
 from vultron.demo.helpers.seeding import (
     get_actor_by_id,
     reset_containers as _reset_containers,
@@ -72,8 +72,8 @@ from vultron.demo.scenario.registry import scenario
 from vultron.demo.utils import (
     DataLayerClient,
     case_actor_id_on,
-    check_server_availability,
     demo_check,
+    demo_gate,
     demo_step,
     reset_datalayer,
     setup_demo_logging,
@@ -366,25 +366,24 @@ def _phase_embargo_proposal(
         cast.reporter, cast.coordinator, cast.vendor, case
     )
 
-    revised_embargo_id = _canonical_case(
-        cast.coordinator, case
-    ).active_embargo_id
-    with demo_check("The revision, not the default embargo, is now in force"):
-        if (
-            revised_embargo_id is None
-            or revised_embargo_id == default_embargo_id
-        ):
+    # A gate, not a check: phase 4 ends the embargo this phase put in force, so
+    # without a revision it would only add secondary failures (DEMOCI-01-007).
+    revised_embargo_id: str | None = None
+    with demo_gate("The revision, not the default embargo, is now in force"):
+        in_force = _canonical_case(cast.coordinator, case).active_embargo_id
+        if in_force is None or in_force == default_embargo_id:
             raise AssertionError(
-                f"active embargo {revised_embargo_id!r} is not a revision of"
+                f"active embargo {in_force!r} is not a revision of"
                 f" the default {default_embargo_id!r}"
             )
-    _assert_em_state(
-        cast,
-        case,
-        EM.ACTIVE,
-        "embargo_proposal",
-        active_embargo_id=revised_embargo_id,
-    )
+        revised_embargo_id = in_force
+        _assert_em_state(
+            cast,
+            case,
+            EM.ACTIVE,
+            "embargo_proposal",
+            active_embargo_id=revised_embargo_id,
+        )
     return revised_embargo_id
 
 
@@ -523,11 +522,19 @@ def run_rcv_embargo_demo(
             coordinator_id=coordinator_id,
             vendor_id=vendor_id,
         )
-        _phase_embargo_proposal(cast, case)
+        revised_embargo_id = _phase_embargo_proposal(cast, case)
         _phase_fix_lifecycle(cast, case)
-        _phase_embargo_termination(cast, case)
-        _phase_publication(cast, case)
-        _phase_case_closure(cast, case)
+        # Termination, publication and closure all presuppose the revised
+        # embargo of phase 2, so they run only while it is in force.
+        with demo_gate("Phase 2 put the revised embargo in force"):
+            if revised_embargo_id is None:
+                raise AssertionError(
+                    "no revised embargo; skipping phases 4-6 (embargo_termination,"
+                    " publication, case_closure)"
+                )
+            _phase_embargo_termination(cast, case)
+            _phase_publication(cast, case)
+            _phase_case_closure(cast, case)
 
     logger.info("=" * 80)
     logger.info(
@@ -589,17 +596,7 @@ def main(
             ("Vendor", vendor_client),
             ("CaseActor", case_actor_client),
         ]
-        for label, client in targets:
-            if not check_server_availability(client):
-                logger.error("=" * 80)
-                logger.error("ERROR: %s API server is not available", label)
-                logger.error("=" * 80)
-                logger.error("Cannot connect to: %s", client.base_url)
-                logger.error(
-                    "Ensure the %s container is running and healthy.", label
-                )
-                logger.error("=" * 80)
-                sys.exit(1)
+        check_all_containers(targets)
 
     run_rcv_embargo_demo(
         reporter_client=reporter_client,

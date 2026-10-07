@@ -699,13 +699,6 @@ class TestFinderCaseReplicaWaitBeforeVendorTriage:
                 # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
                 side_effect=lambda _: contextlib.nullcontext(),
             ),
-            patch.object(
-                coordinated_case,
-                "demo_gate",
-                # Patched: test verifies call parameters/ordering, not context-manager
-                # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
-                side_effect=lambda _: contextlib.nullcontext(),
-            ),
         ):
             demo._phase_invite_vendor(
                 coordinator_client=coordinator_client,

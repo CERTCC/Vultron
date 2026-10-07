@@ -30,7 +30,6 @@ Spec: DEMOMA-12 (GitHub issue #1593).
 """
 
 import logging
-import sys
 
 from vultron.demo.helpers.actor_roles import ActorRole, role_map
 from vultron.demo.helpers.coordinated_case import (
@@ -44,6 +43,7 @@ from vultron.demo.helpers.coordinated_case import (
 )
 from vultron.demo.helpers.harness import scenario_harness
 from vultron.demo.helpers.notes import participant_adds_note_to_case
+from vultron.demo.helpers.runner import check_all_containers
 from vultron.demo.helpers.seeding import (
     get_actor_by_id,
     reset_containers as _reset_containers,
@@ -57,7 +57,6 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     DataLayerClient,
     assert_demo_success,
     case_actor_id_on,
-    check_server_availability,
     demo_check,
     demo_gate,
     demo_step,
@@ -634,17 +633,7 @@ def main(
             ("Vendor", vendor_client),
             ("CaseActor", case_actor_client),
         ]
-        for label, client in targets:
-            if not check_server_availability(client):
-                logger.error("=" * 80)
-                logger.error("ERROR: %s API server is not available", label)
-                logger.error("=" * 80)
-                logger.error("Cannot connect to: %s", client.base_url)
-                logger.error(
-                    "Ensure the %s container is running and healthy.", label
-                )
-                logger.error("=" * 80)
-                sys.exit(1)
+        check_all_containers(targets)
 
     # scenario_harness() inside run_fcv_demo() owns the failure accumulator: it
     # resets it, always dumps the case ledgers, and asserts success — so a

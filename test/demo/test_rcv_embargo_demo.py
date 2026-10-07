@@ -106,8 +106,9 @@ class TestRegistration:
 
 
 class TestPhaseOrder:
-    @pytest.mark.spec("DEMOMA-20-007")
-    def test_phases_run_in_the_specified_order(self, cast, case):
+    @staticmethod
+    def _run(cast, case, revised_embargo_id):
+        """Run the scenario with stubbed phases; return the phases that ran."""
         order: list[str] = []
 
         def phase(name: str, result=None):
@@ -129,7 +130,7 @@ class TestPhaseOrder:
             patch.object(
                 demo,
                 "_phase_embargo_proposal",
-                side_effect=phase("embargo_proposal"),
+                side_effect=phase("embargo_proposal", revised_embargo_id),
             ),
             patch.object(
                 demo,
@@ -158,6 +159,11 @@ class TestPhaseOrder:
                 vendor_client=MagicMock(),
             )
 
+        return order
+
+    @pytest.mark.spec("DEMOMA-20-007")
+    def test_phases_run_in_the_specified_order(self, cast, case):
+        order = self._run(cast, case, "urn:test:embargo:revised")
         assert order == [
             "report_submission",
             "embargo_proposal",
@@ -166,6 +172,19 @@ class TestPhaseOrder:
             "publication",
             "case_closure",
         ]
+
+    @pytest.mark.spec("DEMOMA-20-007")
+    def test_a_failed_proposal_skips_termination_publication_and_closure(
+        self, cast, case
+    ):
+        """No revised embargo: phases 4-6 are skipped, the failure is recorded."""
+        order = self._run(cast, case, None)
+        assert order == [
+            "report_submission",
+            "embargo_proposal",
+            "fix_lifecycle",
+        ]
+        assert _demo_failures
 
 
 class TestEmStateAfterEachPhase:
