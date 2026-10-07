@@ -15,8 +15,10 @@
 
 """Tree factory for received Announce(VulnerabilityCase) activities.
 
-Wraps ``SeedAnnouncedCaseNode`` for use with
-``BTBridge.execute_with_setup()``.
+Composes ``SeedAnnouncedCaseNode`` through ``create_receive_activity_tree`` so
+intake archives the Announce first (CLP-10-017).  The tree carries no
+``case_id`` for the commit stage: the receiver holds no replica yet, and this
+node is what seeds it.
 """
 
 import logging
@@ -25,6 +27,9 @@ from typing import Any
 import py_trees
 
 from vultron.core.behaviors.case.nodes.announce import SeedAnnouncedCaseNode
+from vultron.core.behaviors.case.receive_activity_tree import (
+    create_receive_activity_tree,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
@@ -46,12 +51,19 @@ def create_announce_vulnerability_case_received_tree(
         request: The received event carrying the full activity context.
 
     Returns:
-        A ``py_trees`` ``Behaviour`` ready for ``BTBridge.execute_with_setup()``.
+        The root ``Sequence``, ready for ``BTBridge.execute_with_setup()``.
     """
-    root = SeedAnnouncedCaseNode(
-        case_id=case_id,
-        case_obj=case_obj,
-        request=request,
+    root = create_receive_activity_tree(
+        name="AnnounceVulnerabilityCaseReceivedBT",
+        case_id=None,
+        precondition_guards=[],
+        effect_nodes=[
+            SeedAnnouncedCaseNode(
+                case_id=case_id,
+                case_obj=case_obj,
+                request=request,
+            )
+        ],
     )
     logger.debug(
         "Created AnnounceVulnerabilityCaseReceivedBT for case='%s'",

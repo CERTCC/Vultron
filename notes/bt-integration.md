@@ -418,14 +418,19 @@ receive tree that does not compose through the factory runs no intake. #3870
 moved the two that composed `create_case_manager_gated_tree` directly (add-note,
 update-case) and found more that never used the factory; those are held as an
 exact set in `test/architecture/test_receive_side_intake_first.py`
-(`KNOWN_FACTORIES_BYPASSING_INTAKE`) — fifteen in all once a receive-side tree is
-defined as one a received use case calls rather than one whose name says
-"received". Each moves with the handler migration that owns its area
-(#3871–#3874); the sync and dead-letter trees move with #3935. Calling the
-factory is not enough: the ratchet checks that the factory *returns* the shared
-factory's result, because a tree that nests it under a hand-built root (as the
-close-case tree did, a Selector whose first arm guarded ahead of intake) runs
-something before intake. Those are a second exact set,
+(`KNOWN_FACTORIES_BYPASSING_INTAKE`), where a receive-side tree is one a
+received use case calls rather than one whose name says "received". The case,
+report and note factories moved with #4288; what remains are the embargo trees
+that synthesise an entry rather than process a received activity, each with its
+reason in the test. Intake archives nothing when the event carries no activity,
+so a semantic-registry entry must set `include_activity=True` (#4288 set it for
+add/remove-case-participant and create-note). A handler that turns a delivery
+away before it can build its tree uses `refuse_after_intake`
+(`use_cases/received/_store_only.py`) so the refusal still leaves the archive.
+Calling the factory is not enough: the ratchet checks that the factory
+*returns* the shared factory's result, because a tree that nests it under a
+hand-built root (as the close-case tree did, a Selector whose first arm guarded
+ahead of intake) runs something before intake. Those are a second exact set,
 `KNOWN_FACTORIES_NESTING_INTAKE`, empty since #3870 lifted the close-case
 tree's intake to its root. A tree that needs a branch ahead of the receipt
 commit wraps the branch: outer factory with `case_id=None` (intake, no commit),

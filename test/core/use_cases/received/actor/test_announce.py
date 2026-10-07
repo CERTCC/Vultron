@@ -22,6 +22,9 @@ from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.ledger_gap_buffer import LedgerGapBuffer
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
+)
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.actor.announce import (
@@ -145,21 +148,19 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
         ), "Expected a WARNING log citing PCR-03-004 or PCR-07-010"
 
     def test_updates_report_case_link_when_case_contains_report(
-        self, dl, event, case, case_actor
+        self, dl, event, case, case_actor, make_payload
     ):
         """A valid Announce links known reports to the seeded case replica."""
         _anchor_expected_authority(dl)
         case.vulnerability_reports.append(_REPORT_ID)
         dl.save(VultronReportCaseLink(report_id=_REPORT_ID))
 
-        linked_event = event.model_copy(
-            update={
-                "activity": announce_vulnerability_case_activity(
-                    case,
-                    actor=case_actor.id_,
-                    context=case.id_,
-                )
-            }
+        linked_event = make_payload(
+            announce_vulnerability_case_activity(
+                case,
+                actor=case_actor.id_,
+                context=case.id_,
+            )
         )
 
         AnnounceVulnerabilityCaseReceivedUseCase(dl, linked_event).execute()
@@ -226,14 +227,19 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
         )
         event = make_payload(announce)
 
-        # Replace the object_ on the raw activity with a non-case
+        # Replace the object_ on the event's activity with a non-case
         report = as_VulnerabilityReport(name="Not a case")
-        patched_activity = announce.model_copy(update={"object_": report})
+        patched_activity = event.activity.model_copy(
+            update={"object_": report}
+        )
         event = event.model_copy(update={"activity": patched_activity})
 
-        AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+        result = AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
+        assert result.disposition == HandlerDisposition.REFUSED
         assert dl.read(_CASE_ID2) is None
+        # CLP-10-018: the refused Announce is still archived.
+        assert dl.read(ReceivedActivityRecord.build_id(event.activity_id))
 
     def test_rejects_announce_from_non_case_actor(
         self, dl, case, make_payload
@@ -291,6 +297,10 @@ class TestAnnounceFirstContactTrustGap:
 
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None and "untrusted" in result.reason
+        # CLP-10-018: the refused Announce is still archived, and no case row
+        # was seeded from it.
+        assert dl.read(ReceivedActivityRecord.build_id(event.activity_id))
+        assert dl.read(_CASE_ID) is None
 
     @pytest.mark.spec("HP-01-003")
     def test_admitted_announce_is_applied(self, dl, event):

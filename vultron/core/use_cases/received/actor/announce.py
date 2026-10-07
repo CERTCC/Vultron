@@ -33,6 +33,7 @@ from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
 )
 from vultron.core.use_cases.received._bt_verdict import verdict_from_bt
+from vultron.core.use_cases.received._store_only import refuse_after_intake
 from vultron.core.use_cases.received.sync import drain_gap_buffer
 
 logger = logging.getLogger(__name__)
@@ -95,6 +96,17 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
         self._sync_port = sync_port
         self._gap_buffer = gap_buffer
 
+    def _refuse(self, reason: str) -> HandlerResult:
+        """Refuse the Announce after archiving it (CLP-10-018)."""
+        return refuse_after_intake(
+            self._dl,
+            self._request,
+            reason,
+            name="AnnounceVulnerabilityCaseReceivedBT",
+            sync_port=self._sync_port,
+            wire_render_port=self._wire_render_port,
+        )
+
     def execute(self) -> HandlerResult:
         request = self._request
         activity = request.activity
@@ -103,7 +115,7 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
                 "AnnounceVulnerabilityCase: no activity on event '%s' — refusing",
                 request.activity_id,
             )
-            return HandlerResult.refused("Announce carries no activity")
+            return self._refuse("Announce carries no activity")
 
         # The case object is the object_ field of the announce activity.
         case_obj = getattr(activity, "object_", None)
@@ -113,7 +125,7 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
                 " — refusing",
                 request.activity_id,
             )
-            return HandlerResult.refused("Announce carries no case object")
+            return self._refuse("Announce carries no case object")
 
         if getattr(case_obj, "type_", None) != "VulnerabilityCase":
             logger.warning(
@@ -122,7 +134,7 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
                 request.activity_id,
                 type(case_obj).__name__,
             )
-            return HandlerResult.refused(
+            return self._refuse(
                 f"Announce object is not a VulnerabilityCase"
                 f" ({type(case_obj).__name__})"
             )
@@ -134,7 +146,7 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
                 " activity '%s' — refusing",
                 request.activity_id,
             )
-            return HandlerResult.refused("Announced case object has no id")
+            return self._refuse("Announced case object has no id")
 
         if not _sender_is_trusted(self._dl, case_id, request.actor_id):
             logger.warning(
@@ -144,7 +156,7 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
                 request.actor_id,
                 case_id,
             )
-            return HandlerResult.refused(
+            return self._refuse(
                 f"untrusted sender '{request.actor_id}' for case '{case_id}'"
                 " (PCR-03-004)"
             )

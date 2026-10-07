@@ -17,12 +17,13 @@
 Behavior tree factories for received-side report use cases.
 
 Each factory produces a ``py_trees.composites.Sequence`` that implements the
-inbound protocol handling for one of the four report-lifecycle activities:
+inbound protocol handling (intake archives each received activity first,
+CLP-10-017) for one of the four report-lifecycle activities:
 
-- ``CreateReport`` — store VulnerabilityReport + CreateReport activity
-- ``AckReport``    — store AckReport activity
-- ``CloseReport``  — store CloseReport activity + transition RM → CLOSED
-- ``InvalidateReport`` — store InvalidateReport activity + RM → INVALID
+- ``CreateReport`` — store VulnerabilityReport
+- ``AckReport``    — forward the acknowledgement
+- ``CloseReport``  — transition RM → CLOSED
+- ``InvalidateReport`` — transition RM → INVALID
 
 Trees are run via ``BTBridge.execute_with_setup()`` in the corresponding use
 case.
@@ -46,7 +47,6 @@ from vultron.core.behaviors.case.receive_activity_tree import (
 )
 from vultron.core.behaviors.report.nodes.emit import EmitAckReportActivity
 from vultron.core.behaviors.report.nodes.storage import (
-    StoreActivityNode,
     StoreReportNode,
 )
 from vultron.core.behaviors.report.validate_tree import (
@@ -156,9 +156,12 @@ def create_report_received_tree(
 
     Handles receipt of a ``Create(VulnerabilityReport)`` activity.
 
-    Steps (Sequence):
-    1. Store VulnerabilityReport idempotently.
-    2. Store CreateReport activity idempotently.
+    Steps (Sequence via :func:`create_receive_activity_tree`):
+    1. Intake archives the ``Create`` as received (CLP-10-017), so a refused
+       delivery still leaves its record (CLP-10-018).
+    2. Store VulnerabilityReport idempotently.
+
+    No ledger commit: the tree carries no case context (``case_id=None``).
 
     Args:
         request: The parsed inbound domain event.
@@ -169,18 +172,14 @@ def create_report_received_tree(
     report_id = request.report_id or ""
     activity_id = request.activity_id or ""
 
-    root = py_trees.composites.Sequence(
+    root = create_receive_activity_tree(
         name="CreateReportReceivedBT",
-        memory=False,
-        children=[
+        case_id=None,
+        precondition_guards=[],
+        effect_nodes=[
             StoreReportNode(
                 report_id=report_id,
                 report_obj=request.report,
-            ),
-            StoreActivityNode(
-                activity_id=activity_id,
-                activity_obj=request.activity,
-                label="CreateReport",
             ),
         ],
     )
@@ -279,8 +278,9 @@ def create_close_report_received_tree(
 
     Handles receipt of a ``Reject(VulnerabilityReport)`` (CloseReport) activity.
 
-    Steps (Sequence):
-    1. Store CloseReport activity idempotently.
+    Steps (Sequence via :func:`create_receive_activity_tree`):
+    1. Intake archives the ``Reject`` as received (CLP-10-017); the activity
+       stays archived when a later step refuses (CLP-10-018).
     2. Resolve this actor's case for the report (``RequireCaseForReport``,
        which also publishes ``/case_id`` for downstream nodes).
     3. Transition actor's RM state → CLOSED in that case via the canonical
@@ -290,8 +290,8 @@ def create_close_report_received_tree(
     Steps 2–3 return FAILURE when the case is not in this actor's store.  They
     used to soft-pass with SUCCESS, which reported a state transition that never
     happened (ARCH-15-001, ISSUE-2548).  The handler reports the failure as a
-    refusal of an activity about an unknown case (#2255); the activity stored
-    in step 1 still records that it arrived.
+    refusal of an activity about an unknown case (#2255); the activity
+    archived in step 1 still records that it arrived.
 
     Args:
         request: The parsed inbound domain event.
@@ -304,15 +304,11 @@ def create_close_report_received_tree(
     """
     activity_id = request.activity_id or ""
 
-    root = py_trees.composites.Sequence(
+    root = create_receive_activity_tree(
         name="CloseReportReceivedBT",
-        memory=False,
-        children=[
-            StoreActivityNode(
-                activity_id=activity_id,
-                activity_obj=request.activity,
-                label="CloseReport",
-            ),
+        case_id=None,
+        precondition_guards=[],
+        effect_nodes=[
             RequireCaseForReport(report_id=request.report_id),
             CreateParticipantStatusNode(
                 actor_id=actor_id,
@@ -341,8 +337,9 @@ def create_invalidate_report_received_tree(
     Handles receipt of a ``TentativeReject(VulnerabilityReport)``
     (InvalidateReport) activity.
 
-    Steps (Sequence):
-    1. Store InvalidateReport activity idempotently.
+    Steps (Sequence via :func:`create_receive_activity_tree`):
+    1. Intake archives the ``TentativeReject`` as received (CLP-10-017); the
+       activity stays archived when a later step refuses (CLP-10-018).
     2. Resolve this actor's case for the report (``RequireCaseForReport``,
        which also publishes ``/case_id`` for downstream nodes).
     3. Transition actor's RM state → INVALID in that case via the canonical
@@ -364,15 +361,11 @@ def create_invalidate_report_received_tree(
     """
     activity_id = request.activity_id or ""
 
-    root = py_trees.composites.Sequence(
+    root = create_receive_activity_tree(
         name="InvalidateReportReceivedBT",
-        memory=False,
-        children=[
-            StoreActivityNode(
-                activity_id=activity_id,
-                activity_obj=request.activity,
-                label="InvalidateReport",
-            ),
+        case_id=None,
+        precondition_guards=[],
+        effect_nodes=[
             RequireCaseForReport(report_id=request.report_id),
             CreateParticipantStatusNode(
                 actor_id=actor_id,
