@@ -324,3 +324,85 @@ def test_a_reply_with_unparseable_content_is_refused_at_the_edge(
     )
     with pytest.raises(VultronParseValidationError, match="unparseable"):
         extract_event(reply)
+
+
+@pytest.mark.spec("CM-11-011")
+@pytest.mark.parametrize("second", ["accept", "reject"])
+def test_a_second_reply_is_refused_and_writes_no_ledger_entry(
+    joining_case,  # noqa: F811
+    second: str,
+) -> None:
+    """A duplicate or contradictory reply is refused before any receipt."""
+    tail = _ledger_tail(joining_case)[-1]
+    invite = _full_case_invite_at(
+        joining_case, log_index=tail.log_index, entry_hash=tail.entry_hash
+    )
+    first = joining_case.route(
+        _full_case_reply_at("accept", joining_case, invite, position=tail)
+    )
+    assert first.disposition is not HandlerDisposition.REFUSED
+    assert _rm_history(joining_case)[-1] == RM.VALID
+    tail = _ledger_tail(joining_case)[-1]
+    before = len(_ledger_tail(joining_case))
+
+    result = joining_case.route(
+        _full_case_reply_at(second, joining_case, invite, position=tail)
+    )
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert "cannot move" in (result.reason or "")
+    assert _rm_history(joining_case)[-1] == RM.VALID
+    assert len(_ledger_tail(joining_case)) == before
+
+
+@pytest.mark.spec("CM-11-010")
+def test_stored_invite_floor_is_none_for_unparseable_content() -> None:
+    from vultron.core.behaviors.case.nodes.full_case_invite import (
+        stored_invite_floor,
+    )
+
+    good = LedgerPosition(log_index=2, entry_hash=_HASH)
+    assert (
+        stored_invite_floor(MagicMock(content=ledger_position_content(good)))
+        == good
+    )
+    for content in ("{}", "not json", "", "  ", None):
+        assert stored_invite_floor(MagicMock(content=content)) is None
+
+
+@pytest.mark.spec("CM-11-010")
+def test_an_invite_for_another_case_or_invitee_does_not_suppress_the_invite(
+    joining_case,  # noqa: F811
+) -> None:
+    """Once per participant per case: other Invites are not this one."""
+    position = LedgerPosition(log_index=0, entry_hash=_HASH)
+    other = "https://example.org/actors/someone-else"
+    for n, (case_id, invitee) in enumerate(
+        [
+            (
+                "https://example.org/cases/another-case",
+                joining_case.invitee_id,
+            ),
+            (joining_case.case.id_, other),
+        ]
+    ):
+        joining_case.dl.create(
+            rm_invite_to_full_case_activity(
+                as_Organization(id_=invitee),
+                case_id,
+                position,
+                id_=f"https://example.org/invitations/unrelated-{n}",
+                actor=joining_case.case_actor_id,
+                to=[invitee],
+            )
+        )
+
+    joining_case.route(
+        rm_accept_invite_to_case_activity(
+            joining_case.stub_invite, actor=joining_case.invitee_id
+        )
+    )
+
+    assert (
+        joining_case.trigger_activity.invite_actor_to_full_case.call_count == 1
+    )

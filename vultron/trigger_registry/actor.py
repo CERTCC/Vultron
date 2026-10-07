@@ -21,13 +21,15 @@ from vultron.core.use_cases.triggers.actor import (
     SvcAcceptActorRecommendationUseCase,
     SvcAcceptCaseInviteUseCase,
     SvcAcceptCaseOwnershipTransferUseCase,
-    SvcAcceptFullCaseInviteUseCase,
     SvcInviteActorToCaseUseCase,
     SvcOfferCaseOwnershipTransferUseCase,
     SvcOfferCaseParticipantRoleUseCase,
     SvcRejectCaseInviteUseCase,
-    SvcRejectFullCaseInviteUseCase,
     SvcSuggestActorToCaseUseCase,
+)
+from vultron.core.use_cases.triggers.full_case_invite import (
+    SvcAcceptFullCaseInviteUseCase,
+    SvcRejectFullCaseInviteUseCase,
     SvcTentativeRejectFullCaseInviteUseCase,
 )
 from vultron.core.use_cases.triggers.requests import (

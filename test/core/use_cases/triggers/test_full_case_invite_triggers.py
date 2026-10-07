@@ -34,7 +34,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.ledger_position import LedgerPosition
-from vultron.core.use_cases.triggers.actor import (
+from vultron.core.use_cases.triggers.full_case_invite import (
     SvcAcceptFullCaseInviteUseCase,
     SvcRejectFullCaseInviteUseCase,
     SvcTentativeRejectFullCaseInviteUseCase,
@@ -190,3 +190,31 @@ def test_reply_to_something_that_is_not_a_full_case_invite_is_refused(
             ),
             dl,
         )
+
+
+@pytest.mark.spec("SYNC-10-004")
+def test_reply_fails_closed_with_409_when_the_tail_cannot_be_read(
+    participant, monkeypatch
+) -> None:
+    """An unreadable ledger tail is a retryable refusal, never a 422."""
+    from vultron.core.use_cases.triggers import full_case_invite as module
+
+    actor, dl, case_id, genesis = participant
+    invite_id = _hold_invite(
+        dl, actor, case_id, LedgerPosition(log_index=-1, entry_hash=genesis)
+    )
+
+    def _unreadable(*_args, **_kwargs):
+        raise VultronValidationError("genesis hash unavailable")
+
+    monkeypatch.setattr(module, "ledger_tail_position", _unreadable)
+
+    with pytest.raises(VultronInvalidStateTransitionError, match="caught up"):
+        _run(
+            SvcAcceptFullCaseInviteUseCase,
+            AcceptFullCaseInviteTriggerRequest(
+                actor_id=actor.id_, invite_id=invite_id
+            ),
+            dl,
+        )
+    assert dl.outbox_list() == []

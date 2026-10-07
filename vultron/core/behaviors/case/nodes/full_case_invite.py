@@ -29,6 +29,9 @@ from py_trees.common import Status
 from pydantic import ValidationError
 
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.participant.common import (
+    resolve_participant_state_from_dl,
+)
 from vultron.core.behaviors.case.nodes.participant.status import (
     CreateParticipantStatusNode,
 )
@@ -44,7 +47,7 @@ from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.predicates.addressing import same_actor_id
-from vultron.core.states.rm import RM
+from vultron.core.states.rm import RM, is_valid_rm_transition
 from vultron.core.sync_helpers import (
     ledger_position_refusal,
     ledger_tail_position,
@@ -111,6 +114,9 @@ class CheckFullCaseReplyNode(DataLayerCondition):
     - its sender is not the actor the Invite asked, holds no participant
       record (CM-11-001), or has not joined the case (an inert participant
       may answer only the Invites addressed to it before it joins);
+    - its RM state cannot take the transition the reply asks for (a
+      duplicate or contradictory reply, CM-11-011), so no receipt is
+      committed for a transition the apply stage would refuse;
     - its ledger position is behind the Invite's floor, or names an
       entry the CASE_MANAGER's ledger does not hold at that index.
 
@@ -124,6 +130,7 @@ class CheckFullCaseReplyNode(DataLayerCondition):
         invite_id: str,
         replier_id: str,
         position: LedgerPosition,
+        rm_state: RM,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
@@ -131,6 +138,7 @@ class CheckFullCaseReplyNode(DataLayerCondition):
         self.invite_id = invite_id
         self.replier_id = replier_id
         self.position = position
+        self.rm_state = rm_state
 
     def _refuse(self, reason: str) -> Status:
         self.feedback_message = reason
@@ -182,6 +190,14 @@ class CheckFullCaseReplyNode(DataLayerCondition):
                 f"'{self.replier_id}' has not joined case '{self.case_id}';"
                 " only a joined participant judges the case (CM-11-010)"
             )
+        current_rm, _, _ = resolve_participant_state_from_dl(
+            self.datalayer, participant.id_
+        )
+        if not is_valid_rm_transition(current_rm, self.rm_state):
+            return self._refuse(
+                f"'{self.replier_id}' is at RM {current_rm.name} and cannot"
+                f" move to RM {self.rm_state.name} (CM-11-011)"
+            )
         reason = ledger_position_refusal(
             self.case_id,
             self.datalayer,
@@ -198,8 +214,9 @@ class ApplyFullCaseReplyToParticipantNode(DataLayerAction):
 
     Writes ``rm_state`` for the replier through the sole ParticipantStatus
     writer, run as the CASE_MANAGER (the store owner) and attributed to the
-    replier.  The writer validates the transition itself (CSB-16), so a
-    participant no longer at ``RECEIVED`` is refused there.
+    replier.  ``CheckFullCaseReplyNode`` has already refused a replier that
+    cannot take the transition, before the receipt was committed; the writer
+    re-validates it (CSB-16).
     """
 
     def __init__(
