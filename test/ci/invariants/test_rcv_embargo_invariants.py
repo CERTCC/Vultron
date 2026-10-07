@@ -26,8 +26,10 @@ Spec: DEMOMA-20, CLP-07.
 from __future__ import annotations
 
 from itertools import pairwise
+from pathlib import Path
 
 import pytest
+import yaml
 
 from test.ci.invariants.common import (
     auth_entries,
@@ -47,6 +49,17 @@ from vultron.core.behaviors.embargo.nodes import (
 from vultron.core.models.events.base import MessageSemantics
 
 _DEMO_NAME = "rcv-embargo"
+
+#: The Coordinator is the case owner; the seed config fixes its actor id.
+_COORDINATOR_SEED = (
+    Path(__file__).parents[3]
+    / "docker"
+    / "seed-configs"
+    / "seed-coordinator.yaml"
+)
+_COORDINATOR_ACTOR_ID: str = yaml.safe_load(_COORDINATOR_SEED.read_text())[
+    "local_actor"
+]["id"]
 
 #: Event types the CASE_MANAGER commits for the embargo, in the order the
 #: scenario drives them: the proposal (and the relayed invitations, which share
@@ -133,9 +146,8 @@ def test_rcv_embargo_events_recorded_in_order(
     participants' acceptances, so the check is on the first and last of each
     rather than on a single entry.  The Vendor's acceptance shares the type
     with the owner's, so the owner's own acceptance is then pinned separately:
-    the owner is the actor of the one ``invite_actor_to_case`` entry (the
-    Coordinator invites the Vendor), and their acceptance must precede the
-    termination.
+    the owner is the Coordinator, whose actor id the demo's seed config fixes,
+    and their acceptance must precede the termination.
 
     Spec: DEMOMA-20-006.
     """
@@ -159,9 +171,7 @@ def test_rcv_embargo_events_recorded_in_order(
     assert not violations, "\n".join(violations)
 
     accept_type = MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value
-    invites = [e for e in auth if event_type(e) == "invite_actor_to_case"]
-    owner = payload(invites[0]).get("actor") if invites else None
-    assert owner, "cannot identify the case owner from invite_actor_to_case"
+    owner = _COORDINATOR_ACTOR_ID
     owner_accepts = [
         log_index(e)
         for e in auth
