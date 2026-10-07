@@ -66,7 +66,7 @@ from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.composite_state_invariants import (
     composite_state_violations,
 )
-from vultron.core.states.rm import RM, is_rm_at_least
+from vultron.core.states.rm import RM, is_rm_replay_acceptable
 
 logger = logging.getLogger(__name__)
 
@@ -208,7 +208,7 @@ class ApplyRmVerdictFromLedgerNode(_LedgerEffectNode):
                 target,
             )
             return False
-        if local_rm is not None and not is_rm_at_least(target, local_rm):
+        if not is_rm_replay_acceptable(local_rm, target):
             self.logger.warning(
                 "%s: '%s' entry would regress participant '%s' from rm=%s to"
                 " rm=%s — carrying the local value forward (RSH-05-007)",
@@ -239,7 +239,8 @@ class ApplyRmVerdictFromLedgerNode(_LedgerEffectNode):
             current.d.state if current and current.d else None,
         )
         if violations:
-            self.feedback_message = violations[0].message
+            # Report every violation, not the first (EH-07-001).
+            self.feedback_message = "; ".join(v.message for v in violations)
             self.logger.warning(
                 "%s: '%s' entry would give participant '%s' an impossible"
                 " composite state: %s — refusing to apply (CSB-18-001)",

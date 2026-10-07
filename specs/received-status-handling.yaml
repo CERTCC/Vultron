@@ -480,6 +480,13 @@ groups:
       has already observed. Lateral moves at the same rank
       (`VALID` <-> `INVALID`) are re-adjudication, not regression, and are
       applied unchanged.
+    note: >
+      The predicate is `is_rm_replay_acceptable(local_rm, recorded_rm)` in
+      `vultron/core/states/rm.py`. Two replay nodes apply it, so they cannot
+      ratchet differently: `ApplyParticipantStatusFromLedgerNode` on this
+      event type, and `ApplyRmVerdictFromLedgerNode` on the activity-typed RM
+      moves (report verdicts, engage/defer, full-case Invite replies;
+      RSH-08-004).
     verification: Unit tests in `test/core/behaviors/status/test_partial_accept_participant_status.py` confirm applying an
       `Announce(CaseLedgerEntry)` never moves a replica's RM state backward on the RM progress scale.
     stories:

@@ -20,6 +20,8 @@ act itself; the replica applies the RM state the act records to the act's
 rung the ledger does not record (CM-23-016).
 """
 
+import logging
+
 import pytest
 from py_trees.common import Status
 
@@ -37,10 +39,17 @@ from vultron.core.behaviors.sync.nodes.rm_verdict_effect import (
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.dimensions import RmDimension, VfDimension
+from vultron.core.models.dimensions import (
+    DDimension,
+    RmDimension,
+    VfDimension,
+)
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.states.cs import CS_vf
+from vultron.core.states.composite_state_invariants import (
+    composite_state_violations,
+)
+from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.actor.full_case_invite import (
     AcceptInviteActorToFullCaseReceivedUseCase,
@@ -258,6 +267,25 @@ def test_an_impossible_composite_state_fails_the_apply(bridge, datalayer):
     assert _apply(bridge, _INVALIDATE).status == Status.FAILURE
 
     assert _rm_history(datalayer, SENDER_PARTICIPANT_ID) == [RM.RECEIVED]
+
+
+@pytest.mark.spec("EH-07-001")
+def test_every_entailment_violation_is_reported(bridge, datalayer, caplog):
+    """VF ready and D deployed beside RM INVALID: both rules are named."""
+    _seed(
+        datalayer,
+        RM.RECEIVED,
+        vf=VfDimension(state=CS_vf.VF),
+        d=DDimension(state=CS_d.D),
+    )
+    expected = composite_state_violations(RM.INVALID, CS_vf.VF, CS_d.D)
+    assert len(expected) >= 2  # guard: the fixture breaks two rules
+
+    with caplog.at_level(logging.WARNING):
+        assert _apply(bridge, _INVALIDATE).status == Status.FAILURE
+
+    for violation in expected:
+        assert violation.message in caplog.text
 
 
 @pytest.mark.spec("SYNC-12-001")

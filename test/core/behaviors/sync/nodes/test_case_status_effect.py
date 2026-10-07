@@ -165,6 +165,49 @@ def test_a_status_the_replica_holds_is_not_appended_twice(bridge, datalayer):
     assert [_as_id(s) for s in _case(datalayer).case_statuses] == [current.id_]
 
 
+@pytest.mark.spec("SYNC-12-003")
+@pytest.mark.spec("RSH-05-018")
+def test_a_partly_refused_status_is_not_appended_twice(bridge, datalayer):
+    """Re-delivery after a carry-forward is a no-op: the id is already held."""
+    current = _seed(datalayer, EM.EXITED, CS_pxa.pxa)
+    committed = _later(current, EM.ACTIVE, CS_pxa.Pxa)
+
+    assert _apply(bridge, _wire(committed)).status == Status.SUCCESS
+    assert _apply(bridge, _wire(committed)).status == Status.SUCCESS
+
+    case = _case(datalayer)
+    assert [_as_id(s) for s in case.case_statuses] == [
+        current.id_,
+        committed.id_,
+    ]
+    assert case.current_status.em.state == EM.EXITED
+
+
+@pytest.mark.spec("RSH-08-004")
+def test_a_status_with_no_materialized_one_to_compare_is_appended(
+    bridge, datalayer
+):
+    """No readable current status: nothing to adjudicate against.
+
+    The replica's only status is a reference it cannot resolve, so
+    ``current_status`` raises and the committed status lands as recorded.
+    """
+    unresolved = "urn:uuid:unresolved-status"
+    case = VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+    case.case_statuses = [unresolved]
+    datalayer.save(case)
+    committed = _case_status(EM.ACTIVE, CS_pxa.Pxa)
+
+    assert _apply(bridge, _wire(committed)).status == Status.SUCCESS
+
+    case = _case(datalayer)
+    assert [_as_id(s) for s in case.case_statuses] == [
+        unresolved,
+        committed.id_,
+    ]
+    assert case.current_status.em.state == EM.ACTIVE
+
+
 @pytest.mark.spec("SYNC-12-001")
 def test_a_replica_without_the_case_skips(bridge, datalayer):
     status = _case_status(EM.ACTIVE, CS_pxa.pxa)

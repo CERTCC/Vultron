@@ -23,7 +23,10 @@ reaches can only have come from the ledger.
 The half of AC-6 that a replica receiving the act directly writes nothing
 lands with the gating change (RSH-08-003).  ``TentativeReject(Offer(Report))``
 is replayed (``ApplyRmVerdictFromLedgerNode``) but not yet committed (#4304),
-so it has no end-to-end case here.
+so it has no end-to-end case here.  Every activity-typed RM move replays
+through that one slot, keyed by ``RM_VERDICT_TARGETS``; engage and defer
+exercise it end to end, and ``test_rm_verdict_effect.py`` pins each other
+type's target state against its use case.
 """
 
 import json
@@ -238,10 +241,12 @@ def test_a_replica_follows_a_participants_engagement_decision(
         f"https://example.org/cases/replay-{event_type}", em_state=EM.NONE
     )
     _set_rm(net, BYSTANDER, RM.VALID)
+    owner_before = {s: _rm(net, s, OWNER) for s in (MANAGER, OWNER)}
     _send(net, factory(net.case(BYSTANDER), actor=BYSTANDER, to=[MANAGER]))
 
     assert event_type in _replay(net, OWNER)
     for store_of in (MANAGER, OWNER):
-        # The sender is the subject (RSH-08-001) in every store.
+        # The sender is the subject (RSH-08-001) in every store: the
+        # replica's own participant does not move.
         assert _rm(net, store_of, BYSTANDER) == target, store_of
-        assert _rm(net, store_of, OWNER) == _rm(net, MANAGER, OWNER)
+        assert _rm(net, store_of, OWNER) == owner_before[store_of], store_of

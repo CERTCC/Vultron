@@ -27,10 +27,13 @@ paths commit an entry:
   follows those calls from every routed use case's methods.
 * **Explicit commits.**  A node that commits an entry of its own passes
   ``event_type=`` to the commit tree; :func:`explicit_event_types` collects
-  every such keyword whose value is a string literal or a module-level
-  constant, plus every module- or class-level constant named ``*EVENT_TYPE``
-  under ``vultron/core``.  A value threaded through a parameter
-  (``event_type=event_type``) is found at the call that supplies it.
+  every such keyword's value (a literal, a constant, or a ``self.<CONST>``
+  class constant resolved through each subclass), plus every ``*EVENT_TYPE``
+  constant passed as a positional call argument under ``vultron/core``.  A
+  value threaded through a parameter (``event_type=event_type``) is found at
+  the call that supplies it; any other unresolvable value fails the scan.  A
+  constant a replay slot only compares against is not a call argument, so
+  defining one never makes a type look committed.
 
 Not covered, by design: the ``sync-log-entry`` trigger
 (``vultron/core/use_cases/triggers/sync_log_entry.py``), an operator tool
@@ -148,40 +151,120 @@ def _module_name(path: Any) -> str:
     return ".".join(rel.parts)
 
 
+#: ``event_type=`` values that thread a caller's value through rather than
+#: name one; the scan finds the value where the caller supplies it.  Any other
+#: unresolvable value fails the scan, so a new commit cannot go unclassified.
+_PASS_THROUGH_EVENT_TYPES = frozenset(
+    {
+        "event_type",
+        "self.event_type",
+        "self._event_type",
+        "chain_entry.event_type",
+    }
+)
+
+
 def _constant_value(expr: ast.expr, module: ModuleType) -> str | None:
-    """The string *expr* names, when it is a literal or a module constant."""
+    """The string *expr* names: a literal, or a constant reached from *module*.
+
+    Handles a bare name (``EVENT_TYPE``) and an attribute chain rooted at a
+    module-level name (``MessageSemantics.FOO.value``).
+    """
     if isinstance(expr, ast.Constant) and isinstance(expr.value, str):
         return expr.value
-    if isinstance(expr, ast.Name):
-        value = getattr(module, expr.id, None)
-        return value if isinstance(value, str) else None
-    return None
+    chain: list[str] = []
+    while isinstance(expr, ast.Attribute):
+        chain.insert(0, expr.attr)
+        expr = expr.value
+    if not isinstance(expr, ast.Name) or expr.id == "self":
+        return None
+    value: Any = getattr(module, expr.id, None)
+    for attr in chain:
+        value = getattr(value, attr, None)
+    return value if isinstance(value, str) else None
 
 
-def _event_type_constants(tree: ast.AST) -> Iterator[tuple[str | None, str]]:
-    """``(class name or None, constant name)`` for each ``*EVENT_TYPE``."""
-    scopes: list[tuple[str | None, list[ast.stmt]]] = [
-        (None, getattr(tree, "body", []))
-    ]
-    scopes += [
-        (node.name, node.body)
-        for node in getattr(tree, "body", [])
-        if isinstance(node, ast.ClassDef)
-    ]
-    for owner, body in scopes:
-        for stmt in body:
-            targets = (
-                stmt.targets
-                if isinstance(stmt, ast.Assign)
-                else [stmt.target]
-                if isinstance(stmt, ast.AnnAssign)
-                else []
+def _subclasses(cls: type) -> Iterator[type]:
+    yield cls
+    for sub in cls.__subclasses__():
+        yield from _subclasses(sub)
+
+
+def _class_attribute_values(
+    owner: ast.ClassDef, attr: str, module: ModuleType
+) -> set[str]:
+    """``<cls>.<attr>`` for *owner* and every subclass that overrides it."""
+    cls = getattr(module, owner.name, None)
+    if not inspect.isclass(cls):
+        return set()
+    values = {getattr(sub, attr, None) for sub in _subclasses(cls)}
+    return {value for value in values if isinstance(value, str)}
+
+
+def _event_type_keyword_values(
+    tree: ast.AST, module: ModuleType
+) -> Iterator[str]:
+    """The value of every ``event_type=`` keyword in *tree*.
+
+    ``self.<NAME>`` with an upper-case *NAME* is a class constant: it resolves
+    through the enclosing class and each subclass that overrides it.
+
+    Raises:
+        AssertionError: on a value the scan cannot resolve and that is not a
+            known pass-through (:data:`_PASS_THROUGH_EVENT_TYPES`).
+    """
+    classes = [n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)]
+    owner_of = {
+        id(node): cls for cls in classes for node in ast.walk(cls)
+    }  # innermost class wins: ast.walk visits outer classes first
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        for kw in node.keywords:
+            if kw.arg != "event_type":
+                continue
+            value = _constant_value(kw.value, module)
+            if value is not None:
+                yield value
+                continue
+            expr = kw.value
+            if (
+                isinstance(expr, ast.Attribute)
+                and isinstance(expr.value, ast.Name)
+                and expr.value.id == "self"
+                and expr.attr.lstrip("_").isupper()
+                and id(node) in owner_of
+            ):
+                yield from _class_attribute_values(
+                    owner_of[id(node)], expr.attr, module
+                )
+                continue
+            source = ast.unparse(expr)
+            assert source in _PASS_THROUGH_EVENT_TYPES, (
+                f"{module.__name__}:{node.lineno}: cannot resolve"
+                f" event_type={source}; name a constant, or add a"
+                " pass-through whose caller the scan resolves"
             )
-            for target in targets:
-                if isinstance(target, ast.Name) and target.id.endswith(
-                    "EVENT_TYPE"
-                ):
-                    yield owner, target.id
+
+
+def _event_type_positional_values(
+    tree: ast.AST, module: ModuleType
+) -> Iterator[str]:
+    """Each ``*EVENT_TYPE`` constant passed as a positional call argument.
+
+    A commit helper that takes the event type positionally
+    (``_commit_one(case_id, object_id, CREATE_CASE_EVENT_TYPE, ...)``) is found
+    here.  A constant only *compared* against an entry's ``event_type`` — a
+    replay slot's condition — is never a call argument, so it is not counted.
+    """
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        for arg in node.args:
+            if isinstance(arg, ast.Name) and arg.id.endswith("EVENT_TYPE"):
+                value = _constant_value(arg, module)
+                if value is not None:
+                    yield value
 
 
 def explicit_event_types() -> set[str]:
@@ -189,24 +272,12 @@ def explicit_event_types() -> set[str]:
     found: set[str] = set()
     for path, tree in _corpus.files_mentioning("EVENT_TYPE", under=_CORE_ROOT):
         module = importlib.import_module(_module_name(path))
-        for owner, name in _event_type_constants(tree):
-            holder = getattr(module, owner) if owner else module
-            value = getattr(holder, name, None)
-            if isinstance(value, str):
-                found.add(value)
+        found.update(_event_type_positional_values(tree, module))
     for path, tree in _corpus.files_mentioning(
         "event_type=", under=_CORE_ROOT
     ):
         module = importlib.import_module(_module_name(path))
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.Call):
-                continue
-            for kw in node.keywords:
-                if kw.arg != "event_type":
-                    continue
-                value = _constant_value(kw.value, module)
-                if value is not None:
-                    found.add(value)
+        found.update(_event_type_keyword_values(tree, module))
     return found
 
 

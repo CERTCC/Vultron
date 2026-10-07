@@ -50,9 +50,8 @@ from vultron.core.behaviors.sync.nodes._helpers import (
     _extract_id_from_field,
     _LedgerEffectNode,
 )
-from vultron.core.behaviors.sync.nodes.conditions import _require_log_entry
 from vultron.core.behaviors.sync.nodes.event_conditions import (
-    _ActivityEventNode,
+    _SingleEventTypeNode,
 )
 from vultron.core.models._helpers import _as_id, project_wire_snapshot_to_core
 from vultron.core.models.case import VulnerabilityCase
@@ -68,7 +67,7 @@ logger = logging.getLogger(__name__)
 ADD_CASE_STATUS_EVENT_TYPE = MessageSemantics.ADD_CASE_STATUS_TO_CASE.value
 
 
-class IsAddCaseStatusEventNode(_ActivityEventNode):
+class IsAddCaseStatusEventNode(_SingleEventTypeNode):
     """Precondition: this entry is an ``add_case_status_to_case`` event.
 
     Used in the ``CaseStatus`` slot of ``AnnounceLogEntryReceivedBT``.
@@ -76,11 +75,7 @@ class IsAddCaseStatusEventNode(_ActivityEventNode):
     Per RSH-08-004, BTND-08-001, SYNC-12-001.
     """
 
-    def update(self) -> Status:
-        entry = _require_log_entry(self.activity, self.name)
-        if entry.event_type == ADD_CASE_STATUS_EVENT_TYPE:
-            return Status.SUCCESS
-        return Status.FAILURE
+    matched_event_type = ADD_CASE_STATUS_EVENT_TYPE
 
 
 def _adjudicate(current: CaseStatus, asserted: CaseStatus) -> CaseStatus:
@@ -102,7 +97,10 @@ class ApplyCaseStatusFromLedgerNode(_LedgerEffectNode):
     * the status is already in ``case.case_statuses`` — the genesis status a
       seeded replica holds, or a re-delivery (CLP-13-001);
     * every dimension is refused and the result is the replica's current
-      state, so there is nothing new to record (RSH-05-005).
+      state, so there is nothing new to record (the replica-side reading of
+      RSH-05-005).  Carrying the replica's value forward *is* the entry's
+      applied effect under RSH-05-018/019, as it is for a regressing RM move
+      under RSH-05-007, so persisting the entry does not break SYNC-12-002.
 
     FAILURE, so the entry is not persisted (SYNC-12-001): the snapshot names
     no status, or carries one that is not a valid ``CaseStatus``.  Persisting

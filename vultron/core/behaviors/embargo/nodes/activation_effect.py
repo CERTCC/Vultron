@@ -34,9 +34,8 @@ from vultron.core.behaviors.embargo.nodes.lifecycle import SetEmbargoActiveNode
 from vultron.core.behaviors.embargo.nodes.relay_effect import (
     _EmbargoRelayEffectNode,
 )
-from vultron.core.behaviors.sync.nodes import _require_log_entry
 from vultron.core.behaviors.sync.nodes.event_conditions import (
-    _ActivityEventNode,
+    _SingleEventTypeNode,
 )
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.services.embargo_lifecycle import TransitionMode
@@ -47,7 +46,7 @@ EMBARGO_ACTIVATION_EVENT_TYPE = (
 )
 
 
-class IsAddEmbargoEventNode(_ActivityEventNode):
+class IsAddEmbargoEventNode(_SingleEventTypeNode):
     """Precondition: this entry is an ``add_embargo_event_to_case`` event.
 
     Used in the ``EmbargoActivation`` slot of ``AnnounceLogEntryReceivedBT``.
@@ -55,11 +54,7 @@ class IsAddEmbargoEventNode(_ActivityEventNode):
     Per RSH-08-004, BTND-08-001, SYNC-12-001.
     """
 
-    def update(self) -> Status:
-        entry = _require_log_entry(self.activity, self.name)
-        if entry.event_type == EMBARGO_ACTIVATION_EVENT_TYPE:
-            return Status.SUCCESS
-        return Status.FAILURE
+    matched_event_type = EMBARGO_ACTIVATION_EVENT_TYPE
 
 
 class ApplyEmbargoActivationFromLedgerNode(_EmbargoRelayEffectNode):

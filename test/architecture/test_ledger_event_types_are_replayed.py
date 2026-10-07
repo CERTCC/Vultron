@@ -200,6 +200,10 @@ def test_the_derivation_finds_both_commit_paths():
         "case_fully_closed",
         INVITE_EXPIRED_EVENT_TYPE,
     } <= explicit_event_types()
+    # A replay slot's own constant is compared, never committed, so defining
+    # it must not make its type look committed: Add(EmbargoEvent) is
+    # committed only on the receive side.
+    assert MS.ADD_EMBARGO_EVENT_TO_CASE.value not in explicit_event_types()
 
 
 @pytest.mark.spec("RSH-08-004")
