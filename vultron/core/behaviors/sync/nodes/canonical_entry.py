@@ -91,6 +91,9 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("Announce", "VulnerabilityCase"),
     ("Offer", "CaseParticipant"),
     ("Add", "CaseParticipant"),
+    # The Case Owner's removal request, committed as received (CM-31-005,
+    # ADR-0116).  Owner-authored, so not in ``_CASE_AUTHORED_SIGNATURES``.
+    ("Remove", "CaseParticipant"),
     # CASE_MANAGER-authored synthetic invite-expiry event (CM-28-009,
     # ADR-0118).  Distinct from ("Reject", "Invite"), an explicit refusal.
     (INVITE_EXPIRED_SNAPSHOT_TYPE, "Invite"),

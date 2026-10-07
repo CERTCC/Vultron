@@ -414,6 +414,15 @@ RECIPES: dict[str, Recipe] = {
         actor=_ACTOR,
         to=[_PEER],
     ),
+    "remove_participant_from_case": lambda w: (
+        w.adapter.remove_participant_from_case(
+            participant_id=str(w.participant.id_),
+            case_id=w.case_id,
+            actor=_ACTOR,
+            attributed_to=_PEER,
+            to=[_PEER],
+        )
+    ),
     "add_participant_status_to_participant": lambda w: (
         w.adapter.add_participant_status_to_participant(
             status_id=str(w.status.id_),

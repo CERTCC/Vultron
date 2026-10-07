@@ -5,9 +5,9 @@ level: 300
 
 # How to Manage a Case Roster
 
-Use this guide to run the full participant lifecycle on a case: invite an actor, seat it when it accepts, record its status, and remove it when its involvement ends.
+Use this guide to run the full participant lifecycle on a case: invite an actor, seat it when it accepts, record its status, and remove it from active participation.
 Every step routes through the CASE_MANAGER, which is the authoritative recipient of case-management handshake messages once a case exists.
-You finish with a roster that reflects who is actually working the case.
+You finish with a case whose active participants are the ones actually working it.
 
 ---
 
@@ -125,14 +125,25 @@ Status is self-declaratory: send your own, and expect each participant to send i
 
 ## Remove a participant
 
-Send `Remove(CaseParticipant)` with the participant as its `object` and the case as its `target`.
+Only the Case Owner removes a participant.
+Send `Remove(CaseParticipant)` to the CASE_MANAGER, with the participant as its `object` and the case as its `target`.
+If you are both the Case Owner and the CASE_MANAGER, send it to your own inbox.
 
 !!! warning "Name the case in `target`, not `origin`"
 
     `origin` reads like the right field for a removal, and it is not one the receiver looks at: dispatch discriminates on `target`, so a `Remove` that names the case only in `origin` matches no pattern and the participant is never removed (#3438).
 
-Removal takes a participant off the roster.
-It is not a closure — a participant that has finished its own work closes with `Leave(VulnerabilityCase)` instead.
+Removal withdraws the participant's entitlement to case content.
+It does not take the participant off the roster: its record, its status history and its [embargo consent](../../../topics/behavior_logic/use-cases/embargo-lifecycle.md) stay, and the record carries a removal fact.
+The CASE_MANAGER refuses a removal of the CASE_MANAGER or of the Case Owner, and a removal from anyone other than the Case Owner.
+A second removal of the same participant changes nothing.
+
+The CASE_MANAGER records your `Remove` as one ledger entry and sends that entry to every active participant, the removed one included.
+It then sends the removed participant a direct `Remove(CaseParticipant)` naming it, with `attributedTo` set to you.
+The removed participant receives no later ledger entries.
+See [Participant Removal](../../../reference/vultron-spec/interactions.md#114-participant-removal-n).
+
+Removal is not a closure — a participant that has finished its own work closes with `Leave(VulnerabilityCase)` instead.
 See [How to Advance a Case Through Report Management](manage_case.md).
 
 ---
@@ -144,7 +155,7 @@ See [How to Advance a Case Through Report Management](manage_case.md).
 | `Invite(Actor)` | The invitee holds an `Invite` whose `actor` is the CASE_MANAGER. |
 | `Add(CaseParticipant)` | The roster holds the participant with its roles. |
 | `Add(ParticipantStatus)` | The participant record carries the new status. |
-| `Remove(CaseParticipant)` | The roster no longer lists the participant. |
+| `Remove(CaseParticipant)` | The roster still lists the participant, and its record names your `Remove` as its `removalActivity`. |
 | `Accept`, `TentativeReject` or `Reject` of the full-case Invite | The CASE_MANAGER's record of the participant shows RM `VALID`, `INVALID` or `CLOSED`. |
 
 ---
