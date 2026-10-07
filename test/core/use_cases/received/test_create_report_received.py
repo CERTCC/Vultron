@@ -84,8 +84,11 @@ class TestUseCaseExecution:
         )
         event = make_payload(create_activity)
 
-        mock_dl = MagicMock()
-        result = CreateCaseReceivedUseCase(mock_dl, event).execute()
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        result = CreateCaseReceivedUseCase(dl, event).execute()
         # No ReportCaseLink and no CASE_MANAGER in the snapshot: an untrusted
         # Create is refused (HP-01-003, ADR-0041 AC-5).
         assert result.disposition == HandlerDisposition.REFUSED

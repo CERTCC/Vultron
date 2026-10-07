@@ -166,7 +166,7 @@ first:
   writer calls `store_carried_embargo()`
   (`vultron/core/services/carried_embargo.py`) *before* saving the case:
   `SeedAnnouncedCaseNode`, the create/engage replica stores
-  (`_hold_carried_embargo`) and the inbox pre-store of an inbound case. It
+  (`HoldCarriedEmbargoNode`) and the inbox pre-store of an inbound case. It
   stores an inline `EmbargoEvent` as its own record, then reads the named
   embargo through `read_embargo_event()`; a case naming one the store cannot
   read is refused — the node fails, the handler reports `REFUSED`, the inbox

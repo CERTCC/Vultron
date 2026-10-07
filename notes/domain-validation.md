@@ -124,7 +124,7 @@ safely importable by **all** layers (`behaviors/`, `use_cases/`, `services/`,
 
 Higher-level helpers that depend on ports, state machines, or use-case
 logic belong in `vultron/core/use_cases/_helpers.py`. Examples:
-`_idempotent_create`, `update_participant_rm_state`, `add_activity_to_outbox`.
+`update_participant_rm_state`, `add_activity_to_outbox`.
 
 Duplicate copies in other modules MUST NOT be maintained — import from the
 canonical location instead.
