@@ -773,6 +773,12 @@ class SenderIsInviteeNode(SenderEntitlementConditionNode):
     An Invite this store never recorded, or one that names no recipient or
     several, names no invitee, so the sender is refused.
 
+    When ``case_id`` is given the Invite is a case-join Invite, and the
+    record must also be one this store's owner (the CASE_MANAGER) issued
+    (CM-11-017: "an Invite it sent and recorded") and be for that case: a
+    stub Invite names its case through its stub target, and an invitee of one
+    case cannot answer for another.
+
     Spec: EP-09-010, CM-11-017, HP-01-006.
     """
 
@@ -781,10 +787,28 @@ class SenderIsInviteeNode(SenderEntitlementConditionNode):
         invite_id: str | None,
         sender_actor_id: str,
         name: str | None = None,
+        *,
+        case_id: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._invite_id = invite_id
         self._sender_actor_id = sender_actor_id
+        self._case_id = case_id
+
+    @staticmethod
+    def _named_case(invite: object) -> str | None:
+        """The case a recorded Invite is for: its stub target's case, else its target."""
+        target = getattr(invite, "target", None)
+        stub_case = getattr(target, "case_id", None)
+        return stub_case if isinstance(stub_case, str) else _as_id(target)
+
+    def _refuse_case_join(self, why: str) -> Status:
+        self.feedback_message = (
+            f"Invite '{self._invite_id}' {why} — REFUSED (CM-11-017,"
+            " HP-01-006)"
+        )
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -805,6 +829,20 @@ class SenderIsInviteeNode(SenderEntitlementConditionNode):
             )
         )
         if len(recipients) == 1 and same_actor_id(sender, recipients[0]):
+            if self._case_id is None:
+                return Status.SUCCESS
+            issuer = _as_id(getattr(invite, "actor", None))
+            if issuer is None or not same_actor_id(
+                issuer, self.actor_id or ""
+            ):
+                return self._refuse_case_join(
+                    f"was issued by '{issuer}', not by this CASE_MANAGER"
+                )
+            named_case = self._named_case(invite)
+            if named_case != self._case_id:
+                return self._refuse_case_join(
+                    f"is for case '{named_case}', not '{self._case_id}'"
+                )
             return Status.SUCCESS
 
         if invite is None:

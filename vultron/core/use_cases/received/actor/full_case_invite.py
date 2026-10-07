@@ -20,6 +20,7 @@ from vultron.core.behaviors.case.full_case_invite_trees import (
 )
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlement,
+    SenderEntitlementKind,
     exempt,
 )
 from vultron.core.models.events.actor import (
@@ -117,10 +118,8 @@ class _FullCaseInviteReplyReceivedUseCase:
     case's CASE_MANAGER (HP-01-005), is ``REFUSED`` and writes nothing.
     """
 
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4071",
-        "the reply's sender is checked against the recorded Invite in"
-        " CheckFullCaseReplyNode",
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.INVITEE
     )
     rm_state: ClassVar[RM]
     tree_name: ClassVar[str]

@@ -149,6 +149,7 @@ def _seed_late_joiner_case() -> dict[str, Any]:
     object.__setattr__(case_actor, "context", case.id_)
     invite = rm_invite_to_case_activity(
         invitee,
+        to=[invitee.id_],
         target=case.id_,
         actor=case_actor_id,
         roles=[CVDRole.VENDOR],
@@ -252,6 +253,7 @@ class TestInviteActorUseCases:
 
         invite = rm_invite_to_case_activity(
             as_Actor(id_=invitee_id),
+            to=[invitee_id],
             target="https://example.org/cases/case1",
             actor="https://example.org/users/owner",
             id_="https://example.org/cases/case1/invitations/1",
@@ -292,6 +294,7 @@ class TestInviteActorUseCases:
 
         invite = rm_invite_to_case_activity(
             as_Actor(id_=invitee_id),
+            to=[invitee_id],
             target=case_id,
             actor=sender_id,
             id_=f"{case_id}/invitations/narrative-1",
@@ -333,6 +336,7 @@ class TestInviteActorUseCases:
         )
         invite = rm_invite_to_case_activity(
             as_Actor(id_=invitee_id),
+            to=[invitee_id],
             target="https://example.org/cases/case1",
             actor="https://example.org/users/owner",
             id_="https://example.org/cases/case1/invitations/narrative-2",
@@ -380,6 +384,7 @@ class TestInviteActorUseCases:
         )
         invite = rm_invite_to_case_activity(
             as_Actor(id_=invitee_id),
+            to=[invitee_id],
             target=case_id,
             actor=case_manager_id,
             id_=f"{case_id}/invitations/trust-anchor-1",
@@ -422,12 +427,14 @@ class TestInviteActorUseCases:
 
         invite1 = rm_invite_to_case_activity(
             as_Actor(id_=invitee_id),
+            to=[invitee_id],
             target=case_id,
             actor=first_sender,
             id_=f"{case_id}/invitations/a",
         )
         invite2 = rm_invite_to_case_activity(
             as_Actor(id_=invitee_id),
+            to=[invitee_id],
             target=case_id,
             actor=second_sender,
             id_=f"{case_id}/invitations/b",
@@ -480,6 +487,7 @@ class TestInviteActorUseCases:
         case_id = "https://example.org/cases/case1"
         invite = rm_invite_to_case_activity(
             as_Actor(id_=invitee_id),
+            to=[invitee_id],
             target=case_id,
             actor="https://example.org/users/owner",
             id_=f"{case_id}/invitations/2",
@@ -530,6 +538,7 @@ class TestInviteActorUseCases:
 
         invite = rm_invite_to_case_activity(
             as_Actor(id_=named_invitee_id),  # object ≠ receiving actor
+            to=[named_invitee_id],
             target=case_id,
             actor=case_manager_id,
             id_=f"{case_id}/invitations/misaddressed-1",
@@ -561,6 +570,7 @@ class TestInviteActorUseCases:
         )
         invite = rm_invite_to_case_activity(
             as_Actor(id_="https://example.org/users/coordinator"),
+            to=["https://example.org/users/coordinator"],
             target="https://example.org/cases/case1",
             actor="https://example.org/users/owner",
             id_="https://example.org/cases/case1/invitations/missing",
@@ -591,6 +601,7 @@ class TestInviteActorUseCases:
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=owner_id)
         invite = rm_invite_to_case_activity(
             as_Actor(id_=owner_id),
+            to=[owner_id],
             target="https://example.org/cases/case1",
             actor="https://example.org/users/owner",
             id_="https://example.org/cases/case1/invitations/one-tree",
@@ -658,6 +669,7 @@ class TestInviteActorUseCases:
 
         invite = rm_invite_to_case_activity(
             as_Actor(id_="https://example.org/users/coordinator"),
+            to=["https://example.org/users/coordinator"],
             target=case_id,
             actor=case_actor_id,
             id_=f"{case_id}/invitations/1",
@@ -743,6 +755,7 @@ class TestInviteActorUseCases:
         )
         invite = rm_invite_to_case_activity(
             as_Actor(id_=invitee_id),
+            to=[invitee_id],
             target=case_id,
             actor=case_actor_id,
             id_=f"{case_id}/invitations/1",
@@ -831,8 +844,9 @@ class TestInviteActorUseCases:
         seed_store_owner_as_case_manager(dl, case)
         invite = rm_invite_to_case_activity(
             invitee,
+            to=[invitee.id_],
             target=case.id_,
-            actor="https://example.org/users/owner",
+            actor="https://test.example/api/v2/actors/test-actor",
             roles=[CVDRole.VENDOR],
             id_="https://example.org/cases/caseIA1/invitations/1",
         )
@@ -894,8 +908,9 @@ class TestInviteActorUseCases:
         seed_store_owner_as_case_manager(dl, case)
         invite = rm_invite_to_case_activity(
             invitee,
+            to=[invitee.id_],
             target=case.id_,
-            actor="https://example.org/users/owner",
+            actor="https://test.example/api/v2/actors/test-actor",
             roles=[CVDRole.VENDOR],
             id_="https://example.org/cases/caseIA2/invitations/1",
         )
@@ -959,8 +974,9 @@ class TestInviteActorUseCases:
         seed_store_owner_as_case_manager(dl, case)
         invite = rm_invite_to_case_activity(
             invitee,
+            to=[invitee.id_],
             target=case.id_,
-            actor=owner_id,
+            actor="https://test.example/api/v2/actors/test-actor",
             roles=[CVDRole.VENDOR],
             id_="https://example.org/cases/caseRM001/invitations/1",
         )
@@ -1038,8 +1054,9 @@ class TestInviteActorUseCases:
         )
         invite = rm_invite_to_case_activity(
             invitee,
+            to=[invitee.id_],
             target=case.id_,
-            actor=owner_id,
+            actor="https://test.example/api/v2/actors/test-actor",
             roles=[CVDRole.VENDOR],
             id_="https://example.org/cases/caseRM002/invitations/1",
         )
@@ -1129,8 +1146,9 @@ class TestInviteActorUseCases:
         )
         invite = rm_invite_to_case_activity(
             invitee,
+            to=[invitee.id_],
             target=case.id_,
-            actor="https://example.org/users/owner",
+            actor=case_actor_id,
             roles=[CVDRole.VENDOR],
             id_="https://example.org/cases/caseIA3/invitations/1",
         )
@@ -1316,6 +1334,7 @@ class TestInviteActorUseCases:
         object.__setattr__(case_actor, "context", case.id_)
         invite = rm_invite_to_case_activity(
             invitee,
+            to=[invitee.id_],
             target=case.id_,
             actor=case_actor_id,
             id_=f"{case.id_}/invitations/1",
@@ -1492,6 +1511,7 @@ class TestInviteActorUseCases:
         )
         invite = rm_invite_to_case_activity(
             invitee,
+            to=[invitee.id_],
             target=case.id_,
             actor=case_actor_id,
             id_=f"{case.id_}/invitations/1",
@@ -1583,6 +1603,7 @@ class TestInviteActorUseCases:
 
         invite = rm_invite_to_case_activity(
             invitee,
+            to=[invitee.id_],
             target=case.id_,
             actor=case_actor_id,
             roles=[CVDRole.VENDOR],
@@ -1677,8 +1698,9 @@ class TestAcceptInviteRolesAC4:
         seed_store_owner_as_case_manager(dl, case)
         invite = rm_invite_to_case_activity(
             invitee,
+            to=[invitee.id_],
             target=case.id_,
-            actor="https://example.org/users/owner",
+            actor="https://test.example/api/v2/actors/test-actor",
             id_="https://example.org/cases/ac4-test/invitations/1",
             roles=["vendor"],
         )
@@ -1732,8 +1754,9 @@ class TestAcceptInviteRolesAC4:
         seed_store_owner_as_case_manager(dl, case)
         invite = rm_invite_to_case_activity(
             invitee,
+            to=[invitee.id_],
             target=case.id_,
-            actor="https://example.org/users/owner",
+            actor="https://test.example/api/v2/actors/test-actor",
             id_="https://example.org/cases/ac4-neg/invitations/1",
         )
         dl.create(invitee)
@@ -1773,16 +1796,23 @@ class TestInviteDispositions:
 
         return SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
 
-    def _invite(self, case_id: str):
+    def _invite(self, case_id: str, issuer: str | None = None):
         from vultron.enums.roles import CVDRole
 
         return rm_invite_to_case_activity(
             as_Actor(id_=self._INVITEE),
+            to=[self._INVITEE],
             target=case_id,
-            actor=self._OWNER,
+            actor=issuer or self._OWNER,
             id_=f"{case_id}/invitations/1",
             roles=[CVDRole.VENDOR],
         )
+
+    def _recorded_invite(self, dl, case_id: str):
+        """The stub Invite the CASE_MANAGER sent and recorded (CM-11-017)."""
+        invite = self._invite(case_id, issuer=dl.actor_id)
+        dl.create(invite)
+        return invite
 
     def _seed_case(self, dl, case_id: str, manager_id: str | None = None):
         from vultron.enums.roles import CVDRole
@@ -1854,7 +1884,7 @@ class TestInviteDispositions:
         self._seed_case(dl, case_id, manager_id=self._OWNER)
         event = make_payload(
             rm_reject_invite_to_case_activity(
-                self._invite(case_id), actor=self._INVITEE
+                self._recorded_invite(dl, case_id), actor=self._INVITEE
             )
         )
 
@@ -1904,7 +1934,9 @@ class TestInviteDispositions:
         dl = self._dl()
         event = make_payload(
             rm_reject_invite_to_case_activity(
-                self._invite("https://example.org/cases/d-rj-missing"),
+                self._recorded_invite(
+                    dl, "https://example.org/cases/d-rj-missing"
+                ),
                 actor=self._INVITEE,
             )
         )
@@ -1934,7 +1966,7 @@ class TestInviteDispositions:
         self._seed_case(dl, case_id, manager_id=self._OWNER)
         event = make_payload(
             rm_reject_invite_to_case_activity(
-                self._invite(case_id), actor=self._INVITEE
+                self._recorded_invite(dl, case_id), actor=self._INVITEE
             ),
             receiving_actor_id=self._OWNER,
         )
@@ -1998,7 +2030,7 @@ class TestInviteDispositions:
 
         event = make_payload(
             rm_reject_invite_to_case_activity(
-                self._invite(case_id), actor=self._INVITEE
+                self._recorded_invite(dl, case_id), actor=self._INVITEE
             ),
             receiving_actor_id=self._OWNER,
         )
@@ -2035,7 +2067,9 @@ class TestInviteDispositions:
         dl = self._dl()
         event = make_payload(
             rm_accept_invite_to_case_activity(
-                self._invite("https://example.org/cases/d-ac-missing"),
+                self._recorded_invite(
+                    dl, "https://example.org/cases/d-ac-missing"
+                ),
                 actor=self._INVITEE,
             )
         )
@@ -2057,7 +2091,7 @@ class TestInviteDispositions:
         dl = self._dl()
         # The store owner admits the invitee: it must hold CASE_MANAGER.
         self._seed_case(dl, case_id, manager_id=dl.actor_id)
-        invite = self._invite(case_id)
+        invite = self._invite(case_id, issuer=dl.actor_id)
         dl.create(invite)
         event = make_payload(
             rm_accept_invite_to_case_activity(invite, actor=self._INVITEE)

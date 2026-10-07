@@ -30,6 +30,7 @@ from vultron.core.behaviors.case.nodes.role_gates import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.sender_entitlement import SenderIsInviteeNode
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.states.rm import RM
 
@@ -87,12 +88,15 @@ def create_full_case_invite_reply_received_tree(
 ) -> py_trees.composites.Sequence:
     """Received-side BT for a reply to the full-case Invite.
 
+    The sender must be the invitee of the Invite this store recorded
+    (CM-11-017, HP-01-006, ADR-0115).
     The CASE_MANAGER checks the reply's ledger position against the Invite's
     floor before it commits anything (CM-11-012), commits the receipt, then
     records the participant's RM transition (CM-11-011)::
 
         <name> (Sequence)
         ├── Intake
+        ├── SenderIsInviteeNode              # sender is the recorded invitee
         ├── CheckFullCaseReplyNode           # judges only as the CASE_MANAGER
         ├── GuardedCommitCaseLedgerEntryBT
         └── FullCaseReplyEffects             # CASE_MANAGER only
@@ -101,6 +105,9 @@ def create_full_case_invite_reply_received_tree(
     return create_receive_activity_tree(
         name=name,
         case_id=case_id,
+        sender_guard=SenderIsInviteeNode(
+            invite_id=invite_id, sender_actor_id=replier_id, case_id=case_id
+        ),
         precondition_guards=[
             CheckFullCaseReplyNode(
                 case_id=case_id,
