@@ -185,23 +185,31 @@ def create_case_trigger_bt(
     report_id: str | None,
     result_out: dict[str, Any],
     activity_builder: Callable[[str], tuple[str, str]],
+    queue_for_delivery: bool,
 ) -> py_trees.behaviour.Behaviour:
-    """Return trigger-side BT for case creation + outbound Create activity."""
+    """Return trigger-side BT for case creation + outbound Create activity.
+
+    ``queue_for_delivery`` is ``False`` when the activity names no recipient:
+    the case and its ``Create`` are still built, but nothing is queued, since
+    the outbox refuses an activity whose ``to:`` names no one (OX-08-001).
+    """
+    children: list[py_trees.behaviour.Behaviour] = [
+        _CreateCaseRecordNode(
+            case_name=case_name,
+            case_content=case_content,
+            report_id=report_id,
+            result_out=result_out,
+        ),
+        _RegisterCreatorParticipantNode(),
+        _BuildCreateCaseActivityNode(
+            activity_builder=activity_builder,
+            result_out=result_out,
+        ),
+    ]
+    if queue_for_delivery:
+        children.append(UpdateActorOutbox())
     return py_trees.composites.Sequence(
         name="CreateCaseTriggerBT",
         memory=False,
-        children=[
-            _CreateCaseRecordNode(
-                case_name=case_name,
-                case_content=case_content,
-                report_id=report_id,
-                result_out=result_out,
-            ),
-            _RegisterCreatorParticipantNode(),
-            _BuildCreateCaseActivityNode(
-                activity_builder=activity_builder,
-                result_out=result_out,
-            ),
-            UpdateActorOutbox(),
-        ],
+        children=children,
     )

@@ -4,7 +4,8 @@ status: active
 description: >
   Implementation guidance for the outbox delivery reliability hardening tasks:
   per-activity abort scope, 4xx terminal classification, timeout/jitter/pool
-  configuration, and per-activity attempt counter with dead-letter store.
+  configuration, per-activity attempt counter with dead-letter store, and
+  immediate dead-lettering of a sealed body the outbox refuses (OX-13-013).
 related_specs:
   - specs/outbox.yaml
   - specs/sync-ledger-replication.yaml
@@ -19,6 +20,7 @@ related_notes:
   - notes/outbox.md
   - notes/sync-ledger-replication.md
   - notes/flaky-tests.md
+  - notes/testing-pitfalls.md
 relevant_packages:
   - vultron/adapters/driven/http_delivery.py
   - vultron/adapters/driving/fastapi/outbox_handler.py
@@ -27,6 +29,7 @@ relevant_packages:
   - vultron/adapters/driven/datalayer_sqlite/engine.py
   - vultron/adapters/driving/fastapi/main.py
   - vultron/adapters/driving/fastapi/routers/trigger_actor.py
+  - vultron/core/use_cases/triggers/case/create.py
 ---
 
 # Outbox Delivery Reliability
@@ -185,6 +188,20 @@ error count (reset on every drain invocation) and an unconditional requeue is
 unbounded: the composition is `4 × ∞`. The fix is a persisted per-activity
 total-attempt counter with a give-up condition (OX-13-001, OX-13-002, ADR-0066;
 CONCERN-2302).
+
+## A Refused Sealed Body Is Dead-Lettered at Once (OX-13-013)
+
+The retry budget is for failures a retry can cure. A body the outbox refuses
+before any delivery attempt — a `to:` that names no one (OX-08-003), an `object`
+that is not inline (OX-07-001) — is refused the same way every time, because the
+sealed body never changes (VM-08-003). `_bookkeep_failure` dead-letters those
+rows (`UNDELIVERABLE_BODY_ERRORS`) on the first refusal with reason
+`undeliverable_body`. Before this, each one spent the whole twelve-attempt budget
+on 1s/2s/4s backoff: about 24 seconds a row, invisible in every demo test that
+produced one (`create-case` with no `to`). Fix the producer too — an activity
+addressed to no one is not queued at all (OX-08-001). See
+[testing-pitfalls](testing-pitfalls.md) § "A Retry Loop With Real Backoff
+Hides Inside a Passing Demo".
 
 ---
 

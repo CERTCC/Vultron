@@ -65,7 +65,9 @@ jobs:
       - name: Set up Python and uv
         uses: ./.github/actions/setup-python-uv
       - name: Run full pytest suite
-        run: uv run pytest -m "" --tb=short
+        # -n auto: one xdist worker per runner CPU, sized by test/conftest.py
+        # from the cgroup limits (test/support/xdist_workers.py).
+        run: uv run pytest -m "" -n auto --tb=short
 
   # ── Stage 1b: Linters (run in parallel with tests) ────────────────────────
 

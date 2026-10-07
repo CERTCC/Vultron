@@ -8,15 +8,18 @@ description: >
   `filterwarnings` precedence, fixture and blackboard isolation, py_trees test
   patterns, CoreObject subclass isolation, assertion-quality traps (vacuous
   asserts, "falls back to" tests, bare MagicMock), and test layout rules for
-  module splits, and why a two-sided count pin races concurrent PRs (keep a
-  per-item record instead). `test/AGENTS.md` keeps the short index and the
-  rules you need on every run.
+  module splits, why a two-sided count pin races concurrent PRs (keep a
+  per-item record instead), why `nproc` overstates a worktree slot's CPUs for
+  `-n auto`, why order-dependent tests need an `xdist_group`, and how outbox
+  retry backoff hides inside a passing demo.
+  `test/AGENTS.md` keeps the short index and the rules you need on every run.
 related_specs:
   - specs/testability.yaml
   - specs/behavior-tree-integration.yaml
   - specs/spec-registry.yaml
   - specs/meta-specifications.yaml
   - specs/handler-protocol.yaml
+  - specs/outbox.yaml
 related_notes:
   - notes/flaky-tests.md
   - notes/configuration.md
@@ -28,8 +31,10 @@ related_notes:
   - notes/wire-artifact-immutability.md
   - notes/spec-authoring-rules.md
   - notes/architecture-ratchet-corpus.md
+  - notes/outbox-delivery-reliability.md
 relevant_packages:
   - pytest
+  - pytest-xdist
   - py_trees
 ---
 
@@ -270,6 +275,56 @@ scope capture to the test body only, and call `caplog.clear()` at the start of
 the assertion block if setup noise accumulates.
 
 Source: ISSUE-2086
+
+### `nproc` Lies Inside a Worktree Slot
+
+`start-dev.sh` starts each slot with `--cpus 2 --memory 6g`, but `nproc`,
+`os.cpu_count()` and xdist's stock `-n auto` all report every host core. On a
+12-core host, `-n 10` in a slot ran the full suite in 12m51s at 1.8 cores busy,
+and five workers were OOM-killed — xdist reports each as a failure of whatever
+test the worker held, so the failures name innocent tests. `-n 2` ran the same
+suite green in 9m56s.
+
+`test/conftest.py` therefore implements `pytest_xdist_auto_num_workers` from
+the cgroup files (`test/support/xdist_workers.py`): the CPU quota, the
+scheduler affinity, and the memory limit at 1.5 GiB per worker.
+`PYTEST_XDIST_AUTO_NUM_WORKERS` still overrides it. When a worker "crashed"
+before any assertion failed, read `/sys/fs/cgroup/memory.events` — a non-zero
+`oom_kill` means the test it names is not the cause.
+
+### Order-Dependent Tests Need an `xdist_group`
+
+Under `-n`, xdist's default `--dist load` hands tests to whichever worker is
+free, so two tests of one module can land in different processes. A test that
+reads state an earlier test left behind then runs without it: the ordered pairs
+in `test/test_process_global_isolation.py` failed CI this way on their first
+parallel run. `addopts` sets `--dist loadgroup`, which distributes like `load`
+but keeps every test sharing an `xdist_group` mark on one worker, in collection
+order. Mark an order-dependent module with
+`pytestmark = pytest.mark.xdist_group("<name>")`; the mark does nothing without
+`loadgroup`, and `loadgroup` does nothing without `-n`.
+
+A group is for tests that *assert* an order. A test that merely *depends* on
+one is a leak to fix: splitting a module across workers also exposes
+process-global state that collection order used to clean up. The second CI run
+failed `test_logging_setup.py` that way: tests that suppressed third-party
+loggers left the saved-levels map behind, and a test in the same module had
+always emptied it first. The reset belongs in root `test/conftest.py`
+(TB-06-003), with an ordered pair in `test_process_global_isolation.py`.
+
+### A Retry Loop With Real Backoff Hides Inside a Passing Demo
+
+A demo test that takes 25 seconds with no sleep of its own is usually waiting on
+the outbox's in-pass backoff (1s, 2s, 4s per failure). The scenarios built on
+`setup_initialized_case` queued a `Create(VulnerabilityCase)` addressed to no
+one; delivery refused it, and the outbox retried it on backoff twelve times per
+case before dead-lettering it — about 24 seconds per test, every test still
+green. Profile a slow demo with a wall-clock, all-threads profiler (`yappi`):
+`cProfile` sees only the main thread, which is idle in `epoll` waiting on the
+TestClient portal while the app's thread sleeps. The fixes: a refused sealed
+body is dead-lettered on its first refusal (OX-13-013), and
+`_no_outbox_row_is_dead_lettered` in `test/demo/conftest.py` fails any demo test
+that dead-letters a row.
 
 ---
 

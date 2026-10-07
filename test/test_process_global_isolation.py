@@ -21,7 +21,9 @@ fixtures and nothing else.
 
 The pair only means something when both tests run, in order, in one process.
 The first sets a module flag; the second fails loudly when the flag is unset
-rather than passing on an empty precondition (a vacuous assertion).
+rather than passing on an empty precondition (a vacuous assertion).  Under
+``-n`` the module-wide ``xdist_group`` mark keeps every pair on one worker;
+the ``--dist loadgroup`` in ``addopts`` is what makes xdist honor it.
 
 Regression for #3996: a node that wrote ``/participant`` only when it found a
 participant left the previous test's participant on the process-global
@@ -31,7 +33,10 @@ participant left the previous test's participant on the process-global
 
 from __future__ import annotations
 
+import logging
+
 import py_trees
+import pytest
 from py_trees.common import Status
 
 from test.conftest import TEST_ACTOR_ID
@@ -40,6 +45,12 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.ledger_gap_buffer import get_ledger_gap_buffer
+from vultron.logging_setup import (
+    restore_third_party_log_levels,
+    suppress_third_party_info_noise,
+)
+
+pytestmark = pytest.mark.xdist_group("process_global_isolation")
 
 #: A node-written key that is *not* on ``BTBridge``'s ``managed_keys`` list, so
 #: the bridge does not restore it when the execution ends.
@@ -48,7 +59,11 @@ _LEAKED_KEY = "participant"
 _CASE_ID = "https://example.org/cases/isolation"
 
 #: Set by the first test of each pair; read by the second.
-_RAN: dict[str, bool] = {"blackboard": False, "gap_buffer": False}
+_RAN: dict[str, bool] = {
+    "blackboard": False,
+    "gap_buffer": False,
+    "log_levels": False,
+}
 
 
 class _WriteParticipantNode(py_trees.behaviour.Behaviour):
@@ -126,3 +141,25 @@ class TestLedgerGapBufferIsResetBetweenTests:
     def test_2_next_test_starts_with_an_empty_buffer(self):
         _require_writer("gap_buffer")
         assert get_ledger_gap_buffer(TEST_ACTOR_ID).depth(_CASE_ID) == 0
+
+
+class TestThirdPartyLogSuppressionIsUndoneBetweenTests:
+    def test_1_entry_point_suppresses_without_restoring(self):
+        logging.getLogger("transitions").setLevel(logging.NOTSET)
+
+        # As the demo CLI does: suppress, and never restore.
+        suppress_third_party_info_noise(logging.INFO)
+
+        assert logging.getLogger("transitions").level == logging.WARNING
+        _RAN["log_levels"] = True
+
+    def test_2_next_tests_restore_keeps_the_level_it_set(self):
+        _require_writer("log_levels")
+        transitions_logger = logging.getLogger("transitions")
+        transitions_logger.setLevel(logging.ERROR)
+
+        # A stale saved-levels map would reset this to the previous test's
+        # NOTSET.
+        restore_third_party_log_levels()
+
+        assert transitions_logger.level == logging.ERROR

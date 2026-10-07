@@ -339,7 +339,7 @@
         "type": "object"
       },
       "CreateCaseRequest": {
-        "description": "Request body for the create-case trigger endpoint.\n\nThe actor creates a local VulnerabilityCase and queues a\nCreateCaseActivity in their outbox for delivery to the CaseActor.\n\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
+        "description": "Request body for the create-case trigger endpoint.\n\nThe actor creates a local VulnerabilityCase and queues a\nCreateCaseActivity in their outbox for delivery to the actors named in\n``to``.  With no ``to`` the case is created locally and nothing is\nqueued (OX-08-001); a blank ``to`` entry is refused (CS-08-002).\n\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
         "properties": {
           "content": {
             "title": "Content",
