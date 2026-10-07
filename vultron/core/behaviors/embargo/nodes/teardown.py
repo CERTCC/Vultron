@@ -26,6 +26,7 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.behaviors.narrative_log import log_em_transition
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.nodes import _require_log_entry
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.participants.recipients import case_content_recipients
@@ -70,7 +71,7 @@ class HasEmbargoActiveNode(DataLayerConditionWithPorts):
         return Status.SUCCESS
 
 
-class ClearActiveEmbargoNode(DataLayerActionWithPorts):
+class ClearActiveEmbargoNode(DataLayerActionWithPorts, StateWriteCapable):
     """Apply EM → EXITED transition and clear active_embargo.
 
     Reads the current EM state via ``ReadEmStateNode``, then delegates the
@@ -313,7 +314,9 @@ class SendAnnounceEmbargoEventNode(_SendEmbargoActivityBase):
         return Status.SUCCESS
 
 
-class RemoveFromProposedEmbargoesNode(DataLayerActionWithPorts):
+class RemoveFromProposedEmbargoesNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
     """Forget the embargo as an open proposal of the case.
 
     Removes it from ``proposed_embargoes`` and from

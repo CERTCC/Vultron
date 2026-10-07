@@ -90,7 +90,9 @@ issue under epic #3472:
   participant. Every committed event type is
   classified, from code, in
   `test/architecture/test_ledger_event_types_are_replayed.py`; the gating half
-  follows.
+  follows, and `test/architecture/test_received_tree_state_writes_are_gated.py`
+  holds every received tree that still writes state outside the CASE_MANAGER
+  gate to an owned ratchet until it does.
 
 What is **not** changed: the CS dimensions, the PEC side-effect model, the single
 `ParticipantStatus` writer, and this note's two-gate design for adoption.

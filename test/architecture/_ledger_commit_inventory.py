@@ -38,14 +38,24 @@ paths commit an entry:
 Not covered, by design: the ``sync-log-entry`` trigger
 (``vultron/core/use_cases/triggers/sync_log_entry.py``), an operator tool
 whose client names the event type of an ``Announce(VulnerabilityCase)``
-snapshot.  No trees from ``_corpus`` here are parsed twice (TB-13-003); source
-reached through ``inspect`` goes through ``_corpus.parse_inline``.
+snapshot.
+
+No source is read or parsed outside ``_corpus`` (TB-13-001, TB-13-003): a
+function reached from a live object is found in the shared parse by
+``_corpus.function_definition``.  A text-only fixed point
+(:func:`_names_that_may_commit`) first names every top-level definition that
+could reach a commit, and the precise walk parses only modules mentioning one
+of those names (TB-13-002, TB-13-008); explicit commits are found only on the
+lines that mention ``event_type=`` or ``EVENT_TYPE``.  Both derivations pause
+the garbage collector and the combined set is cached per process, so each
+ratchet test stays inside the TB-13-004 budget.
 """
 
 import ast
+import functools
 import importlib
 import inspect
-import textwrap
+import re
 from collections.abc import Callable, Iterator
 from types import ModuleType
 from typing import Any
@@ -84,22 +94,120 @@ def _resolve(name: str, module: ModuleType) -> Any:
     return None
 
 
+#: A top-level ``def`` or ``class`` line, and a bare-name call.
+_TOP_LEVEL_DEFINITION = re.compile(
+    r"^(?:async\s+def|def|class)\s+(\w+)", re.MULTILINE
+)
+_DEFINING_PREFIXES = ("def ", "class ")
+
+
+def _called_names(span: str) -> frozenset[str]:
+    """Every identifier written directly before a ``(`` in *span*.
+
+    Splits on ``(`` and takes each chunk's trailing identifier, skipping the
+    name a ``def`` or ``class`` line defines — several times faster than a
+    regex, which retries at every position of a mostly-prose file.
+    """
+    names: set[str] = set()
+    for chunk in span.split("(")[:-1]:
+        end = len(chunk)
+        start = end
+        while start and (
+            chunk[start - 1].isalnum() or chunk[start - 1] == "_"
+        ):
+            start -= 1
+        if start == end or chunk[start].isdigit():
+            continue
+        if chunk.endswith(_DEFINING_PREFIXES, 0, start):
+            continue
+        names.add(chunk[start:end])
+    return frozenset(names)
+
+
+def _text_summaries(source: str) -> Iterator[tuple[str, frozenset[str]]]:
+    """``(name, called names)`` for each top-level definition in *source*.
+
+    Text, not AST: a definition's span runs to the next top-level definition,
+    and every ``name(`` in it counts as a call.  Both over-approximate (a
+    trailing module statement, a name in a string, a class's every method),
+    which :func:`_names_that_may_commit` permits.
+    """
+    starts = list(_TOP_LEVEL_DEFINITION.finditer(source))
+    if not starts:
+        return
+    ends = [match.start() for match in starts[1:]] + [len(source)]
+    for match, end in zip(starts, ends, strict=True):
+        span = source[match.end() : end]
+        yield match.group(1), _called_names(span)
+
+
+@functools.cache
+def _names_that_may_commit() -> frozenset[str]:
+    """Top-level ``vultron.core`` names whose definition may reach a commit.
+
+    A fixed point by name over source text: start from the commit builders
+    and the receive factory, then add every top-level function or class
+    whose span calls a name already in the set.  It reads each module's text
+    once from ``_corpus`` and parses none, so it needs no prefilter; its
+    result *is* the prefilter of the precise walk, which parses only a module
+    that mentions one of these names (TB-13-002, TB-13-008).  It
+    over-approximates — by name, not by resolution, and ignoring
+    ``case_id=None`` — and :func:`_commits` decides.
+    """
+    seeds = frozenset({*_COMMIT_BUILDERS, _RECEIVE_FACTORY})
+    summaries = [
+        summary
+        for _, source in _corpus.all_sources(under=_CORE_ROOT)
+        for summary in _text_summaries(source)
+    ]
+    names: set[str] = set()
+    while found := {
+        name
+        for name, called in summaries
+        if name not in names and called & (seeds | names)
+    }:
+        names |= found
+    return frozenset(names)
+
+
+def _calls_in(node: ast.AST) -> Iterator[ast.Call]:
+    return (n for n in ast.walk(node) if isinstance(n, ast.Call))
+
+
+@functools.cache
+def _named_calls(fn: Callable[..., Any]) -> tuple[ast.Call, ...]:
+    """Every call in *fn*'s definition whose callee has a bare name.
+
+    Empty, without parsing, unless *fn*'s module mentions a name that may
+    commit (:func:`_names_that_may_commit`); the definition otherwise comes
+    from the shared corpus parse (:func:`_corpus.function_definition`), so no
+    source is re-read or parsed twice (TB-13-001, TB-13-003).
+    """
+    fragments = (
+        *_COMMIT_BUILDERS,
+        _RECEIVE_FACTORY,
+        *_names_that_may_commit(),
+    )
+    definition = _corpus.function_definition(fn, mentioning=fragments)
+    if definition is None:
+        return ()
+    return tuple(
+        node
+        for node in _calls_in(definition)
+        if _callee_name(node) is not None
+    )
+
+
 def _commits(fn: Callable[..., Any], seen: set[Any], depth: int = 0) -> bool:
     """True when *fn*, or a ``vultron.core`` function it calls, commits."""
     if fn in seen or depth > _MAX_DEPTH:
         return False
     seen.add(fn)
-    try:
-        source = textwrap.dedent(inspect.getsource(fn))
-    except (OSError, TypeError):
+    calls = _named_calls(fn)
+    if not calls:
         return False
     module = inspect.getmodule(fn)
     assert module is not None
-    calls = [
-        node
-        for node in ast.walk(_corpus.parse_inline(source))
-        if isinstance(node, ast.Call) and _callee_name(node) is not None
-    ]
     return any(_call_commits(call, module, seen, depth) for call in calls)
 
 
@@ -122,6 +230,8 @@ def _call_commits(
         return True
     if name == _RECEIVE_FACTORY:
         return _passes_a_case_id(call)
+    if name not in _names_that_may_commit():
+        return False
     target = _resolve(name, module)
     if inspect.isclass(target):
         target = getattr(target, "__init__", None)
@@ -132,6 +242,7 @@ def _call_commits(
     )
 
 
+@_corpus.gc_paused()
 def received_commit_semantics() -> set[str]:
     """``MessageSemantics`` values a received use case commits as an entry."""
     committed: set[str] = set()
@@ -201,8 +312,49 @@ def _class_attribute_values(
     return {value for value in values if isinstance(value, str)}
 
 
+def _calls_on_lines_with(
+    path: Any, tree: ast.AST, fragment: str
+) -> Iterator[ast.Call]:
+    """Every call in *tree* whose source lines include *fragment*.
+
+    Descends only into nodes whose line span holds such a line, so the bulk
+    of a module — prose, unrelated classes — is never visited.
+    """
+    lines = {
+        number
+        for number, line in enumerate(
+            _corpus.source_of(path).splitlines(), start=1
+        )
+        if fragment in line
+    }
+    pending: list[ast.AST] = [tree]
+    while pending:
+        node = pending.pop()
+        start = getattr(node, "lineno", None)
+        if start is not None:
+            end = getattr(node, "end_lineno", None) or start
+            if not any(start <= line <= end for line in lines):
+                continue
+            if isinstance(node, ast.Call):
+                yield node
+        pending.extend(ast.iter_child_nodes(node))
+
+
+def _enclosing_class(tree: ast.AST, node: ast.AST) -> ast.ClassDef | None:
+    """The innermost class whose source lines contain *node*, if any."""
+    line = _corpus.node_line(node)
+    owner: ast.ClassDef | None = None
+    for cls in (n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)):
+        end = cls.end_lineno or cls.lineno
+        if cls.lineno <= line <= end and (
+            owner is None or cls.lineno >= owner.lineno
+        ):
+            owner = cls
+    return owner
+
+
 def _event_type_keyword_values(
-    tree: ast.AST, module: ModuleType
+    path: Any, tree: ast.AST, module: ModuleType
 ) -> Iterator[str]:
     """The value of every ``event_type=`` keyword in *tree*.
 
@@ -213,13 +365,7 @@ def _event_type_keyword_values(
         AssertionError: on a value the scan cannot resolve and that is not a
             known pass-through (:data:`_PASS_THROUGH_EVENT_TYPES`).
     """
-    classes = [n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)]
-    owner_of = {
-        id(node): cls for cls in classes for node in ast.walk(cls)
-    }  # innermost class wins: ast.walk visits outer classes first
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
-            continue
+    for node in _calls_on_lines_with(path, tree, "event_type="):
         for kw in node.keywords:
             if kw.arg != "event_type":
                 continue
@@ -233,11 +379,9 @@ def _event_type_keyword_values(
                 and isinstance(expr.value, ast.Name)
                 and expr.value.id == "self"
                 and expr.attr.lstrip("_").isupper()
-                and id(node) in owner_of
+                and (owner := _enclosing_class(tree, node)) is not None
             ):
-                yield from _class_attribute_values(
-                    owner_of[id(node)], expr.attr, module
-                )
+                yield from _class_attribute_values(owner, expr.attr, module)
                 continue
             source = ast.unparse(expr)
             assert source in _PASS_THROUGH_EVENT_TYPES, (
@@ -248,7 +392,7 @@ def _event_type_keyword_values(
 
 
 def _event_type_positional_values(
-    tree: ast.AST, module: ModuleType
+    path: Any, tree: ast.AST, module: ModuleType
 ) -> Iterator[str]:
     """Each ``*EVENT_TYPE`` constant passed as a positional call argument.
 
@@ -257,9 +401,7 @@ def _event_type_positional_values(
     here.  A constant only *compared* against an entry's ``event_type`` — a
     replay slot's condition — is never a call argument, so it is not counted.
     """
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
-            continue
+    for node in _calls_on_lines_with(path, tree, "EVENT_TYPE"):
         for arg in node.args:
             if isinstance(arg, ast.Name) and arg.id.endswith("EVENT_TYPE"):
                 value = _constant_value(arg, module)
@@ -267,20 +409,30 @@ def _event_type_positional_values(
                     yield value
 
 
+@_corpus.gc_paused()
 def explicit_event_types() -> set[str]:
     """Event types a ``vultron.core`` node passes to a commit of its own."""
     found: set[str] = set()
     for path, tree in _corpus.files_mentioning("EVENT_TYPE", under=_CORE_ROOT):
         module = importlib.import_module(_module_name(path))
-        found.update(_event_type_positional_values(tree, module))
+        found.update(_event_type_positional_values(path, tree, module))
     for path, tree in _corpus.files_mentioning(
         "event_type=", under=_CORE_ROOT
     ):
         module = importlib.import_module(_module_name(path))
-        found.update(_event_type_keyword_values(tree, module))
+        found.update(_event_type_keyword_values(path, tree, module))
     return found
 
 
+@functools.cache
+def _committed_event_types() -> frozenset[str]:
+    return frozenset(received_commit_semantics() | explicit_event_types())
+
+
 def committed_event_types() -> set[str]:
-    """Every ``event_type`` the code base can commit to a case ledger."""
-    return received_commit_semantics() | explicit_event_types()
+    """Every ``event_type`` the code base can commit to a case ledger.
+
+    Derived once per process: the scan reads only import-time state, and the
+    ratchets that ask for it each stay inside their budget (TB-13).
+    """
+    return set(_committed_event_types())

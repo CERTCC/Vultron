@@ -30,6 +30,7 @@ from vultron.core.behaviors.case.nodes.participant.status import (
 )
 from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -187,7 +188,7 @@ class CreateParticipantNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class AttachParticipantToCaseNode(DataLayerActionWithPorts):
+class AttachParticipantToCaseNode(DataLayerActionWithPorts, StateWriteCapable):
     """Attach the participant to case surfaces and persist the participant row."""
 
     def __init__(
@@ -265,7 +266,9 @@ class AttachParticipantToCaseNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class RecordParticipantAddedEventNode(DataLayerActionWithPorts):
+class RecordParticipantAddedEventNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
     """Record participant_added event and persist case updates."""
 
     def __init__(
@@ -398,7 +401,9 @@ class CaseHasNoActiveEmbargoNode(DataLayerActionWithPorts):
         )
 
 
-class SeedParticipantAsSignatoryNode(DataLayerActionWithPorts):
+class SeedParticipantAsSignatoryNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
     """Seed the new participant as SIGNATORY when an embargo is active."""
 
     def __init__(

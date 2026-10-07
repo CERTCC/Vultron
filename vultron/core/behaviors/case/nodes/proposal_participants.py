@@ -40,6 +40,7 @@ from vultron.core.behaviors.case.nodes.participant.status import (
     CreateParticipantStatusNode,
 )
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
@@ -47,7 +48,7 @@ from vultron.enums.roles import CVDRole
 logger = logging.getLogger(__name__)
 
 
-class AddCaseActorParticipantNode(DataLayerActionWithPorts):
+class AddCaseActorParticipantNode(DataLayerActionWithPorts, StateWriteCapable):
     """Register the CaseActor itself as COORDINATOR + CASE_MANAGER participant.
 
     Under ADR-0041 the CaseActor creates the VulnerabilityCase, so it must
@@ -188,7 +189,7 @@ class AddCaseActorParticipantNode(DataLayerActionWithPorts):
         return self._register_participant(case_id)
 
 
-class AddOwnerParticipantNode(DataLayerActionWithPorts):
+class AddOwnerParticipantNode(DataLayerActionWithPorts, StateWriteCapable):
     """Add the report receiver as CASE_OWNER participant at RM.RECEIVED.
 
     The actor that sent the proposal is the case owner (receiver of the

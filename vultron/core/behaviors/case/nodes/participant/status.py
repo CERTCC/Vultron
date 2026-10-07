@@ -40,6 +40,7 @@ from vultron.core.behaviors.narrative_log import (
     log_cs_transition,
     log_rm_transition,
 )
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
@@ -95,7 +96,7 @@ class _EffectiveStates(NamedTuple):
 
 
 class CreateParticipantStatusNode(
-    CaseIdInputPortMixin, DataLayerActionWithPorts
+    CaseIdInputPortMixin, DataLayerActionWithPorts, StateWriteCapable
 ):
     """Create a ParticipantStatus snapshot and append it to the participant."""
 

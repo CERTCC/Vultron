@@ -37,6 +37,7 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.behaviors.idempotency import SilentIdempotencyGuardMixin
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.status.nodes.cs_dimension_filter import (
     BB_CASE_STATUS_DIM_FILTER,
 )
@@ -109,7 +110,7 @@ class CheckCaseStatusIdempotencyNode(
         return Status.SUCCESS
 
 
-class AppendCaseStatusToCaseNode(DataLayerActionWithPorts):
+class AppendCaseStatusToCaseNode(DataLayerActionWithPorts, StateWriteCapable):
     """Append the resolved CaseStatus to ``case.case_statuses`` and persist.
 
     When ``BB_CASE_STATUS_DIM_FILTER`` carries a filtered status for this

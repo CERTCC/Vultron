@@ -35,6 +35,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.rm import RM
@@ -42,7 +43,9 @@ from vultron.core.states.rm import RM
 logger = logging.getLogger(__name__)
 
 
-class PersistInviteeParticipantNode(DataLayerActionWithPorts):
+class PersistInviteeParticipantNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
     """Persist the participant, attach to case, record events, save case."""
 
     def __init__(

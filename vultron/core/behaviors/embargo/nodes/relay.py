@@ -64,6 +64,7 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.behaviors.idempotency import SilentIdempotencyGuardMixin
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
 from vultron.core.models._helpers import parse_published
 from vultron.core.models.dimensions import EmDimension
@@ -264,7 +265,9 @@ class CollectEmbargoInviteRecipientsNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts, EmitCapable):
+class RelayEmbargoInviteToEachNode(
+    DataLayerActionWithPorts, EmitCapable, StateWriteCapable
+):
     """Emit, commit and record one relayed ``Invite(EmbargoEvent)`` per recipient.
 
     For each recipient the collect node named: build the Invite through the

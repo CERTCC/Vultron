@@ -31,6 +31,7 @@ from typing import Any
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
@@ -66,7 +67,7 @@ def _store_embedded_reports(case_obj, datalayer) -> None:
             datalayer.save(report_ref)
 
 
-class SeedAnnouncedCaseNode(DataLayerActionWithPorts):
+class SeedAnnouncedCaseNode(DataLayerActionWithPorts, StateWriteCapable):
     """Persist a received ``VulnerabilityCase`` announcement in the DataLayer.
 
     On first receipt the node saves ``case_obj`` and stores any embedded
