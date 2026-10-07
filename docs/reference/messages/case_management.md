@@ -213,7 +213,9 @@ print(json2md(reject_case_ownership_transfer()))
   See [§11.2 Invitation and Acceptance](../vultron-spec/interactions.md#112-invitation-and-acceptance-n).
 - **Triggering transition:** none — roster action.
 - **Wire activity:** `Invite(Actor, target=VulnerabilityCaseStub)`.
-  The `object` is the actor being invited, and the `target` is the case stub, of type `VulnerabilityCaseStub`, which names the case in its `caseId` ([CM-11-013](../specs/protocol.md#cm-11-013), [CM-17-010](../specs/protocol.md#cm-17-010)).
+  The `object` is the actor being invited, and the `target` is the case stub, of type `VulnerabilityCaseStub`.
+  The stub carries the case identifier in its `caseId` and a required `summary` field: the owner-chosen description the invitee reads before deciding whether to accept ([CM-11-013](../specs/protocol.md#cm-11-013), [CM-17-010](../specs/protocol.md#cm-17-010), [MV-10-001](../specs/protocol.md#mv-10-001)).
+  The factory raises `VultronActivityConstructionError` when `VulnerabilityCase.stub_summary` is not set, and the receiver refuses a stub with an absent or blank `summary`.
 - **Example artifact:** [invite_to_case.json](../examples/invite_to_case.json).
 
 ```python exec="true" idprefix=""

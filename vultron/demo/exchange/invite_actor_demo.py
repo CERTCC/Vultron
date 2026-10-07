@@ -50,6 +50,7 @@ from collections.abc import Callable, Sequence
 from vultron.core.states.rm import RM
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.runner import run_exchange_demos
+from vultron.demo.helpers.seeding import get_actor_by_id
 from vultron.demo.helpers.verification import _check_participant_rm_state_in
 from vultron.demo.helpers.workflow import setup_initialized_case
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
@@ -152,7 +153,7 @@ def demo_invite_actor_accept(
         invite = rm_invite_to_case_activity(
             coordinator,
             actor=invite_actor_id,
-            target=case.id_,
+            target=case,
             to=[coordinator.id_],
             attributed_to=vendor.id_,
             roles=[CVDRole.COORDINATOR],
@@ -244,6 +245,14 @@ def demo_invite_actor_reject(
     with demo_step(
         "Step 2: Vendor fires invite-actor-to-case trigger and delivers invite"
     ):
+        # Seed stub_summary on the CASE_MANAGER's DataLayer copy: the invite BT
+        # reads the case from the CASE_MANAGER's store and the BT-created case
+        # has none (CM-17-010, MV-10-001, #4165).
+        ActorSession(
+            client=client, actor=get_actor_by_id(client, invite_actor_id)
+        ).with_case(case).quiet().set_stub_summary(
+            "Vulnerability report — details shared after acceptance."
+        )
         # Fire the trigger so CreateInertInviteeParticipantNode records the inert
         # participant on the CASE_MANAGER side at invite-send time (ADR-0114,
         # CM-11-006).
@@ -257,7 +266,7 @@ def demo_invite_actor_reject(
         invite = rm_invite_to_case_activity(
             coordinator,
             actor=invite_actor_id,
-            target=case.id_,
+            target=case,
             to=[coordinator.id_],
             attributed_to=vendor.id_,
             roles=[CVDRole.COORDINATOR],

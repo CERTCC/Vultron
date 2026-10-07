@@ -40,6 +40,7 @@ def _build_active_embargo_case(
     case = VulnerabilityCase(
         name="Embargo regression case",
         attributed_to=owner_id,
+        stub_summary="Security issue — details shared after acceptance",
     )
     embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now_utc(45))
     proposal = em_propose_embargo_activity(

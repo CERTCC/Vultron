@@ -60,6 +60,7 @@ from vultron.core.use_cases.triggers.request_bodies import (
     RejectCaseInviteRequest,
     RejectEmbargoRequest,
     ReportTriggerRequest,
+    SetStubSummaryRequest,
     SubmitReportRequest,
     SuggestActorToCaseRequest,
     SyncLogEntryRequest,
@@ -333,6 +334,17 @@ class SyncLogEntryTriggerRequest(
     """
 
 
+class SetStubSummaryTriggerRequest(
+    TriggerRequest[StatusResult], SetStubSummaryRequest
+):
+    """Trigger request for the demo-only ``set-stub-summary`` verb.
+
+    Seeds ``stub_summary`` on the requesting actor's local DataLayer copy of
+    the case so that a subsequent ``invite-actor-to-case`` trigger can build
+    the stub Invite (CM-17-010, MV-10-001, #4165).
+    """
+
+
 class OfferCaseParticipantRoleTriggerRequest(
     TriggerRequest[RoleOfferResult], OfferCaseParticipantRoleRequest
 ):
@@ -390,6 +402,7 @@ __all__ = [
     "RejectEmbargoTriggerRequest",
     "RejectReportTriggerRequest",
     "ResultT_co",
+    "SetStubSummaryTriggerRequest",
     "SubmitReportTriggerRequest",
     "SuggestActorToCaseTriggerRequest",
     "SyncLogEntryTriggerRequest",
