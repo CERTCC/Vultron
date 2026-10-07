@@ -27,6 +27,17 @@ intake and before the caller's ``precondition_guards``.
 A failed sender guard ends the tree with ``REFUSED`` and nothing is written
 or sent (HP-01-006, ADR-0115).
 
+The factory is also the one place a received tree acquires the CASE_MANAGER
+gate (BT-17-008): it wraps ``manager_effects`` in
+:func:`create_case_manager_gated_tree` after ``replica_effects``, and it
+refuses an :class:`~vultron.core.behaviors.emit_capable.EmitCapable` node in
+``replica_effects``, outside any gate, unless the tree names a registered
+:class:`~vultron.core.behaviors.replica_emit_exemptions.ReplicaEmitExemption`
+that covers it.
+``test/architecture/test_received_tree_case_manager_gate.py`` ratchets the
+received trees that still call the gate themselves or still pass the
+unchecked legacy ``effect_nodes``.
+
 :func:`create_guarded_commit_case_ledger_entry_tree` is the commit stage.  It
 is called here and nowhere else: a tree factory that calls it directly forks
 the chain (CLP-09-001) and is a CLP-10-006 ordering violation caught by
@@ -48,8 +59,15 @@ from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
 )
 from vultron.core.behaviors.case.nodes.role_gates import (
+    CaseManagerGate,
     create_case_manager_gated_tree,
 )
+from vultron.core.behaviors.emit_capable import EmitCapable
+from vultron.core.behaviors.replica_emit_exemptions import (
+    REPLICA_EMIT_EXEMPTIONS,
+    ReplicaEmitExemption,
+)
+from vultron.errors import VultronWiringError
 
 logger = logging.getLogger(__name__)
 
@@ -79,21 +97,111 @@ def create_guarded_commit_case_ledger_entry_tree(
     )
 
 
+def ungated_emitters(
+    roots: list[py_trees.behaviour.Behaviour],
+) -> list[py_trees.behaviour.Behaviour]:
+    """Every :class:`EmitCapable` node in *roots* outside a CASE_MANAGER gate.
+
+    The walk does not descend into a :class:`CaseManagerGate`: whatever runs
+    there runs only at the CASE_MANAGER (BT-17-001).  Any other composite,
+    including the participant-replica gate, is walked.
+    """
+    found: list[py_trees.behaviour.Behaviour] = []
+    for root in roots:
+        if isinstance(root, CaseManagerGate):
+            continue
+        if isinstance(root, EmitCapable):
+            found.append(root)
+        found.extend(ungated_emitters(list(root.children)))
+    return found
+
+
+def _check_replica_effects(
+    name: str,
+    replica_effects: list[py_trees.behaviour.Behaviour],
+    exemption: ReplicaEmitExemption | None,
+) -> None:
+    """Refuse an ungated emit the tree's named exemption does not cover.
+
+    Raises:
+        VultronWiringError: *exemption* is not registered, covers none of the
+            ungated emitters (a stale exemption), or an ungated emitter in
+            *replica_effects* is not covered (BT-17-008).
+    """
+    where = f"create_receive_activity_tree({name})"
+    emitted = {type(n).__name__ for n in ungated_emitters(replica_effects)}
+    if exemption is None:
+        covered: frozenset[str] = frozenset()
+    elif REPLICA_EMIT_EXEMPTIONS.get(exemption.name) != exemption:
+        raise VultronWiringError(
+            f"{where}: replica emit exemption {exemption.name!r} is not"
+            " registered in REPLICA_EMIT_EXEMPTIONS (BT-17-008)"
+        )
+    elif not emitted & exemption.covers:
+        raise VultronWiringError(
+            f"{where}: replica emit exemption {exemption.name!r} covers"
+            " none of the tree's ungated emitters; drop it (BT-17-008)"
+        )
+    else:
+        covered = exemption.covers
+    if uncovered := sorted(emitted - covered):
+        raise VultronWiringError(
+            f"{where}: emit-capable node(s) {uncovered} in replica_effects"
+            " would run on every replica; pass them as manager_effects so"
+            " the factory gates them on the CASE_MANAGER, or name a"
+            " ReplicaEmitExemption that covers them (BT-17-008)"
+        )
+
+
+def _manager_stage(
+    name: str,
+    manager_effects: list[py_trees.behaviour.Behaviour],
+    manager_case_id: str | None,
+    manager_gate_name: str | None,
+    manager_case_may_be_absent: bool,
+) -> py_trees.composites.Selector:
+    """Wrap *manager_effects* in the CASE_MANAGER gate.
+
+    Raises:
+        VultronWiringError: *manager_case_id* is ``None`` — there is no case
+            whose CASE_MANAGER could gate the effects.
+    """
+    if manager_case_id is None:
+        raise VultronWiringError(
+            f"create_receive_activity_tree({name}): manager_effects need"
+            " manager_case_id, the case whose CASE_MANAGER gates them"
+            " (BT-17-008)"
+        )
+    return create_case_manager_gated_tree(
+        name=manager_gate_name or f"{name}IfCaseManager",
+        case_id=manager_case_id,
+        children=manager_effects,
+        case_may_be_absent=manager_case_may_be_absent,
+    )
+
+
 def create_receive_activity_tree(
     name: str,
     case_id: str | None,
     precondition_guards: list[py_trees.behaviour.Behaviour],
-    effect_nodes: list[py_trees.behaviour.Behaviour],
+    effect_nodes: list[py_trees.behaviour.Behaviour] | None = None,
     case_may_be_absent: bool = False,
     *,
     sender_guard: "py_trees.behaviour.Behaviour | None" = None,
+    replica_effects: list[py_trees.behaviour.Behaviour] | None = None,
+    replica_emit_exemption: ReplicaEmitExemption | None = None,
+    manager_effects: list[py_trees.behaviour.Behaviour] | None = None,
+    manager_case_id: str | None = None,
+    manager_gate_name: str | None = None,
+    manager_case_may_be_absent: bool = False,
 ) -> py_trees.composites.Sequence:
     """Compose a receive-side BT with the four CLP-10-010 stages in order.
 
-    Structurally enforces the receive-side ordering (ADR-0111, ADR-0115)::
+    Structurally enforces the receive-side ordering (ADR-0111, ADR-0115,
+    BT-17-008)::
 
         Intake → [sender_guard] → [*precondition_guards] → GuardedCommit
-            → [*effect_nodes]
+            → [*replica_effects] → CaseManagerGate[*manager_effects]
 
     Intake is one shared :class:`IntakeReceivedActivityNode` that archives the
     received activity exactly as received, idempotently, and writes nothing
@@ -114,8 +222,23 @@ def create_receive_activity_tree(
     The guarded commit ledgers receipt of the triggering activity (which is on
     the blackboard before any node runs, placed there by
     ``BTBridge.execute_with_setup``).
-    Effect nodes perform state transitions, outbox enqueues, and participant
+    Effects perform state transitions, outbox enqueues, and participant
     mutations — all of which happen only after the receipt is recorded.
+
+    Effects come in two kinds (BT-17-008).
+    ``replica_effects`` run on every replica, ungated; an emit-capable node
+    among them is refused at construction unless ``replica_emit_exemption``
+    names a registered exemption.
+    ``manager_effects`` run only at the case's CASE_MANAGER: the factory wraps
+    them in :func:`create_case_manager_gated_tree` on ``manager_case_id``, a
+    separate argument from ``case_id`` so a tree that omits the commit
+    (``case_id=None``) can still gate its emits.
+    A received-tree module does not call ``create_case_manager_gated_tree``
+    itself.
+
+    ``effect_nodes`` is the pre-BT-17-008 form, kept while the received trees
+    migrate (#4300, #4301, #4302): it runs ungated where ``replica_effects``
+    would, unchecked.  It cannot be combined with the two new kinds.
 
     When ``case_id`` is ``None`` the commit step is omitted entirely,
     preserving behaviour for trees that receive no explicit case context;
@@ -131,15 +254,41 @@ def create_receive_activity_tree(
         name: Name for the root ``Sequence`` node.
         case_id: Case URI for the guarded-commit stage; ``None`` omits it.
         precondition_guards: Read-only guard nodes after the sender guard.
-        effect_nodes: State-mutation and emit nodes after the commit stage.
+        effect_nodes: Legacy ungated effects, unchecked; migrating away.
         case_may_be_absent: Pass ``True`` when the receiver may not hold the
             case yet (e.g. an invitee seeing the first Invite).
         sender_guard: Optional sender-entitlement condition node, placed
             immediately after intake (HP-01-006, ADR-0115).
+        replica_effects: Ungated effects, run on every replica after the
+            commit.
+        replica_emit_exemption: The registered decision that lets an
+            emit-capable node run in ``replica_effects``.
+        manager_effects: Effects run only at the CASE_MANAGER, gated by the
+            factory after ``replica_effects``.
+        manager_case_id: Case whose CASE_MANAGER gates ``manager_effects``.
+        manager_gate_name: Name of the gate Selector; defaults to
+            ``{name}IfCaseManager``.
+        manager_case_may_be_absent: Passed to the gate; see
+            :class:`CheckIsCaseManagerNode`.
+
+    Raises:
+        VultronWiringError: ``effect_nodes`` is mixed with the new effect
+            kinds, ``manager_effects`` has no ``manager_case_id``, an
+            exemption is unregistered, or an emit-capable node sits in
+            ``replica_effects`` without one (BT-17-008).
 
     Per ``specs/case-ledger-processing.yaml`` CLP-10-006, CLP-10-010,
-    CLP-10-017.
+    CLP-10-017 and ``specs/behavior-tree-integration.yaml`` BT-17-008.
     """
+    replica = replica_effects or []
+    manager = manager_effects or []
+    if effect_nodes and (replica or manager):
+        raise VultronWiringError(
+            f"create_receive_activity_tree({name}): effect_nodes cannot be"
+            " combined with replica_effects or manager_effects (BT-17-008)"
+        )
+    _check_replica_effects(name, replica, replica_emit_exemption)
+
     children: list[py_trees.behaviour.Behaviour] = [
         IntakeReceivedActivityNode()
     ]
@@ -158,7 +307,18 @@ def create_receive_activity_tree(
             " — commit step omitted",
             name,
         )
-    children.extend(effect_nodes)
+    children.extend(effect_nodes or [])
+    children.extend(replica)
+    if manager:
+        children.append(
+            _manager_stage(
+                name,
+                manager,
+                manager_case_id,
+                manager_gate_name,
+                manager_case_may_be_absent,
+            )
+        )
     return py_trees.composites.Sequence(
         name=name,
         memory=False,

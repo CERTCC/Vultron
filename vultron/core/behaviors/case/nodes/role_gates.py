@@ -35,10 +35,26 @@ from vultron.core.behaviors.case.nodes.conditions import (
 from vultron.core.behaviors.sender_entitlement import SenderIsCaseManagerNode
 
 __all__ = [
+    "CaseManagerGate",
     "create_case_manager_gated_tree",
     "create_role_scoped_sender_guard",
     "create_participant_replica_gated_tree",
 ]
+
+
+class CaseManagerGate(py_trees.composites.Selector):
+    """The Selector :func:`create_case_manager_gated_tree` returns.
+
+    A plain ``Selector`` in behaviour; the subclass only names the shape, so
+    ``create_receive_activity_tree`` can tell an emit inside the gate from one
+    outside it without matching child names (BT-17-008).
+    The gated work is :attr:`gated_branch`; the first child is the skip arm.
+    """
+
+    @property
+    def gated_branch(self) -> py_trees.behaviour.Behaviour:
+        """The child that runs only at the CASE_MANAGER."""
+        return self.children[1]
 
 
 def create_role_scoped_sender_guard(
@@ -110,7 +126,7 @@ def create_case_manager_gated_tree(
     children: list[py_trees.behaviour.Behaviour],
     body_name: str | None = None,
     case_may_be_absent: bool = False,
-) -> py_trees.composites.Selector:
+) -> CaseManagerGate:
     """Run *children* only when the executing actor holds ``CVDRole.CASE_MANAGER``.
 
     Reimplementing this boilerplate is forbidden (BTND-07-005) for a concrete
@@ -151,11 +167,11 @@ def create_case_manager_gated_tree(
             :class:`CheckIsCaseManagerNode`.
 
     Returns:
-        The gated root Selector.
+        The gated root :class:`CaseManagerGate` Selector.
     """
     gated = _wrap_children(name, children, body_name)
 
-    return py_trees.composites.Selector(
+    return CaseManagerGate(
         name=name,
         memory=False,
         children=[
