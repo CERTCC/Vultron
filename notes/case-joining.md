@@ -261,6 +261,11 @@ message is designed: we accept offers and invitations, never bare objects.
   carries the participant's own position, at or beyond the Invite's. Pinning
   the reply to the Invite's position would make every reply on a busy case
   stale.
+- **Only a joined participant may judge the case.** A reply to the full-case
+  Invite from a participant whose record is not `joined` (an inert
+  participant) is refused with a reported reason and writes no ledger entry
+  (CM-11-012); the check keys on the same `joined` fact as
+  `is_active_participant()`, not on embargo consent.
 - **A ledger position travels in AS2 `content`, as the `LedgerPosition`
   model's own JSON dump.** The full-case Invite and each reply carry
   `{"logIndex":3,"entryHash":"..."}` (VAM-04-011..014); `target` stays the

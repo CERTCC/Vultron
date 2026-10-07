@@ -108,8 +108,9 @@ class CheckFullCaseReplyNode(DataLayerCondition):
 
     - the Invite it answers is not one this CASE_MANAGER issued, or carries
       no ledger position;
-    - its sender is not the actor the Invite asked, or holds no participant
-      record (CM-11-001);
+    - its sender is not the actor the Invite asked, holds no participant
+      record (CM-11-001), or has not joined the case (an inert participant
+      may answer only the Invites addressed to it before it joins);
     - its ledger position is behind the Invite's floor, or names an
       entry the CASE_MANAGER's ledger does not hold at that index.
 
@@ -175,6 +176,11 @@ class CheckFullCaseReplyNode(DataLayerCondition):
             return self._refuse(
                 f"'{self.replier_id}' is not a participant of case"
                 f" '{self.case_id}'"
+            )
+        if not participant.joined:
+            return self._refuse(
+                f"'{self.replier_id}' has not joined case '{self.case_id}';"
+                " only a joined participant judges the case (CM-11-010)"
             )
         reason = ledger_position_refusal(
             self.case_id,

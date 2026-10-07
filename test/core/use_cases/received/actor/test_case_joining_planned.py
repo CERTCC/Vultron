@@ -122,6 +122,12 @@ class _JoiningCase:
         assert isinstance(participant, CaseParticipant)
         return participant
 
+    def join(self) -> None:
+        """Mark the invitee joined, as accepting the stub Invite does (CM-11-006)."""
+        participant = self.participant()
+        participant.joined = True
+        self.dl.save(participant)
+
     def route(self, activity: as_Activity) -> HandlerResult:
         """Dispatch *activity* to the CASE_MANAGER as the inbox would."""
         return route_received(
@@ -426,9 +432,19 @@ def _position(log_index: int, entry_hash: str) -> LedgerPosition:
 
 
 def _full_case_invite_at(
-    joining: _JoiningCase, *, log_index: int, entry_hash: str
+    joining: _JoiningCase,
+    *,
+    log_index: int,
+    entry_hash: str,
+    joined: bool = True,
 ) -> as_Invite:
-    """Store a full-case Invite whose ledger-position floor is the given entry."""
+    """Store a full-case Invite whose ledger-position floor is the given entry.
+
+    The CASE_MANAGER sends the Invite only after the invitee joined, so the
+    invitee is marked joined unless *joined* is False (CM-11-010).
+    """
+    if joined:
+        joining.join()
     invite = rm_invite_to_full_case_activity(
         as_Organization(id_=joining.invitee_id),
         joining.case.id_,

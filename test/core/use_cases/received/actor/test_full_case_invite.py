@@ -224,6 +224,33 @@ def test_reply_from_an_actor_the_invite_did_not_ask_is_refused(
 
 
 @pytest.mark.spec("CM-11-012")
+@pytest.mark.parametrize("kind", ["accept", "tentative_reject", "reject"])
+def test_a_reply_from_a_participant_that_has_not_joined_is_refused(
+    joining_case,  # noqa: F811
+    kind: str,
+) -> None:
+    """Only a joined participant judges the case; the refusal writes nothing."""
+    tail = _ledger_tail(joining_case)[-1]
+    invite = _full_case_invite_at(
+        joining_case,
+        log_index=tail.log_index,
+        entry_hash=tail.entry_hash,
+        joined=False,
+    )
+    assert joining_case.participant().joined is False
+    entries_before = len(_ledger_tail(joining_case))
+
+    result = joining_case.route(
+        _full_case_reply_at(kind, joining_case, invite, position=tail)
+    )
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert "has not joined" in (result.reason or "")
+    assert _rm_history(joining_case)[-1] == RM.RECEIVED
+    assert len(_ledger_tail(joining_case)) == entries_before
+
+
+@pytest.mark.spec("CM-11-012")
 def test_a_refused_reply_writes_no_ledger_entry(joining_case) -> None:  # noqa: F811
     entries = _ledger_tail(joining_case)
     invite = _full_case_invite_at(
