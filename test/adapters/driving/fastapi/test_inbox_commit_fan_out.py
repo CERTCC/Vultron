@@ -72,7 +72,10 @@ def _case_manager_store() -> SqliteDataLayer:
     """The CASE_MANAGER's store: a case with an owner and a finder seated."""
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_MANAGER_ID)
     case = as_VulnerabilityCase(
-        id_=_CASE_ID, name="FanOutWiring", attributed_to=_OWNER_ID
+        id_=_CASE_ID,
+        name="FanOutWiring",
+        attributed_to=_OWNER_ID,
+        stub_summary="Security issue — details shared after acceptance",
     )
     _seat(dl, case, _MANAGER_ID, "case-manager", [CVDRole.CASE_MANAGER])
     _seat(dl, case, _OWNER_ID, "owner", [CVDRole.CASE_OWNER])
@@ -118,6 +121,7 @@ def test_owner_offer_actor_dispatched_by_inbox_fans_out_every_commit(
         target=as_VulnerabilityCase(id_=_CASE_ID, name="FanOutWiring"),
         actor=_OWNER_ID,
         to=[_MANAGER_ID],
+        suggested_roles=["vendor"],
     )
     event = extract_event(activity).model_copy(
         update={"receiving_actor_id": _MANAGER_ID}

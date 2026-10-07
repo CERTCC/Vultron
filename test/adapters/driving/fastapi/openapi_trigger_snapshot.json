@@ -748,6 +748,25 @@
         "title": "RoleOfferResult",
         "type": "object"
       },
+      "SetStubSummaryRequest": {
+        "description": "Request body for the demo set-stub-summary trigger.\n\nSeeds ``stub_summary`` on the actor's local DataLayer copy of the case so\nthat a subsequent ``invite-actor-to-case`` trigger can build the stub\nInvite (CM-17-010, MV-10-001, #4165).\n\nTRIG-03-002: Unknown fields are silently ignored.",
+        "properties": {
+          "case_id": {
+            "title": "Case Id",
+            "type": "string"
+          },
+          "stub_summary": {
+            "title": "Stub Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "case_id",
+          "stub_summary"
+        ],
+        "title": "SetStubSummaryRequest",
+        "type": "object"
+      },
       "StatusResult": {
         "additionalProperties": false,
         "description": "``add-participant-status`` and the on-behalf variant.\n\nCarries the ids of the ``Add(ParticipantStatus)`` activity and of the\nstored status record; neither the activity body nor an emitting actor is\npart of this verb's response.",
@@ -1377,6 +1396,59 @@
           }
         },
         "summary": "[Demo] Report that the vulnerability has been publicly disclosed.",
+        "tags": [
+          "Demo Triggers"
+        ]
+      }
+    },
+    "/api/v2/actors/{actor_id}/demo/set-stub-summary": {
+      "post": {
+        "description": "Demo-only scaffold. Seeds ``stub_summary`` on the actor's local DataLayer copy of the case so that a subsequent ``invite-actor-to-case`` trigger can build the stub Invite (CM-17-010, MV-10-001, #4165). Only available in ``RunMode.PROTOTYPE``.",
+        "operationId": "actors_demo_set_stub_summary",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "actor_id",
+            "required": true,
+            "schema": {
+              "title": "Actor Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetStubSummaryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "[Demo] Seed stub_summary on the actor's DataLayer copy of a case.",
         "tags": [
           "Demo Triggers"
         ]

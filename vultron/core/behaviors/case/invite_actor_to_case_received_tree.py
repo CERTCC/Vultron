@@ -22,11 +22,15 @@ import logging
 
 import py_trees
 
+from vultron.core.behaviors.case.nodes.invite_inert_participant import (
+    ApplyInviteRejectToParticipantNode,
+)
 from vultron.core.behaviors.case.nodes.invite_received import (
     LogInviteReceivedNode,
     RecordInviteTrustAnchorNode,
 )
 from vultron.core.behaviors.case.nodes.role_gates import (
+    create_case_manager_gated_tree,
     create_participant_replica_gated_tree,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
@@ -38,25 +42,44 @@ logger = logging.getLogger(__name__)
 
 def create_reject_invite_actor_to_case_received_tree(
     case_id: str,
+    invitee_id: str | None = None,
 ) -> py_trees.composites.Sequence:
     """Received-side BT for ``Reject(Invite(actor, case))`` on the CaseActor inbox.
 
     Commits the canonical ``CaseLedgerEntry`` for the invite rejection when the
-    receiving actor holds ``CVDRole.CASE_MANAGER`` (CLP-10-006).  No additional
-    effect nodes are required: the rejection is self-contained — the CaseActor
-    simply records that the invitee declined.
+    receiving actor holds ``CVDRole.CASE_MANAGER`` (CLP-10-006).  When
+    ``invitee_id`` is supplied, also applies the reject effects to the inert
+    participant record: RM ``CLOSED``, VF ``Vf``, PEC ``DECLINED`` (when an
+    embargo is in force) — AC-3 (CM-11-007, CM-11-009, ADR-0114).
 
     Args:
         case_id: ID of the VulnerabilityCase referenced by the invite.
+        invitee_id: Actor ID of the rejecting invitee.  Required for AC-3
+            effects; omit only when the invitee cannot be resolved.
 
     Returns:
         Root ``RejectInviteActorToCaseReceivedBT`` Sequence node.
     """
+    effect_nodes: list[py_trees.behaviour.Behaviour] = []
+    if invitee_id:
+        effect_nodes.append(
+            create_case_manager_gated_tree(
+                name="RejectInviteApplyEffects",
+                case_id=case_id,
+                children=[
+                    ApplyInviteRejectToParticipantNode(
+                        case_id=case_id,
+                        invitee_id=invitee_id,
+                    ),
+                ],
+            )
+        )
+
     return create_receive_activity_tree(
         name="RejectInviteActorToCaseReceivedBT",
         case_id=case_id if case_id else None,
         precondition_guards=[],
-        effect_nodes=[],
+        effect_nodes=effect_nodes,
     )
 
 

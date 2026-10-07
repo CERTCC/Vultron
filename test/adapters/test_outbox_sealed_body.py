@@ -50,7 +50,11 @@ def dl():
 
 
 def _invite():
-    case = as_VulnerabilityCase(name="CVE-2026-0001", attributed_to=_ACTOR)
+    case = as_VulnerabilityCase(
+        name="CVE-2026-0001",
+        stub_summary="RCE in widget for stub test",
+        attributed_to=_ACTOR,
+    )
     return rm_invite_to_case_activity(
         invitee=_INVITEE, target=case, actor=_ACTOR, to=[_INVITEE]
     )

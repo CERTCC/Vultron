@@ -157,6 +157,8 @@ class TestFcvRejectInviteChainSkipsDependents:
                 invite_chain, "find_case_invite_for_actor", **invite_lookup
             ) as find_invite,
             patch.object(demo, "get_actor_by_id", return_value=vendor),
+            # set_stub_summary is seeding infrastructure not under test here.
+            patch.object(ActorSession, "set_stub_summary"),
             patch.object(demo, "wait_for_event_type_in_ledger"),
             patch.object(
                 demo, "resolve_case_actor_store_id", return_value="urn:t:ca"

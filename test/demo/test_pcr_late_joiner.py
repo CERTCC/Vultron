@@ -439,10 +439,40 @@ def _run_late_joiner_sequence(
     # can resolve the invitee from owner's DataLayer (ADR-0081).
     _register_peer(owner_tc, owner_slug, lj_actor_id, "LateJoiner")
 
-    # Step 3: owner triggers invite-actor-to-case
+    # Resolve the CaseActor before the invite trigger so we can set
+    # stub_summary on the case in the CASE_MANAGER's store.  The BT-created
+    # case has no stub_summary; EmitInviteActorToCaseNode requires it
+    # (CM-17-010, MV-10-001, #4165).
+    case_actor_id = _find_case_actor_id(
+        owner_iso.store_for(owner_actor_id), case_id
+    )
+    assert case_actor_id is not None, (
+        f"Could not find CaseActor for case '{case_id}' in owner's "
+        f"DataLayer.  CreateCaseActorNode may not have run during "
+        f"create_receive_report_case_tree."
+    )
+    ca_dl = owner_iso.store_for(case_actor_id)
+    _case_obj = ca_dl.read(case_id)
+    if _case_obj is not None:
+        ca_dl.save(
+            _case_obj.model_copy(
+                update={
+                    "stub_summary": (
+                        "PCR-07-007 test case"
+                        " — details shared after acceptance."
+                    )
+                }
+            )
+        )
+
+    # Step 3: owner triggers invite-actor-to-case (CM-11-019: roles required)
     resp = owner_tc.post(
         f"/api/v2/actors/{owner_slug}/trigger/invite-actor-to-case",
-        json={"case_id": case_id, "invitee_id": lj_actor_id},
+        json={
+            "case_id": case_id,
+            "invitee_id": lj_actor_id,
+            "roles": ["coordinator"],
+        },
     )
     assert resp.status_code == 202, (
         f"invite-actor-to-case trigger failed ({resp.status_code}): "
@@ -453,14 +483,6 @@ def _run_late_joiner_sequence(
     # CaseActor's outbox (not the owner's), so drain it explicitly here.
     # The background task triggered by the invite endpoint only drains the
     # owner's outbox; the CaseActor's outbox must be processed separately.
-    case_actor_id = _find_case_actor_id(
-        owner_iso.store_for(owner_actor_id), case_id
-    )
-    assert case_actor_id is not None, (
-        f"Could not find CaseActor for case '{case_id}' in owner's "
-        f"DataLayer.  CreateCaseActorNode may not have run during "
-        f"create_receive_report_case_tree."
-    )
     _drain_case_actor_outbox(owner_iso, case_actor_id)
 
     # Step 4: retrieve invite_id from late-joiner's DataLayer

@@ -258,13 +258,6 @@ def _case_with_invitee_record(
     return case, record
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "CM-11-006: sending a stub Invite creates the invitee's inert"
-        " participant at RM RECEIVED. Tracked by #4048."
-    ),
-)
 @pytest.mark.spec("CM-11-006")
 def test_stub_invite_creates_inert_invitee_participant(actor_store) -> None:
     """The CASE_MANAGER records the invitee the moment it invites it.
@@ -278,7 +271,10 @@ def test_stub_invite_creates_inert_invitee_participant(actor_store) -> None:
     invitee, _ = actor_store("Vendor")
     dl.create(invitee)
     case = VulnerabilityCase(
-        attributed_to=manager.id_, name="Joining", content="Content"
+        attributed_to=manager.id_,
+        name="Joining",
+        content="Content",
+        stub_summary="Joining summary",
     )
     embargo = as_EmbargoEvent(
         id_=f"{case.id_}/embargo/e1",
@@ -475,7 +471,10 @@ def test_stub_invite_has_deadline_and_unanswered_invitee_never_blocks_closure(
     invitee, _ = actor_store("Vendor")
     dl.create(invitee)
     case = VulnerabilityCase(
-        attributed_to=manager.id_, name="Unanswered", content="Content"
+        attributed_to=manager.id_,
+        name="Unanswered",
+        content="Content",
+        stub_summary="Unanswered summary",
     )
     manager_record = seed_store_owner_as_case_manager(dl, case)
     dl.create(case)
@@ -787,14 +786,6 @@ def test_stub_invite_is_addressed_to_the_inert_invitee(actor_store) -> None:
     assert invitee.id_ in recipients
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "PRM-06-001: the participant's birth — one status at RM RECEIVED —"
-        " is the only write about it the CASE_MANAGER makes. "
-        "Tracked by #4048."
-    ),
-)
 @pytest.mark.spec("PRM-06-001")
 def test_stub_invite_writes_only_the_invitee_birth_status(
     actor_store,
@@ -809,7 +800,10 @@ def test_stub_invite_writes_only_the_invitee_birth_status(
     invitee, _ = actor_store("Vendor")
     dl.create(invitee)
     case = VulnerabilityCase(
-        attributed_to=manager.id_, name="Birth", content="Content"
+        attributed_to=manager.id_,
+        name="Birth",
+        content="Content",
+        stub_summary="Birth summary",
     )
     seed_store_owner_as_case_manager(dl, case)
     dl.create(case)

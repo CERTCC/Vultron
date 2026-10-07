@@ -14,16 +14,18 @@
 """Shared helpers for demo test fixtures."""
 
 import contextlib
+import importlib
 from collections.abc import Iterator, Mapping, Sequence
 from types import ModuleType, SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock, patch
 
 import httpx2 as httpx
+from _pytest.monkeypatch import MonkeyPatch
 from fastapi.testclient import TestClient
 
 from vultron.demo.actor_session import ActorSession
-from vultron.demo.helpers import invite_chain
+from vultron.demo.helpers import invite_chain, runner
 from vultron.demo.utils import DataLayerClient
 
 # Names the invite chain (``vultron.demo.helpers.invite_chain``) calls itself.
@@ -94,11 +96,19 @@ def patched_report_submission(
         stack.enter_context(
             patch.object(demo, seed_fn, return_value=tuple(seeded_actors))
         )
+        # Append a placeholder for the case-actor lookup added in #4165: the
+        # CASE_MANAGER actor looked up to call set-stub-summary before each
+        # invite in _phase_report_submission.
         stack.enter_context(
             patch.object(
-                demo, "get_actor_by_id", side_effect=list(actor_lookups)
+                demo,
+                "get_actor_by_id",
+                side_effect=[*list(actor_lookups), MagicMock()],
             )
         )
+        # set_stub_summary is seeding infrastructure not under test here;
+        # stub it so tests do not fail on Pydantic validation of a MagicMock.
+        stack.enter_context(patch.object(ActorSession, "set_stub_summary"))
         stack.enter_context(
             patch.object(
                 demo,
@@ -202,6 +212,42 @@ def make_client(base: str, actor_id: str | None = None) -> DataLayerClient:
     replica's state.
     """
     return DataLayerClient(base_url=base, actor_id=actor_id)
+
+
+@contextlib.contextmanager
+def route_exchange_demo_at_testclient(
+    client: TestClient, demo: ModuleType, *also: ModuleType
+) -> Iterator[str]:
+    """Route an exchange demo's clients at the in-process *client*; yield the base.
+
+    Patches ``demo.BASE_URL`` and ``demo.DataLayerClient.call`` so requests go
+    through the TestClient.  The runner (``run_exchange_demos``) builds its own
+    ``DataLayerClient()`` at ``localhost:7999``, but the in-process node hosts
+    actors under ``http://testserver``, and ``ActorSession`` refuses a client
+    whose base URL is not the authority that hosts the actor (DEMOMA-26-002).
+    So the runner's client is also *built* at the test server's base.
+
+    *also* names further demo modules (e.g. ``initialize_case_demo``) whose
+    ``BASE_URL`` must point at the same server; each is patched like *demo* and
+    reloaded on exit.
+
+    Every patch is undone on exit and *demo* and each of *also* is reloaded, so
+    nothing leaks into later modules.
+    """
+    mp = MonkeyPatch()
+    base = str(client.base_url).rstrip("/") + "/api/v2"
+    try:
+        for module in (demo, *also):
+            mp.setattr(module, "BASE_URL", base, raising=False)
+        mp.setattr(
+            demo.DataLayerClient, "call", make_testclient_call(client, base)
+        )
+        mp.setattr(runner, "DataLayerClient", lambda: make_client(base))
+        yield base
+    finally:
+        mp.undo()
+        for module in (demo, *also):
+            importlib.reload(module)
 
 
 def seed_case_replica_for_actor(

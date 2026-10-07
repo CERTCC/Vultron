@@ -13,7 +13,11 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from vultron.core.models.use_case_result import ActivityResult, CaseResult
+from vultron.core.models.use_case_result import (
+    ActivityResult,
+    CaseResult,
+    StatusResult,
+)
 from vultron.core.use_cases.triggers.case import (
     SvcAddObjectToCaseUseCase,
     SvcAddReportToCaseUseCase,
@@ -21,6 +25,7 @@ from vultron.core.use_cases.triggers.case import (
     SvcDeferCaseUseCase,
     SvcEngageCaseUseCase,
     SvcLeaveCaseUseCase,
+    SvcSetStubSummaryUseCase,
 )
 from vultron.core.use_cases.triggers.requests import (
     AddObjectToCaseTriggerRequest,
@@ -29,6 +34,7 @@ from vultron.core.use_cases.triggers.requests import (
     DeferCaseTriggerRequest,
     EngageCaseTriggerRequest,
     LeaveCaseTriggerRequest,
+    SetStubSummaryTriggerRequest,
 )
 from vultron.trigger_registry._entry import (
     GENERAL_TRIGGER_SPECS,
@@ -100,6 +106,23 @@ ENTRIES: list[TriggerEntry] = [
             "TRIG-09-001",
             "TRIG-09-004",
             "DEMOMA-07-001",
+        ),
+    ),
+    # The demo ``set-stub-summary`` verb writes stub_summary on the actor's
+    # local DataLayer copy of the case so a subsequent invite-actor-to-case
+    # trigger can build the stub Invite (CM-17-010, MV-10-001, #4165).
+    TriggerEntry(
+        verb="set-stub-summary",
+        request_model=SetStubSummaryTriggerRequest,
+        use_case_class=SvcSetStubSummaryUseCase,
+        result_type=StatusResult,
+        exposure=TriggerExposure.DEMO_ONLY,
+        bt_backed=True,
+        spec_ids=(
+            "CM-17-010",
+            "MV-10-001",
+            "TRIG-09-001",
+            "TRIG-09-004",
         ),
     ),
 ]

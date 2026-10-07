@@ -29,6 +29,7 @@ factory.
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -56,6 +57,7 @@ from test.ci.invariants.common import (
     check_per_actor_replica_rm_closed_termination,
     check_rm_closed_termination,
     check_unique_payload_snapshot_ids,
+    load_actor_names,
     load_narrative_edges,
 )
 
@@ -419,11 +421,16 @@ def make_universal_invariant_tests(  # noqa: C901  # C901 counts every nested te
             machine-readable ``causal_edges:`` list, then verifies that for each
             observable edge (antecedent, consequent) there exists at least one
             antecedent entry that precedes at least one consequent entry in the
-            authoritative log.
+            authoritative log, and that the consequent entries considered are
+            those whose recorded actor is the edge's ``consequent_actor``.
             """
             replicas = request.getfixturevalue(replicas_fixture)
             edges = load_narrative_edges(_narrative_path)
-            violations = check_causal_edges(replicas, edges)
+            violations = check_causal_edges(
+                replicas,
+                edges,
+                load_actor_names(Path(_narrative_path).stem),
+            )
             assert not violations, (
                 f"{len(violations)} causal-edge ordering violation(s):\n"
                 + "\n".join(violations)

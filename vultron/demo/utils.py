@@ -842,10 +842,8 @@ def _is_same_node(base_url: str, actor_id: str) -> bool:
     return (a.scheme, a.netloc) == (b.scheme, b.netloc)
 
 
-def seed_case_actor_for_report(
-    client: DataLayerClient, report_id: str
-) -> as_Actor:
-    """Provision the CaseActor that *report_id*'s CaseProposal is addressed to.
+def seed_case_actor(client: DataLayerClient) -> as_Actor:
+    """Provision the CaseActor this container's reports are proposed to.
 
     ``ProposeReportCaseToActorNode`` sends ``Create(CaseProposal)`` to a CaseActor
     whose URI it derives from the report, and delivery is an ordinary HTTP POST to
@@ -853,30 +851,22 @@ def seed_case_actor_for_report(
     store its URI names, so the CaseActor has to be a *hosted actor* before the
     proposal is delivered or the round-trip never starts.
 
+    The identity is stable: one CaseActor per container, whatever the report
+    (#1872, closed).  That is what lets a demo provision it *before* anything
+    else happens -- before the ``submit-report`` trigger runs, when no report id
+    exists yet -- instead of chasing a per-report id after the fact.  The
+    trigger's own outbox is then the sole delivery of the ``Offer``; the demo
+    never re-posts it.
+
     In the exchange demos one container plays both the participant node and the
     CaseActor service, so that container is the one that must host it.  Going
     through ``POST /actors/`` is what puts the record in the CaseActor's own
     store, since the route opens the store the id names (ADR-0073).
 
-    Spawning a CaseActor on demand for an unknown-in-advance case is a separate
-    protocol question (CP-08-003, #1872); this helper deliberately only does what
-    a demo can do — provision an actor whose id it can compute.
-
-    That is less than it sounds, and #1872 is why. In the reporter-client arm of
-    :func:`~vultron.demo.helpers.workflow.reporter_submits_report` the report id
-    is not knowable until the ``submit-report`` trigger returns, and that
-    trigger's own outbox drain has by then already delivered the ``Offer`` to the
-    receiver, whose ``ProposeReportCaseToActorNode`` derives this very id and
-    delivers a proposal to it — 404, because the provisioning below has not run
-    yet. A derived-but-unregistered identity cannot be provisioned in time by a
-    third party, because the sender computes it from data the receiver has not
-    seen. The fix is to stop deriving a per-case slug (#1872), not to provision
-    earlier.
-
     Returns:
         The created (or pre-existing) CaseActor as an ``as_Actor``.
     """
-    case_actor_id = case_actor_id_for_report(report_id)
+    case_actor_id = case_actor_id_for_report("")
 
     # Co-located only. ``POST /actors/`` recomputes the canonical URI from the
     # *serving* node's base URL (ADR-0073 — which is why only the short segment
@@ -887,7 +877,7 @@ def seed_case_actor_for_report(
     #
     # A container hosting its own CaseActor provisions it from its own seed
     # config (``docker/seed-configs/seed-case-actor.yaml``), which is exactly
-    # what a *stable* identity makes possible and a per-case one did not (#1872).
+    # what a stable identity makes possible.
     if not _is_same_node(client.base_url, case_actor_id):
         logger.info(
             "CaseActor %s is hosted elsewhere; leaving provisioning to that"
@@ -898,12 +888,28 @@ def seed_case_actor_for_report(
 
     actor = seed_actor(
         client=client,
-        name=f"CaseActor for report {report_id}",
+        name="CaseActor",
         actor_type="Service",
         actor_id=case_actor_id,
     )
-    logger.info("Provisioned CaseActor for report: %s", case_actor_id)
+    logger.info("Provisioned CaseActor: %s", case_actor_id)
     return actor
+
+
+def seed_case_actor_for_report(
+    client: DataLayerClient, report_id: str
+) -> as_Actor:
+    """Provision the CaseActor that *report_id*'s CaseProposal is addressed to.
+
+    Since the CaseActor identity became stable (#1872), *report_id* does not
+    change the answer; it is kept so call sites still read as "the CaseActor for
+    this report".  See :func:`seed_case_actor`, which this delegates to and which
+    needs no report id -- the form to use when provisioning before a report
+    exists, as :func:`~vultron.demo.helpers.workflow.reporter_submits_report`
+    does.
+    """
+    del report_id  # one CaseActor per container, not per report
+    return seed_case_actor(client)
 
 
 def check_server_availability(

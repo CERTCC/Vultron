@@ -114,15 +114,32 @@ def _project_case_to_stub(
     (with ``em_state``) so the invitee can give informed consent (CM-17-002).
     Falls back to a minimal stub when the case has no active embargo.
 
+    Refuses to build a stub when the case carries no ``stub_summary``
+    (CM-17-010, MV-10-001, AC-2 of #4165): the owner must choose a summary
+    before emitting a stub Invite so the invitee can evaluate the case.
+
     Args:
         case: A core or wire ``as_VulnerabilityCase`` to project.
         embargo_obj: The fetched ``EmbargoEvent`` (core or wire), or ``None``.
+
+    Raises:
+        VultronActivityConstructionError: When the case carries no
+            ``stub_summary``.  Set ``VulnerabilityCase.stub_summary`` before
+            emitting a stub Invite (CM-17-010).
     """
+    stub_summary = getattr(case, "stub_summary", None)
+    if stub_summary is None:
+        case_id_for_err = getattr(case, "id_", "<unknown>")
+        raise VultronActivityConstructionError(
+            f"_project_case_to_stub: case {case_id_for_err!r} has no "
+            "'stub_summary' — set VulnerabilityCase.stub_summary before "
+            "emitting a stub Invite (CM-17-010, MV-10-001)"
+        )
     case_id = case.id_
     try:
         current_status = case.current_status
     except (ValueError, AttributeError):
-        return as_VulnerabilityCaseStub(case_id=case_id)
+        return as_VulnerabilityCaseStub(case_id=case_id, summary=stub_summary)
     # Support both core CaseStatus (.em.state) and wire as_CaseStatus (.em_state)
     if hasattr(current_status, "em") and hasattr(current_status.em, "state"):
         em_state = current_status.em.state
@@ -130,10 +147,10 @@ def _project_case_to_stub(
         em_state = getattr(current_status, "em_state", None)
     active_embargo = getattr(case, "active_embargo", None)
     if em_state != EM.ACTIVE or active_embargo is None:
-        return as_VulnerabilityCaseStub(case_id=case_id)
+        return as_VulnerabilityCaseStub(case_id=case_id, summary=stub_summary)
     embargo_ref = _stub_embargo_ref(active_embargo, embargo_obj, case_id)
     if embargo_ref is None:
-        return as_VulnerabilityCaseStub(case_id=case_id)
+        return as_VulnerabilityCaseStub(case_id=case_id, summary=stub_summary)
     # ``context`` names the case this status belongs to.  It is required on the
     # core class (fail-fast, ARCH-10-001); the deleted wire class allowed it to be
     # absent because the wire branch was deliberately lenient (ARCH-12-002).
@@ -142,6 +159,7 @@ def _project_case_to_stub(
     )
     return as_VulnerabilityCaseStub(
         case_id=case_id,
+        summary=stub_summary,
         active_embargo=embargo_ref,
         case_status=wire_status,
     )

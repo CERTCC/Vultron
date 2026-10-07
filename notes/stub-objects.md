@@ -8,7 +8,7 @@ description: >
 related_specs:
   - specs/stub-objects.yaml
   - specs/message-validation.yaml
-  - specs/case-management.yaml (CM-11-013, CM-17-010)
+  - specs/case-management.yaml (CM-11-013, CM-17-010, MV-10-001)
 related_notes:
   - vultron/core/ports/AGENTS.md
   - notes/wire-core-boundary.md
@@ -106,7 +106,7 @@ by ADR-0090). It is not a general substitute for a full object.
 | Situation | Use |
 |---|---|
 | Normal protocol operation (Create, Offer, Invite, Announce) | Full inline typed object (AKM-03-001) |
-| Inviting a participant before embargo acceptance | `as_VulnerabilityCaseStub` (`id`, `type`, `caseId`, plus embargo terms when active; CM-17-010) |
+| Inviting a participant before embargo acceptance | `as_VulnerabilityCaseStub` (`id`, `type`, `caseId`, `summary`, plus embargo terms when active; CM-17-010, MV-10-001) |
 | Large object already known to recipient | Bare URI, or an AS2 `Link` |
 | Privacy-sensitive fields must be withheld | Omit the object; send a URI reference |
 
@@ -210,12 +210,19 @@ The formal stub object requirements are now specified in
 - Full case delivery precondition (MV-10-005)
 - Implied embargo consent when accepting a case invite (MV-10-006)
 
-**Implementation notes (2026-04-21)**:
+**Implementation notes (2026-04-21, updated 2026-10-05)**:
 
 - `as_VulnerabilityCaseStub` MUST override the inherited `published` and
   `updated` defaults from `as_Object`. Otherwise `model_dump(exclude_none=True)`
   leaks timestamps and violates the selective-disclosure rule of CM-17-010
-  (`id`, `type`, `caseId`, embargo terms when active, optional `summary`).
+  (`id`, `type`, `caseId`, `summary`, embargo terms when active).
+- `summary` is **required** on an emitted stub (CM-17-010, MV-10-001).  The
+  case owner sets `VulnerabilityCase.stub_summary` before emitting a stub
+  Invite; `_project_case_to_stub()` refuses with
+  `VultronActivityConstructionError` when `stub_summary` is absent.  On the
+  receive path, `as_VulnerabilityCaseStub._refuse_absent_summary` (a
+  `mode="before"` model validator) raises when the inbound dict has no
+  ``summary`` key.  Both enforcements were added by #4165.
 - The stub's `caseStatus` is built for the stub, not read from the case, so
   its PXA state is the class default. The stub serializes `caseStatus` with
   only its identity and `emState` (CM-17-010, CM-17-002); a `pxaState` on
