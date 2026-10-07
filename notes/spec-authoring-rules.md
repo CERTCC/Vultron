@@ -446,9 +446,13 @@ fixes what two implementations exchange, not how one implementation structures
 its endpoints or stores. A MUST about an internal endpoint is `project` however
 firm it reads; EP-02-004 (compare-and-set on the policy PUT) is the worked
 example. MS-12-006 scans the `statement` only, so a `verification:` that names a
-test file does not by itself make a spec `project`. The roughly ninety relabels
-to `protocol` made in #3944 are reverted (#3943); the `missing_story_reference`
-suppressions get their own down-only ceiling (MS-12-007).
+test file does not by itself make a spec `project`: MS-10-003 and MS-15-001
+oblige that path, and no protocol-tier variant of the verification convention
+is needed. The detector still scans `verification:` and the roughly ninety
+protocol-worded specs #3600 relabeled to `project` on that basis (#3943) have
+not yet returned to `protocol`; #4312 fixes both. Those that gain no user story
+carry `missing_story_reference`, which raises the MS-12-007 ceiling once, by the
+reverted count. #3601 and #2717 own the burn-down.
 
 Source: ISSUE-4195
 
