@@ -141,7 +141,7 @@ class TestEngageDeferCaseBTFailureReason:
     ):
         """EngageCaseBT WARNING includes a non-empty failure reason.
 
-        When CheckParticipantExists fails (no participant record),
+        When SenderIsActiveParticipantNode fails (no participant record),
         the warning must name the failing node, not end with a bare colon.
         """
         event = self._engage_event(actor_id, case_id)
@@ -176,7 +176,7 @@ class TestEngageDeferCaseBTFailureReason:
     ):
         """DeferCaseBT WARNING includes a non-empty failure reason.
 
-        When CheckParticipantExists fails (no participant record),
+        When SenderIsActiveParticipantNode fails (no participant record),
         the warning must name the failing node, not end with a bare colon.
         """
         event = self._defer_event(actor_id, case_id)

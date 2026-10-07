@@ -59,6 +59,9 @@ from vultron.core.behaviors.case.nodes.reference_list import (
     CaseReferenceEditPendingNode,
 )
 from vultron.core.behaviors.helpers import WIRING_UNAVAILABLE_MESSAGES
+from vultron.core.behaviors.report.nodes.conditions import (
+    CheckParticipantRMState,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
@@ -199,6 +202,28 @@ def reference_edit_verdict(
         refusal = not_case_manager_refusal(tree, dl, case_id)
         if refusal is not None:
             return refusal
+    return verdict
+
+
+def rm_declaration_verdict(
+    tree: py_trees.behaviour.Behaviour | _HasRoot,
+    verdict: HandlerResult,
+    label: str,
+) -> HandlerResult:
+    """Report a restated RM declaration as ``SKIPPED``, not ``APPLIED``.
+
+    The idempotent exit of
+    :func:`~vultron.core.behaviors.report.rm_declaration_tree.record_rm_declaration`
+    (``CheckParticipantRMState``) succeeds when the sender's declared state is
+    already recorded, so nothing changed locally: a correct no-op, not a
+    refusal or a fault (RSH-08-002, ADR-0095).
+    """
+    if verdict.disposition is HandlerDisposition.APPLIED and node_succeeded(
+        tree, CheckParticipantRMState
+    ):
+        return HandlerResult.skipped(
+            f"{label}: the declared RM state is already recorded for the sender"
+        )
     return verdict
 
 

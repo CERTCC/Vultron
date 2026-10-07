@@ -564,7 +564,7 @@ groups:
       Receiving handlers store nested objects by iterating the embedded collection and
       persisting each object individually. Bare URI string references cannot be deserialized
       to typed domain objects; the referenced objects are never written to the receiver's
-      DataLayer. Downstream BT nodes (e.g., `CheckParticipantExists`) then fail because
+      DataLayer. Downstream BT nodes (e.g., `SenderIsActiveParticipantNode`) then fail because
       participant records are absent.
     relationships:
     - rel_type: refines

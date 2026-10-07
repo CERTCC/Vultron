@@ -267,7 +267,7 @@ DataLayer.
    strings are accepted by the model but skipped during persistence.
 3. Vendor's CaseParticipant object is never stored in Finder's DataLayer.
 4. Vendor sends RmEngageCase (Join) to Finder.
-5. EngageCaseBT on Finder runs → CheckParticipantExists fails (no record).
+5. EngageCaseBT on Finder runs → its participant guard fails (no record).
 6. RM-state update is never recorded in Finder's case replica.
 ```
 

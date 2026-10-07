@@ -44,8 +44,8 @@ from vultron.core.states.cs import (
 )
 from vultron.core.states.rm import (
     RM,
-    is_monotonic_rm_forward,
-    is_valid_rm_transition,
+    RMDeclaration,
+    classify_rm_declaration,
 )
 from vultron.enums.roles import CVDRole
 
@@ -66,18 +66,21 @@ def _rm_is_acceptable(current: RM, asserted: RM) -> bool:
     """Return True if *asserted* is an acceptable RM value given *current*.
 
     ``RM.CLOSED`` is terminal (DEMOMA-07-003): once a participant has closed,
-    no further RM value — not even ``CLOSED`` again — is acceptable.  Otherwise
-    a status confirmation (no change), a valid adjacent transition, or a
-    non-adjacent but monotone forward jump are all acceptable; the sender is
-    authoritative about its own RM progress.
+    no further RM value — not even ``CLOSED`` again — is acceptable *as a
+    dimension of a status snapshot*, so a restated ``CLOSED`` is blocked with no
+    change to the recorded value (RSH-05-006).  Otherwise the received-side RM
+    acceptance rule decides: a confirmation, an adjacent transition, or a
+    non-adjacent but monotone forward jump are acceptable, and a regression is
+    not (RSH-06-001, RSH-06-002).  That rule is
+    :func:`~vultron.core.states.rm.classify_rm_declaration`, shared with the
+    activity-typed RM handlers (RSH-06-006).
     """
     if current == RM.CLOSED:
         return False
-    if asserted == current:
-        return True
-    return is_valid_rm_transition(
-        current, asserted
-    ) or is_monotonic_rm_forward(current, asserted)
+    return (
+        classify_rm_declaration(current, asserted)
+        is not RMDeclaration.REGRESSION
+    )
 
 
 def _vf_carry(current_vf: CS_vf | None) -> VfDimension | None:
