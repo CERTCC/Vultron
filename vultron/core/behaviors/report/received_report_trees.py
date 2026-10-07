@@ -294,52 +294,49 @@ def create_ack_report_received_tree(
     return root
 
 
-def _create_report_verdict_received_tree(
+def _report_verdict_stages(
     request: CloseReportReceivedEvent | InvalidateReportReceivedEvent,
     case_id: str | None,
     declared_rm: RM,
-    name: str,
     write_name: str,
-) -> py_trees.behaviour.Behaviour:
-    """Compose the received tree for a report verdict that declares *declared_rm*.
+) -> tuple[
+    list[py_trees.behaviour.Behaviour], list[py_trees.behaviour.Behaviour]
+]:
+    """Return the guards and effects of a report verdict declaring *declared_rm*.
 
     Shared by the report-closed and report-invalid handlers, which differ only
-    in the RM state their activity declares for its sender.
+    in the RM state their activity declares for its sender.  Each factory
+    composes them through :func:`create_receive_activity_tree` itself
+    (CLP-10-017).
 
     The subject of the RM write is the sender, ``request.actor_id``; the tree
     still executes in the receiving actor's store (RSH-08-001, BT-17-006).
     """
     sender_actor_id = request.actor_id
-    root = create_receive_activity_tree(
-        name=name,
-        # No ledger commit: these verdicts have never been committed, and
-        # their ledger replay is #3814's to add (RSH-08-004).
-        case_id=None,
-        precondition_guards=[
-            RequireCaseForReport(report_id=request.report_id),
-            # The sender is checked against the case, so the case is resolved
-            # first: an activity about a case this store does not hold is
-            # refused as such (#2255), not as an unknown sender.
-            SenderIsActiveParticipantNode(
-                status_id="",
-                sender_actor_id=sender_actor_id,
-                case_id=case_id,
-            ),
-            rm_declaration_guard(sender_actor_id, declared_rm, case_id),
-        ],
-        effect_nodes=record_rm_declaration(
-            sender_actor_id, declared_rm, case_id, name=write_name
+    guards: list[py_trees.behaviour.Behaviour] = [
+        RequireCaseForReport(report_id=request.report_id),
+        # The sender is checked against the case, so the case is resolved
+        # first: an activity about a case this store does not hold is refused
+        # as such (#2255), not as an unknown sender.
+        SenderIsActiveParticipantNode(
+            status_id="",
+            sender_actor_id=sender_actor_id,
+            case_id=case_id,
         ),
+        rm_declaration_guard(sender_actor_id, declared_rm, case_id),
+    ]
+    effects = record_rm_declaration(
+        sender_actor_id, declared_rm, case_id, name=write_name
     )
     logger.debug(
-        "Created %s for report=%s activity=%s sender=%s case=%s",
-        name,
+        "Building %s received tree for report=%s activity=%s sender=%s case=%s",
+        declared_rm,
         request.report_id,
         request.activity_id,
         sender_actor_id,
         case_id,
     )
-    return root
+    return guards, effects
 
 
 def create_close_report_received_tree(
@@ -382,12 +379,19 @@ def create_close_report_received_tree(
     Returns:
         Root node of the ``CloseReportReceivedBT`` Sequence.
     """
-    return _create_report_verdict_received_tree(
+    guards, effects = _report_verdict_stages(
         request,
         case_id,
         declared_rm=RM.CLOSED,
-        name="CloseReportReceivedBT",
         write_name="TransitionRMtoClosed",
+    )
+    return create_receive_activity_tree(
+        name="CloseReportReceivedBT",
+        # No ledger commit: these verdicts have never been committed, and
+        # their ledger replay is #3814's to add (RSH-08-004).
+        case_id=None,
+        precondition_guards=guards,
+        effect_nodes=effects,
     )
 
 
@@ -414,10 +418,17 @@ def create_invalidate_report_received_tree(
     Returns:
         Root node of the ``InvalidateReportReceivedBT`` Sequence.
     """
-    return _create_report_verdict_received_tree(
+    guards, effects = _report_verdict_stages(
         request,
         case_id,
         declared_rm=RM.INVALID,
-        name="InvalidateReportReceivedBT",
         write_name="TransitionRMtoInvalid",
+    )
+    return create_receive_activity_tree(
+        name="InvalidateReportReceivedBT",
+        # No ledger commit: these verdicts have never been committed, and
+        # their ledger replay is #3814's to add (RSH-08-004).
+        case_id=None,
+        precondition_guards=guards,
+        effect_nodes=effects,
     )
