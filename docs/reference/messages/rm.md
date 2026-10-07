@@ -20,6 +20,12 @@ verbs — `Join(VulnerabilityCase)` and `Ignore(VulnerabilityCase)` — because
 engaging or deferring is a case-participation decision rather than a
 report-validity judgment (MSM-01-004, MSM-01-005).
 
+The CASE_MANAGER applies one rule to an RM state whichever of these expressions carries it (RSH-06-006).
+The state is recorded for the sender, never for the receiver (RSH-08-001), and only when the sender is a participant of the case.
+A forward move is recorded even when it skips states, and the CASE_MANAGER then asks the sender in a note which path it took (RSH-06-001, RSH-06-004).
+A backward move is refused and the recorded state stands (RSH-06-002).
+An activity and an `Add(ParticipantStatus)` that report the same move record it once (RSH-08-002).
+
 ## Message mapping
 
 ```python exec="true" idprefix=""
