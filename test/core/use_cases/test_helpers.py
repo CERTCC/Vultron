@@ -722,6 +722,29 @@ class TestIdempotentCreateReportsWhatItDid:
         assert result.disposition is HandlerDisposition.SKIPPED
         assert result.reason is not None
 
+    def test_create_reporting_the_id_taken_reports_skipped(
+        self, participant: CaseParticipant
+    ) -> None:
+        """A record ``read`` cannot return, yet ``create`` says exists, is held."""
+        from unittest.mock import MagicMock
+
+        from vultron.errors import VultronAlreadyExistsError
+
+        stub = MagicMock()
+        stub.read.return_value = None
+        stub.create.side_effect = VultronAlreadyExistsError(
+            "Participant", participant.id_
+        )
+        result = idempotent_store(
+            stub,
+            participant.type_,
+            participant.id_,
+            participant,
+            "Participant",
+        )
+        assert result.disposition is HandlerDisposition.SKIPPED
+        assert result.reason is not None and "already stored" in result.reason
+
     def test_missing_object_reports_skipped(self, dl: SqliteDataLayer) -> None:
         result = idempotent_store(dl, "Note", "urn:x:absent", None, "Note")
         assert result.disposition is HandlerDisposition.SKIPPED

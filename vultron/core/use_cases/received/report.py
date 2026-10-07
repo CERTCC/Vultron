@@ -42,6 +42,7 @@ from vultron.core.use_cases._helpers import (
 from vultron.core.use_cases.received._bt_verdict import (
     applied_or_raise,
     failure_reason,
+    find_node,
     node_failed,
     node_succeeded,
     verdict_from_bt,
@@ -107,7 +108,8 @@ def _run_submit_report_case_creation(
         activity=request,
     )
 
-    if node_failed(tree, CheckOfferAddressedToReceiverNode):
+    guard = find_node(tree, CheckOfferAddressedToReceiverNode)
+    if guard is not None and guard.misaddressed:
         return HandlerResult.refused(failure_reason(tree, result))
     if node_failed(tree, CheckAutoCaseCreationEnabledNode):
         logger.info(

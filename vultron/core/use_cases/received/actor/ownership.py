@@ -29,6 +29,7 @@ from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
 )
 from vultron.core.use_cases.received._bt_verdict import (
+    applied_or_raise,
     intake_verdict,
     not_case_manager,
     verdict_from_bt,
@@ -133,18 +134,12 @@ class OfferCaseOwnershipTransferReceivedUseCase:
             return verdict
 
         case_id = _as_id(request.activity.object_)
-        if case_id is None:
-            logger.warning(
-                "OfferCaseOwnershipTransferReceived: missing case_id"
-                " on offer '%s' — refusing",
-                request.activity_id,
-            )
-            return HandlerResult.refused(
-                "Offer(ownership transfer) names no case"
-            )
-
         transferee_id = _as_id(request.activity.target)
-        original_actor_id = self._resolve_offering_actor_id(case_id)
+        original_actor_id = (
+            self._resolve_offering_actor_id(case_id)
+            if case_id is not None
+            else None
+        )
 
         # One tree, run once (CLP-10-005).  The guarded commit fires only when
         # receiving_actor_id is the CaseActor (CheckIsCaseManagerNode gate), and
@@ -173,6 +168,18 @@ class OfferCaseOwnershipTransferReceivedUseCase:
             actor_id=receiving_actor_id,
             activity=request,
         )
+        if case_id is None:
+            # The tree kept the Offer (intake and the store node); there is
+            # no case to act on.
+            applied_or_raise(tree, result, label="OfferOwnershipTransferBT")
+            logger.warning(
+                "OfferCaseOwnershipTransferReceived: missing case_id"
+                " on offer '%s' — refusing",
+                request.activity_id,
+            )
+            return HandlerResult.refused(
+                "Offer(ownership transfer) names no case"
+            )
         verdict = verdict_from_bt(
             tree, result, label="OfferOwnershipTransferBT"
         )

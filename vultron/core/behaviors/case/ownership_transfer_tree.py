@@ -83,7 +83,7 @@ def create_accept_ownership_transfer_tree(
 
 
 def create_offer_ownership_transfer_tree(
-    case_id: str,
+    case_id: str | None,
     transferee_id: str | None,
     original_actor_id: str | None,
     store_offer: StoreReceivedObjectNode | None = None,
@@ -100,7 +100,9 @@ def create_offer_ownership_transfer_tree(
     occurs.
 
     Args:
-        case_id: URI of the case whose ownership is being offered.
+        case_id: URI of the case whose ownership is being offered; ``None``
+            for an Offer that names no case, which is archived and kept but
+            commits and forwards nothing (CLP-10-018).
         transferee_id: URI of the intended new owner; ``None`` skips forwarding.
         original_actor_id: URI of the actor who originated the offer (vendor).
         store_offer: Effect node that writes the Offer activity the accept
@@ -114,7 +116,11 @@ def create_offer_ownership_transfer_tree(
     effect_nodes: list[py_trees.behaviour.Behaviour] = []
     if store_offer is not None:
         effect_nodes.append(store_offer)
-    if transferee_id is not None and original_actor_id is not None:
+    if (
+        case_id is not None
+        and transferee_id is not None
+        and original_actor_id is not None
+    ):
         effect_nodes.append(
             create_case_manager_gated_tree(
                 name="ForwardOfferToTransfereeCMGated",

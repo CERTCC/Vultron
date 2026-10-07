@@ -95,6 +95,8 @@ class CheckOfferAddressedToReceiverNode(DataLayerConditionWithPorts):
     ``FAILURE`` with the reason as feedback when the executing actor is only
     in ``cc`` or in neither list: the sender addressed the wrong party, which
     the receiver refuses (HP-01-005) rather than reporting a processed no-op.
+    :attr:`misaddressed` tells the handler that was the reason, as opposed to a
+    wiring fault (a missing DataLayer or actor), which it raises on.
     """
 
     def __init__(
@@ -108,13 +110,16 @@ class CheckOfferAddressedToReceiverNode(DataLayerConditionWithPorts):
         self._to = to
         self._cc = cc
         self._report_id = report_id
+        self.misaddressed = False
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.actor_id is not None
+        self.misaddressed = False
         if is_addressed_to(self.actor_id, self._to):
             return Status.SUCCESS
+        self.misaddressed = True
         if is_addressed_to(self.actor_id, self._cc):
             self.logger.warning(
                 "cc addressing not supported for Offer(Report) — discarding"
