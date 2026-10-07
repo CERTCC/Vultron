@@ -123,6 +123,9 @@ _BODIES: dict[str, dict[str, Any]] = {
     "terminate-embargo": {"case_id": _CASE},
     "suggest-actor-to-case": {"case_id": _CASE, "suggested_actor_id": _OTHER},
     "accept-case-invite": {"invite_id": "urn:uuid:invite"},
+    "accept-full-case-invite": {"invite_id": "urn:uuid:invite"},
+    "tentative-reject-full-case-invite": {"invite_id": "urn:uuid:invite"},
+    "reject-full-case-invite": {"invite_id": "urn:uuid:invite"},
     "reject-case-invite": {"invite_id": "urn:uuid:invite"},
     "invite-actor-to-case": {"case_id": _CASE, "invitee_id": _OTHER},
     "accept-actor-recommendation": {

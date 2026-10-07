@@ -6,6 +6,10 @@ from typing import Any
 
 from vultron.core.models._helpers import parse_published
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.ledger_position import (
+    EMPTY_LEDGER_LOG_INDEX,
+    LedgerPosition,
+)
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.errors import VultronValidationError
 
@@ -165,6 +169,67 @@ def _reconstruct_tail_hash(
     all_entries.sort(key=lambda entry: entry.log_index)
     last = all_entries[-1]
     return last.entry_hash, last.log_index
+
+
+def ledger_tail_position(case_id: str, dl: CasePersistence) -> LedgerPosition:
+    """Return the position of the last ledger entry *dl* holds for *case_id*.
+
+    For the CASE_MANAGER this is the authoritative tail it stamps on a
+    full-case Invite (CM-11-010); for a participant it is the tail of its own
+    replica, which it stamps on its reply (CM-11-011).  An empty ledger's
+    position is ``(-1, genesis_hash)`` (CLP-08-004).
+
+    Raises:
+        VultronValidationError: When the ledger is empty and the case's
+            genesis hash is unavailable (see :func:`_reconstruct_tail_hash`).
+    """
+    tail_hash, tail_index = _reconstruct_tail_hash(case_id, dl)
+    return LedgerPosition(log_index=tail_index, entry_hash=tail_hash)
+
+
+def ledger_position_refusal(
+    case_id: str,
+    dl: CasePersistence,
+    *,
+    position: LedgerPosition,
+    floor: LedgerPosition,
+) -> str | None:
+    """Return why *position* is not an acceptable reply position, or ``None``.
+
+    The Invite's position is a floor, not a pin (CM-11-012, ADR-0121).  A
+    position is refused when it is absent, is behind *floor*, or names an
+    entry *dl* does not hold at that index.  One at or beyond the floor that
+    names a held entry is accepted.
+
+    Args:
+        case_id: URI of the case whose ledger *dl* holds.
+        dl: The CASE_MANAGER's store, the authority on what its ledger holds.
+        position: The replier's claimed ledger position.
+        floor: The full-case Invite's ledger position.
+    """
+    if position.log_index < floor.log_index:
+        return (
+            f"ledger position {position.log_index} is behind the Invite's"
+            f" floor {floor.log_index} (CM-11-012)"
+        )
+    if position.log_index == EMPTY_LEDGER_LOG_INDEX:
+        held_hash = _get_case_genesis_hash(case_id, dl)
+    else:
+        held_hash = ""
+        for obj in dl.list_objects("CaseLedgerEntry"):
+            if (
+                isinstance(obj, CaseLedgerEntry)
+                and obj.case_id == case_id
+                and obj.log_index == position.log_index
+            ):
+                held_hash = obj.entry_hash
+                break
+    if not held_hash or held_hash != position.entry_hash:
+        return (
+            f"ledger position {position.log_index} names an entry the"
+            " ledger does not hold (CM-11-012)"
+        )
+    return None
 
 
 #: Top-level snapshot fields that may be stamped when a snapshot is *built*

@@ -12,6 +12,8 @@ from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 
+from pydantic import ValidationError
+
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
@@ -28,6 +30,7 @@ from vultron.core.models.dimensions import (
 )
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.enums import VultronObjectType as VOtype
+from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.note import VultronNote
 from vultron.core.models.participant_status import (
     ParticipantStatus,
@@ -38,6 +41,7 @@ from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.wire.as2.enums import as_ObjectType as AOtype
+from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.object_types import as_Event
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -96,6 +100,32 @@ def _get_type(field: object) -> str | None:
         return None
     t = getattr(field, "type_", None)
     return str(t) if t is not None else None
+
+
+def ledger_position_from_content(activity: as_Activity) -> LedgerPosition:
+    """Parse the ledger position an activity carries in its ``content``.
+
+    The full-case Invite and its three replies carry the position as the JSON
+    dump of a :class:`LedgerPosition` (VAM-04-011..014; produced only by
+    ``vultron.wire.as2.factories.ledger_position_content``).
+
+    Raises:
+        VultronParseValidationError: when ``content`` is missing, blank or
+            does not parse as a ledger position, naming the activity.
+    """
+    content = getattr(activity, "content", None)
+    if not isinstance(content, str) or not content.strip():
+        raise VultronParseValidationError(
+            f"activity {activity.id_!r} carries no ledger position: its"
+            " `content` is missing or blank (CM-11-011)"
+        )
+    try:
+        return LedgerPosition.model_validate_json(content)
+    except ValidationError as exc:
+        raise VultronParseValidationError(
+            f"activity {activity.id_!r} carries an unparseable ledger"
+            f" position in `content`: {exc.error_count()} error(s) (CM-11-011)"
+        ) from exc
 
 
 def _to_domain_obj(as_obj: object) -> CoreObject | None:

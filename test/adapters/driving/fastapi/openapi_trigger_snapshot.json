@@ -382,6 +382,20 @@
         "title": "CreateCaseRequest",
         "type": "object"
       },
+      "FullCaseInviteReplyRequest": {
+        "description": "Request body for the three full-case Invite reply trigger endpoints.\n\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").\ninvite_id identifies the full-case Invite the participant is answering\n(CM-11-010).  The reply's ledger position is this actor's own, read from\nits store; the caller does not supply it (CM-11-011).",
+        "properties": {
+          "invite_id": {
+            "title": "Invite Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "invite_id"
+        ],
+        "title": "FullCaseInviteReplyRequest",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -1719,6 +1733,59 @@
         ]
       }
     },
+    "/api/v2/actors/{actor_id}/trigger/accept-full-case-invite": {
+      "post": {
+        "description": "Answers the CASE_MANAGER's full-case Invite with Accept, carrying this actor's own ledger position.  Fails with 409 until the actor's ledger copy has reached the Invite's position (SYNC-10-004, CM-11-012).",
+        "operationId": "actors_trigger_accept_full_case_invite",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "actor_id",
+            "required": true,
+            "schema": {
+              "title": "Actor Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FullCaseInviteReplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Judge the case valid: Accept(full-case Invite), RV.",
+        "tags": [
+          "Triggers"
+        ]
+      }
+    },
     "/api/v2/actors/{actor_id}/trigger/add-object-to-case": {
       "post": {
         "description": "Adds any existing AS2 object (identified by ``object_id``) to a VulnerabilityCase and queues an Add(object, target=case) activity in the actor's outbox for delivery to case participants. The object must already exist in the actor's datalayer. Type-specific convenience triggers (e.g., ``add-report-to-case``) delegate here after performing type validation (TRIG-10-001).",
@@ -2514,6 +2581,59 @@
         ]
       }
     },
+    "/api/v2/actors/{actor_id}/trigger/reject-full-case-invite": {
+      "post": {
+        "description": "Answers the CASE_MANAGER's full-case Invite with Reject, carrying this actor's own ledger position.  Fails with 409 until the actor's ledger copy has reached the Invite's position (SYNC-10-004, CM-11-012).",
+        "operationId": "actors_trigger_reject_full_case_invite",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "actor_id",
+            "required": true,
+            "schema": {
+              "title": "Actor Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FullCaseInviteReplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Close the case: Reject(full-case Invite), RC.",
+        "tags": [
+          "Triggers"
+        ]
+      }
+    },
     "/api/v2/actors/{actor_id}/trigger/reject-report": {
       "post": {
         "description": "Triggers the reject-report behavior for the given actor. Emits a Reject(Offer(VulnerabilityReport)) activity (RmCloseReportActivity) and returns it in the response body (TRIG-04-001). A non-empty note is required (TRIG-03-004). Persists a ParticipantStatus record with RM.CLOSED for the actor and report. Returns HTTP 409 if the report's RM state has no close edge (e.g. VALID; VP-02-004): nothing is emitted.",
@@ -2668,6 +2788,59 @@
           }
         },
         "summary": "Suggest another actor for a case.",
+        "tags": [
+          "Triggers"
+        ]
+      }
+    },
+    "/api/v2/actors/{actor_id}/trigger/tentative-reject-full-case-invite": {
+      "post": {
+        "description": "Answers the CASE_MANAGER's full-case Invite with TentativeReject, carrying this actor's own ledger position.  Fails with 409 until the actor's ledger copy has reached the Invite's position (SYNC-10-004, CM-11-012).",
+        "operationId": "actors_trigger_tentative_reject_full_case_invite",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "actor_id",
+            "required": true,
+            "schema": {
+              "title": "Actor Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FullCaseInviteReplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Judge the case invalid: TentativeReject(full-case Invite), RI.",
         "tags": [
           "Triggers"
         ]

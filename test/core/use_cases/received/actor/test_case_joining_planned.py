@@ -12,9 +12,9 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Planned CASE_MANAGER handling of stub- and full-case-Invite replies.
 
-Strict-``xfail`` tests for the case-joining requirements of ADR-0114 and
-ADR-0070, planned under #4006; each test names the issue that implements
-it.  Every test starts where CM-11-006 leaves the
+Tests for the case-joining requirements of ADR-0114 and ADR-0070, planned
+under #4006 (the full-case Invite ones were strict-``xfail`` until #4050).
+Every test starts where CM-11-006 leaves the
 case: the invitee already holds an *inert* participant record at RM
 ``RECEIVED`` (VF ``v`` for a vendor), created when the stub Invite was sent.
 
@@ -51,9 +51,13 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension, VfDimension
+from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.participant_status import (
     ParticipantStatus,
     participant_status_rm_state,
@@ -71,10 +75,15 @@ from vultron.semantic_registry import (
     find_matching_semantics,
     use_case_map,
 )
+from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.factories import (
+    rm_accept_full_case_invite_activity,
     rm_accept_invite_to_case_activity,
     rm_invite_to_case_activity,
+    rm_invite_to_full_case_activity,
+    rm_reject_full_case_invite_activity,
     rm_reject_invite_to_case_activity,
+    rm_tentative_reject_full_case_invite_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -112,6 +121,12 @@ class _JoiningCase:
         participant = self.dl.read(participant_id)
         assert isinstance(participant, CaseParticipant)
         return participant
+
+    def join(self) -> None:
+        """Mark the invitee joined, as accepting the stub Invite does (CM-11-006)."""
+        participant = self.participant()
+        participant.joined = True
+        self.dl.save(participant)
 
     def route(self, activity: as_Activity) -> HandlerResult:
         """Dispatch *activity* to the CASE_MANAGER as the inbox would."""
@@ -231,6 +246,9 @@ def joining_case() -> Any:
     joining.trigger_activity.add_participant_to_case.return_value = (
         _add_participant_result(case, case_actor_id, invitee_id)
     )
+    joining.trigger_activity.invite_actor_to_full_case.side_effect = (
+        TriggerActivityAdapter(dl).invite_actor_to_full_case
+    )
     yield joining
     dl.close()
 
@@ -344,21 +362,14 @@ def _full_case_invites_to(joining: _JoiningCase) -> list[str]:
     return found
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "CM-11-010: after the stub Accept the CASE_MANAGER sends the"
-        " full-case Invite(Actor, VulnerabilityCase). Tracked by #4050."
-    ),
-)
 @pytest.mark.spec("CM-11-010")
 def test_stub_invite_accept_is_followed_by_full_case_invite(
     joining_case,
 ) -> None:
     """The full-case Invite asks the question the stub Accept did not.
 
-    Today the CASE_MANAGER sends no second Invite: the participant is left at
-    RM ``RECEIVED`` with nothing to reply to.
+    Without it the participant is left at RM ``RECEIVED`` with nothing to
+    reply to.
     """
     joining_case.route(
         rm_accept_invite_to_case_activity(
@@ -371,44 +382,31 @@ def test_stub_invite_accept_is_followed_by_full_case_invite(
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "CM-11-012: a full-case Invite reply that carries no ledger"
-        " position at or beyond the Invite's is refused. Tracked by #4050."
-    ),
-)
 @pytest.mark.spec("CM-11-012")
-def test_full_case_invite_reply_without_floor_position_is_refused(
+def test_full_case_invite_reply_without_position_is_refused_at_the_edge(
     joining_case,
 ) -> None:
-    """A reply that does not show it reached the Invite's floor is refused.
+    """A reply that carries no ledger position never reaches the CASE_MANAGER.
 
-    The full-case Invite carries the CASE_MANAGER's ledger tail; a reply
-    must carry the replier's own position at or beyond it (CM-11-011).  An
-    ``Accept`` carrying no position at all is behind every floor, so the
-    CASE_MANAGER refuses it and the participant's RM state does not move.
-    Today no pattern recognises the full-case Accept, so it cannot be judged.
+    The position is the JSON dump of a ``LedgerPosition`` in ``content``
+    (VAM-04-012); a missing, blank or non-parsing one is refused when the
+    event is extracted (ADR-0032), with the reason named, and nothing moves.
     """
-    full_invite = as_Invite(
-        id_=f"{joining_case.case.id_}/invitations/full-1",
-        actor=joining_case.case_actor_id,
-        object_=as_Organization(id_=joining_case.invitee_id),
-        target=joining_case.case,
-        to=[joining_case.invitee_id],
+    tail = _ledger_tail(joining_case)[-1]
+    full_invite = _full_case_invite_at(
+        joining_case, log_index=tail.log_index, entry_hash=tail.entry_hash
     )
-    joining_case.dl.create(full_invite)
 
-    result = _route_full_case_reply(
-        joining_case,
-        as_Accept(
+    for content in (None, "  ", "not json", '{"logIndex": "x"}'):
+        reply = as_Accept(
             actor=joining_case.invitee_id,
             object_=full_invite,
             in_reply_to=full_invite.id_,
-        ),
-    )
+            content=content,
+        )
+        with pytest.raises(VultronParseValidationError, match="ledger"):
+            extract_event(reply)
 
-    assert result.disposition is HandlerDisposition.REFUSED
     latest = joining_case.participant().participant_statuses[-1]
     assert participant_status_rm_state(latest) == RM.RECEIVED
 
@@ -428,26 +426,32 @@ def _ledger_tail(joining: _JoiningCase) -> list[Any]:
     )
 
 
-def _position(log_index: int, entry_hash: str) -> dict[str, Any]:
-    """The wire fields carrying a ledger position (CM-11-010, CM-11-011).
-
-    The implementation fixes their names; ``log_index``/``entry_hash`` are the
-    names the requirements use.  This is the one place that spells them.
-    """
-    return {"log_index": log_index, "entry_hash": entry_hash}
+def _position(log_index: int, entry_hash: str) -> LedgerPosition:
+    """A ledger position (CM-11-010, CM-11-011)."""
+    return LedgerPosition(log_index=log_index, entry_hash=entry_hash)
 
 
 def _full_case_invite_at(
-    joining: _JoiningCase, *, log_index: int, entry_hash: str
+    joining: _JoiningCase,
+    *,
+    log_index: int,
+    entry_hash: str,
+    joined: bool = True,
 ) -> as_Invite:
-    """Store a full-case Invite whose ledger-position floor is the given entry."""
-    invite = as_Invite(
+    """Store a full-case Invite whose ledger-position floor is the given entry.
+
+    The CASE_MANAGER sends the Invite only after the invitee joined, so the
+    invitee is marked joined unless *joined* is False (CM-11-010).
+    """
+    if joined:
+        joining.join()
+    invite = rm_invite_to_full_case_activity(
+        as_Organization(id_=joining.invitee_id),
+        joining.case.id_,
+        _position(log_index, entry_hash),
         id_=f"{joining.case.id_}/invitations/full-floor-{log_index}",
         actor=joining.case_actor_id,
-        object_=as_Organization(id_=joining.invitee_id),
-        target=joining.case,
         to=[joining.invitee_id],
-        **_position(log_index, entry_hash),
     )
     joining.dl.create(invite)
     return invite
@@ -457,21 +461,15 @@ def _full_case_reply_at(
     kind: str, joining: _JoiningCase, invite: as_Invite, *, position: Any
 ) -> as_Activity:
     """A reply to *invite* carrying the replier's ledger position (CM-11-011)."""
-    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-        as_Reject,
-        as_TentativeReject,
-    )
-
-    reply_class = {
-        "accept": as_Accept,
-        "tentative_reject": as_TentativeReject,
-        "reject": as_Reject,
+    build = {
+        "accept": rm_accept_full_case_invite_activity,
+        "tentative_reject": rm_tentative_reject_full_case_invite_activity,
+        "reject": rm_reject_full_case_invite_activity,
     }[kind]
-    return reply_class(
+    return build(
+        invite,
+        _position(position.log_index, position.entry_hash),
         actor=joining.invitee_id,
-        object_=invite,
-        in_reply_to=invite.id_,
-        **_position(position.log_index, position.entry_hash),
     )
 
 
@@ -499,13 +497,6 @@ def _rm_history(joining: _JoiningCase) -> list[RM]:
     ]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "CM-11-011: the CASE_MANAGER records RV/RI/RC replies to the full-case"
-        " Invite as R → V / R → I / R → C. Tracked by #4050."
-    ),
-)
 @pytest.mark.spec("CM-11-011")
 @pytest.mark.parametrize(
     ("reply", "expected"),
@@ -520,8 +511,8 @@ def test_full_case_invite_reply_moves_rm_from_received(
 ) -> None:
     """Each full-case reply at the Invite's floor is one RM transition.
 
-    Today none of the three matches a pattern: the stub-Invite patterns
-    recognise only a ``VulnerabilityCaseStub`` target (#4045).
+    The stub-Invite patterns recognise only a ``VulnerabilityCaseStub``
+    target (#4045), so each reply is told apart by the full-case patterns.
     """
     tail = _ledger_tail(joining_case)[-1]
     invite = _full_case_invite_at(
@@ -539,14 +530,6 @@ def test_full_case_invite_reply_moves_rm_from_received(
     assert _rm_history(joining_case)[-2:] == [RM.RECEIVED, expected]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "CM-11-012: a full-case Invite reply behind the floor, or naming an"
-        " entry the ledger does not hold, is refused; one beyond the floor is"
-        " accepted. Tracked by #4050."
-    ),
-)
 @pytest.mark.spec("CM-11-012")
 @pytest.mark.parametrize(
     ("floor", "reply_at", "forge_hash", "refused"),
@@ -564,8 +547,7 @@ def test_full_case_invite_reply_position_is_checked_against_the_floor(
 
     A reply behind it is refused, as is one naming a hash the CASE_MANAGER's
     ledger does not hold at that index; a reply beyond it is better informed
-    and accepted (RM ``RECEIVED → VALID``).  Today no pattern recognises the
-    full-case Accept, so its position is never judged.
+    and accepted (RM ``RECEIVED → VALID``).
     """
     entries = _ledger_tail(joining_case)
     assert [e.log_index for e in entries][:2] == [0, 1]

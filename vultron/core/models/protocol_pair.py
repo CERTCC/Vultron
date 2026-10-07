@@ -32,6 +32,9 @@ Named constants for known request/reply pairs:
   ``Accept`` or ``Reject`` of ``Offer(CaseParticipant)``.
 - :data:`INVITE_ACTOR_TO_CASE_REPLY_TYPES` — closes when invited actor sends
   ``Accept`` or ``Reject`` of ``Invite(Case)``.
+- :data:`INVITE_ACTOR_TO_FULL_CASE_REPLY_TYPES` — closes when the joined
+  participant sends ``Accept``, ``TentativeReject`` or ``Reject`` of the
+  full-case ``Invite(Actor)[target=Case]``.
 """
 
 from __future__ import annotations
@@ -53,6 +56,17 @@ INVITE_ACTOR_TO_CASE_REPLY_TYPES: frozenset[str] = frozenset(
     {
         "accept_invite_actor_to_case",
         "reject_invite_actor_to_case",
+    }
+)
+
+#: Reply event types that close a full-case ``Invite(Actor)[target=Case]``
+#: protocol pair — the ask the CASE_MANAGER puts to a joined participant
+#: (CM-11-010, CM-11-011, ADR-0121).
+INVITE_ACTOR_TO_FULL_CASE_REPLY_TYPES: frozenset[str] = frozenset(
+    {
+        "accept_invite_actor_to_full_case",
+        "tentative_reject_invite_actor_to_full_case",
+        "reject_invite_actor_to_full_case",
     }
 )
 
@@ -120,4 +134,5 @@ __all__ = [
     "ProtocolPair",
     "OFFER_CASE_PARTICIPANT_REPLY_TYPES",
     "INVITE_ACTOR_TO_CASE_REPLY_TYPES",
+    "INVITE_ACTOR_TO_FULL_CASE_REPLY_TYPES",
 ]
