@@ -21,7 +21,9 @@ fixtures and nothing else.
 
 The pair only means something when both tests run, in order, in one process.
 The first sets a module flag; the second fails loudly when the flag is unset
-rather than passing on an empty precondition (a vacuous assertion).
+rather than passing on an empty precondition (a vacuous assertion).  Under
+``-n`` the module-wide ``xdist_group`` mark keeps every pair on one worker;
+the ``--dist loadgroup`` in ``addopts`` is what makes xdist honor it.
 
 Regression for #3996: a node that wrote ``/participant`` only when it found a
 participant left the previous test's participant on the process-global
@@ -32,6 +34,7 @@ participant left the previous test's participant on the process-global
 from __future__ import annotations
 
 import py_trees
+import pytest
 from py_trees.common import Status
 
 from test.conftest import TEST_ACTOR_ID
@@ -40,6 +43,8 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.ledger_gap_buffer import get_ledger_gap_buffer
+
+pytestmark = pytest.mark.xdist_group("process_global_isolation")
 
 #: A node-written key that is *not* on ``BTBridge``'s ``managed_keys`` list, so
 #: the bridge does not restore it when the execution ends.

@@ -45,19 +45,33 @@ def _read(path: Path) -> str | None:
         return None
 
 
+def _ratio(quota: str, period: str) -> int | None:
+    """Return ``quota / period`` rounded up to whole CPUs, or ``None``.
+
+    Non-integer text means "no limit" rather than an exception: this runs in
+    ``pytest_cmdline_main``, where a raise aborts the session before any test
+    is collected.
+    """
+    try:
+        quota_us, period_us = int(quota), int(period)
+    except ValueError:
+        return None
+    if quota_us <= 0 or period_us <= 0:
+        return None
+    return max(1, math.ceil(quota_us / period_us))
+
+
 def cgroup_cpu_limit(root: Path = DEFAULT_CGROUP_ROOT) -> int | None:
     """Return the cgroup CPU quota rounded up to whole CPUs, or ``None``."""
     v2 = _read(root / "cpu.max")
     if v2 is not None:
         quota, _, period = v2.partition(" ")
-        if quota == "max" or not period:
-            return None
-        return max(1, math.ceil(int(quota) / int(period)))
+        return _ratio(quota, period)
     quota_v1 = _read(root / "cpu" / "cpu.cfs_quota_us")
     period_v1 = _read(root / "cpu" / "cpu.cfs_period_us")
-    if quota_v1 is None or period_v1 is None or int(quota_v1) <= 0:
+    if quota_v1 is None or period_v1 is None:
         return None
-    return max(1, math.ceil(int(quota_v1) / int(period_v1)))
+    return _ratio(quota_v1, period_v1)
 
 
 def cgroup_memory_limit(root: Path = DEFAULT_CGROUP_ROOT) -> int | None:
@@ -65,9 +79,12 @@ def cgroup_memory_limit(root: Path = DEFAULT_CGROUP_ROOT) -> int | None:
     raw = _read(root / "memory.max")
     if raw is None:
         raw = _read(root / "memory" / "memory.limit_in_bytes")
-    if raw is None or raw == "max":
+    if raw is None:
         return None
-    limit = int(raw)
+    try:
+        limit = int(raw)
+    except ValueError:  # "max", or text this parser does not know
+        return None
     # cgroup v1 spells "unlimited" as a page-rounded near-2**63 value.
     return None if limit >= 2**62 else limit
 

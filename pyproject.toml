@@ -275,7 +275,12 @@ pythonpath = ["."]
 #   uv run pytest test/demo/              # demo/integration tests only
 #
 # See AGENTS.md "Testing" section for full guidance.
-addopts = "-ra -q -m 'not integration'"
+#
+# `--dist loadgroup` spreads tests across `-n` workers like `load`, except that
+# every test sharing an `xdist_group` mark runs on one worker, in order.  Order-
+# dependent modules (`test/test_process_global_isolation.py`) need that; without
+# `-n` the option is inert.
+addopts = "-ra -q -m 'not integration' --dist loadgroup"
 # Unit-tier per-test timeout.  Raised 5 -> 30 in #2270.
 #
 # `timeout_method = "thread"` cannot cancel one test — it kills the whole pytest

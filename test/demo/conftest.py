@@ -34,6 +34,7 @@ from vultron.adapters.driven.datalayer_sqlite import (
     reset_datalayer,
 )
 from vultron.adapters.driven.http_delivery import DeliveryError
+from vultron.adapters.driving.fastapi import outbox_handler
 from vultron.adapters.driving.fastapi.app import create_app
 from vultron.adapters.driving.fastapi.deps import get_actor_dl
 from vultron.adapters.driving.fastapi.main import app as api_app
@@ -534,10 +535,13 @@ def _no_outbox_row_is_dead_lettered(caplog):
     ``setup_initialized_case``, until this guard.
     """
     yield
+    # Keyed on the outbox handler's logger: the inbox dead-letters with the
+    # same wording (IE-06-004), and this guard must not blame the outbox for it.
     dead = [
         r.getMessage()
         for r in caplog.get_records("call")
-        if r.levelno >= logging.ERROR
+        if r.name == outbox_handler.__name__
+        and r.levelno >= logging.ERROR
         and "moved to dead letter" in r.getMessage().lower()
     ]
     assert not dead, "the outbox dead-lettered a row:\n" + "\n".join(dead)

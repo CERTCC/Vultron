@@ -66,8 +66,8 @@ uv sync --dev
 # Run unit tests (default — integration tests excluded)
 uv run pytest --tb=short
 
-# Run ALL tests (unit + integration) — what CI's test job runs
-uv run pytest -m "" --tb=short
+# Run ALL tests (unit + integration) on xdist workers — what CI's test job runs
+uv run pytest -m "" -n auto --tb=short
 
 # Format and lint (ruff takes no path arguments)
 uv run ruff format

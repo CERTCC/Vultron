@@ -73,6 +73,28 @@ def test_cpu_quota_v1_negative_is_unlimited(tmp_path):
     assert cgroup_cpu_limit(root) is None
 
 
+@pytest.mark.parametrize(
+    "files",
+    [
+        {"cpu.max": "garbage 100000"},
+        {"cpu.max": "150000"},
+        {"cpu.max": "150000 0"},
+        {
+            "cpu__cpu.cfs_quota_us": "garbage",
+            "cpu__cpu.cfs_period_us": "100000",
+        },
+        {"memory.max": "garbage"},
+        {"memory__memory.limit_in_bytes": "garbage"},
+    ],
+)
+def test_unparseable_cgroup_text_means_no_limit(tmp_path, files):
+    """Odd cgroup text must not raise: it would abort the pytest session."""
+    root = _cgroup(tmp_path, **files)
+    assert cgroup_cpu_limit(root) is None
+    assert cgroup_memory_limit(root) is None
+    assert worker_count(root, cpus=3) == 3
+
+
 def test_no_cgroup_files_means_no_limit(tmp_path):
     assert cgroup_cpu_limit(tmp_path) is None
     assert cgroup_memory_limit(tmp_path) is None

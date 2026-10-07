@@ -16,8 +16,9 @@ stakeholder_type: [project-contributor]
 # Unit tests only (default — integration excluded)
 uv run pytest --tb=short
 
-# All tests (unit + integration) — what the CI test job runs
-uv run pytest -m "" --tb=short
+# All tests (unit + integration) on xdist workers — what the CI test job runs
+# (-n auto is sized to the container's cgroup limits by test/conftest.py)
+uv run pytest -m "" -n auto --tb=short
 
 # Integration tests only
 uv run pytest -m integration
@@ -26,7 +27,7 @@ uv run pytest -m integration
 uv run pytest test/test_config.py --tb=short
 
 # Gate form: redirect, read the exit line (never end a gate command with a pipe)
-uv run pytest --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"
+uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
 ```
 
 ### 2) Test Layout

@@ -10,7 +10,8 @@ description: >
   asserts, "falls back to" tests, bare MagicMock), and test layout rules for
   module splits, why a two-sided count pin races concurrent PRs (keep a
   per-item record instead), why `nproc` overstates a worktree slot's CPUs for
-  `-n auto`, and how outbox retry backoff hides inside a passing demo.
+  `-n auto`, why order-dependent tests need an `xdist_group`, and how outbox
+  retry backoff hides inside a passing demo.
   `test/AGENTS.md` keeps the short index and the rules you need on every run.
 related_specs:
   - specs/testability.yaml
@@ -290,6 +291,18 @@ scheduler affinity, and the memory limit at 1.5 GiB per worker.
 `PYTEST_XDIST_AUTO_NUM_WORKERS` still overrides it. When a worker "crashed"
 before any assertion failed, read `/sys/fs/cgroup/memory.events` — a non-zero
 `oom_kill` means the test it names is not the cause.
+
+### Order-Dependent Tests Need an `xdist_group`
+
+Under `-n`, xdist's default `--dist load` hands tests to whichever worker is
+free, so two tests of one module can land in different processes. A test that
+reads state an earlier test left behind then runs without it: the ordered pairs
+in `test/test_process_global_isolation.py` failed CI this way on their first
+parallel run. `addopts` sets `--dist loadgroup`, which distributes like `load`
+but keeps every test sharing an `xdist_group` mark on one worker, in collection
+order. Mark an order-dependent module with
+`pytestmark = pytest.mark.xdist_group("<name>")`; the mark does nothing without
+`loadgroup`, and `loadgroup` does nothing without `-n`.
 
 ### A Retry Loop With Real Backoff Hides Inside a Passing Demo
 
