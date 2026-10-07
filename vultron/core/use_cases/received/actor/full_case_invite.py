@@ -174,7 +174,9 @@ class _FullCaseInviteReplyReceivedUseCase:
             trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
-        ).execute_with_setup(tree=tree, actor_id=actor_id, activity=request)
+        ).execute_with_setup(
+            tree=tree, actor_id=actor_id, activity=request, case_id=case_id
+        )
         verdict = verdict_from_bt(tree, result, label=self.tree_name)
         if verdict.disposition is not HandlerDisposition.REFUSED:
             refusal = not_case_manager_refusal(tree, self._dl, case_id)

@@ -28,13 +28,6 @@ from typing import cast
 from py_trees.common import Status
 from pydantic import ValidationError
 
-from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.case.nodes.participant.common import (
-    resolve_participant_state_from_dl,
-)
-from vultron.core.behaviors.case.nodes.participant.status import (
-    CreateParticipantStatusNode,
-)
 from vultron.core.behaviors.helpers import (
     DataLayerAction,
     DataLayerCondition,
@@ -46,7 +39,7 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.core.states.rm import RM, is_valid_rm_transition
+from vultron.core.states.rm import RM
 from vultron.core.sync_helpers import (
     ledger_position_refusal,
     ledger_tail_position,
@@ -113,11 +106,12 @@ class CheckFullCaseReplyNode(DataLayerCondition):
     - its sender holds no participant record (CM-11-001), or has not joined
       the case (an inert participant may answer only the Invites addressed
       to it before it joins);
-    - its RM state cannot take the transition the reply asks for (a
-      duplicate or contradictory reply, CM-11-011), so no receipt is
-      committed for a transition the apply stage would refuse;
     - its ledger position is behind the Invite's floor, or names an
       entry the CASE_MANAGER's ledger does not hold at that index.
+
+    RM adjudication — forward moves (including non-adjacent ones) accepted,
+    regressions refused — is the responsibility of the
+    ``AdjudicateRMDeclarationNode`` that follows this guard (RSH-06-006).
 
     The floor is read from the CASE_MANAGER's own stored Invite, never from
     the copy the reply embeds.
@@ -184,14 +178,6 @@ class CheckFullCaseReplyNode(DataLayerCondition):
                 f"'{self.replier_id}' has not joined case '{self.case_id}';"
                 " only a joined participant judges the case (CM-11-010)"
             )
-        current_rm, _, _ = resolve_participant_state_from_dl(
-            self.datalayer, participant.id_
-        )
-        if not is_valid_rm_transition(current_rm, self.rm_state):
-            return self._refuse(
-                f"'{self.replier_id}' is at RM {current_rm.name} and cannot"
-                f" move to RM {self.rm_state.name} (CM-11-011)"
-            )
         reason = ledger_position_refusal(
             self.case_id,
             self.datalayer,
@@ -200,60 +186,6 @@ class CheckFullCaseReplyNode(DataLayerCondition):
         )
         if reason is not None:
             return self._refuse(reason)
-        return Status.SUCCESS
-
-
-class ApplyFullCaseReplyToParticipantNode(DataLayerAction):
-    """Record a full-case reply as the participant's RM transition (CM-11-011).
-
-    Writes ``rm_state`` for the replier through the sole ParticipantStatus
-    writer, run as the CASE_MANAGER (the store owner) and attributed to the
-    replier.  ``CheckFullCaseReplyNode`` has already refused a replier that
-    cannot take the transition, before the receipt was committed; the writer
-    re-validates it (CSB-16).
-    """
-
-    def __init__(
-        self,
-        case_id: str,
-        replier_id: str,
-        rm_state: RM,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-        self.replier_id = replier_id
-        self.rm_state = rm_state
-        # Pre-built once (BTND-10-004).
-        self._status_node = CreateParticipantStatusNode(
-            actor_id=replier_id,
-            rm_state=rm_state,
-            vf_state=None,
-            d_state=None,
-            pxa_state=None,
-        )
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        assert self.datalayer is not None and self.actor_id is not None
-        result = BTBridge(datalayer=self.datalayer).execute_with_setup(
-            self._status_node, actor_id=self.actor_id, case_id=self.case_id
-        )
-        if result.status != Status.SUCCESS:
-            self.feedback_message = (
-                f"could not record RM {self.rm_state.name} for"
-                f" '{self.replier_id}' in case '{self.case_id}'"
-            )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return result.status
-        self.logger.info(
-            "%s: participant '%s' moved to RM.%s in case '%s' (CM-11-011)",
-            self.name,
-            self.replier_id,
-            self.rm_state.name,
-            self.case_id,
-        )
         return Status.SUCCESS
 
 
