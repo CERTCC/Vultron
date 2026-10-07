@@ -8,7 +8,7 @@ deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; Concern #4284, Issue #4178; ADR-0107, ADR-0111, ADR-0119,
   ADR-0122; specs/case-ledger-processing.yaml CLP-10; specs/sync-ledger-replication.yaml
-  SYNC-00-002
+  SYNC-00-002; specs/case-management.yaml CM-23-016
 informed: []
 stakeholder_type: [project-contributor]
 ---
@@ -19,6 +19,7 @@ stakeholder_type: [project-contributor]
 
 A participant case replica exists so that a participant can learn the current state of a case by reading its own copy, without asking the CASE_MANAGER for a snapshot each time.
 The case ledger is how those copies are kept in step with the CASE_MANAGER's case: the CASE_MANAGER commits entries, and replicas replay them; a replica is synchronized when its ledger tail hash matches the CASE_MANAGER's (SYNC-00-002).
+CM-23-016 already says a replica is the case as seeded plus the ledger entries since, applies the transitions the ledger records in order, and derives none the ledger does not record.
 
 Tracing participant embargo consent for Concern #4284 showed that the CASE_MANAGER's case and its replicas are not kept in step by one rule:
 
@@ -101,6 +102,14 @@ It keeps ADR-0119's order for sent messages: the outbox write completes the act,
 
 A replica applies each entry it receives, in ledger order, with the same function.
 It runs no lifecycle logic of its own and decides nothing about case state.
+
+This refines CM-23-016's "MUST NOT derive a transition the ledger does not record".
+One recorded message can have consequences no entry names on its own: the owner's activation of a revision supersedes the embargo it replaces and carries agreement over to it (ADR-0122).
+Those consequences are part of what applying the entry means, computed by the same function on every node, so deriving them is replay, not invention.
+What CM-23-016 forbids remains forbidden: a change the replay function does not derive from a recorded entry, such as walking a transition table from the replica's own stored state to a target state.
+
+A seeded replica starts from the case snapshot it was seeded with instead of from empty.
+The seed must equal the replay of the ledger up to the entry it was taken at, so seeding is a shortcut through replay, not a second source of state.
 
 ### Scope
 
