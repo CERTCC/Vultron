@@ -262,6 +262,24 @@ def _reset_ledger_gap_buffers_between_tests():
 
 
 @pytest.fixture(autouse=True)
+def _restore_third_party_log_levels_between_tests():
+    """Undo third-party log-level suppression after each test (TB-06-003).
+
+    ``suppress_third_party_info_noise()`` records each noisy logger's original
+    level in a process-global map on first call, and only
+    ``restore_third_party_log_levels()`` empties it.  The demo CLI and several
+    logging tests suppress without restoring, so a later test in the same
+    process inherited the stale map: its own ``restore`` call then reset a
+    logger it had just configured.  Serial runs hid this behind collection
+    order; xdist split it across workers.
+    """
+    yield
+    from vultron.logging_setup import restore_third_party_log_levels
+
+    restore_third_party_log_levels()
+
+
+@pytest.fixture(autouse=True)
 def clear_py_trees_blackboard() -> Iterator[None]:
     """Clear the ``py_trees`` blackboard before and after every test (TB-06-005).
 

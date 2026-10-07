@@ -304,6 +304,14 @@ order. Mark an order-dependent module with
 `pytestmark = pytest.mark.xdist_group("<name>")`; the mark does nothing without
 `loadgroup`, and `loadgroup` does nothing without `-n`.
 
+A group is for tests that *assert* an order. A test that merely *depends* on
+one is a leak to fix: splitting a module across workers also exposes
+process-global state that collection order used to clean up. The second CI run
+failed `test_logging_setup.py` that way: tests that suppressed third-party
+loggers left the saved-levels map behind, and a test in the same module had
+always emptied it first. The reset belongs in root `test/conftest.py`
+(TB-06-003), with an ordered pair in `test_process_global_isolation.py`.
+
 ### A Retry Loop With Real Backoff Hides Inside a Passing Demo
 
 A demo test that takes 25 seconds with no sleep of its own is usually waiting on
