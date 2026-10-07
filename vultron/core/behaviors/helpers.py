@@ -44,6 +44,7 @@ from py_trees.common import Status
 from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
 from pydantic import BaseModel
 
+from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.node_logger import node_logger
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -739,7 +740,7 @@ class DataLayerActionWithPorts(BehaviourWithPorts):
         )
 
 
-class _EmitSingleActivityBase(DataLayerActionWithPorts):
+class _EmitSingleActivityBase(DataLayerActionWithPorts, EmitCapable):
     """Base class for emit nodes that create one activity and queue it in the actor's outbox.
 
     Subclasses override ``_call_factory()`` (required) to invoke the
@@ -1240,7 +1241,7 @@ class CreateObject(DataLayerAction):
             return Status.FAILURE
 
 
-class UpdateActorOutbox(DataLayerActionWithPorts):
+class UpdateActorOutbox(DataLayerActionWithPorts, EmitCapable):
     """
     Update actor's outbox with a new activity.
 

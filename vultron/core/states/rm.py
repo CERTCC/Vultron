@@ -261,6 +261,20 @@ def is_rm_at_least(state: RM, threshold: RM) -> bool:
     return _RM_PROGRESS.get(state, 0) >= _RM_PROGRESS.get(threshold, 0)
 
 
+def is_rm_replay_acceptable(local: RM | None, recorded: RM) -> bool:
+    """Return True if a replayed ledger entry may move RM *local* → *recorded*.
+
+    The no-regression ratchet for a replica applying the CASE_MANAGER's ledger
+    (RSH-05-007): the recorded state must not be behind the replica's local one
+    on the RM progress scale.  Same-rank moves (``VALID`` ↔ ``INVALID``,
+    ``DEFERRED`` ↔ ``ACCEPTED``) are re-adjudication and are accepted; with no
+    local state anything is.  ``ApplyParticipantStatusFromLedgerNode`` and
+    ``ApplyRmVerdictFromLedgerNode`` both apply it, so the two replay paths
+    cannot ratchet differently.
+    """
+    return local is None or is_rm_at_least(recorded, local)
+
+
 def is_rm_validated(state: RM) -> bool:
     """Return True if *state* is on the validated path (VALID, DEFERRED, or ACCEPTED).
 

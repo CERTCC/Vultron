@@ -405,7 +405,10 @@ stages in a fixed order (CLP-10-006, CLP-10-010):
    postmark on the envelope (ADR-0107, CLP-07-011). It never rebuilds the
    assertion from processed state.
 4. **Effects** — apply the accepted assertion to the local replica and enqueue
-   any cascades.
+   any cascades. `replica_effects` run on every replica; `manager_effects` run
+   only at the CASE_MANAGER, inside the gate the factory adds (BT-17-008). See
+   `notes/bt-pitfalls.md` § "A Received Tree Gets Its CASE_MANAGER Gate From
+   the Factory".
 
 Every ledger commit goes through `CommitCaseLedgerEntryNode` inside the tree; a
 received `execute()` never commits one itself (BT-06-006).

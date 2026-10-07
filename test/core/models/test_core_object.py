@@ -430,11 +430,11 @@ def test_retired_core_alias_word_match_spares_longer_names():
 def test_core_object_strips_computed_field_input(isolated_core_registries):
     """Cleanup #1: a ``@computed_field`` value in the payload is dropped.
 
-    A computed field appears in ``model_dump()`` output but is not settable.
+    A computed field appears in the ``by_alias`` dump but is not settable.
     Under ``extra="forbid"`` it would be rejected on re-validation unless
     stripped first; the value is re-derived, never taken from the injected
-    key.  No production class has a computed field (ARCH-23-005), so a local
-    subclass carries one.
+    key.  A local subclass carries one, so the contract is tested apart from
+    any production field (ARCH-23-005).
     """
     from typing import Literal
 
@@ -467,6 +467,36 @@ def test_core_object_strips_computed_field_input(isolated_core_registries):
         ).model_dump()
         == obj.model_dump()
     )
+
+
+def test_computed_field_with_a_field_serializer_is_refused(
+    isolated_core_registries,
+):
+    """A computed field may not declare a field serializer (ARCH-23-005).
+
+    The round-trip check derives a computed field's JSON form from its
+    return type, so a serializer that changed the published shape would make
+    the object refuse its own ``by_alias`` dump.  The class is refused when
+    it is defined instead.
+    """
+    from typing import Literal
+
+    from pydantic import computed_field, field_serializer
+
+    with pytest.raises(TypeError, match="item_count"):
+
+        class _Counted(CoreObject):
+            type_: Literal["_Counted"] = "_Counted"
+            items: list[str] = []
+
+            @computed_field  # type: ignore[prop-decorator]
+            @property
+            def item_count(self) -> int:
+                return len(self.items)
+
+            @field_serializer("item_count")
+            def _count_as_text(self, value: int) -> str:
+                return str(value)
 
 
 # ---------------------------------------------------------------------------

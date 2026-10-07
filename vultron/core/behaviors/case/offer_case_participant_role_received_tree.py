@@ -46,6 +46,7 @@ from vultron.core.behaviors.case.nodes.delegation import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.replica_emit_exemptions import OFFER_ROLE
 from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
@@ -103,5 +104,6 @@ def create_offer_case_participant_role_received_tree(
         name="OfferCaseParticipantRoleReceivedBT",
         case_id=case_id if case_id else None,
         precondition_guards=[],
-        effect_nodes=[accept_or_reject],
+        replica_effects=[accept_or_reject],
+        replica_emit_exemption=OFFER_ROLE,
     )

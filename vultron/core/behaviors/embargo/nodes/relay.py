@@ -57,6 +57,7 @@ from vultron.core.behaviors.embargo.nodes.em_state import read_case_em_state
 from vultron.core.behaviors.embargo.rsvp_stamp import (
     stamp_invite_rsvp_deadline,
 )
+from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
@@ -263,7 +264,7 @@ class CollectEmbargoInviteRecipientsNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
+class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts, EmitCapable):
     """Emit, commit and record one relayed ``Invite(EmbargoEvent)`` per recipient.
 
     For each recipient the collect node named: build the Invite through the

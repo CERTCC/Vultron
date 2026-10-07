@@ -19,6 +19,7 @@ from collections.abc import Callable
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
@@ -127,7 +128,7 @@ class ConstructActivitiesNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class QueueToOutboxNode(DataLayerActionWithPorts):
+class QueueToOutboxNode(DataLayerActionWithPorts, EmitCapable):
     """Queue each activity ID from the blackboard to the actor's outbox."""
 
     def __init__(self, name: str | None = None) -> None:

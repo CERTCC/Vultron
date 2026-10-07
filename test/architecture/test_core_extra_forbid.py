@@ -153,9 +153,9 @@ def test_round_trip_is_exact_for_every_core_vocabulary_entry() -> None:
 def _sealed_class() -> type[CoreObject]:
     """A test-local ``CoreObject`` whose ``is_sealed`` is a computed bool.
 
-    No production class has a computed field (ARCH-23-005), so the bool
-    contract — including the True side, which a vocabulary of minimal objects
-    never reaches — is exercised on a local subclass.  Callers request
+    The one production computed field (``activeParticipants``) is a list,
+    so the bool contract — including the True side, which a vocabulary of
+    minimal objects never reaches — is exercised on a local subclass.  Callers request
     ``isolated_core_registries`` so the class stays out of the global
     registries.
     """
@@ -183,16 +183,33 @@ def test_true_computed_bool_round_trips(isolated_core_registries) -> None:
     passes vacuously.
     """
     sealed = _sealed_class().model_validate({"sealed_by": "urn:uuid:actor"})
-    assert sealed.model_dump()["is_sealed"] is True
+    assert sealed.model_dump(by_alias=True)["isSealed"] is True
 
     cls = type(sealed)
     assert cls.model_validate(sealed.model_dump(mode="json")) == sealed
-    # The camelCase wire form parses too; compared by dump because a parsed
-    # document keeps ``@context`` in ``context_``, which the local object
-    # never set.
+    # The camelCase wire form carries the computed value and parses back into
+    # an equal object: the matching value is stripped, and the default
+    # ``@context`` reads back as no override.
     wire = sealed.model_dump(mode="json", by_alias=True)
     assert wire["isSealed"] is True
-    assert cls.model_validate(wire).model_dump() == sealed.model_dump()
+    assert cls.model_validate(wire) == sealed
+    assert cls.model_validate(sealed.model_dump(by_alias=True)) == sealed
+
+
+def test_computed_field_is_published_by_alias_and_never_stored(
+    isolated_core_registries,
+) -> None:
+    """A computed field is on the AS2 path only (CM-31-003, ARCH-23-005).
+
+    The persistence form (no ``by_alias``) carries the facts a computed
+    field is derived from, never the derived value, so a stored row cannot
+    contradict a later derivation.
+    """
+    sealed = _sealed_class().model_validate({"sealed_by": "urn:uuid:actor"})
+
+    assert "is_sealed" not in sealed.model_dump()
+    assert "is_sealed" not in sealed.model_dump(mode="json")
+    assert sealed.model_dump(by_alias=True)["isSealed"] is True
 
 
 def test_contradicted_computed_bool_raises_protocol_violation(

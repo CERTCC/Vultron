@@ -45,6 +45,7 @@ from vultron.core.behaviors.case.nodes.participant.status import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.replica_emit_exemptions import ACK_ECHO
 from vultron.core.behaviors.report.nodes.emit import EmitAckReportActivity
 from vultron.core.behaviors.report.nodes.storage import (
     StoreReportNode,
@@ -260,7 +261,8 @@ def create_ack_report_received_tree(
         name="AckReportReceivedBT",
         case_id=case_id,
         precondition_guards=[],
-        effect_nodes=[maybe_emit],
+        replica_effects=[maybe_emit],
+        replica_emit_exemption=ACK_ECHO,
     )
     logger.debug(
         "Created AckReportReceivedBT for activity=%s case=%s",
