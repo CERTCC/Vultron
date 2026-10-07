@@ -227,11 +227,17 @@ class CreateInviteeParticipantNode(DataLayerActionWithPorts):
     """
 
     def __init__(
-        self, case_id: str, invitee_id: str, name: str | None = None
+        self,
+        case_id: str,
+        invitee_id: str,
+        name: str | None = None,
+        *,
+        invite_id: str,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
         self.invitee_id = invitee_id
+        self.invite_id = invite_id
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
@@ -239,7 +245,6 @@ class CreateInviteeParticipantNode(DataLayerActionWithPorts):
             data_type=object, required=True
         ),
         "invitee_case": PortInformation(data_type=object, required=True),
-        "activity": PortInformation(data_type=object, required=False),
     }
 
     OUTPUT_PORTS: dict[str, PortInformation] = {
@@ -253,7 +258,6 @@ class CreateInviteeParticipantNode(DataLayerActionWithPorts):
         return {
             "invitee_already_participant": "/invitee_already_participant",
             "invitee_case": "/invitee_case",
-            "activity": "/activity",
             "new_invite_participant": "/new_invite_participant",
         }
 
@@ -269,48 +273,27 @@ class CreateInviteeParticipantNode(DataLayerActionWithPorts):
             )
         except (NoDataAvailable, NotImplementedError):
             self._already_participant_bb = False
-        try:
-            self._activity_bb = self.get_input("activity")
-        except (NoDataAvailable, NotImplementedError):
-            self._activity_bb = None
 
     def _read_invite_roles(self) -> list:
-        """Read roles from the Invite embedded in the Accept activity (CM-17-003).
+        """Read roles from the stub Invite this store recorded (CM-11-017).
 
-        Resolves roles from ``event.activity.object_`` — the raw wire Invite
-        carried inside the received ``Accept`` activity, as hydrated by the
-        wire extractor (``include_activity=True`` in the semantic registry).
-        This path is race-free: the roles arrive in the protocol message
-        itself, so no DataLayer lookup is needed or performed.
+        The CASE_MANAGER recorded the Invite when it sent it; that record, not
+        the copy the invitee's ``Accept`` embeds (which the sender wrote),
+        names the roles the participant takes (CM-17-003).
 
-        Returns an empty list when no roles are present.
+        Returns an empty list when the record is absent or carries no roles.
         """
-        event = self._activity_bb
-        if event is None:
-            return []
-        activity = getattr(event, "activity", None)
-        if activity is None:
-            return []
-        invite_obj = getattr(activity, "object_", None)
-        if invite_obj is None:
+        assert self.datalayer is not None
+        invite = self.datalayer.read(self.invite_id)
+        if invite is None:
             self.logger.warning(
-                "%s: Accept activity has no embedded Invite (object_ is None)"
-                " — protocol violation [activity_id=%s actor_id=%s]",
+                "%s: no recorded Invite '%s' to read roles from [invitee=%s]",
                 self.name,
-                event.activity_id,
-                event.actor_id,
+                self.invite_id,
+                self.invitee_id,
             )
             return []
-        raw_roles = getattr(invite_obj, "roles", None)
-        if raw_roles is None:
-            self.logger.warning(
-                "%s: embedded Invite has no roles field"
-                " — protocol violation [activity_id=%s actor_id=%s]",
-                self.name,
-                event.activity_id,
-                event.actor_id,
-            )
-            return []
+        raw_roles = getattr(invite, "roles", None)
         if not raw_roles:
             return []
         try:

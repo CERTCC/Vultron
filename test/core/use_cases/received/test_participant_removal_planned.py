@@ -545,7 +545,9 @@ def test_accept_invite_tree_emits_no_add_case_participant() -> None:
     names = [
         type(node).__name__
         for node in create_accept_invite_actor_to_case_tree(
-            case_id=CASE_ID, invitee_id=VENDOR
+            case_id=CASE_ID,
+            invitee_id=VENDOR,
+            invite_id=f"{CASE_ID}/invitations/1",
         ).iterate()
     ]
     assert "EmitAddCaseParticipantNode" not in names
