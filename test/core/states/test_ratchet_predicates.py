@@ -31,7 +31,12 @@ from vultron.core.states.em import (
     is_em_embargo_active,
     is_em_exited,
 )
-from vultron.core.states.rm import RM, RM_VALIDATED, is_rm_validated
+from vultron.core.states.rm import (
+    RM,
+    RM_VALIDATED,
+    is_rm_replay_acceptable,
+    is_rm_validated,
+)
 
 # ---------------------------------------------------------------------------
 # RM ratchet
@@ -59,6 +64,40 @@ class TestRmValidated:
 
     def test_invalid_excluded(self):
         assert is_rm_validated(RM.INVALID) is False
+
+
+class TestRmReplayAcceptable:
+    """RSH-05-007: a replayed entry never moves a replica's RM backwards."""
+
+    @pytest.mark.parametrize("recorded", list(RM))
+    def test_no_local_state_accepts_anything(self, recorded):
+        assert is_rm_replay_acceptable(None, recorded) is True
+
+    @pytest.mark.parametrize(
+        ("local", "recorded"),
+        [
+            (RM.RECEIVED, RM.VALID),
+            (RM.VALID, RM.VALID),
+            (RM.VALID, RM.INVALID),
+            (RM.INVALID, RM.VALID),
+            (RM.ACCEPTED, RM.DEFERRED),
+            (RM.DEFERRED, RM.ACCEPTED),
+            (RM.ACCEPTED, RM.CLOSED),
+        ],
+    )
+    def test_forward_same_state_and_same_rank_accepted(self, local, recorded):
+        assert is_rm_replay_acceptable(local, recorded) is True
+
+    @pytest.mark.parametrize(
+        ("local", "recorded"),
+        [
+            (RM.VALID, RM.RECEIVED),
+            (RM.ACCEPTED, RM.VALID),
+            (RM.CLOSED, RM.ACCEPTED),
+        ],
+    )
+    def test_backward_move_refused(self, local, recorded):
+        assert is_rm_replay_acceptable(local, recorded) is False
 
 
 # ---------------------------------------------------------------------------
