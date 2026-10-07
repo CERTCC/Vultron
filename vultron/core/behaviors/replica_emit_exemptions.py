@@ -23,7 +23,10 @@ declared here as ``replica_emit_exemption``.
 The factory refuses an exemption not in :data:`REPLICA_EMIT_EXEMPTIONS`, an
 ungated emitter the exemption does not name in ``covers``, and an exemption
 that covers none of the tree's ungated emitters, so this module is the whole
-list and each entry stays true.
+list and no entry goes wholly stale.
+The factory does not refuse a single ``covers`` class the tree no longer
+emits while another covered class remains, so drop a class from ``covers`` in
+the change that removes it from its tree.
 
 Each exemption records the decision for one tree: why its emit speaks for the
 executing actor, or is addressed only to an actor other than itself.

@@ -1295,6 +1295,14 @@ The cause was structural: about fifteen trees each wrapped their effects in
   An emit nested in a gate a shared helper built (the embargo relay guard) is
   inside the gate and passes; the participant-replica gate is not a
   CASE_MANAGER gate and does not.
+  Only `create_case_manager_gated_tree` constructs a `CaseManagerGate`, so the
+  type always carries the role check.
+- **Ledger replication carries no marker.**
+  A node that sends through `SyncActivityPort` or runs
+  `create_commit_log_entry_tree` (whose fan-out announces the entry) is gated by
+  ledger authority, not the case role: only the store holding the canonical log
+  mints and fans out (`DeclineForeignLedgerCommitNode`, ADR-0073). Those classes
+  are a pinned set, `LEDGER_REPLICATION_SENDERS`, so a new one is classified.
 - **The gate's case id is its own argument.**
   Several received trees pass `case_id=None` to skip the commit stage
   (`update_tree`, the close-case tree) yet still gate an emit on a real case.

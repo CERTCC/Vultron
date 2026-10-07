@@ -157,6 +157,38 @@ class TestStageOrder:
                 replica_effects=[_effect()],
             )
 
+    def test_an_exemption_cannot_be_mixed_with_legacy_effect_nodes(
+        self,
+    ) -> None:
+        with pytest.raises(VultronWiringError, match="effect_nodes"):
+            create_receive_activity_tree(
+                name="SampleBT",
+                case_id=CASE_ID,
+                precondition_guards=[],
+                effect_nodes=[_ack_emit()],
+                replica_emit_exemption=ACK_ECHO,
+            )
+
+    @pytest.mark.parametrize(
+        "gate_argument",
+        [
+            {"manager_case_id": CASE_ID},
+            {"manager_gate_name": "EmitIfCaseManager"},
+            {"manager_case_may_be_absent": True},
+        ],
+    )
+    def test_gate_arguments_without_manager_effects_are_refused(
+        self, gate_argument: dict[str, object]
+    ) -> None:
+        with pytest.raises(VultronWiringError, match="only with"):
+            create_receive_activity_tree(
+                name="SampleBT",
+                case_id=CASE_ID,
+                precondition_guards=[],
+                replica_effects=[_effect()],
+                **gate_argument,  # type: ignore[arg-type]
+            )
+
     def test_legacy_effect_nodes_still_build_ungated(self) -> None:
         tree = create_receive_activity_tree(
             name="LegacyBT",

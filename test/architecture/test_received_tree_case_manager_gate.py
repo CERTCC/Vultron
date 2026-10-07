@@ -32,6 +32,12 @@ covers.  These checks keep that the only way in:
    each registered ``ReplicaEmitExemption``, equal to the registry.
 5. Every class that reaches the outbox seam carries the ``EmitCapable``
    marker, so the factory's refusal sees it.
+6. **Pinned exemption set** ``LEDGER_REPLICATION_SENDERS``: the classes that
+   send only through the ledger-replication seams, gated by ledger authority
+   rather than the marker (ADR-0073), so a new one must be classified.
+7. Only ``create_case_manager_gated_tree`` constructs a ``CaseManagerGate``,
+   so a hand-built gate without the role check cannot hide an emit from the
+   factory's walk.
 
 Every set is held to equality in both directions (ARCH-18-001, ARCH-18-002):
 a new entry fails, and so does a stale one.  Entries are
@@ -69,6 +75,20 @@ _OUTBOX_SEAMS = frozenset(
         "add_activity_to_outbox",
         "broadcast_case_update",
         "_queue_participant_add_notification",
+    }
+)
+
+#: Ledger-replication seams: ``SyncActivityPort`` sends and the helpers that
+#: wrap them, plus the commit tree whose fan-out announces a minted entry.
+#: Gated by ledger authority (``DeclineForeignLedgerCommitNode``, ADR-0073),
+#: not by ``EmitCapable``; see ``vultron/core/behaviors/emit_capable.py``.
+_LEDGER_REPLICATION_SEAMS = frozenset(
+    {
+        "send_announce_log_entry",
+        "send_reject_log_entry",
+        "send_ledger_suffix",
+        "backfill_admitted_peers",
+        "create_commit_log_entry_tree",
     }
 )
 
@@ -370,6 +390,54 @@ GATE_CALLERS_OUTSIDE_RECEIVED_TREES: frozenset[_Site] = frozenset(
 )
 
 # ---------------------------------------------------------------------------
+# 6. Classes that send only through the ledger-replication seams and so carry
+#    no EmitCapable marker: each mints-and-fans-out or answers the ledger
+#    holder, gated by ledger authority (ADR-0073, SYNC-03-001).
+#    Entries are (dotted module, class).
+# ---------------------------------------------------------------------------
+# permanent: ADR-0073 (ledger replication is gated by ledger authority)
+LEDGER_REPLICATION_SENDERS: frozenset[tuple[str, str]] = frozenset(
+    {
+        (
+            "vultron.core.behaviors.case.nodes.invite_ledger_backfill",
+            "BackfillCanonicalLedgerToInviteeNode",
+        ),
+        (
+            "vultron.core.behaviors.case.nodes.leave.record",
+            "CommitCaseActorRMClosedEntryNode",
+        ),
+        (
+            "vultron.core.behaviors.case.nodes.lifecycle",
+            "CommitCaseLedgerEntryNode",
+        ),
+        (
+            "vultron.core.behaviors.case.nodes.proposal_ledger",
+            "CommitNativeLedgerEntriesNode",
+        ),
+        (
+            "vultron.core.behaviors.case_status_snapshot",
+            "EmitCaseStatusUpdateNode",
+        ),
+        (
+            "vultron.core.behaviors.sync.nodes.embargo_backfill",
+            "BackfillAdmittedParticipantsNode",
+        ),
+        (
+            "vultron.core.behaviors.sync.nodes.fanout",
+            "SendLogEntryToEachNode",
+        ),
+        (
+            "vultron.core.behaviors.sync.nodes.receive",
+            "SendRejectLogEntryNode",
+        ),
+        (
+            "vultron.core.behaviors.sync.nodes.replay",
+            "SendMissingEntriesNode",
+        ),
+    }
+)
+
+# ---------------------------------------------------------------------------
 # 4. Which received tree uses each named exemption (constant name → site).
 #    Each entry is the decision recorded in replica_emit_exemptions.py.
 # ---------------------------------------------------------------------------
@@ -574,19 +642,58 @@ def test_every_registered_exemption_has_exactly_one_tree() -> None:
     )
 
 
-def _emitter_classes() -> frozenset[tuple[str, str]]:
+def _emitter_classes(
+    seams: frozenset[str] = _OUTBOX_SEAMS,
+) -> frozenset[tuple[str, str]]:
     """(module, class) for every behaviors class whose methods call a seam."""
     found: set[tuple[str, str]] = set()
-    for path, tree in _corpus.files_mentioning(
-        *_OUTBOX_SEAMS, under=_BEHAVIORS_ROOT
-    ):
+    for path, tree in _corpus.files_mentioning(*seams, under=_BEHAVIORS_ROOT):
         module = _rel(path).removesuffix(".py").replace("/", ".")
         for scope in _top_level_scopes(tree):
             if not isinstance(scope, ast.ClassDef):
                 continue
-            if any(name in _OUTBOX_SEAMS for _, name in _calls(scope)):
+            if any(name in seams for _, name in _calls(scope)):
                 found.add((module, scope.name))
     return frozenset(found)
+
+
+def _is_marked(module: str, name: str) -> bool:
+    cls = getattr(importlib.import_module(module), name)
+    return inspect.isclass(cls) and issubclass(cls, EmitCapable)
+
+
+@pytest.mark.spec("BT-17-008")
+@pytest.mark.spec("ARCH-18-001")
+def test_ledger_replication_senders_are_pinned() -> None:
+    unmarked = frozenset(
+        site
+        for site in _emitter_classes(_LEDGER_REPLICATION_SEAMS)
+        if not _is_marked(*site)
+    )
+    _assert_pinned(
+        "unmarked ledger-replication sender",
+        unmarked,
+        LEDGER_REPLICATION_SENDERS,
+        "if it sends only a ledger entry gated by ledger authority, add it"
+        " to LEDGER_REPLICATION_SENDERS with that reason; otherwise mix in"
+        " EmitCapable",
+    )
+
+
+@pytest.mark.spec("BT-17-008")
+def test_only_the_gate_helper_constructs_a_case_manager_gate() -> None:
+    builders = sorted(
+        _rel(path)
+        for path, tree in _corpus.files_mentioning(
+            "CaseManagerGate", under=_VULTRON_ROOT
+        )
+        if any(name == "CaseManagerGate" for _, name in _calls(tree))
+    )
+    assert builders == ["vultron/core/behaviors/case/nodes/role_gates.py"], (
+        "a CaseManagerGate built outside create_case_manager_gated_tree may"
+        " lack the CheckIsCaseManagerNode skip arm, yet the factory's walk"
+        f" treats it as gated (BT-17-008): {builders}"
+    )
 
 
 @pytest.mark.spec("BT-17-008")
@@ -597,9 +704,7 @@ def test_every_outbox_writer_carries_the_emit_marker() -> None:
     unmarked = sorted(
         f"{module}.{name}"
         for module, name in classes
-        if not issubclass(
-            getattr(importlib.import_module(module), name), EmitCapable
-        )
+        if not _is_marked(module, name)
     )
     assert unmarked == [], (
         "these classes enqueue an outbound activity but do not mix in"

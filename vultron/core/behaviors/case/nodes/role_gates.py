@@ -49,11 +49,14 @@ class CaseManagerGate(py_trees.composites.Selector):
     ``create_receive_activity_tree`` can tell an emit inside the gate from one
     outside it without matching child names (BT-17-008).
     The gated work is :attr:`gated_branch`; the first child is the skip arm.
+    Only :func:`create_case_manager_gated_tree` constructs one, so the type
+    implies the ``CheckIsCaseManagerNode`` skip arm;
+    ``test/architecture/test_received_tree_case_manager_gate.py`` pins that.
     """
 
     @property
     def gated_branch(self) -> py_trees.behaviour.Behaviour:
-        """The child that runs only at the CASE_MANAGER."""
+        """The child that runs only at the CASE_MANAGER (for inspection)."""
         return self.children[1]
 
 

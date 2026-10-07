@@ -116,6 +116,35 @@ def ungated_emitters(
     return found
 
 
+def _check_effect_arguments(
+    name: str,
+    *,
+    legacy: bool,
+    new_kinds: bool,
+    gate_arguments_without_effects: bool,
+) -> None:
+    """Refuse effect arguments that would be silently ignored or mixed.
+
+    Raises:
+        VultronWiringError: legacy ``effect_nodes`` is combined with
+            ``replica_effects``, ``manager_effects`` or an exemption, or a
+            gate argument is passed without ``manager_effects`` (BT-17-008).
+    """
+    where = f"create_receive_activity_tree({name})"
+    if legacy and new_kinds:
+        raise VultronWiringError(
+            f"{where}: effect_nodes cannot be combined with replica_effects,"
+            " manager_effects or replica_emit_exemption (BT-17-008)"
+        )
+    if gate_arguments_without_effects:
+        raise VultronWiringError(
+            f"{where}: manager_case_id, manager_gate_name and"
+            " manager_case_may_be_absent configure the gate around"
+            " manager_effects; pass them only with manager_effects"
+            " (BT-17-008)"
+        )
+
+
 def _check_replica_effects(
     name: str,
     replica_effects: list[py_trees.behaviour.Behaviour],
@@ -159,7 +188,7 @@ def _manager_stage(
     manager_case_id: str | None,
     manager_gate_name: str | None,
     manager_case_may_be_absent: bool,
-) -> py_trees.composites.Selector:
+) -> CaseManagerGate:
     """Wrap *manager_effects* in the CASE_MANAGER gate.
 
     Raises:
@@ -282,11 +311,17 @@ def create_receive_activity_tree(
     """
     replica = replica_effects or []
     manager = manager_effects or []
-    if effect_nodes and (replica or manager):
-        raise VultronWiringError(
-            f"create_receive_activity_tree({name}): effect_nodes cannot be"
-            " combined with replica_effects or manager_effects (BT-17-008)"
-        )
+    _check_effect_arguments(
+        name,
+        legacy=bool(effect_nodes),
+        new_kinds=bool(replica or manager or replica_emit_exemption),
+        gate_arguments_without_effects=not manager
+        and (
+            manager_case_id is not None
+            or manager_gate_name is not None
+            or manager_case_may_be_absent
+        ),
+    )
     _check_replica_effects(name, replica, replica_emit_exemption)
 
     children: list[py_trees.behaviour.Behaviour] = [

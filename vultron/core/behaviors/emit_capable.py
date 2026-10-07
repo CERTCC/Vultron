@@ -27,6 +27,17 @@ seam themselves.
 that covers it, so an emit cannot run on every replica by omission.
 ``test/architecture/test_received_tree_case_manager_gate.py`` checks that every
 class reaching the outbox seam carries the marker.
+
+Ledger replication is outside the marker on purpose.
+A node that sends through ``SyncActivityPort`` (``Announce`` / ``Reject`` of a
+``CaseLedgerEntry``, a replay suffix, a backfill) or that runs
+``create_commit_log_entry_tree`` (whose fan-out announces the minted entry)
+is gated by ledger authority rather than by the case role: only the store
+holding the canonical log mints and fans out
+(``DeclineForeignLedgerCommitNode``, ADR-0073), and a ledger ``Reject`` is the
+replica's own answer to the ledger holder (SYNC-03-001).
+The same test pins those classes as a reasoned set, so a new one is a
+decision, not an omission.
 """
 
 __all__ = ["EmitCapable"]
