@@ -23,6 +23,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+import vultron.demo.helpers.embargo_phases as phases
 import vultron.demo.scenario.rcv_embargo_demo as demo
 from vultron.core.states.em import EM
 from vultron.demo.scenario.registry import discover_scenarios
@@ -65,9 +66,9 @@ def case() -> MagicMock:
 def em_waits():
     """Stub the EM poll; the mock records ``(expected, active_embargo_id)``."""
     with (
-        patch.object(demo, "wait_for_case_em_state") as wait,
+        patch.object(phases, "wait_for_case_em_state") as wait,
         patch.object(
-            demo, "resolve_case_actor_store_id", return_value="urn:manager"
+            phases, "resolve_case_actor_store_id", return_value="urn:manager"
         ),
     ):
         yield wait
@@ -199,8 +200,10 @@ class TestEmStateAfterEachPhase:
             MagicMock(active_embargo_id="urn:embargo:revised"),
         ]
         with (
-            patch.object(demo, "_canonical_case", side_effect=canonical),
-            patch.object(demo, "demo_propose_and_activate_embargo") as helper,
+            patch.object(phases, "canonical_case", side_effect=canonical),
+            patch.object(
+                phases, "demo_propose_and_activate_embargo"
+            ) as helper,
         ):
             revised = demo._phase_embargo_proposal(cast, case)
 
@@ -222,8 +225,8 @@ class TestEmStateAfterEachPhase:
         """A proposal that never took effect must not pass as a revision."""
         same = MagicMock(active_embargo_id="urn:embargo:default")
         with (
-            patch.object(demo, "_canonical_case", return_value=same),
-            patch.object(demo, "demo_propose_and_activate_embargo"),
+            patch.object(phases, "canonical_case", return_value=same),
+            patch.object(phases, "demo_propose_and_activate_embargo"),
         ):
             demo._phase_embargo_proposal(cast, case)
 
@@ -276,5 +279,7 @@ class TestEmStateAfterEachPhase:
     ):
         """A failed EM assertion lands in the accumulator, not as a raise."""
         em_waits.side_effect = AssertionError("timed out")
-        demo._assert_em_state(cast, case, EM.ACTIVE, "phase")
+        phases.assert_canonical_em_state(
+            cast.coordinator, case, EM.ACTIVE, "phase"
+        )
         assert _demo_failures
