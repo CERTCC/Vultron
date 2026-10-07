@@ -39,7 +39,7 @@ from typing import cast
 
 import pytest
 
-from test.support.embargo_register import activate, propose
+from test.support.embargo_register import activate, propose, reject
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -430,3 +430,31 @@ def test_tearing_down_an_embargo_removes_its_entry_from_the_index(
     updated_case = cast(VulnerabilityCase, owner_dl.read(case.id_))
     assert updated_case.proposed_embargo_ids == []
     assert updated_case.pending_embargo_proposal_index == {}
+
+
+@pytest.mark.spec("EP-08-003")
+def test_default_selection_skips_an_index_record_for_a_decided_proposal(
+    finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """A relay record written after its proposal was decided is never chosen.
+
+    Ledger replay can index a proposal its OBSERVED step skipped because the
+    register had already decided it; the default selection reads only the
+    proposals the register still holds open.
+    """
+    finder, finder_dl = finder_actor_and_dl
+    owner = _persist_actor(finder_dl, "Vendor Co")
+    case, later_proposal_id, earlier_proposal_id = (
+        _build_case_with_two_open_proposals(finder_dl, owner.id_, finder.id_)
+    )
+    by_proposal = {
+        proposal_id: embargo_id
+        for embargo_id, proposal_id in case.pending_embargo_proposal_index.items()
+    }
+    earlier_embargo_id = by_proposal[earlier_proposal_id]
+    reject(case, earlier_embargo_id)
+    case.pending_embargo_proposal_index[earlier_embargo_id] = (
+        earlier_proposal_id
+    )
+
+    assert find_embargo_proposal_id(case, finder_dl) == later_proposal_id

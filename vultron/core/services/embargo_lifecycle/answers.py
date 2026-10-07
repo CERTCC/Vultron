@@ -246,14 +246,20 @@ class _AnswerOperationsMixin(_PecActivationMixin):
         # consent change.
         is_active = self._assert_rejectable(case, embargo_id)
         decides = is_owner and not is_active
+        # EP-08-001: another open proposal keeps the negotiation open, so the
+        # owner's Reject of this one leaves EM at REVISE.
+        closes_negotiation = all(
+            open_id == embargo_id for open_id in case.proposed_embargo_ids
+        )
 
         if (
             decides
+            and closes_negotiation
             and transition_mode == TransitionMode.STRICT
             and case.active_embargo_id is not None
         ):
             # EMB-04-002: with P/X/A set the case must be terminated (ET),
-            # not kept on the prior terms.
+            # not returned to the prior terms.
             self._assert_pxa_embargo_eligible(
                 case.current_status.pxa.state,
                 case_id,

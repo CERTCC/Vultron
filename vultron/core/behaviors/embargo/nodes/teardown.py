@@ -82,12 +82,16 @@ class ClearActiveEmbargoNode(DataLayerActionWithPorts):
     so the reason passed is ``EARLY`` (stored once #4293 carries it).
 
     Handles idempotency: returns SUCCESS without modifying state when EM is
-    already EXITED.
+    already EXITED.  A case with no embargo in force is also left unchanged
+    and returns SUCCESS, but reports the skip and logs no EM transition;
+    :attr:`applied` tells a caller which happened.
     """
 
     def __init__(self, case_id: str, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
+        #: True only when this tick terminated an embargo.
+        self.applied = False
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -122,6 +126,16 @@ class ClearActiveEmbargoNode(DataLayerActionWithPorts):
             return Status.FAILURE
 
         em_after = result.em_after
+        if not result.case_changed:
+            # The lifecycle has already warned; no teardown happened here.
+            self.feedback_message = (
+                f"No embargo in force on case '{self.case_id}'"
+                f" (EM {current_em}) — teardown skipped"
+            )
+            self.logger.info("%s: %s", self.name, self.feedback_message)
+            return Status.SUCCESS
+
+        self.applied = True
         self.feedback_message = (
             f"Cleared active embargo on case '{self.case_id}'"
             f" (EM {current_em} → {em_after})"
@@ -201,6 +215,10 @@ class ApplyEmbargoTeardownNode(DataLayerActionWithPorts):
                 f"Case '{case_id}' not found — teardown skipped"
             )
             self.logger.info("%s: %s", self.name, self.feedback_message)
+            return Status.SUCCESS
+
+        if not clear_node.applied:
+            self.feedback_message = clear_node.feedback_message
             return Status.SUCCESS
 
         self.feedback_message = f"Embargo teardown applied on case '{case_id}'"

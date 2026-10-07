@@ -328,6 +328,11 @@ class TestClearActiveEmbargoNode:
             and "case left unchanged" in r.getMessage()
             for r in caplog.records
         )
+        assert not node.applied
+        assert "teardown skipped" in node.feedback_message
+        assert not any(
+            "Cleared active embargo" in r.getMessage() for r in caplog.records
+        )
         updated = cast(VulnerabilityCase, dl.read(case.id_))
         assert updated.em_state == EM.NONE
         assert updated.embargo_register == []
@@ -550,6 +555,8 @@ class TestApplyEmbargoTeardownNode:
             and "case left unchanged" in r.getMessage()
             for r in caplog.records
         )
+        assert "teardown skipped" in node.feedback_message
+        assert "applied" not in node.feedback_message
         updated = cast(VulnerabilityCase, dl.read(case.id_))
         assert updated.em_state == EM.NONE
         assert updated.embargo_register == []

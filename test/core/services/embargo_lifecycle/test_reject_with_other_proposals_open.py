@@ -25,10 +25,12 @@ from test.support.embargo_register import activate, propose
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
+from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState as ECS,
 )
+from vultron.errors import VultronInvalidStateTransitionError
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
 from .conftest import (
@@ -97,6 +99,36 @@ def test_owner_rejecting_the_last_open_revision_returns_to_active(
     updated = cast(VulnerabilityCase, dl.read(case.id_))
     assert updated.proposed_embargo_ids == []
     assert updated.active_embargo_id == active_id
+
+
+@pytest.mark.spec("EMB-04-002")
+@pytest.mark.spec("EP-08-001")
+def test_owner_rejecting_one_of_two_revisions_with_pxa_set_is_allowed(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """The P/X/A guard bars only a Reject that returns the case to ACTIVE.
+
+    With another revision still open, EM stays ``REVISE``: the case is not
+    kept on the prior terms, so there is nothing for EMB-04-002 to refuse.
+    """
+    owner, dl = owner_and_dl
+    case, r1, r2, active_id = _case_with_two_open(dl, owner.id_, EM.REVISE)
+    case.append_case_status(pxa_state=CS_pxa.Pxa)
+    dl.save(case)
+    lifecycle = EmbargoLifecycle(persistence=dl)
+
+    result = lifecycle.reject_embargo_invite(
+        case_id=case.id_, embargo_id=r1, actor_id=owner.id_
+    )
+
+    assert result.em_after == EM.REVISE
+    updated = cast(VulnerabilityCase, dl.read(case.id_))
+    assert updated.proposed_embargo_ids == [r2]
+    assert updated.active_embargo_id == active_id
+    with pytest.raises(VultronInvalidStateTransitionError):
+        lifecycle.reject_embargo_invite(
+            case_id=case.id_, embargo_id=r2, actor_id=owner.id_
+        )
 
 
 @pytest.mark.spec("MSM-07-004")

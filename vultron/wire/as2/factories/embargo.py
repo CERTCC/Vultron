@@ -362,8 +362,10 @@ def remove_embargo_from_case_activity(
 ) -> as_Remove:
     """Build a Remove(as_EmbargoEvent, origin=VulnerabilityCase).
 
-    Removes an ``as_EmbargoEvent`` from the ``proposedEmbargoes`` of a
-    case. This MUST only be performed by the case owner.
+    Ends the embargo in force on a case (ET): the receiver terminates the
+    case's ``ACTIVE`` embargo register entry and cancels every open proposal
+    with it (MSM-07-006, ADR-0122).  This MUST only be performed by the case
+    owner.
 
     Note: this activity uses ``origin`` (not ``target``) for the case
     reference, following the ActivityStreams convention for Remove.

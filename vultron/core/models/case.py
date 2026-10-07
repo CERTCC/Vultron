@@ -492,8 +492,9 @@ class VulnerabilityCase(CoreObject):
         The step is checked whole by
         :func:`~vultron.core.models.embargo_register.apply_register_step`
         and refused, leaving the case untouched, when any rule breaks.  An
-        entry that leaves ``PROPOSED`` takes its relay record out of
-        ``pending_embargo_proposal_index`` with it (EP-08-003), and the
+        entry that has left ``PROPOSED`` takes its relay record out of
+        ``pending_embargo_proposal_index`` with it (EP-08-003); a record for
+        an embargo the register has not recorded yet stays (EP-09-007).  The
         current :class:`CaseStatus` is stamped with the derived EM, so the
         copy it carries on the wire never disagrees with the register.
 
@@ -504,18 +505,36 @@ class VulnerabilityCase(CoreObject):
         self.embargo_register = apply_register_step(
             self.embargo_register, changes, threat_signal=threat_signal
         )
-        still_open = set(self.proposed_embargo_ids)
-        if any(
-            i not in still_open for i in self.pending_embargo_proposal_index
+        if not all(
+            self.proposal_is_undecided(i)
+            for i in self.pending_embargo_proposal_index
         ):
             self.pending_embargo_proposal_index = {
                 embargo_id: invite_id
                 for embargo_id, invite_id in (
                     self.pending_embargo_proposal_index.items()
                 )
-                if embargo_id in still_open
+                if self.proposal_is_undecided(embargo_id)
             }
         self._stamp_em()
+
+    def proposal_is_undecided(self, embargo_id: str) -> bool:
+        """Whether *embargo_id* may still be answered as a proposal.
+
+        True for a ``PROPOSED`` entry, and for an embargo the register has
+        not recorded yet: a replica indexes a relayed Invite when it arrives,
+        which can be before ledger replay records the proposal (EP-09-007).
+        False once the entry has left ``PROPOSED`` (EP-08-003), and for every
+        embargo once one has terminated: nothing is proposed after that
+        (EP-08-004, register invariant 4).
+        """
+        entry = self.embargo_register_entry(embargo_id)
+        if entry is None:
+            return not any(
+                e.status == EmbargoRegisterStatus.TERMINATED
+                for e in self.embargo_register
+            )
+        return entry.status == EmbargoRegisterStatus.PROPOSED
 
     def _em_stamped_statuses(self) -> list[str | CaseStatus] | None:
         """``case_statuses`` with the current status's EM copy set from the register.

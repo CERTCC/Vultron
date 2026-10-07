@@ -130,56 +130,74 @@ def test_a_step_leaves_its_input_untouched() -> None:
 # Steps the register refuses (AC-2: each refused combination)
 # ---------------------------------------------------------------------------
 
-REFUSED: dict[str, tuple[list[EmbargoRegisterEntry], list[RegisterChange]]] = {
+REFUSED: dict[
+    str, tuple[list[EmbargoRegisterEntry], list[RegisterChange], str]
+] = {
     "re-proposing an entry": (
         [_entry(A, S.PROPOSED)],
         [_change(A, T.PROPOSE)],
+        "at PROPOSED does not accept trigger 'propose'",
     ),
-    "a trigger on an unknown entry": ([], [_change(A, T.ACTIVATE)]),
+    "a trigger on an unknown entry": (
+        [],
+        [_change(A, T.ACTIVATE)],
+        "not yet in the register does not accept trigger 'activate'",
+    ),
     "a trigger on a final entry": (
         [_entry(A, S.REJECTED)],
         [_change(A, T.ACTIVATE)],
+        "at REJECTED does not accept trigger 'activate'",
     ),
     "activating beside an ACTIVE entry (invariant 1)": (
         [_entry(A, S.ACTIVE), _entry(B, S.PROPOSED)],
         [_change(B, T.ACTIVATE)],
+        "2 entries are ACTIVE (at most one)",
     ),
     "two activations in one step (invariant 1)": (
         [_entry(A, S.PROPOSED), _entry(B, S.PROPOSED)],
         [_change(A, T.ACTIVATE), _change(B, T.ACTIVATE)],
+        "2 entries are ACTIVE (at most one)",
     ),
     "SUPERSEDE with no ACTIVATE": (
         [_entry(A, S.ACTIVE)],
         [_change(A, T.SUPERSEDE)],
+        "SUPERSEDE is legal only in the step that activates",
     ),
     "terminating with a proposal left open (invariant 3)": (
         [_entry(A, S.ACTIVE), _entry(B, S.PROPOSED)],
         [_terminate(A)],
+        "an entry is PROPOSED while another is TERMINATED",
     ),
     "CANCEL with no TERMINATE and no threat signal": (
         [_entry(A, S.PROPOSED)],
         [_change(A, T.CANCEL)],
+        "CANCEL is legal only with a TERMINATE",
     ),
     "any change after TERMINATED (invariant 4)": (
         [_entry(A, S.TERMINATED)],
         [_change(B, T.PROPOSE)],
+        "accepts no further change (invariant 4)",
     ),
     "one entry changed twice in a step": (
         [_entry(A, S.PROPOSED)],
         [_change(A, T.ACTIVATE), _change(A, T.REJECT)],
+        "more than once",
     ),
     "SUPERSEDE beside a REJECT, not an ACTIVATE": (
         [_entry(A, S.ACTIVE), _entry(B, S.PROPOSED)],
         [_change(B, T.REJECT), _change(A, T.SUPERSEDE)],
+        "SUPERSEDE is legal only in the step that activates",
     ),
 }
 
 
 @pytest.mark.parametrize("case", list(REFUSED), ids=list(REFUSED))
 def test_refused_step_raises(case: str) -> None:
-    before, changes = REFUSED[case]
-    with pytest.raises(VultronInvalidStateTransitionError):
+    """Each combination is refused, and by the rule it breaks."""
+    before, changes, rule = REFUSED[case]
+    with pytest.raises(VultronInvalidStateTransitionError) as excinfo:
         apply_register_step(before, changes)
+    assert rule in str(excinfo.value)
 
 
 def test_threat_cancel_is_refused_while_an_embargo_is_active() -> None:
