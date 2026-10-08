@@ -31,6 +31,9 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.refusal_stage import (
+    PreconditionGuardStage,
+)
 from vultron.core.behaviors.report.prioritize_tree import (
     create_defer_case_tree,
     create_engage_case_tree,
@@ -339,7 +342,7 @@ def test_create_engage_case_tree_returns_sequence(
     assert tree is not None
     assert tree.name == "EngageCaseBT"
     assert hasattr(tree, "children")
-    assert len(tree.children) == 7
+    assert len(tree.children) == 6
 
 
 @pytest.mark.spec("BT-06-002")
@@ -361,20 +364,26 @@ def test_engage_tree_node_names(case_with_participant, actor_id):
     )
     # Intake records what arrived before any guard (CLP-10-017, ADR-0111)
     assert tree.children[0].name == "IntakeReceivedActivityNode"
-    # The sender must be a participant (HP-01-006) ...
-    assert tree.children[1].name == "SenderIsActiveParticipantNode"
-    # ... and its declaration is adjudicated before the commit (RSH-06-006)
-    assert tree.children[2].name == "AdjudicateRMDeclarationNode"
+    # The guards sit in the refusal-effects stage (CLP-10-022): the sender
+    # must be a participant (HP-01-006), and its declaration is adjudicated
+    # before the commit (RSH-06-006); a refused regression is still noted.
+    stage = tree.children[1]
+    assert isinstance(stage, PreconditionGuardStage)
+    assert [g.name for g in stage.guards.children] == [
+        "SenderIsActiveParticipantNode",
+        "AdjudicateRMDeclarationNode",
+    ]
+    assert "EmitRMGapNote" in [n.name for n in stage.refusal.iterate()]
     # Commit runs before effects (CLP-10-006)
-    assert tree.children[3].name == "GuardedCommitCaseLedgerEntryBT"
+    assert tree.children[2].name == "GuardedCommitCaseLedgerEntryBT"
     # Idempotency Selector: skip write when already ACCEPTED (RSH-08-002)
-    assert tree.children[4].name == "IdempotentTransitionRMtoAccepted"
-    assert tree.children[4].children[0].name == "AlreadyRecordedAccepted"
-    assert tree.children[4].children[1].name == "TransitionRMtoAccepted"
+    assert tree.children[3].name == "IdempotentTransitionRMtoAccepted"
+    assert tree.children[3].children[0].name == "AlreadyRecordedAccepted"
+    assert tree.children[3].children[1].name == "TransitionRMtoAccepted"
     # RSH-06-004 clarification note on an anomalous declaration
-    assert tree.children[5].name == "EmitRMGapNote"
+    assert tree.children[4].name == "EmitRMGapNote"
     # Only the CASE_MANAGER announces the updated case (CM-06-001, #2667)
-    assert tree.children[6].name == "GuardedBroadcastEngageCaseBT"
+    assert tree.children[5].name == "GuardedBroadcastEngageCaseBT"
 
 
 def test_defer_tree_node_names(case_with_participant, actor_id):
@@ -385,8 +394,14 @@ def test_defer_tree_node_names(case_with_participant, actor_id):
     assert tree.children[0].name == "IntakeReceivedActivityNode"
     # The sender must be a participant (HP-01-006) ...
     assert tree.children[1].name == "SenderIsActiveParticipantNode"
-    # ... and its declaration is adjudicated before the commit (RSH-06-006)
-    assert tree.children[2].name == "AdjudicateRMDeclarationNode"
+    # ... and its declaration is adjudicated before the commit (RSH-06-006),
+    # inside the refusal-effects stage that notes a refused regression
+    # (CLP-10-022)
+    stage = tree.children[2]
+    assert isinstance(stage, PreconditionGuardStage)
+    assert [g.name for g in stage.guards.children] == [
+        "AdjudicateRMDeclarationNode"
+    ]
     # Commit runs before effects (CLP-10-006)
     assert tree.children[3].name == "GuardedCommitCaseLedgerEntryBT"
     # Idempotency Selector: skip write when already DEFERRED (RSH-08-002)

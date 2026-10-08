@@ -376,3 +376,128 @@ def test_ungated_nodes_walks_the_replica_gate_but_not_the_manager_gate() -> (
     ]
 
     assert ungated_nodes(roots, StateWriteCapable) == [replica, bare]
+
+
+class TestRefusalEffects:
+    """The factory owns the refusal-effects stage (CLP-10-022)."""
+
+    @pytest.mark.spec("CLP-10-022")
+    def test_refusal_effects_wrap_the_guards_ahead_of_the_commit(
+        self,
+    ) -> None:
+        from vultron.core.behaviors.case.nodes.refusal_stage import (
+            PreconditionGuardStage,
+        )
+
+        guard = _effect("Guard")
+        note = _Emitter("RefusalNote")
+        tree = create_receive_activity_tree(
+            name="SampleBT",
+            case_id=CASE_ID,
+            sender_guard=_effect("SenderGuard"),
+            precondition_guards=[guard],
+            replica_effects=[_effect("Replica")],
+            refusal_effects=[note],
+        )
+
+        assert _names(tree)[1:] == [
+            "SenderGuard",
+            "PreconditionGuardStage",
+            COMMIT,
+            "Replica",
+        ]
+        stage = tree.children[2]
+        assert isinstance(stage, PreconditionGuardStage)
+        assert list(stage.guards.children) == [guard]
+        gates = [
+            n
+            for n in stage.refusal.iterate()
+            if isinstance(n, CaseManagerGate)
+        ]
+        assert len(gates) == 1
+        assert gates[0].name == "SampleBTRefusalIfCaseManager"
+        assert gates[0].gated_branch is note
+
+    @pytest.mark.spec("BT-17-008")
+    @pytest.mark.spec("CLP-10-022")
+    def test_refusal_effects_are_gated_on_the_case_manager(self) -> None:
+        from vultron.core.behaviors.case.nodes.conditions import (
+            CheckIsCaseManagerNode,
+        )
+
+        tree = create_receive_activity_tree(
+            name="NoCommitBT",
+            case_id=None,
+            precondition_guards=[_effect("Guard")],
+            refusal_effects=[_Emitter()],
+            refusal_case_id=CASE_ID,
+        )
+
+        assert ungated_emitters([tree]) == []
+        checks = [
+            n for n in tree.iterate() if isinstance(n, CheckIsCaseManagerNode)
+        ]
+        assert [(c._case_id, c._case_may_be_absent) for c in checks] == [
+            (CASE_ID, True)
+        ]
+
+    def test_the_refusal_gate_defaults_to_the_trees_case(self) -> None:
+        from vultron.core.behaviors.case.nodes.conditions import (
+            CheckIsCaseManagerNode,
+        )
+
+        tree = create_receive_activity_tree(
+            name="SampleBT",
+            case_id=CASE_ID,
+            precondition_guards=[_effect("Guard")],
+            refusal_effects=[_Emitter()],
+        )
+
+        stage = tree.children[1]
+        checks = [
+            n for n in stage.iterate() if isinstance(n, CheckIsCaseManagerNode)
+        ]
+        assert [c._case_id for c in checks] == [CASE_ID]
+
+    @pytest.mark.spec("CLP-10-022")
+    def test_a_refusal_effect_that_does_not_emit_is_refused(self) -> None:
+        with pytest.raises(VultronWiringError, match="not emit-capable"):
+            create_receive_activity_tree(
+                name="SampleBT",
+                case_id=CASE_ID,
+                precondition_guards=[_effect("Guard")],
+                refusal_effects=[_effect("StateWrite")],
+            )
+
+    def test_refusal_case_id_without_refusal_effects_is_refused(self) -> None:
+        with pytest.raises(VultronWiringError, match="refusal_case_id"):
+            create_receive_activity_tree(
+                name="SampleBT",
+                case_id=CASE_ID,
+                precondition_guards=[],
+                refusal_case_id=CASE_ID,
+            )
+
+    def test_refusal_effects_combine_with_legacy_effect_nodes(self) -> None:
+        tree = create_receive_activity_tree(
+            name="LegacyBT",
+            case_id=CASE_ID,
+            precondition_guards=[_effect("Guard")],
+            effect_nodes=[_effect("LegacyEffect")],
+            refusal_effects=[_Emitter()],
+        )
+
+        assert _names(tree)[1:] == [
+            "PreconditionGuardStage",
+            COMMIT,
+            "LegacyEffect",
+        ]
+
+    def test_without_refusal_effects_the_guards_stay_top_level(self) -> None:
+        tree = create_receive_activity_tree(
+            name="SampleBT",
+            case_id=CASE_ID,
+            precondition_guards=[_effect("Guard")],
+        )
+
+        assert _names(tree)[1:] == ["Guard", COMMIT]
