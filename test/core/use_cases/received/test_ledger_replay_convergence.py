@@ -34,6 +34,7 @@ import json
 from typing import Any, cast
 
 import pytest
+from pydantic import BaseModel
 
 from vultron.adapters.outbox_sealed_body import (
     dump_outbound_body,
@@ -259,7 +260,7 @@ def test_a_replica_follows_a_participants_engagement_decision(
 # case state.  The replica archives it and takes the move from the ledger.
 # ---------------------------------------------------------------------------
 def _deliver_direct(
-    net: LedgerNetwork, replica: str, activity: object
+    net: LedgerNetwork, replica: str, activity: BaseModel
 ) -> None:
     """Deliver *activity* straight into *replica*'s store (never the manager)."""
     net.receive(replica, json.loads(dump_outbound_body(activity)))

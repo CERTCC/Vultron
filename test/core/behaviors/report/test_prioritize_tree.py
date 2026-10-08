@@ -34,6 +34,7 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.refusal_stage import (
     PreconditionGuardStage,
 )
+from vultron.core.behaviors.case.nodes.role_gates import CaseManagerGate
 from vultron.core.behaviors.report.prioritize_tree import (
     create_defer_case_tree,
     create_engage_case_tree,
@@ -385,6 +386,7 @@ def test_engage_tree_node_names(case_with_participant, actor_id):
     # only at the CASE_MANAGER, so they sit inside one gate; a replica takes
     # the move from the ledger fan-out.
     gate = tree.children[3]
+    assert isinstance(gate, CaseManagerGate)
     assert gate.name == "EngageEffectsIfCaseManager"
     body = gate.gated_branch
     names = [n.name for n in body.children]
@@ -420,6 +422,7 @@ def test_defer_tree_node_names(case_with_participant, actor_id):
     # RSH-08-003 (#3814): the RM write and its gap note run only at the
     # CASE_MANAGER, inside one gate; a replica takes the move from the ledger.
     gate = tree.children[4]
+    assert isinstance(gate, CaseManagerGate)
     assert gate.name == "DeferEffectsIfCaseManager"
     body = gate.gated_branch
     names = [n.name for n in body.children]

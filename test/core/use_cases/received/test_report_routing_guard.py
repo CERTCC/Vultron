@@ -49,7 +49,6 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.events.report import (
@@ -69,6 +68,9 @@ from vultron.wire.as2.factories import (
     rm_close_report_activity,
     rm_invalidate_report_activity,
     rm_submit_report_activity,
+)
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Offer,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -197,7 +199,7 @@ def _rm_state(dl: SqliteDataLayer, actor_id: str) -> RM | None:
     return participant.participant_statuses[-1].rm.state
 
 
-def _offer() -> VultronActivity:
+def _offer() -> as_Offer:
     """The canonical ``Offer(Report)`` the verdict rejects (CLP-10-013)."""
     return rm_submit_report_activity(
         as_VulnerabilityReport(id_=REPORT_ID, name="r"),
