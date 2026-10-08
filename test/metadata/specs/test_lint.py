@@ -453,6 +453,31 @@ def test_lint_check_debt_owners_fails_on_a_closed_owner(
     assert "#1" not in err
 
 
+@pytest.mark.spec("MS-10-006")
+@pytest.mark.spec("ARCH-18-004")
+def test_lint_check_debt_owners_ignores_unrelated_lint_errors(
+    tmp_path, capsys, monkeypatch
+):
+    """The owner check reports closed owners only: an ADR whose status has
+    aged out of its epoch is spec-check's failure, not a closed owner (#4336)."""
+    write_yaml(tmp_path, _verification_corpus(_MIXED_ITEMS))
+    adr_dir = _make_adr_dir(tmp_path)
+    _write_dated_adr(adr_dir, "0099", "proposed", "2020-01-01")
+    monkeypatch.setattr(
+        verification_module, "gh_issue_state", lambda ref: "OPEN"
+    )
+    assert lint(tmp_path, adr_dir=adr_dir, debt_owners=_MIXED_OWNERS) == 1
+    capsys.readouterr()
+    result = lint(
+        tmp_path,
+        adr_dir=adr_dir,
+        debt_owners=_MIXED_OWNERS,
+        check_debt_owners=True,
+    )
+    assert result == 0
+    assert "MS-14-007" not in capsys.readouterr().err
+
+
 @pytest.mark.spec("MS-10-005")
 def test_main_list_unverified_flag(tmp_path, capsys, monkeypatch):
     """`spec-lint <dir> --list-unverified` reaches lint() as the opt-in."""
