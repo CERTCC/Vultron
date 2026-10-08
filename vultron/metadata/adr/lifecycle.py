@@ -13,13 +13,16 @@ of time since the last *material* edit (``updated``):
 A human may override the computed status with ``status_override: <reason>``.
 Retired and rejected ADRs have no epoch.
 
-Two checks live here:
+The clock alone never fails a merge-blocking check: nothing in the repository
+changes when an ADR crosses an epoch boundary, so a check that reads today's
+date would turn ``main`` red with no commit to blame. Two checks live here:
 
-- :func:`status_epoch_fault` compares ``status`` with the epoch (run by
-  ``spec-lint``).
 - :func:`edit_faults` compares an ADR's text before and after an edit and
-  refuses the edits the epochs forbid (run by the ``adr-lifecycle-check``
-  pre-commit hook).
+  refuses the edits the epochs forbid, including a material edit (``updated``
+  moved, or a new ADR) that leaves ``status`` off its epoch on that date. It
+  runs as the ``adr-lifecycle-check`` pre-commit hook and a pull-request job.
+- :func:`epoch_drift` compares every ADR's ``status`` with today's epoch. It
+  only reports, through the scheduled ``adr-status-drift`` workflow.
 
 :func:`hardened_adrs` reports the early-promotion signal: an ADR still in epoch
 1 or 2 that a spec requirement depends on and verifies with a test.
@@ -39,6 +42,7 @@ from typing import Protocol
 
 from pydantic import ValidationError
 
+from vultron.metadata.adr.loader import load_adr_registry
 from vultron.metadata.adr.schema import AdrFrontmatter
 from vultron.metadata.file_loading import loads_frontmatter
 from vultron.metadata.specs.schema import AdrStatus
@@ -116,6 +120,20 @@ def status_epoch_fault(
     )
 
 
+def epoch_drift(repo_root: Path, today: _dt.date) -> list[str]:
+    """Describe every ADR whose ``status`` disagrees with today's epoch.
+
+    Reads the whole ADR registry under ``repo_root``. The result is a report,
+    never a gate (MS-14-007): see the module docstring.
+    """
+    registry = load_adr_registry(repo_root)
+    faults = (
+        status_epoch_fault(Path(rel).name, fm, today)
+        for rel, fm in registry.items()
+    )
+    return [f for f in faults if f]
+
+
 def _parse_sections(body: str) -> list[tuple[int, str, str]]:
     """Return ``(level, title, own text)`` for each heading, in order.
 
@@ -186,10 +204,16 @@ def _amendment_count(body: str) -> int:
 
 
 def edit_faults(
-    name: str, old_text: str, new_text: str, today: _dt.date
+    name: str, old_text: str | None, new_text: str, today: _dt.date
 ) -> list[str]:
     """Return the lifecycle faults in an edit of one ADR (MS-14-007).
 
+    ``old_text`` is ``None`` for a new ADR.
+
+    - A material edit (``updated`` moved, or a new ADR) must leave ``status``
+      matching the epoch on ``today`` unless a ``status_override`` says why.
+      An edit that leaves ``updated`` alone is not held to this: drift on an
+      untouched ADR is the scheduled report's.
     - Bumping ``updated`` on an ADR that was past epoch 1 needs a
       ``status_override``.
     - Changing Decision Outcome or Considered Options of an epoch-3 ADR needs a
@@ -197,15 +221,25 @@ def edit_faults(
 
     Frontmatter that fails its schema is left to the loader to report.
     """
-    old = loads_frontmatter(old_text)
     new = loads_frontmatter(new_text)
     try:
-        old_fm = AdrFrontmatter.model_validate(old.metadata)
         new_fm = AdrFrontmatter.model_validate(new.metadata)
+    except ValidationError:
+        return []
+    if old_text is None:
+        fault = status_epoch_fault(name, new_fm, today)
+        return [fault] if fault else []
+    old = loads_frontmatter(old_text)
+    try:
+        old_fm = AdrFrontmatter.model_validate(old.metadata)
     except ValidationError:
         return []
 
     faults: list[str] = []
+    if new_fm.updated != old_fm.updated:
+        epoch_fault = status_epoch_fault(name, new_fm, today)
+        if epoch_fault:
+            faults.append(epoch_fault)
     old_epoch = epoch_for(old_fm.updated, today)
 
     if (
@@ -337,7 +371,7 @@ def check_paths(
     """Check each ADR path's working-tree text against its text at ``base``.
 
     A renamed path is compared with the path it had at ``base``. A path with
-    no text at ``base`` is a new ADR and is unconstrained. Raises
+    no text at ``base`` is a new ADR, held to the epoch rule. Raises
     ``ValueError`` if ``base`` is not a commit.
     """
     verify_base(base)
@@ -349,8 +383,6 @@ def check_paths(
         if not path.is_file():
             continue
         old_text = _text_at(base, renames.get(path, path))
-        if old_text is None:
-            continue
         faults.extend(
             edit_faults(
                 path.name, old_text, path.read_text(encoding="utf-8"), today
@@ -360,14 +392,28 @@ def check_paths(
 
 
 def main(argv: list[str] | None = None) -> None:
-    """CLI: ``uv run adr-lifecycle-check [--base REF] [paths...]``."""
+    """CLI: ``adr-lifecycle-check [--base REF] [paths...] | --report-drift``."""
     parser = argparse.ArgumentParser(
         prog="adr-lifecycle-check",
         description="Refuse ADR edits the lifecycle epochs forbid (MS-14-007).",
     )
     parser.add_argument("--base", default="HEAD", help="ref to diff against")
     parser.add_argument("paths", nargs="*", type=Path)
+    parser.add_argument(
+        "--report-drift",
+        action="store_true",
+        help=(
+            "instead of checking an edit, list every ADR whose status "
+            "disagrees with today's epoch; run by the scheduled "
+            "adr-status-drift workflow, which reports and never fails"
+        ),
+    )
     args = parser.parse_args(argv)
+    if args.report_drift:
+        drift = epoch_drift(Path.cwd(), today_utc())
+        for fault in drift:
+            print(f"[ERROR] {fault}", file=sys.stderr)
+        sys.exit(1 if drift else 0)
     try:
         faults = check_paths(args.paths, args.base, today_utc())
     except ValueError as exc:
