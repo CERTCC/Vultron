@@ -26,6 +26,7 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.behaviors.narrative_log import log_em_transition
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.nodes import _require_log_entry
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.participants.recipients import case_content_recipients
@@ -71,7 +72,7 @@ class HasEmbargoActiveNode(DataLayerConditionWithPorts):
         return Status.SUCCESS
 
 
-class ClearActiveEmbargoNode(DataLayerActionWithPorts):
+class ClearActiveEmbargoNode(DataLayerActionWithPorts, StateWriteCapable):
     """Terminate the embargo in force, so EM derives ``EXITED``.
 
     Reads the current EM state via ``ReadEmStateNode``, then delegates to
@@ -152,7 +153,7 @@ class ClearActiveEmbargoNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class ApplyEmbargoTeardownNode(DataLayerActionWithPorts):
+class ApplyEmbargoTeardownNode(DataLayerActionWithPorts, StateWriteCapable):
     """Apply receiver-side embargo teardown.
 
     Terminates the register's ``ACTIVE`` entry and cancels every open

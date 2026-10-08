@@ -26,6 +26,7 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.behaviors.narrative_log import log_em_transition
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models._helpers import _as_id
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
@@ -142,7 +143,7 @@ class ValidateEmbargoProposalStateNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class _EmbargoLifecycleNode(DataLayerActionWithPorts):
+class _EmbargoLifecycleNode(DataLayerActionWithPorts, StateWriteCapable):
     """Base node for EmbargoLifecycle strict-mode transitions.
 
     1. ``ReadEmStateNode`` reads ``em_state`` → ``result_out["em_before"]``.
@@ -375,7 +376,7 @@ class ReadEmbargoIdNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class SetEmbargoActiveNode(DataLayerActionWithPorts):
+class SetEmbargoActiveNode(DataLayerActionWithPorts, StateWriteCapable):
     """Set embargo active on case and transition EM → ACTIVE.
 
     Routes the activation through ``EmbargoLifecycle.activate_embargo()``
