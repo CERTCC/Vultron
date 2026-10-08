@@ -75,6 +75,7 @@ from vultron.core.behaviors.replica_emit_exemptions import (
     REPLICA_EMIT_EXEMPTIONS,
     ReplicaEmitExemption,
 )
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.errors import VultronWiringError
 
 logger = logging.getLogger(__name__)
@@ -249,20 +250,29 @@ def _refusal_stage(
     an unknown case has already reported it.
 
     Raises:
-        VultronWiringError: a refusal effect is not emit-capable.  A refusal
-            commits nothing, so a refusal effect may only speak to the
-            sender; a state write here would change state the ledger never
-            records (CLP-10-022).
+        VultronWiringError: a refusal effect is not emit-capable, or
+            contains a state writer.  A refusal commits nothing, so a refusal
+            effect may only speak to the sender; a state write here would
+            change state the ledger never records (CLP-10-022).
     """
-    if not_emitters := [
+    not_emitters = [
         type(n).__name__
         for n in refusal_effects
         if not isinstance(n, EmitCapable)
-    ]:
+    ]
+    writers = sorted(
+        {
+            type(n).__name__
+            for root in refusal_effects
+            for n in root.iterate()
+            if isinstance(n, StateWriteCapable)
+        }
+    )
+    if not_emitters or writers:
         raise VultronWiringError(
-            f"create_receive_activity_tree({name}): refusal_effects"
-            f" {not_emitters} are not emit-capable; a refusal commits"
-            " nothing, so its effects may only emit (CLP-10-022)"
+            f"create_receive_activity_tree({name}): refusal_effects must"
+            f" emit and write no case state; not emit-capable:"
+            f" {not_emitters}, state writers: {writers} (CLP-10-022)"
         )
     gate = create_case_manager_gated_tree(
         name=f"{name}RefusalIfCaseManager",

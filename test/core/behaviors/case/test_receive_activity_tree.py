@@ -70,6 +70,10 @@ class _Writer(StateWriteCapable, py_trees.behaviour.Behaviour):
         return Status.SUCCESS
 
 
+class _EmittingWriter(StateWriteCapable, _Emitter):
+    """A stand-in emit node that also writes case state."""
+
+
 def _effect(name: str = "Effect") -> py_trees.behaviour.Behaviour:
     return py_trees.behaviours.Success(name=name)
 
@@ -466,7 +470,17 @@ class TestRefusalEffects:
                 name="SampleBT",
                 case_id=CASE_ID,
                 precondition_guards=[_effect("Guard")],
-                refusal_effects=[_effect("StateWrite")],
+                refusal_effects=[_effect("Plain")],
+            )
+
+    @pytest.mark.spec("CLP-10-022")
+    def test_a_refusal_effect_that_writes_state_is_refused(self) -> None:
+        with pytest.raises(VultronWiringError, match="_EmittingWriter"):
+            create_receive_activity_tree(
+                name="SampleBT",
+                case_id=CASE_ID,
+                precondition_guards=[_effect("Guard")],
+                refusal_effects=[_EmittingWriter()],
             )
 
     def test_refusal_case_id_without_refusal_effects_is_refused(self) -> None:

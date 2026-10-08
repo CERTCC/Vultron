@@ -1319,8 +1319,9 @@ groups:
       case's CASE_MANAGER; MUST NOT run them again for a redelivery that intake
       found already archived; and MUST leave the tree failing with the guard's
       refusal, so nothing is committed and the handler reports `REFUSED` for
-      the guard's reason. Every refusal effect MUST be emit-capable: a refusal
-      commits nothing, so it changes no state.
+      the guard's reason. Every refusal effect MUST be emit-capable and MUST
+      contain no state-write node: a refusal commits nothing, so it changes no
+      state.
     rationale: >-
       A receiver should not silently drop an assertion it can answer in the
       moment, such as a refused backward RM declaration (RSH-06-004). An emit
