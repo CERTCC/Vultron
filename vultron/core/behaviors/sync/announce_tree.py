@@ -359,7 +359,7 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
         name="AnnounceLogEntryReceivedBT",
         case_id=None,
         precondition_guards=[],
-        effect_nodes=[
+        replica_effects=[
             py_trees.composites.Selector(
                 name="AnnounceLogEntryRoles",
                 memory=False,

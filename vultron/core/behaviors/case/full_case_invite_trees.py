@@ -23,7 +23,6 @@ from vultron.core.behaviors.case.nodes.full_case_invite import (
     LogFullCaseInviteReceivedNode,
 )
 from vultron.core.behaviors.case.nodes.role_gates import (
-    create_case_manager_gated_tree,
     create_participant_replica_gated_tree,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
@@ -71,7 +70,7 @@ def create_invite_actor_to_full_case_received_tree(
         case_id=case_id,
         sender_guard=SenderIsCaseManagerNode(case_id=case_id, anchored=True),
         precondition_guards=[],
-        effect_nodes=[
+        replica_effects=[
             create_participant_replica_gated_tree(
                 name="InviteeRecordsFullCaseInvite",
                 case_id=case_id,
@@ -134,16 +133,12 @@ def create_full_case_invite_reply_received_tree(
             ),
             rm_declaration_guard(replier_id, rm_state, case_id),
         ],
-        effect_nodes=[
-            create_case_manager_gated_tree(
-                name="FullCaseReplyEffects",
-                case_id=case_id,
-                children=record_rm_declaration(
-                    sender_actor_id=replier_id,
-                    declared_rm=rm_state,
-                    case_id=case_id,
-                    name=f"TransitionRMto{rm_state.name.title()}",
-                ),
-            )
-        ],
+        manager_effects=record_rm_declaration(
+            sender_actor_id=replier_id,
+            declared_rm=rm_state,
+            case_id=case_id,
+            name=f"TransitionRMto{rm_state.name.title()}",
+        ),
+        manager_case_id=case_id,
+        manager_gate_name="FullCaseReplyEffects",
     )

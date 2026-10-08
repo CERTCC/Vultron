@@ -26,7 +26,7 @@ from py_trees.common import Status
 
 from test.core.behaviors.sync.nodes.conftest import CASE_ID
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.embargo.announce_teardown_tree import (
+from vultron.core.behaviors.embargo.admission_backfill_tree import (
     embargo_admission_backfill_tree,
 )
 from vultron.core.behaviors.sync.nodes.embargo_pause import (
