@@ -637,6 +637,28 @@ the pause cannot deadlock the participant out of accepting.
 
 ---
 
+## Answering the Embargo in Force (EP-09-012)
+
+Activation takes a proposal out of `pending_embargo_proposal_index` (EP-08-003),
+so the accept and reject triggers cannot reach the embargo in force through it.
+A participant whose row for that embargo is still `INVITED` or `EXPIRED` can
+still answer it: the receive side marks the row of whatever embargo the
+`Accept(Invite(EmbargoEvent))` names, active or not (MSM-07-003, EMB-17-002).
+
+- The answer goes through the relayed `Invite(EmbargoEvent)`, never the
+  full-case Invite. Replies to the full-case Invite move only the RM state
+  (CM-11-011) and carry no embargo consent.
+- A joiner that accepts the stub Invite is already `ACCEPTED` for the active
+  embargo (CM-11-001), so only a participant that never answered needs this.
+- The caller names the Invite. With no name the trigger picks among open
+  proposals only (EP-08-002) and never falls back to the embargo in force,
+  because answering an embargo is an intentional act and a fallback could
+  consent to terms the caller did not mean.
+- Do not re-add the active embargo to the open-proposal index to make the
+  trigger find it; that breaks EP-08-003 and EP-08-002's selection.
+
+*Spec: EP-09-012, EP-08-003, MSM-07-003. Decision: ADR-0122.*
+
 ## Implications for DR-06 (Accept Embargo Handler)
 
 The `AcceptEmbargoReceivedUseCase` MUST:
