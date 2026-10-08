@@ -13,13 +13,12 @@
 
 """Received-side BT factories for the full-case Invite and its replies.
 
-See CM-11-010, CM-11-011, CM-11-012, ADR-0121.
+See CM-11-010, CM-11-011, CM-11-012, ADR-0121, RSH-06-006.
 """
 
 import py_trees
 
 from vultron.core.behaviors.case.nodes.full_case_invite import (
-    ApplyFullCaseReplyToParticipantNode,
     CheckFullCaseReplyNode,
     LogFullCaseInviteReceivedNode,
 )
@@ -28,6 +27,10 @@ from vultron.core.behaviors.case.nodes.role_gates import (
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
+)
+from vultron.core.behaviors.report.rm_declaration_tree import (
+    record_rm_declaration,
+    rm_declaration_guard,
 )
 from vultron.core.behaviors.sender_entitlement import (
     SenderIsCaseManagerNode,
@@ -99,16 +102,21 @@ def create_full_case_invite_reply_received_tree(
     The sender must be the invitee of the Invite this store recorded
     (CM-11-017, HP-01-006, ADR-0115).
     The CASE_MANAGER checks the reply's ledger position against the Invite's
-    floor before it commits anything (CM-11-012), commits the receipt, then
-    records the participant's RM transition (CM-11-011)::
+    floor before it commits anything (CM-11-012), adjudicates the RM
+    declaration with the shared rule (RSH-06-006), commits the receipt, then
+    records the participant's RM state via the idempotent DECLARATION write
+    and posts a gap note when the move was non-adjacent (RSH-06-001,
+    RSH-06-004)::
 
         <name> (Sequence)
         ├── Intake
         ├── SenderIsInviteeNode              # sender is the recorded invitee
-        ├── CheckFullCaseReplyNode           # judges only as the CASE_MANAGER
+        ├── CheckFullCaseReplyNode           # position / participant checks
+        ├── AdjudicateRMDeclarationNode      # shared rule (RSH-06-006)
         ├── GuardedCommitCaseLedgerEntryBT
         └── FullCaseReplyEffects             # CASE_MANAGER only
-            └── ApplyFullCaseReplyToParticipantNode
+            ├── Idempotent<name> (Selector)  # already recorded → skip
+            └── EmitRMGapNote               # gap note when anomalous
     """
     return create_receive_activity_tree(
         name=name,
@@ -122,16 +130,15 @@ def create_full_case_invite_reply_received_tree(
                 invite_id=invite_id,
                 replier_id=replier_id,
                 position=position,
-                rm_state=rm_state,
-            )
+            ),
+            rm_declaration_guard(replier_id, rm_state, case_id),
         ],
-        manager_effects=[
-            ApplyFullCaseReplyToParticipantNode(
-                case_id=case_id,
-                replier_id=replier_id,
-                rm_state=rm_state,
-            )
-        ],
+        manager_effects=record_rm_declaration(
+            sender_actor_id=replier_id,
+            declared_rm=rm_state,
+            case_id=case_id,
+            name=f"TransitionRMto{rm_state.name.title()}",
+        ),
         manager_case_id=case_id,
         manager_gate_name="FullCaseReplyEffects",
     )
