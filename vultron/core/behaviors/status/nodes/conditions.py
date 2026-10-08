@@ -32,6 +32,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
 )
 from vultron.core.models._helpers import _as_id
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.states.rm import RM
@@ -71,6 +72,10 @@ class AllParticipantsRMClosedConditionNode(DataLayerConditionWithPorts):
             p = self.datalayer.read(p_id)
             if p is None:
                 return False
+            if isinstance(p, CaseParticipant) and not p.joined:
+                # Inert invitee that never accepted its stub Invite: not part
+                # of the case, so it cannot hold up closure (CM-11-014).
+                continue
             statuses = getattr(p, "participant_statuses", [])
             if not statuses:
                 return False
