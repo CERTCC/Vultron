@@ -5,7 +5,7 @@ level: 300
 
 # How to Manage a Case Roster
 
-Use this guide to run the full participant lifecycle on a case: invite an actor, seat it when it accepts, record its status, and remove it from active participation.
+Use this guide to run the full participant lifecycle on a case: invite an actor, seat it when it accepts, record its status, remove it from active participation, and reinstate it.
 Every step routes through the CASE_MANAGER, which is the authoritative recipient of case-management handshake messages once a case exists.
 You finish with a case whose active participants are the ones actually working it.
 
@@ -16,7 +16,7 @@ You finish with a case whose active participants are the ones actually working i
 {% include-markdown "./_demo_prerequisites.md" %}
 
 - An existing case.
-- The Case Owner role for invitations and removals.
+- The Case Owner role for invitations, removals and reinstatements.
   Any participant can record its own status.
 - The CASE_MANAGER's actor Uniform Resource Identifier (URI), which is where handshake replies go.
 
@@ -24,8 +24,8 @@ You finish with a case whose active participants are the ones actually working i
 
 ## The lifecycle
 
-The flowchart below shows the roster path from invitation to removal.
-The two decision diamonds are the loop a long-running case sits in: status updates accumulate, and a participant leaves only when `Remove?` is answered yes.
+The flowchart below shows the roster path from invitation to removal and back.
+The decision diamonds are the loop a long-running case sits in: status updates accumulate, a participant leaves active participation only when `Remove?` is answered yes, and it returns only when `Reinstate?` is answered yes.
 
 ```mermaid
 ---
@@ -42,12 +42,11 @@ flowchart TB
         RmRejectInviteToCase["Reject Invite to Case<br/>Reject(Invite(Actor))"]
     end
     subgraph as:Create
-        CreateParticipant["Create Case Participant<br/>Create(CaseParticipant)"]
         CreateParticipantStatus["Create Participant Status<br/>Create(ParticipantStatus)"]
     end
     subgraph as:Add
-        AddParticipantToCase["Add Case Participant to Case<br/>Add(CaseParticipant)"]
         AddStatusToParticipant["Vendor Awareness (CV) / Fix Readiness (CF) / Fix Deployed (CD)<br/>Add(ParticipantStatus)"]
+        AddParticipantToCase["Reinstate Case Participant<br/>Add(CaseParticipant)"]
     end
     subgraph as:Remove
         RemoveParticipantFromCase["Remove Case Participant from Case<br/>Remove(CaseParticipant)"]
@@ -57,16 +56,17 @@ flowchart TB
     RmInviteToCase --> a{Accept?}
     a -->|y| RmAcceptInviteToCase
     a -->|n| RmRejectInviteToCase
-    RmAcceptInviteToCase --> CreateParticipant
+    RmAcceptInviteToCase --> s{Status?}
 
     CreateParticipantStatus --> AddStatusToParticipant
-    CreateParticipant --> AddParticipantToCase
-    AddParticipantToCase --> s{Status?}
     s -->|y| CreateParticipantStatus
     s -->|n| r{Remove?}
     AddStatusToParticipant --> r
     r -->|y| RemoveParticipantFromCase
     r -->|n| s
+    RemoveParticipantFromCase --> b{Reinstate?}
+    b -->|y| AddParticipantToCase
+    AddParticipantToCase --> s
 ```
 
 ---
@@ -76,7 +76,8 @@ flowchart TB
 1. Trigger the invitation.
    The CASE_MANAGER sends `Invite(Actor)` with itself as the ActivityStreams `actor` and your Case Owner identity in `attributedTo` (PCR-08-007, PCR-08-008).
 2. Wait for the invitee's reply, addressed to the CASE_MANAGER.
-3. If the reply is `Accept(Invite(Actor))`, seat the actor — see [How to Seat a Participant on an Existing Case](initialize_participant.md).
+3. If the reply is `Accept(Invite(Actor))`, the CASE_MANAGER seats the actor — see [How to Seat a Participant on an Existing Case](initialize_participant.md).
+   Every replica seats the new member from the `Accept(Invite(Actor))` ledger entry; nothing else is sent to seat it.
 4. If the reply is `Reject(Invite(Actor))`, stop.
    The actor is not on the case, and nothing further is owed.
 
@@ -140,11 +141,31 @@ A second removal of the same participant changes nothing.
 
 The CASE_MANAGER records your `Remove` as one ledger entry and sends that entry to every active participant, the removed one included.
 It then sends the removed participant a direct `Remove(CaseParticipant)` naming it, with `attributedTo` set to you.
-The removed participant receives no later ledger entries.
+The removed participant receives no later ledger entries, and no Invite of any kind.
+The CASE_MANAGER also refuses a recommendation that names the removed participant, and your acceptance of an earlier one; reinstate the participant instead.
+A removed signatory stays bound by the embargo it accepted.
+When that embargo is terminated, or replaced by a revision that ends no later, the CASE_MANAGER sends the removed participant the change directly, outside the ledger (see [ET — Embargo Termination](../../../reference/messages/em.md#et-embargo-termination)).
 See [Participant Removal](../../../reference/vultron-spec/interactions.md#114-participant-removal-n).
 
 Removal is not a closure — a participant that has finished its own work closes with `Leave(VulnerabilityCase)` instead.
 See [How to Advance a Case Through Report Management](manage_case.md).
+
+---
+
+## Reinstate a participant
+
+Only the Case Owner reinstates a removed participant.
+Send `Add(CaseParticipant)` to the CASE_MANAGER, with the removed participant as its `object` and the case as its `target`.
+If you are both the Case Owner and the CASE_MANAGER, send it to your own inbox.
+
+Reinstatement clears the removal fact.
+The participant does not accept again: it never withdrew, so it keeps its roles, its status history and its embargo consent.
+The CASE_MANAGER refuses an `Add` from anyone other than the Case Owner, and an `Add` that names a participant that is not removed or that never joined.
+`Add(CaseParticipant)` does not seat a new member; an actor joins only by accepting its stub Invite.
+
+The CASE_MANAGER records your `Add` as one ledger entry.
+When the participant is active again, the CASE_MANAGER sends it every ledger entry committed after its removal entry, in log order, then a direct `Add(CaseParticipant)` naming it, with `attributedTo` set to you.
+A participant that has not accepted the active embargo stays inert: the CASE_MANAGER sends it that embargo's Invite instead, and its catch-up waits until it accepts.
 
 ---
 
@@ -153,9 +174,10 @@ See [How to Advance a Case Through Report Management](manage_case.md).
 | What you sent | What to confirm |
 |---|---|
 | `Invite(Actor)` | The invitee holds an `Invite` whose `actor` is the CASE_MANAGER. |
-| `Add(CaseParticipant)` | The roster holds the participant with its roles. |
+| `Accept(Invite(Actor))` | The roster holds the participant with its roles. |
 | `Add(ParticipantStatus)` | The participant record carries the new status. |
 | `Remove(CaseParticipant)` | The roster still lists the participant, and its record names your `Remove` as its `removalActivity`. |
+| `Add(CaseParticipant)` | The participant's record has no `removalActivity`, and the participant holds the ledger entries it missed. |
 | `Accept`, `TentativeReject` or `Reject` of the full-case Invite | The CASE_MANAGER's record of the participant shows RM `VALID`, `INVALID` or `CLOSED`. |
 
 ---
@@ -174,7 +196,7 @@ See [How to Advance a Case Through Report Management](manage_case.md).
     DEMO=manage-participants docker compose -f docker/docker-compose.yml run --rm demo
     ```
 
-    The scenario runs invite, accept, seat, status update, and removal, then the rejection path.
+    The scenario runs invite, accept, status update, removal, and reinstatement, then the rejection path.
 
 ---
 
@@ -182,5 +204,5 @@ See [How to Advance a Case Through Report Management](manage_case.md).
 
 - [Case Management Messages](../../../reference/messages/case_management.md) — the wire format and a rendered example for each activity above
 - [Case State (CS) Messages](../../../reference/messages/cs.md) — the status fields `Add(ParticipantStatus)` carries
-- [Activity Vocabulary Design](../../../topics/activity_vocabulary_design.md) — why `as:Invite` asks where `as:Add` asserts, and how many activities one participant addition needs
+- [Activity Vocabulary Design](../../../topics/activity_vocabulary_design.md) — why `as:Invite` asks where `as:Add` asserts
 - [Trigger API Reference](../../../reference/trigger-api.md#actor-participation) — request schema and endpoint details for `suggest-actor-to-case`, `invite-actor-to-case`, `accept-case-invite`, and `reject-case-invite`

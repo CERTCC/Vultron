@@ -21,9 +21,6 @@ import logging
 
 import py_trees
 
-from vultron.core.behaviors.case.nodes.role_gates import (
-    create_case_manager_gated_tree,
-)
 from vultron.core.behaviors.case.nodes.update import (
     ApplyCaseUpdateNode,
     BroadcastCaseUpdateNode,
@@ -78,10 +75,11 @@ def create_update_case_received_tree(
     ``Announce`` authored as itself to every participant, which for a
     non-authoritative actor is identity spoofing.  A non-manager therefore
     *skips* the broadcast (Success) rather than failing: applying the update
-    locally is correct and expected.  The gate is
-    :func:`create_case_manager_gated_tree` (BTND-07-005), so a broadcast that
-    fails *at* the CASE_MANAGER propagates rather than reading as a skip
-    (BT-14-001).
+    locally is correct and expected.  The broadcast is passed as
+    ``manager_effects``, so the factory wraps it in
+    :func:`create_case_manager_gated_tree` (BTND-07-005, BT-17-008) and a
+    broadcast that fails *at* the CASE_MANAGER propagates rather than reading
+    as a skip (BT-14-001).
     """
     root = create_receive_activity_tree(
         name="UpdateCaseBT",
@@ -92,15 +90,13 @@ def create_update_case_received_tree(
                 case_id=case_id, sender_actor_id=request.actor_id
             ),
         ],
-        effect_nodes=[
+        replica_effects=[
             CaptureCaseUpdateBroadcastExclusionsNode(case_id=case_id),
             ApplyCaseUpdateNode(case_id=case_id, request=request),
-            create_case_manager_gated_tree(
-                name="GuardedBroadcastCaseUpdateBT",
-                case_id=case_id,
-                children=[BroadcastCaseUpdateNode(case_id=case_id)],
-            ),
         ],
+        manager_effects=[BroadcastCaseUpdateNode(case_id=case_id)],
+        manager_case_id=case_id,
+        manager_gate_name="GuardedBroadcastCaseUpdateBT",
     )
     logger.info(
         "Created UpdateCaseBT for case=%s, actor=%s", case_id, actor_id

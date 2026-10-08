@@ -10,6 +10,7 @@ related_specs:
   - specs/case-management.yaml
   - specs/case-ledger-processing.yaml
   - specs/event-driven-control-flow.yaml
+  - specs/behavior-tree-integration.yaml
 related_notes:
   - notes/case-communication-model.md
   - notes/protocol-event-cascades.md
@@ -124,7 +125,8 @@ inside the BT:
 1. Store the Offer object via `create_receive_activity_tree`'s idempotency guard.
 2. Commit a `CaseLedgerEntry` via the guarded-commit node (CASE_MANAGER only).
 3. Forward the Offer to the transferee via `ForwardOfferToTransfereeNode`,
-   wrapped in `create_case_manager_gated_tree` (CASE_MANAGER only, CM-21-005).
+   passed as `manager_effects` so the factory wraps it in the CASE_MANAGER
+   gate (CASE_MANAGER only, CM-21-005, BT-17-008).
 
 **Forwarded-Offer wire format** (CM-21-005):
 
@@ -174,14 +176,14 @@ Audit any peer that reads `request.actor_id` where it means "who asked for this"
 
 `create_accept_ownership_transfer_tree()` MUST pass `case_id` to
 `create_receive_activity_tree` and include ONLY `AcceptCaseOwnershipTransferNode`
-in `effect_nodes`:
+in `replica_effects`:
 
 ```python
 tree = create_receive_activity_tree(
     name="AcceptOwnershipTransferBT",
     case_id=case_id,
     precondition_guards=[],
-    effect_nodes=[
+    replica_effects=[
         AcceptCaseOwnershipTransferNode(case_id=case_id, new_owner_id=new_owner_id),
     ],
 )
@@ -189,7 +191,7 @@ tree = create_receive_activity_tree(
 
 `create_receive_activity_tree` already injects `GuardedCommitCaseLedgerEntryBT`
 (with `CheckIsCaseManagerNode`) as the canonical single-writer commit step.
-Adding a second `CommitCaseLedgerEntryNode` to `effect_nodes` is a
+Adding a second `CommitCaseLedgerEntryNode` to the effects is a
 **double-write bug**: the guarded commit fires for CASE_MANAGER at log_index=N;
 the extra unguarded node fires for all actors, including the transferee, also
 at log_index=N but with a different `received_at` and `payload_snapshot` —
@@ -236,12 +238,13 @@ Two preconditions are easy to get wrong here and both fail far from their cause:
    inline object (CLP-07) and `build_activity_payload_snapshot` can only inline
    what the committing actor's store holds, so an unknown transferee produces
    `payloadSnapshot.target must be an inline object` at commit time. Seed the peer
-   with `seed_peer(client, local_actor_id=case_actor_id, ...)`, and add the
-   participant through the CASE_MANAGER-routed Invite/Accept handshake
-   (`case_actor_invites_actor_to_case`) — the standalone
-   `Create(CaseParticipant)` + `AddParticipantToCase` pair delivered to the case
-   owner's inbox only updates the *owner's* replica, so the CASE_MANAGER-side
-   `CVDRole.CASE_OWNER` grant (CM-21-002) finds nothing to grant.
+   with `seed_peer(client, local_actor_id=case_actor_id, ...)`, and seat the
+   participant through its stub Invite
+   (`seat_participant_through_stub_invite`): the Case Owner asks, the
+   CASE_MANAGER invites, and the invitee's `Accept` seats it on the
+   CASE_MANAGER's own replica. `Add(CaseParticipant)` never seats a member
+   (CM-31-011, ADR-0116), and a hand-built Invite skips the CASE_MANAGER's
+   tree, so the `CVDRole.CASE_OWNER` grant (CM-21-002) would find nothing.
 
 ### fccv_handoff_demo.py
 

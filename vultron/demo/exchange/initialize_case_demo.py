@@ -22,8 +22,9 @@ This demo script showcases the case initialization process:
 2. Create Case: vendor explicitly creates a as_VulnerabilityCase
 3. Add Vendor as Participant: vendor adds themselves as case creator/owner
 4. Add Report to Case: vendor links the submitted report to the case
-5. Create Participant: vendor creates a as_CaseParticipant for the finder
-6. Add Participant to Case: vendor adds the finder participant to the case
+5. Invite the Finder: vendor sends the finder the stub Invite
+6. Finder Joins: the finder accepts, and the vendor, as CASE_MANAGER, seats it
+   (ADR-0114; ``Add(CaseParticipant)`` only reinstates, CM-31-011)
 7. Show final case state
 
 This corresponds to the workflow documented in:
@@ -46,7 +47,10 @@ import logging
 from collections.abc import Callable, Sequence
 
 from vultron.demo.helpers.runner import run_exchange_demos
-from vultron.demo.helpers.workflow import create_case_via_trigger
+from vultron.demo.helpers.workflow import (
+    create_case_via_trigger,
+    seat_participant_through_stub_invite,
+)
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
     DataLayerClient,
@@ -62,18 +66,13 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
 )
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
-    add_participant_to_case_activity,
     add_report_to_case_activity,
     rm_submit_report_activity,
     rm_validate_report_activity,
 )
 
 # Vultron imports
-from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.case_participant import (
-    as_CaseParticipant,
-)
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
@@ -93,11 +92,13 @@ def demo_initialize_case(
     Steps:
     1. Finder submits a vulnerability report to vendor inbox
     2. Vendor validates the report (RmValidateReportActivity)
-    3. Vendor explicitly creates a as_VulnerabilityCase (CreateCaseActivity)
-    4. Vendor adds themselves as VendorParticipant (case creator/owner)
+    3. Vendor creates the case through the create-case trigger
+    4. The trigger registers the vendor as CASE_OWNER and CASE_MANAGER
     5. Vendor adds the report to the case (AddReportToCaseActivity)
-    6. Vendor creates a FinderReporterParticipant for the finder
-    7. Vendor adds the finder participant to the case (AddParticipantToCaseActivity)
+    6. Vendor asks the CASE_MANAGER (itself) to invite the finder, which
+       sends the stub Invite
+    7. Finder accepts (RmAcceptInviteToCaseActivity), which seats it as a
+       FINDER participant (ADR-0114)
     8. Final case state is logged
 
     This follows the workflow in docs/howto/activitypub/activities/initialize_case.md.
@@ -140,6 +141,10 @@ def demo_initialize_case(
             vendor,
             name="RCE Case — Web Framework",
             content="Tracking the RCE vulnerability in the web framework.",
+            stub_summary=(
+                "Remote code execution in web framework"
+                " — details shared after acceptance."
+            ),
         )
         logger.info("Created case object: %s", logfmt(case))
         with demo_check("Case stored in data layer"):
@@ -180,38 +185,23 @@ def demo_initialize_case(
                     f"Report '{report.id_}' not found in case after AddReportToCaseActivity"
                 )
 
-    participant = None
-    with demo_step("Step 6: Vendor creates finder participant"):
-        participant = as_CaseParticipant(
-            case_roles=[CVDRole.FINDER, CVDRole.REPORTER],
-            attributed_to=finder.id_,
-            context=case.id_,
+    with demo_step(
+        "Steps 6-7: Vendor invites finder; finder accepts and joins"
+    ):
+        participant = seat_participant_through_stub_invite(
+            client, case, owner=vendor, invitee=finder, role=CVDRole.FINDER
         )
-        logger.info("Created participant: %s", logfmt(participant))
-        create_participant_activity = as_Create(
-            actor=vendor.id_,
-            object_=participant,
-            context=case.id_,
-        )
-        post_to_inbox_and_wait(client, vendor.id_, create_participant_activity)
-        with demo_check("Finder participant stored"):
-            verify_object_stored(client, participant.id_)
-
-    with demo_step("Step 7: Vendor adds finder participant to case"):
-        add_participant_activity = add_participant_to_case_activity(
-            participant, actor=vendor.id_, target=case.id_
-        )
-        post_to_inbox_and_wait(client, vendor.id_, add_participant_activity)
+        logger.info("Seated participant: %s", logfmt(participant))
         with demo_check("Finder participant in case participant list"):
             final_case = log_case_state(
-                client, case.id_, "after AddParticipantToCaseActivity"
+                client, case.id_, "after the finder accepted"
             )
             if final_case and participant.id_ not in [
                 (ref_id(p) or str(p)) for p in final_case.case_participants
             ]:
                 raise ValueError(
                     f"Participant '{participant.id_}' not found in case "
-                    "after AddParticipantToCaseActivity"
+                    "after the finder accepted its stub Invite"
                 )
 
     logger.info(

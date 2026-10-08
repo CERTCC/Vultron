@@ -18,8 +18,9 @@
 ``accept_invite_to_embargo_tree`` handles ``Accept(Invite(EmbargoEvent))``
 and ``reject_invite_to_embargo_tree`` handles ``Reject(Invite(EmbargoEvent))``.
 Every answer routes through the CASE_MANAGER (PCR-08, ADR-0113), so the
-effects of both trees write shared case state and sit behind
-``create_case_manager_gated_tree`` (BT-17-001, RSH-08-003): a participant
+effects of both trees write shared case state and are passed as
+``manager_effects``, which the factory gates on the CASE_MANAGER (BT-17-001,
+BT-17-008, RSH-08-003): a participant
 replica learns the answer from the ``Announce(CaseLedgerEntry)`` broadcast
 (EP-09-007), never from the activity itself.  A receiver the gate turns away
 reports ``REFUSED`` (HP-01-005).
@@ -32,8 +33,9 @@ import logging
 
 import py_trees
 
-from vultron.core.behaviors.case.nodes.role_gates import (
-    create_case_manager_gated_tree,
+from vultron.config.actor import ActorConfig
+from vultron.core.behaviors.case.nodes.invite_actor_emit import (
+    ReissueStubInvitesNode,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
@@ -45,6 +47,7 @@ from vultron.core.behaviors.embargo.nodes import (
     RecordParticipantAcceptanceNode,
     RecordParticipantRejectionNode,
     ValidateCaseExistsNode,
+    embargo_ending_notice_nodes,
 )
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
 from vultron.core.behaviors.sender_entitlement import SenderIsInviteeNode
@@ -61,6 +64,7 @@ def accept_invite_to_embargo_tree(
     embargo_id: str,
     accepting_actor_id: str,
     invite_id: str,
+    actor_config: ActorConfig | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for accepting embargo invitation (protocol EA).
 
@@ -76,10 +80,17 @@ def accept_invite_to_embargo_tree(
         embargo_id: ID of the EmbargoEvent being accepted.
         accepting_actor_id: Actor ID of the participant accepting.
         invite_id: ID of the InviteToEmbargoOnCase activity.
+        actor_config: The CASE_MANAGER's configuration; its RSVP windows set
+            the deadline of a stub Invite the owner's acceptance re-issues.
 
     Returns:
         Root node of the ``AcceptInviteToEmbargoBT`` Sequence.
     """
+    # The owner's acceptance of a shorter revision activates it; the bound
+    # signatories the ledger no longer reaches are told (CM-31-009).
+    capture, notices = embargo_ending_notice_nodes(
+        case_id, requested_by=accepting_actor_id
+    )
     root = create_receive_activity_tree(
         name="AcceptInviteToEmbargoBT",
         case_id=case_id,
@@ -87,23 +98,25 @@ def accept_invite_to_embargo_tree(
             invite_id=invite_id, sender_actor_id=accepting_actor_id
         ),
         precondition_guards=[ValidateCaseExistsNode(case_id=case_id)],
-        effect_nodes=[
-            create_case_manager_gated_tree(
-                name="RecordEmbargoAcceptance",
+        manager_effects=[
+            capture,
+            RecordParticipantAcceptanceNode(
                 case_id=case_id,
-                children=[
-                    RecordParticipantAcceptanceNode(
-                        case_id=case_id,
-                        embargo_id=embargo_id,
-                        accepting_actor_id=accepting_actor_id,
-                    ),
-                    # The acceptance can admit the participant (or, as the
-                    # owner's, activate the revision) after its entry was
-                    # fanned out; send what the gate withheld (CM-10-006).
-                    BackfillAdmittedParticipantsNode(case_id=case_id),
-                ],
+                embargo_id=embargo_id,
+                accepting_actor_id=accepting_actor_id,
             ),
+            notices,
+            # The acceptance can admit the participant (or, as the
+            # owner's, activate the revision) after its entry was
+            # fanned out; send what the gate withheld (CM-10-006).
+            BackfillAdmittedParticipantsNode(case_id=case_id),
+            # The owner's accept of a revision changes the active embargo
+            # under any stub Invite still outstanding (CM-11-016); a
+            # participant's accept changes nothing.
+            ReissueStubInvitesNode(case_id=case_id, actor_config=actor_config),
         ],
+        manager_case_id=case_id,
+        manager_gate_name="RecordEmbargoAcceptance",
     )
     logger.info(
         "Created AcceptInviteToEmbargoBT for case=%s embargo=%s"
@@ -119,6 +132,7 @@ def _decide_owner_rejection(
     case_id: str,
     embargo_id: str,
     rejecting_actor_id: str,
+    actor_config: ActorConfig | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """The owner's Reject decides the proposal; with P/X/A set it ends the embargo.
 
@@ -153,7 +167,9 @@ def _decide_owner_rejection(
                     terminate_embargo_bt(
                         case_id=case_id,
                         result_out={},
+                        requested_by=rejecting_actor_id,
                         reason=TerminationReason.THREAT_SIGNAL,
+                        actor_config=actor_config,
                     ),
                 ],
             ),
@@ -175,6 +191,7 @@ def reject_invite_to_embargo_tree(
     rejecting_actor_id: str,
     invite_id: str,
     embargo_id: str,
+    actor_config: ActorConfig | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for rejecting embargo invitation (protocol ER / EJ).
 
@@ -210,6 +227,9 @@ def reject_invite_to_embargo_tree(
         invite_id: ID of the InviteToEmbargoOnCase activity.
         embargo_id: ID of the EmbargoEvent the Reject names (required: which
             terms are refused decides the consent effect, MSM-07-004).
+        actor_config: The CASE_MANAGER's configuration; its RSVP windows set
+            the deadline of a stub Invite re-issued after an ET.  ``None``
+            applies the ``ActorConfig`` defaults.
 
     Returns:
         Root node of the ``RejectInviteToEmbargoBT`` Sequence.
@@ -223,33 +243,29 @@ def reject_invite_to_embargo_tree(
         precondition_guards=[
             IsRejectableEmbargoNode(case_id=case_id, embargo_id=embargo_id),
         ],
-        effect_nodes=[
-            create_case_manager_gated_tree(
-                name="AnswerRejectedEmbargo",
+        manager_effects=[
+            # The consent belongs to the actor who rejected, not to
+            # the BT execution actor (the CASE_MANAGER, PCR-08).
+            RecordParticipantRejectionNode(
                 case_id=case_id,
-                children=[
-                    # The consent belongs to the actor who rejected, not to
-                    # the BT execution actor (the CASE_MANAGER, PCR-08).
-                    RecordParticipantRejectionNode(
-                        case_id=case_id,
-                        embargo_id=embargo_id,
-                        rejecting_actor_id=rejecting_actor_id,
-                    ),
-                    _decide_owner_rejection(
-                        case_id, embargo_id, rejecting_actor_id
-                    ),
-                    # The owner's Reject decides the proposal (ER / EJ); a
-                    # participant's is consent and decides nothing (#3470).
-                    # After an ET the proposal is already gone, so this is a
-                    # no-op.
-                    DecideRejectedEmbargoProposalNode(
-                        case_id=case_id,
-                        embargo_id=embargo_id,
-                        rejecting_actor_id=rejecting_actor_id,
-                    ),
-                ],
+                embargo_id=embargo_id,
+                rejecting_actor_id=rejecting_actor_id,
+            ),
+            _decide_owner_rejection(
+                case_id, embargo_id, rejecting_actor_id, actor_config
+            ),
+            # The owner's Reject decides the proposal (ER / EJ); a
+            # participant's is consent and decides nothing (#3470).
+            # After an ET the proposal is already gone, so this is a
+            # no-op.
+            DecideRejectedEmbargoProposalNode(
+                case_id=case_id,
+                embargo_id=embargo_id,
+                rejecting_actor_id=rejecting_actor_id,
             ),
         ],
+        manager_case_id=case_id,
+        manager_gate_name="AnswerRejectedEmbargo",
     )
     logger.info(
         "Created RejectInviteToEmbargoBT for case=%s rejecting_actor=%s"

@@ -30,6 +30,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     PortInformation,
 )
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.events.case import UpdateCaseReceivedEvent
 from vultron.errors import VultronError
@@ -129,7 +130,7 @@ class CaptureCaseUpdateBroadcastExclusionsNode(DataLayerConditionWithPorts):
         return Status.SUCCESS
 
 
-class ApplyCaseUpdateNode(DataLayerActionWithPorts):
+class ApplyCaseUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
     """Apply mutable fields from the inbound update payload to the case."""
 
     def __init__(

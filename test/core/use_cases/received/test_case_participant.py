@@ -79,97 +79,58 @@ class TestCaseParticipantUseCases:
         assert result.disposition == HandlerDisposition.REFUSED
         assert dl.read(ReceivedActivityRecord.build_id(event.activity_id))
 
-    def test_add_case_participant_updates_index(
-        self, monkeypatch, make_payload
+    @pytest.mark.spec("CM-31-011")
+    def test_add_does_not_seat_a_participant_off_the_roster(
+        self, make_payload
     ):
-        """AddCaseParticipantToCaseReceivedUseCase updates actor_participant_index (SC-PRE-2)."""
-        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-            as_Add,
+        """Inverted from the seat-on-Add pin: ``Add`` only reinstates.
+
+        A stored record that is not on the case's roster names no
+        participant, so the Case Owner's ``Add`` is refused and the roster
+        is unchanged (CM-31-011, ADR-0116); joining is accepting a stub
+        Invite (ADR-0114).
+        """
+        dl, case_id, _ = _removal_store()
+        newcomer = CaseParticipant(
+            id_=f"{case_id}/participants/newcomer",
+            attributed_to="https://example.org/users/newcomer",
+            context=case_id,
         )
-        from vultron.wire.as2.vocab.objects.case_participant import (
-            as_CaseParticipant,
-        )
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
+        dl.create(newcomer)
+        before = cast(VulnerabilityCase, dl.read(case_id)).case_participants
+
+        result = _move(
+            AddCaseParticipantToCaseReceivedUseCase,
+            dl,
+            make_payload(_owner_adds(newcomer, case_id)),
         )
 
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+        assert result.disposition == HandlerDisposition.REFUSED
+        case = cast(VulnerabilityCase, dl.read(case_id))
+        assert case.case_participants == before
+        assert "https://example.org/users/newcomer" not in (
+            case.actor_participant_index
         )
-        actor_id = "https://example.org/users/coordinator"
-        case = as_VulnerabilityCase(
-            id_="https://example.org/cases/caseAP1",
-            name="TEST-ADD-INDEX",
-        )
-        participant = as_CaseParticipant(
-            id_="https://example.org/cases/caseAP1/participants/coord",
-            attributed_to=actor_id,
-            context=case.id_,
-        )
-        dl.create(case)
-        dl.create(participant)
-
-        add_activity = as_Add(
-            actor="https://example.org/users/owner",
-            object_=participant,
-            target=case.id_,
-        )
-
-        event = make_payload(add_activity)
-
-        result = AddCaseParticipantToCaseReceivedUseCase(dl, event).execute()
-
-        assert result.disposition == HandlerDisposition.APPLIED
-        case = cast(as_VulnerabilityCase, dl.read(case.id_))
-        assert case is not None
-        assert actor_id in case.actor_participant_index
-        assert case.actor_participant_index[actor_id] == participant.id_
 
     @pytest.mark.spec("HP-01-003")
     def test_add_unknown_participant_is_refused(self, make_payload):
-        """A participant the receiver has no record of cannot be added.
+        """A participant the receiver has no record of cannot be reinstated.
 
-        This used to raise ``VultronValidationError``; it is a rejection of
-        the message, so it is now reported as REFUSED (#2255).
+        A rejection of the message, reported as REFUSED (#2255).
         """
-        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-            as_Add,
-        )
-        from vultron.wire.as2.vocab.objects.case_participant import (
-            as_CaseParticipant,
-        )
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
-        )
+        dl, case_id, _ = _removal_store()
+        unknown = CaseParticipant(
+            id_=f"{case_id}/participants/unknown",
+            attributed_to="https://example.org/users/unknown",
+            context=case_id,
+        )  # deliberately not stored
+        event = make_payload(_owner_adds(unknown, case_id))
 
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
-        case = as_VulnerabilityCase(
-            id_="https://example.org/cases/caseRaise1",
-            name="TEST-RAISE",
-        )
-        participant = as_CaseParticipant(
-            id_="https://example.org/cases/caseRaise1/participants/coord",
-            attributed_to="https://example.org/users/coordinator",
-            context=case.id_,
-        )
-        dl.create(case)  # participant deliberately not stored
-
-        add_activity = as_Add(
-            actor="https://example.org/users/owner",
-            object_=participant,
-            target=case.id_,
-        )
-        event = make_payload(add_activity)
-
-        result = AddCaseParticipantToCaseReceivedUseCase(dl, event).execute()
+        result = _move(AddCaseParticipantToCaseReceivedUseCase, dl, event)
 
         assert result.disposition == HandlerDisposition.REFUSED
-        assert result.reason is not None and "not found" in result.reason
+        assert result.reason is not None
+        assert "is not a participant" in result.reason
         # A refused delivery is still archived (CLP-10-017, CLP-10-018).
         assert dl.read(ReceivedActivityRecord.build_id(event.activity_id))
 
@@ -333,7 +294,19 @@ def _owner_removes(participant: CaseParticipant, case_id: str):
     )
 
 
+def _owner_adds(participant: CaseParticipant, case_id: str):
+    from vultron.wire.as2.factories import add_participant_to_case_activity
+
+    return add_participant_to_case_activity(
+        participant, target=case_id, actor=_OWNER
+    )
+
+
 def _remove(dl: SqliteDataLayer, event):
+    return _move(RemoveCaseParticipantFromCaseReceivedUseCase, dl, event)
+
+
+def _move(use_case, dl: SqliteDataLayer, event):
     from vultron.adapters.driven.sync_activity_adapter import (
         SyncActivityAdapter,
     )
@@ -342,7 +315,7 @@ def _remove(dl: SqliteDataLayer, event):
     )
     from vultron.adapters.driven.wire_render import As2WireRenderAdapter
 
-    return RemoveCaseParticipantFromCaseReceivedUseCase(
+    return use_case(
         dl,
         event,
         sync_port=SyncActivityAdapter(dl),

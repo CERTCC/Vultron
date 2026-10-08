@@ -227,6 +227,44 @@ the failure (#4113) was a real fan-out bug.
   evidence of flakiness: file the issue with the reproduction first, and the PR
   stays held until the check is green on its own or the issue's cause is fixed.
 
+## Net Issues: Close More Than You Open
+
+Broadly, a run should close more issues than it opens. This is a **signal, not a
+gate**: a run that steps into a real pothole of tech debt still ships. The point
+is that growth in the backlog is visible and attributable, so it can be read
+instead of guessed at.
+
+Every issue an agent files through `manage_github_issue.sh` carries a reason, as
+an `opened:` label (or `--planned` for planning and user-requested work, which
+carries none):
+
+| Label | Meaning |
+|---|---|
+| `opened:excursion` | Filed so this PR could close it. Nets to zero. |
+| `opened:separate-defect` | A real defect in code the PR does not touch. |
+| `opened:debt` | A known weakness seen but not fixed now. Also issue type `Concern`, and it carries a `Where:` line naming a file, directory, or spec. |
+| `opened:deferred` | This PR's own work, left undone. Forbidden for unsupervised runs; always flagged. |
+
+**The net** is the pre-existing, non-Epic issues closed by merged PRs, minus the
+`separate-defect`, `debt`, and `deferred` issues opened. `excursion` issues are
+excluded from both sides. Closing a duplicate or `wontfix` goes on its own line
+and does not count toward the net.
+
+**Where it shows up.** Every implementation PR body states its own closes/opens
+line (see `pr-body-guide.md`). `work-epic-tasks` and `pr-ship` print the run
+total at the end. `velocity-report` shows net issues per week by reason. No
+threshold flags a run yet: report the numbers until `velocity-report` shows what
+a typical run looks like. The one exception is `opened:deferred`: any nonzero
+count is a process defect and is called out as such.
+
+**Nearby debt is fixed now.** Before opening the PR, list open `opened:debt`
+issues whose `Where:` names a file the diff touches, and fix them in the PR with
+a `- Closes #N` bullet each. Debt whose `Where:` is a spec or subpackage the PR's
+issue also cites is a "might be nearby" case: fix it too, with a one-line reason
+in the PR body. Do not use the issue's Epic as a test of nearness; epics group by
+goal, not by code. This is the fix-now rule applied to debt: the context is
+already loaded.
+
 ## Clarity Over Size, Always
 
 **It is more important that a PR is CLEAR about what it does and why — with

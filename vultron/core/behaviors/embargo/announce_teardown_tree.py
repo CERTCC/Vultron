@@ -38,9 +38,20 @@ activity (protocol ET message).  Sequence:
        ├─ EmbargoAlreadyExited (Inverter) # EM state already EXITED
        │  └─ HasEmbargoActiveNode
        └─ ActiveTeardown (Sequence)       # its FAILURE is the tree's FAILURE
+          ├─ CaptureActiveEmbargoNode     # the embargo in force before the write
           ├─ ClearActiveEmbargoNode       # TERMINATE + CANCEL every proposal → EXITED
-          ├─ SendAnnounceEmbargoEventNode # emit Announce(EmbargoEvent) to CaseActor
-          └─ EmbargoAdmissionBackfill     # CASE_MANAGER: backfill paused peers (CM-10-006)
+          └─ EmbargoAdmissionBackfill     # CASE_MANAGER only:
+             ├─ SendAnnounceEmbargoEventNode   # Announce(EmbargoEvent) to the others
+             ├─ SendEmbargoEndingNoticesNode   # ET to unreached signatories (CM-31-009)
+             └─ BackfillAdmittedParticipantsNode  # paused peers (CM-10-006)
+
+At a replica the teardown is the CASE_MANAGER's ``Remove(EmbargoEvent)``,
+admitted by the sender guard only from the CASE_MANAGER (ADR-0115).  For a
+replica whose ledger stream is paused (removed, withheld, or at RM
+``CLOSED``) that direct notice is the only channel, and it applies it through
+``EmbargoLifecycle`` (CM-31-010).  When the RSH-08-003 replica gate lands
+(#3814) it must keep admitting that case; ``AwaitsEmbargoEndingNoticeNode``
+is the check.
 
 Per specs/behavior-tree-integration.yaml BT-06-001.
 """
@@ -50,12 +61,21 @@ import logging
 import py_trees
 
 from vultron.config.actor import ActorConfig
+from vultron.core.behaviors.case.nodes.invite_actor_emit import (
+    ReissueStubInvitesNode,
+)
 from vultron.core.behaviors.case.nodes.role_gates import (
-    create_case_manager_gated_tree,
     create_participant_replica_gated_tree,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
+)
+
+# The standalone admission backfill lives in ``admission_backfill_tree``
+# (BT-17-008: a received-tree module takes its gate from the factory); the
+# Remove(EmbargoEvent) teardown nests it in its active-only branch.
+from vultron.core.behaviors.embargo.admission_backfill_tree import (
+    embargo_admission_backfill_tree,
 )
 
 # The Accept/Reject(Invite(EmbargoEvent)) trees live in ``answer_trees``
@@ -82,12 +102,16 @@ from vultron.core.behaviors.embargo.nodes import (
     SetEmbargoActiveNode,
     ValidateCaseExistsNode,
     case_manager_admits_proposal_guard,
+    embargo_ending_notice_nodes,
 )
 from vultron.core.behaviors.embargo.nodes.manager_consent import (
     record_manager_embargo_consent_tree,
 )
 from vultron.core.behaviors.embargo.response_decision_tree import (
     create_embargo_response_decision_tree,
+)
+from vultron.core.behaviors.replica_emit_exemptions import (
+    EMBARGO_INVITE_ANSWER,
 )
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
@@ -103,27 +127,11 @@ from vultron.core.services.embargo_lifecycle import TransitionMode
 logger = logging.getLogger(__name__)
 
 
-def embargo_admission_backfill_tree(
-    case_id: str,
-) -> py_trees.behaviour.Behaviour:
-    """Backfill the participants an embargo effect just admitted (CM-10-006).
-
-    The admitting entry was committed and fanned out before the effect ran, so
-    the fan-out withheld it; this sends it, and everything else withheld, once
-    the gate admits the participant. CASE_MANAGER only (BT-17-001): the pause
-    records and the canonical ledger live in its store.
-    """
-    return create_case_manager_gated_tree(
-        name="EmbargoAdmissionBackfill",
-        case_id=case_id,
-        children=[BackfillAdmittedParticipantsNode(case_id=case_id)],
-    )
-
-
 def remove_embargo_from_case_tree(
     case_id: str,
     embargo_id: str,
     sender_actor_id: str,
+    actor_config: ActorConfig | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for receiver-side embargo removal (protocol ET).
 
@@ -154,10 +162,18 @@ def remove_embargo_from_case_tree(
         sender_actor_id: Sender of the ``Remove``; the Case Owner (or the
             CASE_MANAGER) at the CASE_MANAGER, the CASE_MANAGER elsewhere
             (ADR-0115, EP-09-005, PCR-03-001).
+        actor_config: The CASE_MANAGER's configuration; its RSVP windows set
+            the deadline of a re-issued stub Invite.  ``None`` applies the
+            ``ActorConfig`` defaults.
 
     Returns:
         Root node of the ``RemoveEmbargoFromCaseBT`` Sequence.
     """
+    # The Case Owner asked for the teardown, so the notices credit it
+    # (CM-24-002); the CASE_MANAGER's own Remove credits nobody else.
+    capture, notices = embargo_ending_notice_nodes(
+        case_id, requested_by=sender_actor_id
+    )
     teardown_if_active = py_trees.composites.Selector(
         name="TeardownIfActive",
         memory=False,
@@ -176,11 +192,18 @@ def remove_embargo_from_case_tree(
                 name="ActiveTeardown",
                 memory=False,
                 children=[
+                    capture,
                     ClearActiveEmbargoNode(case_id=case_id),
-                    SendAnnounceEmbargoEventNode(
-                        case_id=case_id, embargo_id=embargo_id
+                    embargo_admission_backfill_tree(
+                        case_id,
+                        actor_config,
+                        leading=[
+                            SendAnnounceEmbargoEventNode(
+                                case_id=case_id, embargo_id=embargo_id
+                            ),
+                            notices,
+                        ],
                     ),
-                    embargo_admission_backfill_tree(case_id),
                 ],
             ),
         ],
@@ -194,7 +217,7 @@ def remove_embargo_from_case_tree(
             manager_arm=SenderEntitlementKind.CASE_OWNER,
         ),
         precondition_guards=[ValidateCaseExistsNode(case_id=case_id)],
-        effect_nodes=[teardown_if_active],
+        replica_effects=[teardown_if_active],
     )
     logger.info(
         "Created RemoveEmbargoFromCaseBT for case=%s embargo=%s",
@@ -208,6 +231,7 @@ def add_embargo_to_case_tree(
     case_id: str,
     embargo_id: str,
     sender_actor_id: str,
+    actor_config: ActorConfig | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for receiver-side embargo activation (protocol EA).
 
@@ -225,10 +249,16 @@ def add_embargo_to_case_tree(
         sender_actor_id: Sender of the ``Add``; the Case Owner (or the
             CASE_MANAGER) at the CASE_MANAGER, the CASE_MANAGER elsewhere
             (ADR-0115, EP-09-005, PCR-03-001).
+        actor_config: The CASE_MANAGER's configuration; its RSVP windows set
+            the deadline of a re-issued stub Invite.  ``None`` applies the
+            ``ActorConfig`` defaults.
 
     Returns:
         Root node of the ``AddEmbargoToCaseBT`` Sequence.
     """
+    capture, notices = embargo_ending_notice_nodes(
+        case_id, requested_by=sender_actor_id
+    )
     root = create_receive_activity_tree(
         name="AddEmbargoToCaseBT",
         case_id=case_id,
@@ -238,16 +268,27 @@ def add_embargo_to_case_tree(
             manager_arm=SenderEntitlementKind.CASE_OWNER,
         ),
         precondition_guards=[ValidateCaseExistsNode(case_id=case_id)],
-        effect_nodes=[
+        replica_effects=[
+            capture,
             SetEmbargoActiveNode(
                 case_id=case_id,
                 embargo_id=embargo_id,
                 transition_mode=TransitionMode.OBSERVED,
             ),
-            # Activating a revision can admit a participant that had already
-            # accepted it, after the Add entry was fanned out (CM-10-006).
-            embargo_admission_backfill_tree(case_id),
         ],
+        # A shorter revision is announced to the bound signatories the
+        # ledger no longer reaches (CM-31-009).  Activating a revision can
+        # admit a participant that had already accepted it, after the Add
+        # entry was fanned out (CM-10-006).
+        manager_effects=[
+            notices,
+            BackfillAdmittedParticipantsNode(case_id=case_id),
+            # The activation can change the terms of a stub Invite still
+            # outstanding (CM-11-016).
+            ReissueStubInvitesNode(case_id=case_id, actor_config=actor_config),
+        ],
+        manager_case_id=case_id,
+        manager_gate_name="EmbargoAdmissionBackfill",
     )
     logger.info(
         "Created AddEmbargoToCaseBT for case=%s embargo=%s",
@@ -255,6 +296,21 @@ def add_embargo_to_case_tree(
         embargo_id,
     )
     return root
+
+
+def _index_received_proposal(
+    case_id: str, embargo_id: str, invite_id: str
+) -> IndexReceivedEmbargoProposalNode:
+    """The DL-06 proposal index, last in whichever Invite arm runs.
+
+    The two arms of ``invite_to_embargo_on_case_tree`` are mutually exclusive
+    and between them cover every receiver, so each ends with its own index
+    node: the index is written only once the Invite has been applied, as the
+    accept/reject triggers and the idempotency guard expect.
+    """
+    return IndexReceivedEmbargoProposalNode(
+        case_id=case_id, embargo_id=embargo_id, invite_id=invite_id
+    )
 
 
 def invite_to_embargo_on_case_tree(
@@ -298,7 +354,12 @@ def invite_to_embargo_on_case_tree(
     **Either arm is preceded by an idempotency guard**: the same Invite
     delivered again (``pending_embargo_proposal_index`` already maps the
     embargo to this Invite's id) commits nothing and the handler reports it
-    as a repeat (CLP-13-001, HP-01-003).
+    as a repeat (CLP-13-001, HP-01-003).  Each arm ends by writing that
+    index (DL-06), so it is written only once the Invite has been applied in
+    whichever arm ran.  The participant-replica arm sits in
+    ``replica_effects`` and so runs before the factory's CASE_MANAGER gate;
+    the two arms are mutually exclusive on the same role check, and neither
+    changes who holds the role, so their order does not matter.
 
     **A participant replica stores and answers** the Invite addressed to it
     and writes nothing else (EP-09-003).  The intake stores the Invite; when
@@ -376,13 +437,8 @@ def invite_to_embargo_on_case_tree(
             ),
             case_manager_admits_proposal_guard(case_id=case_id),
         ],
-        effect_nodes=[
+        replica_effects=[
             *intake,
-            create_case_manager_gated_tree(
-                name="AdjudicateEmbargoProposal",
-                case_id=case_id,
-                children=adjudication,
-            ),
             create_participant_replica_gated_tree(
                 name="AnswerInviteOnReplica",
                 case_id=case_id,
@@ -438,14 +494,18 @@ def invite_to_embargo_on_case_tree(
                             ),
                         ],
                     ),
+                    _index_received_proposal(case_id, embargo_id, invite_id),
                 ],
-            ),
-            # DL-06: last, so the index is written only once the Invite has
-            # been applied; the accept/reject triggers read it.
-            IndexReceivedEmbargoProposalNode(
-                case_id=case_id, embargo_id=embargo_id, invite_id=invite_id
+                body_name="AnswerInviteOnReplicaBody",
             ),
         ],
+        replica_emit_exemption=EMBARGO_INVITE_ANSWER,
+        manager_effects=[
+            *adjudication,
+            _index_received_proposal(case_id, embargo_id, invite_id),
+        ],
+        manager_case_id=case_id,
+        manager_gate_name="AdjudicateEmbargoProposal",
     )
     logger.info(
         "Created InviteToEmbargoOnCaseBT for case=%s invitee=%s invite=%s"

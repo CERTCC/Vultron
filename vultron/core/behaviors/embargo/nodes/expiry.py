@@ -55,6 +55,7 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.nodes._helpers import (
     _extract_id_from_field,
     _LedgerEffectNode,
@@ -174,7 +175,7 @@ class InviteExpiryNeedsApplyNode(py_trees.behaviour.Behaviour):
 InviteExpiryChangedConsentNode = InviteExpiryNeedsApplyNode
 
 
-class RecordInviteExpiryNode(DataLayerActionWithPorts):
+class RecordInviteExpiryNode(DataLayerActionWithPorts, StateWriteCapable):
     """Apply PEC ``TIME_OUT`` (``INVITED → TIMED_OUT``) after the commit.
 
     This is the **effect** node (CLP-10-006, BT-06-006).  It calls
@@ -323,7 +324,7 @@ class ApplyInviteExpiryNoopFromLedgerNode(_LedgerEffectNode):
         return Status.SUCCESS
 
 
-class HonourLateAcceptNode(DataLayerActionWithPorts):
+class HonourLateAcceptNode(DataLayerActionWithPorts, StateWriteCapable):
     """Apply the CASE_MANAGER's honour decision after the commit (EMB-17-001).
 
     This is the **effect** node in

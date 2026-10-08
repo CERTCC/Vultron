@@ -149,9 +149,8 @@ def additional_event_types(harness: tuple[str, ...]) -> frozenset[str]:
     The complement is what the ``Additional required`` column holds, so the
     comparison is against the constant rather than against everything the ledger
     records: ``notes/demo-ci-scenario-coverage.md`` documents event types that
-    are recorded but deliberately excluded from the expected lists
-    (``add_case_participant``), and a check reading the ledger would report
-    those as missing rows.
+    are recorded but deliberately excluded from the expected lists, and a check
+    reading the ledger would report those as missing rows.
     """
     return frozenset(harness) - frozenset(UNIVERSAL_EVENT_TYPES)
 

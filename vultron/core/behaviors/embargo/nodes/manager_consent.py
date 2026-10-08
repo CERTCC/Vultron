@@ -44,6 +44,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
 )
 from vultron.core.behaviors.sender_entitlement import is_case_owner
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.states.participant_embargo_consent import (
@@ -131,7 +132,9 @@ class ManagerHoldsUndecidedEmbargoStakeNode(DataLayerConditionWithPorts):
         return Status.SUCCESS
 
 
-class RecordManagerEmbargoConsentNode(DataLayerActionWithPorts):
+class RecordManagerEmbargoConsentNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
     """Write the executing CASE_MANAGER's own consent row for the embargo.
 
     ``accept`` selects ``AGREE`` or ``DECLINE`` (CM-18-003): both are legal

@@ -58,6 +58,10 @@ class RequireCaseForReport(DataLayerActionWithPorts):
 
     Nodes downstream of this one read ``/case_id`` instead of repeating the
     lookup, so the tree has exactly one case-resolution site.
+
+    The ``/case_id`` write is a blackboard key, not a DataLayer write, so the
+    node is safe in a received tree's ``precondition_guards``: a receiver
+    without the case refuses before the commit stage (CLP-10-009).
     """
 
     def __init__(self, report_id: str | None, name: str | None = None) -> None:

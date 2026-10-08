@@ -323,6 +323,39 @@ groups:
     - ADR-0113
     stories:
     - story_2022_014
+  - id: ASK-03-008
+    priority: MUST
+    kind: protocol
+    statement: >
+      `Invite(Actor, CaseStub)` (the stub Invite) is an ask kind. Its closing
+      replies are `Accept(Invite(Actor, CaseStub))` and
+      `Reject(Invite(Actor, CaseStub))` from the invitee; its deadline is
+      `Invite.end_time` (CM-11-014); its expiry consequence is stale, not
+      void: expiry only means the CASE_MANAGER stops waiting, so a reply that
+      arrives after the deadline is processed like a live one (an `Accept`
+      joins the invitee, a `Reject` closes the record). Expiry closes the ask
+      only; it writes no participant state and refuses no later reply
+      (CM-11-014).
+    note: >
+      A strict mode that refuses a reply after expiry (void) is a possible later
+      addition. It is not built, and no setting selects it.
+    rationale: >
+      The hazard a late `Accept` could carry is joining on stale embargo terms,
+      and the supersede rule already covers it: an embargo change or a re-invite
+      replaces the stub, naming the old one in `inReplyTo`, and an `Accept` of a
+      superseded stub is refused (CM-11-016). The reply type constants and the
+      expiry consequence are declared in `vultron/core/models/protocol_pair.py`
+      until the ask-kind registry (#2884) takes them over.
+    verification: >
+      A test lets a stub Invite expire and finds the record unchanged, a late
+      `Accept` joining the invitee and a late `Reject` closing the record, and
+      finds the declared closing replies and stale expiry.
+    adr:
+    - ADR-0080
+    - ADR-0114
+    stories:
+    - story_2022_032
+    - story_2022_074
 
 - id: ASK-04
   title: Outstanding-Ask Register

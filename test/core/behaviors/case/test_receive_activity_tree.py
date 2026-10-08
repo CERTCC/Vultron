@@ -30,10 +30,12 @@ from vultron.core.behaviors.case.nodes.intake import (
 from vultron.core.behaviors.case.nodes.role_gates import (
     CaseManagerGate,
     create_case_manager_gated_tree,
+    create_participant_replica_gated_tree,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
     ungated_emitters,
+    ungated_nodes,
 )
 from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.replica_emit_exemptions import (
@@ -41,6 +43,7 @@ from vultron.core.behaviors.replica_emit_exemptions import (
     ReplicaEmitExemption,
 )
 from vultron.core.behaviors.report.nodes.emit import EmitAckReportActivity
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.errors import VultronWiringError
 
 CASE_ID = "https://example.org/cases/case-factory-gate-001"
@@ -55,6 +58,24 @@ class _Emitter(EmitCapable, py_trees.behaviour.Behaviour):
 
     def update(self) -> Status:
         return Status.SUCCESS
+
+
+class _Writer(StateWriteCapable, py_trees.behaviour.Behaviour):
+    """A stand-in state-write node: carries the marker, writes nothing."""
+
+    def __init__(self, name: str = "Writer") -> None:
+        super().__init__(name=name)
+
+    def update(self) -> Status:
+        return Status.SUCCESS
+
+
+class _EmittingWriter(StateWriteCapable, _Emitter):
+    """A stand-in emit node that also writes case state."""
+
+
+class _EmittingSequence(EmitCapable, py_trees.composites.Sequence):
+    """A stand-in emit-capable composite, to hide a writer inside."""
 
 
 def _effect(name: str = "Effect") -> py_trees.behaviour.Behaviour:
@@ -110,6 +131,22 @@ class TestStageOrder:
         assert isinstance(gate, CaseManagerGate)
         assert gate.name == "EmitIfCaseManager"
         assert list(gate.gated_branch.children) == [first, second]
+        assert gate.gated_branch.name == "EmitIfCaseManagerBody"
+
+    def test_the_manager_body_takes_its_own_name(self) -> None:
+        tree = create_receive_activity_tree(
+            name="SampleBT",
+            case_id=CASE_ID,
+            precondition_guards=[],
+            manager_effects=[_Emitter("First"), _Emitter("Second")],
+            manager_case_id=CASE_ID,
+            manager_gate_name="EmitIfCaseManager",
+            manager_body_name="EmitEffects",
+        )
+
+        gate = tree.children[-1]
+        assert isinstance(gate, CaseManagerGate)
+        assert gate.gated_branch.name == "EmitEffects"
 
     def test_the_gate_takes_its_own_case_id_when_the_commit_is_omitted(
         self,
@@ -174,6 +211,7 @@ class TestStageOrder:
         [
             {"manager_case_id": CASE_ID},
             {"manager_gate_name": "EmitIfCaseManager"},
+            {"manager_body_name": "EmitEffects"},
             {"manager_case_may_be_absent": True},
         ],
     )
@@ -324,3 +362,167 @@ def test_ungated_emitters_skips_only_the_case_manager_gate() -> None:
     ]
 
     assert ungated_emitters(roots) == [outside]
+
+
+def test_ungated_nodes_walks_the_replica_gate_but_not_the_manager_gate() -> (
+    None
+):
+    """The RSH-08-003 walk: only the CASE_MANAGER gate hides a write."""
+    gated = _Writer("Gated")
+    replica = _Writer("ReplicaOnly")
+    bare = _Writer("Bare")
+    roots: list[py_trees.behaviour.Behaviour] = [
+        create_case_manager_gated_tree(
+            name="Gate", case_id=CASE_ID, children=[gated]
+        ),
+        create_participant_replica_gated_tree(
+            name="ReplicaGate", case_id=CASE_ID, children=[replica]
+        ),
+        py_trees.composites.Sequence(
+            name="Plain", memory=False, children=[bare, _Emitter()]
+        ),
+    ]
+
+    assert ungated_nodes(roots, StateWriteCapable) == [replica, bare]
+
+
+class TestRefusalEffects:
+    """The factory owns the refusal-effects stage (CLP-10-022)."""
+
+    @pytest.mark.spec("CLP-10-022")
+    def test_refusal_effects_wrap_the_guards_ahead_of_the_commit(
+        self,
+    ) -> None:
+        from vultron.core.behaviors.case.nodes.refusal_stage import (
+            PreconditionGuardStage,
+        )
+
+        guard = _effect("Guard")
+        note = _Emitter("RefusalNote")
+        tree = create_receive_activity_tree(
+            name="SampleBT",
+            case_id=CASE_ID,
+            sender_guard=_effect("SenderGuard"),
+            precondition_guards=[guard],
+            replica_effects=[_effect("Replica")],
+            refusal_effects=[note],
+        )
+
+        assert _names(tree)[1:] == [
+            "SenderGuard",
+            "PreconditionGuardStage",
+            COMMIT,
+            "Replica",
+        ]
+        stage = tree.children[2]
+        assert isinstance(stage, PreconditionGuardStage)
+        assert list(stage.guards.children) == [guard]
+        gates = [
+            n
+            for n in stage.refusal.iterate()
+            if isinstance(n, CaseManagerGate)
+        ]
+        assert len(gates) == 1
+        assert gates[0].name == "SampleBTRefusalIfCaseManager"
+        assert gates[0].gated_branch is note
+
+    @pytest.mark.spec("BT-17-008")
+    @pytest.mark.spec("CLP-10-022")
+    def test_refusal_effects_are_gated_on_the_case_manager(self) -> None:
+        from vultron.core.behaviors.case.nodes.conditions import (
+            CheckIsCaseManagerNode,
+        )
+
+        tree = create_receive_activity_tree(
+            name="SampleBT",
+            case_id=CASE_ID,
+            precondition_guards=[_effect("Guard")],
+            refusal_effects=[_Emitter()],
+        )
+
+        assert ungated_emitters([tree]) == []
+        stage = tree.children[1]
+        checks = [
+            n for n in stage.iterate() if isinstance(n, CheckIsCaseManagerNode)
+        ]
+        assert [(c._case_id, c._case_may_be_absent) for c in checks] == [
+            (CASE_ID, True)
+        ]
+
+    @pytest.mark.spec("CLP-10-022")
+    def test_a_refusal_effect_that_does_not_emit_is_refused(self) -> None:
+        with pytest.raises(VultronWiringError, match="not emit-capable"):
+            create_receive_activity_tree(
+                name="SampleBT",
+                case_id=CASE_ID,
+                precondition_guards=[_effect("Guard")],
+                refusal_effects=[_effect("Plain")],
+            )
+
+    @pytest.mark.spec("CLP-10-022")
+    def test_a_refusal_effect_that_writes_state_is_refused(self) -> None:
+        with pytest.raises(VultronWiringError, match="_EmittingWriter"):
+            create_receive_activity_tree(
+                name="SampleBT",
+                case_id=CASE_ID,
+                precondition_guards=[_effect("Guard")],
+                refusal_effects=[_EmittingWriter()],
+            )
+
+    @pytest.mark.spec("CLP-10-022")
+    def test_a_state_writer_nested_in_a_refusal_effect_is_refused(
+        self,
+    ) -> None:
+        nested = _EmittingSequence(
+            name="EmitThenWrite",
+            memory=False,
+            children=[_Emitter(), _Writer("NestedWriter")],
+        )
+        with pytest.raises(
+            VultronWiringError, match=r"state writers: \['_Writer'\]"
+        ):
+            create_receive_activity_tree(
+                name="SampleBT",
+                case_id=CASE_ID,
+                precondition_guards=[_effect("Guard")],
+                refusal_effects=[nested],
+            )
+
+    @pytest.mark.spec("CLP-10-022")
+    def test_a_plain_composite_holding_an_emitter_is_refused(self) -> None:
+        wrapper = py_trees.composites.Sequence(
+            name="Wrapper", memory=False, children=[_Emitter()]
+        )
+        with pytest.raises(
+            VultronWiringError, match=r"not emit-capable: \['Sequence'\]"
+        ):
+            create_receive_activity_tree(
+                name="SampleBT",
+                case_id=CASE_ID,
+                precondition_guards=[_effect("Guard")],
+                refusal_effects=[wrapper],
+            )
+
+    def test_refusal_effects_combine_with_legacy_effect_nodes(self) -> None:
+        tree = create_receive_activity_tree(
+            name="LegacyBT",
+            case_id=CASE_ID,
+            precondition_guards=[_effect("Guard")],
+            effect_nodes=[_effect("LegacyEffect")],
+            refusal_effects=[_Emitter()],
+        )
+
+        assert _names(tree)[1:] == [
+            "PreconditionGuardStage",
+            COMMIT,
+            "LegacyEffect",
+        ]
+
+    def test_without_refusal_effects_the_guards_stay_top_level(self) -> None:
+        tree = create_receive_activity_tree(
+            name="SampleBT",
+            case_id=CASE_ID,
+            precondition_guards=[_effect("Guard")],
+        )
+
+        assert _names(tree)[1:] == ["Guard", COMMIT]

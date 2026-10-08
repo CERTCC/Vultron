@@ -42,6 +42,7 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
     read_rm_states,
 )
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.nodes.conditions import (
     _require_log_entry,
 )
@@ -94,7 +95,9 @@ def _ratchet_rm(
     )
 
 
-class ApplyParticipantStatusFromLedgerNode(DataLayerActionWithPorts):
+class ApplyParticipantStatusFromLedgerNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
     """Apply an ``add_participant_status_to_participant`` ledger entry locally.
 
     When a non-Case-Actor participant receives

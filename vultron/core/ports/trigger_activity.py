@@ -343,6 +343,9 @@ class TriggerActivityPort(Protocol):
         attributed_to: str | None = None,
         roles: list[str] | None = None,
         target: VulnerabilityCase | None = None,
+        rsvp_deadline: datetime | None = None,
+        published: datetime | None = None,
+        in_reply_to: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Invite(Actor, CaseStub)`` activity.
 
@@ -356,6 +359,12 @@ class TriggerActivityPort(Protocol):
         to an enriched stub including ``end_time`` when ``em_state == EM.ACTIVE``),
         a pre-built stub, or a bare URI string.  When ``None``, the adapter reads
         the case from the DataLayer by ``case_id`` (CM-17-002).
+        ``rsvp_deadline`` becomes the Invite's ``endTime``, the reply deadline
+        the CASE_MANAGER stamps as it does on an embargo Invite (CM-11-014,
+        CM-28-012, ASK-03-004); ``published`` is the instant it was measured
+        from.  ``in_reply_to`` names the stub Invite this one replaces, in the
+        standard AS2 ``inReplyTo`` property, after an embargo change or a
+        re-invite (CM-11-015, CM-11-016).  Each is forwarded only when given.
         Returns ``(activity_id, activity_dict)``.
         """
         ...
@@ -578,11 +587,17 @@ class TriggerActivityPort(Protocol):
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        attributed_to: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Add(CaseParticipant, Case)`` activity.
 
-        Returns ``(activity_id, activity_blob)``.  The emitting node records
-        the blob, unchanged, as the ledger ``payloadSnapshot`` (VM-08-003).
+        The CASE_MANAGER's direct notice to a reinstated participant
+        (CM-31-011): ``actor`` is the CASE_MANAGER and ``attributed_to`` the
+        Case Owner who asked for the reinstatement (CM-24-001, CM-24-002).
+        The notice is delivery, not a record, so the caller does not ledger
+        it.
+
+        Returns ``(activity_id, activity_blob)``.
         """
         ...
 
@@ -758,8 +773,13 @@ class TriggerActivityPort(Protocol):
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        attributed_to: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Announce(EmbargoEvent)`` activity.
+
+        *attributed_to*, when given, names the actor whose request the
+        CASE_MANAGER is carrying out (CM-24-002), as on the CM-31-009 notice
+        of a shorter revision.
 
         Returns ``(activity_id, activity_dict)``.
         """
@@ -771,10 +791,14 @@ class TriggerActivityPort(Protocol):
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        attributed_to: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist a ``Remove(EmbargoEvent, origin=case)`` ET activity.
 
         Corresponds to the ET (Embargo Termination) protocol message.
+        *attributed_to*, when given, names the actor whose request the
+        CASE_MANAGER is carrying out (CM-24-002), as on the CM-31-009 notice
+        to a bound signatory the ledger no longer reaches.
         Returns ``(activity_id, activity_dict)``.
         """
         ...

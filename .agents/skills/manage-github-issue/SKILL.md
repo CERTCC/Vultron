@@ -30,6 +30,7 @@ ISSUE_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
   --label "size:M" \
   --parent 42 \
   --milestone 25 \
+  --planned \
   --blocked-by 50)
 
 # Update an existing issue — wire relationships
@@ -62,8 +63,12 @@ ISSUE_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
 | `--blocks` | — | Space-separated issue numbers this one blocks |
 | `--sub-issue` | — | Child issue number (repeatable) |
 | `--clean-body` | — | Strip legacy body-text relationship markers |
+| `--opened-as` | — | Why an agent opened the issue: `excursion`, `separate-defect`, `debt`, `deferred`; applies the `opened:<reason>` label (**required** on create unless `--planned`) |
+| `--where` | — | File, directory, or spec the issue concerns (**required** with `--opened-as debt`) |
+| `--planned` | — | Issue comes from planning or a user request (**required** on create unless `--opened-as`) |
 
-> **On create**, `--issue-type-id`, `--parent`, and `--milestone` are all required.
+> **On create**, `--issue-type-id`, `--parent`, `--milestone`, and one of
+> `--opened-as` / `--planned` are all required.
 > The script exits non-zero if any is missing.
 > See `shared/issue-creation-requirements.md` for lookup commands and defaults.
 

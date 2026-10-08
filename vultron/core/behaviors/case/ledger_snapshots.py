@@ -85,9 +85,10 @@ def build_add_report_to_case_snapshot(
 ) -> dict[str, Any]:
     """Build the ``add_report_to_case`` snapshot (``Add(VulnerabilityReport)``).
 
-    ``offer_id`` and ``offer_actor_id`` are embedded when provided so that
-    invited actors can reconstruct a ``VultronOfferRecord`` from the SYNC
-    backfilled entry (ISSUE-2134, SYNC-02-002).
+    ``offer_id`` and ``offer_actor_id`` are embedded when provided as the
+    report's Offer provenance in the ledger (CP-01-007).  An invited actor does
+    not rebuild a ``VultronOfferRecord`` from them: it was never sent the Offer
+    (CM-11-020).
     """
     report_dict = wire_render_port.render(report)
     report_dict.setdefault("type", "VulnerabilityReport")

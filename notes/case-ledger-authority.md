@@ -703,24 +703,12 @@ adds the check).
 
 ---
 
-## `EmitAddCaseParticipantNode` Pattern for `Add(CaseParticipant)` (Issue #1689)
+## Bare `target` Naming the Case in Participant Snapshots (Issue #1689)
 
-After `PersistInviteeParticipantNode` records the new participant in the
-DataLayer, `EmitAddCaseParticipantNode` (in
-`vultron/core/behaviors/case/nodes/accept_invite.py`) fans out
-`Add(CaseParticipant, Case)` to all existing participants and commits a
-canonical `CaseLedgerEntry`.
-
-**Fan-out delivery**: recipients are resolved from
-`case.actor_participant_index.keys()` (HTTP actor URLs), **not** from
-`case.case_participants` (which stores bare UUID participant IDs as strings
-in the DataLayer). Using bare UUIDs as inbox delivery targets causes
-`"Request URL is missing 'http://'"` errors. The actor-participant index
-keys are always proper HTTP URIs.
-
-**Bare `target` naming the case**: the factories address a case by its URI, so
+The factories address a case by its URI, so
 `target` is the bare case URI in `Offer(CaseParticipant)`, `Add(CaseParticipant)`
-and the recommendation replies, and the snapshot is the factory's exact blob.
+(the Case Owner's reinstatement request, CM-31-011) and the recommendation
+replies, and the snapshot is the factory's exact blob.
 `_validate_canonical_entry` therefore accepts a bare-string `target` **only when
 it equals the entry's case URI**, at any depth (an `Accept` embedding an `Offer`
 carries the same target inside); any other bare string in an inline-object slot

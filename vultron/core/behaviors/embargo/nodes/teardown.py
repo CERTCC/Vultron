@@ -26,6 +26,7 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.behaviors.narrative_log import log_em_transition
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.nodes import _require_log_entry
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.participants.recipients import case_content_recipients
@@ -71,7 +72,7 @@ class HasEmbargoActiveNode(DataLayerConditionWithPorts):
         return Status.SUCCESS
 
 
-class ClearActiveEmbargoNode(DataLayerActionWithPorts):
+class ClearActiveEmbargoNode(DataLayerActionWithPorts, StateWriteCapable):
     """Terminate the embargo in force, so EM derives ``EXITED``.
 
     Reads the current EM state via ``ReadEmStateNode``, then delegates to
@@ -152,7 +153,7 @@ class ClearActiveEmbargoNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class ApplyEmbargoTeardownNode(DataLayerActionWithPorts):
+class ApplyEmbargoTeardownNode(DataLayerActionWithPorts, StateWriteCapable):
     """Apply receiver-side embargo teardown.
 
     Terminates the register's ``ACTIVE`` entry and cancels every open
@@ -286,9 +287,14 @@ class SendAnnounceEmbargoEventNode(_SendEmbargoActivityBase):
         # because "the case has a manager" remains the precondition for
         # announcing canonical case state at all.
         # Only active participants receive the announce (CM-10-004); the shared
-        # selection decides who those are (CM-10-007).
+        # selection decides who those are (CM-10-007).  A participant at RM
+        # CLOSED gets no embargo announcement (CM-23-004); a closed signatory
+        # gets the CM-31-009 notice instead.
         self._recipients = case_content_recipients(
-            case, self.datalayer, excluding={self.actor_id or ""}
+            case,
+            self.datalayer,
+            excluding={self.actor_id or ""},
+            skip_closed=True,
         )
         if not self._recipients:
             self.feedback_message = (

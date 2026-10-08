@@ -16,17 +16,22 @@
 """
 Demonstrates the workflow for initializing a CaseParticipant via the Vultron API.
 
-This demo script showcases the standalone participant initialization process:
+This demo script showcases the participant initialization process:
 
 1. Setup: Submit and validate a vulnerability report; the report-validation BT
    triggers ProposeReportCaseToActorNode, which causes the CaseActor to create
    the canonical VulnerabilityCase with vendor (CASE_OWNER), finder (reporter),
    and CaseActor (CASE_MANAGER) as initial participants.
-2. Create Coordinator Participant: vendor creates a CoordinatorParticipant
-3. Add Coordinator to Case: vendor adds the coordinator participant to the case
+2. Invite the Coordinator: the vendor, as Case Owner, asks the CaseActor to
+   invite the coordinator, and the CaseActor sends the stub Invite
+3. Coordinator Joins: the coordinator accepts, the CaseActor creates its
+   CoordinatorParticipant, and the vendor's replica seats it from the
+   ``Accept(Invite)`` ledger entry
 
-This is standalone — it does not require a prior Invite.
-Compare with invite_actor_demo.py, which demonstrates the invite-based path.
+A participant is only ever initialized this way (ADR-0114):
+``Add(CaseParticipant)`` is the Case Owner's request to reinstate a removed
+participant, not a way to seat a new one (CM-31-011, ADR-0116).  Compare with
+invite_actor_demo.py, which drives the same join through the triggers.
 
 When run as a script, this module will:
 1. Check if the API server is available
@@ -40,12 +45,17 @@ When run as a script, this module will:
 import logging
 from collections.abc import Callable, Sequence
 
+from vultron.demo.helpers.polling import wait_for_case_participants
 from vultron.demo.helpers.runner import run_exchange_demos
-from vultron.demo.helpers.workflow import setup_canonical_case
+from vultron.demo.helpers.workflow import (
+    seat_participant_through_stub_invite,
+    setup_canonical_case,
+)
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
     DataLayerClient,
     demo_check,
+    demo_gate,
     demo_step,
     log_case_state,
     logfmt,
@@ -55,16 +65,9 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     verify_object_stored,
 )
 from vultron.enums.roles import CVDRole
-from vultron.wire.as2.factories import (
-    add_participant_to_case_activity,
-    create_participant_activity,
-)
 
 # Vultron imports
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.case_participant import (
-    as_CaseParticipant,
-)
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -120,8 +123,10 @@ def demo_initialize_participant(
 
     Steps:
     1. Show initial case participant list
-    2. Vendor creates a CoordinatorParticipant (standalone, no prior invite)
-    3. Vendor adds the coordinator participant to the case
+    2. The vendor asks the CaseActor to invite the coordinator, and the
+       coordinator accepts; the CaseActor creates its participant record
+    3. Verify the vendor's replica seats the coordinator from the
+       ``Accept(Invite)`` ledger entry alone (CM-31-012)
     4. Verify final participant count
 
     This follows the workflow in:
@@ -145,46 +150,27 @@ def demo_initialize_participant(
 
     initial_count = len(initial_case.case_participants) if initial_case else 0
 
-    coordinator_participant = None
-    with demo_step(
-        "Step 1: Vendor creates coordinator participant (standalone)"
-    ):
-        coordinator_participant = as_CaseParticipant(
-            case_roles=[CVDRole.COORDINATOR],
-            attributed_to=coordinator.id_,
-            context=case.id_,
+    with demo_step("Step 1: Coordinator joins through the stub Invite"):
+        seat_participant_through_stub_invite(
+            client,
+            case,
+            owner=vendor,
+            invitee=coordinator,
+            role=CVDRole.COORDINATOR,
         )
-        logger.info(
-            "Created coordinator participant: %s",
-            logfmt(coordinator_participant),
-        )
-        create_coordinator_participant = create_participant_activity(
-            coordinator_participant, actor=vendor.id_, context=case.id_
-        )
-        post_to_inbox_and_wait(
-            client, vendor.id_, create_coordinator_participant
-        )
-        with demo_check("Coordinator participant stored in data layer"):
-            verify_object_stored(client, coordinator_participant.id_)
 
-    with demo_step("Step 2: Vendor adds coordinator participant to case"):
-        add_coordinator_participant = add_participant_to_case_activity(
-            coordinator_participant, actor=vendor.id_, target=case.id_
-        )
-        post_to_inbox_and_wait(client, vendor.id_, add_coordinator_participant)
-        with demo_check("Coordinator participant added to case"):
-            updated_case = log_case_state(
-                client,
-                case.id_,
-                "after coordinator AddParticipantToCaseActivity",
+    with demo_step(
+        "Step 2: Vendor's replica seats the coordinator from the ledger"
+    ):
+        # No Add(CaseParticipant) follows the acceptance (CM-31-012): the
+        # vendor's replica learns of the new member from the Accept(Invite)
+        # entry the CaseActor fans out to it.
+        with demo_gate("Coordinator is a participant on the vendor's replica"):
+            wait_for_case_participants(
+                vendor_client=client,
+                case_id=case.id_,
+                expected_actor_ids={coordinator.id_},
             )
-            if updated_case and coordinator_participant.id_ not in [
-                (ref_id(p) or str(p)) for p in updated_case.case_participants
-            ]:
-                raise ValueError(
-                    f"Coordinator participant '{coordinator_participant.id_}'"
-                    " not found in case after AddParticipantToCaseActivity"
-                )
         logger.info("Coordinator added as participant to case")
 
     expected_count = initial_count + 1

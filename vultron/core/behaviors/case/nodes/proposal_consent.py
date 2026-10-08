@@ -32,6 +32,7 @@ from py_trees.ports import NoDataAvailable, PortInformation
 
 from vultron.core.behaviors.case.report_author import report_author_id
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.ports.case_persistence import CasePersistence
@@ -72,7 +73,7 @@ def _seed_participant_as_signatory(
     )
 
 
-class SeedReporterSignatoryNode(DataLayerActionWithPorts):
+class SeedReporterSignatoryNode(DataLayerActionWithPorts, StateWriteCapable):
     """Seed the reporter participant as an embargo signatory (CM-14-005).
 
     CM-14-005 requires: "When the reporter is added as a participant during

@@ -35,13 +35,15 @@ Tree structure::
             ├── AdvanceInviteeVFToVendorAwareNode    — record VF Vf for VENDOR (CM-11-009)
             ├── EmitAnnounceCaseToInviteeNode        — queue Announce(VulnerabilityCase)
             ├── BackfillCanonicalLedgerToInviteeNode — send prior ledger to invitee
-            ├── EmitAddCaseParticipantNode           — emit Add(CaseParticipant), commit ledger
             ├── EmitInviteActorToFullCaseNode        — full-case Invite with the ledger tail (CM-11-010)
             └── RelayOpenProposalsToJoinerNode       — Invite to each open embargo proposal (EP-09-011)
 
 Admitting the invitee, announcing the case to it and backfilling the ledger
 are the CASE_MANAGER's (PCR-08-009); every other participant learns of the
-new member through the ledger fan-out.  The same handler runs on any actor
+new member from the ``Accept(Invite)`` entry's fan-out, which its replica
+applies through ``ApplyInviteAcceptFromLedgerNode``.  No ``Add(CaseParticipant)``
+follows and no ``add_case_participant`` entry is committed: that message now
+means reinstatement only (CM-31-012, ADR-0116).  The same handler runs on any actor
 that holds a copy of the Accept, so the effects sit behind a role gate and
 a receiver that is not the case's CASE_MANAGER does nothing (#3752).
 
@@ -52,10 +54,6 @@ consent resolved). BT-06-001, BT-15-001, BT-17-001.
 
 import py_trees
 
-from vultron.core.behaviors.case.nodes import create_case_manager_gated_tree
-from vultron.core.behaviors.case.nodes.accept_invite import (
-    EmitAddCaseParticipantNode,
-)
 from vultron.core.behaviors.case.nodes.full_case_invite import (
     EmitInviteActorToFullCaseNode,
 )
@@ -81,6 +79,9 @@ from vultron.core.behaviors.case.nodes.invite_participant_persist import (
 )
 from vultron.core.behaviors.case.nodes.invite_revision_relay import (
     RelayOpenProposalsToJoinerNode,
+)
+from vultron.core.behaviors.case.nodes.stub_invite_lifetime import (
+    StubInviteAnswerableNode,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
@@ -152,6 +153,7 @@ def create_accept_invite_actor_to_case_tree(
         AcceptInviteActorToCaseBT (memory=False)
         ├── SenderIsInviteeNode                    — sender is the recorded invitee
         ├── CheckInviteeNotAlreadyParticipantNode  — idempotency guard
+        ├── StubInviteAnswerableNode               — not superseded
         ├── CapturePreCommitBackfillTargetNode     — snapshot ledger for resume case
         ├── GuardedCommitCaseLedgerEntryBT         — record receipt (CLP-10-006)
         └── AcceptInviteIfCaseManager              — BT-17-001 gate (#3752)
@@ -162,16 +164,18 @@ def create_accept_invite_actor_to_case_tree(
                 ├── AdvanceInviteeToReceivedNode         — advance to RM.RECEIVED via writer
                 ├── EmitAnnounceCaseToInviteeNode        — queue Announce to invitee
                 ├── BackfillCanonicalLedgerToInviteeNode — send prior ledger to invitee
-                ├── EmitAddCaseParticipantNode           — emit Add(CaseParticipant), commit ledger
                 ├── EmitInviteActorToFullCaseNode        — full-case Invite with the ledger tail (CM-11-010)
                 └── RelayOpenProposalsToJoinerNode       — Invite to each open embargo proposal (EP-09-011)
 
-    The three before the relay follow CM-17-004 steps (5) and (6): the invitee receives the
-    case snapshot, then the prior ledger in log-index order, and only then the
-    add-participant entry — whose commit fans out to the invitee too, because
-    ``PersistInviteeParticipantNode`` has already put it in
-    ``actor_participant_index``.  Any other order hands the late joiner a ledger
-    entry before its case seed (SYNC-15 pre-genesis reject and replay, #2898).
+    The announce, backfill and full-case Invite follow CM-17-004 steps (3)
+    and (4): the invitee receives the case snapshot, then the prior ledger in
+    log-index order, and only then the first entry committed after it joined —
+    the full-case Invite's, whose fan-out reaches the invitee too, because
+    ``PersistInviteeParticipantNode`` has already made it active.  Any
+    committing node placed earlier hands the late joiner a ledger entry before
+    its case seed (SYNC-15 pre-genesis reject and replay, #2898).  The
+    stub-Invite acceptance commits no ``add_case_participant`` entry
+    (CM-31-012): replicas add the member from the ``Accept(Invite)`` entry.
 
     The idempotency guard ``CheckInviteeNotAlreadyParticipantNode`` uses
     :class:`~vultron.core.behaviors.idempotency.SilentIdempotencyGuardMixin`
@@ -208,68 +212,67 @@ def create_accept_invite_actor_to_case_tree(
             CheckInviteeNotAlreadyParticipantNode(
                 case_id=case_id, invitee_id=invitee_id
             ),
+            # A superseded stub cannot be accepted (CM-11-016); an expired one
+            # can (ASK-03-008).  A redelivery of a joined invitee's Accept
+            # already ended the tree above, so this never refuses a duplicate.
+            StubInviteAnswerableNode(invite_id=invite_id, case_id=case_id),
             CapturePreCommitBackfillTargetNode(case_id=case_id),
         ],
-        effect_nodes=[
-            create_case_manager_gated_tree(
-                name="AcceptInviteIfCaseManager",
+        manager_effects=[
+            CreateInviteeParticipantNode(
                 case_id=case_id,
-                children=[
-                    CreateInviteeParticipantNode(
-                        case_id=case_id,
-                        invitee_id=invitee_id,
-                        invite_id=invite_id,
-                    ),
-                    MaybeSignEmbargoConsentNode(
-                        case_id=case_id, invitee_id=invitee_id
-                    ),
-                    PersistInviteeParticipantNode(
-                        case_id=case_id, invitee_id=invitee_id
-                    ),
-                    AdvanceInviteeToReceivedNode(
-                        case_id=case_id, invitee_id=invitee_id
-                    ),
-                    AdvanceInviteeVFToVendorAwareNode(
-                        case_id=case_id, invitee_id=invitee_id
-                    ),
-                    # CM-17-004 steps (5) and (6): seed the invitee's case,
-                    # then backfill the prior ledger in log-index order.
-                    EmitAnnounceCaseToInviteeNode(
-                        case_id=case_id, invitee_id=invitee_id
-                    ),
-                    BackfillCanonicalLedgerToInviteeNode(
-                        case_id=case_id, invitee_id=invitee_id
-                    ),
-                    # The add-participant commit fans out through
-                    # ``actor_participant_index``, which already names the
-                    # invitee once PersistInviteeParticipantNode has run.
-                    # Placed before the announce it hands the invitee a ledger
-                    # entry for a case it does not hold yet (SYNC-15 pre-genesis
-                    # Reject, then a from-genesis replay interleaved with the
-                    # backfill — fcvcv V2/C2, #2898); placed between announce
-                    # and backfill it arrives as a forward gap ahead of the
-                    # entries it extends.  Last, it reaches the invitee as the
-                    # next entry in chain order.
-                    EmitAddCaseParticipantNode(
-                        case_id=case_id, invitee_id=invitee_id
-                    ),
-                    # CM-17-004 step (4): the full-case Invite, queued after
-                    # the last replayed entry and the add-participant entry so
-                    # its ledger tail is the floor the invitee must reach
-                    # before it answers (CM-11-010, ADR-0121).
-                    EmitInviteActorToFullCaseNode(
-                        case_id=case_id, invitee_id=invitee_id
-                    ),
-                    # EP-09-011: the joiner was not on the roster when any
-                    # open proposal was relayed, so it is invited now, after
-                    # it holds the case and the ledger up to its own entry.
-                    RelayOpenProposalsToJoinerNode(
-                        case_id=case_id, invitee_id=invitee_id
-                    ),
-                ],
-                body_name="AcceptInviteEffects",
+                invitee_id=invitee_id,
+                invite_id=invite_id,
+            ),
+            MaybeSignEmbargoConsentNode(
+                case_id=case_id, invitee_id=invitee_id
+            ),
+            PersistInviteeParticipantNode(
+                case_id=case_id, invitee_id=invitee_id
+            ),
+            AdvanceInviteeToReceivedNode(
+                case_id=case_id, invitee_id=invitee_id
+            ),
+            AdvanceInviteeVFToVendorAwareNode(
+                case_id=case_id, invitee_id=invitee_id
+            ),
+            # CM-17-004 step (3): seed the invitee's case,
+            # then backfill the prior ledger in log-index order.
+            EmitAnnounceCaseToInviteeNode(
+                case_id=case_id, invitee_id=invitee_id
+            ),
+            BackfillCanonicalLedgerToInviteeNode(
+                case_id=case_id, invitee_id=invitee_id
+            ),
+            # CM-17-004 step (4): the full-case Invite, queued after
+            # the last replayed entry so its ledger tail is the floor
+            # the invitee must reach before it answers (CM-11-010,
+            # ADR-0121).  It is also the first node after the join that
+            # commits an entry, and that commit fans out to the invitee,
+            # active since PersistInviteeParticipantNode.  Placed before
+            # the announce it would hand the invitee a ledger entry for
+            # a case it does not hold yet (SYNC-15 pre-genesis Reject,
+            # then a from-genesis replay interleaved with the backfill —
+            # fcvcv V2/C2, #2898); placed between announce and backfill
+            # it would arrive as a forward gap ahead of the entries it
+            # extends.  Here it reaches the invitee as the next entry in
+            # chain order.  No Add(CaseParticipant) precedes it
+            # (CM-31-012).
+            EmitInviteActorToFullCaseNode(
+                case_id=case_id, invitee_id=invitee_id
+            ),
+            # EP-09-011: the joiner was not on the roster when any
+            # open proposal was relayed, so it is invited now, after
+            # it holds the case and the ledger.  Its commits fan out to
+            # the joiner too, so it stays after the backfill for the
+            # same #2898 reason.
+            RelayOpenProposalsToJoinerNode(
+                case_id=case_id, invitee_id=invitee_id
             ),
         ],
+        manager_case_id=case_id,
+        manager_gate_name="AcceptInviteIfCaseManager",
+        manager_body_name="AcceptInviteEffects",
     )
 
 

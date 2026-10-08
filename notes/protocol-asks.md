@@ -325,7 +325,7 @@ subclasses:
 
 ```text
 case/nodes/actor.py                        EmitInviteActorToCaseNode._call_factory()
-case/nodes/accept_invite.py                EmitAddCaseParticipantNode._call_factory()
+case/nodes/case_participant_received.py    EmitParticipantMoveNoticeNode._call_factory()
 case/nodes/delegation.py                   EmitRejectCaseParticipantRoleNode._call_factory()
 case/nodes/suggest_actor/accept_offer.py   EmitAcceptCaseParticipantOfferNode._call_factory()
 ```

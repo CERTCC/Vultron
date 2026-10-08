@@ -72,7 +72,9 @@ class CheckInviteeNotAlreadyParticipantNode(
        ``invitee_already_participant=True``, ``invitee_joined=True``.
     4. **Backfill-complete (true duplicate)**: invitee in index, backfill done
        → ``_idempotent_failure`` (FAILURE, INFO log, no ledger write —
-       CLP-13-001).
+       CLP-13-001).  A *removed* participant (CM-31-001) takes this path
+       whatever its backfill state: it is sent no full-case Invite and no
+       backfill until it is reinstated (CM-31-013).
     """
 
     def __init__(
@@ -98,8 +100,8 @@ class CheckInviteeNotAlreadyParticipantNode(
             "invitee_joined": "/invitee_joined",
         }
 
-    def _read_participant_joined(self, case: object) -> bool | None:
-        """Return the stored participant's ``joined`` value, or None if absent."""
+    def _read_participant(self, case: object) -> CaseParticipant | None:
+        """Return the invitee's stored participant record, or None if absent."""
         assert self.datalayer is not None
         index = getattr(case, "actor_participant_index", {}) or {}
         participant_id = index.get(self.invitee_id)
@@ -108,7 +110,7 @@ class CheckInviteeNotAlreadyParticipantNode(
         p = self.datalayer.read(participant_id)
         if not isinstance(p, CaseParticipant):
             return None
-        return p.joined
+        return p
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -132,7 +134,8 @@ class CheckInviteeNotAlreadyParticipantNode(
             return Status.SUCCESS
 
         # In index — check whether the participant has joined
-        joined = self._read_participant_joined(case)
+        record = self._read_participant(case)
+        joined = record.joined if record is not None else None
 
         if joined is False:
             # Inert record from invite-send time (ADR-0114, CM-11-006).
@@ -149,6 +152,21 @@ class CheckInviteeNotAlreadyParticipantNode(
             self._set_output("invitee_joined", False)
             self._set_output("invitee_case", case)
             return Status.SUCCESS
+
+        if record is not None and record.removed:
+            # A removed participant joined long ago and is sent no Invite,
+            # case seed or backfill until the Case Owner reinstates it
+            # (CM-31-013): a replayed Accept moves nothing (CLP-13-001).
+            self._set_output("invitee_already_participant", True)
+            self._set_output("invitee_joined", True)
+            return self._idempotent_failure(
+                self.logger,
+                "%s: actor '%s' was removed from case '%s'"
+                " — skipping (CM-31-013, CLP-13-001)",
+                self.name,
+                self.invitee_id,
+                self.case_id,
+            )
 
         # joined=True (or unknown): check backfill state
         state = self._read_replication_state(case.id_)

@@ -21,6 +21,7 @@ from typing import Any
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models._helpers import _as_id
 
 
@@ -71,7 +72,7 @@ class CreateNoteNode(DataLayerActionWithPorts):
             return Status.FAILURE
 
 
-class AttachNoteFromResultNode(DataLayerActionWithPorts):
+class AttachNoteFromResultNode(DataLayerActionWithPorts, StateWriteCapable):
     """Attach a note to a case, reading ``note_id`` from ``result_out``."""
 
     def __init__(

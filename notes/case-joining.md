@@ -19,6 +19,7 @@ related_specs:
   - specs/embargo-policy.yaml
 related_notes:
   - notes/case-communication-model.md
+  - notes/embargo-lifecycle.md
   - notes/participant-embargo-consent.md
   - notes/participant-role-management.md
   - notes/sync-ledger-replication.md
@@ -35,7 +36,8 @@ relevant_packages:
   - vultron/core/behaviors/case/nodes/case_participant_received.py
   - vultron/core/behaviors/case/case_participant_received_tree.py
   - vultron/core/behaviors/sync/nodes/participant_removal_effect.py
-  - vultron/core/behaviors/case/nodes/accept_invite.py
+  - vultron/core/behaviors/case/nodes/participant_reinstatement.py
+  - vultron/core/behaviors/embargo/nodes/reinvite.py
   - vultron/core/models/case.py
   - vultron/core/states/rm.py
   - vultron/wire/as2/vocab/objects/vulnerability_case.py
@@ -130,19 +132,40 @@ its authority to *commit* comes from its role (CLP-09), not from being active.
 
 ## Edge cases
 
-- **Unanswered stub Invite.** It carries a reply deadline; on expiry the
-  *Invite* closes as an expired ask and the record stays inert at `RECEIVED`
-  (CM-11-014). The CASE_MANAGER never closes an invitee's RM for it, and consent
-  stays `INVITED`: the time-out-to-`TIMED_OUT` rule (CM-28-004) is for an expired
-  `Invite(EmbargoEvent)`, not for the terms a stub carries.
+- **Unanswered stub Invite.** It carries a reply deadline, `Invite.end_time`,
+  which the CASE_MANAGER stamps exactly as it stamps a relayed embargo Invite's
+  (CM-28-012): `published` plus `default_rsvp_window`, floored at
+  `min_rsvp_window`, capped at the active embargo's end when one is active. On
+  expiry the *Invite* closes as an expired ask and the record stays inert at
+  `RECEIVED` (CM-11-014). The CASE_MANAGER never closes an invitee's RM for it,
+  and consent stays `INVITED`: the time-out-to-`TIMED_OUT` rule (CM-28-004, #4153)
+  is for an expired `Invite(EmbargoEvent)`, not for the terms a stub carries.
+  Expiry is read, not recorded: an Invite is expired when `now >= end_time`
+  (the embargo Invite's comparison), judged against the CASE_MANAGER's own copy.
+  The expiry consequence is *stale* (ASK-03-002, ASK-03-008): expiry only
+  means the CASE_MANAGER stops waiting. A late `Accept` still joins and a late
+  `Reject` still closes the record. The stale-terms hazard is covered by the
+  supersede rule below, not by refusing late replies. A strict mode that
+  refuses after expiry is a possible later addition and is not built.
   "All participants closed" counts only participants that joined.
-- **Re-invite.** Same record, fresh stub Invite, new deadline. Refused for a
-  participant at `CLOSED` — terminal, no rejoin (CM-11-015, ADR-0085).
+- **Re-invite.** Same record, fresh stub Invite, new deadline, with `inReplyTo`
+  set to the earlier stub so the invitee has one live stub. Refused for a
+  participant at `CLOSED` — terminal, no rejoin (CM-11-015, ADR-0085). The
+  owner's trigger refuses it before anything is queued, and the CASE_MANAGER's
+  recommend-actor tree refuses an Offer that arrives anyway. The re-invite arm
+  sits ahead of the duplicate arms, because an inert record is on the roster and
+  its stub is "in flight" until the invitee answers.
 - **Embargo changes during the invitation window.** The CASE_MANAGER re-issues
   the stub Invite with current terms; the replacement names the Invite it
   supersedes. `Accept` of a superseded stub is refused with the replacement
   named; `Reject` of it is honoured (CM-11-016). Without this, an invitee
-  accepting stale longer terms would join lapsed.
+  accepting stale longer terms would join lapsed. Only an *outstanding* stub is
+  re-issued: the invitee has not replied and the newest stub has not expired. An
+  expired, unanswered stub waits for a re-invite. The check compares the embargo
+  each stub carried with the one a new stub would carry, so it runs after any
+  step that may have changed the embargo (the termination, the activation, the
+  owner's accept) and does nothing while a proposal is open (EM `PROPOSED` or
+  `REVISE`): a proposal alone re-issues nothing.
 - **Joining while a proposal is open.** The joiner signs the embargo in force
   (step 2a), but it was not on the roster when the CASE_MANAGER relayed any
   open proposal. The admission therefore ends by inviting it to each open
@@ -199,10 +222,75 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
   `ApplyRemoveCaseParticipantFromLedgerNode`, which resolves the record by
   actor through `actor_participant_index`. At a replica the received tree
   writes nothing: the manager's notice is `SKIPPED`, anyone else's `Remove` is
-  `REFUSED`. Reinstatement (#4081) mirrors each piece.
-- **Catch-up follows the active check.** A participant reinstated into a case
-  whose embargo it has not accepted stays inert; it is sent that embargo's
-  Invite, and its backfill waits for its consent.
+  `REFUSED`.
+- **Where the reinstatement pipeline lives (#4081).** It mirrors removal
+  piece by piece. `create_add_case_participant_received_tree` runs the same
+  role-scoped sender guard, then `case_manager_admits_reinstatement_guard`
+  (names a participant, `ParticipantHasJoinedNode`, `ParticipantIsRemovedNode`;
+  every failure is `REFUSED`, none is an idempotent skip), the guarded commit,
+  and the CASE_MANAGER-gated effects in
+  `core/behaviors/case/nodes/participant_reinstatement.py`:
+  `ReinstateCaseParticipantReceivedNode` (via `CaseParticipant.clear_removal`,
+  the one clearing write), `BackfillAdmittedParticipantsNode`,
+  `EmitParticipantReinstatementNoticeNode` (port method
+  `add_participant_to_case`, which now takes `attributed_to`) and
+  `InviteReinstatedParticipantToEmbargoNode`. The guard, effect and notice
+  frames (`ParticipantMoveGuardNode`, `ParticipantMoveEffectNode`,
+  `EmitParticipantMoveNoticeNode`) and the use case frame are shared with
+  removal. Replicas replay the entry through
+  `ApplyReinstateCaseParticipantFromLedgerNode`, which shares its record
+  lookup with the removal apply node.
+- **Catch-up follows the active check (#4084).** The reinstatement entry's
+  fan-out is selected while the participant is still removed, so it is
+  withheld and recorded in that peer's pause (`embargo_paused_from_index`,
+  set by the first entry withheld after the removal entry). Once the fact is
+  cleared, `BackfillAdmittedParticipantsNode` sends every entry from that
+  index on, the reinstatement entry included, so the replica's chain joins
+  with no gap. A participant reinstated into a case whose embargo it has not
+  accepted stays inert: `InviteReinstatedParticipantToEmbargoNode` sends it
+  the active embargo's Invite (the EMB-17-003 re-invite frame, committed as
+  `invite_to_embargo_on_case_reinvite`), and the embargo-acceptance tree's
+  own backfill admits it when it consents.
+- **A removed participant is asked nothing (#4084).** `invitation_recipients`
+  leaves it out, so no embargo Invite or revision relay reaches it; the
+  EMB-17-003 re-invite and the reinstatement Invite check their one recipient
+  against it too. Both suggest-actor trees refuse a recommendation of it, and
+  the Case Owner's acceptance of an earlier one, before the commit
+  (`case_manager_admits_suggested_actor_guard`), so no stub Invite reaches
+  it. A replayed `Accept(Invite)` from it is a silent skip in
+  `CheckInviteeNotAlreadyParticipantNode`: no case seed, backfill or
+  full-case Invite.
+- **No `Add` after a stub-Invite acceptance (#4081).** Neither the
+  accept-invite tree nor the recommend-actor trees emit `Add(CaseParticipant)`
+  or commit `add_case_participant`; `EmitAddCaseParticipantNode` is deleted.
+  The stub Invite's own `invite_actor_to_case` entry records the inert
+  record's creation (CM-11-006). In the accept-invite tree the full-case
+  Invite is now the first effect that commits after the join, so it carries
+  the #2898 ordering: after the case announce and the backfill.
+- **Where the embargo-ending notices live (#4083).** The recipients are
+  `embargo_ending_notice_recipients` (joined, `SIGNATORY` to the ending
+  embargo, removed or RM `CLOSED`). The decision is `embargo_ending_notice`:
+  a termination before the agreed end owes ET; a revision that ends no later
+  (the EP-05-001 carry-over arm, ties included) owes `Announce(EmbargoEvent)`;
+  a longer revision or an expiry owes nothing. Every path that ends or
+  replaces the embargo at the CASE_MANAGER brackets its EM write with the pair
+  from `embargo_ending_notice_nodes` (`CaptureActiveEmbargoNode` before,
+  `SendEmbargoEndingNoticesNode` after, under the manager gate): the received
+  `Remove`/`Add(EmbargoEvent)`, the owner's received `Accept` of a revision,
+  `terminate_embargo_bt` (trigger, P/X/A cascade, owner EJ after disclosure)
+  and the trigger answer arms. One activity per recipient, never ledgered,
+  `attributedTo` the requester when it is not the manager. At the replica,
+  the received `Remove(EmbargoEvent)` tree applies ET through
+  `EmbargoLifecycle`; a replica owed a notice (`AwaitsEmbargoEndingNoticeNode`,
+  `awaits_embargo_ending_notice`: the same recipient rule, read about itself)
+  applies an announced shorter revision through
+  `ApplyAnnouncedEmbargoRevisionNode` (`activate_embargo`, `OBSERVED`). A
+  withheld replica is paused but bound by no embargo in force, so the
+  teardown `Announce` that reaches it is archived, never applied. The
+  sender guard admits only the CASE_MANAGER. The teardown `Announce` itself
+  skips RM `CLOSED` participants (CM-23-004). Until #4212 lands, a closed
+  signatory still receives fan-out and so gets both the entry and the notice;
+  both apply idempotently.
 
 ## What the old model got wrong
 
@@ -271,7 +359,7 @@ message is designed: we accept offers and invitations, never bare objects.
 - **A joined participant never answers the original `Offer(VulnerabilityReport)`**
   and never runs `validate-report`/`invalidate-report`/`reject-report` for the
   case's report; it judges the case by answering the full-case Invite
-  (CM-11-018, ADR-0121).
+  (CM-11-020, ADR-0121).
 - **A status update never creates a participant.** An on-behalf assertion whose
   target is not a participant is refused before any write (PRM-06-006).
 - **Removal is not deletion and not a consent state.** Do not drop a removed

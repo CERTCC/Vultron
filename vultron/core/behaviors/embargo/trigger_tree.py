@@ -39,6 +39,10 @@ from collections.abc import Callable
 
 import py_trees
 
+from vultron.config.actor import ActorConfig
+from vultron.core.behaviors.case.nodes.invite_actor_emit import (
+    ReissueStubInvitesNode,
+)
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
     create_participant_replica_gated_tree,
@@ -71,6 +75,7 @@ from vultron.core.behaviors.embargo.nodes import (
     ValidateEmbargoProposalStateNode,
     ValidateEmbargoRevisionStateNode,
     ask_case_manager_to_terminate_once,
+    embargo_ending_notice_nodes,
 )
 from vultron.core.behaviors.sender.nodes import (
     ConstructActivitiesNode,
@@ -150,16 +155,21 @@ def _answer_arms(
     event_type: str,
     result_out: dict[str, object],
     activity_builder: EmbargoActivityBuilder,
+    actor_config: ActorConfig | None = None,
 ) -> list[py_trees.behaviour.Behaviour]:
     """Manager: write, commit, declare; otherwise: ask the manager.
 
     The manager's Accept or Reject is addressed to nobody: every replica
-    learns it from the committed entry (EP-09-007).
+    learns it from the committed entry (EP-09-007).  An Accept that activates
+    a shorter revision is announced to the bound signatories the ledger no
+    longer reaches (CM-31-009).
     """
+    capture, notices = embargo_ending_notice_nodes(case_id)
     return _by_role(
         name,
         case_id,
         as_case_manager=[
+            capture,
             lifecycle_node,
             CommitEmbargoDecisionNode(
                 case_id=case_id,
@@ -167,6 +177,13 @@ def _answer_arms(
                 builder=activity_builder,
             ),
             _make_emit_node(case_id),
+            notices,
+            # The owner's accept of a revision changes the active embargo
+            # under any outstanding stub Invite (CM-11-016).  The node compares
+            # each stub's terms with the embargo in force and does nothing
+            # while a proposal is open, so a reject or a participant's accept
+            # re-issues nothing.
+            ReissueStubInvitesNode(case_id=case_id, actor_config=actor_config),
         ],
         otherwise=[
             sender_side_bt(
@@ -419,6 +436,8 @@ def terminate_embargo_bt(
     result_out: dict[str, object],
     reason: TerminationReason,
     activity_builder: EmbargoActivityBuilder | None = None,
+    requested_by: str | None = None,
+    actor_config: ActorConfig | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Shared BT for terminating the active embargo (BT-19-001, EP-09-008).
 
@@ -435,7 +454,9 @@ def terminate_embargo_bt(
        commit the ``Remove(EmbargoEvent)`` as the canonical entry the
        ``EmbargoTeardown`` slot replays, addressed to every other participant
        and never to the manager (EMB-19-001, CLP-10-001, #4112), then the
-       ``Add(CaseStatus)`` declaration.
+       ``Add(CaseStatus)`` declaration, then a direct ``Remove(EmbargoEvent)``
+       to each bound signatory the ledger no longer reaches (CM-31-009),
+       crediting *requested_by* when another actor asked for the end.
     4. As any other participant: no EM write; the ``Remove`` is queued to the
        CASE_MANAGER as a request (PCR-08-001) and recorded as a pending
        assertion keyed by the ended embargo (EP-09-008, SYNC-11-002) — by
@@ -446,6 +467,10 @@ def terminate_embargo_bt(
     ``/embargo_id`` and the factory from the blackboard.  Every path MUST use
     this factory so routing prerequisites are verified before the DataLayer
     state change is committed (BT-19-002).
+
+    *actor_config* sets the RSVP window of the stub Invites the CASE_MANAGER
+    re-issues once the embargo ends; ``None`` applies the ``ActorConfig``
+    defaults.
     """
     if activity_builder is not None:
         commit: py_trees.behaviour.Behaviour = CommitEmbargoDecisionNode(
@@ -467,6 +492,9 @@ def terminate_embargo_bt(
     else:
         commit = CommitEmbargoTeardownNode(case_id=case_id)
         ask = ask_case_manager_to_terminate_once(case_id)
+    capture, notices = embargo_ending_notice_nodes(
+        case_id, requested_by=requested_by
+    )
 
     return py_trees.composites.Sequence(
         name="TerminateEmbargoBT",
@@ -479,11 +507,18 @@ def terminate_embargo_bt(
                 "TerminateEmbargo",
                 case_id,
                 as_case_manager=[
+                    capture,
                     TerminateEmbargoLifecycleNode(
                         case_id=case_id, result_out=result_out, reason=reason
                     ),
                     commit,
                     _make_emit_node(case_id),
+                    notices,
+                    # Termination changes the terms of every stub Invite still
+                    # outstanding (CM-11-016).
+                    ReissueStubInvitesNode(
+                        case_id=case_id, actor_config=actor_config
+                    ),
                 ],
                 otherwise=[ask],
             ),

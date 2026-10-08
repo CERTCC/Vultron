@@ -768,6 +768,53 @@ class TestSignEmbargo:
         assert p.consent_for(_OTHER) is S.DECLINED
 
 
+# ---------------------------------------------------------------------------
+# The removal fact: record_removal and clear_removal (CM-31-001, CM-31-011)
+# ---------------------------------------------------------------------------
+
+_REMOVAL_ID = "https://example.org/activities/remove-1"
+
+
+def _participant_for_removal() -> CaseParticipant:
+    return CaseParticipant(
+        attributed_to="https://example.org/actors/vendor",
+        context="https://example.org/cases/case-1",
+    )
+
+
+@pytest.mark.spec("CM-31-011")
+def test_clear_removal_reinstates_a_removed_participant() -> None:
+    participant = _participant_for_removal()
+    assert participant.record_removal(_REMOVAL_ID)
+
+    assert participant.clear_removal() is True
+
+    assert not participant.removed
+    assert participant.removal_activity is None
+
+
+@pytest.mark.spec("CM-31-011")
+def test_clear_removal_of_a_participant_that_is_not_removed_is_a_no_op() -> (
+    None
+):
+    participant = _participant_for_removal()
+
+    assert participant.clear_removal() is False
+
+    assert not participant.removed
+
+
+@pytest.mark.spec("CM-31-011")
+def test_a_reinstated_participant_can_be_removed_again() -> None:
+    participant = _participant_for_removal()
+    participant.record_removal(_REMOVAL_ID)
+    participant.clear_removal()
+
+    assert participant.record_removal("https://example.org/activities/r2")
+
+    assert participant.removal_activity == "https://example.org/activities/r2"
+
+
 @pytest.mark.spec("CM-18-001")
 def test_has_lapsed_refuses_a_replaces_the_register_does_not_hold():
     """A dangling ``replaces`` is a broken register, never "not lapsed"."""

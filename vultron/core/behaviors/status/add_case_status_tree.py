@@ -56,6 +56,7 @@ from vultron.core.behaviors.call_out.bundles.status_authorization import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.replica_emit_exemptions import CASE_STATUS
 from vultron.core.behaviors.status.nodes import (
     AppendCaseStatusToCaseNode,
     CheckCaseStatusIdempotencyNode,
@@ -152,7 +153,7 @@ def add_case_status_tree(
             FilterCsPxaDimensionNode(),
             FinalizeCsFilterNode(),
         ],
-        effect_nodes=[
+        replica_effects=[
             AppendCaseStatusToCaseNode(
                 case_id=case_id,
                 status_id=status_id,
@@ -183,6 +184,7 @@ def add_case_status_tree(
                 name="PxaEmInvariantDiagnostic",
             ),
         ],
+        replica_emit_exemption=CASE_STATUS,
     )
     logger.debug(
         "Created AddCaseStatusToCaseBT for status=%s case=%s actor=%s"

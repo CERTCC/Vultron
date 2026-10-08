@@ -218,3 +218,39 @@ def test_reply_fails_closed_with_409_when_the_tail_cannot_be_read(
             dl,
         )
     assert dl.outbox_list() == []
+
+
+@pytest.mark.spec("CM-11-011")
+def test_reply_names_the_case_by_uri_when_the_held_invite_carries_it_inline(
+    participant, monkeypatch
+) -> None:
+    """An Invite stored with its case inline still names the case by its URI.
+
+    The live demo stores the CASE_MANAGER's full-case Invite with the case
+    embedded; reading the case id off it as ``str(<mapping>)`` made the ledger
+    look empty and the reply failed closed with a 409 (#4051).
+    """
+    from vultron.core.use_cases.triggers import full_case_invite as module
+
+    actor, dl, case_id, genesis = participant
+    floor = LedgerPosition(log_index=-1, entry_hash=genesis)
+    invite_id = _hold_invite(dl, actor, case_id, floor)
+    real_read = module.read_received_activity
+
+    def _inline(dl_, activity_id, label):
+        held = real_read(dl_, activity_id, label)
+        return held.model_copy(
+            update={"target": {"id": case_id, "type": "VulnerabilityCase"}}
+        )
+
+    monkeypatch.setattr(module, "read_received_activity", _inline)
+
+    result = _run(
+        SvcAcceptFullCaseInviteUseCase,
+        AcceptFullCaseInviteTriggerRequest(
+            actor_id=actor.id_, invite_id=invite_id
+        ),
+        dl,
+    )
+
+    assert activity_of(result)["type"] == "Accept"

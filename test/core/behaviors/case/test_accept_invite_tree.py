@@ -797,27 +797,32 @@ def test_every_accept_invite_effect_is_inside_the_case_manager_gate():
 
 @pytest.mark.spec("CM-17-009")
 @pytest.mark.spec("CM-17-004")
-def test_case_announce_and_backfill_precede_the_add_participant_fanout():
+@pytest.mark.spec("CM-31-012")
+def test_case_announce_and_backfill_precede_the_first_committing_effect():
     """Effect order: seed the invitee's case before any ledger entry reaches it.
 
-    ``EmitAddCaseParticipantNode`` commits the add-participant entry and fans it
-    out through ``actor_participant_index`` — which already contains the invitee
-    once ``PersistInviteeParticipantNode`` has run.  Placed before
-    ``EmitAnnounceCaseToInviteeNode`` it hands the invitee a ledger entry for a
-    case it does not hold yet (SYNC-15 pre-genesis reject, then a replay that
-    interleaves with the join backfill).  CM-17-004 orders the announce (5)
-    and the backfill (6) with no fan-out to the invitee in between, so the
-    add-participant commit belongs after both (#2898, fcvcv late joiners).
+    The full-case Invite is the first effect after the join that commits an
+    entry, and that commit fans out to the invitee, active once
+    ``PersistInviteeParticipantNode`` has run.  Placed before
+    ``EmitAnnounceCaseToInviteeNode`` it would hand the invitee a ledger
+    entry for a case it does not hold yet (SYNC-15 pre-genesis reject, then a
+    replay that interleaves with the join backfill); CM-17-004 orders the
+    announce and the backfill with no fan-out to the invitee in between, so
+    every committing effect belongs after both (#2898, fcvcv late joiners).
+    No ``Add(CaseParticipant)`` is emitted at all (CM-31-012).
     """
     from vultron.core.behaviors.case.accept_invite_tree import (
         create_accept_invite_actor_to_case_tree,
     )
-    from vultron.core.behaviors.case.nodes.accept_invite import (
-        EmitAddCaseParticipantNode,
+    from vultron.core.behaviors.case.nodes.full_case_invite import (
+        EmitInviteActorToFullCaseNode,
     )
     from vultron.core.behaviors.case.nodes.invite_ledger_backfill import (
         BackfillCanonicalLedgerToInviteeNode,
         EmitAnnounceCaseToInviteeNode,
+    )
+    from vultron.core.behaviors.case.nodes.invite_revision_relay import (
+        RelayOpenProposalsToJoinerNode,
     )
 
     tree = create_accept_invite_actor_to_case_tree(
@@ -832,12 +837,14 @@ def test_case_announce_and_backfill_precede_the_add_participant_fanout():
     ]
     announce = leaves.index(EmitAnnounceCaseToInviteeNode)
     backfill = leaves.index(BackfillCanonicalLedgerToInviteeNode)
-    add_participant = leaves.index(EmitAddCaseParticipantNode)
+    full_case_invite = leaves.index(EmitInviteActorToFullCaseNode)
+    relay = leaves.index(RelayOpenProposalsToJoinerNode)
 
-    assert announce < backfill < add_participant, (
-        "expected Announce(VulnerabilityCase) → backfill → add-participant"
-        f" commit, got {[t.__name__ for t in leaves]}"
+    assert announce < backfill < full_case_invite < relay, (
+        "expected Announce(VulnerabilityCase) → backfill → full-case Invite"
+        f" → proposal relay, got {[t.__name__ for t in leaves]}"
     )
+    assert "EmitAddCaseParticipantNode" not in {t.__name__ for t in leaves}
 
 
 @pytest.mark.spec("CM-18-001")

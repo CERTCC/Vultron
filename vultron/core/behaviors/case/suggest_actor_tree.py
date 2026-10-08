@@ -32,11 +32,12 @@ and use
 to enforce CLP-10-006 ordering (ledger commit before effect nodes).
 
 Every effect in this workflow is the CASE_MANAGER's, so each tree's effect
-section sits inside :func:`create_case_manager_gated_tree` (BT-17-001,
-BTND-07-005).  The same handler runs on every participant that holds a copy of
-the message; the gate is what keeps a participant that is *not* the case's
-CASE_MANAGER from forwarding, accepting, or inviting as itself (#3752).  The
-handler then reports the skip as a refusal (HP-01-005).
+section is passed as ``manager_effects``, which the factory wraps in the
+CASE_MANAGER gate (BT-17-001, BT-17-008, BTND-07-005).  The same handler
+runs on every participant that holds a copy of the message; the gate is
+what keeps a participant that is *not* the case's CASE_MANAGER from
+forwarding, accepting, or inviting as itself (#3752).  The handler then
+reports the skip as a refusal (HP-01-005).
 
 BT leaf nodes for this workflow are in the
 :mod:`vultron.core.behaviors.case.nodes.suggest_actor` subpackage.
@@ -46,9 +47,7 @@ import logging
 
 import py_trees
 
-from vultron.core.behaviors.case.nodes.accept_invite import (
-    EmitAddCaseParticipantNode,
-)
+from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.case.nodes.actor import (
     EmitInviteActorToCaseNode,
     EvaluateDefaultRolesNode,
@@ -56,8 +55,9 @@ from vultron.core.behaviors.case.nodes.actor import (
 from vultron.core.behaviors.case.nodes.invite_inert_participant import (
     CreateInertInviteeParticipantNode,
 )
-from vultron.core.behaviors.case.nodes.role_gates import (
-    create_case_manager_gated_tree,
+from vultron.core.behaviors.case.nodes.stub_invite_lifetime import (
+    ReinviteAwaitingNode,
+    ReinviteNotToClosedParticipantNode,
 )
 from vultron.core.behaviors.case.nodes.suggest_actor import (
     ActorAlreadyParticipantNode,
@@ -68,6 +68,7 @@ from vultron.core.behaviors.case.nodes.suggest_actor import (
     InviteInFlightNode,
     PendingOfferCaseParticipantNode,
     RecordRecommendationRecommenderNode,
+    case_manager_admits_suggested_actor_guard,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
@@ -106,7 +107,6 @@ def create_receive_offer_case_participant_tree(
         case_id=case_id,
         sender_guard=SenderIsCaseManagerNode(case_id=case_id),
         precondition_guards=[],
-        effect_nodes=[],
     )
 
 
@@ -117,12 +117,22 @@ def create_recommend_actor_to_case_received_tree(
     case_id: str,
     offer_content: str | None = None,
     suggested_roles: list[str] | None = None,
+    actor_config: ActorConfig | None = None,
 ) -> py_trees.composites.Sequence:
     """Received-side BT for Offer(Actor, Case) on the CASE_MANAGER's inbox.
 
-    Commits a canonical ``CaseLedgerEntry`` for the received Offer
-    (CM-16-002), then routes to one of five branches via a Selector:
+    Refuses, before any commit, the recommendation of a removed participant:
+    it is sent no stub Invite, and only the Case Owner's
+    ``Add(CaseParticipant)`` reinstates it (CM-31-013, CM-31-011).  Otherwise
+    commits a canonical ``CaseLedgerEntry`` for the received Offer
+    (CM-16-002), then routes to one of six branches via a Selector:
 
+    0. **Re-invite** — the recommender holds ``CVDRole.CASE_OWNER`` and the
+       recommended actor has an inert record that has not answered (or whose
+       stub Invite expired): send a fresh stub Invite on that record with a
+       new deadline, ahead of every duplicate arm (CM-11-015).  Before any
+       arm, an owner's re-invite of a participant at ``RM.CLOSED`` is refused
+       (CM-11-015, ADR-0085).
     1. **AC-7b** — already participant: auto-accept to recommender (CM-16-009).
     2. **AC-7a** — invite in-flight: auto-accept to recommender (CM-16-009).
     3. **AC-6** — pending Case Owner decision: send Note DM, no second Offer
@@ -138,6 +148,7 @@ def create_recommend_actor_to_case_received_tree(
     Tree structure::
 
         RecommendActorToCaseBT (Sequence, memory=False)
+        ├── SuggestedActorNotRemovedIfCaseManager — CM-31-013 guard
         ├── GuardedCommitCaseLedgerEntryBT       — record receipt (CLP-10-006)
         └── RecommendActorToCaseIfCaseManager (Selector)   — BT-17-001 gate
             ├── SkipIfNotCaseManager                — Inverter(CheckIsCaseManagerNode)
@@ -177,6 +188,9 @@ def create_recommend_actor_to_case_received_tree(
             into the role Evaluator on both the owner-direct and fresh paths;
             ``None`` leaves the choice to the Evaluator's default
             (CM-16-003).
+        actor_config: The CASE_MANAGER's configuration; its RSVP windows set
+            the reply deadline of every stub Invite it sends (CM-11-014,
+            CM-28-012).  ``None`` applies the ``ActorConfig`` defaults.
 
     Returns:
         Root ``RecommendActorToCaseBT`` Sequence node.
@@ -233,6 +247,57 @@ def create_recommend_actor_to_case_received_tree(
         ],
     )
 
+    reinvite = py_trees.composites.Sequence(
+        name="OwnerReinvite",
+        memory=False,
+        children=[
+            SenderIsCaseOwnerNode(
+                sender_actor_id=recommender_id,
+                case_id=case_id,
+                name="RecommenderIsCaseOwnerForReinvite",
+            ),
+            ReinviteAwaitingNode(invitee_id=recommended_id, case_id=case_id),
+            EvaluateDefaultRolesNode(
+                suggested_actor_id=recommended_id,
+                case_id=case_id,
+                recommendation_id=recommendation_id,
+                injected_roles=suggested_roles,
+                require_explicit_roles=True,
+            ),
+            # The record already exists and is on the roster, so only the
+            # Invite goes out: no new participant, no Add(CaseParticipant).
+            EmitInviteActorToCaseNode(
+                invitee_id=recommended_id,
+                case_id=case_id,
+                attributed_to=recommender_id,
+                recommendation_id=recommendation_id,
+                # CM-11-015: the fresh stub replaces the earlier one, so
+                # there is one live stub per invitee.
+                replaces_previous_stub=True,
+                actor_config=actor_config,
+            ),
+        ],
+    )
+
+    # CM-11-015: the owner may not re-invite a participant at RM.CLOSED.
+    # Anyone else's suggestion is answered as before.
+    closed_is_not_reinvited = py_trees.composites.Selector(
+        name="ReinviteIsNotToClosedParticipant",
+        memory=False,
+        children=[
+            py_trees.decorators.Inverter(
+                name="RecommenderIsNotCaseOwnerForReinvite",
+                child=SenderIsCaseOwnerNode(
+                    sender_actor_id=recommender_id,
+                    case_id=case_id,
+                ),
+            ),
+            ReinviteNotToClosedParticipantNode(
+                invitee_id=recommended_id, case_id=case_id
+            ),
+        ],
+    )
+
     owner_direct_invite = py_trees.composites.Sequence(
         name="OwnerDirectInvite",
         memory=False,
@@ -256,6 +321,7 @@ def create_recommend_actor_to_case_received_tree(
                 case_id=case_id,
                 attributed_to=recommender_id,
                 recommendation_id=recommendation_id,
+                actor_config=actor_config,
             ),
             # AC-1: record the inert participant at invite-send time
             # (ADR-0114, CM-11-006).
@@ -263,9 +329,6 @@ def create_recommend_actor_to_case_received_tree(
                 invitee_id=recommended_id,
                 case_id=case_id,
                 recommendation_id=recommendation_id,
-            ),
-            EmitAddCaseParticipantNode(
-                case_id=case_id, invitee_id=recommended_id
             ),
         ],
     )
@@ -303,6 +366,7 @@ def create_recommend_actor_to_case_received_tree(
         name="DuplicateOrFreshSelector",
         memory=False,
         children=[
+            reinvite,
             ac7b_already_participant,
             ac7a_invite_in_flight,
             ac6_pending_offer,
@@ -320,22 +384,23 @@ def create_recommend_actor_to_case_received_tree(
             case_id=case_id,
             name="RecommenderIsParticipant",
         ),
-        precondition_guards=[],
-        effect_nodes=[
-            create_case_manager_gated_tree(
-                name="RecommendActorToCaseIfCaseManager",
-                case_id=case_id,
-                children=[
-                    RecordRecommendationRecommenderNode(
-                        recommendation_id=recommendation_id,
-                        recommender_id=recommender_id,
-                        case_id=case_id,
-                    ),
-                    duplicate_or_fresh_selector,
-                ],
-                body_name="RecommendActorToCaseEffects",
-            ),
+        precondition_guards=[
+            case_manager_admits_suggested_actor_guard(
+                recommended_id=recommended_id, case_id=case_id
+            )
         ],
+        manager_effects=[
+            closed_is_not_reinvited,
+            RecordRecommendationRecommenderNode(
+                recommendation_id=recommendation_id,
+                recommender_id=recommender_id,
+                case_id=case_id,
+            ),
+            duplicate_or_fresh_selector,
+        ],
+        manager_case_id=case_id,
+        manager_gate_name="RecommendActorToCaseIfCaseManager",
+        manager_body_name="RecommendActorToCaseEffects",
     )
 
 
@@ -357,6 +422,7 @@ def create_accept_actor_recommendation_received_tree(
     Tree structure::
 
         AcceptActorRecommendationBT (Sequence, memory=False)
+        ├── SuggestedActorNotRemovedIfCaseManager — CM-31-013 guard
         ├── GuardedCommitCaseLedgerEntryBT       — record receipt (CLP-10-006)
         └── AcceptActorRecommendationIfCaseManager (Selector)  — BT-17-001 gate
             ├── SkipIfNotCaseManager
@@ -374,7 +440,9 @@ def create_accept_actor_recommendation_received_tree(
     factory, never from the Accept.
 
     Only the Case Owner may accept (CM-16-019): the sender guard refuses any
-    other sender before the case ledger is written or anything is sent.
+    other sender before the case ledger is written or anything is sent.  An
+    acceptance naming an actor removed since the Offer was made is refused
+    the same way: a removed participant is sent no stub Invite (CM-31-013).
 
     Args:
         recommendation_id: ID of the original ``Offer(Actor, Case)`` from the
@@ -398,41 +466,38 @@ def create_accept_actor_recommendation_received_tree(
         sender_guard=SenderIsCaseOwnerNode(
             sender_actor_id=sender_id, case_id=case_id
         ),
-        precondition_guards=[],
-        effect_nodes=[
-            create_case_manager_gated_tree(
-                name="AcceptActorRecommendationIfCaseManager",
+        precondition_guards=[
+            case_manager_admits_suggested_actor_guard(
+                recommended_id=invitee_id, case_id=case_id
+            )
+        ],
+        manager_effects=[
+            EmitAcceptActorRecommendationNode(
+                recommender_id=recommender_id,
+                recommendation_id=recommendation_id,
+                recommended_id=invitee_id,
                 case_id=case_id,
-                children=[
-                    EmitAcceptActorRecommendationNode(
-                        recommender_id=recommender_id,
-                        recommendation_id=recommendation_id,
-                        recommended_id=invitee_id,
-                        case_id=case_id,
-                    ),
-                    EmitInviteActorToCaseNode(
-                        invitee_id=invitee_id,
-                        case_id=case_id,
-                        roles=roles,
-                    ),
-                    # AC-1: record the inert participant at invite-send time
-                    # (ADR-0114, CM-11-006). Roles from the stored Offer are
-                    # passed in directly; the blackboard is empty in this BT
-                    # execution (create_accept_actor_recommendation_received_tree
-                    # docstring, ISSUE-1745).
-                    CreateInertInviteeParticipantNode(
-                        invitee_id=invitee_id,
-                        case_id=case_id,
-                        recommendation_id=recommendation_id,
-                        roles=roles,
-                    ),
-                    EmitAddCaseParticipantNode(
-                        case_id=case_id, invitee_id=invitee_id
-                    ),
-                ],
-                body_name="AcceptActorRecommendationEffects",
+            ),
+            EmitInviteActorToCaseNode(
+                invitee_id=invitee_id,
+                case_id=case_id,
+                roles=roles,
+            ),
+            # AC-1: record the inert participant at invite-send time
+            # (ADR-0114, CM-11-006). Roles from the stored Offer are
+            # passed in directly; the blackboard is empty in this BT
+            # execution (create_accept_actor_recommendation_received_tree
+            # docstring, ISSUE-1745).
+            CreateInertInviteeParticipantNode(
+                invitee_id=invitee_id,
+                case_id=case_id,
+                recommendation_id=recommendation_id,
+                roles=roles,
             ),
         ],
+        manager_case_id=case_id,
+        manager_gate_name="AcceptActorRecommendationIfCaseManager",
+        manager_body_name="AcceptActorRecommendationEffects",
     )
 
 
@@ -481,20 +546,16 @@ def create_reject_actor_recommendation_received_tree(
             sender_actor_id=sender_id, case_id=case_id
         ),
         precondition_guards=[],
-        effect_nodes=[
-            create_case_manager_gated_tree(
-                name="RejectActorRecommendationIfCaseManager",
+        manager_effects=[
+            EmitRejectActorRecommendationNode(
+                recommender_id=recommender_id,
+                recommendation_id=recommendation_id,
+                recommended_id=recommended_id,
                 case_id=case_id,
-                children=[
-                    EmitRejectActorRecommendationNode(
-                        recommender_id=recommender_id,
-                        recommendation_id=recommendation_id,
-                        recommended_id=recommended_id,
-                        case_id=case_id,
-                    ),
-                ],
             ),
         ],
+        manager_case_id=case_id,
+        manager_gate_name="RejectActorRecommendationIfCaseManager",
     )
 
 

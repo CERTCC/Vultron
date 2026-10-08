@@ -38,6 +38,7 @@ from vultron.core.behaviors.sync.nodes import (
     ApplyOfferReportFromLedgerNode,
     ApplyOwnershipTransferFromLedgerNode,
     ApplyParticipantStatusFromLedgerNode,
+    ApplyReinstateCaseParticipantFromLedgerNode,
     ApplyRemoveCaseParticipantFromLedgerNode,
     ApplyRemoveNoteFromLedgerNode,
     ApplyRmVerdictFromLedgerNode,
@@ -59,6 +60,7 @@ from vultron.core.behaviors.sync.nodes import (
     IsOfferOwnershipTransferEventNode,
     IsOwnershipTransferEventNode,
     IsParticipantStatusEventNode,
+    IsReinstateCaseParticipantEventNode,
     IsRejectEmbargoInviteEventNode,
     IsRemoveCaseParticipantEventNode,
     IsRemoveEmbargoEventNode,
@@ -263,6 +265,12 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
                 IsRemoveCaseParticipantEventNode,
                 ApplyRemoveCaseParticipantFromLedgerNode,
             ),
+            # The Case Owner's reinstatement of a participant (CM-31-011).
+            _event_effect_slot(
+                "ReinstateCaseParticipant",
+                IsReinstateCaseParticipantEventNode,
+                ApplyReinstateCaseParticipantFromLedgerNode,
+            ),
             _event_effect_slot(
                 "CloseCase",
                 IsCloseCaseEventNode,
@@ -359,7 +367,7 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
         name="AnnounceLogEntryReceivedBT",
         case_id=None,
         precondition_guards=[],
-        effect_nodes=[
+        replica_effects=[
             py_trees.composites.Selector(
                 name="AnnounceLogEntryRoles",
                 memory=False,

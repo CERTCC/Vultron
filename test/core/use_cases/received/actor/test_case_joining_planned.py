@@ -44,7 +44,6 @@ from unittest.mock import MagicMock
 import pytest
 
 from test.core.use_cases.received.actor.test_invite import (
-    _add_participant_result,
     _seed_ledger_entry,
 )
 from test.core.use_cases.received.conftest import (
@@ -146,6 +145,7 @@ def route_received(
     receiving_actor_id: str,
     sync_port: Any = None,
     trigger_activity: Any = None,
+    actor_config: Any = None,
 ) -> HandlerResult:
     """Route *activity* as the inbox does: match semantics, run its use case.
 
@@ -161,6 +161,7 @@ def route_received(
         "sync_port": sync_port if sync_port is not None else MagicMock(),
         "trigger_activity": trigger_activity,
         "wire_render_port": As2WireRenderAdapter(),
+        "actor_config": actor_config,
     }
     accepted = inspect.signature(use_case_class).parameters
     result = use_case_class(
@@ -243,9 +244,6 @@ def joining_case() -> Any:
     )
     joining.trigger_activity.announce_vulnerability_case.return_value = (
         f"{case.id_}/announce/1"
-    )
-    joining.trigger_activity.add_participant_to_case.return_value = (
-        _add_participant_result(case, case_actor_id, invitee_id)
     )
     joining.trigger_activity.invite_actor_to_full_case.side_effect = (
         TriggerActivityAdapter(dl).invite_actor_to_full_case
