@@ -114,12 +114,6 @@ KNOWN_UNGATED_STATE_WRITES: frozenset[_Write] = frozenset(
     {
         # owner: #3814
         (
-            f"{_C}/case_participant_received_tree.py",
-            "create_add_case_participant_received_tree",
-            "AddCaseParticipantToCaseReceivedNode",
-        ),
-        # owner: #3814
-        (
             f"{_C}/receive_close_case_tree.py",
             "create_close_case_received_tree",
             "AdvanceCaseActorToRMClosedNode",
@@ -274,6 +268,7 @@ REPLICA_STATE_WRITES: dict[_Write, str] = {
             "ApplyOfferReportFromLedgerNode",
             "ApplyOwnershipTransferFromLedgerNode",
             "ApplyParticipantStatusFromLedgerNode",
+            "ApplyReinstateCaseParticipantFromLedgerNode",
             "ApplyRemoveCaseParticipantFromLedgerNode",
             "ApplyRemoveNoteFromLedgerNode",
             "ApplyRmVerdictFromLedgerNode",
@@ -683,7 +678,7 @@ def test_each_non_state_writer_carries_a_one_line_reason(
 def test_the_marker_covers_the_named_write_families() -> None:
     """The node families RSH-08-003 names are found by the marker."""
     from vultron.core.behaviors.case.nodes.case_participant_received import (
-        AddCaseParticipantToCaseReceivedNode,
+        ParticipantMoveEffectNode,
     )
     from vultron.core.behaviors.case.nodes.participant.status import (
         CreateParticipantStatusNode,
@@ -697,7 +692,7 @@ def test_the_marker_covers_the_named_write_families() -> None:
     from vultron.core.behaviors.sync.nodes._helpers import _LedgerEffectNode
 
     for cls in (
-        AddCaseParticipantToCaseReceivedNode,
+        ParticipantMoveEffectNode,
         AppendCaseStatusToCaseNode,
         CreateParticipantStatusNode,
         _EmbargoLifecycleNode,

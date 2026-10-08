@@ -18,9 +18,9 @@
 ``Reject(Offer)`` and ``TentativeReject(Offer)`` are canonical payload
 signatures, so the CASE_MANAGER ledgers each one it accepts and every other
 receiver skips the commit.  A receiver that refuses the activity commits
-nothing (CLP-10-009).  ``Announce(VulnerabilityCase)`` and
-``Add(CaseParticipant)`` are the documented exemptions: their trees have no
-commit stage.
+nothing (CLP-10-009).  ``Announce(VulnerabilityCase)`` is the documented
+exemption: its tree has no commit stage.  ``Add(CaseParticipant)`` was the
+other until #4081 gave its entry a replica apply node; its tree now commits.
 """
 
 from typing import cast
@@ -43,16 +43,10 @@ from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
 )
-from vultron.core.models.events.case_participant import (
-    AddCaseParticipantToCaseReceivedEvent,
-)
 from vultron.core.models.events.report import CloseReportReceivedEvent
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.rm import RM
-from vultron.core.use_cases.received.case_participant import (
-    AddCaseParticipantToCaseReceivedUseCase,
-)
 from vultron.core.use_cases.received.report import (
     CloseReportReceivedUseCase,
     InvalidateReportReceivedUseCase,
@@ -60,13 +54,11 @@ from vultron.core.use_cases.received.report import (
 from vultron.enums.roles import CVDRole
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
-    add_participant_to_case_activity,
     announce_vulnerability_case_activity,
     rm_close_report_activity,
     rm_invalidate_report_activity,
     rm_submit_report_activity,
 )
-from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -283,46 +275,25 @@ class TestCloseAndInvalidateReportCommit:
 
 
 @pytest.mark.spec("CLP-10-013")
-class TestAddCaseParticipantIsExempt:
-    """``Add(CaseParticipant)`` commits nothing until #4081 adds its replay."""
+@pytest.mark.spec("CM-31-011")
+def test_add_case_participant_tree_commits():
+    """``Add(CaseParticipant)`` is no longer exempt: the reinstatement commits.
 
-    def test_tree_has_no_commit_stage(self):
-        tree = create_add_case_participant_received_tree(
-            participant_id=f"{CASE_ID}/participants/newcomer",
-            case_id=CASE_ID,
-        )
+    Its entry has a replica apply node since #4081
+    (``ApplyReinstateCaseParticipantFromLedgerNode``, RSH-08-004), so the tree
+    passes ``case_id`` and carries the commit stage.  The CASE_MANAGER's
+    commit, refusal and replica behaviour are tested in
+    ``test_participant_reinstatement.py``.
+    """
+    tree = create_add_case_participant_received_tree(
+        participant_id=f"{CASE_ID}/participants/newcomer",
+        case_id=CASE_ID,
+        sender_id=VENDOR_ID,
+    )
 
-        assert "GuardedCommitCaseLedgerEntryBT" not in [
-            node.name for node in tree.iterate()
-        ]
-
-    def test_case_manager_applies_the_add_and_commits_nothing(self):
-        dl = _store(MANAGER_ID)
-        newcomer = as_CaseParticipant(
-            id_=f"{CASE_ID}/participants/newcomer",
-            attributed_to=NEWCOMER_ID,
-            context=CASE_ID,
-        )
-        dl.save(
-            CaseParticipant(
-                id_=newcomer.id_, attributed_to=NEWCOMER_ID, context=CASE_ID
-            )
-        )
-        event = cast(
-            AddCaseParticipantToCaseReceivedEvent,
-            extract_event(
-                add_participant_to_case_activity(
-                    newcomer, target=CASE_ID, actor=VENDOR_ID
-                )
-            ).model_copy(update={"receiving_actor_id": MANAGER_ID}),
-        )
-
-        result = AddCaseParticipantToCaseReceivedUseCase(
-            dl, event, **_ports(dl)
-        ).execute()
-
-        assert result.disposition is HandlerDisposition.APPLIED
-        assert _committed(dl) == []
+    assert "GuardedCommitCaseLedgerEntryBT" in [
+        node.name for node in tree.iterate()
+    ]
 
 
 @pytest.mark.spec("CLP-10-013")

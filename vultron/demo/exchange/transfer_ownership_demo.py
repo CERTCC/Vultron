@@ -56,7 +56,7 @@ from vultron.demo.helpers.polling import wait_for_case_attributed_to
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.workflow import (
     await_forwarded_ownership_transfer_offer,
-    case_actor_invites_actor_to_case,
+    seat_participant_through_stub_invite,
     setup_canonical_case,
 )
 from vultron.demo.utils import (
@@ -132,13 +132,15 @@ def _setup_transfer_precondition(
         name=coordinator.name or "Coordinator",
         actor_type="Organization",
     )
-    case_actor_invites_actor_to_case(
+    # The CaseActor seats the coordinator when it accepts its stub Invite;
+    # the CaseActor's copy is the one the ownership transfer later resolves
+    # (ADR-0073, CM-21-002).
+    seat_participant_through_stub_invite(
         client,
-        case=case,
-        inviter=vendor,
+        case,
+        owner=vendor,
         invitee=coordinator,
-        case_actor_id=case_actor_id,
-        roles=[CVDRole.COORDINATOR.value],
+        role=CVDRole.COORDINATOR,
     )
     return case, case_actor_id
 

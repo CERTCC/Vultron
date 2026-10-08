@@ -69,7 +69,7 @@ All commands in the remaining steps are run inside this container shell.
 vultron-demo initialize-case
 ```
 
-This demo walks through the steps a vendor takes to open a new case after receiving a report: create the case with `Create(VulnerabilityCase)`, add the vendor as a participant and Case Owner, link the report to the case, and add the finder as a participant.
+This demo walks through the steps a vendor takes to open a new case after receiving a report: create the case, which seats the vendor as Case Owner and CASE_MANAGER, link the report to the case, and invite the finder, which joins when it accepts.
 
 See [How to Initialize a Case](../howto/activitypub/activities/initialize_case.md) for the full activity-by-activity walkthrough.
 
@@ -79,9 +79,9 @@ See [How to Initialize a Case](../howto/activitypub/activities/initialize_case.m
 vultron-demo initialize-participant
 ```
 
-This demo shows how participants are added to an existing case.
-A coordinator and a finder are each seated with `Create(CaseParticipant)` and `Add(CaseParticipant)`.
-Notice how the participant list grows after each addition.
+This demo shows how a participant joins an existing case.
+The vendor asks the CaseActor to invite a coordinator, and the coordinator joins by accepting the Invite.
+Notice how the vendor's own copy of the case gains the coordinator from the ledger entry for the `Accept`, with no other message.
 
 See [How to Seat a Participant on an Existing Case](../howto/activitypub/activities/initialize_participant.md) for details.
 
@@ -160,8 +160,9 @@ See [How to Suggest an Actor for a Case](../howto/activitypub/activities/suggest
 vultron-demo manage-participants
 ```
 
-This demo combines the full participant lifecycle: invite, accept, create the participant record, add it to the case, record a participant status, and remove the participant from active participation.
-The vendor is both Case Owner and CASE_MANAGER here, so the removal is the owner's request to itself, and the participant receives the CASE_MANAGER's direct removal notice; its record stays on the case.
+This demo combines the full participant lifecycle: invite, accept, record a participant status, remove the participant from active participation, and reinstate it.
+The vendor is both Case Owner and CASE_MANAGER here, so the removal and the reinstatement are the owner's requests to itself.
+The participant receives the CASE_MANAGER's direct notice of each, and its record stays on the case throughout.
 A second path shows the rejection outcome.
 Each step is logged so we can follow the state changes.
 
@@ -176,10 +177,12 @@ sequenceDiagram
     O->>P: Invite Actor to Case<br/>Invite(Actor)
     alt Participant accepts
         P-->>O: Accept Invite to Case<br/>Accept(Invite)
-        Note over O: Create(CaseParticipant)<br/>Add(CaseParticipant)
+        Note over O: Accept ledgered<br/>participant seated
         P->>P: Create(ParticipantStatus)<br/>Add(ParticipantStatus)
         Note over O: Remove(CaseParticipant), ledgered<br/>record kept, removal fact set
         O->>P: Removal notice<br/>Remove(CaseParticipant)
+        Note over O: Add(CaseParticipant), ledgered<br/>removal fact cleared
+        O->>P: Missed ledger entries, then reinstatement notice<br/>Add(CaseParticipant)
     else Participant rejects
         P-->>O: Reject Invite to Case<br/>Reject(Invite)
         Note over O: No participant created

@@ -70,8 +70,8 @@ class CapturePreCommitBackfillTargetNode(DataLayerActionWithPorts):
     receipt entry in its window.  This node does *not* write
     ``pre_commit_backfill_target``, leaving
     ``BackfillCanonicalLedgerToInviteeNode`` to compute its target from the
-    ledger tail at backfill time.  The add-participant entry
-    (``EmitAddCaseParticipantNode``) is committed *after* the backfill and
+    ledger tail at backfill time.  The full-case Invite's entry
+    (``EmitInviteActorToFullCaseNode``) is committed *after* the backfill and
     reaches the invitee through its own fan-out, in chain order (CM-17-004).
 
     Always returns ``SUCCESS``.
