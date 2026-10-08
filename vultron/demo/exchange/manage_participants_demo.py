@@ -328,6 +328,8 @@ def demo_manage_participants_accept(
                     f" coordinator, found {len(notices)}"
                 )
 
+    # Bound before the step so Step 9 can read it (#2308 ratchet).
+    reinstate_participant = None
     with demo_step("Step 8: Vendor, as Case Owner, reinstates coordinator"):
         # The Case Owner's request to the CASE_MANAGER (CM-31-011): the
         # removed coordinator is reinstated without accepting again.

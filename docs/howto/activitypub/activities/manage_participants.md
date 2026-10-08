@@ -77,7 +77,7 @@ flowchart TB
    The CASE_MANAGER sends `Invite(Actor)` with itself as the ActivityStreams `actor` and your Case Owner identity in `attributedTo` (PCR-08-007, PCR-08-008).
 2. Wait for the invitee's reply, addressed to the CASE_MANAGER.
 3. If the reply is `Accept(Invite(Actor))`, the CASE_MANAGER seats the actor — see [How to Seat a Participant on an Existing Case](initialize_participant.md).
-   Every replica seats the new member from the `Accept(Invite)` ledger entry; nothing else is sent to seat it.
+   Every replica seats the new member from the `Accept(Invite(Actor))` ledger entry; nothing else is sent to seat it.
 4. If the reply is `Reject(Invite(Actor))`, stop.
    The actor is not on the case, and nothing further is owed.
 
