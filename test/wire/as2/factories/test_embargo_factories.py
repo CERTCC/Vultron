@@ -31,16 +31,15 @@ from vultron.core.models._helpers import days_from_now_utc
 from vultron.wire.as2.factories import (
     VultronActivityConstructionError,
     activate_embargo_activity,
-    add_embargo_to_case_activity,
     announce_embargo_activity,
     em_accept_embargo_activity,
     em_propose_embargo_activity,
     em_reject_embargo_activity,
+    reject_embargo_proposal_activity,
     remove_embargo_from_case_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
-    as_Add,
     as_Announce,
     as_Invite,
     as_Reject,
@@ -381,83 +380,46 @@ def test_em_reject_embargo_plain_invite_raises(sample_embargo):
 
 
 # ---------------------------------------------------------------------------
-# activate_embargo_activity
+# activate_embargo_activity / reject_embargo_proposal_activity — the case
+# owner's decision, Accept/Reject(EmbargoEvent, target=Case) (ADR-0122)
 # ---------------------------------------------------------------------------
+
+_OWNER_DECISIONS = [
+    pytest.param(activate_embargo_activity, as_Accept, id="activate"),
+    pytest.param(reject_embargo_proposal_activity, as_Reject, id="reject"),
+]
 
 
 @pytest.mark.spec("AF-01-002")
-@pytest.mark.spec("VAM-05-002")
-def test_activate_embargo_returns_add(sample_embargo):
-    result = activate_embargo_activity(
-        embargo=sample_embargo, actor=_ACTOR_URI
-    )
-    assert isinstance(result, as_Add)
+@pytest.mark.parametrize(("factory", "verb"), _OWNER_DECISIONS)
+def test_owner_decision_returns_plain_verb(factory, verb, sample_embargo):
+    result = factory(embargo=sample_embargo, actor=_ACTOR_URI)
+    assert isinstance(result, verb)
 
 
-def test_activate_embargo_object_is_embargo(sample_embargo):
-    result = activate_embargo_activity(
-        embargo=sample_embargo, actor=_ACTOR_URI
-    )
+@pytest.mark.parametrize(("factory", "verb"), _OWNER_DECISIONS)
+def test_owner_decision_object_is_the_embargo_itself(
+    factory, verb, sample_embargo
+):
+    """The object is the EmbargoEvent, never the Invite that proposed it."""
+    result = factory(embargo=sample_embargo, actor=_ACTOR_URI)
     assert result.object_ == sample_embargo
+    assert not isinstance(result.object_, as_Invite)
 
 
-def test_activate_embargo_target_is_set(sample_embargo):
-    result = activate_embargo_activity(
-        embargo=sample_embargo, target=_CASE_URI, actor=_ACTOR_URI
-    )
-    assert result.target == _CASE_URI
-
-
-def test_activate_embargo_in_reply_to_is_set(sample_embargo, sample_proposal):
-    result = activate_embargo_activity(
-        embargo=sample_embargo, in_reply_to=sample_proposal, actor=_ACTOR_URI
-    )
-    assert result.in_reply_to == sample_proposal
-
-
-@pytest.mark.spec("AF-04-001")
-def test_activate_embargo_invalid_raises():
-    with pytest.raises(VultronActivityConstructionError) as exc_info:
-        activate_embargo_activity(
-            embargo="not-an-embargo"  # type: ignore[arg-type]
-        )
-    assert exc_info.value.__cause__ is not None
-
-
-# ---------------------------------------------------------------------------
-# add_embargo_to_case_activity
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.spec("AF-01-002")
-@pytest.mark.spec("VAM-05-002")
-def test_add_embargo_to_case_returns_add(sample_embargo):
-    result = add_embargo_to_case_activity(
-        embargo=sample_embargo, actor=_ACTOR_URI
-    )
-    assert isinstance(result, as_Add)
-
-
-def test_add_embargo_to_case_object_is_embargo(sample_embargo):
-    result = add_embargo_to_case_activity(
-        embargo=sample_embargo, actor=_ACTOR_URI
-    )
-    assert result.object_ == sample_embargo
-
-
-def test_add_embargo_to_case_target_is_set(sample_embargo):
-    result = add_embargo_to_case_activity(
+@pytest.mark.parametrize(("factory", "verb"), _OWNER_DECISIONS)
+def test_owner_decision_target_is_the_case(factory, verb, sample_embargo):
+    result = factory(
         embargo=sample_embargo, target=_CASE_URI, actor=_ACTOR_URI
     )
     assert result.target == _CASE_URI
 
 
 @pytest.mark.spec("AF-04-001")
-def test_add_embargo_to_case_invalid_raises():
+@pytest.mark.parametrize(("factory", "verb"), _OWNER_DECISIONS)
+def test_owner_decision_invalid_raises(factory, verb):
     with pytest.raises(VultronActivityConstructionError) as exc_info:
-        add_embargo_to_case_activity(
-            embargo="not-an-embargo"  # type: ignore[arg-type]
-        )
+        factory(embargo="not-an-embargo")  # type: ignore[arg-type]
     assert exc_info.value.__cause__ is not None
 
 
@@ -554,10 +516,10 @@ def test_remove_embargo_from_case_invalid_raises():
 def test_all_embargo_factories_importable_from_package():
     from vultron.wire.as2.factories import (  # noqa: F401
         activate_embargo_activity,
-        add_embargo_to_case_activity,
         announce_embargo_activity,
         em_accept_embargo_activity,
         em_propose_embargo_activity,
         em_reject_embargo_activity,
+        reject_embargo_proposal_activity,
         remove_embargo_from_case_activity,
     )

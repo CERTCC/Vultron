@@ -251,7 +251,6 @@ KNOWN_LEGACY_EFFECT_NODES: frozenset[_Site] = frozenset(
             "create_invite_actor_to_full_case_received_tree",
         ),
         # owner: #4301
-        (f"{_E}/announce_teardown_tree.py", "add_embargo_to_case_tree"),
         # owner: #4301
         (
             f"{_E}/announce_teardown_tree.py",

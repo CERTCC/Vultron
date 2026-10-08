@@ -50,11 +50,13 @@ from collections.abc import Callable, Sequence
 
 from vultron.core.states.rm import RM
 from vultron.demo.actor_session import ActorSession
-from vultron.demo.helpers.polling import find_case_invite_for_actor
 from vultron.demo.helpers.runner import run_exchange_demos
-from vultron.demo.helpers.seeding import get_actor_by_id
 from vultron.demo.helpers.verification import _check_participant_rm_state_in
-from vultron.demo.helpers.workflow import setup_initialized_case
+from vultron.demo.helpers.workflow import (
+    case_manager_invites_actor,
+    find_case_manager_actor_id,
+    setup_initialized_case,
+)
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
     DataLayerClient,
@@ -66,88 +68,11 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     ref_id,
     setup_demo_logging,
 )
-from vultron.enums.roles import CVDRole
 
 # Vultron imports
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.case_participant import (
-    as_CaseParticipant,
-)
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase,
-)
 
 logger = logging.getLogger(__name__)
-
-
-def _find_case_manager_actor(
-    client: DataLayerClient, vendor_id: str, case_id: str
-) -> str | None:
-    """Return the CASE_MANAGER actor ID by reading the case participant roster (ADR-0088).
-
-    Authority is the ``CVDRole.CASE_MANAGER`` role — hosting location is not
-    consulted (ARCH-24-004, CM-02-013).
-    """
-    try:
-        case_data = client.get(client.dl_path(case_id, actor_id=vendor_id))
-        case_obj = as_VulnerabilityCase(**case_data)
-    except Exception:  # noqa: BLE001  # ruff-baseline #3326
-        return None
-
-    for p_ref in case_obj.case_participants:
-        pid = ref_id(p_ref) or str(p_ref)
-        if not pid:
-            continue
-        try:
-            p_data = client.get(client.dl_path(pid, actor_id=vendor_id))
-            p = as_CaseParticipant(**p_data)
-            if CVDRole.CASE_MANAGER in p.case_roles:
-                attr = p.attributed_to
-                return (
-                    attr
-                    if isinstance(attr, str)
-                    else getattr(attr, "id_", None)
-                )
-        except Exception:  # noqa: BLE001, S112  # ruff-baseline #3326
-            continue
-    return None
-
-
-def _invite_coordinator(
-    client: DataLayerClient,
-    case: as_VulnerabilityCase,
-    vendor: as_Actor,
-    coordinator: as_Actor,
-    invite_actor_id: str,
-) -> str:
-    """Have the vendor trigger the stub Invite and return its delivered id.
-
-    The CASE_MANAGER sends and records the Invite (CM-17-007, ADR-0109), so
-    the coordinator answers that Invite and not one the demo builds: a reply
-    to an Invite the CASE_MANAGER has no record of is refused (CM-11-017).
-    The trigger also records the inert participant at invite-send time
-    (ADR-0114, CM-11-006).
-    """
-    # Seed stub_summary on the CASE_MANAGER's DataLayer copy: the invite BT
-    # reads the case from the CASE_MANAGER's store and the BT-created case
-    # has none (CM-17-010, MV-10-001, #4165).
-    ActorSession(
-        client=client, actor=get_actor_by_id(client, invite_actor_id)
-    ).with_case(case).quiet().set_stub_summary(
-        "Vulnerability report — details shared after acceptance."
-    )
-    ActorSession(client=client, actor=vendor).with_case(
-        case
-    ).quiet().invite_actor_to_case(
-        invitee_id=str(coordinator.id_), roles=[CVDRole.COORDINATOR]
-    )
-    invite_id = find_case_invite_for_actor(
-        client=client.model_copy(update={"actor_id": coordinator.id_}),
-        case_id=case.id_,
-        invitee_id=str(coordinator.id_),
-    )
-    logger.info("CASE_MANAGER Invite for coordinator: %s", invite_id)
-    return invite_id
 
 
 def demo_invite_actor_accept(
@@ -177,7 +102,7 @@ def demo_invite_actor_accept(
     case = setup_initialized_case(client, finder, vendor)
 
     # PCR-08-007: the invite MUST be sent from the CASE_MANAGER's identity (ADR-0088).
-    invite_actor_id = _find_case_manager_actor(client, vendor.id_, case.id_)
+    invite_actor_id = find_case_manager_actor_id(client, vendor.id_, case.id_)
     if invite_actor_id is None:
         raise ValueError(
             f"No CASE_MANAGER participant found for case '{case.id_}' (CM-02-014, CM-02-015)"
@@ -185,7 +110,7 @@ def demo_invite_actor_accept(
 
     invite_id = ""
     with demo_step("Step 2: Vendor invites coordinator to case"):
-        invite_id = _invite_coordinator(
+        invite_id = case_manager_invites_actor(
             client, case, vendor, coordinator, invite_actor_id
         )
 
@@ -253,7 +178,7 @@ def demo_invite_actor_reject(
     case = setup_initialized_case(client, finder, vendor)
 
     # PCR-08-007: the invite MUST be sent from the CASE_MANAGER's identity (ADR-0088).
-    invite_actor_id = _find_case_manager_actor(client, vendor.id_, case.id_)
+    invite_actor_id = find_case_manager_actor_id(client, vendor.id_, case.id_)
     if invite_actor_id is None:
         raise ValueError(
             f"No CASE_MANAGER participant found for case '{case.id_}' (CM-02-014, CM-02-015)"
@@ -263,7 +188,7 @@ def demo_invite_actor_reject(
     with demo_step(
         "Step 2: Vendor fires invite-actor-to-case trigger and delivers invite"
     ):
-        invite_id = _invite_coordinator(
+        invite_id = case_manager_invites_actor(
             client, case, vendor, coordinator, invite_actor_id
         )
 

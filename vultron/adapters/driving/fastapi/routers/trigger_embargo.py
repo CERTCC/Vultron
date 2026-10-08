@@ -96,9 +96,11 @@ def trigger_propose_embargo(
     summary="Trigger embargo acceptance (accept a proposal).",
     description=(
         "Triggers the accept-embargo behavior for the given actor. "
-        "Accepts the current (or specified) embargo proposal by emitting "
-        "an EmAcceptEmbargoActivity activity. Activates the embargo on the case "
-        "(EM state → ACTIVE). "
+        "A participant accepts the current (or specified) embargo proposal "
+        "with Accept(Invite(EmbargoEvent)), which records its own consent and "
+        "moves no EM state. The case owner's accept is its decision for the "
+        "case, Accept(EmbargoEvent, target=Case), which activates the "
+        "embargo (EM state → ACTIVE). "
         "Returns the resulting activity in the response body (TRIG-04-001)."
     ),
     operation_id="actors_trigger_accept_embargo",
@@ -136,9 +138,11 @@ def trigger_accept_embargo(
     summary="Trigger embargo rejection (reject a proposal).",
     description=(
         "Triggers the reject-embargo behavior for the given actor. "
-        "Rejects the current (or specified) embargo proposal by emitting "
-        "an EmRejectEmbargoActivity activity. "
-        "EM state transitions: PROPOSED → NONE or REVISE → ACTIVE. "
+        "A participant rejects the current (or specified) embargo proposal "
+        "with Reject(Invite(EmbargoEvent)), which records its own refusal and "
+        "moves no EM state. The case owner's reject is its decision for the "
+        "case, Reject(EmbargoEvent, target=Case), which rejects the proposal "
+        "(EM state PROPOSED → NONE or REVISE → ACTIVE). "
         "Returns the resulting activity in the response body (TRIG-04-001)."
     ),
     operation_id="actors_trigger_reject_embargo",

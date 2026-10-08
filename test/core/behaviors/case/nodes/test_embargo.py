@@ -538,7 +538,7 @@ def _seed_manager_run_case(scenario: BTTestScenario) -> VulnerabilityCase:
 
 
 @pytest.mark.spec("CP-09-001")
-@pytest.mark.spec("CM-13-001")
+@pytest.mark.spec("CM-13-006")
 class TestCaseManagerInitializesTheOwnersEmbargo:
     """The CASE_MANAGER runs the subtree; the owner it seeds is the case's."""
 

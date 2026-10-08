@@ -34,6 +34,7 @@ _SUBMODULES = (
     "announce",
     "create_add_remove",
     "invite",
+    "owner_decision",
     "reject",
 )
 
@@ -41,7 +42,6 @@ _SUBMODULES = (
 #: one private helper a test imports by that path.
 _FORMER_EXPORTS = (
     "AcceptInviteToEmbargoOnCaseReceivedUseCase",
-    "AddEmbargoEventToCaseReceivedUseCase",
     "AnnounceEmbargoEventToCaseReceivedUseCase",
     "CreateEmbargoEventReceivedUseCase",
     "InviteToEmbargoOnCaseReceivedUseCase",

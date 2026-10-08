@@ -28,10 +28,11 @@ from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases._helpers import unaddressed_copy_refusal
 from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
-    AddEmbargoEventToCaseReceivedUseCase,
+    ActivateEmbargoOnCaseReceivedUseCase,
     AnnounceEmbargoEventToCaseReceivedUseCase,
     CreateEmbargoEventReceivedUseCase,
     InviteToEmbargoOnCaseReceivedUseCase,
+    RejectEmbargoProposalOnCaseReceivedUseCase,
     RejectInviteToEmbargoOnCaseReceivedUseCase,
     RemoveEmbargoEventFromCaseReceivedUseCase,
 )
@@ -47,7 +48,8 @@ _BYSTANDER = "https://example.org/users/vendor-b"
 
 _USE_CASES = [
     CreateEmbargoEventReceivedUseCase,
-    AddEmbargoEventToCaseReceivedUseCase,
+    ActivateEmbargoOnCaseReceivedUseCase,
+    RejectEmbargoProposalOnCaseReceivedUseCase,
     RemoveEmbargoEventFromCaseReceivedUseCase,
     InviteToEmbargoOnCaseReceivedUseCase,
     AcceptInviteToEmbargoOnCaseReceivedUseCase,

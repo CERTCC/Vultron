@@ -1,4 +1,9 @@
-"""Received Create, Add and Remove of an ``EmbargoEvent``."""
+"""Received Create and Remove of an ``EmbargoEvent``.
+
+The case owner's activation of an embargo is
+``Accept(EmbargoEvent, target=Case)`` (:mod:`.owner_decision`, ADR-0122);
+there is no direct activation by ``Add``.
+"""
 
 import logging
 from typing import TYPE_CHECKING, ClassVar
@@ -11,11 +16,9 @@ from vultron.core.behaviors.case.nodes.store_received_object import (
     StoreReceivedObjectNode,
 )
 from vultron.core.behaviors.embargo.announce_teardown_tree import (
-    add_embargo_to_case_tree,
     remove_embargo_from_case_tree,
 )
 from vultron.core.models.events.embargo import (
-    AddEmbargoEventToCaseReceivedEvent,
     CreateEmbargoEventReceivedEvent,
     RemoveEmbargoEventFromCaseReceivedEvent,
 )
@@ -114,80 +117,6 @@ class CreateEmbargoEventReceivedUseCase:
         return store_only_verdict(
             tree, result, label="CreateEmbargoEventReceivedBT"
         )
-
-
-class AddEmbargoEventToCaseReceivedUseCase:
-    sender_entitlement: ClassVar[SenderEntitlement] = (
-        SenderEntitlementKind.CASE_OWNER
-    )
-
-    def __init__(
-        self,
-        dl: CaseOutboxPersistence,
-        request: AddEmbargoEventToCaseReceivedEvent,
-        sync_port: "SyncActivityPort | None" = None,
-        wire_render_port: "WireRenderPort | None" = None,
-    ) -> None:
-        self._dl = dl
-        self._wire_render_port = wire_render_port
-        self._request: AddEmbargoEventToCaseReceivedEvent = request
-        self._sync_port = sync_port
-
-    def execute(self) -> HandlerResult:
-        request = self._request
-        receiving_actor_id = resolve_receiving_actor_id(
-            self._dl, request.receiving_actor_id
-        )
-        embargo_id = request.embargo_id
-        case_id = request.case_id
-        if embargo_id is None or case_id is None:
-            logger.warning(
-                "add_embargo_event_to_case: missing embargo_id or case_id"
-            )
-            return HandlerResult.refused(
-                "Add(EmbargoEvent) is missing its embargo id or case id"
-            )
-
-        # Door check before any tree or write, after the shape checks
-        # that write nothing: an unaddressed copy is refused (HP-01-005,
-        # ADR-0118).
-        if (
-            refusal := unaddressed_copy_refusal(
-                receiving_actor_id, request, label="Add(EmbargoEvent)"
-            )
-        ) is not None:
-            return refusal
-
-        tree = add_embargo_to_case_tree(
-            case_id=case_id,
-            embargo_id=embargo_id,
-            sender_actor_id=request.actor_id,
-        )
-        bridge = BTBridge(
-            datalayer=self._dl,
-            wire_render_port=self._wire_render_port,
-            # The commit fans the entry out to every participant replica
-            # (EP-09-007, RSH-08-004); without the port nothing replays it.
-            sync_port=self._sync_port,
-        )
-        result = bridge.execute_with_setup(
-            tree=tree,
-            # The *receiving* actor, not the sender (BT-17-005): an
-            # inbound activity is applied to the receiver's own replica,
-            # so the tree must execute in the receiver's store.
-            actor_id=receiving_actor_id,
-            activity=request,
-        )
-
-        verdict = verdict_from_bt(tree, result, label="AddEmbargoToCaseBT")
-        if verdict.disposition is not HandlerDisposition.APPLIED:
-            logger.warning(
-                "%s (embargo '%s', case '%s')",
-                verdict.reason,
-                embargo_id,
-                case_id,
-            )
-        return verdict
 
 
 class RemoveEmbargoEventFromCaseReceivedUseCase:

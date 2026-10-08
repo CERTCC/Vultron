@@ -34,11 +34,12 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.embargo_register import propose
 from vultron.adapters.outbox_sealed_body import (
     dump_outbound_body,
     read_sealed_body_dict,
 )
-from vultron.core.models._helpers import _as_id
+from vultron.core.models._helpers import _as_id, days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
@@ -52,11 +53,17 @@ from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
-    add_embargo_to_case_activity,
+    activate_embargo_activity,
     add_status_to_case_activity,
+    em_accept_embargo_activity,
+    em_propose_embargo_activity,
+    reject_embargo_proposal_activity,
     remove_embargo_from_case_activity,
     rm_defer_case_activity,
     rm_engage_case_activity,
@@ -120,6 +127,17 @@ def _owned(net: LedgerNetwork) -> LedgerNetwork:
     return net
 
 
+def _consent(
+    net: LedgerNetwork, store_of: str, member: str, embargo_id: str
+) -> EmbargoConsentState | None:
+    """*member*'s consent row for *embargo_id* as *store_of* holds it."""
+    participant = net.stores[store_of].read(
+        net.case(store_of).actor_participant_index[member]
+    )
+    assert isinstance(participant, CaseParticipant)
+    return participant.consent_for(embargo_id)
+
+
 def _rm(net: LedgerNetwork, store_of: str, member: str) -> RM:
     participant = net.stores[store_of].read(
         net.case(store_of).actor_participant_index[member]
@@ -151,7 +169,11 @@ def _set_rm(net: LedgerNetwork, member: str, rm: RM) -> None:
 @pytest.mark.spec("EMB-18-001")
 @pytest.mark.spec("TB-06-007")
 def test_a_replica_follows_the_owners_embargo_activation():
-    """Add(EmbargoEvent): PROPOSED → ACTIVE in the manager's store and the bystander's."""
+    """Accept(EmbargoEvent): PROPOSED → ACTIVE in the manager's store and the bystander's.
+
+    The activation is the owner's agreement too (ADR-0122), so the owner's
+    row is ACCEPTED in both stores.
+    """
     net = _owned(
         LedgerNetwork(
             "https://example.org/cases/replay-activation", em_state=EM.PROPOSED
@@ -159,17 +181,156 @@ def test_a_replica_follows_the_owners_embargo_activation():
     )
     _send(
         net,
-        add_embargo_to_case_activity(
+        activate_embargo_activity(
             _embargo(net), target=net.case_id, actor=OWNER, to=[MANAGER]
         ),
     )
 
-    assert "add_embargo_event_to_case" in _replay(net, BYSTANDER)
+    assert "activate_embargo_on_case" in _replay(net, BYSTANDER)
     for actor_id in (MANAGER, BYSTANDER):
         case = net.case(actor_id)
         assert case.current_status.em.state == EM.ACTIVE, actor_id
         assert case.active_embargo_id == net.initial_embargo_id, actor_id
+        assert _consent(net, actor_id, OWNER, net.initial_embargo_id) == (
+            EmbargoConsentState.ACCEPTED
+        ), actor_id
     assert _ledger(net, BYSTANDER) == _ledger(net, MANAGER)
+
+
+@pytest.mark.spec("RSH-08-004")
+@pytest.mark.spec("TB-06-007")
+def test_a_replica_follows_the_owners_rejection_of_a_proposal():
+    """Reject(EmbargoEvent): PROPOSED → NONE in both stores, no consent written."""
+    net = _owned(
+        LedgerNetwork(
+            "https://example.org/cases/replay-rejection", em_state=EM.PROPOSED
+        )
+    )
+    _send(
+        net,
+        reject_embargo_proposal_activity(
+            _embargo(net), target=net.case_id, actor=OWNER, to=[MANAGER]
+        ),
+    )
+
+    assert "reject_embargo_proposal_on_case" in _replay(net, BYSTANDER)
+    for actor_id in (MANAGER, BYSTANDER):
+        case = net.case(actor_id)
+        assert case.em_state == EM.NONE, actor_id
+        assert case.proposed_embargo_ids == [], actor_id
+        assert _consent(net, actor_id, OWNER, net.initial_embargo_id) is None
+    assert _ledger(net, BYSTANDER) == _ledger(net, MANAGER)
+
+
+def _propose_revision_everywhere(
+    net: LedgerNetwork, *, days: int
+) -> as_EmbargoEvent:
+    """Put a revision of the active embargo on every store's register."""
+    revision = as_EmbargoEvent(
+        id_=f"{net.case_id}/embargo_events/revision",
+        context=net.case_id,
+        end_time=days_from_now_utc(days),
+    )
+    for dl in net.stores.values():
+        dl.create(revision)
+        case = cast(VulnerabilityCase, dl.read(net.case_id))
+        propose(case, revision.id_)
+        dl.save(case)
+    return revision
+
+
+@pytest.mark.spec("RSH-08-004")
+@pytest.mark.spec("EP-05-001")
+@pytest.mark.spec("MSM-07-005")
+def test_a_replica_carries_signatories_over_to_a_shorter_activated_revision():
+    """The owner activates a shorter revision; the bystander, a signatory of
+    the embargo it replaces, is carried over in both stores."""
+    net = _owned(LedgerNetwork("https://example.org/cases/replay-revision"))
+    revision = _propose_revision_everywhere(net, days=10)
+
+    _send(
+        net,
+        activate_embargo_activity(
+            revision, target=net.case_id, actor=OWNER, to=[MANAGER]
+        ),
+    )
+
+    assert "activate_embargo_on_case" in _replay(net, BYSTANDER)
+    for actor_id in (MANAGER, BYSTANDER):
+        case = net.case(actor_id)
+        assert case.active_embargo_id == revision.id_, actor_id
+        assert case.em_state == EM.ACTIVE, actor_id
+        assert _consent(net, actor_id, BYSTANDER, revision.id_) == (
+            EmbargoConsentState.ACCEPTED
+        ), actor_id
+
+
+@pytest.mark.spec("RSH-08-004")
+@pytest.mark.spec("SYNC-12-001")
+def test_a_redelivered_owner_activation_entry_changes_nothing():
+    """Replaying the same activation entry twice is a no-op the second time."""
+    net = _owned(
+        LedgerNetwork(
+            "https://example.org/cases/replay-redelivery", em_state=EM.PROPOSED
+        )
+    )
+    _send(
+        net,
+        activate_embargo_activity(
+            _embargo(net), target=net.case_id, actor=OWNER, to=[MANAGER]
+        ),
+    )
+    _replay(net, BYSTANDER)
+    before = net.case(BYSTANDER).embargo_register
+
+    for activity in net.queued(MANAGER, to=BYSTANDER, type_="Announce"):
+        body = read_sealed_body_dict(net.stores[MANAGER], activity.id_) or {}
+        if (body.get("object") or {}).get("eventType") != (
+            "activate_embargo_on_case"
+        ):
+            continue
+        verdict = net.receive(BYSTANDER, body)
+        assert verdict.disposition is not HandlerDisposition.REFUSED
+
+    assert net.case(BYSTANDER).embargo_register == before
+
+
+@pytest.mark.spec("MSM-07-003")
+@pytest.mark.spec("RSH-08-004")
+def test_the_owners_accept_of_an_invite_is_only_its_own_consent():
+    """Accept(Invite(EmbargoEvent)) from the owner records its row; EM stays PROPOSED.
+
+    The owner's decision for the case is a separate activity (ADR-0122).
+    """
+    net = _owned(
+        LedgerNetwork(
+            "https://example.org/cases/replay-owner-consent",
+            em_state=EM.PROPOSED,
+        )
+    )
+    invite = em_propose_embargo_activity(
+        _embargo(net),
+        context=net.case_id,
+        actor=MANAGER,
+        to=[OWNER],
+        id_=f"{net.case_id}/embargo_invites/owner",
+    )
+    net.stores[MANAGER].create(invite)
+    _send(
+        net,
+        em_accept_embargo_activity(
+            invite, context=net.case_id, actor=OWNER, to=[MANAGER]
+        ),
+    )
+
+    assert "accept_invite_to_embargo_on_case" in _replay(net, BYSTANDER)
+    for actor_id in (MANAGER, BYSTANDER):
+        case = net.case(actor_id)
+        assert case.em_state == EM.PROPOSED, actor_id
+        assert case.active_embargo_id is None, actor_id
+        assert _consent(net, actor_id, OWNER, net.initial_embargo_id) == (
+            EmbargoConsentState.ACCEPTED
+        ), actor_id
 
 
 @pytest.mark.spec("RSH-08-004")

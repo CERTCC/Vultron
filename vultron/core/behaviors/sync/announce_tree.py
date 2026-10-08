@@ -18,13 +18,15 @@ from vultron.core.behaviors.embargo.nodes import (
     ApplyEmbargoActivationFromLedgerNode,
     ApplyEmbargoInviteFromLedgerNode,
     ApplyEmbargoProposalFromLedgerNode,
+    ApplyEmbargoProposalRejectionFromLedgerNode,
     ApplyEmbargoReinviteFromLedgerNode,
     ApplyEmbargoRejectionFromLedgerNode,
     ApplyEmbargoTeardownNode,
     ApplyHonourLateAcceptFromLedgerNode,
     ApplyInviteExpiryFromLedgerNode,
     ApplyInviteExpiryNoopFromLedgerNode,
-    IsAddEmbargoEventNode,
+    IsActivateEmbargoEventNode,
+    IsRejectEmbargoProposalEventNode,
 )
 from vultron.core.behaviors.sender_entitlement import (
     SenderIsCaseManagerNode,
@@ -110,7 +112,7 @@ def _embargo_relay_effect_slots() -> list[py_trees.behaviour.Behaviour]:
     """The embargo negotiation's replay slots (EP-09-007, RSH-08-004, ADR-0113).
 
     The proposal the CASE_MANAGER received, each Invite it relayed, each
-    ``Accept``/``Reject`` of an Invite — the owner's decision included — each
+    ``Accept``/``Reject`` of an Invite — each sender's own consent — each
     invite expiry the CASE_MANAGER evaluated (CM-28-014, ADR-0118), each
     honour decision for a late Accept whose embargo is still active
     (EMB-17-001, ADR-0118), each no-op acknowledgement of a late Accept with
@@ -192,10 +194,16 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
                 IsRemoveEmbargoEventNode,
                 ApplyEmbargoTeardownNode,
             ),
+            # The case owner's decision on a proposal (ADR-0122).
             _event_effect_slot(
                 "EmbargoActivation",
-                IsAddEmbargoEventNode,
+                IsActivateEmbargoEventNode,
                 ApplyEmbargoActivationFromLedgerNode,
+            ),
+            _event_effect_slot(
+                "EmbargoProposalRejection",
+                IsRejectEmbargoProposalEventNode,
+                ApplyEmbargoProposalRejectionFromLedgerNode,
             ),
             _event_effect_slot(
                 "CaseStatus",

@@ -382,3 +382,48 @@ def _open_revision(
     dl.save(case)
     dl.save(participant)
     return proposal, revision.id_
+
+
+def _case_owned_by_non_manager(
+    dl: SqliteDataLayer, owner_id: str, manager_id: str
+) -> tuple[VulnerabilityCase, str, str, str]:
+    """A case at EM.PROPOSED whose owner is *not* its CASE_MANAGER.
+
+    The owner holds an ``INVITED`` row for the open proposal; *manager_id*
+    holds the CASE_MANAGER role.  Returns the case, the proposal's id, the
+    proposed embargo's id and the owner's participant id.
+    """
+    case = VulnerabilityCase(
+        name="Owner is not the manager", attributed_to=owner_id
+    )
+    embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now_utc(45))
+    proposal = em_propose_embargo_activity(
+        embargo, context=case.id_, actor=manager_id
+    )
+    owner_participant = VendorParticipant(
+        attributed_to=owner_id,
+        context=case.id_,
+        embargo_consents=[
+            EmbargoConsent(
+                embargo_id=embargo.id_, state=EmbargoConsentState.INVITED
+            )
+        ],
+    )
+    owner_participant.add_role(CVDRole.CASE_OWNER)
+    manager_participant = VendorParticipant(
+        attributed_to=manager_id, context=case.id_
+    )
+    manager_participant.add_role(CVDRole.CASE_MANAGER)
+    case.case_participants = [owner_participant.id_, manager_participant.id_]
+    case.actor_participant_index = {
+        owner_id: owner_participant.id_,
+        manager_id: manager_participant.id_,
+    }
+    propose(case, embargo.id_)
+    case.pending_embargo_proposal_index[embargo.id_] = proposal.id_
+    dl.create(case)
+    dl.create(embargo)
+    dl.create(proposal)
+    dl.create(owner_participant)
+    dl.create(manager_participant)
+    return case, proposal.id_, embargo.id_, owner_participant.id_

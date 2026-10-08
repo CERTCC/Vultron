@@ -28,8 +28,11 @@ from vultron.core.behaviors.embargo.nodes.abandon import (
 )
 from vultron.core.behaviors.embargo.nodes.activation_effect import (
     EMBARGO_ACTIVATION_EVENT_TYPE,
+    EMBARGO_PROPOSAL_REJECTION_EVENT_TYPE,
     ApplyEmbargoActivationFromLedgerNode,
-    IsAddEmbargoEventNode,
+    ApplyEmbargoProposalRejectionFromLedgerNode,
+    IsActivateEmbargoEventNode,
+    IsRejectEmbargoProposalEventNode,
 )
 from vultron.core.behaviors.embargo.nodes.cascade import (
     PersistEmbargoEventNode,
@@ -86,6 +89,13 @@ from vultron.core.behaviors.embargo.nodes.manager_consent import (
     ManagerHoldsUndecidedEmbargoStakeNode,
     RecordManagerEmbargoConsentNode,
     record_manager_embargo_consent_tree,
+)
+from vultron.core.behaviors.embargo.nodes.owner_decision import (
+    ActivateEmbargoLifecycleNode,
+    IsOpenEmbargoProposalNode,
+    OwnerMayActivateEmbargoNode,
+    RejectEmbargoProposalLifecycleNode,
+    SendOwnerEmbargoDecisionNode,
 )
 from vultron.core.behaviors.embargo.nodes.proposal import (
     CreateAndStoreInviteNode,
@@ -149,10 +159,18 @@ __all__ = [
     "ClearActiveEmbargoNode",
     "ApplyEmbargoTeardownNode",
     "SendAnnounceEmbargoEventNode",
-    # Activation ledger replay (RSH-08-004, #3814)
+    # The case owner's decision on a proposal (ADR-0122) and its replay
+    "ActivateEmbargoLifecycleNode",
+    "IsOpenEmbargoProposalNode",
+    "OwnerMayActivateEmbargoNode",
+    "RejectEmbargoProposalLifecycleNode",
+    "SendOwnerEmbargoDecisionNode",
     "EMBARGO_ACTIVATION_EVENT_TYPE",
+    "EMBARGO_PROPOSAL_REJECTION_EVENT_TYPE",
     "ApplyEmbargoActivationFromLedgerNode",
-    "IsAddEmbargoEventNode",
+    "ApplyEmbargoProposalRejectionFromLedgerNode",
+    "IsActivateEmbargoEventNode",
+    "IsRejectEmbargoProposalEventNode",
     # Relay (EP-09)
     "EMBARGO_INVITE_EVENT_TYPE",
     "CollectEmbargoInviteRecipientsNode",

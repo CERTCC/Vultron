@@ -8,8 +8,9 @@ Actor set: ``reporter``, ``coordinator``, ``vendor``, ``case-actor``.
 
 RCV-embargo-specific invariants (DEMOMA-20-006):
 
-- the ledger records, in order, the proposal, the owner's acceptance and the
-  termination of the embargo, under the event types the CASE_MANAGER's commit
+- the ledger records, in order, the proposal, the Vendor's consent, the owner's
+  activation and the termination of the embargo, under the event types the
+  CASE_MANAGER's commit
   path emits.  The strings are imported from that code, never hand-listed
   here, so the check cannot drift from what the manager writes.
 - ``invite_actor_to_case`` appears exactly once (the Vendor's invitation; the
@@ -40,6 +41,7 @@ from test.ci.invariants.common import (
 )
 from test.ci.invariants.universal_harness import make_universal_invariant_tests
 from vultron.core.behaviors.embargo.nodes import (
+    EMBARGO_ACTIVATION_EVENT_TYPE,
     EMBARGO_INVITE_EVENT_TYPE,
     EMBARGO_TEARDOWN_EVENT_TYPE,
 )
@@ -49,10 +51,12 @@ _DEMO_NAME = "rcv-embargo"
 
 #: Event types the CASE_MANAGER commits for the embargo, in the order the
 #: scenario drives them: the proposal (and the relayed invitations, which share
-#: its type), the owner's acceptance, the termination (DEMOMA-20-006).
+#: its type), the Vendor's consent, the owner's activation (its own type,
+#: ADR-0122), the termination (DEMOMA-20-006).
 _EMBARGO_EVENT_TYPES_IN_ORDER = [
     EMBARGO_INVITE_EVENT_TYPE,
     MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value,
+    EMBARGO_ACTIVATION_EVENT_TYPE,
     EMBARGO_TEARDOWN_EVENT_TYPE,
 ]
 
@@ -80,6 +84,7 @@ _RCV_EMBARGO_EXPECTED_EVENT_TYPES = [
         "accept_invite_to_embargo_on_case",
         id="accept_invite_to_embargo_on_case",
     ),
+    pytest.param("activate_embargo_on_case", id="activate_embargo_on_case"),
     pytest.param(
         "remove_embargo_event_from_case", id="remove_embargo_event_from_case"
     ),
@@ -125,16 +130,16 @@ def test_rcv_embargo_event_type_literals_match_the_commit_path() -> None:
 def test_rcv_embargo_events_recorded_in_order(
     rcv_embargo_replicas: dict[str, list[dict]],
 ) -> None:
-    """Proposal, owner's acceptance and termination appear in that order.
+    """Proposal, consent, the owner's activation and termination, in order.
 
     The earliest entry of each type must precede the latest entry of the next:
-    the proposal and its relayed invitations share one type, as do the
-    participants' acceptances, so the check is on the first and last of each
-    rather than on a single entry.  The owner's and the Vendor's acceptances
-    share a type, and the committed entries do not name the answering
-    participant, so this proves that acceptance precedes termination, not
-    whose; the owner's own acceptance is asserted by the scenario
-    (DEMOMA-20-009, signatories on the Coordinator's replica).
+    the proposal and its relayed invitations share one type, so the check is
+    on the first and last of each rather than on a single entry.  The owner's
+    activation is its own type, ``Accept(EmbargoEvent, target=Case)``
+    (ADR-0122), so this proves the owner decided after the Vendor consented
+    (EP-09-006) and before the embargo ended; the participants' consent rows
+    are asserted by the scenario (DEMOMA-20-009, signatories on the
+    Coordinator's replica).
 
     Spec: DEMOMA-20-006.
     """

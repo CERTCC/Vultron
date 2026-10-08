@@ -1,4 +1,8 @@
-"""Received ``Reject(Invite(EmbargoEvent))`` (ER, EJ)."""
+"""Received ``Reject(Invite(EmbargoEvent))``: the sender's own consent.
+
+The case owner's rejection of a proposal for the case is
+``Reject(EmbargoEvent, target=Case)`` (:mod:`.owner_decision`, ADR-0122).
+"""
 
 import logging
 from typing import TYPE_CHECKING, ClassVar
@@ -36,7 +40,6 @@ from vultron.core.use_cases.received._sender_preflight import sender_refusal
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
-    from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlement,
@@ -57,16 +60,12 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
         dl: CaseOutboxPersistence,
         request: RejectInviteToEmbargoOnCaseReceivedEvent,
         sync_port: "SyncActivityPort | None" = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
         self._request: RejectInviteToEmbargoOnCaseReceivedEvent = request
         self._sync_port = sync_port
-        # The owner's Reject of a revision after disclosure terminates the
-        # embargo, and the CASE_MANAGER tells the participants (EMB-04-002).
-        self._trigger_activity = trigger_activity
 
     def execute(self) -> HandlerResult:
         request = self._request
@@ -135,7 +134,6 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
         )
         bridge = BTBridge(
             datalayer=self._dl,
-            trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
             # The commit fans the entry out to every participant replica
             # (EP-09-007, RSH-08-004); without the port nothing replays it.

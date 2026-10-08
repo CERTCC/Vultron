@@ -312,3 +312,40 @@ class TestTerminateEmbargo:
         )
 
         assert dl.read(activity_id) is not None
+
+
+@pytest.mark.parametrize(
+    ("method", "verb"),
+    [("activate_embargo", "Accept"), ("reject_embargo_proposal", "Reject")],
+)
+class TestOwnerEmbargoDecision:
+    """The case owner's Accept/Reject of the EmbargoEvent itself (ADR-0122)."""
+
+    def _build(self, adapter, dl, method: str) -> tuple[str, dict, str]:
+        embargo = _make_embargo(dl)
+        activity_id, blob = getattr(adapter, method)(
+            embargo_id=embargo.id_,
+            case_id=_CASE_ID,
+            actor=_ACTOR,
+            to=[_PEER],
+        )
+        return activity_id, json.loads(blob), embargo.id_
+
+    def test_object_is_the_inline_embargo_not_an_invite(
+        self, adapter, dl, method, verb
+    ):
+        _, body, embargo_id = self._build(adapter, dl, method)
+        assert body["type"] == verb
+        assert body["object"]["type"] == "EmbargoEvent"
+        assert body["object"]["id"] == embargo_id
+
+    def test_case_is_target_and_context(self, adapter, dl, method, verb):
+        """``context`` lets the CASE_MANAGER commit it as an entry (VM-08-003)."""
+        _, body, _ = self._build(adapter, dl, method)
+        assert body["target"] == _CASE_ID
+        assert body["context"] == _CASE_ID
+        assert body["to"] == [_PEER]
+
+    def test_persists_activity(self, adapter, dl, method, verb):
+        activity_id, _, _ = self._build(adapter, dl, method)
+        assert dl.read(activity_id) is not None

@@ -28,14 +28,12 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
-    TransitionMode,
 )
 from vultron.core.services.idempotent_store import idempotent_store
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
 from vultron.errors import (
-    VultronNotAnEmbargoError,
     VultronNotFoundError,
     VultronValidationError,
 )
@@ -163,31 +161,12 @@ class IndexReceivedEmbargoProposalNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-def _unreadable_embargo_id(
-    exc: VultronNotFoundError | VultronValidationError,
-) -> str | None:
-    """The embargo id a fail-closed embargo read named, if *exc* is one.
-
-    :func:`~vultron.core.services.embargo_ordering.read_embargo_event` raises
-    :exc:`VultronNotFoundError` for a missing ``EmbargoEvent`` and
-    :exc:`VultronNotAnEmbargoError` for a record of another type; any other
-    error did not come from an embargo read.
-    """
-    if (
-        isinstance(exc, VultronNotFoundError)
-        and exc.resource_type == "EmbargoEvent"
-    ):
-        return exc.resource_id
-    if isinstance(exc, VultronNotAnEmbargoError):
-        return exc.embargo_id
-    return None
-
-
 class RecordParticipantAcceptanceNode(DataLayerActionWithPorts):
-    """Record participant acceptance of embargo via EmbargoLifecycle.
+    """Record a participant's acceptance of an embargo Invite.
 
-    Uses EmbargoLifecycle.accept_embargo_invite(OBSERVED) to record the
-    acceptance and apply any state transitions.
+    Uses ``EmbargoLifecycle.accept_embargo_invite`` to record the sender's
+    own consent — the case owner's included — moving no register entry
+    (MSM-07-003, ADR-0122).
 
     When ``accepting_actor_id`` is provided it is used instead of the BT
     execution ``actor_id`` (which is the receiving actor).  This is the
@@ -231,27 +210,12 @@ class RecordParticipantAcceptanceNode(DataLayerActionWithPorts):
                 case_id=self.case_id,
                 embargo_id=self.embargo_id,
                 actor_id=actor_id,
-                transition_mode=TransitionMode.OBSERVED,
             )
-        except (VultronNotFoundError, VultronValidationError) as exc:
-            unreadable_id = _unreadable_embargo_id(exc)
-            if unreadable_id is not None and unreadable_id != self.embargo_id:
-                # The case names an active embargo its own store cannot read
-                # (missing, or not an EmbargoEvent): no path may write that
-                # state (EMB-18-003), so this is a broken invariant, refused —
-                # never parked for a replay that nothing would drive.
-                self.feedback_message = (
-                    f"Invariant violation (EMB-18-003): case '{self.case_id}'"
-                    f" names active embargo '{unreadable_id}', which this"
-                    " store cannot read; refusing the acceptance of embargo"
-                    f" '{self.embargo_id}'"
-                )
-                self.logger.exception(
-                    "%s: %s", self.name, self.feedback_message
-                )
-            else:
-                self.feedback_message = str(exc)
-                self.logger.warning("%s: %s", self.name, self.feedback_message)
+        except VultronNotFoundError as exc:
+            # The case itself is missing: consent reads no embargo record,
+            # so nothing else can fail here (ADR-0122).
+            self.feedback_message = str(exc)
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
         self.feedback_message = (

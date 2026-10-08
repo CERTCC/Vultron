@@ -19,7 +19,6 @@ from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
-    as_Add,
     as_Announce,
     as_Invite,
     as_Offer,
@@ -91,29 +90,29 @@ class TestVocabEmbargoExamples(unittest.TestCase):
         rejected_proposal = cast(as_Offer, activity.object_)
         self.assertEqual(rejected_proposal.id_, proposal.id_)
 
-    def test_add_embargo_to_case(self):
-        activity = examples.add_embargo_to_case()
-        self.assertIsInstance(activity, as_Activity)
+    def test_activate_embargo(self):
+        """The owner's Accept of the EmbargoEvent itself (ADR-0122)."""
+        activity = examples.activate_embargo()
         vendor = examples.vendor()
         case = examples.case()
         embargo = examples.embargo_event()
 
-        self.assertIsInstance(activity, as_Add)
-        self.assertEqual(activity.type_, "Add")
+        self.assertIsInstance(activity, as_Accept)
+        self.assertEqual(activity.type_, "Accept")
 
         self.assertEqual(activity.actor, vendor.id_)
         self.assertEqual(activity.target, case.id_)
         self.assertEqual(activity.object_, embargo)
 
-    def test_activate_embargo(self):
-        activity = examples.activate_embargo()
-        self.assertIsInstance(activity, as_Activity)
+    def test_reject_embargo_proposal(self):
+        """The owner's Reject of the EmbargoEvent itself (ADR-0122)."""
+        activity = examples.reject_embargo_proposal()
         vendor = examples.vendor()
         case = examples.case()
         embargo = examples.embargo_event()
 
-        self.assertIsInstance(activity, as_Add)
-        self.assertEqual(activity.type_, "Add")
+        self.assertIsInstance(activity, as_Reject)
+        self.assertEqual(activity.type_, "Reject")
 
         self.assertEqual(activity.actor, vendor.id_)
         self.assertEqual(activity.target, case.id_)
