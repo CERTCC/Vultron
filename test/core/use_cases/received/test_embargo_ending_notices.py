@@ -538,12 +538,19 @@ def test_longer_revision_sends_nothing(
 def test_embargo_ending_notice_decision() -> None:
     """The one decision every path shares: terminated, shortened, or nothing."""
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=MANAGER)
-    for embargo_id, days in (("a", 60), ("same", 60), ("short", 30)):
+    # One clock read per distinct end: two reads either side of a second
+    # boundary would make the tie a one-second difference.
+    later, sooner = days_from_now_utc(60), days_from_now_utc(30)
+    for embargo_id, end_time in (
+        ("a", later),
+        ("same", later),
+        ("short", sooner),
+    ):
         dl.create(
             as_EmbargoEvent(
                 id_=f"{CASE_ID}/e/{embargo_id}",
                 context=CASE_ID,
-                end_time=days_from_now_utc(days),
+                end_time=end_time,
             )
         )
     a, same, short = (f"{CASE_ID}/e/{i}" for i in ("a", "same", "short"))

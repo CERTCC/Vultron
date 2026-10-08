@@ -67,6 +67,7 @@ from vultron.core.behaviors.helpers import (
     _EmitSingleActivityBase,
 )
 from vultron.core.behaviors.narrative_log import log_em_transition
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.participants.recipients import (
@@ -369,7 +370,9 @@ class AwaitsEmbargoEndingNoticeNode(DataLayerConditionWithPorts):
         return Status.FAILURE
 
 
-class ApplyAnnouncedEmbargoRevisionNode(DataLayerActionWithPorts):
+class ApplyAnnouncedEmbargoRevisionNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
     """Apply a shorter revision a paused replica was told of (CM-31-010).
 
     The CASE_MANAGER's ``Announce(EmbargoEvent)`` notice names the revision
