@@ -53,6 +53,7 @@ from vultron.core.behaviors.case.nodes.participant.status import (
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
 )
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.ports.case_persistence import CasePersistence
@@ -71,7 +72,7 @@ def _read_report_case_link(
     return link if isinstance(link, VultronReportCaseLink) else None
 
 
-class _ReportPhaseRMTransition(DataLayerActionWithPorts):
+class _ReportPhaseRMTransition(DataLayerActionWithPorts, StateWriteCapable):
     """Write the report-phase RM state for one RM state on ReportCaseLink.
 
     Subclasses set :attr:`_target_rm`.  The RM state is stored on the
@@ -161,7 +162,7 @@ class _ReportPhaseRMTransition(DataLayerActionWithPorts):
             return Status.FAILURE
 
 
-class TransitionRMtoValid(DataLayerActionWithPorts):
+class TransitionRMtoValid(DataLayerActionWithPorts, StateWriteCapable):
     """Advance RM to VALID on the case participant and the report link, in one node.
 
     ``RM.VALID`` is *both* case-scoped and report-phase (ID-04-005): it advances

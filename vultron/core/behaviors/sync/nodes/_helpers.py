@@ -28,6 +28,7 @@ from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.nodes.conditions import (
     _require_log_entry,
 )
@@ -50,7 +51,7 @@ def _extract_id_from_field(value: Any) -> str | None:
     return getattr(value, "id_", None) or getattr(value, "id", None) or None
 
 
-class _LedgerEffectNode(DataLayerActionWithPorts):
+class _LedgerEffectNode(DataLayerActionWithPorts, StateWriteCapable):
     """Base class for Announce(CaseLedgerEntry) received-side effect nodes.
 
     Declares an ``activity`` input port and exposes ``_get_entry()`` to

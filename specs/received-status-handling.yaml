@@ -1284,9 +1284,17 @@ groups:
       is applied without the CASE_MANAGER's adjudication or sender check.
       PCR-03-001 already forbids this; the effects existed because the ledger
       did not yet carry every transition (RSH-08-004).
-    verification: An architecture ratchet in `test/architecture/` asserts that every received-side tree factory's
-      state-writing effect nodes are descendants of a CASE_MANAGER role gate, with the exemption set held to
-      bidirectional equality (TB-10-002).
+    verification: >
+      `test/architecture/test_received_tree_state_writes_are_gated.py` builds
+      every received-side tree factory and walks it with the factory's own
+      `ungated_nodes`: every node carrying the `StateWriteCapable` marker
+      (`vultron/core/behaviors/state_write_capable.py`) must sit inside a
+      `CaseManagerGate`. The trees still writing ungated are an exact ratchet
+      with an owner per entry and a strict-`xfail` goal test; the replay and
+      bootstrap writes are a pinned exemption set with a reason per entry
+      (TB-10-002, ARCH-18-005). The same module checks that every behaviors
+      class reaching a state-write seam carries the marker or is pinned as
+      writing no case state.
     adr:
     - ADR-0108
   - id: RSH-08-004
@@ -1314,6 +1322,8 @@ groups:
       declared-no-effect set; the classification equals the committed set
       (TB-10-002). The types still violating this requirement are an exact
       known-violation set, each naming the open issue that owns it, which only
-      shrinks (ARCH-18-001).
+      shrinks (ARCH-18-001); every declared row carries a one-line reason, and
+      a strict-`xfail` goal test fails the build once the known-violation set
+      empties without being deleted.
     adr:
     - ADR-0108

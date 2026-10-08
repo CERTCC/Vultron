@@ -31,12 +31,13 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
     UpdateActorOutbox,
 )
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import CVDRole
 
 
-class _CreateCaseRecordNode(DataLayerActionWithPorts):
+class _CreateCaseRecordNode(DataLayerActionWithPorts, StateWriteCapable):
     """Create and persist VulnerabilityCase; publish case_id to blackboard."""
 
     def __init__(
@@ -79,7 +80,9 @@ class _CreateCaseRecordNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class _RegisterCreatorParticipantNode(DataLayerActionWithPorts):
+class _RegisterCreatorParticipantNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
     """Register CASE_OWNER+CASE_MANAGER participant for the creating actor (CM-02-015)."""
 
     def __init__(self, name: str | None = None) -> None:
