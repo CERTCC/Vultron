@@ -54,11 +54,11 @@ sender check that admits only the CASE_MANAGER at a replica is the use
 case's sender guard (ADR-0115, PCR-03-001).
 """
 
-from dataclasses import dataclass
 from enum import StrEnum
 from typing import cast
 
 from py_trees.common import Status
+from pydantic import BaseModel, ConfigDict
 
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
@@ -93,14 +93,15 @@ class EmbargoEndingKind(StrEnum):
     SHORTENED = "shortened"
 
 
-@dataclass(frozen=True)
-class EmbargoEndingNotice:
+class EmbargoEndingNotice(BaseModel):
     """The notice owed for one embargo change (CM-31-009).
 
     *ended_embargo_id* is the embargo whose signatories are owed it — the one
     terminated or replaced.  *notice_embargo_id* is the embargo the notice
     names: the terminated one, or the revision now in force.
     """
+
+    model_config = ConfigDict(frozen=True)
 
     kind: EmbargoEndingKind
     ended_embargo_id: str
@@ -260,10 +261,11 @@ class SendEmbargoEndingNoticesNode(_EmitSingleActivityBase):
         if failure is not None:
             return failure
         datalayer = cast(CasePersistence, self.datalayer)
+        before = self._snapshot.embargo_id
+        # One capture serves one notice: a re-tick must capture again.
+        self._snapshot.captured = False
         notice = embargo_ending_notice(
-            datalayer,
-            before=self._snapshot.embargo_id,
-            after=case.active_embargo_id,
+            datalayer, before=before, after=case.active_embargo_id
         )
         if notice is None:
             self.feedback_message = (
@@ -406,7 +408,7 @@ class ApplyAnnouncedEmbargoRevisionNode(DataLayerActionWithPorts):
 
     def update(self) -> Status:
         self.applied = False
-        if (f := self._require_datalayer()) is not None:
+        if (f := self._require_datalayer_and_actor()) is not None:
             return f
         datalayer = cast(CasePersistence, self.datalayer)
         case, failure = self._require_case(self.case_id)
@@ -418,7 +420,7 @@ class ApplyAnnouncedEmbargoRevisionNode(DataLayerActionWithPorts):
                 f"Case '{self.case_id}' has {current!r} in force — the"
                 f" announced embargo '{self.embargo_id}' changes nothing"
             )
-            self.logger.info("%s: %s", self.name, self.feedback_message)
+            self.logger.debug("%s: %s", self.name, self.feedback_message)
             return Status.SUCCESS
         try:
             self._hold_announced_embargo(datalayer)
@@ -453,7 +455,7 @@ class ApplyAnnouncedEmbargoRevisionNode(DataLayerActionWithPorts):
         if result.em_after != result.em_before:
             log_em_transition(
                 self.logger,
-                self.actor_id or "<unknown>",
+                cast(str, self.actor_id),
                 self.case_id,
                 result.em_before,
                 result.em_after,
