@@ -24,11 +24,12 @@ own recorded copy:
 - **Expired** — ``now >= end_time``, the comparison an embargo Invite's expiry
   makes (``EmbargoLifecycle.assess_invite_expiry``).  Expiry closes the *ask*
   and writes no participant state (CM-11-014): the invitee's record stays
-  inert at RM ``RECEIVED``.  Its consequence is *void* (ASK-03-002): a late
-  ``Accept`` joins nobody, so the invitee has to be re-invited (CM-11-015).
-- **Superseded** — a later stub Invite names it in ``supersedes`` after the
-  active embargo changed (CM-11-016).  An ``Accept`` is refused naming the
-  replacement; a ``Reject`` is honoured.
+  inert at RM ``RECEIVED``.  Its consequence is *stale* (ASK-03-002): the
+  CASE_MANAGER stops waiting, but a late ``Accept`` still joins and a late
+  ``Reject`` still closes the record, as a live one would.
+- **Superseded** — a later stub Invite names it in ``inReplyTo``, after the
+  active embargo changed (CM-11-016) or the invitee was re-invited (CM-11-015).
+  An ``Accept`` is refused naming the replacement; a ``Reject`` is honoured.
 - **Outstanding** — the invitee's record is inert (``joined=False``) and not
   ``RM.CLOSED``, and the newest Invite to it has not expired.
 
@@ -65,7 +66,7 @@ class RecordedStubInvite:
         published: When the Invite was sent.
         end_time: The reply deadline, or ``None`` for an Invite sent before
             deadlines existed (such an Invite never expires).
-        supersedes: The Invite this one replaces, if it replaces one.
+        in_reply_to: The Invite this one replaces, if it replaces one.
         embargo_id: The embargo whose terms the stub carried, or ``None``
             when it carried none.
         roles: The roles the Invite offers the invitee.
@@ -77,7 +78,7 @@ class RecordedStubInvite:
     case_id: str
     published: datetime
     end_time: datetime | None
-    supersedes: str | None
+    in_reply_to: str | None
     embargo_id: str | None
     roles: tuple[str, ...]
     attributed_to: str | None
@@ -99,7 +100,7 @@ def record_of(obj: Any) -> RecordedStubInvite | None:
     ``case_id`` (CM-11-013).  Any other Invite, including the full-case Invite
     and an embargo Invite, is not one.
     """
-    target = getattr(obj, "target", None)
+    target: Any = getattr(obj, "target", None)
     case_id = getattr(target, "case_id", None)
     invitee_id = _as_id(getattr(obj, "object_", None))
     invite_id = getattr(obj, "id_", None)
@@ -117,7 +118,7 @@ def record_of(obj: Any) -> RecordedStubInvite | None:
         case_id=case_id,
         published=getattr(obj, "published", None) or _EARLIEST,
         end_time=getattr(obj, "end_time", None),
-        supersedes=getattr(obj, "supersedes", None),
+        in_reply_to=_as_id(getattr(obj, "in_reply_to", None)),
         embargo_id=_as_id(embargo) if embargo is not None else None,
         roles=tuple(getattr(obj, "roles", None) or ()),
         attributed_to=_as_id(getattr(obj, "attributed_to", None)),
@@ -168,42 +169,39 @@ def replacement_for(
     by_id = {s.invite_id: s for s in siblings}
     candidates = []
     for sibling in siblings:
-        if sibling.supersedes is None or sibling.invite_id == invite.invite_id:
+        if (
+            sibling.in_reply_to is None
+            or sibling.invite_id == invite.invite_id
+        ):
             continue
-        named = by_id.get(sibling.supersedes)
-        if sibling.supersedes == invite.invite_id or (
+        named = by_id.get(sibling.in_reply_to)
+        if sibling.in_reply_to == invite.invite_id or (
             named is not None and named.published >= invite.published
         ):
             candidates.append(sibling)
     return max(candidates, key=lambda r: r.published, default=None)
 
 
-def unanswerable_reason(
-    invite: RecordedStubInvite,
-    siblings: list[RecordedStubInvite],
-    now: datetime,
+def superseded_reason(
+    invite: RecordedStubInvite, siblings: list[RecordedStubInvite]
 ) -> str | None:
     """Why an ``Accept`` of *invite* must be refused, or ``None`` if it may stand.
 
-    A superseded stub is refused naming its replacement (CM-11-016).  An
-    expired stub is refused because a late ``Accept`` is void (CM-11-014,
-    ASK-03-002): the invitee must be re-invited (CM-11-015).  A ``Reject`` is
-    never refused on either ground, so callers ask this of an ``Accept`` only.
+    Only a superseded stub is refused, naming its replacement (CM-11-016): the
+    replacement carries the current terms, so accepting the old one would
+    consent to stale terms.  An *expired* stub is not refused: expiry only
+    means the CASE_MANAGER stopped waiting, and its consequence is stale, not
+    void (ASK-03-008).  A ``Reject`` is never refused, so callers ask this of
+    an ``Accept`` only.
     """
     replacement = replacement_for(invite, siblings)
-    if replacement is not None:
-        return (
-            f"Invite '{invite.invite_id}' was superseded by"
-            f" '{replacement.invite_id}' after the embargo changed — Accept"
-            f" '{replacement.invite_id}' instead (CM-11-016)"
-        )
-    if stub_invite_expired(invite, now):
-        return (
-            f"Invite '{invite.invite_id}' expired at {invite.end_time} — an"
-            " Accept after the deadline joins nobody; the invitee must be"
-            " re-invited (CM-11-014, ASK-03-002)"
-        )
-    return None
+    if replacement is None:
+        return None
+    return (
+        f"Invite '{invite.invite_id}' was superseded by"
+        f" '{replacement.invite_id}' (an embargo change or a re-invite) —"
+        f" Accept '{replacement.invite_id}' instead (CM-11-016)"
+    )
 
 
 def current_stub_embargo_id(case: VulnerabilityCase) -> str | None:

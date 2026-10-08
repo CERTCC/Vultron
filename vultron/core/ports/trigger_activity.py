@@ -345,7 +345,7 @@ class TriggerActivityPort(Protocol):
         target: VulnerabilityCase | None = None,
         rsvp_deadline: datetime | None = None,
         published: datetime | None = None,
-        supersedes: str | None = None,
+        in_reply_to: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Invite(Actor, CaseStub)`` activity.
 
@@ -362,7 +362,8 @@ class TriggerActivityPort(Protocol):
         ``rsvp_deadline`` becomes the Invite's ``endTime``, the reply deadline
         the CASE_MANAGER stamps as it does on an embargo Invite (CM-11-014,
         CM-28-012, ASK-03-004); ``published`` is the instant it was measured
-        from.  ``supersedes`` names the stub Invite this one replaces after an
+        from.  ``in_reply_to`` names the stub Invite this one replaces, in the standard
+        AS2 ``inReplyTo`` property, after an
         embargo change (CM-11-016).  Each is forwarded only when given.
         Returns ``(activity_id, activity_dict)``.
         """

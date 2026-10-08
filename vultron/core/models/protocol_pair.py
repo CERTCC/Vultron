@@ -86,12 +86,14 @@ class AskExpiry(StrEnum):
     """A late reply authorizes nothing; the asker must ask again."""
 
 
-#: Expiry consequence of an ``Invite(Actor, CaseStub)`` (ASK-03-002): a late
-#: ``Accept`` joins nobody, so the invitee must be re-invited (CM-11-015).  The
+#: Expiry consequence of an ``Invite(Actor, CaseStub)`` (ASK-03-002): stale.
+#: Expiry only means the CASE_MANAGER stops waiting; a late ``Accept`` still
+#: joins and a late ``Reject`` still closes the record.  The hazard of stale
+#: embargo terms is already covered by the supersede rule (CM-11-016).  The
 #: stub's deadline is ``Invite.end_time`` (ASK-03-004); the closing replies are
 #: :data:`INVITE_ACTOR_TO_CASE_REPLY_TYPES`.  Declared here until the ask-kind
 #: registry (#2884) takes both over.
-INVITE_ACTOR_TO_CASE_EXPIRY: AskExpiry = AskExpiry.VOID
+INVITE_ACTOR_TO_CASE_EXPIRY: AskExpiry = AskExpiry.STALE
 
 #: Expiry consequence of an ``Invite(EmbargoEvent)`` (ASK-03-007): a late reply
 #: is still honoured under EMB-17 once the expiry has been recorded.

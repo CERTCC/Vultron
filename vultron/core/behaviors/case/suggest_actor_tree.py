@@ -272,6 +272,9 @@ def create_recommend_actor_to_case_received_tree(
                 case_id=case_id,
                 attributed_to=recommender_id,
                 recommendation_id=recommendation_id,
+                # CM-11-015: the fresh stub replaces the earlier one, so
+                # there is one live stub per invitee.
+                replaces_previous_stub=True,
                 actor_config=actor_config,
             ),
         ],

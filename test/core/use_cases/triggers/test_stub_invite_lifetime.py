@@ -61,6 +61,7 @@ from vultron.core.behaviors.case.stub_invite_lifetime import (
 from vultron.core.models._helpers import days_from_now_utc, now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.actor import OfferActorToCaseReceivedEvent
+from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.protocol_pair import (
     INVITE_ACTOR_TO_CASE_EXPIRY,
     INVITE_ACTOR_TO_CASE_REPLY_TYPES,
@@ -84,6 +85,7 @@ from vultron.core.use_cases.triggers.requests import (
 from vultron.enums.roles import CVDRole
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import remove_embargo_from_case_activity
+from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Invite,
@@ -91,12 +93,9 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
-_NOW_MODULE = "vultron.core.behaviors.case.nodes.stub_invite_lifetime.now_utc"
-
-
-def _at(monkeypatch: pytest.MonkeyPatch, instant: datetime) -> None:
-    """Make the CASE_MANAGER's guard read *instant* as the current time."""
-    monkeypatch.setattr(_NOW_MODULE, lambda: instant)
+_EMIT_NOW_MODULE = (
+    "vultron.core.behaviors.case.nodes.invite_actor_emit.now_utc"
+)
 
 
 def _deadline(invite: dict[str, Any]) -> datetime:
@@ -141,18 +140,6 @@ def _terminate(dl: Any, owner_id: str, case_id: str) -> None:
         sync_port=SyncActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
     ).execute()
-
-
-@pytest.mark.spec("ASK-03-008")
-def test_stub_invite_is_a_void_expiry_ask_closed_by_accept_and_reject() -> (
-    None
-):
-    """The ask kind is declared next to the embargo one (ASK-03-001/002)."""
-    assert INVITE_ACTOR_TO_CASE_EXPIRY is AskExpiry.VOID
-    assert {
-        "accept_invite_actor_to_case",
-        "reject_invite_actor_to_case",
-    } == INVITE_ACTOR_TO_CASE_REPLY_TYPES
 
 
 @pytest.mark.spec("CM-11-014")
@@ -201,97 +188,145 @@ def test_deadline_is_capped_at_the_end_of_the_embargo_it_carries(
     assert _deadline(invite) == embargo.end_time
 
 
+@pytest.mark.spec("ASK-03-008")
+def test_stub_invite_is_a_stale_expiry_ask_closed_by_accept_and_reject() -> (
+    None
+):
+    """The ask kind is declared next to the embargo one (ASK-03-001/002)."""
+    assert INVITE_ACTOR_TO_CASE_EXPIRY is AskExpiry.STALE
+    assert {
+        "accept_invite_actor_to_case",
+        "reject_invite_actor_to_case",
+    } == INVITE_ACTOR_TO_CASE_REPLY_TYPES
+
+
+def _expire_then_terminate(
+    dl: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    invite: dict[str, Any],
+    owner_id: str,
+    case_id: str,
+    after_deadline: timedelta,
+) -> None:
+    """Move the clock to *after_deadline* past the stub's deadline, end the embargo."""
+    instant = _deadline(invite) + after_deadline
+    monkeypatch.setattr(_EMIT_NOW_MODULE, lambda: instant)
+    _terminate(dl, owner_id, case_id)
+
+
 @pytest.mark.spec("CM-11-014")
-def test_expiry_closes_the_invite_and_leaves_the_record_unchanged(
+def test_expiry_writes_nothing_and_a_late_accept_still_joins(
     actor_store, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A late ``Accept`` is void: refused, with RM, consent and ``joined`` as before."""
-    manager, dl = actor_store("CaseManager")
-    invitee, _ = actor_store("Vendor")
+    """Expiry only stops the wait: the record is untouched and a late Accept joins."""
+    owner, dl = actor_store("Vendor Owner")
+    finder, _ = actor_store("Finder")
+    invitee, _ = actor_store("Vendor Two")
+    dl.create(finder)
     dl.create(invitee)
-    owner, _ = actor_store("Owner")
-    case, _, _ = _build_active_embargo_case(dl, manager.id_, owner.id_)
-    invite = _send_stub_invite(dl, manager.id_, case.id_, invitee.id_)
+    case, _, _ = _build_active_embargo_case(dl, owner.id_, finder.id_)
+    invite = _send_stub_invite(dl, owner.id_, case.id_, invitee.id_)
     before = _participant_of(dl, case.id_, invitee.id_)
     assert before.joined is False
 
-    _at(monkeypatch, _deadline(invite) + timedelta(seconds=1))
-    result = _answer(
-        dl,
-        as_Accept,
-        manager_id=manager.id_,
-        invitee_id=invitee.id_,
-        invite_id=invite["id"],
+    _expire_then_terminate(
+        dl, monkeypatch, invite, owner.id_, case.id_, timedelta(seconds=1)
     )
 
-    assert result.disposition is HandlerDisposition.REFUSED
-    assert result.reason is not None and "expired" in result.reason
     after = _participant_of(dl, case.id_, invitee.id_)
     assert after.model_dump() == before.model_dump()
-    assert after.joined is False
-    assert not after.rm_closed
     assert [row.state for row in after.embargo_consents] == [
         EmbargoConsentState.INVITED
     ]
+    assert [i.id_ for i in _invites_to(dl, invitee.id_)] == [invite["id"]]
+
+    late = _answer(
+        dl,
+        as_Accept,
+        manager_id=owner.id_,
+        invitee_id=invitee.id_,
+        invite_id=invite["id"],
+    )
+    assert late.disposition is HandlerDisposition.APPLIED, late.reason
+    assert _participant_of(dl, case.id_, invitee.id_).joined is True
 
 
 @pytest.mark.spec("CM-11-014")
-def test_the_deadline_itself_is_expired_and_one_instant_before_is_not(
-    actor_store, monkeypatch: pytest.MonkeyPatch
+def test_a_late_reject_closes_the_record_as_a_live_one_would(
+    actor_store,
 ) -> None:
-    """The embargo Invite's boundary: ``now == end_time`` has expired."""
     manager, dl = actor_store("CaseManager")
     invitee, _ = actor_store("Vendor")
     dl.create(invitee)
     case = _plain_case(dl, manager.id_)
     invite = _send_stub_invite(dl, manager.id_, case.id_, invitee.id_)
-    deadline = _deadline(invite)
 
-    _at(monkeypatch, deadline)
-    at_deadline = _answer(
+    late = _answer(
         dl,
-        as_Accept,
+        as_Reject,
         manager_id=manager.id_,
         invitee_id=invitee.id_,
         invite_id=invite["id"],
     )
-    assert at_deadline.disposition is HandlerDisposition.REFUSED
 
-    _at(monkeypatch, deadline - timedelta(microseconds=1))
-    before_deadline = _answer(
-        dl,
-        as_Accept,
-        manager_id=manager.id_,
-        invitee_id=invitee.id_,
-        invite_id=invite["id"],
+    assert late.disposition is HandlerDisposition.APPLIED, late.reason
+    assert _participant_of(dl, case.id_, invitee.id_).rm_closed
+
+
+@pytest.mark.spec("CM-11-014")
+@pytest.mark.parametrize(
+    "offset,reissued",
+    [(timedelta(0), False), (-timedelta(microseconds=1), True)],
+    ids=["at-the-deadline-is-expired", "one-instant-before-is-live"],
+)
+def test_the_deadline_itself_is_expired(
+    actor_store,
+    monkeypatch: pytest.MonkeyPatch,
+    offset: timedelta,
+    reissued: bool,
+) -> None:
+    """The embargo Invite's boundary: ``now == end_time`` has expired.
+
+    An expired stub is not outstanding, so the embargo change re-issues
+    nothing; one an instant before the deadline is still outstanding.
+    """
+    owner, dl = actor_store("Vendor Owner")
+    finder, _ = actor_store("Finder")
+    invitee, _ = actor_store("Vendor Two")
+    dl.create(finder)
+    dl.create(invitee)
+    case, _, _ = _build_active_embargo_case(dl, owner.id_, finder.id_)
+    invite = _send_stub_invite(dl, owner.id_, case.id_, invitee.id_)
+
+    _expire_then_terminate(
+        dl, monkeypatch, invite, owner.id_, case.id_, offset
     )
-    assert before_deadline.disposition is HandlerDisposition.APPLIED
-    assert _participant_of(dl, case.id_, invitee.id_).joined is True
+
+    assert (len(_invites_to(dl, invitee.id_)) == 2) is reissued
 
 
 @pytest.mark.spec("CM-11-015")
-def test_reinvite_after_expiry_is_fresh_on_the_same_record(
-    actor_store, monkeypatch: pytest.MonkeyPatch
+def test_reinvite_replaces_the_earlier_stub_on_the_same_record(
+    actor_store,
 ) -> None:
-    """The invitee is invited again, accepts the new Invite and joins."""
+    """The fresh Invite names the earlier one; only the fresh one can be accepted."""
     manager, dl = actor_store("CaseManager")
     invitee, _ = actor_store("Vendor")
     dl.create(invitee)
     case = _plain_case(dl, manager.id_)
     first = _send_stub_invite(dl, manager.id_, case.id_, invitee.id_)
+    assert first.get("inReplyTo") is None
     record_id = _participant_of(dl, case.id_, invitee.id_).id_
-    expired_at = _deadline(first) + timedelta(seconds=1)
 
     second = _send_stub_invite(dl, manager.id_, case.id_, invitee.id_)
 
     assert second["id"] != first["id"]
+    assert second["inReplyTo"] == first["id"]
     assert _participant_of(dl, case.id_, invitee.id_).id_ == record_id
     assert _deadline(second) >= _deadline(first)
     after = dl.read_case(case.id_)
     assert after is not None
     assert list(after.case_participants).count(record_id) == 1
-    # The old Invite is dead after its own deadline; the fresh one still lives.
-    _at(monkeypatch, expired_at)
     old = _answer(
         dl,
         as_Accept,
@@ -300,7 +335,7 @@ def test_reinvite_after_expiry_is_fresh_on_the_same_record(
         invite_id=first["id"],
     )
     assert old.disposition is HandlerDisposition.REFUSED
-    _at(monkeypatch, _deadline(second) - timedelta(seconds=1))
+    assert old.reason is not None and second["id"] in old.reason
     new = _answer(
         dl,
         as_Accept,
@@ -309,6 +344,53 @@ def test_reinvite_after_expiry_is_fresh_on_the_same_record(
         invite_id=second["id"],
     )
     assert new.disposition is HandlerDisposition.APPLIED
+
+
+@pytest.mark.spec("CM-11-015")
+@pytest.mark.spec("CM-11-016")
+def test_in_reply_to_on_a_stub_invite_survives_parse_and_extraction(
+    actor_store,
+) -> None:
+    """``inReplyTo`` is the standard AS2 property: the wire parser keeps it, the
+    sealed body carries it, the Invite is still matched as a stub Invite, and
+    the extracted event carries the superseded Invite's id."""
+    manager, dl = actor_store("CaseManager")
+    invitee, _ = actor_store("Vendor")
+    dl.create(invitee)
+    case = _plain_case(dl, manager.id_)
+    first = _send_stub_invite(dl, manager.id_, case.id_, invitee.id_)
+    second = _send_stub_invite(dl, manager.id_, case.id_, invitee.id_)
+
+    parsed = parse_activity(second)
+    event = extract_event(parsed)
+
+    assert parsed.in_reply_to == first["id"]
+    assert event.semantic_type is MessageSemantics.INVITE_ACTOR_TO_CASE
+    assert event.in_reply_to == first["id"]
+    stored = dl.read(second["id"])
+    assert isinstance(stored, as_Invite)
+    assert stored.in_reply_to == first["id"]
+
+
+@pytest.mark.spec("CM-11-015")
+def test_a_reject_of_the_replaced_stub_is_honoured(actor_store) -> None:
+    manager, dl = actor_store("CaseManager")
+    invitee, _ = actor_store("Vendor")
+    dl.create(invitee)
+    case = _plain_case(dl, manager.id_)
+    first = _send_stub_invite(dl, manager.id_, case.id_, invitee.id_)
+    _send_stub_invite(dl, manager.id_, case.id_, invitee.id_)
+
+    old = _answer(
+        dl,
+        as_Reject,
+        manager_id=manager.id_,
+        invitee_id=invitee.id_,
+        invite_id=first["id"],
+    )
+
+    assert old.disposition is HandlerDisposition.APPLIED, old.reason
+    assert _participant_of(dl, case.id_, invitee.id_).rm_closed
 
 
 @pytest.mark.spec("CM-11-015")
@@ -426,7 +508,7 @@ def test_a_replacement_carries_a_new_deadline_and_current_terms_and_roles(
     (replacement,) = [
         i for i in _invites_to(dl, invitee.id_) if i.id_ != original["id"]
     ]
-    assert replacement.supersedes == original["id"]
+    assert replacement.in_reply_to == original["id"]
     assert replacement.roles == original["roles"]
     assert replacement.end_time is not None
     assert replacement.end_time >= _deadline(original)
@@ -471,7 +553,7 @@ def test_a_received_embargo_removal_re_issues_the_outstanding_stub(
     (replacement,) = [
         i for i in _invites_to(dl, invitee.id_) if i.id_ != original["id"]
     ]
-    assert replacement.supersedes == original["id"]
+    assert replacement.in_reply_to == original["id"]
 
 
 @pytest.mark.spec("CM-11-016")
@@ -556,7 +638,7 @@ def _stub(
     invite_id: str,
     *,
     minutes: int,
-    supersedes: str | None = None,
+    in_reply_to: str | None = None,
     end_time: datetime | None = None,
 ) -> RecordedStubInvite:
     return RecordedStubInvite(
@@ -566,7 +648,7 @@ def _stub(
         published=now_utc().replace(year=2026, month=1, day=1)
         + timedelta(minutes=minutes),
         end_time=end_time,
-        supersedes=supersedes,
+        in_reply_to=in_reply_to,
         embargo_id=None,
         roles=("VENDOR",),
         attributed_to=None,
@@ -582,7 +664,7 @@ class TestReplacementFor:
 
     def test_replacement_that_names_the_stub_supersedes_it(self) -> None:
         a = _stub("a", minutes=0)
-        b = _stub("b", minutes=1, supersedes="a")
+        b = _stub("b", minutes=1, in_reply_to="a")
         assert replacement_for(a, [a, b]) == b
         assert replacement_for(b, [a, b]) is None
 
@@ -591,14 +673,14 @@ class TestReplacementFor:
     ) -> None:
         a = _stub("a", minutes=0)
         b = _stub("b", minutes=1)  # re-invite: names nothing
-        c = _stub("c", minutes=2, supersedes="b")  # embargo change
+        c = _stub("c", minutes=2, in_reply_to="b")  # embargo change
         assert replacement_for(a, [a, b, c]) == c
         assert replacement_for(b, [a, b, c]) == c
 
     def test_the_newest_replacement_wins(self) -> None:
         a = _stub("a", minutes=0)
-        b = _stub("b", minutes=1, supersedes="a")
-        c = _stub("c", minutes=2, supersedes="b")
+        b = _stub("b", minutes=1, in_reply_to="a")
+        c = _stub("c", minutes=2, in_reply_to="b")
         assert replacement_for(a, [a, b, c]) == c
 
 

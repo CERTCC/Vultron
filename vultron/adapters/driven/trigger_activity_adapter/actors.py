@@ -161,7 +161,7 @@ class _ActorsMixin:
         target: VulnerabilityCase | None = None,
         rsvp_deadline: datetime | None = None,
         published: datetime | None = None,
-        supersedes: str | None = None,
+        in_reply_to: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Invite(Actor, CaseStub)`` activity.
 
@@ -185,8 +185,8 @@ class _ActorsMixin:
             extra["end_time"] = rsvp_deadline
         if published is not None:
             extra["published"] = published
-        if supersedes is not None:
-            extra["supersedes"] = supersedes
+        if in_reply_to is not None:
+            extra["in_reply_to"] = in_reply_to
 
         # Read case and embargo from DataLayer; factory handles projection.
         resolved: Any = target

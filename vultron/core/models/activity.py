@@ -87,9 +87,6 @@ class VultronActivity(CoreObject):
     # needed; stated explicitly because the neighbouring field shows what the
     # omission costs when the names do differ.
     roles: list[NonEmptyString] | None = None
-    # A replacement stub Invite names the Invite it supersedes (CM-11-016);
-    # single-word, so no alias is needed.
-    supersedes: NonEmptyString | None = None
 
 
 class VultronOffer(VultronActivity):

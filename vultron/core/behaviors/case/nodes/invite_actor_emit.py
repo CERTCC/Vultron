@@ -17,7 +17,7 @@
 
 Split out of ``actor.py`` (BTND-07-004).  Every stub Invite it emits carries a
 reply deadline (CM-11-014); a replacement issued after an embargo change names
-the Invite it supersedes (CM-11-016).
+the Invite it supersedes in ``inReplyTo`` (CM-11-016).
 """
 
 from typing import cast
@@ -33,6 +33,7 @@ from vultron.core.behaviors.case.stub_invite_lifetime import (
     RecordedStubInvite,
     current_stub_embargo_end,
     outstanding_stale_stubs,
+    recorded_stub_invites,
 )
 from vultron.core.behaviors.delegated_authorship import delegated_authorship
 from vultron.core.behaviors.embargo.rsvp_stamp import stamp_rsvp_deadline
@@ -53,7 +54,7 @@ def emit_stub_invite(
     invitee_id: str,
     roles: list[str] | None,
     attributed_to: str | None = None,
-    supersedes: str | None = None,
+    in_reply_to: str | None = None,
     actor_config: ActorConfig | None = None,
 ) -> tuple[str, str]:
     """Build a stub Invite carrying a reply deadline, and commit it.
@@ -101,7 +102,7 @@ def emit_stub_invite(
         target=case,
         rsvp_deadline=stamp.rsvp_deadline,
         published=stamp.published,
-        supersedes=supersedes,
+        in_reply_to=in_reply_to,
     )
     # The recorded snapshot is the exact blob the port returned: the factory
     # owns its completeness (``context``, inline objects), and this same text
@@ -157,14 +158,16 @@ class EmitInviteActorToCaseNode(_EmitSingleActivityBase):
         recommendation_id: str | None = None,
         name: str | None = None,
         *,
-        supersedes: str | None = None,
+        in_reply_to: str | None = None,
+        replaces_previous_stub: bool = False,
         actor_config: ActorConfig | None = None,
     ) -> None:
         super().__init__(captured=captured, name=name)
         self.invitee_id = invitee_id
         self.case_id = case_id
         self.attributed_to = attributed_to
-        self._supersedes = supersedes
+        self._in_reply_to = in_reply_to
+        self._replaces_previous_stub = replaces_previous_stub
         self._actor_config = actor_config
         self._injected_roles = roles
         self._roles_key = (
@@ -204,6 +207,20 @@ class EmitInviteActorToCaseNode(_EmitSingleActivityBase):
             return serialize_roles(roles)
         return None
 
+    def _in_reply_to_id(self) -> str | None:
+        """The earlier stub Invite this one replaces, if it replaces one.
+
+        A re-invite replaces the invitee's newest earlier stub, so the invitee
+        has one live stub at a time (CM-11-015); a first Invite replaces none.
+        """
+        if self._in_reply_to is not None or not self._replaces_previous_stub:
+            return self._in_reply_to
+        assert self.datalayer is not None and self.actor_id is not None
+        earlier = recorded_stub_invites(
+            self.datalayer, self.case_id, self.actor_id, self.invitee_id
+        )
+        return earlier[-1].invite_id if earlier else None
+
     def _call_factory(self) -> tuple[str, str]:
         """Build Invite(Actor, CaseStub) activity and commit the ledger correlation marker."""
         roles = self._read_suggested_roles()
@@ -222,7 +239,7 @@ class EmitInviteActorToCaseNode(_EmitSingleActivityBase):
             invitee_id=self.invitee_id,
             roles=roles,
             attributed_to=self.attributed_to,
-            supersedes=self._supersedes,
+            in_reply_to=self._in_reply_to_id(),
             actor_config=self._actor_config,
         )
 
@@ -241,7 +258,7 @@ class ReissueStubInvitesNode(_EmitSingleActivityBase):
     Accepting a stub consents to the terms it carried, so when the active
     embargo is activated, revised or terminated while a stub is outstanding
     the CASE_MANAGER sends the invitee a replacement carrying the current terms
-    and a new deadline, on the same participant record, naming the Invite it
+    and a new deadline, on the same participant record, naming in ``inReplyTo`` the Invite it
     supersedes (CM-11-016).  No ``Undo`` retracts the old one: an ``Accept`` of
     it is refused, naming the replacement, and a ``Reject`` of it is honoured.
 
@@ -300,7 +317,7 @@ class ReissueStubInvitesNode(_EmitSingleActivityBase):
             invitee_id=stale.invitee_id,
             roles=list(stale.roles) or None,
             attributed_to=stale.attributed_to,
-            supersedes=stale.invite_id,
+            in_reply_to=stale.invite_id,
             actor_config=self._actor_config,
         )
         self._emit_through_seam(activity_id, activity_blob)

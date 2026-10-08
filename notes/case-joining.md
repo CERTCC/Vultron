@@ -140,10 +140,14 @@ its authority to *commit* comes from its role (CLP-09), not from being active.
   is for an expired `Invite(EmbargoEvent)`, not for the terms a stub carries.
   Expiry is read, not recorded: an Invite is expired when `now >= end_time`
   (the embargo Invite's comparison), judged against the CASE_MANAGER's own copy.
-  The expiry consequence is *void* (ASK-03-002, ASK-03-008): an `Accept` after
-  the deadline joins nobody and is refused, so the invitee must be re-invited.
+  The expiry consequence is *stale* (ASK-03-002, ASK-03-008): expiry only
+  means the CASE_MANAGER stops waiting. A late `Accept` still joins and a late
+  `Reject` still closes the record. The stale-terms hazard is covered by the
+  supersede rule below, not by refusing late replies. A strict mode that
+  refuses after expiry is a possible later addition and is not built.
   "All participants closed" counts only participants that joined.
-- **Re-invite.** Same record, fresh stub Invite, new deadline. Refused for a
+- **Re-invite.** Same record, fresh stub Invite, new deadline, with `inReplyTo`
+  set to the earlier stub so the invitee has one live stub. Refused for a
   participant at `CLOSED` — terminal, no rejoin (CM-11-015, ADR-0085). The
   owner's trigger refuses it before anything is queued, and the CASE_MANAGER's
   recommend-actor tree refuses an Offer that arrives anyway. The re-invite arm

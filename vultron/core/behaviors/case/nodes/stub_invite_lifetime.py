@@ -18,9 +18,9 @@
 Read-only conditions for the CASE_MANAGER's received trees:
 
 - :class:`StubInviteAnswerableNode` — refuses an ``Accept`` of a stub Invite
-  that was superseded (naming the replacement) or has expired (its expiry
-  consequence is *void*, ASK-03-002).  A ``Reject`` is not guarded: declining
-  to join does not depend on the terms (CM-11-016).
+  that was superseded, naming the replacement.  An expired stub is not
+  refused: its expiry consequence is *stale* (ASK-03-008).  A ``Reject`` is
+  not guarded: declining to join does not depend on the terms (CM-11-016).
 - :class:`ReinviteAwaitingNode` — the invitee has a record and has not
   answered, so a fresh stub goes out on that record (CM-11-015).
 - :class:`ReinviteNotToClosedParticipantNode` — refuses a re-invite of a
@@ -36,19 +36,17 @@ from vultron.core.behaviors.case.stub_invite_lifetime import (
     invitee_record,
     record_of,
     recorded_stub_invites,
-    unanswerable_reason,
+    superseded_reason,
 )
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
-from vultron.core.models._helpers import now_utc
 
 
 class StubInviteAnswerableNode(DataLayerConditionWithPorts):
     """Guard: the stub Invite an ``Accept`` answers can still be accepted.
 
     FAILURE, with the reason as ``feedback_message``, when the recorded Invite
-    was superseded by a replacement (the refusal names it) or its reply
-    deadline has passed (the invitee must be re-invited).  The Invite is read
-    from this store, never from the copy the reply embeds (CM-11-017).
+    was superseded by a replacement (the refusal names it).  The Invite is
+    read from this store, never from the copy the reply embeds (CM-11-017).
     """
 
     def __init__(
@@ -75,7 +73,7 @@ class StubInviteAnswerableNode(DataLayerConditionWithPorts):
         siblings = recorded_stub_invites(
             self.datalayer, self.case_id, self.actor_id, record.invitee_id
         )
-        reason = unanswerable_reason(record, siblings, now_utc())
+        reason = superseded_reason(record, siblings)
         if reason is not None:
             return self._refuse(reason)
         return Status.SUCCESS
