@@ -468,12 +468,16 @@ def make_universal_invariant_tests(  # noqa: C901  # C901 counts every nested te
             After an invitee accepts its stub Invite the CASE_MANAGER sends the
             full-case Invite, and the invitee judges the case by accepting it
             (CM-11-010, CM-11-011).  The scenario invites
-            ``joined_invitees`` actors, so each event type appears at least
-            that many times.
+            ``joined_invitees`` actors, so each event type appears exactly
+            that many times: a floor alone is satisfied by a double commit
+            for one invitee while another is never sent the Invite (#4120).
             """
             replicas = request.getfixturevalue(replicas_fixture)
             violations = check_event_type_count(
-                replicas, event_type, min_count=_joined_invitees
+                replicas,
+                event_type,
+                min_count=_joined_invitees,
+                max_count=_joined_invitees,
             )
             assert not violations, violations[0] if violations else ""
 

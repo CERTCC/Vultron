@@ -299,6 +299,7 @@ def test_accept_of_invite_takes_roles_from_recorded_invite(
     participant = cm_store.read(case.actor_participant_index[invitee_id])
     assert isinstance(participant, CaseParticipant)
     assert CVDRole.CASE_OWNER not in participant.case_roles
+    assert participant.case_roles == [CVDRole.VENDOR]
 
 
 _INVITEE_ID = "https://example.org/actors/invitee"

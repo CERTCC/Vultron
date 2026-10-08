@@ -54,7 +54,11 @@ from vultron.demo.helpers.invite_chain import (
     FULL_CASE_REPLY_TIMEOUT,
     reply_to_full_case_invite,
 )
-from vultron.demo.helpers.polling import find_case_invite_for_actor
+from vultron.demo.helpers.polling import (
+    find_case_invite_for_actor,
+    resolve_case_actor_store_id,
+    wait_for_participant_rm_state,
+)
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.seeding import get_actor_by_id
 from vultron.demo.helpers.verification import _check_participant_rm_state_in
@@ -214,13 +218,15 @@ def demo_invite_actor_accept(
             authority_client=client,
             timeout=FULL_CASE_REPLY_TIMEOUT,
         )
+        # The reply trigger returns 202 before its status write lands, so wait
+        # on the CaseActor's own store rather than reading once (ADR-0058).
         with demo_check("Coordinator at RM.VALID after its reply (CM-11-011)"):
-            _check_participant_rm_state_in(
+            wait_for_participant_rm_state(
                 client=client,
                 case_id=str(case.id_),
                 actor_id=str(coordinator.id_),
                 expected_states={RM.VALID},
-                label="Coordinator (joined invitee)",
+                dl_actor_id=resolve_case_actor_store_id(client, case.id_),
             )
 
     with demo_step("Step 5: Verify coordinator added as case participant"):

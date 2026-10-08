@@ -194,6 +194,17 @@ def vendor_joins_coordinated_case(
     case = opened.case
     vendor_in_vendor = get_actor_by_id(vendor_client, vendor.id_)
 
+    # The Reporter must hold the case replica before the Vendor's reply to the
+    # full-case Invite (RM Received to Valid), which the chain sends, broadcasts
+    # Announce(CaseLedgerEntry) to all participants (CLP-08-005).  The case is
+    # already open, so the replica does not depend on the Vendor joining.
+    with demo_check("Reporter's DataLayer received case replica"):
+        wait_for_case_on_container(
+            client=reporter_client,
+            case_id=case.id_,
+            timeout_seconds=20.0,
+        )
+
     run_case_invite_chain(
         case=case,
         case_manager_client=coordinator_client,
@@ -230,15 +241,6 @@ def vendor_joins_coordinated_case(
             timeout_seconds=PARTICIPANT_JOIN_TIMEOUT,
         )
         logger.info("✓ M2: %s joined case", vendor_name)
-
-        # The Reporter must hold the case replica before the Vendor's RM triage
-        # broadcasts Announce(CaseLedgerEntry) to all participants (CLP-08-005).
-        with demo_check("Reporter's DataLayer received case replica"):
-            wait_for_case_on_container(
-                client=reporter_client,
-                case_id=case.id_,
-                timeout_seconds=20.0,
-            )
 
         # CM-11-002: the Vendor joined via invite-accept — run its RM triage.
         run_invite_path_rm_triage(

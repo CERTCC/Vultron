@@ -1676,7 +1676,9 @@ class TestAcceptInviteRolesAC4:
             attributed_to="https://example.org/users/owner",
         )
         seed_store_owner_as_case_manager(dl, case)
-        seed_inert_invitee(dl, case, invitee_id)
+        seed_inert_invitee(
+            dl, case, invitee_id, [CVDRole.VENDOR, CVDRole.COORDINATOR]
+        )
         invite = rm_invite_to_case_activity(
             invitee,
             to=[invitee.id_],
@@ -1705,9 +1707,13 @@ class TestAcceptInviteRolesAC4:
         )
         participant = cast(Any, dl.get(id_=participant_id))
         assert participant is not None
-        assert CVDRole.VENDOR in participant.case_roles, (
-            "AC-4: participant case_roles must include VENDOR from Invite"
-        )
+        # The record keeps the roles it was created with; the Accept applies
+        # none of its own (CM-11-021).  Seeding a role the Invite does not
+        # name makes a re-applied Invite visible.
+        assert set(participant.case_roles) == {
+            CVDRole.VENDOR,
+            CVDRole.COORDINATOR,
+        }
 
     @pytest.mark.spec("CM-11-019")
     def test_no_roles_invite_refused_not_applied(self, make_payload):

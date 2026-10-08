@@ -24,8 +24,6 @@ the stub Invite created it at RM.RECEIVED (CM-11-006), and
 (BTND-07-003).
 """
 
-import logging
-
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable
 
@@ -35,8 +33,6 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.case_participant import CaseParticipant
-
-logger = logging.getLogger(__name__)
 
 
 class ActivateInviteeParticipantNode(

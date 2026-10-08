@@ -22,8 +22,10 @@ without spoofing the invitee's identity (PCR-08-010, PCR-08-009).
 Tree structure::
 
     AcceptInviteActorToCaseBT (Sequence, memory=False)
+    ├── SenderIsInviteeNode                    — sender is the recorded invitee
     ├── CheckInviteeNotAlreadyParticipantNode  — idempotency guard
-    ├── InviteeHasParticipantRecordNode        — refuse an Accept with no record (CM-11-021)
+    ├── InviteeHasParticipantRecordNode        — refuse when no record (CM-11-021)
+    ├── StubInviteAnswerableNode               — not superseded
     ├── CapturePreCommitBackfillTargetNode     — snapshot ledger for resume case
     ├── GuardedCommitCaseLedgerEntryBT         — record receipt (CLP-10-006)
     └── AcceptInviteIfCaseManager (Selector)   — BT-17-001 gate
@@ -34,7 +36,7 @@ Tree structure::
             ├── AdvanceInviteeVFToVendorAwareNode    — record VF Vf for VENDOR (CM-11-009)
             ├── EmitAnnounceCaseToInviteeNode        — queue Announce(VulnerabilityCase)
             ├── BackfillCanonicalLedgerToInviteeNode — send prior ledger to invitee
-            ├── EmitInviteActorToFullCaseNode        — full-case Invite with the ledger tail (CM-11-010)
+            ├── EmitInviteActorToFullCaseNode        — full-case Invite, ledger tail (CM-11-010)
             └── RelayOpenProposalsToJoinerNode       — Invite to each open embargo proposal (EP-09-011)
 
 Admitting the invitee, announcing the case to it and backfilling the ledger

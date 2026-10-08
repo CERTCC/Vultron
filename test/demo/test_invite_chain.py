@@ -166,6 +166,27 @@ def test_reply_waits_for_ledger_coverage_against_the_inviters_container(
     assert chain_mocks.coverage.call_args.args[0] is inviter_client
 
 
+@pytest.mark.spec("SYNC-10-004")
+def test_recommend_path_waits_for_coverage_on_the_ledger_client(chain_mocks):
+    """With no inviter (ADR-0026) the coverage wait still runs, never skipped."""
+    ledger_client = MagicMock()
+
+    _run(inviter=None, ledger_client=ledger_client)
+
+    assert chain_mocks.coverage.call_args.args[0] is ledger_client
+    chain_mocks.full_reply.assert_called_once()
+
+
+@pytest.mark.spec("SYNC-10-004")
+def test_accepting_chain_without_any_ledger_client_is_refused(chain_mocks):
+    """A skipped coverage wait would race the fail-closed reply trigger."""
+    with pytest.raises(ValueError, match="ledger coverage"):
+        _run(inviter=None)
+
+    chain_mocks.accept.assert_not_called()
+    chain_mocks.full_reply.assert_not_called()
+
+
 def test_undelivered_full_case_invite_skips_the_reply(chain_mocks):
     chain_mocks.full_invite.side_effect = AssertionError("timed out")
 
@@ -187,7 +208,7 @@ def test_reject_path_rejects_and_awaits_no_replica(chain_mocks):
 
 
 def test_recommend_path_has_no_inviter_and_triggers_no_invite(chain_mocks):
-    _run(inviter=None)
+    _run(inviter=None, ledger_client=MagicMock())
 
     chain_mocks.invite.assert_not_called()
     chain_mocks.find.assert_called_once()

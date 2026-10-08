@@ -56,14 +56,15 @@ class CheckInviteeNotAlreadyParticipantNode(
 
     Four paths:
 
-    1. **Fresh invite**: invitee not yet in index → SUCCESS (tree runs in full,
-       ``invitee_already_participant=False``, ``invitee_joined=False``).
+    1. **No record**: invitee not yet in index → SUCCESS
+       (``invitee_already_participant=False``, ``invitee_joined=False``).
+       ``InviteeHasParticipantRecordNode`` refuses it next, before any write:
+       an Accept never creates a participant (CM-11-021).
     2. **Inert record** (ADR-0114, CM-11-006): invitee in index but
        ``joined=False``, no backfill marker yet → SUCCESS with
        ``invitee_already_participant=True``, ``invitee_joined=False``.
-       Downstream nodes load the existing record instead of creating a new one,
-       and the backfill uses the *fresh* path (fan-out doesn't reach an inert
-       invitee).
+       Downstream nodes activate the existing record, and the backfill uses
+       the *fresh* path (fan-out doesn't reach an inert invitee).
     3. **Backfill-incomplete resume**: invitee in index, ``joined=True``, but
        backfill is still in progress → SUCCESS with
        ``invitee_already_participant=True``, ``invitee_joined=True``.

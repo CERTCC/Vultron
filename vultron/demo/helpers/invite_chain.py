@@ -20,9 +20,9 @@ answers it, and — on an accept — the trust-bootstrap
 (MV-10-003/MV-10-004).  The CASE_MANAGER then sends the full-case Invite, and
 every invitee, whatever its role, judges the case by replying to it
 (CM-11-010, CM-11-011): the chain asserts the whole sequence — stub Invite,
-stub Accept, Announce and replay, full-case Invite, reply.  Every scenario once wrote that chain out by hand
-(DEMOMA-17-001, #4192); this module is the one place that owns it, with the
-variants as parameters:
+stub Accept, Announce and replay, full-case Invite, reply.
+Every scenario once wrote that chain out by hand (DEMOMA-17-001, #4192); this
+module is the one place that owns it, with the variants as parameters:
 
 - **who asks** — an inviting participant triggers the invite
   (``inviter=CaseInviter(...)``), or the CaseActor already invited after the
@@ -109,6 +109,7 @@ def run_case_invite_chain(
     invitee_in_own_container: as_Actor,
     inviter: CaseInviter | None = None,
     case_manager_client: DataLayerClient | None = None,
+    ledger_client: DataLayerClient | None = None,
     respond: Literal["accept", "reject"] = "accept",
     invite_timeout: float = 15.0,
     replica_timeout: float | None = None,
@@ -135,6 +136,13 @@ def run_case_invite_chain(
             store, and a case created by the normal flow has no summary
             (CM-17-010, MV-10-001, #4285).  Needed only on the first chain of
             a case; the seed persists.
+        ledger_client: Client for the container hosting the CASE_MANAGER, for
+            the ledger-coverage wait before the reply, when neither
+            ``case_manager_client`` nor ``inviter`` is given (the ADR-0026
+            path).  Unlike ``case_manager_client`` it seeds nothing.  An
+            accepting chain needs one of the three, else it raises: the
+            reply trigger fails closed below the Invite's floor (SYNC-10-004)
+            and a skipped wait would race it.
         respond: ``"accept"`` waits for the case replica afterwards;
             ``"reject"`` does not, because a rejected invitee gets none.
         invite_timeout: Seconds to wait for the Invite to be delivered.
@@ -146,6 +154,18 @@ def run_case_invite_chain(
         then: Runs inside the gate after the chain completes, so it is skipped
             when the invite was never delivered.
     """
+
+    authority_client = (
+        case_manager_client
+        or ledger_client
+        or (inviter.client if inviter is not None else None)
+    )
+    if respond == "accept" and authority_client is None:
+        raise ValueError(
+            f"Chain for {invitee_name} has no client to wait on ledger"
+            " coverage with: pass case_manager_client, ledger_client or"
+            " inviter (SYNC-10-004)"
+        )
 
     def answer(gate_label: str) -> None:
         _await_and_answer(
@@ -160,10 +180,7 @@ def run_case_invite_chain(
             replica_timeout=replica_timeout,
             expect_emitted_by=expect_emitted_by,
             reply_timeout=reply_timeout,
-            authority_client=(
-                case_manager_client
-                or (inviter.client if inviter is not None else None)
-            ),
+            authority_client=authority_client,
             then=then,
         )
 
@@ -267,6 +284,8 @@ def _await_and_answer(
             _await_case_replica(
                 invitee_name, invitee_client, case, replica_timeout
             )
+            # run_case_invite_chain refused an accepting chain without one.
+            assert authority_client is not None
             reply_to_full_case_invite(
                 invitee_name=invitee_name,
                 invitee_client=invitee_client,
@@ -315,7 +334,7 @@ def reply_to_full_case_invite(
     invitee: as_Actor,
     invitee_in_own_container: as_Actor,
     case: as_VulnerabilityCase,
-    authority_client: DataLayerClient | None,
+    authority_client: DataLayerClient,
     timeout: float,
 ) -> None:
     """Assert the full-case Invite arrives, then answer it (CM-11-010/011).
@@ -337,14 +356,13 @@ def reply_to_full_case_invite(
             timeout_seconds=timeout,
         )
         logger.info("%s received the full-case Invite", invitee_name)
-        if authority_client is not None:
-            wait_for_replica_ledger_coverage(
-                authority_client,
-                [(invitee_client, f"{invitee.id_} (full-case Invite floor)")],
-                case.id_,
-                default_timeout=timeout,
-                phase_label="before accepting the full-case Invite",
-            )
+        wait_for_replica_ledger_coverage(
+            authority_client,
+            [(invitee_client, f"{invitee.id_} (full-case Invite floor)")],
+            case.id_,
+            default_timeout=timeout,
+            phase_label="before accepting the full-case Invite",
+        )
         with demo_step(f"{invitee_name} accepts the full-case Invite"):
             ActorSession(
                 client=invitee_client, actor=invitee_in_own_container

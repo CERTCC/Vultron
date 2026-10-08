@@ -87,7 +87,7 @@ class _CheckEmbargoActiveStateNode(DataLayerActionWithPorts):
         if active_embargo_id:
             self._set_output("active_embargo_id", active_embargo_id)
             return Status.SUCCESS
-        # Always write the key so ActivateInviteeParticipantNode can read it
+        # Always write the key so _SignEmbargoConsentLeafNode can read it
         # even when there is no active embargo (py_trees raises KeyError for
         # unwritten READ-registered keys — see AGENTS.md pitfalls).
         self._set_output("active_embargo_id", None)

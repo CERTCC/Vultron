@@ -64,13 +64,10 @@ class CapturePreCommitBackfillTargetNode(DataLayerActionWithPorts):
     ``pre_commit_backfill_target`` unset so backfill covers all entries
     including the new accept entry.
 
-    **Fresh case** (invitee not yet registered, ``invitee_already_participant
-    = False``): the receipt commit's fan-out will NOT include the invitee (they
-    are not yet a participant), so backfill must include the newly committed
-    receipt entry in its window.  This node does *not* write
-    ``pre_commit_backfill_target``, leaving
+    Both the inert-record and the fresh paths leave
     ``BackfillCanonicalLedgerToInviteeNode`` to compute its target from the
-    ledger tail at backfill time.  The full-case Invite's entry
+    ledger tail at backfill time.  (An invitee with no record never reaches
+    this node in the Accept tree: CM-11-021 refuses it first.)  The full-case Invite's entry
     (``EmitInviteActorToFullCaseNode``) is committed *after* the backfill and
     reaches the invitee through its own fan-out, in chain order (CM-17-004).
 

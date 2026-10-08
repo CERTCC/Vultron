@@ -381,6 +381,7 @@ def test_activating_a_joined_record_changes_nothing(
     node = ActivateInviteeParticipantNode(
         case_id=_CM21_CASE_ID, invitee_id=_CM21_INVITEE_ID
     )
+    before = participant.model_dump()
 
     result = bt_scenario.run(
         node,
@@ -389,6 +390,9 @@ def test_activating_a_joined_record_changes_nothing(
     )
 
     assert result.status == Status.SUCCESS
+    stored = bt_scenario.dl.read(participant.id_)
+    assert isinstance(stored, CaseParticipant)
+    assert stored.model_dump() == before
 
 
 def test_accept_tree_has_no_participant_creating_node() -> None:
