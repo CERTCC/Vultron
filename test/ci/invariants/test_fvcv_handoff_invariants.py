@@ -153,13 +153,21 @@ def test_fvcv_handoff_vendor2_rm_triage_observed(
 ) -> None:
     """Vendor2 RM triage cycle (VALID then ACCEPTED) is observed in the ledger.
 
-    Per CM-11-002, Vendor2 SHOULD run the standard triage cycle after
-    receiving the full case replica.  Both ``validate_report`` and
-    ``engage_case`` entries must appear at least twice in total — the
-    original receiver (Vendor1) and Vendor2 each contribute one of each.
+    Per CM-11-011 and CM-11-020, Vendor2 joined through an Invite, so it
+    judges the case by accepting the full-case Invite, not by validating the
+    reporter's report.  ``validate_report`` therefore appears once (Vendor1,
+    the original receiver), the full-case Invite acceptance appears once
+    (Vendor2), and ``engage_case`` appears at least twice (one each).
     """
     violations = check_event_type_count(
-        fvcv_handoff_replicas, "validate_report", min_count=2
+        fvcv_handoff_replicas, "validate_report", min_count=1, max_count=1
+    )
+    assert not violations, violations[0] if violations else ""
+
+    violations = check_event_type_count(
+        fvcv_handoff_replicas,
+        "accept_invite_actor_to_full_case",
+        min_count=1,
     )
     assert not violations, violations[0] if violations else ""
 

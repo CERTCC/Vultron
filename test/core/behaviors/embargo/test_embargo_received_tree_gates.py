@@ -31,6 +31,7 @@ from vultron.core.behaviors.embargo.announce_teardown_tree import (
 )
 from vultron.core.behaviors.embargo.nodes import (
     IndexReceivedEmbargoProposalNode,
+    SendEmbargoEndingNoticesNode,
 )
 from vultron.core.behaviors.sync.nodes.embargo_backfill import (
     BackfillAdmittedParticipantsNode,
@@ -93,9 +94,10 @@ def test_add_embargo_backfill_is_the_factory_gate() -> None:
     gate = tree.children[-1]
     assert isinstance(gate, CaseManagerGate)
     assert gate.name == "EmbargoAdmissionBackfill"
-    # The activation backfills what it admitted, then re-issues the stub
-    # Invites it left carrying old terms (CM-11-016).
+    # The CM-31-009 notices, then the backfill of what the activation
+    # admitted, then the re-issue of stale stub Invites (CM-11-016).
     assert [type(n) for n in gate.gated_branch.children] == [
+        SendEmbargoEndingNoticesNode,
         BackfillAdmittedParticipantsNode,
         ReissueStubInvitesNode,
     ]

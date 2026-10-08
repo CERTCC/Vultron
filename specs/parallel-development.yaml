@@ -1139,7 +1139,7 @@ groups:
     specs:
       - id: PAD-18-001
         adr:
-        - ADR-0125
+        - ADR-0126
         priority: MUST
         kind: process
         statement: >-
@@ -1209,7 +1209,7 @@ groups:
           spec_id: PAD-18-002
       - id: PAD-18-004
         adr:
-        - ADR-0125
+        - ADR-0126
         priority: MUST
         kind: process
         statement: >-
@@ -1238,7 +1238,7 @@ groups:
           spec_id: PAD-11-002
       - id: PAD-18-005
         adr:
-        - ADR-0125
+        - ADR-0126
         priority: MUST_NOT
         kind: process
         statement: >-

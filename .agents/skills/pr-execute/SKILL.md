@@ -91,7 +91,8 @@ Deferring" and "The Two Gates".
 
 **`fix-now-file`** (an "also" excursion you fix now):
 
-1. File a GitHub issue via `manage-github-issue` capturing the finding.
+1. File a GitHub issue via `manage-github-issue` capturing the finding, with
+   `--opened-as excursion`.
 2. Add the issue to Project #24: `bash .agents/skills/shared/add-to-project.sh <N>`.
 3. **Fix it in this PR** (fold into the Phase 2 batch). Add `- Closes #N` to the
    PR body and a one-line "why" in the Changes section (see `pr-body-guide.md`).
@@ -99,7 +100,8 @@ Deferring" and "The Two Gates".
 
 **`defer-ask`** (Gate 1 — second-order work genuinely too big to finish now):
 
-1. File a GitHub issue via `manage-github-issue` and add it to Project #24.
+1. File a GitHub issue via `manage-github-issue` with `--opened-as deferred`
+   and add it to Project #24.
 2. Post the deferral-ask (see "No User Prompts (Except Two)" below): describe
    the remainder in plain language with a **measured remainder** (what you did,
    what concretely remains, the ratio) — not an attempt count.
@@ -210,7 +212,7 @@ iterations:
 2. Before filing or deferring: assess whether a fix is straightforward and
    context is in hand. If yes, fix it now — a pre-existing failure you can
    resolve is still a failure worth resolving.
-3. Only file a bug issue and record `outcome: skipped` if the fix is genuinely
+3. Only file a bug issue (`--opened-as separate-defect`) and record `outcome: skipped` if the fix is genuinely
    non-trivial or requires design work outside this PR's scope. `skipped` does
    not clear the check: the CI stays red, `final_ci_status` is `"failing"`, and
    `pr-verify` returns `GAPS-FOUND`. "Pre-existing" never makes a red check
@@ -219,7 +221,8 @@ iterations:
    tracked by an open `flaky-test` issue with a reproduction (see
    [REFERENCE.md](REFERENCE.md) § "Flaky Test Dedup"); cite that issue in
    `skip_reason`. A rerun that passes with no such issue is not evidence —
-   file the issue with the reproduction and leave the PR held.
+   file the issue with the reproduction (`--opened-as separate-defect`) and
+   leave the PR held.
 5. **Never bypass a pre-commit hook** (`--no-verify`, `SKIP=`),
    including the spec-lint hook. Fix what the hook reports and re-stage. The
    sole exception is the devcontainer `actionlint` hang

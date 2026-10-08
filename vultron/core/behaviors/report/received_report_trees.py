@@ -48,7 +48,12 @@ from vultron.core.behaviors.case.nodes.conditions import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
-from vultron.core.behaviors.replica_emit_exemptions import ACK_ECHO
+from vultron.core.behaviors.replica_emit_exemptions import (
+    ACK_ECHO,
+    CLOSE_REPORT_RM_DECLARATION,
+    INVALIDATE_REPORT_RM_DECLARATION,
+    VALIDATE_REPORT_RM_DECLARATION,
+)
 from vultron.core.behaviors.report.nodes.emit import EmitAckReportActivity
 from vultron.core.behaviors.report.nodes.storage import (
     StoreReportNode,
@@ -127,6 +132,11 @@ def create_validate_report_received_tree(
         │           └── TransitionRMtoValid(sender_actor_id)
         └── EmitRMGapNoteNode                       # RSH-06-004
 
+    ``AdjudicateRMDeclarationNode`` sits in the factory's
+    ``PreconditionGuardStage``: when it refuses a regression, the
+    refusal-effects stage posts the same RSH-06-004 note before the tree
+    fails (CLP-10-022).
+
     There is no ``Success("ValidationSkipped")`` mask around the validation
     subtree any more.  It turned every validation failure into a SUCCESS the
     caller could not distinguish from a real one (ARCH-15-001) — including the
@@ -163,7 +173,9 @@ def create_validate_report_received_tree(
         precondition_guards=[
             rm_declaration_guard(sender_actor_id, RM.VALID, case_id),
         ],
-        effect_nodes=[validation, rm_gap_note(sender_actor_id, case_id)],
+        replica_effects=[validation, rm_gap_note(sender_actor_id, case_id)],
+        replica_emit_exemption=VALIDATE_REPORT_RM_DECLARATION,
+        refusal_effects=[rm_gap_note(sender_actor_id, case_id)],
     )
     logger.debug(
         "Created ValidateReportReceivedBT for report=%s offer=%s sender=%s"
@@ -203,7 +215,7 @@ def create_report_received_tree(
         name="CreateReportReceivedBT",
         case_id=None,
         precondition_guards=[],
-        effect_nodes=[
+        replica_effects=[
             StoreReportNode(
                 report_id=report_id,
                 report_obj=request.report,
@@ -304,9 +316,15 @@ def _report_verdict_stages(
     declared_rm: RM,
     write_name: str,
 ) -> tuple[
-    list[py_trees.behaviour.Behaviour], list[py_trees.behaviour.Behaviour]
+    list[py_trees.behaviour.Behaviour],
+    list[py_trees.behaviour.Behaviour],
+    list[py_trees.behaviour.Behaviour],
 ]:
-    """Return the guards and effects of a report verdict declaring *declared_rm*.
+    """Return the guards, effects and refusal effects of a report verdict.
+
+    The verdict declares *declared_rm* for the sender; the refusal effect is
+    the RSH-06-004 note owed when the guard refuses a regression
+    (CLP-10-022).
 
     Shared by the report-closed and report-invalid handlers, which differ only
     in the RM state their activity declares for its sender.  Each factory
@@ -340,7 +358,7 @@ def _report_verdict_stages(
         sender_actor_id,
         case_id,
     )
-    return guards, effects
+    return guards, effects, [rm_gap_note(sender_actor_id, case_id)]
 
 
 def create_close_report_received_tree(
@@ -370,7 +388,9 @@ def create_close_report_received_tree(
        :class:`~vultron.core.behaviors.case.nodes.participant.status\
 .CreateParticipantStatusNode` writer (ADR-0089).
     7. Post the RSH-06-004 clarification note when step 4 saw a
-       non-adjacent jump.
+       non-adjacent jump.  When step 4 refuses a regression, the factory's
+       refusal-effects stage posts the note instead, at the CASE_MANAGER,
+       and the tree still fails before any effect (CLP-10-022).
 
     Steps 2–4 return FAILURE when the case is not in this actor's store, so the
     handler reports a refusal of an activity about an unknown case (#2255,
@@ -386,7 +406,7 @@ def create_close_report_received_tree(
     Returns:
         Root node of the ``CloseReportReceivedBT`` Sequence.
     """
-    guards, effects = _report_verdict_stages(
+    guards, effects, refusal = _report_verdict_stages(
         request,
         case_id,
         declared_rm=RM.CLOSED,
@@ -398,7 +418,9 @@ def create_close_report_received_tree(
         # and replicas replay it (CLP-10-013, RSH-08-004).
         case_id=case_id,
         precondition_guards=guards,
-        effect_nodes=effects,
+        replica_effects=effects,
+        replica_emit_exemption=CLOSE_REPORT_RM_DECLARATION,
+        refusal_effects=refusal,
     )
 
 
@@ -426,7 +448,7 @@ def create_invalidate_report_received_tree(
     Returns:
         Root node of the ``InvalidateReportReceivedBT`` Sequence.
     """
-    guards, effects = _report_verdict_stages(
+    guards, effects, refusal = _report_verdict_stages(
         request,
         case_id,
         declared_rm=RM.INVALID,
@@ -438,5 +460,7 @@ def create_invalidate_report_received_tree(
         # and replicas replay it (CLP-10-013, RSH-08-004).
         case_id=case_id,
         precondition_guards=guards,
-        effect_nodes=effects,
+        replica_effects=effects,
+        replica_emit_exemption=INVALIDATE_REPORT_RM_DECLARATION,
+        refusal_effects=refusal,
     )

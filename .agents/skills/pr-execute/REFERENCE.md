@@ -44,7 +44,8 @@ Proceed to Phase 6.
    resolve is still a failure worth resolving. Only proceed to step 5 if the
    fix is genuinely non-trivial or requires design work outside this PR's scope.
 5. If a fix is not possible in this PR: create/update a Bug issue with evidence
-   via `manage-github-issue`; wire structured blockers; post a handoff comment.
+   via `manage-github-issue` (`--opened-as separate-defect`); wire structured
+   blockers; post a handoff comment.
    The PR stays held — a proven pre-existing failure is a blocker, not a
    license to merge on red. Record `outcome: skipped` with `skip_reason`; CI
    stays `failing`, so `pr-verify` returns `GAPS-FOUND`.
@@ -63,7 +64,7 @@ Proceed to Phase 6.
    context is in hand. If yes, fix it now. Only proceed to step 5 if the fix
    is genuinely non-trivial or requires design work outside this PR's scope.
 5. If a fix is not possible in this PR: create/update a Bug issue with evidence;
-   wire blockers via `manage-github-issue`; add a handoff comment. The PR stays
+   wire blockers via `manage-github-issue` (`--opened-as separate-defect`); add a handoff comment. The PR stays
    held, not merged on red: record `outcome: skipped` with `skip_reason`.
 6. Stop only after recording blocked/unblocked status with linked evidence.
 

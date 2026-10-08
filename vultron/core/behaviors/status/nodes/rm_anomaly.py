@@ -166,3 +166,19 @@ class EmitRMGapNoteNode(_EmitSingleActivityBase):
             )
 
         return Status.SUCCESS
+
+
+def rm_gap_note(
+    sender_actor_id: str, case_id: str | None
+) -> EmitRMGapNoteNode:
+    """Return the RSH-06-004 note emitter for the sender's RM declaration.
+
+    The one construction every received RM path uses, whether the note
+    follows an accepted gap (an effect) or a refused regression (a refusal
+    effect, CLP-10-022).
+    """
+    return EmitRMGapNoteNode(
+        sender_actor_id=sender_actor_id,
+        case_id=case_id,
+        name="EmitRMGapNote",
+    )

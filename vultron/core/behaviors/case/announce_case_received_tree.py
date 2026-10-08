@@ -66,7 +66,7 @@ def create_announce_vulnerability_case_received_tree(
         name="AnnounceVulnerabilityCaseReceivedBT",
         case_id=None,
         precondition_guards=[],
-        effect_nodes=[
+        replica_effects=[
             SeedAnnouncedCaseNode(
                 case_id=case_id,
                 case_obj=case_obj,

@@ -242,8 +242,18 @@ _MINT = (
     "the receiver mints the case and becomes its first manager, so no"
     " CASE_MANAGER exists to gate on yet (CP-04, CM-02-008)"
 )
+_ENDING_NOTICE = (
+    "a signatory the ledger no longer reaches applies the CASE_MANAGER's"
+    " direct embargo-ending notice, its only channel; the sender guard admits"
+    " only the CASE_MANAGER (CM-31-010, PCR-03-001)"
+)
 # permanent: RSH-08-003 (replay and bootstrap writes; see each reason)
 REPLICA_STATE_WRITES: dict[_Write, str] = {
+    (
+        f"{_E}/announce_received_tree.py",
+        "announce_embargo_received_tree",
+        "ApplyAnnouncedEmbargoRevisionNode",
+    ): _ENDING_NOTICE,
     **{
         (f"{_Y}/announce_tree.py", "create_announce_log_entry_tree", cls): (
             _REPLAY
@@ -305,16 +315,6 @@ REPLICA_STATE_WRITES: dict[_Write, str] = {
             "InitializeCreationEmbargoNode",
             "RelayCreationTimeRevisionNode",
             "SeedReporterSignatoryNode",
-        )
-    },
-    # create_create_case_tree has no production caller; #4330 retires or wires it
-    **{
-        (f"{_C}/create_tree.py", "create_create_case_tree", cls): _MINT
-        for cls in (
-            "AttachOwnerParticipantToCaseNode",
-            "CreateOwnerInitialStatusNode",
-            "PersistCase",
-            "PersistOwnerCaseNode",
         )
     },
 }

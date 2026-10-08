@@ -37,6 +37,13 @@ EPIC_TYPES = {"Epic"}
 # Everything else is treated as delivery work
 BUG_TYPE = "Bug"
 
+# Why an agent opened an issue (label prefix); see completeness-doctrine.md
+# "Net Issues: Close More Than You Open".
+OPENED_PREFIX = "opened:"
+OPENED_REASONS = ("excursion", "separate-defect", "debt", "deferred")
+# Reasons that add to the backlog; excursions net to zero by definition.
+NET_OPENED_REASONS = ("separate-defect", "debt", "deferred")
+
 
 def get_github_token() -> str:
     result = subprocess.run(
@@ -83,7 +90,9 @@ query($owner: String!, $name: String!, $cursor: String, $since: DateTime!) {
         createdAt
         closedAt
         state
+        stateReason
         issueType { name }
+        labels(first: 100) { nodes { name } }
       }
     }
   }
@@ -168,6 +177,8 @@ def _period_keys(start: date, today: date) -> tuple[list[str], list[str]]:
         all_weeks.append(week_key(cursor))
         all_months.add(month_key(cursor))
         cursor += timedelta(weeks=1)
+    # A week's Monday can fall in the previous month, so add the end points.
+    all_months.update({month_key(start), month_key(today)})
     return all_weeks, sorted(all_months)
 
 
@@ -288,6 +299,55 @@ def _fill_zeros(
     return rows
 
 
+def opened_reason(issue: dict) -> str | None:
+    """Return the ``opened:`` reason label on an issue, if it has one."""
+    names = [n["name"] for n in (issue.get("labels") or {}).get("nodes", [])]
+    for name in names:
+        if name.startswith(OPENED_PREFIX):
+            reason: str = name[len(OPENED_PREFIX) :]
+            if reason in OPENED_REASONS:
+                return reason
+    return None
+
+
+def _net_issues(issues: list[dict], periods: list[str], key) -> list[dict]:
+    """Per-period net issues: closed minus opened, by reason.
+
+    ``closed`` counts completed non-Epic issues that are not excursions.
+    Duplicate and not-planned closures are reported apart in ``closed_other``
+    and do not count toward the net. ``net`` is ``closed`` minus the
+    separate-defect, debt, and deferred issues opened in the period.
+    """
+    rows: dict[str, dict[str, int]] = {
+        p: {
+            "closed": 0,
+            "closed_other": 0,
+            **{f"opened_{r}": 0 for r in OPENED_REASONS},
+        }
+        for p in periods
+    }
+    for issue in issues:
+        reason = opened_reason(issue)
+        created = iso_to_date(issue.get("createdAt"))
+        if reason and created and key(created) in rows:
+            rows[key(created)][f"opened_{reason}"] += 1
+        closed = iso_to_date(issue.get("closedAt"))
+        if not closed or key(closed) not in rows:
+            continue
+        if classify_type(issue) in EPIC_TYPES or reason == "excursion":
+            continue
+        row = rows[key(closed)]
+        if issue.get("stateReason") == "COMPLETED":
+            row["closed"] += 1
+        else:
+            row["closed_other"] += 1
+    for row in rows.values():
+        row["net"] = row["closed"] - sum(
+            row[f"opened_{r}"] for r in NET_OPENED_REASONS
+        )
+    return [{"period": p, **row} for p, row in rows.items()]
+
+
 def build_metrics(issues: list[dict], start: date) -> dict:
     # Collect all weeks and months in range up to today
     today = datetime.now(UTC).date()
@@ -320,6 +380,10 @@ def build_metrics(issues: list[dict], start: date) -> dict:
         "open_backlog_by_week": by_week(weekly_backlog),
         "open_backlog_by_month": by_month(monthly_backlog),
         "cycle_time_by_type": _cycle_time_summary(cycle_days_by_type),
+        "net_issues_by_week": _net_issues(issues, all_weeks, week_key),
+        "net_issues_by_month": _net_issues(
+            issues, all_months_sorted, month_key
+        ),
     }
 
 

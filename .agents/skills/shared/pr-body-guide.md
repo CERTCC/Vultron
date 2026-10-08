@@ -20,6 +20,8 @@ Use for `build`, `bugfix`, and any PR that modifies `.py` files.
 <1–2 sentences: what this PR does and why. Present tense: "Adds…", "Fixes…",
 "Replaces…". Focus on the outcome.>
 
+Issues: closed <N>, opened <M>   <!-- see the Issues rule below -->
+
 ## Motivation
 
 <Why this change is needed. **Omit this section** if the Summary already
@@ -68,6 +70,15 @@ Docs: pending check-docs-sync   <!-- create-pr writes this; check-docs-sync's re
   reviewer comparing the closing list to the diff should never be surprised —
   clarity about what the PR does and why, mapped to the issues it closes,
   matters more than keeping the PR small.
+- **Issues**: required on implementation PRs; the last line of `## Summary`,
+  in the form `Issues: closed N, opened M`. Count per
+  `completeness-doctrine.md` § "Net Issues: Close More Than You Open": `N` is
+  pre-existing, non-Epic issues the PR closes, and `excursion` issues the PR
+  files and closes are left out of both counts. List each issue opened with its
+  reason, for example `Issues: closed 2, opened 1 (#4402 debt)`. A PR that opens
+  none writes `opened 0`. Also close any nearby `opened:debt` issues (a
+  `- Closes #N` bullet each, plus a one-line reason when "nearby" is by spec or
+  area rather than file).
 - **Summary**: required; 1–2 sentences, present tense.
 - **Motivation**: optional; omit when Summary is self-explanatory.
 - **Changes**: required; use backtick-wrapped file paths and concrete

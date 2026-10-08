@@ -10,6 +10,7 @@ description: >
 related_specs:
   - specs/behavior-tree-integration.yaml
   - specs/behavior-tree-node-design.yaml
+  - specs/case-ledger-processing.yaml
   - specs/case-management.yaml
   - specs/case-proposal.yaml
   - specs/code-style.yaml
@@ -401,6 +402,14 @@ key in `managed_keys` is how a node-written key opts *in* to bridge teardown.)
 not clear a blackboard key it does not own (CONCERN-2711), because a peer that
 legitimately owns the key would see it corrupted. Ownership stays with the
 producer; *lifetime* is enforced by the bridge.
+
+**`rm_transition_anomaly` is managed too** (#4310). The RM adjudication guards
+publish it and `EmitRMGapNoteNode` reads it. As a refusal effect (CLP-10-022)
+the note runs after *any* precondition guard refuses, including one ahead of
+the adjudication that never ran it, so a previous execution's anomaly would be
+noted again. A test that inspects the key wraps the tree in
+`RMAnomalyProbe` (`test/support/rm_declaration.py`) instead of reading the
+blackboard after the run.
 
 **`activity` and `context_data` keys are also managed** (#3161): `setup_tree`
 writes the `activity` key (when provided) and all `**context_data` keyword
@@ -1321,21 +1330,34 @@ The cause was structural: about fifteen trees each wrapped their effects in
   ungated emitter outside `covers`, and an exemption that covers nothing in the
   tree (stale).
   The registered decisions are the ack echo, the offer-role tree, the
-  case-proposal tree, the RSH and case-status trees, the engage and defer RM
-  gap notes, and the embargo-Invite answer.
-  Two more are not design decisions but preserved behaviour, each naming the
-  issue that deletes it: the Remove(EmbargoEvent) teardown announce, which a
-  replica re-sends as its own act (#4323), and the genesis pre-seed behind the
-  reject-log-entry tree's hand-rolled check (#4324).
+  case-proposal tree, the report receiver's case proposal, the RSH and
+  case-status trees, the RM gap notes of the engage, defer, validate, close
+  and invalidate trees, the embargo-Invite answer and the P/X/A refusal ER.
+  One more is not a design decision but preserved behaviour, naming the issue
+  that deletes it: the genesis pre-seed behind the reject-log-entry tree's
+  hand-rolled check (#4324). (The Remove(EmbargoEvent) teardown announce was
+  the other such case; #4323 gated it and deleted its exemption.)
   A sender check added to a tree without a named exemption never passes,
   because it says nothing about whether this replica owns the case (#2667).
-- **`effect_nodes` is the unchecked legacy form, kept while trees migrate.**
+- **Refusal effects get the same gate.**
+  `refusal_effects` run only when a precondition guard refuses, and the factory
+  wraps them in a `CaseManagerGate` (`{name}RefusalIfCaseManager`) with
+  `case_may_be_absent=True` on the tree's `case_id`: the
+  CASE_MANAGER adjudicates, so only it answers, and a refusal of an unknown case
+  is already reported by the guard. See
+  [bt-integration.md](bt-integration.md) § "The Four Received-Side Stages"
+  (CLP-10-022).
+- **`effect_nodes` is the unchecked legacy form, kept only for the close-case
+  tree.**
   It cannot be mixed with the two new kinds, so a tree migrates whole.
+  Every other received tree moved off it (#4307); the close-case tree's
+  ungated decline emit is a bug (#3825), and the parameter goes when that
+  tree moves.
 - **The ratchets** live in `test/architecture/test_received_tree_case_manager_gate.py`
   (ARCH-18-001, ARCH-18-005): `KNOWN_DIRECT_GATE_CALLERS` and
   `KNOWN_LEGACY_EFFECT_NODES` shrink to empty, one `# owner:` per entry
-  (#3825, #4307 remain); the exemption uses and the gate callers that build no
-  received tree are pinned exemption sets.
+  (only #3825's close-case tree remains); the exemption uses and the gate
+  callers that build no received tree are pinned exemption sets.
   `KNOWN_DIRECT_GATE_CALLERS` is already empty (#4300, #4301, #4302).
 - **The factory runs `manager_effects` last, so an effect that must follow the
   gate has to move.**

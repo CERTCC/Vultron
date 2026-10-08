@@ -358,6 +358,10 @@ class ActorSession:
         """Reject a case invitation identified by *invite_id* (reject-case-invite)."""
         return self._post("reject-case-invite", {"invite_id": invite_id})
 
+    def accept_full_case_invite(self, *, invite_id: str) -> WireTriggerResult:
+        """Judge the case valid: Accept the full-case Invite (RV, CM-11-011)."""
+        return self._post("accept-full-case-invite", {"invite_id": invite_id})
+
     def accept_actor_recommendation(
         self, *, cp_offer_id: str, case_actor_id: str
     ) -> WireTriggerResult:

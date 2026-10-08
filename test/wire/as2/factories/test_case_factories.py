@@ -921,3 +921,25 @@ def test_enriched_stub_carries_only_the_embargo_terms(sample_actor):
     status = stub["caseStatus"]
     assert status["emState"] == EM.ACTIVE.value
     assert set(status) <= {"@context", "id", "type", "context", "emState"}
+
+
+@pytest.mark.spec("CM-11-001")
+def test_stub_invite_factory_docstrings_do_not_label_the_stub_replies_as_rm_replies():
+    """The stub Invite and its replies are not RV/RI messages (CM-11-001, CM-11-007).
+
+    Accepting the stub is joining; the RV/RI/RC replies belong to the full-case
+    Invite.
+    """
+    from vultron.wire.as2.factories import case as case_factories
+
+    accept = case_factories.rm_accept_invite_to_case_activity.__doc__ or ""
+    reject = case_factories.rm_reject_invite_to_case_activity.__doc__ or ""
+    stub = case_factories.rm_invite_to_case_activity.__doc__ or ""
+
+    assert "stub Invite" in stub.splitlines()[0]
+    assert "RV message" not in accept.splitlines()[0]
+    assert "join" in accept.splitlines()[0]
+    assert "RI message" not in reject.splitlines()[0]
+    assert "(RC)" in reject.splitlines()[0]
+    full = case_factories.rm_accept_full_case_invite_activity.__doc__ or ""
+    assert "RV" in full.splitlines()[0]

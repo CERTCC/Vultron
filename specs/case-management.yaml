@@ -4899,7 +4899,9 @@ groups:
       never learns that the obligation ended early or shortened. A longer revision does not bind a
       participant that never agreed to it, and expiry on the agreed date is already known to it. A
       past-dated `Announce(EmbargoEvent)` is not used: its meaning would depend on the receiver's
-      clock, and an early end is an event, not a date that passed.
+      clock, and an early end is an event, not a date that passed. "Shorter" and "longer" follow the
+      EP-05-001 split: a revision that ends at the same time as the embargo it replaces is on the
+      carry-over arm, so the bound participant is bound by it and is sent it like a shorter one.
     verification: >-
       Tests terminate the embargo and activate a shorter revision on a case with a removed signatory
       and a departed signatory, and assert each is sent the matching notice and no ledger entry;
@@ -5004,3 +5006,419 @@ groups:
     - ADR-0116
     stories:
     - story_2022_023
+- id: CM-32
+  title: Case Split — Child Case Creation, Links, Inheritance, and Sibling Notices
+  description: >-
+    How the parent case's Case Owner splits off a child case through the parent's CASE_MANAGER,
+    what the child records and inherits, how its participants stay apart from the parent, and how
+    the cases of one split family tell each other about embargo changes (ADR-0125, VP-10).
+  specs:
+  - id: CM-32-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A case split MUST be requested by the parent case's Case Owner sending `Create(CaseProposal)`
+      to the parent's CASE_MANAGER, with the activity's `context` naming the parent case. The
+      CASE_MANAGER MUST act on a split proposal only when its sender holds `CASE_OWNER` on the
+      parent case; a split proposal from any other sender MUST be refused, with no case created
+      and the parent unchanged.
+    rationale: >-
+      The parent's Owner decides what the parent's coordination becomes, as it does for an
+      ownership transfer or a merge (ADR-0053, ADR-0105). The parent `context` is what tells a
+      split apart from a report-born proposal, whose sender entitlement differs (HP-01-006).
+    verification: >-
+      A test marked `CM-32-001` sends a split proposal from a parent participant that does not hold
+      `CASE_OWNER` and asserts `REFUSED` with no child case stored and the parent's `child_cases`
+      empty, and sends it from the Owner and asserts a child is created.
+    stories:
+    - story_2022_104
+    - story_2022_105
+    relationships:
+    - rel_type: refines
+      spec_id: HP-01-006
+    - rel_type: refines
+      spec_id: CP-05-002
+    adr:
+    - ADR-0125
+  - id: CM-32-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST answer a split proposal as it answers any `Create(CaseProposal)`
+      (CP-05): `Accept(CaseProposal)` naming the child case in `result`, then
+      `Create(VulnerabilityCase)` for the child, both addressed to the Owner; or
+      `Reject(CaseProposal)`. A redelivered split proposal with the same proposal identifier
+      MUST NOT create a second child case (CP-05-006).
+    rationale: >-
+      Reusing the proposal answer gives the split the admission decision, the durable-delivery
+      marker and the duplicate handling the creation flow already has, rather than a second
+      creation path to keep in step with it.
+    verification: >-
+      A test marked `CM-32-002` delivers one split proposal twice and asserts one child case, an
+      `Accept(CaseProposal)` whose `result` names it, and one `Create(VulnerabilityCase)` for it.
+    stories:
+    - story_2022_104
+    relationships:
+    - rel_type: depends_on
+      spec_id: CP-05-003
+    - rel_type: depends_on
+      spec_id: CP-05-006
+    adr:
+    - ADR-0125
+  - id: CM-32-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The parent's CASE_MANAGER MUST create the child case in its own store and MUST be the child's
+      CASE_MANAGER. The child's `attributed_to` MUST be the Case Owner that requested the split, and
+      its genesis hash MUST be derived from the child's own ID, creation time and Owner
+      (CLP-08-002), never from the parent's.
+    rationale: >-
+      The split creates a case like any other (CM-22-001, ADR-0041), so the child has a
+      CASE_MANAGER from creation (CM-24-006) and a ledger of its own that shares no chain with
+      the parent's. Hosting the whole family at one CASE_MANAGER (CM-32-016) is what lets
+      siblings be read from the parent (CM-32-006).
+    verification: >-
+      A test marked `CM-32-003` splits a case and asserts the child's `attributed_to` is the
+      splitter, the CASE_MANAGER participant of the child is the parent's CASE_MANAGER, and the
+      child's genesis hash differs from the parent's and matches the CLP-08-002 derivation over the
+      child's own inputs.
+    stories:
+    - story_2022_104
+    relationships:
+    - rel_type: refines
+      spec_id: CM-22-001
+    - rel_type: depends_on
+      spec_id: CLP-08-002
+    adr:
+    - ADR-0125
+    - ADR-0117
+  - id: CM-32-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A child case MUST be created with `parent_cases` holding exactly the parent case's ID, and
+      with `child_cases` and `sibling_cases` empty. The cross-references MUST be case IDs, never
+      embedded cases.
+    rationale: >-
+      The child must know the case its embargo came from, so its CASE_MANAGER can route VP-10
+      notices. IDs, not embedded cases, because related cases are the exception ADR-0017 made to
+      the full-object rule.
+    verification: >-
+      A test marked `CM-32-004` splits a case and asserts the child's `parent_cases` is the parent ID
+      alone and its other two link fields are empty, on the CASE_MANAGER and on the Owner's replica.
+    stories:
+    - story_2022_104
+    adr:
+    - ADR-0125
+  - id: CM-32-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      After committing the child case's creation entry, the CASE_MANAGER MUST add the child's ID to
+      the parent case's `child_cases` and commit that change as one entry in the parent's ledger.
+      A parent replica MUST take the child link from that entry. A split MUST NOT write
+      `sibling_cases` on any case.
+    rationale: >-
+      Ordering the parent entry after the child's creation means the parent never names a case that
+      does not exist. One write per split keeps the links consistent: no existing sibling changes
+      when a new child appears, and `sibling_cases` stays free for the merge spec (ADR-0105).
+    verification: >-
+      A test marked `CM-32-005` splits a case and asserts the parent's ledger gains one entry naming
+      the child, committed after the child's creation entry, that a parent replica replaying it
+      holds the child in `child_cases`, and that no case's `sibling_cases` changed.
+    stories:
+    - story_2022_104
+    relationships:
+    - rel_type: depends_on
+      spec_id: CLP-02-001
+    adr:
+    - ADR-0125
+    - ADR-0124
+  - id: CM-32-006
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A split family MUST be read as a parent case together with the cases its `child_cases`
+      lists, and a child's siblings as the other cases in its parent's `child_cases`. A case
+      that is both a child and a parent belongs to both families, and a notice it owes under
+      CM-32-013 or CM-32-014 goes to every other member case of each. Only a split writes
+      `child_cases` (CM-32-005): a case merge MUST NOT record a merged case there, so that
+      merged cases never join a split family.
+    rationale: >-
+      The parent stays open after a split, so it is coordinated alongside its children and
+      counts as their sibling for VP-10-002 and VP-10-003. Reading siblings from the parent
+      needs no stored sibling list, because one CASE_MANAGER hosts the parent and every child
+      (CM-32-003, CM-32-016). Keeping merges out of `child_cases` leaves the merge spec the
+      other two link fields (ADR-0105).
+    verification: >-
+      A test marked `CM-32-006` splits one case twice and splits the first child again, and
+      asserts the notice recipient cases computed for the first child are the parent, the
+      second child and the grandchild.
+    stories:
+    - story_2022_104
+    relationships:
+    - rel_type: refines
+      spec_id: VP-10-002
+    - rel_type: refines
+      spec_id: VP-10-003
+    adr:
+    - ADR-0125
+  - id: CM-32-007
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the parent case has an active embargo at the split, the child MUST be created with
+      a new `EmbargoEvent` of its own, scoped to the child, carrying the active embargo's end
+      time and active from creation, with the child Owner's consent row for that embargo
+      written `AGREED`, so the Owner reads as its signatory (ADR-0122). The parent embargo's
+      consent rows MUST NOT carry over, and the parent's open proposals and revisions MUST NOT
+      be inherited.
+    rationale: >-
+      VP-10-005 transfers the embargo; ADR-0125 limits the transfer to its terms. A new embargo
+      object keeps consent per (participant, embargo) (ADR-0122): a child participant consents to
+      the child's embargo, and its answer says nothing about the parent's.
+    verification: >-
+      A test marked `CM-32-007` splits a case with an active embargo and an open revision and
+      asserts the child's register holds one active embargo with a new ID and the parent's end
+      time, the Owner's consent row on it `AGREED`, no other consent row, and no open
+      proposal.
+    stories:
+    - story_2022_105
+    relationships:
+    - rel_type: refines
+      spec_id: VP-10-005
+    - rel_type: constrains
+      spec_id: CM-14-010
+    adr:
+    - ADR-0125
+    - ADR-0122
+  - id: CM-32-008
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      When the parent case has no active embargo at the split, the child MUST NOT be given an
+      embargo, and the creation-time default embargo initialization (CM-14-010, EP-04-012) MUST NOT
+      run for it.
+    rationale: >-
+      The child inherits the parent's embargo state, not a default: a parent whose embargo has ended
+      or was never agreed must not gain an embargoed child the parent's participants never agreed to.
+    verification: >-
+      A test marked `CM-32-008` splits a case whose embargo has exited and asserts the child's EM
+      state is `NONE` with an empty embargo register.
+    stories:
+    - story_2022_105
+    relationships:
+    - rel_type: refines
+      spec_id: VP-10-005
+    - rel_type: constrains
+      spec_id: CM-14-010
+    adr:
+    - ADR-0125
+  - id: CM-32-009
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A child case MUST NOT receive any of the parent case's reports, notes, ledger entries,
+      participants, case statuses, vulnerability records or case references. Its ledger MUST begin
+      at its own genesis hash.
+    rationale: >-
+      The split exists to keep the child's participants apart from the parent's content. Creating
+      the child empty and adding only what the splitter wrote makes isolation the default; copying
+      and pruning would disclose whatever the pruning missed.
+    verification: >-
+      A test marked `CM-32-009` splits a case holding a report, a note, several ledger entries and
+      several participants, and asserts that none of them appears in the child and that the child's
+      first ledger entry chains from the child's genesis hash.
+    stories:
+    - story_2022_104
+    adr:
+    - ADR-0125
+  - id: CM-32-010
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A split proposal MUST carry a new `VulnerabilityReport` attributed to the splitter,
+      which becomes the child's only report, and the stub summary the child's stub Invites
+      carry (CM-17-010). The CASE_MANAGER MUST refuse a split proposal whose report is one of
+      the parent case's reports, or that carries no stub summary.
+    rationale: >-
+      Every case has a report (CM-05-002). A report the splitter writes for the child is the
+      child's fresh description, and refusing a parent report keeps the parent's description
+      out of the child (CM-32-009). The splitter, not the CASE_MANAGER, decides how much an
+      invitee not yet bound by the embargo may learn from the stub (CM-17-010).
+    verification: >-
+      A test marked `CM-32-010` sends a split proposal carrying a parent report, and one
+      carrying no stub summary, and asserts `REFUSED` with no child each time; and sends one
+      carrying a new report and a stub summary and asserts the child holds that report alone
+      and its stub Invites carry that summary.
+    stories:
+    - story_2022_104
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-05-002
+    - rel_type: depends_on
+      spec_id: CM-17-010
+    adr:
+    - ADR-0125
+  - id: CM-32-011
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Child case initialization MUST run the case initialization sequence (CM-14-001) with its
+      embargo step (CM-14-010) replaced by CM-32-007 or CM-32-008 and its reporter steps
+      (CM-14-011, CM-14-012) skipped, and MUST seat only the CASE_MANAGER and the Owner, the
+      Owner holding `CASE_OWNER` at `RM.RECEIVED` (CM-14-009). Authoring the child's report
+      MUST NOT give the splitter a Finder or Reporter role. These two are the participants
+      seated by case initialization for CM-10-004, and a participant MUST NOT be invited to
+      the child before its creation entry is committed (CM-14-007).
+    rationale: >-
+      The child has no outside reporter; the Owner wrote its description. Every other participant
+      joins the child by accepting its stub Invite (ADR-0114).
+    verification: >-
+      A test marked `CM-32-011` splits a case and asserts the child's roster holds exactly the
+      CASE_MANAGER and the Owner, with no `FINDER` or `REPORTER` role on the Owner.
+    stories:
+    - story_2022_104
+    relationships:
+    - rel_type: constrains
+      spec_id: CM-14-001
+    - rel_type: constrains
+      spec_id: CM-14-011
+    - rel_type: constrains
+      spec_id: CM-14-012
+    - rel_type: refines
+      spec_id: CM-10-004
+    adr:
+    - ADR-0125
+    - ADR-0114
+  - id: CM-32-012
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A child-case activity MUST NOT add a participant to the parent case's roster, and the
+      parent's recipient selection (CM-10-007) MUST NOT return a participant of the child that
+      is not separately a participant of the parent. Such a participant MUST receive no parent
+      ledger entry.
+    rationale: >-
+      Joining the child is joining the child only. A participant in both cases, such as the Owner,
+      is a participant of each separately, and parent content reaches it only as a parent
+      participant.
+    verification: >-
+      A test marked `CM-32-012` invites a vendor to a child case, has it accept, commits a parent
+      ledger entry, and asserts the vendor is absent from the parent roster and from the parent
+      entry's recipients.
+    stories:
+    - story_2022_104
+    relationships:
+    - rel_type: refines
+      spec_id: CM-10-004
+    - rel_type: refines
+      spec_id: CM-10-007
+    adr:
+    - ADR-0125
+    - ADR-0114
+  - id: CM-32-013
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the CASE_MANAGER of a child case commits an embargo proposal or revision whose end
+      time is earlier than the end time the child inherited, it MUST, before the proposal can
+      be activated, commit a split-family embargo notice to the ledger of every other member
+      case of the child's split family (CM-32-006), carrying the child's ID, the proposed end
+      time and the proposer's rationale, and MUST commit the rationale to the child's ledger.
+      The rationale is the proposing activity's `content`, and the CASE_MANAGER MUST refuse
+      such a proposal whose `content` is empty.
+    rationale: >-
+      This is how VP-10-002 is carried out. An earlier end in one child can reveal the
+      vulnerability in the products the others cover (VP-10, split discussion), so the other
+      cases hear of it while it is still a proposal, and the reason is on record. The
+      activity's `content` carries it because embargo proposals have no rationale field of
+      their own.
+    verification: >-
+      A test marked `CM-32-013` proposes an earlier end time in a child and asserts a notice
+      entry in each other family member's ledger and a child ledger entry carrying the
+      rationale, and that the same proposal with empty `content` is refused.
+    stories:
+    - story_2022_105
+    relationships:
+    - rel_type: implements
+      spec_id: VP-10-002
+    adr:
+    - ADR-0125
+    - ADR-0113
+  - id: CM-32-014
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the active embargo of any member of a split family changes — a revision is
+      activated or the embargo is terminated — the family's CASE_MANAGER MUST commit a
+      split-family embargo notice to the ledger of every other member case of the family
+      (CM-32-006), carrying the changed member's ID, its new end time or the fact of
+      termination, and the rationale when the change's proposal gave one.
+    rationale: >-
+      This is how VP-10-003 is carried out. Participants address case messages only to their
+      CASE_MANAGER (PCR-08-001), and every member case has the same CASE_MANAGER (CM-32-016),
+      so a change agreed in one case reaches the others' participants through their own
+      ledgers rather than from participant to participant.
+    verification: >-
+      A test marked `CM-32-014` activates a revision in one child, and separately terminates
+      its embargo, and asserts a notice entry in the parent's and each sibling's ledger each
+      time.
+    stories:
+    - story_2022_105
+    relationships:
+    - rel_type: implements
+      spec_id: VP-10-003
+    adr:
+    - ADR-0125
+  - id: CM-32-015
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A split-family embargo notice MUST be committed to a member case's ledger only by that
+      case's CASE_MANAGER, so that it reaches the case's active participants through the
+      shared recipient selection (CM-10-004). The notice MUST NOT change the receiving case's
+      EM state or any consent row, and MUST carry no content of the case it reports on beyond
+      that case's ID, its new end time or the fact of termination, and the rationale.
+    rationale: >-
+      A notice informs and proposes nothing: a case's embargo changes only through its own
+      negotiation (ADR-0125, decision part 7). Committing it to the receiving ledger delivers
+      it through the shared recipient selection, so the participants of one case learn of
+      another's change without ever being addressed by it, and learn nothing else of that
+      case.
+    verification: >-
+      A test marked `CM-32-015` commits a notice about a sibling and asserts one entry in the
+      receiving ledger fanned out to that case's active participants, EM state and consent
+      rows unchanged, and no field in the notice beyond the three it may carry.
+    stories:
+    - story_2022_105
+    relationships:
+    - rel_type: implements
+      spec_id: VP-10-003
+    - rel_type: refines
+      spec_id: CM-10-004
+    adr:
+    - ADR-0125
+  - id: CM-32-016
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      While a case is a member of a split family, its CASE_MANAGER role MUST NOT be delegated to
+      an actor other than the CASE_MANAGER of the family's other member cases; such a delegation
+      MUST be refused with the case's CASE_MANAGER unchanged.
+    rationale: >-
+      Siblings are read from the parent (CM-32-006), and notices are ledger commits by the one
+      CASE_MANAGER hosting the family (CM-32-013, CM-32-014). A member moved to another
+      CASE_MANAGER could neither find its siblings nor reach them. ADR-0125 leaves a family
+      spread across CASE_MANAGERs to a later decision.
+    verification: >-
+      A test marked `CM-32-016` requests delegation of a child case's CASE_MANAGER role to
+      another actor and asserts it is refused with the child's CASE_MANAGER unchanged.
+    stories:
+    - story_2022_104
+    relationships:
+    - rel_type: constrains
+      spec_id: CM-24-006
+    adr:
+    - ADR-0125

@@ -137,7 +137,9 @@ class AddEmbargoEventToCaseReceivedUseCase:
         self._request: AddEmbargoEventToCaseReceivedEvent = request
         self._sync_port = sync_port
         # The CASE_MANAGER re-issues outstanding stub Invites when the active
-        # embargo changes (CM-11-016), so it must be able to emit.
+        # embargo changes (CM-11-016) and sends the embargo-ending notices to
+        # the bound signatories the ledger no longer reaches (CM-31-009), so
+        # it must be able to emit.
         self._trigger_activity = trigger_activity
         self._actor_config = actor_config
 
@@ -219,7 +221,9 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
         self._request: RemoveEmbargoEventFromCaseReceivedEvent = request
         self._sync_port = sync_port
         # The CASE_MANAGER re-issues outstanding stub Invites when the active
-        # embargo changes (CM-11-016), so it must be able to emit.
+        # embargo changes (CM-11-016) and sends the embargo-ending notices to
+        # the bound signatories the ledger no longer reaches (CM-31-009), so
+        # it must be able to emit.
         self._trigger_activity = trigger_activity
         self._actor_config = actor_config
 

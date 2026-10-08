@@ -90,6 +90,7 @@ Epic: #${ISSUE_NUMBER}" \
   --label "size:<S|M|L>" \
   --issue-type-id "${TASK_TYPE_ID}" \
   --parent "${ISSUE_NUMBER}" \
+  --planned \
   [--blocked-by "<prerequisite task number>"])
 bash .agents/skills/shared/add-to-project.sh "${TASK_NUMBER}"
 ```
