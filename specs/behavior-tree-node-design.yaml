@@ -325,13 +325,31 @@ groups:
       spec_id: BTND-01-001
   - id: BTND-05-003
     priority: MUST
-    kind: protocol
-    statement: The generic participant creation node is `CreateCaseParticipantNode`. Callers MUST pass an explicit `roles`
-      parameter; no role-specific subclasses or alias names are permitted.
-    rationale: Alias names carry the old "finder-specific" framing and mislead readers about the node's actual generality.
-    verification: Inspection of `vultron/core/behaviors/` confirms `CreateCaseParticipantNode` exists with a required
-      `roles` parameter, and that no role-specific subclasses or alias names (e.g., `CreateFinderParticipantNode`) are
-      present.
+    kind: project
+    statement: >-
+      Participant-creation BT nodes MUST build and attach the `CaseParticipant`
+      record through the shared `_create_and_attach_participant` helper
+      (`vultron/core/behaviors/case/nodes/participant/common.py`) rather than
+      re-implementing create-and-attach per flow. The helper carries no status
+      or embargo-consent policy; each seating flow (case owner, inert invitee,
+      reporter) supplies its own roles and initial status. No role-specific
+      participant-creation subclasses or alias names are permitted.
+    rationale: >-
+      Participant creation differs by protocol moment — case creation, stub-Invite
+      seating (CM-11-006), reporter seating — not by role. The invitee flow must
+      seat an inert, non-signatory participant (ADR-0114), so a single composite
+      creation node bundling embargo-signatory seeding (the retired
+      `CreateCaseParticipantNode`) could not serve every flow. Centralizing the
+      policy-free create-and-attach in `_create_and_attach_participant` keeps the
+      mechanism DRY without forcing an incompatible policy.
+    verification: >-
+      Inspection of `vultron/core/behaviors/case/nodes/participant/` confirms
+      participant records are built and attached via
+      `_create_and_attach_participant`, and that no role-specific
+      participant-creation subclasses or alias names (e.g.,
+      `CreateFinderParticipantNode`) are present.
+    adr:
+    - ADR-0114
     stories:
     - story_2022_013
     - story_2022_052

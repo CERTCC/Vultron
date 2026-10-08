@@ -46,12 +46,16 @@ from vultron.metadata.specs.coverage import SPEC_MARKER_RE
 # tier leaves this population, covered or not.
 # Lowered to 712 — the live count — when PR #4174 marked CS-13-005 and the
 # CM-23-015 strict xfail (#4163), closing slack left by earlier relabels.
+# Lowered to 711 when BTND-05-003 was relabeled kind=protocol -> kind=project
+# (#4346): it named a reference-implementation node (`CreateCaseParticipantNode`)
+# and fails the "another protocol implementation would notice" gate, so it leaves
+# the protocol tier.
 # Lower this constant as more @pytest.mark.spec markers are added;
 # never raise it to hide regressions in your own PR. Keep it pinned to the
 # actual count — slack between the two is room for uncovered specs to grow
 # unnoticed, which is the regression this ratchet exists to prevent.
 # ---------------------------------------------------------------------------
-MAX_UNCOVERED_PROTOCOL_SPECS = 712
+MAX_UNCOVERED_PROTOCOL_SPECS = 711
 
 _TEST_ROOT = _corpus.REPO_ROOT / "test"
 _SPEC_DIR = _corpus.REPO_ROOT / "specs"
