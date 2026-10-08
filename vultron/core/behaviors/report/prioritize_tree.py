@@ -36,9 +36,9 @@ Structure:
     ├─ SenderIsActiveParticipantNode                 # Sender guard (HP-01-006)
     ├─ AdjudicateRMDeclarationNode(ACCEPTED)         # RM acceptance rule (RSH-06-006)
     ├─ GuardedCommitCaseLedgerEntryBT                # Record receipt before effects (CLP-10-006)
-    ├─ IdempotentTransitionRMtoAccepted              # Record the sender's ACCEPTED (RSH-08-001)
-    ├─ EmitRMGapNoteNode                             # RSH-06-004 note on a non-adjacent jump
-    └─ GuardedBroadcastEngageCaseBT                  # CASE_MANAGER only (CM-06-001)
+    └─ EngageEffectsIfCaseManager                    # CASE_MANAGER only (RSH-08-003, #3814)
+       ├─ IdempotentTransitionRMtoAccepted           # Record the sender's ACCEPTED (RSH-08-001)
+       ├─ EmitRMGapNoteNode                          # RSH-06-004 note on a non-adjacent jump
        ├─ CaptureCaseUpdateBroadcastExclusionsNode   # Resolve embargo-based exclusions
        └─ BroadcastCaseUpdateNode                    # Announce(VulnerabilityCase) → all participants
 
@@ -47,8 +47,9 @@ Structure:
     ├─ SenderIsActiveParticipantNode            # Sender guard (HP-01-006)
     ├─ AdjudicateRMDeclarationNode(DEFERRED)    # RM acceptance rule (RSH-06-006)
     ├─ GuardedCommitCaseLedgerEntryBT           # Record receipt before effects (CLP-10-006)
-    ├─ IdempotentTransitionRMtoDeferred         # Record the sender's DEFERRED (RSH-08-001)
-    └─ EmitRMGapNoteNode                        # RSH-06-004 note on a non-adjacent jump
+    └─ DeferEffectsIfCaseManager                # CASE_MANAGER only (RSH-08-003, #3814)
+       ├─ IdempotentTransitionRMtoDeferred      # Record the sender's DEFERRED (RSH-08-001)
+       └─ EmitRMGapNoteNode                     # RSH-06-004 note on a non-adjacent jump
 
 The RM stages are shared with the report-verdict handlers through
 :mod:`vultron.core.behaviors.report.rm_declaration_tree`, so every
@@ -86,10 +87,6 @@ from vultron.core.behaviors.case.nodes.update import (
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
-)
-from vultron.core.behaviors.replica_emit_exemptions import (
-    DEFER_RM_DECLARATION,
-    ENGAGE_RM_DECLARATION,
 )
 from vultron.core.behaviors.report.rm_declaration_tree import (
     record_rm_declaration,
@@ -159,18 +156,21 @@ def create_engage_case_tree(
             ),
             rm_declaration_guard(actor_id, RM.ACCEPTED, case_id),
         ],
-        replica_effects=record_rm_declaration(
-            actor_id, RM.ACCEPTED, case_id, name="TransitionRMtoAccepted"
-        ),
-        replica_emit_exemption=ENGAGE_RM_DECLARATION,
-        # Only the CASE_MANAGER announces canonical case state: the
-        # broadcast is authored as the executing actor (CM-06-001).
+        # RSH-08-003: the sender's RM move is canonical participant state only
+        # the CASE_MANAGER writes; ``engage_case`` is committed and replayed
+        # onto the sender's participant (RmVerdict slot), so a replica takes it
+        # from the ledger fan-out, not from the direct Join (#3814).  Only the
+        # CASE_MANAGER then announces the canonical case state, authored as the
+        # executing actor (CM-06-001).
         manager_effects=[
+            *record_rm_declaration(
+                actor_id, RM.ACCEPTED, case_id, name="TransitionRMtoAccepted"
+            ),
             CaptureCaseUpdateBroadcastExclusionsNode(case_id=case_id),
             BroadcastCaseUpdateNode(case_id=case_id),
         ],
         manager_case_id=case_id,
-        manager_gate_name="GuardedBroadcastEngageCaseBT",
+        manager_gate_name="EngageEffectsIfCaseManager",
         refusal_effects=[rm_gap_note(actor_id, case_id)],
     )
 
@@ -208,10 +208,14 @@ def create_defer_case_tree(
         precondition_guards=[
             rm_declaration_guard(actor_id, RM.DEFERRED, case_id),
         ],
-        replica_effects=record_rm_declaration(
+        # RSH-08-003: the sender's RM move is committed and replayed onto the
+        # sender's participant (RmVerdict slot), so a replica takes it from the
+        # ledger fan-out, not from the direct Ignore (#3814).
+        manager_effects=record_rm_declaration(
             actor_id, RM.DEFERRED, case_id, name="TransitionRMtoDeferred"
         ),
-        replica_emit_exemption=DEFER_RM_DECLARATION,
+        manager_case_id=case_id,
+        manager_gate_name="DeferEffectsIfCaseManager",
         refusal_effects=[rm_gap_note(actor_id, case_id)],
     )
 

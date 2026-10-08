@@ -265,7 +265,14 @@ class TestRemoveEmbargoAnnouncedOnlyByTheCaseManager:
     (TB-06-007).
     """
 
-    def _run(self, dl, case, embargo, executing_actor: str) -> MagicMock:
+    def _run(
+        self,
+        dl,
+        case,
+        embargo,
+        executing_actor: str,
+        expected_em: EM = EM.EXITED,
+    ) -> MagicMock:
         factory = _make_factory()
         result = BTBridge(
             datalayer=dl,
@@ -289,12 +296,20 @@ class TestRemoveEmbargoAnnouncedOnlyByTheCaseManager:
         )
         assert result.status == py_trees.common.Status.SUCCESS
         updated = cast(VulnerabilityCase, dl.read(case.id_))
-        assert updated.current_status.em.state == EM.EXITED
+        assert updated.current_status.em.state == expected_em
         return factory
 
     @pytest.mark.spec("BT-17-008")
-    @pytest.mark.spec("EP-08-004")
-    def test_replica_tears_down_its_copy_and_sends_nothing(self):
+    @pytest.mark.spec("RSH-08-003")
+    @pytest.mark.spec("CM-31-010")
+    def test_active_replica_writes_nothing_and_sends_nothing(self):
+        """An active replica takes the teardown from the ledger (#3814).
+
+        Its stream is not paused, so ``AwaitsEmbargoEndingNoticeNode`` refuses
+        and the participant-replica arm writes nothing: EM stays ``ACTIVE``
+        until the ``remove_embargo_event_from_case`` ledger entry arrives.
+        Only the CASE_MANAGER tears down and announces here (RSH-08-003).
+        """
         manager_case, _, manager_dl = make_case_with_manager("atrt6")
         replica_case, _, replica_dl = make_case_with_manager(
             "atrt6", store_actor_id=OTHER_PARTICIPANT_ACTOR
@@ -304,7 +319,11 @@ class TestRemoveEmbargoAnnouncedOnlyByTheCaseManager:
         replica_dl.create(embargo)
 
         replica_factory = self._run(
-            replica_dl, replica_case, embargo, OTHER_PARTICIPANT_ACTOR
+            replica_dl,
+            replica_case,
+            embargo,
+            OTHER_PARTICIPANT_ACTOR,
+            expected_em=EM.ACTIVE,
         )
         manager_factory = self._run(
             manager_dl, manager_case, embargo, CASE_MANAGER_ACTOR

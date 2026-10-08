@@ -68,14 +68,32 @@ def create_note_tree(
     Returns:
         Root node of the CreateNoteBT behavior tree (Sequence).
     """
+    # SaveNoteNode upserts the Note object itself, which every replica keeps
+    # (CLP-10-017); attaching it to the case is canonical case state only the
+    # CASE_MANAGER writes (RSH-08-003).  ``add_note_to_case`` is committed and
+    # replayed (Note slot), so a replica learns the attachment from the ledger
+    # fan-out, not from the direct Create(Note) (#3814).  A note that names no
+    # case attaches to nothing, so the gated node is omitted entirely then.
+    manager_effects: list[py_trees.behaviour.Behaviour] = []
+    if case_id is not None:
+        manager_effects.append(
+            AttachNoteToCaseNode(note_id=note_obj.id_, case_id=case_id)
+        )
     root = create_receive_activity_tree(
         name="CreateNoteBT",
         case_id=None,
         precondition_guards=[],
-        replica_effects=[
-            SaveNoteNode(note_obj=note_obj),
-            AttachNoteToCaseNode(note_id=note_obj.id_, case_id=case_id),
-        ],
+        replica_effects=[SaveNoteNode(note_obj=note_obj)],
+        manager_effects=manager_effects or None,
+        manager_case_id=case_id if manager_effects else None,
+        manager_gate_name=(
+            "AttachNoteToCaseIfCaseManager" if manager_effects else None
+        ),
+        # A receiver that does not hold the named case is simply not its
+        # CASE_MANAGER (not a Regime-1 anomaly): it keeps the Note object but
+        # attaches nothing, and takes the attachment from the ledger
+        # (RSH-08-003, ADR-0087 Regime 3).
+        manager_case_may_be_absent=bool(manager_effects),
     )
     logger.info(
         "Created CreateNoteBT for note=%s, case=%s", note_obj.id_, case_id
