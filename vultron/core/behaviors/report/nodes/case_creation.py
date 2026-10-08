@@ -21,6 +21,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.activity import VultronCreateCaseActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.offer_record import VultronOfferRecord
@@ -66,7 +67,7 @@ def _collect_create_case_addressees(
     ]
 
 
-class CreateCaseNode(DataLayerActionWithPorts):
+class CreateCaseNode(DataLayerActionWithPorts, StateWriteCapable):
     """
     Create VulnerabilityCase from validated report.
 

@@ -33,6 +33,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
 )
 from vultron.core.behaviors.narrative_log import log_em_transition
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models._helpers import _as_id
 from vultron.core.predicates.embargo import pxa_is_embargo_eligible
 from vultron.core.services.embargo_lifecycle import (
@@ -43,7 +44,9 @@ from vultron.core.states.em import EM
 from vultron.errors import VultronError
 
 
-class DecideRejectedEmbargoProposalNode(DataLayerActionWithPorts):
+class DecideRejectedEmbargoProposalNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
     """Apply the case owner's Reject of an open proposal (ER / EJ, EP-08-003).
 
     Only the owner's answer decides a proposal; a participant's Reject is

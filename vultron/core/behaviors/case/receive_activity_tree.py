@@ -97,10 +97,11 @@ def create_guarded_commit_case_ledger_entry_tree(
     )
 
 
-def ungated_emitters(
+def ungated_nodes(
     roots: list[py_trees.behaviour.Behaviour],
+    marker: type,
 ) -> list[py_trees.behaviour.Behaviour]:
-    """Every :class:`EmitCapable` node in *roots* outside a CASE_MANAGER gate.
+    """Every *marker* instance in *roots* outside a CASE_MANAGER gate.
 
     The walk does not descend into a :class:`CaseManagerGate`: whatever runs
     there runs only at the CASE_MANAGER (BT-17-001).  Any other composite,
@@ -110,10 +111,22 @@ def ungated_emitters(
     for root in roots:
         if isinstance(root, CaseManagerGate):
             continue
-        if isinstance(root, EmitCapable):
+        if isinstance(root, marker):
             found.append(root)
-        found.extend(ungated_emitters(list(root.children)))
+        found.extend(ungated_nodes(list(root.children), marker))
     return found
+
+
+def ungated_emitters(
+    roots: list[py_trees.behaviour.Behaviour],
+) -> list[py_trees.behaviour.Behaviour]:
+    """Every :class:`EmitCapable` node in *roots* outside a CASE_MANAGER gate.
+
+    See :func:`ungated_nodes`; the state-write ratchet walks the same way for
+    :class:`~vultron.core.behaviors.state_write_capable.StateWriteCapable`
+    (RSH-08-003).
+    """
+    return ungated_nodes(roots, EmitCapable)
 
 
 def _check_effect_arguments(

@@ -16,6 +16,12 @@ Spec: ``specs/testability.yaml`` TB-13-001 through TB-13-003.
 """
 
 import ast
+import contextlib
+import functools
+import gc
+import inspect
+import os
+import re
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -64,6 +70,23 @@ for _md_file in sorted(_DOCS_ROOT.rglob("*.md")):
     except (OSError, UnicodeDecodeError):
         pass
 
+#: The cached paths in ``Path`` order with their strings, computed once: sorting ``Path`` objects
+#: and calling ``Path.relative_to`` per file on every query cost ~0.1 s per
+#: call, which a ratchet with several queries pays inside its time budget.
+_sorted_paths: list[tuple[str, Path]] = [
+    (str(path), path) for path in sorted(_source_cache)
+]
+
+
+def _paths_under(under: Path) -> Iterator[Path]:
+    """Cached paths at or below *under*, in sorted order (string prefix test)."""
+    root = str(under)
+    prefix = root.rstrip(os.sep) + os.sep
+    for text, path in _sorted_paths:
+        if text == root or text.startswith(prefix):
+            yield path
+
+
 # ---------------------------------------------------------------------------
 # Lazy AST cache — trees are parsed and stored on first demand.
 # ---------------------------------------------------------------------------
@@ -88,6 +111,21 @@ def _get_tree(path: Path) -> ast.AST | None:
 # ---------------------------------------------------------------------------
 
 
+def paths_under(under: Path) -> Iterator[Path]:
+    """Cached ``.py`` paths at or below *under*, in sorted order, unparsed."""
+    return _paths_under(under)
+
+
+def tree_of(path: Path) -> ast.AST:
+    """The cached parse of corpus file *path*, for a ratchet that has already
+    chosen it by its text (``KeyError`` if absent, ``SyntaxError`` if it does
+    not parse)."""
+    tree = _get_tree(path)
+    if tree is None:
+        raise SyntaxError(f"{path} does not parse")
+    return tree
+
+
 def files_mentioning(
     *fragments: str, under: Path
 ) -> Iterator[tuple[Path, ast.AST]]:
@@ -97,11 +135,7 @@ def files_mentioning(
     bytes, keeping per-ratchet cost proportional to match count rather than
     total file count (TB-13-001, TB-13-002, TB-13-007, TB-13-008).
     """
-    for path in sorted(_source_cache.keys()):
-        try:
-            path.relative_to(under)
-        except ValueError:
-            continue
+    for path in _paths_under(under):
         source = _source_cache[path]
         if not any(fragment in source for fragment in fragments):
             continue
@@ -116,11 +150,7 @@ def all_trees(under: Path) -> Iterator[tuple[Path, ast.AST]]:
     Escape hatch for ratchets that have no useful prefilter fragment.
     TB-13-002.
     """
-    for path in sorted(_source_cache.keys()):
-        try:
-            path.relative_to(under)
-        except ValueError:
-            continue
+    for path in _paths_under(under):
         tree = _get_tree(path)
         if tree is not None:
             yield path, tree
@@ -133,11 +163,7 @@ def sources_mentioning(
 
     For ratchets that scan source lines rather than AST nodes.
     """
-    for path in sorted(_source_cache.keys()):
-        try:
-            path.relative_to(under)
-        except ValueError:
-            continue
+    for path in _paths_under(under):
         source = _source_cache[path]
         if any(fragment in source for fragment in fragments):
             yield path, source
@@ -145,11 +171,7 @@ def sources_mentioning(
 
 def all_sources(under: Path) -> Iterator[tuple[Path, str]]:
     """Yield ``(path, source)`` for every cached ``.py`` file under *under*."""
-    for path in sorted(_source_cache.keys()):
-        try:
-            path.relative_to(under)
-        except ValueError:
-            continue
+    for path in _paths_under(under):
         yield path, _source_cache[path]
 
 
@@ -172,6 +194,38 @@ def all_docs() -> Iterator[tuple[Path, str]]:
         yield path, _docs_cache[path]
 
 
+@contextlib.contextmanager
+def gc_paused() -> Iterator[None]:
+    """Pause the cyclic garbage collector for a burst of AST allocation.
+
+    A scan that parses and walks a few hundred modules allocates hundreds of
+    thousands of nodes, and each allocation threshold triggers a collection
+    whose cost grows with the whole pytest heap rather than with the scan:
+    inside a full suite run that doubled the commit-inventory derivation.
+    Nothing the scan allocates is cyclic garbage, so pausing loses nothing;
+    the previous state is restored on exit, so nesting is safe.  Use as a
+    decorator (``@gc_paused()``) or a ``with`` block around a derivation,
+    never around a test body.
+    """
+    was_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        yield
+    finally:
+        if was_enabled:
+            gc.enable()
+
+
+def source_of(path: Path) -> str:
+    """The cached source text of a corpus file *path* (``KeyError`` if absent).
+
+    For a ratchet that holds a ``(path, tree)`` pair from
+    :func:`files_mentioning` and needs the text too — to find the lines a
+    fragment sits on, say — without reading the file again (TB-13-001).
+    """
+    return _source_cache[path]
+
+
 def parse_inline(source: str, filename: str = "<inline>") -> ast.AST:
     """Parse a short inline source string.
 
@@ -189,3 +243,216 @@ def node_line(node: ast.AST) -> int:
     attribute directly.
     """
     return getattr(node, "lineno", 0)
+
+
+# ---------------------------------------------------------------------------
+# Definition lookup — the cached AST node for a live function object.
+# ---------------------------------------------------------------------------
+_paths_by_text: dict[str, Path] = {text: path for text, path in _sorted_paths}
+_definitions: dict[
+    Path, dict[int, ast.FunctionDef | ast.AsyncFunctionDef]
+] = {}
+
+
+@functools.cache
+def _cached_path(source_file: str) -> Path | None:
+    """The corpus key for *source_file*, resolving symlinks only on a miss.
+
+    Cached: a miss resolves every corpus path, and the corpus never changes
+    after import.
+    """
+    found = _paths_by_text.get(source_file)
+    if found is not None:
+        return found
+    resolved = Path(source_file).resolve()
+    return next(
+        (path for path in _source_cache if path.resolve() == resolved), None
+    )
+
+
+def _definitions_in(
+    path: Path,
+) -> dict[int, ast.FunctionDef | ast.AsyncFunctionDef]:
+    """Every function definition in *path*, keyed by each line it starts on.
+
+    A decorated function's code object starts on its first decorator, an
+    undecorated one on ``def``; both lines index the node.  Only statement
+    bodies are searched — a definition is always a statement — so no
+    expression subtree is visited.
+    """
+    if path not in _definitions:
+        index: dict[int, ast.FunctionDef | ast.AsyncFunctionDef] = {}
+        tree = _get_tree(path)
+        pending: list[ast.AST] = [tree] if tree is not None else []
+        while pending:
+            node = pending.pop()
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                index[node.lineno] = node
+                if node.decorator_list:
+                    index[node.decorator_list[0].lineno] = node
+            for field in ("body", "orelse", "finalbody", "handlers", "cases"):
+                children = getattr(node, field, None)
+                if isinstance(children, list):
+                    pending.extend(children)
+        _definitions[path] = index
+    return _definitions[path]
+
+
+def function_definition(
+    fn: object, mentioning: tuple[str, ...] = ()
+) -> ast.FunctionDef | ast.AsyncFunctionDef | None:
+    """The cached AST definition of the live function *fn*, if in the corpus.
+
+    For ratchets that start from a live object (a routed use case, a factory)
+    rather than from a file scan: the definition comes from the shared parse,
+    so no source is re-read through ``inspect`` and nothing is parsed twice
+    (TB-13-001, TB-13-003).  With *mentioning*, a file containing none of the
+    fragments is skipped unparsed, as :func:`files_mentioning` does
+    (TB-13-002, TB-13-008).  ``None`` for a function outside ``vultron/`` and
+    ``test/``, without a code object, or in a file the prefilter skips.
+    """
+    try:
+        fn = inspect.unwrap(fn)  # type: ignore[arg-type]
+    except ValueError:
+        return None
+    code = getattr(fn, "__code__", None)
+    if code is None:
+        return None
+    path = _cached_path(code.co_filename)
+    if path is None:
+        return None
+    if mentioning and not any(f in _source_cache[path] for f in mentioning):
+        return None
+    return _definitions_in(path).get(code.co_firstlineno)
+
+
+# ---------------------------------------------------------------------------
+# Text-only call graph — a by-name fixed point that parses nothing.
+# ---------------------------------------------------------------------------
+#: A top-level ``def`` or ``class`` line.
+_TOP_LEVEL_DEFINITION = re.compile(
+    r"^(?:async\s+def|def|class)\s+(\w+)", re.MULTILINE
+)
+_IDENTIFIER = r"[A-Za-z_]\w*"
+#: An import alias line: ``from m import a as b``, or ``a as b,`` inside a
+#: parenthesised import as ruff formats it.  Matched only on a line already
+#: found to contain ``" as "``: a multiline regex over every module costs
+#: more than the rest of the fixed point.
+_IMPORT_ALIAS = re.compile(
+    rf"[ \t]*(?:from [\w.]+ import )?({_IDENTIFIER}) as ({_IDENTIFIER}),?"
+)
+#: A top-level assignment alias: ``b = a``.
+_ASSIGNMENT_ALIAS = re.compile(
+    rf"^({_IDENTIFIER}) = ({_IDENTIFIER})$", re.MULTILINE
+)
+_DEFINING_PREFIXES = ("def ", "class ")
+
+
+def called_names(span: str) -> frozenset[str]:
+    """Every identifier written directly before a ``(`` in *span*.
+
+    Splits on ``(`` and takes each chunk's trailing identifier, skipping the
+    name a ``def`` or ``class`` line defines — several times faster than a
+    regex, which retries at every position of a mostly-prose file.  An
+    attribute call counts by its attribute (``dl.save(`` → ``save``).
+    """
+    names: set[str] = set()
+    for chunk in span.split("(")[:-1]:
+        end = len(chunk)
+        start = end
+        while start and (
+            chunk[start - 1].isalnum() or chunk[start - 1] == "_"
+        ):
+            start -= 1
+        if start == end or chunk[start].isdigit():
+            continue
+        if chunk.endswith(_DEFINING_PREFIXES, 0, start):
+            continue
+        names.add(chunk[start:end])
+    return frozenset(names)
+
+
+def definition_summaries(
+    source: str, *, classes: bool = True
+) -> Iterator[tuple[str, frozenset[str]]]:
+    """``(name, called names)`` for each top-level definition in *source*.
+
+    Text, not AST: a definition's span runs to the next top-level definition,
+    and every ``name(`` in it counts as a call.  Both over-approximate (a
+    trailing module statement, a name in a string, a class's every method).
+    A top-level alias (``import a as b``, ``b = a``) is summarised as a
+    definition of ``b`` that calls ``a``, so a call through the alias is
+    still followed.  With *classes* ``False`` only functions are summarised:
+    a class span holds every method, so one writing method would make every
+    caller of the class look like a writer.
+    """
+    starts = list(_TOP_LEVEL_DEFINITION.finditer(source))
+    ends = [match.start() for match in starts[1:]] + [len(source)]
+    for match, end in zip(starts, ends[: len(starts)], strict=True):
+        if classes or not match.group(0).startswith("class"):
+            yield match.group(1), called_names(source[match.end() : end])
+    for alias, original in _aliases(source):
+        yield alias, frozenset({original})
+
+
+def class_spans(source: str) -> Iterator[tuple[str, frozenset[str], str]]:
+    """``(name, base names, span)`` for each top-level class in *source*.
+
+    Text, not AST, like :func:`definition_summaries`: the span runs to the
+    next top-level definition, and the bases are the identifiers in the
+    ``class Name(...)`` header.  For a ratchet that narrows the classes it
+    must parse before it walks them (TB-13-008).
+    """
+    starts = list(_TOP_LEVEL_DEFINITION.finditer(source))
+    ends = [match.start() for match in starts[1:]] + [len(source)]
+    for match, end in zip(starts, ends[: len(starts)], strict=True):
+        if not match.group(0).startswith("class"):
+            continue
+        span = source[match.end() : end]
+        header = span[: span.find(":")] if ":" in span else ""
+        bases = frozenset(re.findall(_IDENTIFIER, header))
+        yield match.group(1), bases, span
+
+
+def _aliases(source: str) -> Iterator[tuple[str, str]]:
+    """``(alias, original)`` for each top-level alias in *source*."""
+    for assignment in _ASSIGNMENT_ALIAS.finditer(source):
+        if assignment.group(1) != assignment.group(2):
+            yield assignment.group(1), assignment.group(2)
+    position = source.find(" as ")
+    while position != -1:
+        start = source.rfind("\n", 0, position) + 1
+        end = source.find("\n", position)
+        end = len(source) if end == -1 else end
+        imported = _IMPORT_ALIAS.fullmatch(source, start, end)
+        if imported is not None and imported.group(1) != imported.group(2):
+            yield imported.group(2), imported.group(1)
+        position = source.find(" as ", end)
+
+
+def names_reaching(
+    seeds: frozenset[str], *, under: Path, classes: bool = True
+) -> frozenset[str]:
+    """Top-level names under *under* whose definition may call a *seed*.
+
+    A fixed point by name over source text (:func:`definition_summaries`):
+    start from *seeds*, then add every definition whose span calls a name
+    already in the set.  It reads each module's text once and parses none,
+    so it needs no prefilter; its result is meant to *be* the prefilter of a
+    precise walk (TB-13-002, TB-13-008).  It over-approximates — by name,
+    not by resolution — and the walk decides.  A definition nested in an
+    ``if`` or ``try`` block is not top-level here, so it is not followed.
+    """
+    summaries = [
+        summary
+        for _, source in all_sources(under=under)
+        for summary in definition_summaries(source, classes=classes)
+    ]
+    names: set[str] = set()
+    while found := {
+        name
+        for name, called in summaries
+        if name not in names and called & (seeds | names)
+    }:
+        names |= found
+    return frozenset(names)

@@ -30,10 +30,12 @@ from vultron.core.behaviors.case.nodes.intake import (
 from vultron.core.behaviors.case.nodes.role_gates import (
     CaseManagerGate,
     create_case_manager_gated_tree,
+    create_participant_replica_gated_tree,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
     ungated_emitters,
+    ungated_nodes,
 )
 from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.replica_emit_exemptions import (
@@ -41,6 +43,7 @@ from vultron.core.behaviors.replica_emit_exemptions import (
     ReplicaEmitExemption,
 )
 from vultron.core.behaviors.report.nodes.emit import EmitAckReportActivity
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.errors import VultronWiringError
 
 CASE_ID = "https://example.org/cases/case-factory-gate-001"
@@ -51,6 +54,16 @@ class _Emitter(EmitCapable, py_trees.behaviour.Behaviour):
     """A stand-in emit node: carries the marker, emits nothing."""
 
     def __init__(self, name: str = "Emitter") -> None:
+        super().__init__(name=name)
+
+    def update(self) -> Status:
+        return Status.SUCCESS
+
+
+class _Writer(StateWriteCapable, py_trees.behaviour.Behaviour):
+    """A stand-in state-write node: carries the marker, writes nothing."""
+
+    def __init__(self, name: str = "Writer") -> None:
         super().__init__(name=name)
 
     def update(self) -> Status:
@@ -324,3 +337,25 @@ def test_ungated_emitters_skips_only_the_case_manager_gate() -> None:
     ]
 
     assert ungated_emitters(roots) == [outside]
+
+
+def test_ungated_nodes_walks_the_replica_gate_but_not_the_manager_gate() -> (
+    None
+):
+    """The RSH-08-003 walk: only the CASE_MANAGER gate hides a write."""
+    gated = _Writer("Gated")
+    replica = _Writer("ReplicaOnly")
+    bare = _Writer("Bare")
+    roots: list[py_trees.behaviour.Behaviour] = [
+        create_case_manager_gated_tree(
+            name="Gate", case_id=CASE_ID, children=[gated]
+        ),
+        create_participant_replica_gated_tree(
+            name="ReplicaGate", case_id=CASE_ID, children=[replica]
+        ),
+        py_trees.composites.Sequence(
+            name="Plain", memory=False, children=[bare, _Emitter()]
+        ),
+    ]
+
+    assert ungated_nodes(roots, StateWriteCapable) == [replica, bare]

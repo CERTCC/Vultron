@@ -46,6 +46,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     _EmitSingleActivityBase,
 )
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -234,7 +235,9 @@ class ForwardOfferToTransfereeNode(_EmitSingleActivityBase):
         )
 
 
-class AcceptCaseOwnershipTransferNode(DataLayerActionWithPorts):
+class AcceptCaseOwnershipTransferNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
     """Apply an ownership-transfer acceptance to the case record.
 
     Enforces the at-most-one CASE_OWNER invariant atomically (CM-21-001,
