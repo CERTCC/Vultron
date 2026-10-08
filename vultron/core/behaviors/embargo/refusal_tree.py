@@ -42,6 +42,9 @@ from vultron.core.behaviors.embargo.nodes.proposal import (
 )
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.idempotency import SilentIdempotencyGuardMixin
+from vultron.core.behaviors.replica_emit_exemptions import (
+    EMBARGO_INVITE_REFUSAL,
+)
 from vultron.core.models.embargo_event import EmbargoEvent
 
 logger = logging.getLogger(__name__)
@@ -111,28 +114,36 @@ def embargo_invite_refusal_tree(
         answer: ``False`` to store what arrived and send nothing, for an
             Invite not addressed to this actor (EP-09-010).
     """
-    guards: list[py_trees.behaviour.Behaviour] = []
     effects: list[py_trees.behaviour.Behaviour] = []
     if store_invite:
         effects.append(CreateAndStoreInviteNode())
     if embargo is not None:
         effects.append(PersistEmbargoEventNode(embargo=embargo))
-    if answer:
-        guards.append(EmbargoInviteNotYetRefusedNode(invite_id=invite_id))
-        effects.append(
-            SendEmbargoInviteAnswerNode(
-                case_id=case_id,
-                invite_id=invite_id,
-                accept=False,
-                recipient_id=recipient_id,
-                name="SendEmbargoRefusalER",
-            )
+    if not answer:
+        # Nothing is sent, so there is no emit for an exemption to cover.
+        return create_receive_activity_tree(
+            name="RefuseEmbargoInviteBT",
+            case_id=None,
+            precondition_guards=[],
+            replica_effects=effects,
         )
+    effects.append(
+        SendEmbargoInviteAnswerNode(
+            case_id=case_id,
+            invite_id=invite_id,
+            accept=False,
+            recipient_id=recipient_id,
+            name="SendEmbargoRefusalER",
+        )
+    )
     return create_receive_activity_tree(
         name="RefuseEmbargoInviteBT",
         case_id=None,
-        precondition_guards=guards,
-        effect_nodes=effects,
+        precondition_guards=[
+            EmbargoInviteNotYetRefusedNode(invite_id=invite_id)
+        ],
+        replica_effects=effects,
+        replica_emit_exemption=EMBARGO_INVITE_REFUSAL,
     )
 
 

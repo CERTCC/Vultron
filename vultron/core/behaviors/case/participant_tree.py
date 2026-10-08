@@ -33,8 +33,8 @@ Subtrees defined here:
   ``Add(CaseParticipant)``: that message only reinstates (CM-31-011,
   ADR-0116).
 
-These subtrees are consumed by ``create_tree.py``,
-``receive_report_case_tree.py``, and related tree factories in this package.
+``CreateCaseOwnerParticipant`` has no production caller since
+``create_create_case_tree`` was retired (#4330); #4353 tracks its removal.
 
 Per specs/case-management.yaml CM-02-008, CM-14, and
 specs/behavior-tree-node-design.yaml BTND-07-003.

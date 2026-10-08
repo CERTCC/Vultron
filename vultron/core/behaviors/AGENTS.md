@@ -119,8 +119,8 @@ raises `VultronWiringError` unless `replica_emit_exemption` names a registered
 `ReplicaEmitExemption` (`replica_emit_exemptions.py`) whose `covers` lists it.
 A new emit node class reaching the outbox mixes in `EmitCapable` (or inherits
 it from its base). `effect_nodes` is the unchecked legacy form, not mixable with
-the new two; it is ratcheted to empty in
-`test/architecture/test_received_tree_case_manager_gate.py`. Full write-up:
+the new two; only the close-case tree still passes it (#3825), pinned in
+`test/architecture/test_received_tree_case_manager_gate.py`. Never add a caller. Full write-up:
 `notes/bt-pitfalls.md` § "A Received Tree Gets Its CASE_MANAGER Gate From the
 Factory".
 

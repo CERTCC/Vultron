@@ -33,7 +33,7 @@ Defined in `vultron/core/models/case.py`.
 | `case_activity` | Activity IDs recorded against this case (not the case ledger — see `genesis_hash`) |
 | `genesis_hash` | SHA-256 hash binding the ledger to this case's origin identity: the case id, creation time and owner (`attributed_to`), computed when the case is created; a replica keeps the hash it receives, or derives the same value from the carried case when none arrives ([CLP-08-002](specs/protocol.md#clp-08-002)) |
 | `stub_summary` | Owner-chosen, human-readable description of the case used as the `summary` of the `VulnerabilityCaseStub` carried in a stub Invite. Must be set before emitting an `Invite(Actor, target=VulnerabilityCaseStub)` — the factory raises if absent ([CM-17-010](specs/protocol.md#cm-17-010), [MV-10-001](specs/protocol.md#mv-10-001)) |
-| `parent_cases`, `child_cases`, `sibling_cases` | URIs of related cases, held as IDs only (ADR-0017); no protocol flow sets them yet |
+| `parent_cases`, `child_cases`, `sibling_cases` | URIs of related cases, held as IDs only (ADR-0017); no protocol flow sets them yet. A case split will set `parent_cases` on the child and `child_cases` on the parent, and leaves `sibling_cases` unwritten (ADR-0125) |
 | `active_participants` | Computed, not stored: the ids of the inline participant records that `is_active_participant` finds active, in roster order. Sent on the wire as `activeParticipants` only; the AS2 form leaves it out while any `case_participants` entry is a bare URI, so it is never a partial list. A received value that contradicts the recomputed one is refused (CM-31-003, ARCH-23-005) |
 
 ## `CaseActor`

@@ -50,5 +50,5 @@ def create_store_only_received_tree(
         name=name,
         case_id=None,
         precondition_guards=[],
-        effect_nodes=[] if store_node is None else [store_node],
+        replica_effects=[] if store_node is None else [store_node],
     )

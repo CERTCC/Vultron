@@ -49,13 +49,18 @@ __all__ = [
     "ACK_ECHO",
     "CASE_PROPOSAL",
     "CASE_STATUS",
+    "CLOSE_REPORT_RM_DECLARATION",
     "DEFER_RM_DECLARATION",
     "EMBARGO_INVITE_ANSWER",
+    "EMBARGO_INVITE_REFUSAL",
     "ENGAGE_RM_DECLARATION",
     "GENESIS_REJECT_ANNOUNCE",
+    "INVALIDATE_REPORT_RM_DECLARATION",
     "OFFER_ROLE",
     "REPLICA_EMIT_EXEMPTIONS",
+    "REPORT_CASE_PROPOSAL",
     "RSH_STATUS",
+    "VALIDATE_REPORT_RM_DECLARATION",
     "ReplicaEmitExemption",
 ]
 
@@ -164,6 +169,32 @@ EMBARGO_INVITE_ANSWER: Final = ReplicaEmitExemption(
     covers=frozenset({"SendEmbargoInviteAnswerNode"}),
 )
 
+EMBARGO_INVITE_REFUSAL: Final = ReplicaEmitExemption(
+    name="embargo-invite-refusal",
+    reason=(
+        "Once P/X/A is set, a received Invite(EmbargoEvent) or Accept of one"
+        " is refused with ER, the executing actor's own Reject of that"
+        " Invite: a participant answers only an Invite addressed to it and"
+        " sends the ER to the CASE_MANAGER, and the CASE_MANAGER answers the"
+        " actor that sent it the Invite or the Accept (EMB-01-002,"
+        " EMB-02-002, EP-09-003, EP-09-010, PCR-08-001)."
+    ),
+    covers=frozenset({"SendEmbargoInviteAnswerNode"}),
+)
+
+REPORT_CASE_PROPOSAL: Final = ReplicaEmitExemption(
+    name="report-case-proposal",
+    reason=(
+        "Offer(VulnerabilityReport) makes its receiver the prospective"
+        " CASE_OWNER, which proposes a case to the CaseActor service: no"
+        " case and no CASE_MANAGER exist yet to gate on (the tree has no"
+        " commit stage), and the Create(CaseProposal) is the executing"
+        " actor's own act, addressed to the CaseActor (CP-04-001, CP-04-002,"
+        " ADR-0041)."
+    ),
+    covers=frozenset({"ProposeReportCaseToActorNode"}),
+)
+
 GENESIS_REJECT_ANNOUNCE: Final = ReplicaEmitExemption(
     name="genesis-reject-announce",
     reason=(
@@ -203,6 +234,19 @@ DEFER_RM_DECLARATION: Final = _rm_declaration_exemption(
     "defer-rm-declaration", "Ignore(VulnerabilityCase)"
 )
 
+VALIDATE_REPORT_RM_DECLARATION: Final = _rm_declaration_exemption(
+    "validate-report-rm-declaration", "Accept(Offer(VulnerabilityReport))"
+)
+
+CLOSE_REPORT_RM_DECLARATION: Final = _rm_declaration_exemption(
+    "close-report-rm-declaration", "Reject(Offer(VulnerabilityReport))"
+)
+
+INVALIDATE_REPORT_RM_DECLARATION: Final = _rm_declaration_exemption(
+    "invalidate-report-rm-declaration",
+    "TentativeReject(Offer(VulnerabilityReport))",
+)
+
 #: Every exemption ``create_receive_activity_tree`` accepts, by name.
 REPLICA_EMIT_EXEMPTIONS: Final[Mapping[str, ReplicaEmitExemption]] = (
     MappingProxyType(
@@ -215,9 +259,14 @@ REPLICA_EMIT_EXEMPTIONS: Final[Mapping[str, ReplicaEmitExemption]] = (
                 RSH_STATUS,
                 CASE_STATUS,
                 EMBARGO_INVITE_ANSWER,
+                EMBARGO_INVITE_REFUSAL,
+                REPORT_CASE_PROPOSAL,
                 GENESIS_REJECT_ANNOUNCE,
                 ENGAGE_RM_DECLARATION,
                 DEFER_RM_DECLARATION,
+                VALIDATE_REPORT_RM_DECLARATION,
+                CLOSE_REPORT_RM_DECLARATION,
+                INVALIDATE_REPORT_RM_DECLARATION,
             )
         }
     )
