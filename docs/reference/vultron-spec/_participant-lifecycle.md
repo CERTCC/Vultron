@@ -3,7 +3,7 @@
 A case is not a fixed set of parties. Actors join, take on roles, hand
 responsibilities to one another, and leave. This section specifies that lifecycle:
 how an actor acquires a role, how it is brought into a case, how case ownership
-moves, and what the protocol does and does not say about removal.
+moves, and how a participant is removed.
 
 ### 11.1 Role Assignment [N]
 
@@ -97,11 +97,32 @@ the associated protocol responsibilities.
     holder, and what a participant does with ledger entries it can no longer
     decrypt. This specification states no rule for either.
 
-### 11.4 Participant Removal [I]
+### 11.4 Participant Removal [N]
 
-A Case Owner or Case Manager MAY remove a participant from a case.
-The protocol mechanics of removal and the effect on active embargo consent
-are not yet fully specified.
+Removing a participant withdraws its entitlement to case content.
+It does not delete the participant from the case.
+The participant's record, its status history, and the ledger entries it authored stay in the case, and the record carries a removal fact ([CM-31-001](../specs/protocol.md#cm-31-001)).
+A removed participant is inert: it receives no case content, and it has no authority to act on the case.
+
+Only the Case Owner requests a removal.
+It sends `Remove(CaseParticipant, target=VulnerabilityCase)` to the CASE_MANAGER, which applies it ([CM-31-004](../specs/protocol.md#cm-31-004)).
+The CASE_MANAGER MUST refuse the request when the sender does not hold the Case Owner role, when it names the CASE_MANAGER's or the Case Owner's participant, or when it names no participant of the case.
+A second removal of an already-removed participant is a no-op, and the CASE_MANAGER reports it as skipped.
+The CASE_MANAGER MUST NOT remove a participant on its own initiative.
+A participant that wants to stop taking part leaves the case with `Leave(VulnerabilityCase)`; that is not removal.
+
+An accepted removal is one ledger entry: the Case Owner's received `Remove(CaseParticipant)`, committed by the CASE_MANAGER as received ([CM-31-005](../specs/protocol.md#cm-31-005)).
+The CASE_MANAGER commits no second entry of its own for the same removal.
+After the commit, the CASE_MANAGER sends the removed participant a direct `Remove(CaseParticipant)` that names it, with `actor` set to the CASE_MANAGER and `attributedTo` set to the Case Owner ([CM-31-006](../specs/protocol.md#cm-31-006)).
+This notice is delivery, not a record, and is not ledgered.
+
+The removal entry's fan-out selects its recipients before the removal is applied, so the removed participant receives that entry too.
+It is the last ledger entry the removed participant receives, by fan-out or by replay, until it is reinstated.
+Every replica, the removed participant's own included, applies the removal from that ledger entry ([CM-31-007](../specs/protocol.md#cm-31-007)).
+A replica MUST NOT apply a removal from a directly received `Remove(CaseParticipant)`: it stores the notice and takes the removal from the ledger.
+
+Removal does not change the participant's embargo consent ([CM-31-008](../specs/protocol.md#cm-31-008)).
+A removed signatory stays bound by the embargo it accepted.
 
 !!! info "See also"
     - [Transferring a Case](../../topics/case_lifecycle/ownership_transfer.md)

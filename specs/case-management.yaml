@@ -4587,8 +4587,9 @@ groups:
     statement: >-
       `VulnerabilityCase` MUST expose a canonical mutator for appending a case
       status, so that CM-27-001 can be satisfied without direct list mutation.
-      `add_participant()` and `remove_participant()` already provide this for
-      `case_participants`.
+      `add_participant()` already provides this for `case_participants`;
+      removal keeps the record on the roster (CM-31-001), so the roster has no
+      deleting mutator.
     rationale: >-
       A prohibition with no sanctioned alternative is unimplementable. At the
       time of writing `case_statuses` had no mutator at all — only the
