@@ -243,6 +243,46 @@ class TestReplayMissingEntriesTrigger:
         assert PARTICIPANT_URI in (announce.get("to") or [])
 
 
+def _seed_case(dl: SqliteDataLayer) -> None:
+    """Store the case, CASE_ACTOR_URI its CASE_MANAGER, in *dl*.
+
+    PARTICIPANT_URI, the Reject's sender, is a joined participant, so the
+    replay's active-participant gate admits it (CM-10-004).
+    """
+    from vultron.enums.roles import CVDRole
+    from vultron.wire.as2.vocab.objects.case_participant import (
+        as_CaseParticipant,
+    )
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+
+    manager = as_CaseParticipant(
+        id_=f"{CASE_URI}/participants/case-manager",
+        context=CASE_URI,
+        attributed_to=CASE_ACTOR_URI,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    dl.create(manager)
+    peer = as_CaseParticipant(
+        id_=f"{CASE_URI}/participants/peer",
+        context=CASE_URI,
+        attributed_to=PARTICIPANT_URI,
+    )
+    dl.create(peer)
+    case = as_VulnerabilityCase(id_=CASE_URI, name="Reject Sync Case")
+    case.case_participants.extend([manager.id_, peer.id_])
+    case.actor_participant_index[CASE_ACTOR_URI] = manager.id_
+    case.actor_participant_index[PARTICIPANT_URI] = peer.id_
+    dl.create(case)
+
+
+@pytest.fixture
+def manager_dl() -> SqliteDataLayer:
+    """The CASE_MANAGER's own store: only it answers a Reject (SYNC-03-005)."""
+    return SqliteDataLayer("sqlite:///:memory:", actor_id=CASE_ACTOR_URI)
+
+
 class TestRejectLedgerEntryReceivedUseCase:
     """RejectLedgerEntryReceivedUseCase updates state and triggers replay."""
 
@@ -252,58 +292,59 @@ class TestRejectLedgerEntryReceivedUseCase:
         return _make_reject_event(entry, last_accepted_hash, PARTICIPANT_URI)
 
     @pytest.mark.spec("SYNC-04-001")
-    def test_updates_replication_state(self, dl, entry0, entry1):
+    def test_updates_replication_state(self, manager_dl, entry0, entry1):
         """Receiving a Reject updates ReplicationState (SYNC-04-001)."""
-        from vultron.enums.roles import CVDRole
-        from vultron.wire.as2.vocab.objects.case_participant import (
-            as_CaseParticipant,
-        )
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
-        )
-
-        dl.save(entry0)
-        dl.save(entry1)
-
-        manager = as_CaseParticipant(
-            id_=f"{CASE_URI}/participants/manager",
-            context=CASE_URI,
-            attributed_to=CASE_ACTOR_URI,
-            case_roles=[CVDRole.CASE_MANAGER],
-        )
-        dl.create(manager)
-        # The Reject's sender is a joined participant, so the replay's
-        # active-participant gate admits it (CM-10-004).
-        peer = as_CaseParticipant(
-            id_=f"{CASE_URI}/participants/peer",
-            context=CASE_URI,
-            attributed_to=PARTICIPANT_URI,
-        )
-        dl.create(peer)
-        case = as_VulnerabilityCase(id_=CASE_URI, name="Reject Sync Case")
-        case.case_participants.extend([manager.id_, peer.id_])
-        case.actor_participant_index[CASE_ACTOR_URI] = manager.id_
-        case.actor_participant_index[PARTICIPANT_URI] = peer.id_
-        dl.create(case)
+        manager_dl.save(entry0)
+        manager_dl.save(entry1)
+        _seed_case(manager_dl)
 
         event = self._make_event(entry1, entry0.entry_hash)
-        # The case manager resolves (above), so the tree reaches the replay
-        # arm; SendMissingEntries raises VultronWiringError without a sync
-        # port (#3776), so inject one as the replay test below does.
+        # SendMissingEntries raises VultronWiringError without a sync port
+        # (#3776), so inject one as the replay test below does.
         uc = RejectLedgerEntryReceivedUseCase(
-            dl, event, sync_port=SyncActivityAdapter(dl)
+            manager_dl, event, sync_port=SyncActivityAdapter(manager_dl)
         )
         uc.execute()
 
         state_id = VultronReplicationState(
             case_id=CASE_URI, peer_id=PARTICIPANT_URI
         ).id_
-        stored = dl.read(state_id)
+        stored = manager_dl.read(state_id)
         assert stored is not None
         assert (
             getattr(stored, "last_acknowledged_hash", None)
             == entry0.entry_hash
         )
+
+    @pytest.mark.spec("SYNC-03-005")
+    @pytest.mark.spec("HP-01-005")
+    def test_refused_at_an_actor_that_is_not_the_case_manager(
+        self, dl, entry0, entry1
+    ):
+        """Only the CASE_MANAGER answers a Reject; elsewhere it is REFUSED.
+
+        ``dl`` belongs to an actor other than CASE_ACTOR_URI: it holds a copy
+        of the case and its ledger, but answering would replay entries and
+        record replication state in another actor's name.
+        """
+        dl.save(entry0)
+        dl.save(entry1)
+        _seed_case(dl)
+        sync_port = MagicMock(spec=SyncActivityPort)
+
+        result = RejectLedgerEntryReceivedUseCase(
+            dl,
+            self._make_event(entry1, entry0.entry_hash),
+            sync_port=sync_port,
+        ).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert "not the CASE_MANAGER" in (result.reason or "")
+        sync_port.send_announce_log_entry.assert_not_called()
+        state_id = VultronReplicationState(
+            case_id=CASE_URI, peer_id=PARTICIPANT_URI
+        ).id_
+        assert dl.read(state_id) is None
 
     @pytest.mark.spec("SYNC-03-001")
     def test_ignores_reject_with_no_entry(self, dl):
@@ -325,7 +366,7 @@ class TestRejectLedgerEntryReceivedUseCase:
     @pytest.mark.spec("SYNC-03-002")
     @pytest.mark.spec("CM-02-011")
     def test_replay_triggered_when_the_case_manager_is_resolvable(
-        self, dl, entry0, entry1
+        self, manager_dl, entry0, entry1
     ):
         """Missing entries are replayed once the case's CASE_MANAGER resolves.
 
@@ -333,57 +374,27 @@ class TestRejectLedgerEntryReceivedUseCase:
         used to be satisfied by an ``as_CaseActor`` whose ``context`` was the
         case id — a hosting signal that no longer answers.
         """
-        from vultron.enums.roles import CVDRole
-        from vultron.wire.as2.vocab.objects.case_participant import (
-            as_CaseParticipant,
-        )
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
-        )
-
-        # Save both entries
-        dl.save(entry0)
-        dl.save(entry1)
-
-        # The case names CASE_ACTOR_URI as its CASE_MANAGER.
-        manager = as_CaseParticipant(
-            id_=f"{CASE_URI}/participants/case-manager",
-            context=CASE_URI,
-            attributed_to=CASE_ACTOR_URI,
-            case_roles=[CVDRole.CASE_MANAGER],
-        )
-        dl.create(manager)
-        # The Reject's sender is a joined participant, so the replay's
-        # active-participant gate admits it (CM-10-004).
-        peer = as_CaseParticipant(
-            id_=f"{CASE_URI}/participants/peer",
-            context=CASE_URI,
-            attributed_to=PARTICIPANT_URI,
-        )
-        dl.create(peer)
-        case = as_VulnerabilityCase(id_=CASE_URI, name="Reject Sync Case")
-        case.case_participants.extend([manager.id_, peer.id_])
-        case.actor_participant_index[CASE_ACTOR_URI] = manager.id_
-        case.actor_participant_index[PARTICIPANT_URI] = peer.id_
-        dl.create(case)
+        manager_dl.save(entry0)
+        manager_dl.save(entry1)
+        _seed_case(manager_dl)
 
         # Participant says they only have up to entry0
         event = self._make_event(entry1, entry0.entry_hash)
-        sync_port = SyncActivityAdapter(dl)
+        sync_port = SyncActivityAdapter(manager_dl)
         result = RejectLedgerEntryReceivedUseCase(
-            dl, event, sync_port=sync_port
+            manager_dl, event, sync_port=sync_port
         ).execute()
         assert result.disposition == HandlerDisposition.APPLIED
 
         # Should have queued one replay Announce (for entry1).
         # announce saved to DataLayer; outbox queue uses actor-scoped table.
-        announces = dl.by_type("Announce")
+        announces = manager_dl.by_type("Announce")
         assert len(announces) == 1
-        # The count alone does not test the role resolution this test is named
-        # for — one Announce is queued whichever sender `FindCaseActorNode`
-        # publishes.  `CASE_ACTOR_URI` is deliberately distinct from both
-        # `CASE_URI` and the store's own actor, so asserting the sender is what
-        # pins the resolution: publishing the executing actor instead fails here.
+        # Only the CASE_MANAGER answers a Reject (SYNC-03-005), so the
+        # executing actor and the resolved role holder are one id here.  The
+        # discrimination between "the role was resolved" and "the executing
+        # actor was echoed" lives in the FindCaseActorNode unit tests
+        # (test/core/behaviors/sync/nodes/test_replay.py).
         queued = list(
             announces.values() if isinstance(announces, dict) else announces
         )

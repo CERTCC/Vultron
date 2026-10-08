@@ -27,20 +27,26 @@ addressee's store answers the Invite to the CASE_MANAGER and writes no state
 (EP-09-003).  The tree's docstring draws it.
 
 ``remove_embargo_from_case_tree`` — handles receipt of a ``Remove(EmbargoEvent)``
-activity (protocol ET message).  Sequence:
+activity (protocol ET message).  Two role-gated arms behind the shared intake
+and guarded commit; each tears its own copy down only when the embargo is in
+force, and only the CASE_MANAGER announces (BT-17-008):
 
     RemoveEmbargoFromCaseBT (Sequence)
     ├─ ValidateCaseExistsNode             # case must exist as VulnerabilityCase
     ├─ GuardedCommitCaseLedgerEntryBT     # record receipt before effects (CLP-10-006)
-    └─ TeardownIfActive (Selector)        # skip when there is nothing to tear down
-       ├─ EmbargoWasNotActive (Inverter)  # not the active embargo (only proposed)
-       │  └─ IsActiveEmbargoNode
-       ├─ EmbargoAlreadyExited (Inverter) # EM state already EXITED
-       │  └─ HasEmbargoActiveNode
-       └─ ActiveTeardown (Sequence)       # its FAILURE is the tree's FAILURE
-          ├─ ClearActiveEmbargoNode       # TERMINATE + CANCEL every proposal → EXITED
-          ├─ SendAnnounceEmbargoEventNode # emit Announce(EmbargoEvent) to CaseActor
-          └─ EmbargoAdmissionBackfill     # CASE_MANAGER: backfill paused peers (CM-10-006)
+    ├─ TeardownOnReplica (Selector)       # participant replica: own copy only
+    │  ├─ SkipIfCaseManager
+    │  └─ ReplicaTeardownIfActive (Selector)
+    │     ├─ EmbargoWasNotActive / EmbargoAlreadyExited   # nothing to tear down
+    │     └─ ReplicaActiveTeardown: ClearActiveEmbargoNode
+    └─ TeardownAndAnnounceIfCaseManager (CaseManagerGate, from the factory)
+       └─ TeardownIfActive (Selector)
+          ├─ EmbargoWasNotActive / EmbargoAlreadyExited   # nothing to tear down
+          └─ ActiveTeardown (Sequence)    # its FAILURE is the tree's FAILURE
+             ├─ ClearActiveEmbargoNode       # TERMINATE + CANCEL every proposal → EXITED
+             ├─ SendAnnounceEmbargoEventNode # Announce(EmbargoEvent) to the others
+             ├─ BackfillAdmittedParticipantsNode  # backfill paused peers (CM-10-006)
+             └─ ReissueStubInvitesNode       # re-issue stale stub Invites (CM-11-016)
 
 Per specs/behavior-tree-integration.yaml BT-06-001.
 """
@@ -50,21 +56,14 @@ import logging
 import py_trees
 
 from vultron.config.actor import ActorConfig
-from vultron.core.behaviors.case.nodes.invite_actor_emit import (
-    ReissueStubInvitesNode,
-)
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_participant_replica_gated_tree,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
-
-# The standalone admission backfill lives in ``admission_backfill_tree``
-# (BT-17-008: a received-tree module takes its gate from the factory); the
-# Remove(EmbargoEvent) teardown nests it in its active-only branch.
 from vultron.core.behaviors.embargo.admission_backfill_tree import (
-    embargo_admission_backfill_tree,
+    embargo_admission_backfill_nodes,
 )
 
 # The Accept/Reject(Invite(EmbargoEvent)) trees live in ``answer_trees``
@@ -100,20 +99,56 @@ from vultron.core.behaviors.embargo.response_decision_tree import (
 )
 from vultron.core.behaviors.replica_emit_exemptions import (
     EMBARGO_INVITE_ANSWER,
-    EMBARGO_TEARDOWN_ANNOUNCE,
 )
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderIsCaseOwnerNode,
     SenderMayAssertEmbargoNode,
 )
-from vultron.core.behaviors.sync.nodes.embargo_backfill import (
-    BackfillAdmittedParticipantsNode,
-)
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.services.embargo_lifecycle import TransitionMode
 
 logger = logging.getLogger(__name__)
+
+
+def _teardown_if_active(
+    case_id: str,
+    embargo_id: str,
+    *after_teardown: py_trees.behaviour.Behaviour,
+    prefix: str = "",
+) -> py_trees.composites.Selector:
+    """Tear the active embargo down, then run *after_teardown*; skip if not active.
+
+    Only the two "nothing to tear down" guards fall back: the embargo is not
+    the active one, or the EM state is already EXITED.  A teardown step that
+    fails fails the Selector, so the handler can report it instead of
+    mistaking it for "was not active" (#2255).  The guards cannot be repeated
+    after the teardown, which is why each role's arm builds the whole branch.
+    """
+    return py_trees.composites.Selector(
+        name=f"{prefix}TeardownIfActive",
+        memory=False,
+        children=[
+            py_trees.decorators.Inverter(
+                name="EmbargoWasNotActive",
+                child=IsActiveEmbargoNode(
+                    case_id=case_id, embargo_id=embargo_id
+                ),
+            ),
+            py_trees.decorators.Inverter(
+                name="EmbargoAlreadyExited",
+                child=HasEmbargoActiveNode(case_id=case_id),
+            ),
+            py_trees.composites.Sequence(
+                name=f"{prefix}ActiveTeardown",
+                memory=False,
+                children=[
+                    ClearActiveEmbargoNode(case_id=case_id),
+                    *after_teardown,
+                ],
+            ),
+        ],
+    )
 
 
 def remove_embargo_from_case_tree(
@@ -134,12 +169,16 @@ def remove_embargo_from_case_tree(
     Always commits a canonical ledger entry when the executing actor holds
     the ``CASE_MANAGER`` role (via the guarded commit subtree).
 
-    The inner ``TeardownIfActive`` Selector skips the teardown when there is
-    nothing to tear down: the embargo is not the active one, or the EM state
-    is already EXITED.  Only those two
-    guards fall back.  A teardown step that fails fails the tree, so the
-    handler can report it instead of mistaking it for "was not active"
-    (#2255).
+    The teardown runs in one of two mutually exclusive arms.  The
+    CASE_MANAGER's arm, in ``manager_effects``, tears down the canonical
+    case, announces the teardown to every other active participant and
+    backfills any participant the end of the embargo admits (CM-10-006),
+    re-issuing any outstanding stub Invite that carries the old terms
+    (CM-11-016).
+    A participant replica's arm tears down its own copy and sends nothing:
+    the teardown is the CASE_MANAGER's act, so re-announcing it would speak
+    for another actor (BT-17-008).  Each arm skips when there is nothing to
+    tear down, and a failed teardown step fails the tree (#2255).
 
     BT returns SUCCESS when the outer Sequence completes (including when no
     teardown was needed).  BT returns FAILURE when the case is not found or a
@@ -158,33 +197,6 @@ def remove_embargo_from_case_tree(
     Returns:
         Root node of the ``RemoveEmbargoFromCaseBT`` Sequence.
     """
-    teardown_if_active = py_trees.composites.Selector(
-        name="TeardownIfActive",
-        memory=False,
-        children=[
-            py_trees.decorators.Inverter(
-                name="EmbargoWasNotActive",
-                child=IsActiveEmbargoNode(
-                    case_id=case_id, embargo_id=embargo_id
-                ),
-            ),
-            py_trees.decorators.Inverter(
-                name="EmbargoAlreadyExited",
-                child=HasEmbargoActiveNode(case_id=case_id),
-            ),
-            py_trees.composites.Sequence(
-                name="ActiveTeardown",
-                memory=False,
-                children=[
-                    ClearActiveEmbargoNode(case_id=case_id),
-                    SendAnnounceEmbargoEventNode(
-                        case_id=case_id, embargo_id=embargo_id
-                    ),
-                    embargo_admission_backfill_tree(case_id, actor_config),
-                ],
-            ),
-        ],
-    )
     root = create_receive_activity_tree(
         name="RemoveEmbargoFromCaseBT",
         case_id=case_id,
@@ -194,8 +206,29 @@ def remove_embargo_from_case_tree(
             manager_arm=SenderEntitlementKind.CASE_OWNER,
         ),
         precondition_guards=[ValidateCaseExistsNode(case_id=case_id)],
-        replica_effects=[teardown_if_active],
-        replica_emit_exemption=EMBARGO_TEARDOWN_ANNOUNCE,
+        # A replica still writes its own copy here, outside the CASE_MANAGER
+        # gate; #3814 decides that write under RSH-08-003 and CM-31-010.
+        replica_effects=[
+            create_participant_replica_gated_tree(
+                name="TeardownOnReplica",
+                case_id=case_id,
+                children=[
+                    _teardown_if_active(case_id, embargo_id, prefix="Replica"),
+                ],
+            ),
+        ],
+        manager_effects=[
+            _teardown_if_active(
+                case_id,
+                embargo_id,
+                SendAnnounceEmbargoEventNode(
+                    case_id=case_id, embargo_id=embargo_id
+                ),
+                *embargo_admission_backfill_nodes(case_id, actor_config),
+            ),
+        ],
+        manager_case_id=case_id,
+        manager_gate_name="TeardownAndAnnounceIfCaseManager",
     )
     logger.info(
         "Created RemoveEmbargoFromCaseBT for case=%s embargo=%s",
@@ -252,12 +285,11 @@ def add_embargo_to_case_tree(
         ],
         # Activating a revision can admit a participant that had already
         # accepted it, after the Add entry was fanned out (CM-10-006).
-        manager_effects=[
-            BackfillAdmittedParticipantsNode(case_id=case_id),
-            # The activation can change the terms of a stub Invite still
-            # outstanding (CM-11-016).
-            ReissueStubInvitesNode(case_id=case_id, actor_config=actor_config),
-        ],
+        # The activation can also change the terms of a stub Invite still
+        # outstanding (CM-11-016).
+        manager_effects=embargo_admission_backfill_nodes(
+            case_id, actor_config
+        ),
         manager_case_id=case_id,
         manager_gate_name="EmbargoAdmissionBackfill",
     )

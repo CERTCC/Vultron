@@ -51,9 +51,7 @@ __all__ = [
     "CASE_STATUS",
     "DEFER_RM_DECLARATION",
     "EMBARGO_INVITE_ANSWER",
-    "EMBARGO_TEARDOWN_ANNOUNCE",
     "ENGAGE_RM_DECLARATION",
-    "GENESIS_REJECT_ANNOUNCE",
     "OFFER_ROLE",
     "REPLICA_EMIT_EXEMPTIONS",
     "RSH_STATUS",
@@ -165,33 +163,6 @@ EMBARGO_INVITE_ANSWER: Final = ReplicaEmitExemption(
     covers=frozenset({"SendEmbargoInviteAnswerNode"}),
 )
 
-EMBARGO_TEARDOWN_ANNOUNCE: Final = ReplicaEmitExemption(
-    name="embargo-teardown-announce",
-    reason=(
-        "Not a design decision: kept to preserve behaviour while the received"
-        " trees move onto the factory gate. Remove(EmbargoEvent)'s"
-        " Announce(EmbargoEvent) is correct at the CASE_MANAGER, but a"
-        " participant replica that tears down also re-announces the"
-        " CASE_MANAGER's act as its own, which BT-17-008 forbids; #4323"
-        " gates it and deletes this exemption."
-    ),
-    covers=frozenset({"SendAnnounceEmbargoEventNode"}),
-)
-
-GENESIS_REJECT_ANNOUNCE: Final = ReplicaEmitExemption(
-    name="genesis-reject-announce",
-    reason=(
-        "The genesis pre-seed Announce(VulnerabilityCase) is the ledger"
-        " holder's answer to the rejecting peer, addressed to that peer, and"
-        " runs only behind the tree's in-place CheckIsCaseManagerNode,"
-        " ahead of the entry replay so the peer can anchor its chain"
-        " (SYNC-15-002, ADR-0073). The in-place check masks a failure at the"
-        " CASE_MANAGER as a skip (BTND-07-005); #4324 moves it onto a real"
-        " gate and deletes this exemption."
-    ),
-    covers=frozenset({"AnnounceCaseOnGenesisRejectNode"}),
-)
-
 
 def _rm_declaration_exemption(
     name: str, activity: str
@@ -229,8 +200,6 @@ REPLICA_EMIT_EXEMPTIONS: Final[Mapping[str, ReplicaEmitExemption]] = (
                 RSH_STATUS,
                 CASE_STATUS,
                 EMBARGO_INVITE_ANSWER,
-                EMBARGO_TEARDOWN_ANNOUNCE,
-                GENESIS_REJECT_ANNOUNCE,
                 ENGAGE_RM_DECLARATION,
                 DEFER_RM_DECLARATION,
             )
