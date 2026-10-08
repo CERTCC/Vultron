@@ -29,6 +29,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.rm_declaration import RMAnomalyProbe
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.status.nodes.append import (
     CheckStatusNotAlreadyAppendedNode,
@@ -36,7 +37,6 @@ from vultron.core.behaviors.status.nodes.append import (
     ResolveAndPersistStatusObjectNode,
     SkipIfIdempotentNode,
 )
-from vultron.core.behaviors.status.nodes.dimension_filter import BB_RM_ANOMALY
 from vultron.core.behaviors.status.nodes.rm_validation import (
     ValidateRMTransitionNode,
 )
@@ -237,7 +237,10 @@ class TestValidateRMTransitionNode:
         )
 
         with caplog.at_level(logging.WARNING):
-            result = bridge.execute_with_setup(tree=seq, actor_id=ACTOR_ID)
+            seen: dict = {}
+            result = bridge.execute_with_setup(
+                tree=RMAnomalyProbe(seq, seen), actor_id=ACTOR_ID
+            )
 
         assert result.status == Status.SUCCESS
         # RSH-06-003: must log at WARNING level
@@ -245,9 +248,7 @@ class TestValidateRMTransitionNode:
             "Expected WARNING log for non-adjacent forward RM jump"
         )
         # RSH-06: anomaly flag must be set on blackboard
-        anomaly = py_trees.blackboard.Blackboard.storage.get(
-            "/" + BB_RM_ANOMALY
-        )
+        anomaly = seen["anomaly"]
         assert anomaly is not None, "BB_RM_ANOMALY not set for forward gap"
         assert anomaly["anomaly_type"] == "gap"
         assert anomaly["from_rm"] == RM.RECEIVED
@@ -288,12 +289,13 @@ class TestValidateRMTransitionNode:
             memory=False,
             children=[load, resolve, validate],
         )
-        result = bridge.execute_with_setup(tree=seq, actor_id=ACTOR_ID)
+        seen: dict = {}
+        result = bridge.execute_with_setup(
+            tree=RMAnomalyProbe(seq, seen), actor_id=ACTOR_ID
+        )
 
         assert result.status == Status.FAILURE
-        anomaly = py_trees.blackboard.Blackboard.storage.get(
-            "/" + BB_RM_ANOMALY
-        )
+        anomaly = seen["anomaly"]
         assert anomaly is not None, "BB_RM_ANOMALY not set for regression"
         assert anomaly["anomaly_type"] == "regression"
         assert anomaly["from_rm"] == RM.ACCEPTED
@@ -332,12 +334,13 @@ class TestValidateRMTransitionNode:
             memory=False,
             children=[load, resolve, validate],
         )
-        result = bridge.execute_with_setup(tree=seq, actor_id=ACTOR_ID)
+        seen: dict = {}
+        result = bridge.execute_with_setup(
+            tree=RMAnomalyProbe(seq, seen), actor_id=ACTOR_ID
+        )
 
         assert result.status == Status.SUCCESS
-        anomaly = py_trees.blackboard.Blackboard.storage.get(
-            "/" + BB_RM_ANOMALY
-        )
+        anomaly = seen["anomaly"]
         assert anomaly is None, (
             f"Expected no anomaly for adjacent transition, got {anomaly}"
         )

@@ -750,7 +750,9 @@ groups:
       actor authored, and MUST NOT emit an activity whose only recipient is the
       executing actor. `create_receive_activity_tree` MUST be the only place a
       received-side tree acquires that gate: it MUST take the gated effects as
-      `manager_effects` and the ungated effects as `replica_effects`, and it
+      `manager_effects`, the ungated effects as `replica_effects`, and the
+      effects owed on a refusal as `refusal_effects`, which it gates on the
+      CASE_MANAGER the same way (CLP-10-022), and it
       MUST refuse an emit-capable node in `replica_effects` unless the tree
       declares a named exemption carrying a reason.
     rationale: >-

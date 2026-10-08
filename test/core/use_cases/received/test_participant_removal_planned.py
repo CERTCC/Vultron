@@ -14,11 +14,12 @@
 
 Goal tests planned under #2257.  Those still strict-``xfail`` name the issue
 that implements them (``_TRACKED_BY``); the removal itself (CM-31-001,
-CM-31-004 through CM-31-008) landed with #4080, reinstatement (CM-31-011,
-CM-31-012) with #4081 and the invitation exclusion (CM-31-013) with #4084.
-Every test starts from a CASE_MANAGER store holding a case with the
-CASE_MANAGER, a Case Owner, a joined vendor that is an ``ACCEPTED`` row for
-the active embargo, and a second joined vendor.
+CM-31-004 through CM-31-008) landed with #4080, the embargo-ending notices
+(CM-31-009, CM-31-010) with #4083, reinstatement (CM-31-011, CM-31-012) with
+#4081 and the invitation exclusion (CM-31-013) with #4084.  Every test starts
+from a CASE_MANAGER store holding a case with the CASE_MANAGER, a Case Owner,
+a joined vendor that is an ``ACCEPTED`` row for the active embargo, and a
+second joined vendor.
 
 - CM-31-001 — removal keeps the record and makes the participant inert.
 - CM-31-003 — the case publishes a computed ``activeParticipants``.
@@ -99,8 +100,6 @@ EMBARGO_ID = f"{CASE_ID}/embargo_events/active"
 
 # The issue implementing each CM-31 requirement (ADR-0116).
 _TRACKED_BY = {
-    "CM-31-009": 4083,
-    "CM-31-010": 4083,
     # The non-manager half is the general RSH-08-003 replica gate.
     "RSH-08-003": 3814,
 }
@@ -430,7 +429,6 @@ def test_removal_leaves_embargo_consent_untouched(removal_case) -> None:
     assert participant.consent_for(EMBARGO_ID) == EmbargoConsentState.ACCEPTED
 
 
-@pytest.mark.xfail(strict=True, reason=_planned("CM-31-009"))
 @pytest.mark.spec("CM-31-009")
 def test_removed_signatory_is_sent_the_termination(removal_case) -> None:
     """Terminating the embargo sends the removed signatory a direct ET."""
@@ -439,9 +437,14 @@ def test_removed_signatory_is_sent_the_termination(removal_case) -> None:
     embargo = removal_case.dl.read(EMBARGO_ID)
     assert isinstance(embargo, as_EmbargoEvent)
 
-    removal_case.route(
-        remove_embargo_from_case_activity(embargo, origin=CASE_ID, actor=OWNER)
+    # The owner addresses its termination to the CASE_MANAGER (PCR-08-001);
+    # an unaddressed copy is refused at the door (HP-01-005).
+    result = removal_case.route(
+        remove_embargo_from_case_activity(
+            embargo, origin=CASE_ID, actor=OWNER, to=[MANAGER]
+        )
     )
+    assert result.disposition is HandlerDisposition.APPLIED
 
     terminations = [
         a

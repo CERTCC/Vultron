@@ -212,7 +212,8 @@ body (Phase 8), and reviewers use it as their spec floor.
      --issue-type-id "${TASK_TYPE_ID}" \
      --label "size:<S|M|L>" \
      --parent "${EPIC_NUMBER:-${ISSUE_NUMBER}}" \
-     --milestone "${MILESTONE_NUMBER}")
+     --milestone "${MILESTONE_NUMBER}" \
+     --opened-as separate-defect)
    bash .agents/skills/shared/add-to-project.sh "${NEW_ISSUE}"
    ```
 
@@ -361,6 +362,14 @@ Because this phase runs before the final commit, `git diff main...HEAD` may
 be empty if changes are unstaged. Stage all changed files first (`git add`),
 then pass `git diff --cached` as the diff source for the review, or do a
 draft commit and use `git diff main...HEAD` normally.
+
+### Nearby debt
+
+Before opening the PR, apply the nearby-debt rule from
+`.claude/skills/shared/completeness-doctrine.md` § "Net Issues: Close More Than
+You Open": list open `opened:debt` issues whose `Where:` names a file in the
+diff and fix them in this PR (`- Closes #N` each). State the closes/opens line in
+the PR body per `pr-body-guide.md`. Any issue you file takes `--opened-as`.
 
 ### Phase 8 — Open PR and Finalize
 

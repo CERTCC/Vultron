@@ -9,6 +9,9 @@ Issues and PRDs for this repo live as GitHub issues. Use the `gh` CLI for all op
 ## Conventions
 
 - **Create an issue**: use `.agents/skills/manage-github-issue/manage_github_issue.sh` (or the `createIssue` GraphQL mutation directly). **Never use `gh issue create`** — it cannot set the issue type, parent/child (sub-issue) relationships, or blocker/blocked-by links, all of which are required on create. Type IDs and relationship mutations are in `.agents/skills/manage-github-issue/REFERENCE.md`; use the `create-epic` skill for Epics.
+- **Say why you opened it**: every create also needs `--opened-as excursion|separate-defect|debt|deferred` (which applies an `opened:` label) or `--planned` for planned or user-requested work.
+  `--opened-as debt` also needs `--where`.
+  The labels let a run's net issue count be read afterwards; see `.agents/skills/shared/completeness-doctrine.md` § "Net Issues: Close More Than You Open".
 - **Read an issue**: `gh issue view <number> --comments`, filtering comments by `jq` and also fetching labels.
 - **List issues**: `gh issue list --state open --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]'` with appropriate `--label` and `--state` filters.
 - **Comment on an issue**: `gh issue comment <number> --body "..."`

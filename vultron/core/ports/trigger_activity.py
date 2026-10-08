@@ -773,8 +773,13 @@ class TriggerActivityPort(Protocol):
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        attributed_to: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Announce(EmbargoEvent)`` activity.
+
+        *attributed_to*, when given, names the actor whose request the
+        CASE_MANAGER is carrying out (CM-24-002), as on the CM-31-009 notice
+        of a shorter revision.
 
         Returns ``(activity_id, activity_dict)``.
         """
@@ -786,10 +791,14 @@ class TriggerActivityPort(Protocol):
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        attributed_to: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist a ``Remove(EmbargoEvent, origin=case)`` ET activity.
 
         Corresponds to the ET (Embargo Termination) protocol message.
+        *attributed_to*, when given, names the actor whose request the
+        CASE_MANAGER is carrying out (CM-24-002), as on the CM-31-009 notice
+        to a bound signatory the ledger no longer reaches.
         Returns ``(activity_id, activity_dict)``.
         """
         ...

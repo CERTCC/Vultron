@@ -102,7 +102,9 @@ the corresponding GitHub template sections.
 Use `.agents/skills/manage-github-issue/manage_github_issue.sh`.
 
 - **Create**: set issue type ID (`Idea` or `Concern`), apply exactly one label
-  (`idea` or `concern`), wire parent epic, and pass `--milestone ${MILESTONE_NUMBER}`.
+  (`idea` or `concern`), wire parent epic, and pass `--milestone ${MILESTONE_NUMBER}` and `--planned`.
+  When the caller supplies **Opened as** (for example `debt` with a `--where`),
+  pass `--opened-as <reason> [--where <text>]` instead of `--planned`.
 - **Update**: update title/body and optionally parent epic; do not change issue
   type. Post a refresh comment after updating.
 

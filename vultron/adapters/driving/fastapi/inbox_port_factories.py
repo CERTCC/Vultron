@@ -281,11 +281,14 @@ _EMBARGO_INVITE_SEMANTICS = frozenset(
         MessageSemantics.OFFER_ACTOR_TO_CASE,
         # ADD_/REMOVE_EMBARGO_EVENT: an embargo change re-issues the
         # CASE_MANAGER's outstanding stub Invites (CM-11-016), each stamped
-        # with the same RSVP window (CM-11-014).
+        # with the same RSVP window (CM-11-014), and sends the embargo-ending
+        # notices to the bound signatories the ledger no longer reaches
+        # (CM-31-009); the teardown also announces itself (EMB-19-001).
         MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE,
         MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE,
         # REJECT_INVITE_TO_EMBARGO_ON_CASE: the owner's Reject after disclosure
-        # ends the embargo and so re-issues the stubs the same way.
+        # ends the embargo and so re-issues the stubs the same way, and its
+        # CM-31-009 notices follow the ET.
         MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE,
     }
 )

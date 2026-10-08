@@ -21,6 +21,10 @@ It fixes the stage order intake → sender guard → precondition guards →
 guarded commit → protocol effects (CLP-10-006, CLP-10-010, ADR-0115) and
 supplies the shared intake node itself (CLP-10-017), so no handler opts out
 of recording what arrived.
+A tree that owes the sender feedback when its guards refuse passes
+``refusal_effects``: the factory runs them only on that refusal, at the
+CASE_MANAGER, once per received activity, and the tree still fails before
+the commit (CLP-10-022).
 
 When ``sender_guard`` is provided, the factory places it immediately after
 intake and before the caller's ``precondition_guards``.
@@ -58,6 +62,10 @@ from vultron.core.behaviors.case.nodes.intake import (
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
 )
+from vultron.core.behaviors.case.nodes.refusal_stage import (
+    PreconditionGuardStage,
+    RefusalEffectsBestEffort,
+)
 from vultron.core.behaviors.case.nodes.role_gates import (
     CaseManagerGate,
     create_case_manager_gated_tree,
@@ -67,6 +75,7 @@ from vultron.core.behaviors.replica_emit_exemptions import (
     REPLICA_EMIT_EXEMPTIONS,
     ReplicaEmitExemption,
 )
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.errors import VultronWiringError
 
 logger = logging.getLogger(__name__)
@@ -225,6 +234,64 @@ def _manager_stage(
     )
 
 
+def _refusal_stage(
+    name: str,
+    intake: IntakeReceivedActivityNode,
+    precondition_guards: list[py_trees.behaviour.Behaviour],
+    refusal_effects: list[py_trees.behaviour.Behaviour],
+    case_id: str | None,
+) -> PreconditionGuardStage:
+    """Wrap the guards so *refusal_effects* run only when they refuse.
+
+    The refusal effects sit inside the CASE_MANAGER gate on *case_id*, the
+    case the guards judged: the CASE_MANAGER adjudicates, so only it answers a
+    refusal (BT-17-008).  The gate reads a case this store does not hold as
+    "not the CASE_MANAGER" at ``debug`` level, because the guard that refused
+    an unknown case has already reported it.
+
+    Raises:
+        VultronWiringError: a refusal effect is not emit-capable, or
+            contains a state writer.  A refusal commits nothing, so a refusal
+            effect may only speak to the sender; a state write here would
+            change state the ledger never records (CLP-10-022).
+    """
+    not_emitters = [
+        type(n).__name__
+        for n in refusal_effects
+        if not isinstance(n, EmitCapable)
+    ]
+    writers = sorted(
+        {
+            type(n).__name__
+            for root in refusal_effects
+            for n in root.iterate()
+            if isinstance(n, StateWriteCapable)
+        }
+    )
+    if not_emitters or writers:
+        raise VultronWiringError(
+            f"create_receive_activity_tree({name}): refusal_effects must"
+            f" emit and write no case state; not emit-capable:"
+            f" {not_emitters}, state writers: {writers} (CLP-10-022)"
+        )
+    gate = create_case_manager_gated_tree(
+        name=f"{name}RefusalIfCaseManager",
+        case_id=case_id,
+        children=refusal_effects,
+        case_may_be_absent=True,
+    )
+    return PreconditionGuardStage(
+        name="PreconditionGuardStage",
+        guards=py_trees.composites.Sequence(
+            name="PreconditionGuards",
+            memory=False,
+            children=precondition_guards,
+        ),
+        refusal=RefusalEffectsBestEffort(name="RefusalEffects", child=gate),
+        intake=intake,
+    )
+
+
 def create_receive_activity_tree(
     name: str,
     case_id: str | None,
@@ -240,6 +307,7 @@ def create_receive_activity_tree(
     manager_gate_name: str | None = None,
     manager_body_name: str | None = None,
     manager_case_may_be_absent: bool = False,
+    refusal_effects: list[py_trees.behaviour.Behaviour] | None = None,
 ) -> py_trees.composites.Sequence:
     """Compose a receive-side BT with the four CLP-10-010 stages in order.
 
@@ -248,6 +316,16 @@ def create_receive_activity_tree(
 
         Intake → [sender_guard] → [*precondition_guards] → GuardedCommit
             → [*replica_effects] → CaseManagerGate[*manager_effects]
+
+    With ``refusal_effects`` the guards are wrapped in a
+    :class:`~vultron.core.behaviors.case.nodes.refusal_stage.PreconditionGuardStage`
+    (CLP-10-022)::
+
+        Intake → [sender_guard]
+            → PreconditionGuardStage
+                ├─ PreconditionGuards[*precondition_guards]
+                └─ RefusalEffects → CaseManagerGate[*refusal_effects]
+            → GuardedCommit → …
 
     Intake is one shared :class:`IntakeReceivedActivityNode` that archives the
     received activity exactly as received, idempotently, and writes nothing
@@ -281,6 +359,21 @@ def create_receive_activity_tree(
     (``case_id=None``) can still gate its emits.
     A received-tree module does not call ``create_case_manager_gated_tree``
     itself.
+
+    ``refusal_effects`` answer a refusal in the moment — the RSH-06-004
+    clarification note for a refused backward RM declaration is the case in
+    point.  They run only when a precondition guard refuses, never on an
+    accepted delivery, so no effect precedes the commit (CLP-10-006).  They
+    do not run when the sender guard refuses: a sender not entitled to send
+    the message is owed no answer about its content (HP-01-006).  The factory
+    gates them on the CASE_MANAGER of ``case_id`` (when it is ``None`` the
+    gate resolves the case from the blackboard and skips without one), skips
+    them on a redelivery that intake
+    found already archived, and keeps the tree's result the guard's
+    ``FAILURE``, so nothing is committed and the handler still reports
+    ``REFUSED`` for the guard's reason.  Each refusal effect must be
+    emit-capable and contain no state writer: a refusal commits nothing, so
+    it may change no state.
 
     ``effect_nodes`` is the pre-BT-17-008 form, kept only for the close-case
     tree, whose ungated decline emit is #3825's to gate: it runs ungated
@@ -321,15 +414,18 @@ def create_receive_activity_tree(
             ``manager_effects``; defaults to ``{manager_gate_name}Body``.
         manager_case_may_be_absent: Passed to the gate; see
             :class:`CheckIsCaseManagerNode`.
+        refusal_effects: Emit-capable nodes run only when a precondition
+            guard refuses, at the CASE_MANAGER, once per received activity.
 
     Raises:
         VultronWiringError: ``effect_nodes`` is mixed with the new effect
             kinds, ``manager_effects`` has no ``manager_case_id``, an
-            exemption is unregistered, or an emit-capable node sits in
-            ``replica_effects`` without one (BT-17-008).
+            exemption is unregistered, an emit-capable node sits in
+            ``replica_effects`` without one (BT-17-008), or a refusal effect
+            is not emit-capable or holds a state writer (CLP-10-022).
 
     Per ``specs/case-ledger-processing.yaml`` CLP-10-006, CLP-10-010,
-    CLP-10-017 and ``specs/behavior-tree-integration.yaml`` BT-17-008.
+    CLP-10-017, CLP-10-022 and ``specs/behavior-tree-integration.yaml`` BT-17-008.
     """
     replica = replica_effects or []
     manager = manager_effects or []
@@ -347,12 +443,22 @@ def create_receive_activity_tree(
     )
     _check_replica_effects(name, replica, replica_emit_exemption)
 
-    children: list[py_trees.behaviour.Behaviour] = [
-        IntakeReceivedActivityNode()
-    ]
+    intake = IntakeReceivedActivityNode()
+    children: list[py_trees.behaviour.Behaviour] = [intake]
     if sender_guard is not None:
         children.append(sender_guard)
-    children.extend(precondition_guards)
+    if refusal_effects:
+        children.append(
+            _refusal_stage(
+                name,
+                intake,
+                precondition_guards,
+                refusal_effects,
+                case_id,
+            )
+        )
+    else:
+        children.extend(precondition_guards)
     if case_id is not None:
         children.append(
             create_guarded_commit_case_ledger_entry_tree(

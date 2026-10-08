@@ -49,10 +49,11 @@ from test.support.rm_declaration import (
     CASE_ID,
     CASE_MANAGER_ID,
     PARTICIPANT_ID,
+    RMAnomalyProbe,
     RMDeclarationCase,
     all_cases,
+    assert_note_owed,
     current_status as _current_status,
-    queued_notes,
     recorded_rm,
     seed_case as _seed_case,
 )
@@ -284,8 +285,13 @@ def _run_tree(
     executing_actor_id: str,
     make_payload: Any,
     capture: dict | None = None,
+    anomaly: dict | None = None,
 ) -> Any:
     """Run the full ``add_participant_status_tree`` for *asserted*.
+
+    When *anomaly* is provided, the tree is wrapped in an
+    :class:`RMAnomalyProbe` that records the ``BB_RM_ANOMALY`` the run
+    published under ``anomaly["anomaly"]``.
 
     When *capture* is provided, an ``_CaptureOverride`` probe is appended in an
     outer ``memory=False`` Sequence so the caller can inspect the override the
@@ -313,6 +319,8 @@ def _run_tree(
             memory=False,
             children=[tree, _CaptureOverride(sink=capture)],
         )
+    if anomaly is not None:
+        tree = RMAnomalyProbe(tree, anomaly)
     # Production passes the parsed event as ``activity`` (see
     # SvcAddParticipantStatusToParticipantReceivedUseCase); the guarded commit
     # needs it on the blackboard to build a payload snapshot.
@@ -1097,13 +1105,6 @@ class TestMergeSnapshotObjectFields:
 class TestRMGapAnomalyFlag:
     """FilterParticipantStatusDimensionsNode publishes BB_RM_ANOMALY (RSH-06)."""
 
-    def _read_anomaly(self) -> Any:
-        from vultron.core.behaviors.status.nodes.dimension_filter import (
-            BB_RM_ANOMALY,
-        )
-
-        return py_trees.blackboard.Blackboard.storage.get("/" + BB_RM_ANOMALY)
-
     @pytest.mark.spec("RSH-06-001")
     def test_nonadjacent_forward_jump_sets_gap_anomaly(
         self, store_for, make_payload
@@ -1114,10 +1115,11 @@ class TestRMGapAnomalyFlag:
         asserted = _asserted_status(RM.ACCEPTED, None, None)
         _seed_case(dl, current, asserted)
 
-        result = _run_tree(dl, asserted, ACTOR_ID, make_payload)
+        seen: dict = {}
+        result = _run_tree(dl, asserted, ACTOR_ID, make_payload, anomaly=seen)
 
         assert result.status == Status.SUCCESS
-        anomaly = self._read_anomaly()
+        anomaly = seen["anomaly"]
         assert anomaly is not None, (
             "BB_RM_ANOMALY not set for non-adjacent RM gap"
         )
@@ -1134,9 +1136,10 @@ class TestRMGapAnomalyFlag:
         asserted = _asserted_status(RM.VALID, None, None)
         _seed_case(dl, current, asserted)
 
-        _run_tree(dl, asserted, ACTOR_ID, make_payload)
+        seen: dict = {}
+        _run_tree(dl, asserted, ACTOR_ID, make_payload, anomaly=seen)
 
-        anomaly = self._read_anomaly()
+        anomaly = seen["anomaly"]
         assert anomaly is None, (
             f"Expected no anomaly for adjacent transition, got {anomaly}"
         )
@@ -1151,9 +1154,10 @@ class TestRMGapAnomalyFlag:
         asserted = _asserted_status(RM.RECEIVED, None, None)
         _seed_case(dl, current, asserted)
 
-        _run_tree(dl, asserted, ACTOR_ID, make_payload)
+        seen: dict = {}
+        _run_tree(dl, asserted, ACTOR_ID, make_payload, anomaly=seen)
 
-        anomaly = self._read_anomaly()
+        anomaly = seen["anomaly"]
         assert anomaly is not None, (
             "BB_RM_ANOMALY not set for backward regression"
         )
@@ -1183,16 +1187,15 @@ class TestSharedRMAcceptanceRule:
         asserted = _asserted_status(case.declared, CS_vf.Vf, None)
         _seed_case(dl, current, asserted)
 
-        _run_tree(dl, asserted, CASE_MANAGER_ID, make_payload)
+        seen: dict = {}
+        _run_tree(dl, asserted, CASE_MANAGER_ID, make_payload, anomaly=seen)
 
         assert recorded_rm(dl) == case.expected_rm
-        anomaly = py_trees.blackboard.Blackboard.storage.get(
-            "/rm_transition_anomaly"
-        )
-        assert (anomaly or {}).get("anomaly_type") == case.anomaly
-        # The note follows an accepted gap; a wholly refused regression ends
-        # the tree before its effects (RSH-06-004).
-        assert len(queued_notes(dl)) == (1 if case.anomaly == "gap" else 0)
+        assert (seen["anomaly"] or {}).get("anomaly_type") == case.anomaly
+        # The note follows an accepted gap from the effect stage, and a
+        # wholly refused regression from the refusal-effects stage
+        # (RSH-06-004, CLP-10-022).
+        assert_note_owed(case, dl)
 
 
 # ---------------------------------------------------------------------------

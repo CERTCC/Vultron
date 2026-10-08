@@ -26,6 +26,8 @@ from ``create_receive_activity_tree``, and this tree has none of its own to
 build (``test/architecture/test_received_tree_case_manager_gate.py``).
 """
 
+from collections.abc import Sequence
+
 import py_trees
 
 from vultron.config.actor import ActorConfig
@@ -43,6 +45,7 @@ from vultron.core.behaviors.sync.nodes.embargo_backfill import (
 def embargo_admission_backfill_tree(
     case_id: str,
     actor_config: ActorConfig | None = None,
+    leading: Sequence[py_trees.behaviour.Behaviour] = (),
 ) -> py_trees.behaviour.Behaviour:
     """Backfill what an embargo effect admitted, then re-issue stale stubs.
 
@@ -55,11 +58,17 @@ def embargo_admission_backfill_tree(
     the canonical ledger and the stub Invites live in its store.
     *actor_config* sets the replacements' RSVP window; ``None`` applies the
     ``ActorConfig`` defaults.
+
+    *leading* runs first under the same gate: the CASE_MANAGER's other
+    follow-ups to the EM write, such as the teardown ``Announce`` and the
+    embargo-ending notices to the bound signatories the ledger no longer
+    reaches (EMB-19-001, CM-31-009).
     """
     return create_case_manager_gated_tree(
         name="EmbargoAdmissionBackfill",
         case_id=case_id,
         children=[
+            *leading,
             BackfillAdmittedParticipantsNode(case_id=case_id),
             ReissueStubInvitesNode(case_id=case_id, actor_config=actor_config),
         ],

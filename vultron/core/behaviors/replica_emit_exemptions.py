@@ -53,7 +53,6 @@ __all__ = [
     "DEFER_RM_DECLARATION",
     "EMBARGO_INVITE_ANSWER",
     "EMBARGO_INVITE_REFUSAL",
-    "EMBARGO_TEARDOWN_ANNOUNCE",
     "ENGAGE_RM_DECLARATION",
     "GENESIS_REJECT_ANNOUNCE",
     "INVALIDATE_REPORT_RM_DECLARATION",
@@ -196,19 +195,6 @@ REPORT_CASE_PROPOSAL: Final = ReplicaEmitExemption(
     covers=frozenset({"ProposeReportCaseToActorNode"}),
 )
 
-EMBARGO_TEARDOWN_ANNOUNCE: Final = ReplicaEmitExemption(
-    name="embargo-teardown-announce",
-    reason=(
-        "Not a design decision: kept to preserve behaviour while the received"
-        " trees move onto the factory gate. Remove(EmbargoEvent)'s"
-        " Announce(EmbargoEvent) is correct at the CASE_MANAGER, but a"
-        " participant replica that tears down also re-announces the"
-        " CASE_MANAGER's act as its own, which BT-17-008 forbids; #4323"
-        " gates it and deletes this exemption."
-    ),
-    covers=frozenset({"SendAnnounceEmbargoEventNode"}),
-)
-
 GENESIS_REJECT_ANNOUNCE: Final = ReplicaEmitExemption(
     name="genesis-reject-announce",
     reason=(
@@ -275,7 +261,6 @@ REPLICA_EMIT_EXEMPTIONS: Final[Mapping[str, ReplicaEmitExemption]] = (
                 EMBARGO_INVITE_ANSWER,
                 EMBARGO_INVITE_REFUSAL,
                 REPORT_CASE_PROPOSAL,
-                EMBARGO_TEARDOWN_ANNOUNCE,
                 GENESIS_REJECT_ANNOUNCE,
                 ENGAGE_RM_DECLARATION,
                 DEFER_RM_DECLARATION,
