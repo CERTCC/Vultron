@@ -55,7 +55,8 @@ generate-vs-check split".
   layer, not at scenario call sites: `run_direct_path_rm_triage()` calls
   `receiver_engages_case()` for the direct receiver (every multi-actor
   scenario), `run_invite_path_rm_triage()` calls it again for the invited
-  participant (every scenario with an invite path, CM-11-002), and
+  participant once the invite chain has sent the full-case Invite reply (every
+  scenario with an invite path, CM-11-002), and
   `fv_demo.py` calls it via
   `vendor_engages_case()`. It was promoted from a `fvcv-handoff`-only entry to
   the fifth universal type in ISSUE-2266; see

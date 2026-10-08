@@ -146,8 +146,9 @@ its authority to *commit* comes from its role (CLP-09), not from being active.
   "All participants closed" counts only participants that joined.
 - **Refusals.** The CASE_MANAGER refuses, and writes nothing for: a stub Invite
   with no roles or without a stub summary (CM-11-019, CM-17-010); a
-  `Reject` of a stub Invite from an invitee with no participant record
-  (CM-11-018), which is never a silent no-op; and a reply to the full-case
+  `Reject` or `Accept` of a stub Invite from an invitee with no participant
+  record (CM-11-018, CM-11-021), which is never a silent no-op and never
+  creates a participant; and a reply to the full-case
   Invite from an inert participant that has not joined (CM-11-012). Expiry
   writes no participant state and no ledger entry (CM-11-014).
 - **Re-invite.** Same record, fresh stub Invite, new deadline, with `inReplyTo`

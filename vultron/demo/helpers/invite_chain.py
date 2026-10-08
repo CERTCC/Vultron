@@ -17,7 +17,10 @@ A participant joins a case through one chain: the CASE_MANAGER emits a case
 Invite (CM-17-007, ADR-0109), the invitee's DataLayer receives it, the invitee
 answers it, and — on an accept — the trust-bootstrap
 ``Announce(VulnerabilityCase)`` seeds the invitee's case replica
-(MV-10-003/MV-10-004).  Every scenario once wrote that chain out by hand
+(MV-10-003/MV-10-004).  The CASE_MANAGER then sends the full-case Invite, and
+every invitee, whatever its role, judges the case by replying to it
+(CM-11-010, CM-11-011): the chain asserts the whole sequence — stub Invite,
+stub Accept, Announce and replay, full-case Invite, reply.  Every scenario once wrote that chain out by hand
 (DEMOMA-17-001, #4192); this module is the one place that owns it, with the
 variants as parameters:
 
@@ -52,6 +55,7 @@ from vultron.demo.helpers.polling import (
     wait_for_case_on_container,
 )
 from vultron.demo.helpers.seeding import get_actor_by_id
+from vultron.demo.helpers.sync import wait_for_replica_ledger_coverage
 from vultron.demo.utils import (
     DataLayerClient,
     demo_check,
@@ -65,6 +69,9 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 )
 
 logger = logging.getLogger(__name__)
+
+FULL_CASE_REPLY_TIMEOUT = 20.0
+"""Seconds to wait for the full-case Invite and for ledger coverage (CM-11-010)."""
 
 DEMO_STUB_SUMMARY = "Vulnerability report — details shared after acceptance."
 """The owner-chosen summary every demo stub Invite carries (CM-17-010)."""
@@ -106,6 +113,7 @@ def run_case_invite_chain(
     invite_timeout: float = 15.0,
     replica_timeout: float | None = None,
     expect_emitted_by: EmittedBy | None = None,
+    reply_timeout: float = FULL_CASE_REPLY_TIMEOUT,
     then: Callable[[], None] | None = None,
 ) -> None:
     """Drive one invitee through the case-invite chain.
@@ -133,6 +141,8 @@ def run_case_invite_chain(
         replica_timeout: Seconds to wait for the case replica; the polling
             default when ``None``.
         expect_emitted_by: When given, verify the delivered Invite's sender.
+        reply_timeout: Seconds to wait for the full-case Invite and for the
+            invitee's ledger copy to reach its floor before the reply.
         then: Runs inside the gate after the chain completes, so it is skipped
             when the invite was never delivered.
     """
@@ -149,6 +159,11 @@ def run_case_invite_chain(
             invite_timeout=invite_timeout,
             replica_timeout=replica_timeout,
             expect_emitted_by=expect_emitted_by,
+            reply_timeout=reply_timeout,
+            authority_client=(
+                case_manager_client
+                or (inviter.client if inviter is not None else None)
+            ),
             then=then,
         )
 
@@ -211,6 +226,8 @@ def _await_and_answer(
     invite_timeout: float,
     replica_timeout: float | None,
     expect_emitted_by: EmittedBy | None,
+    reply_timeout: float,
+    authority_client: DataLayerClient | None,
     then: Callable[[], None] | None,
 ) -> None:
     """Gate on the Invite's delivery, then answer it and run what follows.
@@ -250,8 +267,14 @@ def _await_and_answer(
             _await_case_replica(
                 invitee_name, invitee_client, case, replica_timeout
             )
-            _await_full_case_invite(
-                invitee_name, invitee_client, invitee, case
+            reply_to_full_case_invite(
+                invitee_name=invitee_name,
+                invitee_client=invitee_client,
+                invitee=invitee,
+                invitee_in_own_container=invitee_in_own_container,
+                case=case,
+                authority_client=authority_client,
+                timeout=reply_timeout,
             )
         else:
             with demo_step(f"{invitee_name} rejects the case invitation"):
@@ -285,23 +308,45 @@ def _await_case_replica(
     logger.info("%s received case replica", invitee_name)
 
 
-def _await_full_case_invite(
+def reply_to_full_case_invite(
+    *,
     invitee_name: str,
     invitee_client: DataLayerClient,
     invitee: as_Actor,
+    invitee_in_own_container: as_Actor,
     case: as_VulnerabilityCase,
+    authority_client: DataLayerClient | None,
+    timeout: float,
 ) -> None:
-    """Verify the join was followed by the full-case Invite (CM-11-010).
+    """Assert the full-case Invite arrives, then answer it (CM-11-010/011).
 
-    The CASE_MANAGER sends it after the ``Announce(VulnerabilityCase)`` and the
-    ledger replay, asking the joined participant to judge the case.  Seeing it
-    closes the join sequence: stub Invite, stub Accept, Announce and replay,
-    full-case Invite.  The reply is the scenario's to send (CM-11-002).
+    After the join the CASE_MANAGER sends the full-case Invite, queued after
+    the replay.  Every invitee judges the case by replying to it, whatever its
+    role, so the chain waits for the Invite and answers it with
+    ``accept-full-case-invite`` (RM Received to Valid).  The reply trigger
+    fails closed until the invitee's own ledger copy reaches the Invite's
+    floor (SYNC-10-004), so the reply is gated on ledger coverage first
+    (ADR-0058).  The invitee never answers the reporter's report Offer
+    (CM-11-020, ADR-0121).
     """
-    with demo_check(f"{invitee_name} received the full-case Invite"):
-        find_full_case_invite_for_actor(
+    with demo_gate(f"{invitee_name} received the full-case Invite"):
+        invite_id = find_full_case_invite_for_actor(
             client=invitee_client,
             case_id=case.id_,
             invitee_id=invitee.id_,
+            timeout_seconds=timeout,
         )
-    logger.info("%s received the full-case Invite", invitee_name)
+        logger.info("%s received the full-case Invite", invitee_name)
+        if authority_client is not None:
+            wait_for_replica_ledger_coverage(
+                authority_client,
+                [(invitee_client, f"{invitee.id_} (full-case Invite floor)")],
+                case.id_,
+                default_timeout=timeout,
+                phase_label="before accepting the full-case Invite",
+            )
+        with demo_step(f"{invitee_name} accepts the full-case Invite"):
+            ActorSession(
+                client=invitee_client, actor=invitee_in_own_container
+            ).quiet().accept_full_case_invite(invite_id=invite_id)
+        logger.info("%s sent Accept(Invite(case)) to CaseActor", invitee_name)

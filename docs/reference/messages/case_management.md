@@ -242,8 +242,9 @@ print(json2md(rm_invite_to_case()))
 ## Accept Invite to Case
 
 - **Protocol role:** The invited actor accepts and joins the case at RM Received.
-  The CASE_MANAGER records the acceptance in the ledger, seats the participant, and then sends `Announce(VulnerabilityCase)` to seed the new participant's replica ([CM-17-004](../specs/protocol.md#cm-17-004)).
-  Every other replica seats the new member from that ledger entry; the CASE_MANAGER sends no `Add(CaseParticipant)` for it ([CM-31-012](../specs/protocol.md#cm-31-012)).
+  The CASE_MANAGER records the acceptance in the ledger, marks the participant's existing record joined, and then sends `Announce(VulnerabilityCase)` to seed the new participant's replica ([CM-17-004](../specs/protocol.md#cm-17-004)).
+  An Accept from an invitee with no participant record is refused with a reported reason and writes nothing, because an Accept never creates a participant ([CM-11-021](../specs/protocol.md#cm-11-021)).
+  A replica creates the inert record from the stub Invite's ledger entry and marks it joined from the Accept entry; the CASE_MANAGER sends no `Add(CaseParticipant)` for it ([CM-31-012](../specs/protocol.md#cm-31-012)).
 - **Wire activity:** `Accept(Invite(Actor, target=VulnerabilityCaseStub))`.
   It joins the case and consents to the active embargo; it does not judge the case.
   The participant judges the case by answering the full-case Invite that follows.

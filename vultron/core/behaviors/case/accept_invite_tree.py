@@ -23,15 +23,14 @@ Tree structure::
 
     AcceptInviteActorToCaseBT (Sequence, memory=False)
     ├── CheckInviteeNotAlreadyParticipantNode  — idempotency guard
+    ├── InviteeHasParticipantRecordNode        — refuse an Accept with no record (CM-11-021)
     ├── CapturePreCommitBackfillTargetNode     — snapshot ledger for resume case
     ├── GuardedCommitCaseLedgerEntryBT         — record receipt (CLP-10-006)
     └── AcceptInviteIfCaseManager (Selector)   — BT-17-001 gate
         ├── SkipIfNotCaseManager               — Inverter(CheckIsCaseManagerNode)
         └── AcceptInviteEffects (Sequence, memory=False)
-            ├── CreateInviteeParticipantNode         — construct participant at RM.START
             ├── MaybeSignEmbargoConsentNode          — sign when an embargo is in force
-            ├── PersistInviteeParticipantNode        — dl.create, attach, save case
-            ├── AdvanceInviteeToReceivedNode         — advance to RM.RECEIVED via writer
+            ├── ActivateInviteeParticipantNode       — mark the inert record joined
             ├── AdvanceInviteeVFToVendorAwareNode    — record VF Vf for VENDOR (CM-11-009)
             ├── EmitAnnounceCaseToInviteeNode        — queue Announce(VulnerabilityCase)
             ├── BackfillCanonicalLedgerToInviteeNode — send prior ledger to invitee
@@ -71,11 +70,10 @@ from vultron.core.behaviors.case.nodes.invite_ledger_backfill import (
 )
 from vultron.core.behaviors.case.nodes.invite_participant import (
     CheckInviteeNotAlreadyParticipantNode,
-    CreateInviteeParticipantNode,
+    InviteeHasParticipantRecordNode,
 )
 from vultron.core.behaviors.case.nodes.invite_participant_persist import (
-    AdvanceInviteeToReceivedNode,
-    PersistInviteeParticipantNode,
+    ActivateInviteeParticipantNode,
 )
 from vultron.core.behaviors.case.nodes.invite_revision_relay import (
     RelayOpenProposalsToJoinerNode,
@@ -153,15 +151,14 @@ def create_accept_invite_actor_to_case_tree(
         AcceptInviteActorToCaseBT (memory=False)
         ├── SenderIsInviteeNode                    — sender is the recorded invitee
         ├── CheckInviteeNotAlreadyParticipantNode  — idempotency guard
+        ├── InviteeHasParticipantRecordNode        — refuse an Accept with no record (CM-11-021)
         ├── StubInviteAnswerableNode               — not superseded
         ├── CapturePreCommitBackfillTargetNode     — snapshot ledger for resume case
         ├── GuardedCommitCaseLedgerEntryBT         — record receipt (CLP-10-006)
         └── AcceptInviteIfCaseManager              — BT-17-001 gate (#3752)
             └── AcceptInviteEffects (memory=False)
-                ├── CreateInviteeParticipantNode         — construct participant at RM.START
                 ├── MaybeSignEmbargoConsentNode          — sign when an embargo is in force
-                ├── PersistInviteeParticipantNode        — persist, attach, save case
-                ├── AdvanceInviteeToReceivedNode         — advance to RM.RECEIVED via writer
+                ├── ActivateInviteeParticipantNode       — mark the inert record joined
                 ├── EmitAnnounceCaseToInviteeNode        — queue Announce to invitee
                 ├── BackfillCanonicalLedgerToInviteeNode — send prior ledger to invitee
                 ├── EmitInviteActorToFullCaseNode        — full-case Invite with the ledger tail (CM-11-010)
@@ -171,7 +168,7 @@ def create_accept_invite_actor_to_case_tree(
     and (4): the invitee receives the case snapshot, then the prior ledger in
     log-index order, and only then the first entry committed after it joined —
     the full-case Invite's, whose fan-out reaches the invitee too, because
-    ``PersistInviteeParticipantNode`` has already made it active.  Any
+    ``ActivateInviteeParticipantNode`` has already made it active.  Any
     committing node placed earlier hands the late joiner a ledger entry before
     its case seed (SYNC-15 pre-genesis reject and replay, #2898).  The
     stub-Invite acceptance commits no ``add_case_participant`` entry
@@ -212,6 +209,12 @@ def create_accept_invite_actor_to_case_tree(
             CheckInviteeNotAlreadyParticipantNode(
                 case_id=case_id, invitee_id=invitee_id
             ),
+            # An Accept never creates a participant: the record exists from
+            # the stub Invite, and none means refuse before any write
+            # (CM-11-021).
+            InviteeHasParticipantRecordNode(
+                case_id=case_id, invitee_id=invitee_id
+            ),
             # A superseded stub cannot be accepted (CM-11-016); an expired one
             # can (ASK-03-008).  A redelivery of a joined invitee's Accept
             # already ended the tree above, so this never refuses a duplicate.
@@ -219,18 +222,10 @@ def create_accept_invite_actor_to_case_tree(
             CapturePreCommitBackfillTargetNode(case_id=case_id),
         ],
         manager_effects=[
-            CreateInviteeParticipantNode(
-                case_id=case_id,
-                invitee_id=invitee_id,
-                invite_id=invite_id,
-            ),
             MaybeSignEmbargoConsentNode(
                 case_id=case_id, invitee_id=invitee_id
             ),
-            PersistInviteeParticipantNode(
-                case_id=case_id, invitee_id=invitee_id
-            ),
-            AdvanceInviteeToReceivedNode(
+            ActivateInviteeParticipantNode(
                 case_id=case_id, invitee_id=invitee_id
             ),
             AdvanceInviteeVFToVendorAwareNode(
@@ -249,7 +244,7 @@ def create_accept_invite_actor_to_case_tree(
             # the invitee must reach before it answers (CM-11-010,
             # ADR-0121).  It is also the first node after the join that
             # commits an entry, and that commit fans out to the invitee,
-            # active since PersistInviteeParticipantNode.  Placed before
+            # active since ActivateInviteeParticipantNode.  Placed before
             # the announce it would hand the invitee a ledger entry for
             # a case it does not hold yet (SYNC-15 pre-genesis Reject,
             # then a from-genesis replay interleaved with the backfill —

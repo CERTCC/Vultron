@@ -18,6 +18,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from test.core.use_cases.received.conftest import (
+    seed_inert_invitee,
     seed_store_owner_as_case_manager,
 )
 from test.support.embargo_register import activate
@@ -146,6 +147,7 @@ def _seed_late_joiner_case() -> dict[str, Any]:
     dl.create(case_manager_participant)
     case.case_participants.append(case_manager_participant.id_)
     case.actor_participant_index[case_actor_id] = case_manager_participant.id_
+    seed_inert_invitee(dl, case, invitee_id)
     dl.save(case)
     dl.create(invite)
 
@@ -817,6 +819,7 @@ class TestInviteActorUseCases:
             attributed_to="https://example.org/users/owner",
         )
         seed_store_owner_as_case_manager(dl, case)
+        seed_inert_invitee(dl, case, invitee_id)
         invite = rm_invite_to_case_activity(
             invitee,
             to=[invitee.id_],
@@ -879,6 +882,7 @@ class TestInviteActorUseCases:
         )
         activate(case, embargo.id_)
         seed_store_owner_as_case_manager(dl, case)
+        seed_inert_invitee(dl, case, invitee_id)
         invite = rm_invite_to_case_activity(
             invitee,
             to=[invitee.id_],
@@ -945,6 +949,7 @@ class TestInviteActorUseCases:
             attributed_to=owner_id,
         )
         seed_store_owner_as_case_manager(dl, case)
+        seed_inert_invitee(dl, case, invitee_id)
         invite = rm_invite_to_case_activity(
             invitee,
             to=[invitee.id_],
@@ -1035,6 +1040,7 @@ class TestInviteActorUseCases:
         )
         dl.create(invitee)
         dl.create(case_manager_participant)
+        seed_inert_invitee(dl, case, invitee_id)
         dl.create(case)
         dl.create(invite)
 
@@ -1126,6 +1132,7 @@ class TestInviteActorUseCases:
             id_="https://example.org/cases/caseIA3/invitations/1",
         )
         dl.create(invitee)
+        seed_inert_invitee(dl, case, invitee_id)
         dl.create(case)
         from vultron.wire.as2.vocab.objects.case_participant import (
             as_CaseParticipant,
@@ -1583,6 +1590,7 @@ class TestInviteActorUseCases:
         )
         dl.create(invitee)
         dl.create(case_actor)
+        seed_inert_invitee(dl, case, invitee_id)
         dl.create(case)
         from vultron.wire.as2.vocab.objects.case_participant import (
             as_CaseParticipant,
@@ -1668,6 +1676,7 @@ class TestAcceptInviteRolesAC4:
             attributed_to="https://example.org/users/owner",
         )
         seed_store_owner_as_case_manager(dl, case)
+        seed_inert_invitee(dl, case, invitee_id)
         invite = rm_invite_to_case_activity(
             invitee,
             to=[invitee.id_],
@@ -2056,6 +2065,51 @@ class TestInviteDispositions:
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None and "unknown case" in result.reason
 
+    @pytest.mark.spec("CM-11-021")
+    def test_accept_invite_refused_when_no_participant_record(
+        self, make_payload
+    ):
+        """CM-11-021: an Accept never creates a participant.
+
+        The CASE_MANAGER recorded the stub Invite but holds no participant
+        record for the invitee, so the Accept is refused with a reason naming
+        the missing record, and nothing is created, committed or queued.
+        """
+        case_id = "https://example.org/cases/d-ac-norecord"
+        dl = self._dl()
+        self._seed_case(dl, case_id, manager_id=dl.actor_id)
+        invite = self._invite(case_id, issuer=dl.actor_id)
+        dl.create(invite)
+        event = make_payload(
+            rm_accept_invite_to_case_activity(invite, actor=self._INVITEE)
+        )
+        sync_port = MagicMock()
+
+        result = AcceptInviteActorToCaseReceivedUseCase(
+            dl,
+            event,
+            sync_port=sync_port,
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert "participant record" in result.reason
+        stored = dl.read(case_id)
+        assert isinstance(stored, VulnerabilityCase)
+        assert self._INVITEE not in stored.actor_participant_index
+        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+
+        ledger = [
+            e
+            for e in dl.list_objects("CaseLedgerEntry")
+            if isinstance(e, CaseLedgerEntry)
+        ]
+        assert not any(
+            e.event_type == "accept_invite_actor_to_case" for e in ledger
+        )
+        sync_port.send_announce_log_entry.assert_not_called()
+
     @pytest.mark.spec("HP-01-003")
     def test_accept_invite_redelivery_is_skipped(self, make_payload):
         """A second Accept once the invitee has fully joined is a duplicate."""
@@ -2065,6 +2119,10 @@ class TestInviteDispositions:
         self._seed_case(dl, case_id, manager_id=dl.actor_id)
         invite = self._invite(case_id, issuer=dl.actor_id)
         dl.create(invite)
+        seeded = dl.read(case_id)
+        assert isinstance(seeded, VulnerabilityCase)
+        seed_inert_invitee(dl, seeded, self._INVITEE)
+        dl.save(seeded)
         event = make_payload(
             rm_accept_invite_to_case_activity(invite, actor=self._INVITEE)
         )

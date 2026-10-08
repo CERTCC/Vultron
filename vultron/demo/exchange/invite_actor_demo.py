@@ -50,10 +50,11 @@ from collections.abc import Callable, Sequence
 
 from vultron.core.states.rm import RM
 from vultron.demo.actor_session import ActorSession
-from vultron.demo.helpers.polling import (
-    find_case_invite_for_actor,
-    find_full_case_invite_for_actor,
+from vultron.demo.helpers.invite_chain import (
+    FULL_CASE_REPLY_TIMEOUT,
+    reply_to_full_case_invite,
 )
+from vultron.demo.helpers.polling import find_case_invite_for_actor
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.seeding import get_actor_by_id
 from vultron.demo.helpers.verification import _check_participant_rm_state_in
@@ -168,7 +169,8 @@ def demo_invite_actor_accept(
     2. Vendor fires the invite-actor-to-case trigger; the CASE_MANAGER invites
        the coordinator
     3. Coordinator fires the accept-case-invite trigger
-    4. Verify the CASE_MANAGER follows the join with the full-case Invite
+    4. The CASE_MANAGER follows the join with the full-case Invite, and the
+       coordinator replies to it (RM VALID)
     5. Verify coordinator appears in case participant list
 
     This follows the accept branch in
@@ -198,16 +200,27 @@ def demo_invite_actor_accept(
             client=client, actor=coordinator
         ).quiet().accept_case_invite(invite_id=invite_id)
 
-    with demo_step(
-        "Step 4: Verify the join was followed by the full-case Invite"
-    ):
-        with demo_check(
-            "Coordinator received the full-case Invite (CM-11-010)"
-        ):
-            find_full_case_invite_for_actor(
-                client=client.model_copy(update={"actor_id": coordinator.id_}),
-                case_id=case.id_,
-                invitee_id=str(coordinator.id_),
+    with demo_step("Step 4: Coordinator answers the full-case Invite"):
+        # CM-11-010/011: the join is followed by the full-case Invite, and the
+        # coordinator judges the case by replying to it.
+        reply_to_full_case_invite(
+            invitee_name="Coordinator",
+            invitee_client=client.model_copy(
+                update={"actor_id": coordinator.id_}
+            ),
+            invitee=coordinator,
+            invitee_in_own_container=coordinator,
+            case=case,
+            authority_client=client,
+            timeout=FULL_CASE_REPLY_TIMEOUT,
+        )
+        with demo_check("Coordinator at RM.VALID after its reply (CM-11-011)"):
+            _check_participant_rm_state_in(
+                client=client,
+                case_id=str(case.id_),
+                actor_id=str(coordinator.id_),
+                expected_states={RM.VALID},
+                label="Coordinator (joined invitee)",
             )
 
     with demo_step("Step 5: Verify coordinator added as case participant"):

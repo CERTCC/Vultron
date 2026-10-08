@@ -562,10 +562,9 @@ whose RM states are set as part of the case creation sequence.
   (ADR-0089 birth: construct → attach → advance, through the sole writer
   `CreateParticipantStatusNode`). The stub `Accept` moves no RM state
   (CM-11-001).
-- The accept-invite tree still holds `CreateInviteeParticipantNode`,
-  `PersistInviteeParticipantNode` and `AdvanceInviteeToReceivedNode`. With the
-  inert record in place they reuse it; they construct a record only when
-  none exists.
+- The accept-invite tree creates no participant. `InviteeHasParticipantRecordNode`
+  refuses, before any write, an Accept whose invitee has no record (CM-11-021);
+  `ActivateInviteeParticipantNode` marks the inert record joined.
 - The participant's subsequent RM transitions are driven by messages from the
   participant itself — its full-case Invite reply and then `Join`/`Ignore`.
 
