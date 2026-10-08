@@ -238,12 +238,13 @@ Two preconditions are easy to get wrong here and both fail far from their cause:
    inline object (CLP-07) and `build_activity_payload_snapshot` can only inline
    what the committing actor's store holds, so an unknown transferee produces
    `payloadSnapshot.target must be an inline object` at commit time. Seed the peer
-   with `seed_peer(client, local_actor_id=case_actor_id, ...)`, and add the
-   participant through the CASE_MANAGER-routed Invite/Accept handshake
-   (`case_actor_invites_actor_to_case`) — the standalone
-   `Create(CaseParticipant)` + `AddParticipantToCase` pair delivered to the case
-   owner's inbox only updates the *owner's* replica, so the CASE_MANAGER-side
-   `CVDRole.CASE_OWNER` grant (CM-21-002) finds nothing to grant.
+   with `seed_peer(client, local_actor_id=case_actor_id, ...)`, and seat the
+   participant through its stub Invite
+   (`seat_participant_through_stub_invite`): the Case Owner asks, the
+   CASE_MANAGER invites, and the invitee's `Accept` seats it on the
+   CASE_MANAGER's own replica. `Add(CaseParticipant)` never seats a member
+   (CM-31-011, ADR-0116), and a hand-built Invite skips the CASE_MANAGER's
+   tree, so the `CVDRole.CASE_OWNER` grant (CM-21-002) would find nothing.
 
 ### fccv_handoff_demo.py
 

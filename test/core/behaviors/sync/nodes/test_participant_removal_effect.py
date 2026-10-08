@@ -12,7 +12,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Tests for the replica replay of a participant removal (CM-31-007)."""
+"""Tests for the replica replay of a participant removal (CM-31-007) and reinstatement (CM-31-011)."""
 
 import pytest
 from py_trees.common import Status
@@ -25,8 +25,11 @@ from test.core.behaviors.sync.nodes.conftest import (
     _to_persistable_entry,
 )
 from vultron.core.behaviors.sync.nodes.participant_removal_effect import (
+    REINSTATE_CASE_PARTICIPANT_EVENT_TYPE,
     REMOVE_CASE_PARTICIPANT_EVENT_TYPE,
+    ApplyReinstateCaseParticipantFromLedgerNode,
     ApplyRemoveCaseParticipantFromLedgerNode,
+    IsReinstateCaseParticipantEventNode,
     IsRemoveCaseParticipantEventNode,
 )
 from vultron.core.models.case_ledger import HashChainLedgerRecord
@@ -179,6 +182,104 @@ def test_condition_matches_only_the_removal_event(
 ) -> None:
     result = bridge.execute_with_setup(
         tree=IsRemoveCaseParticipantEventNode(name="IsRemoval"),
+        actor_id=PARTICIPANT_ACTOR_ID,
+        activity=_make_event(
+            _entry(event_type=event_type), actor_id=case_actor.id_
+        ),
+    )
+
+    assert result.status == expected
+
+
+# ---------------------------------------------------------------------------
+# Reinstatement replay (CM-31-011, RSH-08-004)
+# ---------------------------------------------------------------------------
+
+
+def _reinstate(bridge, case_actor, entry):
+    return bridge.execute_with_setup(
+        tree=ApplyReinstateCaseParticipantFromLedgerNode(
+            name="ApplyReinstate"
+        ),
+        actor_id=PARTICIPANT_ACTOR_ID,
+        activity=_make_event(entry, actor_id=case_actor.id_),
+    )
+
+
+def _replica_record_state(datalayer) -> CaseParticipant:
+    record = datalayer.read(REPLICA_PARTICIPANT_ID)
+    assert isinstance(record, CaseParticipant)
+    return record
+
+
+@pytest.mark.spec("CM-31-011")
+@pytest.mark.spec("RSH-08-004")
+def test_reinstatement_clears_the_removal_fact_on_the_replicas_record(
+    bridge, datalayer, case_actor, replica_record
+) -> None:
+    replica_record.removal_activity = REMOVE_ID
+    datalayer.save(replica_record)
+
+    entry = _entry(event_type=REINSTATE_CASE_PARTICIPANT_EVENT_TYPE)
+    assert _reinstate(bridge, case_actor, entry).status == Status.SUCCESS
+
+    assert not _replica_record_state(datalayer).removed
+
+
+@pytest.mark.spec("CM-31-011")
+@pytest.mark.spec("SYNC-12-003")
+def test_reinstatement_of_a_record_that_is_not_removed_is_a_no_op(
+    bridge, datalayer, case_actor, replica_record
+) -> None:
+    entry = _entry(event_type=REINSTATE_CASE_PARTICIPANT_EVENT_TYPE)
+
+    assert _reinstate(bridge, case_actor, entry).status == Status.SUCCESS
+
+    record = _replica_record_state(datalayer)
+    assert not record.removed
+    assert record == replica_record
+
+
+@pytest.mark.spec("SYNC-12-001")
+def test_reinstatement_skips_a_snapshot_with_no_participant(
+    bridge, datalayer, case_actor, replica_record
+) -> None:
+    replica_record.removal_activity = REMOVE_ID
+    datalayer.save(replica_record)
+    entry = _to_persistable_entry(
+        HashChainLedgerRecord(
+            case_id=CASE_ID,
+            log_index=0,
+            object_id=REMOVE_ID,
+            event_type=REINSTATE_CASE_PARTICIPANT_EVENT_TYPE,
+            payload_snapshot={
+                "id": REMOVE_ID,
+                "type": "Add",
+                "actor": OWNER_ACTOR_ID,
+                "target": CASE_ID,
+            },
+            prev_log_hash="0" * 64,
+        )
+    )
+
+    assert _reinstate(bridge, case_actor, entry).status == Status.SUCCESS
+
+    assert _replica_record_state(datalayer).removed
+
+
+@pytest.mark.spec("RSH-08-004")
+@pytest.mark.parametrize(
+    ("event_type", "expected"),
+    [
+        (REINSTATE_CASE_PARTICIPANT_EVENT_TYPE, Status.SUCCESS),
+        (REMOVE_CASE_PARTICIPANT_EVENT_TYPE, Status.FAILURE),
+    ],
+)
+def test_condition_matches_only_the_reinstatement_event(
+    bridge, case_actor, event_type: str, expected: Status
+) -> None:
+    result = bridge.execute_with_setup(
+        tree=IsReinstateCaseParticipantEventNode(name="IsReinstatement"),
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=_make_event(
             _entry(event_type=event_type), actor_id=case_actor.id_

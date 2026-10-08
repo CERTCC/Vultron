@@ -14,10 +14,11 @@
 
 Goal tests planned under #2257.  Those still strict-``xfail`` name the issue
 that implements them (``_TRACKED_BY``); the removal itself (CM-31-001,
-CM-31-004 through CM-31-008) landed with #4080.  Every test starts from a
-CASE_MANAGER store holding a case with the CASE_MANAGER, a Case Owner, a
-joined vendor that is an ``ACCEPTED`` row for the active embargo, and a
-second joined vendor.
+CM-31-004 through CM-31-008) landed with #4080, reinstatement (CM-31-011,
+CM-31-012) with #4081 and the invitation exclusion (CM-31-013) with #4084.
+Every test starts from a CASE_MANAGER store holding a case with the
+CASE_MANAGER, a Case Owner, a joined vendor that is an ``ACCEPTED`` row for
+the active embargo, and a second joined vendor.
 
 - CM-31-001 — removal keeps the record and makes the participant inert.
 - CM-31-003 — the case publishes a computed ``activeParticipants``.
@@ -102,9 +103,6 @@ _TRACKED_BY = {
     "CM-31-010": 4083,
     # The non-manager half is the general RSH-08-003 replica gate.
     "RSH-08-003": 3814,
-    "CM-31-011": 4081,
-    "CM-31-012": 4081,
-    "CM-31-013": 4084,
 }
 
 
@@ -499,7 +497,6 @@ def test_paused_replica_ignores_an_ending_notice_from_a_non_manager() -> None:
     assert case.active_embargo is not None
 
 
-@pytest.mark.xfail(strict=True, reason=_planned("CM-31-011"))
 @pytest.mark.spec("CM-31-011")
 def test_owner_add_reinstates_a_removed_participant(removal_case) -> None:
     """``Add(CaseParticipant)`` from the owner reverses a removal."""
@@ -513,12 +510,9 @@ def test_owner_add_reinstates_a_removed_participant(removal_case) -> None:
     )
 
     assert result.disposition is HandlerDisposition.APPLIED
-    dumped = removal_case.read_case().model_dump(by_alias=True, mode="json")
-    active = {getattr(p, "id_", p) for p in dumped["activeParticipants"]}
-    assert _participant_id(VENDOR) in active
+    assert _participant_id(VENDOR) in removal_case.active_ids()
 
 
-@pytest.mark.xfail(strict=True, reason=_planned("CM-31-011"))
 @pytest.mark.spec("CM-31-011")
 def test_add_naming_a_participant_that_is_not_removed_is_refused(
     removal_case,
@@ -533,7 +527,6 @@ def test_add_naming_a_participant_that_is_not_removed_is_refused(
     assert result.disposition is HandlerDisposition.REFUSED
 
 
-@pytest.mark.xfail(strict=True, reason=_planned("CM-31-012"))
 @pytest.mark.spec("CM-31-012")
 def test_accept_invite_tree_emits_no_add_case_participant() -> None:
     """Replicas learn of a new member from the ``Accept(Invite)`` entry."""
@@ -552,7 +545,6 @@ def test_accept_invite_tree_emits_no_add_case_participant() -> None:
     assert "EmitAddCaseParticipantNode" not in names
 
 
-@pytest.mark.xfail(strict=True, reason=_planned("CM-31-013"))
 @pytest.mark.spec("CM-31-013")
 def test_removed_participant_is_not_invited_to_an_embargo_revision() -> None:
     """The embargo-Invite recipients exclude a removed participant."""

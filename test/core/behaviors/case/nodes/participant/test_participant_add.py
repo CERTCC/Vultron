@@ -28,7 +28,6 @@ from vultron.core.behaviors.case.nodes.participant import (
     CaseHasNoActiveEmbargoNode,
     CreateParticipantInitialStatusNode,
     CreateParticipantNode,
-    QueueAddParticipantNotificationNode,
     RecordParticipantAddedEventNode,
     SeedParticipantAsSignatoryNode,
 )
@@ -45,7 +44,6 @@ from vultron.core.states.participant_embargo_consent import (
 )
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Add
-from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 
 
 class TestCreateCaseParticipantNode:
@@ -113,7 +111,6 @@ class TestCreateCaseParticipantNode:
             CreateParticipantInitialStatusNode,
             RecordParticipantAddedEventNode,
             SeedParticipantAsSignatoryIfEmbargoActiveNode,
-            QueueAddParticipantNotificationNode,
         ]
 
     def test_embargo_seed_is_conditional_subtree(self) -> None:
@@ -128,7 +125,8 @@ class TestCreateCaseParticipantNode:
         ]
         assert type(node.children[1]) is CaseHasNoActiveEmbargoNode
 
-    def test_emits_add_participant_activity(
+    @pytest.mark.spec("CM-31-011")
+    def test_sends_no_add_participant_activity(
         self,
         bt_scenario: BTTestScenario,
         actor: CaseActor,
@@ -136,7 +134,11 @@ class TestCreateCaseParticipantNode:
         actor_id: str,
         finder_actor_id: str,
     ) -> None:
-        """CreateCaseParticipantNode queues AddParticipantToCaseActivity."""
+        """Seating a participant queues no ``Add(CaseParticipant)``.
+
+        That message is the Case Owner's request to reinstate a removed
+        participant, and only that (CM-31-011, ADR-0116).
+        """
         bt_scenario.run(
             CreateCaseParticipantNode(
                 actor_id=finder_actor_id, roles=[CVDRole.FINDER]
@@ -146,17 +148,11 @@ class TestCreateCaseParticipantNode:
         )
 
         outbox_ids = bt_scenario.dl.clone_for_actor(actor_id).outbox_list()
-        add_activities: list[as_Add] = []
-        for oid in outbox_ids:
-            obj = bt_scenario.dl.read(oid)
-            if isinstance(obj, as_Add):
-                add_activities.append(obj)
-        assert any(
-            act.type_ == "Add"
-            and isinstance(act.object_, as_CaseParticipant)
-            and getattr(act.target, "id_", act.target) == case_obj.id_
-            for act in add_activities
-        )
+        assert not [
+            oid
+            for oid in outbox_ids
+            if isinstance(bt_scenario.dl.read(oid), as_Add)
+        ]
 
     @pytest.mark.spec("CM-10-001")
     @pytest.mark.spec("CM-14-005")

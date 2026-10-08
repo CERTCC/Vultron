@@ -1021,24 +1021,22 @@ groups:
       received activity has no canonical signature — `Update(VulnerabilityCase)`, the
       `Announce(CaseLedgerEntry)` replication envelope (CLP-10-004) — MUST pass
       `case_id=None` and omit the commit stage rather than commit an entry the
-      canonical-entry check would refuse. Two canonical signatures are exempt from
-      the commit and also pass `case_id=None` — `Announce(VulnerabilityCase)`, which
-      only the CASE_MANAGER sends and only a participant replica, never the
-      CASE_MANAGER itself, receives (PCR-03-004), and `Add(CaseParticipant)`, until
-      its entry has a replica apply node (RSH-08-004, #4081).
+      canonical-entry check would refuse. One canonical signature is exempt from
+      the commit and also passes `case_id=None` — `Announce(VulnerabilityCase)`,
+      which only the CASE_MANAGER sends and only a participant replica, never the
+      CASE_MANAGER itself, receives (PCR-03-004).
     rationale: 'Amended with ADR-0111: the rule as first written required a commit for
       every factory-built tree, which the CASE_MANAGER refused for an
       `Update(VulnerabilityCase)` the moment the update tree moved onto the factory
       (#3870). ADR-0111 (#3936) records that an owner''s `Update(VulnerabilityCase)`
       is deliberately not a ledgered assertion: no production code sends it, it
       has no protocol story, and `Announce(CaseLedgerEntry)` fan-out already
-      carries every ledgered case change (ADR-0108). Two canonical signatures are exempt (#4304),
-      for different reasons. The `Announce(VulnerabilityCase)` receiver is never the
-      CASE_MANAGER, so a `case_id` would only make the commit gate skip. The
-      `Add(CaseParticipant)` entry would be stored on every replica with no replay
-      node to apply it (RSH-08-004), and #4081 reshapes that Add into the Case
-      Owner''s reinstatement request together with its replica apply node, so the
-      commit lands with it. The `Reject(Offer)` and `TentativeReject(Offer)` trees
+      carries every ledgered case change (ADR-0108). The `Announce(VulnerabilityCase)`
+      receiver is never the CASE_MANAGER, so a `case_id` would only make the
+      commit gate skip (#4304). `Add(CaseParticipant)` was exempt until #4081 made
+      it the Case Owner''s reinstatement request: its commit landed together with
+      its replica apply node (`ApplyReinstateCaseParticipantFromLedgerNode`,
+      RSH-08-004), so it now commits. The `Reject(Offer)` and `TentativeReject(Offer)` trees
       carry canonical signatures their CASE_MANAGER receivers ledger and replicas
       replay (`ApplyRmVerdictFromLedgerNode`), so they commit. Original rationale: a rejection validator
       (FAILURE-on-mismatch, read-only) belongs before
@@ -1055,8 +1053,8 @@ groups:
       canonical signature passes `case_id` and the ordering ratchet finds the commit
       after the guards. A receive-side test per committing tree asserts the CASE_MANAGER
       commits the entry once, any other receiver skips it, and a refused activity
-      leaves no entry; the `Announce(VulnerabilityCase)` and `Add(CaseParticipant)`
-      trees are asserted to have no commit child.'
+      leaves no entry; the `Announce(VulnerabilityCase)` tree is asserted to have
+      no commit child.'
     adr:
     - ADR-0111
     relationships:

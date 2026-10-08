@@ -88,6 +88,7 @@ REPLAYED: dict[str, dict[str, Any]] = {
         MS.TENTATIVE_REJECT_INVITE_ACTOR_TO_FULL_CASE.value,
         MS.REJECT_INVITE_ACTOR_TO_FULL_CASE.value,
         MS.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value,
+        MS.ADD_CASE_PARTICIPANT_TO_CASE.value,
         MS.ADD_CASE_STATUS_TO_CASE.value,
         MS.ADD_EMBARGO_EVENT_TO_CASE.value,
         MS.ADD_NOTE_TO_CASE.value,
@@ -144,12 +145,6 @@ NO_REPLICA_EFFECT: dict[str, str] = {
         "a marker; the transitions it summarises arrive as close_case and"
         " the CaseActor's add_participant_status_to_participant entry"
         " (CM-23-002, CM-23-005)"
-    ),
-    "add_case_participant": (
-        "the CASE_MANAGER's direct Add(CaseParticipant) after a stub-Invite"
-        " acceptance; replicas add the member from the"
-        " accept_invite_actor_to_case entry, and #4081 drops this entry"
-        " (CM-31-012)"
     ),
     MS.OFFER_ACTOR_TO_CASE.value: _RECOMMENDATION,
     MS.OFFER_CASE_PARTICIPANT.value: _RECOMMENDATION,

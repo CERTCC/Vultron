@@ -16,7 +16,7 @@
 """Shared helpers for participant BT nodes."""
 
 import logging
-from typing import TYPE_CHECKING, NamedTuple, cast
+from typing import NamedTuple
 
 import py_trees.behaviour
 from py_trees.common import Status
@@ -24,13 +24,11 @@ from py_trees.common import Status
 from vultron.core.behaviors.node_logger import node_logger
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.enums import VultronObjectType
 from vultron.core.models.participant_status import (
     participant_status_d_state,
     participant_status_rm_state,
     participant_status_vf_state,
 )
-from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.participant_transitions import (
@@ -39,9 +37,6 @@ from vultron.core.states.participant_transitions import (
 from vultron.core.states.rm import RM, RMRule
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronValidationError
-
-if TYPE_CHECKING:
-    from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 
 def _create_and_attach_participant(
@@ -321,52 +316,3 @@ def validate_participant_status_write(
     if result_out is not None:
         result_out["error"] = error
     return Status.FAILURE
-
-
-def _queue_participant_add_notification(
-    dl: CasePersistence,
-    node_name: str,
-    logger: logging.Logger,
-    sender_actor_id: str,
-    participant_actor_id: str,
-    participant_id: str,
-    case_id: str,
-    trigger_activity: "TriggerActivityPort | None" = None,
-) -> bool:
-    stored_participant = dl.read(participant_id)
-    if (
-        getattr(stored_participant, "type_", None)
-        != VultronObjectType.CASE_PARTICIPANT
-    ):
-        logger.error(
-            "%s: Could not resolve stored CaseParticipant '%s'",
-            node_name,
-            participant_id,
-        )
-        return False
-
-    if trigger_activity is None:
-        logger.error(
-            "%s: trigger_activity_factory not available for participant"
-            " add notification",
-            node_name,
-        )
-        return False
-
-    add_notification_id, _blob = trigger_activity.add_participant_to_case(
-        participant_id=participant_id,
-        case_id=case_id,
-        actor=sender_actor_id,
-        to=[participant_actor_id],
-    )
-    cast(CaseOutboxPersistence, dl).outbox_append(add_notification_id)
-    logger.info(
-        "Queued Add(CaseParticipant '%s' for actor '%s' to case '%s') "
-        "activity '%s' to actor '%s' outbox",
-        participant_id,
-        participant_actor_id,
-        case_id,
-        add_notification_id,
-        sender_actor_id,
-    )
-    return True

@@ -76,7 +76,6 @@ _OUTBOX_SEAMS = frozenset(
         "outbox_append",
         "add_activity_to_outbox",
         "broadcast_case_update",
-        "_queue_participant_add_notification",
     }
 )
 
@@ -133,11 +132,6 @@ KNOWN_LEGACY_EFFECT_NODES: frozenset[_Site] = frozenset(
         (
             f"{_C}/announce_case_received_tree.py",
             "create_announce_vulnerability_case_received_tree",
-        ),
-        # owner: #4307
-        (
-            f"{_C}/case_participant_received_tree.py",
-            "create_add_case_participant_received_tree",
         ),
         # owner: #4307
         (f"{_N}/create_note_tree.py", "create_note_tree"),
@@ -198,15 +192,16 @@ KNOWN_LEGACY_EFFECT_NODES: frozenset[_Site] = frozenset(
 # ---------------------------------------------------------------------------
 # 3. Modules that call the gate but build no received tree.  BT-17-008 binds
 #    received trees only: a trigger, expiry or retry tree runs on the actor's
-#    own initiative.  The two ``case_manager_admits_*_guard`` composites are
-#    gate-wrapped read-only conditions passed as a received tree's
+#    own initiative.  The four ``case_manager_admits_*_guard`` composites
+#    are gate-wrapped read-only conditions passed as a received tree's
 #    ``precondition_guards`` (the embargo Invite tree, the participant
-#    removal tree): they hold no effect and no emit, which is all BT-17-008
-#    governs (#4301 keeps their direct gate).  The admission backfill is a
-#    CM-10-006 follow-on that the embargo Accept use case runs on its own,
-#    given no activity; the Remove(EmbargoEvent) teardown nests it in its
-#    active-only branch (#4301 moved it out of the received-tree module
-#    rather than reshape that branch).
+#    removal and reinstatement trees, the two suggest-actor trees): they
+#    hold no effect and no emit, which is all BT-17-008 governs (#4301
+#    keeps their direct gate).  The admission backfill is a CM-10-006
+#    follow-on that the embargo Accept use case runs on its own, given no
+#    activity; the Remove(EmbargoEvent) teardown nests it in its active-only
+#    branch (#4301 moved it out of the received-tree module rather than
+#    reshape that branch).
 # ---------------------------------------------------------------------------
 # permanent: BT-17-008 (binds received-side trees only; #4301 keeps these)
 GATE_CALLERS_OUTSIDE_RECEIVED_TREES: frozenset[_Site] = frozenset(
@@ -227,6 +222,14 @@ GATE_CALLERS_OUTSIDE_RECEIVED_TREES: frozenset[_Site] = frozenset(
         (
             f"{_C}/nodes/case_participant_received.py",
             "case_manager_admits_removal_guard",
+        ),
+        (
+            f"{_C}/nodes/participant_reinstatement.py",
+            "case_manager_admits_reinstatement_guard",
+        ),
+        (
+            f"{_C}/nodes/suggest_actor/conditions.py",
+            "case_manager_admits_suggested_actor_guard",
         ),
         (f"{_E}/trigger_tree.py", "_by_role"),
     }
