@@ -1505,7 +1505,7 @@ def test_scenario_set_statement_check_reports_a_stale_enumeration(
     target = prose_root / "specs/demo-ci.yaml"
     target.write_text(
         target.read_text().replace(
-            "`fcvcv`, `fcv-reject`, and `rcv-embargo`. Together",
+            "`fcvcv`, `fcv-reject`, `rcv-embargo`, and `rcvv-embargo`. Together",
             "`fcvcv`. Together",
             1,
         ),
