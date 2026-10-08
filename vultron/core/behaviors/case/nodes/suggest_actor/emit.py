@@ -43,6 +43,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     _EmitSingleActivityBase,
 )
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
@@ -88,7 +89,9 @@ def _resolve_owner_recipient(
     return None
 
 
-class RecordRecommendationRecommenderNode(DataLayerActionWithPorts):
+class RecordRecommendationRecommenderNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
     """Write recommendation_id → recommender_id into core case state.
 
     Runs as the first effect node in ``RecommendActorToCaseBT`` so downstream

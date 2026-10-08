@@ -53,13 +53,14 @@ from vultron.core.behaviors.report.nodes.develop_fix_conditions import (
     CheckCSFixNotYetReady,
     CheckIsVendorRoleNode,
 )
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.states.cs import CS_vf
 
 logger = logging.getLogger(__name__)
 
 
-class TransitionCStoFixReady(DataLayerActionWithPorts):
+class TransitionCStoFixReady(DataLayerActionWithPorts, StateWriteCapable):
     """Persist a VF=VF ParticipantStatus snapshot for the actor in this case.
 
     Advances the actor's VF dimension to ``CS_vf.VF`` (fix ready) and

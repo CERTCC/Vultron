@@ -55,6 +55,7 @@ from vultron.core.behaviors.report.nodes.conditions import (
 from vultron.core.behaviors.report.nodes.develop_fix import (
     _EmitParticipantStatusActivityBase,
 )
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.dimensions import DDimension
 from vultron.core.ports.case_persistence import CasePersistence
@@ -289,7 +290,7 @@ class CheckNoNewDeploymentInfoNode(DataLayerConditionWithPorts):
         return Status.SUCCESS
 
 
-class TransitionCStoFixDeployed(DataLayerActionWithPorts):
+class TransitionCStoFixDeployed(DataLayerActionWithPorts, StateWriteCapable):
     """Persist a VFD ParticipantStatus snapshot for the actor in this case.
 
     Advances the actor's D dimension to ``d_state=D`` (fix deployed) and

@@ -33,6 +33,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.status.nodes.dimension_filter import (
     BB_DIMENSION_FILTER,
     resolve_dimension_filter,
@@ -89,7 +90,9 @@ class LoadParticipantNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class ResolveAndPersistStatusObjectNode(DataLayerActionWithPorts):
+class ResolveAndPersistStatusObjectNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
     """Resolve the status object by ID, persisting fallback if needed.
 
     When :class:`~vultron.core.behaviors.status.nodes.dimension_filter.FilterParticipantStatusDimensionsNode`
@@ -190,7 +193,9 @@ class ResolveAndPersistStatusObjectNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class AppendStatusAndSaveParticipantNode(DataLayerActionWithPorts):
+class AppendStatusAndSaveParticipantNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
     """Append the status object to the participant and save.
 
     Appends the resolved status object (from blackboard) to the participant's

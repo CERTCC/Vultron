@@ -1347,5 +1347,24 @@ The cause was structural: about fifteen trees each wrapped their effects in
   `manager_effects` without reshaping the branch, is a standalone helper
   outside the received-tree modules and is pinned in
   `GATE_CALLERS_OUTSIDE_RECEIVED_TREES` (the embargo admission backfill).
+- **State writes carry their own marker, checked on the built tree.**
+  `StateWriteCapable` (`vultron/core/behaviors/state_write_capable.py`) marks
+  every node that writes participant or case state (RSH-08-003); the factory
+  does not refuse it yet. `test/architecture/test_received_tree_state_writes_are_gated.py`
+  builds every received tree (`_received_tree_builds.py`) and walks it with
+  the same `ungated_nodes` the emit check uses: a marked node outside every
+  `CaseManagerGate` is either in the `KNOWN_UNGATED_STATE_WRITES` ratchet
+  (owner #3814, the gating half) or in the pinned `REPLICA_STATE_WRITES` set
+  (the ledger replay and the bootstrap trees that mint or seed a case).
+  A class reaching a state-write seam either carries the marker or is pinned in
+  `WRITES_NO_CASE_STATE` with its reason, so storing a received object,
+  ledger records and local bookkeeping stay visible decisions. A seam is
+  reached directly (`dl.save`, `EmbargoLifecycle`, `apply_pec_transition`),
+  through a helper function (derived by a text fixed point, never listed), or
+  by a leaf node that builds a writer node and ticks it itself
+  (`RMClosureWriter`): that inner write is invisible to the tree walk, so the
+  outer node carries the marker.
+  Move a write into `manager_effects` only after its replay slot exists
+  (RSH-08-004).
 
 *Source: ISSUE-3830.*
