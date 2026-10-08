@@ -40,6 +40,7 @@ Named constants for known request/reply pairs:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import StrEnum
 
 from vultron.primitives import require_non_empty
 
@@ -69,6 +70,34 @@ INVITE_ACTOR_TO_FULL_CASE_REPLY_TYPES: frozenset[str] = frozenset(
         "reject_invite_actor_to_full_case",
     }
 )
+
+
+class AskExpiry(StrEnum):
+    """What a reply that arrives after an ask's deadline does (ASK-03-002).
+
+    The consequence belongs to the ask kind.  It is never configurable and
+    never carried on the ask activity (ASK-03-003).
+    """
+
+    STALE = "stale"
+    """A late reply still authorizes the action; the asker only stops waiting."""
+
+    VOID = "void"
+    """A late reply authorizes nothing; the asker must ask again."""
+
+
+#: Expiry consequence of an ``Invite(Actor, CaseStub)`` (ASK-03-002): stale.
+#: Expiry only means the CASE_MANAGER stops waiting; a late ``Accept`` still
+#: joins and a late ``Reject`` still closes the record.  The hazard of stale
+#: embargo terms is already covered by the supersede rule (CM-11-016).  The
+#: stub's deadline is ``Invite.end_time`` (ASK-03-004); the closing replies are
+#: :data:`INVITE_ACTOR_TO_CASE_REPLY_TYPES`.  Declared here until the ask-kind
+#: registry (#2884) takes both over.
+INVITE_ACTOR_TO_CASE_EXPIRY: AskExpiry = AskExpiry.STALE
+
+#: Expiry consequence of an ``Invite(EmbargoEvent)`` (ASK-03-007): a late reply
+#: is still honoured under EMB-17 once the expiry has been recorded.
+INVITE_TO_EMBARGO_EXPIRY: AskExpiry = AskExpiry.STALE
 
 
 @dataclass(frozen=True)
@@ -131,6 +160,9 @@ class ProtocolPair:
 
 
 __all__ = [
+    "AskExpiry",
+    "INVITE_ACTOR_TO_CASE_EXPIRY",
+    "INVITE_TO_EMBARGO_EXPIRY",
     "ProtocolPair",
     "OFFER_CASE_PARTICIPANT_REPLY_TYPES",
     "INVITE_ACTOR_TO_CASE_REPLY_TYPES",

@@ -40,6 +40,7 @@ from vultron.core.behaviors.case.actor_trigger_trees import (
     reject_case_invite_trigger_bt,
     suggest_actor_to_case_trigger_bt,
 )
+from vultron.core.behaviors.case.stub_invite_lifetime import invitee_record
 from vultron.core.behaviors.delegated_authorship import delegated_authorship
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.actor import CoreActor
@@ -67,6 +68,7 @@ from vultron.core.use_cases.triggers.requests import (
 )
 from vultron.enums.roles import CVDRole
 from vultron.errors import (
+    VultronInvalidStateTransitionError,
     VultronNotFoundError,
     VultronValidationError,
 )
@@ -211,6 +213,22 @@ class SvcInviteActorToCaseUseCase(_SvcRecommendActorBase):
             "invitee_id",
             request.roles,
         )
+        self._refuse_reinvite_of_closed(request.invitee_id)
+
+    def _refuse_reinvite_of_closed(self, invitee_id: str) -> None:
+        """Refuse before anything is queued: ``RM.CLOSED`` has no rejoin.
+
+        A participant at ``RM.CLOSED`` cannot be re-invited (CM-11-015,
+        ADR-0085), so the owner's Offer is never sent.  The CASE_MANAGER's
+        received tree refuses it too, for an Offer that arrives from elsewhere.
+        """
+        record = invitee_record(self._dl, self._case, invitee_id)
+        if record is not None and record.rm_closed:
+            raise VultronInvalidStateTransitionError(
+                f"Actor '{invitee_id}' is at RM.CLOSED in case"
+                f" '{self._case.id_}' and cannot be re-invited (CM-11-015,"
+                " ADR-0085)"
+            )
 
     def _handle_result(self) -> None:
         logger.info(

@@ -47,6 +47,7 @@ import logging
 
 import py_trees
 
+from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.case.nodes.accept_invite import (
     EmitAddCaseParticipantNode,
 )
@@ -56,6 +57,10 @@ from vultron.core.behaviors.case.nodes.actor import (
 )
 from vultron.core.behaviors.case.nodes.invite_inert_participant import (
     CreateInertInviteeParticipantNode,
+)
+from vultron.core.behaviors.case.nodes.stub_invite_lifetime import (
+    ReinviteAwaitingNode,
+    ReinviteNotToClosedParticipantNode,
 )
 from vultron.core.behaviors.case.nodes.suggest_actor import (
     ActorAlreadyParticipantNode,
@@ -114,12 +119,19 @@ def create_recommend_actor_to_case_received_tree(
     case_id: str,
     offer_content: str | None = None,
     suggested_roles: list[str] | None = None,
+    actor_config: ActorConfig | None = None,
 ) -> py_trees.composites.Sequence:
     """Received-side BT for Offer(Actor, Case) on the CASE_MANAGER's inbox.
 
     Commits a canonical ``CaseLedgerEntry`` for the received Offer
-    (CM-16-002), then routes to one of five branches via a Selector:
+    (CM-16-002), then routes to one of six branches via a Selector:
 
+    0. **Re-invite** — the recommender holds ``CVDRole.CASE_OWNER`` and the
+       recommended actor has an inert record that has not answered (or whose
+       stub Invite expired): send a fresh stub Invite on that record with a
+       new deadline, ahead of every duplicate arm (CM-11-015).  Before any
+       arm, an owner's re-invite of a participant at ``RM.CLOSED`` is refused
+       (CM-11-015, ADR-0085).
     1. **AC-7b** — already participant: auto-accept to recommender (CM-16-009).
     2. **AC-7a** — invite in-flight: auto-accept to recommender (CM-16-009).
     3. **AC-6** — pending Case Owner decision: send Note DM, no second Offer
@@ -174,6 +186,9 @@ def create_recommend_actor_to_case_received_tree(
             into the role Evaluator on both the owner-direct and fresh paths;
             ``None`` leaves the choice to the Evaluator's default
             (CM-16-003).
+        actor_config: The CASE_MANAGER's configuration; its RSVP windows set
+            the reply deadline of every stub Invite it sends (CM-11-014,
+            CM-28-012).  ``None`` applies the ``ActorConfig`` defaults.
 
     Returns:
         Root ``RecommendActorToCaseBT`` Sequence node.
@@ -230,6 +245,57 @@ def create_recommend_actor_to_case_received_tree(
         ],
     )
 
+    reinvite = py_trees.composites.Sequence(
+        name="OwnerReinvite",
+        memory=False,
+        children=[
+            SenderIsCaseOwnerNode(
+                sender_actor_id=recommender_id,
+                case_id=case_id,
+                name="RecommenderIsCaseOwnerForReinvite",
+            ),
+            ReinviteAwaitingNode(invitee_id=recommended_id, case_id=case_id),
+            EvaluateDefaultRolesNode(
+                suggested_actor_id=recommended_id,
+                case_id=case_id,
+                recommendation_id=recommendation_id,
+                injected_roles=suggested_roles,
+                require_explicit_roles=True,
+            ),
+            # The record already exists and is on the roster, so only the
+            # Invite goes out: no new participant, no Add(CaseParticipant).
+            EmitInviteActorToCaseNode(
+                invitee_id=recommended_id,
+                case_id=case_id,
+                attributed_to=recommender_id,
+                recommendation_id=recommendation_id,
+                # CM-11-015: the fresh stub replaces the earlier one, so
+                # there is one live stub per invitee.
+                replaces_previous_stub=True,
+                actor_config=actor_config,
+            ),
+        ],
+    )
+
+    # CM-11-015: the owner may not re-invite a participant at RM.CLOSED.
+    # Anyone else's suggestion is answered as before.
+    closed_is_not_reinvited = py_trees.composites.Selector(
+        name="ReinviteIsNotToClosedParticipant",
+        memory=False,
+        children=[
+            py_trees.decorators.Inverter(
+                name="RecommenderIsNotCaseOwnerForReinvite",
+                child=SenderIsCaseOwnerNode(
+                    sender_actor_id=recommender_id,
+                    case_id=case_id,
+                ),
+            ),
+            ReinviteNotToClosedParticipantNode(
+                invitee_id=recommended_id, case_id=case_id
+            ),
+        ],
+    )
+
     owner_direct_invite = py_trees.composites.Sequence(
         name="OwnerDirectInvite",
         memory=False,
@@ -253,6 +319,7 @@ def create_recommend_actor_to_case_received_tree(
                 case_id=case_id,
                 attributed_to=recommender_id,
                 recommendation_id=recommendation_id,
+                actor_config=actor_config,
             ),
             # AC-1: record the inert participant at invite-send time
             # (ADR-0114, CM-11-006).
@@ -300,6 +367,7 @@ def create_recommend_actor_to_case_received_tree(
         name="DuplicateOrFreshSelector",
         memory=False,
         children=[
+            reinvite,
             ac7b_already_participant,
             ac7a_invite_in_flight,
             ac6_pending_offer,
@@ -319,6 +387,7 @@ def create_recommend_actor_to_case_received_tree(
         ),
         precondition_guards=[],
         manager_effects=[
+            closed_is_not_reinvited,
             RecordRecommendationRecommenderNode(
                 recommendation_id=recommendation_id,
                 recommender_id=recommender_id,
