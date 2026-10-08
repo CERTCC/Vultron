@@ -20,8 +20,13 @@ Each factory composes its leaf nodes through
 so intake archives the received activity first (CLP-10-017) and a refused
 delivery still leaves its record (CLP-10-018).
 
-The Add tree carries no ``case_id`` for the commit stage: it is not ledgered
-here.  The Remove tree is the Case Owner's request to the CASE_MANAGER
+``Add(CaseParticipant)`` is a canonical ledger signature, yet its tree carries
+no ``case_id`` and commits nothing — a documented exemption from CLP-10-013
+until #4081 makes the Add the Case Owner's reinstatement request.
+Committing it now would put an ``add_case_participant_to_case`` entry on every
+replica that no replica apply node reads (RSH-08-004), and #4081 (AC-3) adds
+that node together with the commit.
+The Remove tree is the Case Owner's request to the CASE_MANAGER
 (CM-31-004, ADR-0116): its received activity is the one ledger entry
 (CM-31-005), and every write is gated on the CASE_MANAGER role, so a replica
 that receives it stores the activity and writes nothing (RSH-08-003); the
