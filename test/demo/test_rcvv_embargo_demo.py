@@ -117,7 +117,7 @@ class TestRegistration:
 
 class TestPhaseOrder:
     @staticmethod
-    def _run(cast, case, proposed, revised, v2_error=None):
+    def _run(cast, case, proposed, revised, v2_signed=True):
         """Run the scenario with stubbed phases; return the phases that ran."""
         order: list[str] = []
 
@@ -152,7 +152,7 @@ class TestPhaseOrder:
             patch.object(
                 demo,
                 "_phase_v2_late_invite",
-                side_effect=v2_error or phase("v2_late_invite"),
+                side_effect=phase("v2_late_invite", v2_signed),
             ),
             patch.object(
                 demo,
@@ -208,7 +208,7 @@ class TestPhaseOrder:
             case,
             "urn:embargo:1",
             "urn:embargo:2",
-            v2_error=AssertionError("timed out"),
+            v2_signed=False,
         )
         assert order == [
             "report_submission",
@@ -317,7 +317,11 @@ class TestEmStateAfterEachPhase:
                 demo, "resolve_case_actor_store_id", return_value="urn:mgr"
             ),
         ):
-            demo._phase_v2_late_invite(cast, case, opened, "urn:embargo:two")
+            signed = demo._phase_v2_late_invite(
+                cast, case, opened, "urn:embargo:two"
+            )
+
+        assert signed is True
 
         kwargs = joins.call_args.kwargs
         assert kwargs["vendor"] is cast.vendor2.actor
@@ -347,10 +351,12 @@ class TestEmStateAfterEachPhase:
                 demo, "resolve_case_actor_store_id", return_value="urn:mgr"
             ),
         ):
-            with pytest.raises(AssertionError, match="timed out"):
-                demo._phase_v2_late_invite(
-                    cast, case, MagicMock(), "urn:embargo:two"
-                )
+            signed = demo._phase_v2_late_invite(
+                cast, case, MagicMock(), "urn:embargo:two"
+            )
+
+        assert signed is False
+        assert _demo_failures
 
     @pytest.mark.spec("DEMOMA-21-008")
     def test_fix_lifecycle_runs_for_both_vendors_and_keeps_em_active(

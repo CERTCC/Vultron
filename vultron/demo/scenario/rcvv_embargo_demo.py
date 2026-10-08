@@ -365,11 +365,12 @@ def _phase_v2_late_invite(
     case: as_VulnerabilityCase,
     opened: CoordinatedCase,
     embargo_id: str,
-) -> None:
+) -> bool:
     """Invite Vendor2 once the revision is active; it signs the embargo.
 
-    Raises:
-        AssertionError: Vendor2 is not a signatory of the embargo in force.
+    Returns:
+        Whether Vendor2 is a signatory of the embargo in force; a ``False`` is
+        already recorded as a failure.
     """
     logger.info("─" * 80)
     logger.info(
@@ -396,19 +397,22 @@ def _phase_v2_late_invite(
     )
     # Accepting the invitation consents to the embargo in force (CM-11-002), so
     # Vendor2 is a signatory before it does anything else (DEMOMA-21-012).
-    # Raises when it is not; run_rcvv_embargo_demo gates the fix lifecycle,
-    # collapse and closure on that, so they do not pile secondary failures on it.
-    wait_for_participant_embargo_consent(
-        cast.coordinator.client,
-        case.id_,
-        cast.vendor2.actor.id_,
-        embargo_id,
-        EmbargoConsentState.ACCEPTED,
-        COMMIT_TIMEOUT_SECONDS,
-        dl_actor_id=resolve_case_actor_store_id(
-            cast.coordinator.client, case.id_
-        ),
-    )
+    # The fix lifecycle, collapse and closure presuppose it, so the caller runs
+    # them only when this returns True (DEMOCI-01-007).
+    signed = False
+    with demo_gate("Vendor2 is a SIGNATORY to the active embargo"):
+        wait_for_participant_embargo_consent(
+            cast.coordinator.client,
+            case.id_,
+            cast.vendor2.actor.id_,
+            embargo_id,
+            EmbargoConsentState.ACCEPTED,
+            COMMIT_TIMEOUT_SECONDS,
+            dl_actor_id=resolve_case_actor_store_id(
+                cast.coordinator.client, case.id_
+            ),
+        )
+        signed = True
     with demo_check("Vendor2's replica has the revised embargo active"):
         wait_for_case_em_state(
             cast.vendor2.client,
@@ -417,6 +421,7 @@ def _phase_v2_late_invite(
             COMMIT_TIMEOUT_SECONDS,
             active_embargo_id=embargo_id,
         )
+    return signed
 
 
 def _phase_fix_lifecycle(cast: _Cast, case: as_VulnerabilityCase) -> None:
@@ -589,12 +594,9 @@ def run_rcvv_embargo_demo(
                         "no second revision; skipping phases 4-7"
                         " (v2_late_invite through case_closure)"
                     )
-                with demo_gate(
-                    "Vendor2 joined and signed the revised embargo"
+                if _phase_v2_late_invite(
+                    cast, case, opened, revised_embargo_id
                 ):
-                    _phase_v2_late_invite(
-                        cast, case, opened, revised_embargo_id
-                    )
                     _phase_fix_lifecycle(cast, case)
                     _phase_accidental_collapse(cast, case)
                     _phase_case_closure(cast, case)
