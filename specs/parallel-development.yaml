@@ -1138,18 +1138,24 @@ groups:
       before CI would.
     specs:
       - id: PAD-18-001
+        adr:
+        - ADR-0125
         priority: MUST
         kind: process
         statement: >-
-          Before a Pull Request's first push, `create-pr` MUST run the full
-          local unit and integration suites and push only when both pass.
+          Before an implementation Pull Request's first push, `create-pr` MUST
+          run the full local unit and integration suites and push only when
+          both pass. A Pull Request that changes no Python MUST be gated by
+          the linters alone.
         rationale: >-
           One full run keeps an obviously broken branch out of CI. It is the
           only point where the local suite is not repeating a CI run that is
-          about to happen anyway.
+          about to happen anyway. A docs-only branch has nothing for the suite
+          to catch, so the linters are the whole gate.
         verification: >-
-          Inspection: `create-pr` runs both suites before its push step and
-          stops on a non-zero `exit:` line.
+          Inspection: `create-pr` Phase 3 runs both suites on its
+          implementation-PR path before its push step and stops on a non-zero
+          `exit:` line, and runs linters only on its docs-PR path.
       - id: PAD-18-002
         priority: MUST
         kind: process
@@ -1157,44 +1163,62 @@ groups:
           After a Pull Request's first push, a fix commit MUST be gated locally
           by the linters plus the targeted test set for the branch diff: every
           test file that imports a changed symbol, the mirror test file of
-          every changed module, and `test/architecture/`.
+          every changed module, every changed test file itself, and
+          `test/architecture/`. The run MUST select those files with the
+          integration marker enabled, so that marker-bearing tests among them
+          are not deselected.
         rationale: >-
           A full local run after a one-line fix costs about seven minutes on a
-          2-CPU slot and then CI runs the full suite again in about five. The
-          targeted set catches a broken fix before the CI round trip that
-          counts against the `pr-execute` iteration cap, at a fraction of the
-          cost. Deriving the set from the import index makes it the same on
-          every run and auditable.
+          2-CPU slot; CI then runs the full suite again in about five. The
+          targeted set catches a broken fix before that round trip at a
+          fraction of the cost. A changed test file is named explicitly
+          because the import index cannot reach it: no `vultron` symbol
+          changed, and the mirror lookup covers only `vultron/` paths. The
+          marker clause is needed because `addopts` carries
+          `-m 'not integration'`, dropping those tests from a file list.
         verification: >-
           Inspection: `pr-execute` gates post-first-push fixes with the
-          targeted-test command, not the full suite.
+          targeted-test command, not the full suite, and the command it runs
+          overrides the `not integration` default.
       - id: PAD-18-003
         priority: MUST
         kind: process
         statement: >-
-          The local gate MUST escalate from the targeted set to the full suite
-          when the change touches shared test infrastructure (`conftest.py`,
-          test fixtures or factories, `pyproject.toml`, `uv.lock`), or when it
-          fixes a CI failure in a test the targeted set does not include.
+          The local gate MUST escalate from the targeted set to the full unit
+          and integration suites when the branch diff touches shared test
+          infrastructure (`conftest.py`, test fixtures or factories,
+          `pyproject.toml`, `uv.lock`), or any of the integration-bearing
+          paths (`vultron/demo/`, `integration_tests/`, `vultron/adapters/`,
+          `vultron/core/behaviors/`, `vultron/core/use_cases/`,
+          `vultron/wire/as2/extractor/`), or when it fixes a CI failure in a
+          test the targeted set does not include.
         rationale: >-
           The import index cannot see tests that reach a change through
           fixtures or configuration, and a CI failure outside the targeted set
-          is direct evidence the set missed something.
+          is evidence the set missed something. The integration-bearing paths
+          are the ones `pr-execute`'s `needs_integration_tests` detection
+          already escalates on; carrying them forward keeps PAD-18 from
+          dropping local integration coverage. Keying on the branch diff, not
+          the fix commit, means a fix landing on top of a `conftest.py` change
+          still escalates.
         verification: >-
-          Inspection: the targeted-test command reports `full` for a diff that
-          touches any listed path.
+          Inspection: the targeted-test command reports `full` for a branch
+          diff that touches any listed path.
         relationships:
         - rel_type: refines
           spec_id: PAD-18-002
       - id: PAD-18-004
+        adr:
+        - ADR-0125
         priority: MUST
         kind: process
         statement: >-
           After a Pull Request's first push, an agent MUST merge the base
           branch into it only when GitHub reports the PR `CONFLICTING`, or when
           files the base changed since the merge base overlap files the PR
-          changes. After such a merge it MUST run the targeted set (PAD-18-002)
-          for the overlapping and conflicted modules before pushing.
+          changes. After such a merge it MUST run the targeted set of
+          PAD-18-002, derived from the post-merge branch diff, which then
+          covers the overlapping and conflicted files.
         rationale: >-
           CI already tests the merge of the PR into its base as of each push,
           and no repository rule requires branches to be up to date. Merging
@@ -1202,26 +1226,38 @@ groups:
           times an hour during fan-out without adding coverage. The residual
           risk, a semantic conflict between files neither side shares, is
           caught by CI on `main` after the merge; closing it entirely is a
-          merge queue's job, not more local syncing.
+          merge queue's job (#1863). Keying the gate on the post-merge diff
+          lets one derivation serve both cases.
         verification: >-
-          Inspection: `pr-execute` and `work-epic-tasks` call the overlap check
-          before `sync-with-main.sh` and skip the merge when it reports none.
+          Inspection: `pr-execute` Phase 5 Step 2 and `work-epic-tasks`
+          consult the overlap check before merging the base, and skip the
+          merge when it reports no overlap and GitHub does not report
+          `CONFLICTING`.
+        relationships:
+        - rel_type: conflicts
+          spec_id: PAD-11-002
       - id: PAD-18-005
+        adr:
+        - ADR-0125
         priority: MUST_NOT
         kind: process
         statement: >-
-          `pr-verify` MUST NOT withhold `READY-TO-MERGE` because a branch does
-          not contain its base's latest commit, when the PR is conflict-free
-          and PAD-18-004 did not call for a merge. A `BEHIND` merge state
-          reported by GitHub still blocks, since GitHub reports it only when
-          the repository requires up-to-date branches.
+          `pr-verify` MUST NOT compute base-tip containment itself, nor
+          withhold `READY-TO-MERGE` on the strength of its own containment
+          check, when the PR is conflict-free and PAD-18-004 did not call for
+          a merge. Only GitHub's reported merge state governs: a
+          `mergeStateStatus` of `BEHIND` still blocks.
         rationale: >-
           Requiring the base tip in the branch makes every merge to `main`
           invalidate every other ready PR, which is the loop PAD-18-004 exists
-          to break.
+          to break. GitHub reports `BEHIND` only when a ruleset requires
+          up-to-date branches, so deferring to it keeps the one case where
+          being behind genuinely blocks a merge, without re-deriving it on
+          every verify.
         verification: >-
           Inspection: `pr-verify`'s `UNSYNCED-EXECUTE` check reads the
-          execute artifact's conflict-free result, not base-tip containment.
+          execute artifact's conflict-free result and GitHub's reported merge
+          state, and performs no base-tip containment comparison of its own.
         relationships:
         - rel_type: depends_on
           spec_id: PAD-18-004
@@ -1229,14 +1265,23 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          `pr-execute`'s summary comment MUST record the local suite runs it
-          made in a fixed line, `Suite runs: <N> full, <M> targeted`.
+          `pr-execute`'s summary comment MUST record the local suite runs the
+          Pull Request has cost in a fixed line,
+          `Suite runs: <N> full, <M> targeted`. The count MUST include the
+          first-push run of PAD-18-001, which `create-pr` made before any
+          execute artifact existed, as one full run.
         rationale: >-
           Local suite runs are the one pipeline cost GitHub does not record.
           The execute artifact is gitignored and deleted by `pr-verify`, so
-          the PR comment is the only place the count survives.
+          the PR comment is the only place the count survives. The first-push
+          run has to be counted explicitly because it happens in a different
+          skill before the comment exists; leaving it out would understate
+          every Pull Request by the single most expensive run in the
+          pipeline, which is the figure PAD-18-007 needs.
         verification: >-
-          Inspection: an execute summary comment carries the line.
+          Inspection: the execute comment format in
+          `.agents/skills/pr-execute/REFERENCE.md` specifies the line, and
+          its documented derivation starts the full count at one.
       - id: PAD-18-007
         priority: SHOULD
         kind: process
@@ -1255,3 +1300,25 @@ groups:
         relationships:
         - rel_type: depends_on
           spec_id: PAD-18-006
+      - id: PAD-18-008
+        priority: MUST
+        kind: process
+        statement: >-
+          The full local gate of PAD-18-001 MUST run exactly once before a
+          Pull Request's first push. A skill that hands off to `create-pr`
+          MUST NOT run the unit or integration suites itself.
+        rationale: >-
+          `build` and `create-pr` each ran the same four-command block back to
+          back, with no change to the tree between them, so every
+          implementation Pull Request paid the first-push gate twice. One of
+          the two runs was pure duplication, and it is the most expensive
+          single step in the pipeline. Placing the gate in `create-pr` alone
+          keeps it adjacent to the push it guards, which is the only thing
+          that makes it worth its cost.
+        verification: >-
+          Inspection: `build` Phase 6 runs the linters but no `pytest`
+          invocation, and `create-pr` Phase 3 is the sole pre-first-push
+          suite run.
+        relationships:
+        - rel_type: refines
+          spec_id: PAD-18-001

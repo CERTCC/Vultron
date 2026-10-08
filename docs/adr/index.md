@@ -198,6 +198,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0122 Participant Embargo Consent Is Recorded per (Participant, Embargo), Against an Embargo Register on the Case](0122-per-embargo-participant-consent.md) *(revision 2)*
 - [ADR-0123 An Embargo Invite May Name Its Terms by URI](0123-embargo-invite-may-name-its-terms-by-uri.md)
 - [ADR-0124 The Case Is a Projection of Its Ledger: One Replay Function for the CASE_MANAGER and Every Replica](0124-case-is-a-projection-of-its-ledger.md)
+- [ADR-0125 CI Is the Full-Suite Authority After a Pull Request's First Push](0125-ci-is-the-full-suite-authority-after-the-first-push.md)
 
 ## Rejected ADRs
 
