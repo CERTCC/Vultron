@@ -41,6 +41,7 @@ decorate it — then run `uv run demo-scenarios --write`.
 | `fvcv-handoff` | `fvcv_handoff_demo.py` | Finder + Vendor1 → Coordinator + Vendor2 | Case-ownership transfer to coordinator |
 | `fvv` | `fvv_demo.py` | Finder + Vendor1 + Vendor2 | Direct invitation of a second vendor |
 | `rcv-embargo` | `rcv_embargo_demo.py` | Reporter + Coordinator + Vendor | Embargo revision after submission and deliberate termination |
+| `rcvv-embargo` | `rcvv_embargo_demo.py` | Reporter + Coordinator + Vendor1 + Vendor2 | Embargo revision cycle, late second vendor, and accidental collapse |
 
 <!-- END GENERATED SCENARIO TABLE -->
 
