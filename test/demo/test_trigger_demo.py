@@ -83,13 +83,15 @@ def test_invalidate_and_close_settles_closed(demo_env):
 
     The CaseActor still creates the case when the report arrives (the vendor's
     ``Create(CaseProposal)``), so a case exists; what distinguishes this run
-    is that the vendor never leaves ``RM.RECEIVED`` on it and the report ends
-    closed.
+    is that the vendor is never ``RM.ACCEPTED`` on it and the report ends
+    closed.  The CaseActor ledgers the vendor's ``Reject(Offer)``
+    (CLP-10-013) and the vendor's replica replays that entry, so its own
+    participant ends ``RM.CLOSED`` too.
     """
     link, vendor_rm = _run(demo_env, demo.demo_invalidate_and_close)
     assert link.rm_state == RM.CLOSED
     assert link.case_id is not None
-    assert vendor_rm == RM.RECEIVED
+    assert vendor_rm == RM.CLOSED
 
 
 def test_every_run_is_registered():

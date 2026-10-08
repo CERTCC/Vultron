@@ -362,11 +362,14 @@ def create_close_report_received_tree(
     3. The sender must be a participant of that case (HP-01-006).
     4. Adjudicate the declaration under the received-side RM rule: a backward
        move is refused here, before any effect (RSH-06-002, CLP-10-009).
-    5. Record ``CLOSED`` for the sender unless it is already recorded
+    5. Guarded commit (only when ``case_id`` is provided and the receiving
+       actor holds ``CVDRole.CASE_MANAGER``) records the activity after the
+       guards and before the effect (CLP-10-006, CLP-10-013).
+    6. Record ``CLOSED`` for the sender unless it is already recorded
        (RSH-08-002), through the canonical
        :class:`~vultron.core.behaviors.case.nodes.participant.status\
 .CreateParticipantStatusNode` writer (ADR-0089).
-    6. Post the RSH-06-004 clarification note when step 4 saw a
+    7. Post the RSH-06-004 clarification note when step 4 saw a
        non-adjacent jump.
 
     Steps 2–4 return FAILURE when the case is not in this actor's store, so the
@@ -391,9 +394,9 @@ def create_close_report_received_tree(
     )
     return create_receive_activity_tree(
         name="CloseReportReceivedBT",
-        # No ledger commit: these verdicts have never been committed, and
-        # their ledger replay is #3814's to add (RSH-08-004).
-        case_id=None,
+        # A canonical signature: the CASE_MANAGER commits it after the guards,
+        # and replicas replay it (CLP-10-013, RSH-08-004).
+        case_id=case_id,
         precondition_guards=guards,
         effect_nodes=effects,
     )
@@ -411,7 +414,8 @@ def create_invalidate_report_received_tree(
     (``request.actor_id``), never the receiving actor (RSH-08-001).
 
     The steps are those of :func:`create_close_report_received_tree`, with
-    ``INVALID`` as the declared state.
+    ``INVALID`` as the declared state.  ``("TentativeReject", "Offer")`` is a
+    canonical signature, so the CASE_MANAGER commits it (CLP-10-013).
 
     Args:
         request: The parsed inbound domain event.  Its ``actor_id`` — the
@@ -430,9 +434,9 @@ def create_invalidate_report_received_tree(
     )
     return create_receive_activity_tree(
         name="InvalidateReportReceivedBT",
-        # No ledger commit: these verdicts have never been committed, and
-        # their ledger replay is #3814's to add (RSH-08-004).
-        case_id=None,
+        # A canonical signature: the CASE_MANAGER commits it after the guards,
+        # and replicas replay it (CLP-10-013, RSH-08-004).
+        case_id=case_id,
         precondition_guards=guards,
         effect_nodes=effects,
     )
