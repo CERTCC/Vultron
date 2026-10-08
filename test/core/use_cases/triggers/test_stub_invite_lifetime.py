@@ -40,6 +40,11 @@ from test.core.use_cases.triggers.test_case_joining_planned import (
     _participant_of,
     _send_stub_invite,
 )
+from test.support.embargo_register import (
+    activate,
+    propose,
+    terminate as terminate_register,
+)
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -187,8 +192,7 @@ def test_deadline_is_capped_at_the_end_of_the_embargo_it_carries(
         end_time=days_from_now_utc(2),
     )
     dl.create(embargo)
-    case.active_embargo = embargo.id_
-    case.append_case_status(em_state=EM.ACTIVE)
+    activate(case, embargo.id_)
     seed_store_owner_as_case_manager(dl, case)
     dl.create(case)
 
@@ -484,11 +488,12 @@ def test_an_open_revision_proposal_re_issues_nothing(actor_store) -> None:
     assert stored is not None
     assert outstanding_stale_stubs(dl, stored, owner.id_, now_utc()) == []
 
-    stored.current_status.em.state = EM.REVISE
+    propose(stored, f"{case.id_}/embargo/revision")
+    assert stored.em_state == EM.REVISE
     assert outstanding_stale_stubs(dl, stored, owner.id_, now_utc()) == []
 
-    stored.current_status.em.state = EM.EXITED
-    stored.active_embargo = None
+    terminate_register(stored)
+    assert stored.em_state == EM.EXITED
     assert len(outstanding_stale_stubs(dl, stored, owner.id_, now_utc())) == 1
 
 

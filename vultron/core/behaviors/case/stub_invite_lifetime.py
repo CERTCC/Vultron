@@ -105,7 +105,12 @@ def record_of(obj: Any) -> RecordedStubInvite | None:
     invite_id = getattr(obj, "id_", None)
     if not isinstance(case_id, str) or not invitee_id or not invite_id:
         return None
-    embargo = getattr(target, "active_embargo", None)
+    # Plain attribute access: the stub's embargo reference shares its name with
+    # a retired wire key, and no core string constant may spell one (MV-11-004).
+    try:
+        embargo = target.active_embargo
+    except AttributeError:
+        embargo = None
     return RecordedStubInvite(
         invite_id=invite_id,
         invitee_id=invitee_id,
@@ -207,7 +212,7 @@ def current_stub_embargo_id(case: VulnerabilityCase) -> str | None:
     A stub carries the active embargo only while EM is ``ACTIVE`` (CM-17-002);
     otherwise it carries none.
     """
-    if case.current_status.em.state != EM.ACTIVE:
+    if case.em_state != EM.ACTIVE:
         return None
     return case.active_embargo_id
 
@@ -264,7 +269,7 @@ def outstanding_stale_stubs(
     now would carry (CM-11-016).  An expired, unanswered stub is not
     re-issued; the CASE_MANAGER re-invites it on request (CM-11-015).
     """
-    if case.current_status.em.state in _PENDING_EM_STATES:
+    if case.em_state in _PENDING_EM_STATES:
         # A proposal (or a revision of the embargo in force) is open.  It
         # changes no active embargo, so it re-issues nothing; the answer that
         # activates or ends it does (CM-11-016).
