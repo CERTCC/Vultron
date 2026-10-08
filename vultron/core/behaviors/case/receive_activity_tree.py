@@ -239,12 +239,12 @@ def _refusal_stage(
     intake: IntakeReceivedActivityNode,
     precondition_guards: list[py_trees.behaviour.Behaviour],
     refusal_effects: list[py_trees.behaviour.Behaviour],
-    refusal_case_id: str | None,
+    case_id: str | None,
 ) -> PreconditionGuardStage:
     """Wrap the guards so *refusal_effects* run only when they refuse.
 
-    The refusal effects sit inside the CASE_MANAGER gate on
-    *refusal_case_id*: the CASE_MANAGER adjudicates, so only it answers a
+    The refusal effects sit inside the CASE_MANAGER gate on *case_id*, the
+    case the guards judged: the CASE_MANAGER adjudicates, so only it answers a
     refusal (BT-17-008).  The gate reads a case this store does not hold as
     "not the CASE_MANAGER" at ``debug`` level, because the guard that refused
     an unknown case has already reported it.
@@ -276,7 +276,7 @@ def _refusal_stage(
         )
     gate = create_case_manager_gated_tree(
         name=f"{name}RefusalIfCaseManager",
-        case_id=refusal_case_id,
+        case_id=case_id,
         children=refusal_effects,
         case_may_be_absent=True,
     )
@@ -308,7 +308,6 @@ def create_receive_activity_tree(
     manager_body_name: str | None = None,
     manager_case_may_be_absent: bool = False,
     refusal_effects: list[py_trees.behaviour.Behaviour] | None = None,
-    refusal_case_id: str | None = None,
 ) -> py_trees.composites.Sequence:
     """Compose a receive-side BT with the four CLP-10-010 stages in order.
 
@@ -367,9 +366,9 @@ def create_receive_activity_tree(
     accepted delivery, so no effect precedes the commit (CLP-10-006).  They
     do not run when the sender guard refuses: a sender not entitled to send
     the message is owed no answer about its content (HP-01-006).  The factory
-    gates them on the CASE_MANAGER of ``refusal_case_id`` (default
-    ``case_id``; when both are ``None`` the gate resolves the case from the
-    blackboard and skips without one), skips them on a redelivery that intake
+    gates them on the CASE_MANAGER of ``case_id`` (when it is ``None`` the
+    gate resolves the case from the blackboard and skips without one), skips
+    them on a redelivery that intake
     found already archived, and keeps the tree's result the guard's
     ``FAILURE``, so nothing is committed and the handler still reports
     ``REFUSED`` for the guard's reason.  Each refusal effect must be
@@ -414,15 +413,13 @@ def create_receive_activity_tree(
             :class:`CheckIsCaseManagerNode`.
         refusal_effects: Emit-capable nodes run only when a precondition
             guard refuses, at the CASE_MANAGER, once per received activity.
-        refusal_case_id: Case whose CASE_MANAGER gates ``refusal_effects``;
-            defaults to ``case_id``.
 
     Raises:
         VultronWiringError: ``effect_nodes`` is mixed with the new effect
             kinds, ``manager_effects`` has no ``manager_case_id``, an
             exemption is unregistered, an emit-capable node sits in
             ``replica_effects`` without one (BT-17-008), or a refusal effect
-            is not emit-capable (CLP-10-022).
+            is not emit-capable or holds a state writer (CLP-10-022).
 
     Per ``specs/case-ledger-processing.yaml`` CLP-10-006, CLP-10-010,
     CLP-10-017, CLP-10-022 and ``specs/behavior-tree-integration.yaml`` BT-17-008.
@@ -442,12 +439,6 @@ def create_receive_activity_tree(
         ),
     )
     _check_replica_effects(name, replica, replica_emit_exemption)
-    if refusal_case_id is not None and not refusal_effects:
-        raise VultronWiringError(
-            f"create_receive_activity_tree({name}): refusal_case_id"
-            " configures the gate around refusal_effects; pass it only"
-            " with refusal_effects (CLP-10-022)"
-        )
 
     intake = IntakeReceivedActivityNode()
     children: list[py_trees.behaviour.Behaviour] = [intake]
@@ -460,7 +451,7 @@ def create_receive_activity_tree(
                 intake,
                 precondition_guards,
                 refusal_effects,
-                refusal_case_id if refusal_case_id is not None else case_id,
+                case_id,
             )
         )
     else:

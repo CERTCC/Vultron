@@ -414,7 +414,6 @@ def create_close_report_received_tree(
         precondition_guards=guards,
         effect_nodes=effects,
         refusal_effects=refusal,
-        refusal_case_id=case_id,
     )
 
 
@@ -456,5 +455,4 @@ def create_invalidate_report_received_tree(
         precondition_guards=guards,
         effect_nodes=effects,
         refusal_effects=refusal,
-        refusal_case_id=case_id,
     )

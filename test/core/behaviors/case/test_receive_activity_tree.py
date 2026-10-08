@@ -430,38 +430,20 @@ class TestRefusalEffects:
         )
 
         tree = create_receive_activity_tree(
-            name="NoCommitBT",
-            case_id=None,
-            precondition_guards=[_effect("Guard")],
-            refusal_effects=[_Emitter()],
-            refusal_case_id=CASE_ID,
-        )
-
-        assert ungated_emitters([tree]) == []
-        checks = [
-            n for n in tree.iterate() if isinstance(n, CheckIsCaseManagerNode)
-        ]
-        assert [(c._case_id, c._case_may_be_absent) for c in checks] == [
-            (CASE_ID, True)
-        ]
-
-    def test_the_refusal_gate_defaults_to_the_trees_case(self) -> None:
-        from vultron.core.behaviors.case.nodes.conditions import (
-            CheckIsCaseManagerNode,
-        )
-
-        tree = create_receive_activity_tree(
             name="SampleBT",
             case_id=CASE_ID,
             precondition_guards=[_effect("Guard")],
             refusal_effects=[_Emitter()],
         )
 
+        assert ungated_emitters([tree]) == []
         stage = tree.children[1]
         checks = [
             n for n in stage.iterate() if isinstance(n, CheckIsCaseManagerNode)
         ]
-        assert [c._case_id for c in checks] == [CASE_ID]
+        assert [(c._case_id, c._case_may_be_absent) for c in checks] == [
+            (CASE_ID, True)
+        ]
 
     @pytest.mark.spec("CLP-10-022")
     def test_a_refusal_effect_that_does_not_emit_is_refused(self) -> None:
@@ -481,15 +463,6 @@ class TestRefusalEffects:
                 case_id=CASE_ID,
                 precondition_guards=[_effect("Guard")],
                 refusal_effects=[_EmittingWriter()],
-            )
-
-    def test_refusal_case_id_without_refusal_effects_is_refused(self) -> None:
-        with pytest.raises(VultronWiringError, match="refusal_case_id"):
-            create_receive_activity_tree(
-                name="SampleBT",
-                case_id=CASE_ID,
-                precondition_guards=[],
-                refusal_case_id=CASE_ID,
             )
 
     def test_refusal_effects_combine_with_legacy_effect_nodes(self) -> None:

@@ -1341,7 +1341,7 @@ The cause was structural: about fifteen trees each wrapped their effects in
 - **Refusal effects get the same gate.**
   `refusal_effects` run only when a precondition guard refuses, and the factory
   wraps them in a `CaseManagerGate` (`{name}RefusalIfCaseManager`) with
-  `case_may_be_absent=True` on `refusal_case_id` (default `case_id`): the
+  `case_may_be_absent=True` on the tree's `case_id`: the
   CASE_MANAGER adjudicates, so only it answers, and a refusal of an unknown case
   is already reported by the guard. See
   [bt-integration.md](bt-integration.md) § "The Four Received-Side Stages"
