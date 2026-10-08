@@ -49,6 +49,12 @@ from vultron.metadata.specs.coverage import SPEC_MARKER_RE
 # Lowered to 703 — the live count — when #4241 marked VP-10-002, VP-10-003
 # and VP-10-005 alongside the new CM-32 strict xfails, closing slack left by
 # PRs merged since.
+# Held at 703 when BTND-05-003 was relabeled kind=protocol -> kind=project
+# (#4346): it named a reference-implementation node (`CreateCaseParticipantNode`)
+# and fails the "another protocol implementation would notice" gate, so it leaves
+# the protocol tier. That relabel removes one uncovered protocol spec, pulling the
+# live count back down to the pinned 703 after it had drifted to 704 (a concurrent
+# count-pin race, #3984) — so the pin is unchanged but once again tight.
 # Lower this constant as more @pytest.mark.spec markers are added;
 # never raise it to hide regressions in your own PR. Keep it pinned to the
 # actual count — slack between the two is room for uncovered specs to grow
