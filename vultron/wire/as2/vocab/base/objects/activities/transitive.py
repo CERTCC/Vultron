@@ -16,6 +16,7 @@
 
 from pydantic import Field, field_validator, model_validator
 
+from vultron.primitives import NonEmptyString
 from vultron.wire.as2.enums import as_TransitiveActivityType as TA_type
 from vultron.wire.as2.vocab.base.objects.activities.base import (
     as_Activity as Activity,
@@ -169,6 +170,10 @@ class as_Invite(as_Offer):
         serialization_alias="type",
     )
     roles: list[str] | None = None
+    # A replacement stub Invite names the Invite it supersedes, so the invitee
+    # knows the old one is dead whichever arrives first (CM-11-016, ADR-0114).
+    # Not an ``Undo``: nothing is retracted.
+    supersedes: NonEmptyString | None = None
 
 
 class as_Flag(as_TransitiveActivity):

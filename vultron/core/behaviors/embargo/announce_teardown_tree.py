@@ -50,6 +50,9 @@ import logging
 import py_trees
 
 from vultron.config.actor import ActorConfig
+from vultron.core.behaviors.case.nodes.invite_actor_emit import (
+    ReissueStubInvitesNode,
+)
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
     create_participant_replica_gated_tree,
@@ -106,17 +109,23 @@ logger = logging.getLogger(__name__)
 def embargo_admission_backfill_tree(
     case_id: str,
 ) -> py_trees.behaviour.Behaviour:
-    """Backfill the participants an embargo effect just admitted (CM-10-006).
+    """Follow an embargo effect at the CASE_MANAGER: backfill, then re-issue.
 
     The admitting entry was committed and fanned out before the effect ran, so
     the fan-out withheld it; this sends it, and everything else withheld, once
-    the gate admits the participant. CASE_MANAGER only (BT-17-001): the pause
-    records and the canonical ledger live in its store.
+    the gate admits the participant (CM-10-006).  The same effect may have
+    activated, revised or terminated the active embargo, so it then re-issues
+    the stub Invites that are outstanding and carry the old terms; a no-op when
+    none are (CM-11-016).  CASE_MANAGER only (BT-17-001): the pause records,
+    the canonical ledger and the stub Invites live in its store.
     """
     return create_case_manager_gated_tree(
         name="EmbargoAdmissionBackfill",
         case_id=case_id,
-        children=[BackfillAdmittedParticipantsNode(case_id=case_id)],
+        children=[
+            BackfillAdmittedParticipantsNode(case_id=case_id),
+            ReissueStubInvitesNode(case_id=case_id),
+        ],
     )
 
 

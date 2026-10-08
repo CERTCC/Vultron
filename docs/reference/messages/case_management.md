@@ -219,6 +219,14 @@ print(json2md(reject_case_ownership_transfer()))
   The `object` is the actor being invited, and the `target` is the case stub, of type `VulnerabilityCaseStub`.
   The stub carries the case identifier in its `caseId` and a required `summary` field: the owner-chosen description the invitee reads before deciding whether to accept ([CM-11-013](../specs/protocol.md#cm-11-013), [CM-17-010](../specs/protocol.md#cm-17-010), [MV-10-001](../specs/protocol.md#mv-10-001)).
   The factory raises `VultronActivityConstructionError` when `VulnerabilityCase.stub_summary` is not set, and the receiver refuses a stub with an absent or blank `summary`.
+  The Invite carries its reply deadline in `endTime`, which the CASE_MANAGER sets the way it sets an embargo Invite's deadline: the Invite's `published` time plus the configured RSVP window, capped at the end of the active embargo ([CM-11-014](../specs/protocol.md#cm-11-014), [CM-28-012](../specs/protocol.md#cm-28-012)).
+  When the deadline passes, the Invite closes and the invitee's record does not change.
+  An `Accept` after the deadline is refused, and the CASE_MANAGER re-invites the actor with a fresh stub Invite on the same record and a new deadline ([CM-11-015](../specs/protocol.md#cm-11-015)).
+  A re-invite of a participant that has closed is refused.
+  When the active embargo is activated, revised or terminated while a stub Invite is outstanding, the CASE_MANAGER sends a replacement with the current terms and a new deadline.
+  The replacement names the Invite it supersedes in `supersedes`.
+  An `Accept` of the superseded Invite is refused, naming the replacement, and a `Reject` of it is honored ([CM-11-016](../specs/protocol.md#cm-11-016)).
+- **Ask kind:** the Invite closes on `Accept` or `Reject` of it (`INVITE_ACTOR_TO_CASE_REPLY_TYPES`), and its expiry is void: a late `Accept` authorizes nothing ([ASK-03-008](../specs/protocol.md#ask-03-008)).
 - **Example artifact:** [invite_to_case.json](../examples/invite_to_case.json).
 
 ```python exec="true" idprefix=""

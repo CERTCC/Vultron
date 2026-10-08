@@ -343,6 +343,9 @@ class TriggerActivityPort(Protocol):
         attributed_to: str | None = None,
         roles: list[str] | None = None,
         target: VulnerabilityCase | None = None,
+        rsvp_deadline: datetime | None = None,
+        published: datetime | None = None,
+        supersedes: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Invite(Actor, CaseStub)`` activity.
 
@@ -356,6 +359,11 @@ class TriggerActivityPort(Protocol):
         to an enriched stub including ``end_time`` when ``em_state == EM.ACTIVE``),
         a pre-built stub, or a bare URI string.  When ``None``, the adapter reads
         the case from the DataLayer by ``case_id`` (CM-17-002).
+        ``rsvp_deadline`` becomes the Invite's ``endTime``, the reply deadline
+        the CASE_MANAGER stamps as it does on an embargo Invite (CM-11-014,
+        CM-28-012, ASK-03-004); ``published`` is the instant it was measured
+        from.  ``supersedes`` names the stub Invite this one replaces after an
+        embargo change (CM-11-016).  Each is forwarded only when given.
         Returns ``(activity_id, activity_dict)``.
         """
         ...

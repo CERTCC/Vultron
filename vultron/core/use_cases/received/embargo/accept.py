@@ -147,6 +147,7 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         tree = embargo_admission_backfill_tree(case_id)
         result = BTBridge(
             datalayer=self._dl,
+            trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
         ).execute_with_setup(
@@ -445,9 +446,11 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             embargo_id=embargo_id,
             accepting_actor_id=accepting_actor_id,
             invite_id=invite_id,
+            actor_config=self._actor_config,
         )
         bridge = BTBridge(
             datalayer=self._dl,
+            trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
         )

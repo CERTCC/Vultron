@@ -22,6 +22,7 @@ Case Actor / CASE_MANAGER delegation activities.
 import json
 import logging
 from collections.abc import Callable
+from datetime import datetime
 from typing import Any, cast
 
 from pydantic import BaseModel, ValidationError
@@ -158,6 +159,9 @@ class _ActorsMixin:
         attributed_to: str | None = None,
         roles: list[str] | None = None,
         target: VulnerabilityCase | None = None,
+        rsvp_deadline: datetime | None = None,
+        published: datetime | None = None,
+        supersedes: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Invite(Actor, CaseStub)`` activity.
 
@@ -177,6 +181,12 @@ class _ActorsMixin:
             extra["id_"] = id_
         if attributed_to is not None:
             extra["attributed_to"] = attributed_to
+        if rsvp_deadline is not None:
+            extra["end_time"] = rsvp_deadline
+        if published is not None:
+            extra["published"] = published
+        if supersedes is not None:
+            extra["supersedes"] = supersedes
 
         # Read case and embargo from DataLayer; factory handles projection.
         resolved: Any = target

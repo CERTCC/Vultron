@@ -15,6 +15,8 @@
 
 """Tests for vultron.core.predicates.participants."""
 
+import pytest
+
 from vultron.core.models.case_participant import (
     CaseActorParticipant,
     CaseParticipant,
@@ -58,6 +60,20 @@ def _make_participant(
 class TestAllParticipantsRmClosed:
     def test_empty_list_returns_true(self):
         assert all_participants_rm_closed([]) is True
+
+    @pytest.mark.spec("CM-11-014")
+    def test_inert_invitee_is_not_counted(self):
+        """An invitee that never accepted its stub Invite is skipped."""
+        closed = _make_participant(RM.CLOSED, actor_id="urn:uuid:a")
+        silent = _make_participant(RM.RECEIVED, actor_id="urn:uuid:b")
+        silent.joined = False
+        assert all_participants_rm_closed([closed, silent]) is True
+
+    @pytest.mark.spec("CM-11-014")
+    def test_joined_participant_at_received_still_counts(self):
+        closed = _make_participant(RM.CLOSED, actor_id="urn:uuid:a")
+        joined = _make_participant(RM.RECEIVED, actor_id="urn:uuid:b")
+        assert all_participants_rm_closed([closed, joined]) is False
 
     def test_single_closed_participant_returns_true(self):
         p = _make_participant(RM.CLOSED)

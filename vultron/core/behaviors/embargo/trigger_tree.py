@@ -39,6 +39,9 @@ from collections.abc import Callable
 
 import py_trees
 
+from vultron.core.behaviors.case.nodes.invite_actor_emit import (
+    ReissueStubInvitesNode,
+)
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
     create_participant_replica_gated_tree,
@@ -167,6 +170,12 @@ def _answer_arms(
                 builder=activity_builder,
             ),
             _make_emit_node(case_id),
+            # The owner's accept of a revision changes the active embargo
+            # under any outstanding stub Invite (CM-11-016).  The node compares
+            # each stub's terms with the embargo in force and does nothing
+            # while a proposal is open, so a reject or a participant's accept
+            # re-issues nothing.
+            ReissueStubInvitesNode(case_id=case_id),
         ],
         otherwise=[
             sender_side_bt(
@@ -484,6 +493,9 @@ def terminate_embargo_bt(
                     ),
                     commit,
                     _make_emit_node(case_id),
+                    # Termination changes the terms of every stub Invite still
+                    # outstanding (CM-11-016).
+                    ReissueStubInvitesNode(case_id=case_id),
                 ],
                 otherwise=[ask],
             ),

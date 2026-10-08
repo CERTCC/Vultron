@@ -78,12 +78,33 @@ def stamp_invite_rsvp_deadline(
     embargo = dl.read(embargo_id)
     if not isinstance(embargo, EmbargoEvent):
         raise VultronNotFoundError("EmbargoEvent", embargo_id)
+    return stamp_rsvp_deadline(embargo.end_time, actor_config)
+
+
+def stamp_rsvp_deadline(
+    embargo_end: datetime | None,
+    actor_config: ActorConfig | None = None,
+) -> InviteRsvpStamp:
+    """Compute the RSVP deadline for an Invite sent now (CM-28-012).
+
+    The one place the window rule lives: ``published`` plus the configured
+    ``default_rsvp_window``, floored at ``min_rsvp_window`` and capped at
+    *embargo_end* when there is one (EP-07-002, EP-07-006).  An embargo Invite
+    passes its embargo's end; a stub Invite passes the active embargo's end,
+    or ``None`` when no embargo is active (CM-11-014).
+
+    Args:
+        embargo_end: The ``end_time`` of the embargo that caps the deadline,
+            or ``None`` for no cap.
+        actor_config: The sender's configuration; ``None`` applies the
+            ``ActorConfig`` defaults.
+    """
     config = actor_config if actor_config is not None else ActorConfig()
     published = now_utc()
     deadline = resolve_rsvp_deadline(
         requested=None,
         published=published,
-        embargo_end=embargo.end_time,
+        embargo_end=embargo_end,
         min_window=config.min_rsvp_window,
         default_window=config.default_rsvp_window,
     )
@@ -94,4 +115,8 @@ def stamp_invite_rsvp_deadline(
     )
 
 
-__all__ = ["InviteRsvpStamp", "stamp_invite_rsvp_deadline"]
+__all__ = [
+    "InviteRsvpStamp",
+    "stamp_invite_rsvp_deadline",
+    "stamp_rsvp_deadline",
+]
