@@ -65,6 +65,7 @@ from vultron.core.behaviors.case.nodes.suggest_actor import (
     InviteInFlightNode,
     PendingOfferCaseParticipantNode,
     RecordRecommendationRecommenderNode,
+    case_manager_admits_suggested_actor_guard,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
@@ -117,7 +118,10 @@ def create_recommend_actor_to_case_received_tree(
 ) -> py_trees.composites.Sequence:
     """Received-side BT for Offer(Actor, Case) on the CASE_MANAGER's inbox.
 
-    Commits a canonical ``CaseLedgerEntry`` for the received Offer
+    Refuses, before any commit, the recommendation of a removed participant:
+    it is sent no stub Invite, and only the Case Owner's
+    ``Add(CaseParticipant)`` reinstates it (CM-31-013, CM-31-011).  Otherwise
+    commits a canonical ``CaseLedgerEntry`` for the received Offer
     (CM-16-002), then routes to one of five branches via a Selector:
 
     1. **AC-7b** — already participant: auto-accept to recommender (CM-16-009).
@@ -135,6 +139,7 @@ def create_recommend_actor_to_case_received_tree(
     Tree structure::
 
         RecommendActorToCaseBT (Sequence, memory=False)
+        ├── SuggestedActorNotRemovedIfCaseManager — CM-31-013 guard
         ├── GuardedCommitCaseLedgerEntryBT       — record receipt (CLP-10-006)
         └── RecommendActorToCaseIfCaseManager (Selector)   — BT-17-001 gate
             ├── SkipIfNotCaseManager                — Inverter(CheckIsCaseManagerNode)
@@ -314,7 +319,11 @@ def create_recommend_actor_to_case_received_tree(
             case_id=case_id,
             name="RecommenderIsParticipant",
         ),
-        precondition_guards=[],
+        precondition_guards=[
+            case_manager_admits_suggested_actor_guard(
+                recommended_id=recommended_id, case_id=case_id
+            )
+        ],
         effect_nodes=[
             create_case_manager_gated_tree(
                 name="RecommendActorToCaseIfCaseManager",
@@ -351,6 +360,7 @@ def create_accept_actor_recommendation_received_tree(
     Tree structure::
 
         AcceptActorRecommendationBT (Sequence, memory=False)
+        ├── SuggestedActorNotRemovedIfCaseManager — CM-31-013 guard
         ├── GuardedCommitCaseLedgerEntryBT       — record receipt (CLP-10-006)
         └── AcceptActorRecommendationIfCaseManager (Selector)  — BT-17-001 gate
             ├── SkipIfNotCaseManager
@@ -368,7 +378,9 @@ def create_accept_actor_recommendation_received_tree(
     factory, never from the Accept.
 
     Only the Case Owner may accept (CM-16-019): the sender guard refuses any
-    other sender before the case ledger is written or anything is sent.
+    other sender before the case ledger is written or anything is sent.  An
+    acceptance naming an actor removed since the Offer was made is refused
+    the same way: a removed participant is sent no stub Invite (CM-31-013).
 
     Args:
         recommendation_id: ID of the original ``Offer(Actor, Case)`` from the
@@ -392,7 +404,11 @@ def create_accept_actor_recommendation_received_tree(
         sender_guard=SenderIsCaseOwnerNode(
             sender_actor_id=sender_id, case_id=case_id
         ),
-        precondition_guards=[],
+        precondition_guards=[
+            case_manager_admits_suggested_actor_guard(
+                recommended_id=invitee_id, case_id=case_id
+            )
+        ],
         effect_nodes=[
             create_case_manager_gated_tree(
                 name="AcceptActorRecommendationIfCaseManager",

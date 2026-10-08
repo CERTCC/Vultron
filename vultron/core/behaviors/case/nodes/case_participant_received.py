@@ -16,8 +16,9 @@
 """BT leaf nodes for received Add/Remove CaseParticipant activities.
 
 Both messages are Case Owner requests to the CASE_MANAGER (ADR-0116), and
-share one guard frame (:class:`ParticipantMoveGuardNode`) and one notice
-frame (:class:`EmitParticipantMoveNoticeNode`).
+share one guard frame (:class:`ParticipantMoveGuardNode`), one effect frame
+(:class:`ParticipantMoveEffectNode`) and one notice frame
+(:class:`EmitParticipantMoveNoticeNode`).
 
 The removal nodes implement the Case Owner's ``Remove(CaseParticipant)``
 (CM-31-004 through CM-31-008):
@@ -26,7 +27,8 @@ The removal nodes implement the Case Owner's ``Remove(CaseParticipant)``
   case's roster, holds neither ``CASE_MANAGER`` nor ``CASE_OWNER``, and is
   not already removed (the idempotency guard, read as ``SKIPPED``);
 - one effect, :class:`RemoveCaseParticipantFromCaseReceivedNode`, which sets
-  the removal fact and keeps the record on the roster (CM-31-001);
+  the removal fact and keeps the record on the roster (CM-31-001), on the
+  shared effect frame (:class:`ParticipantMoveEffectNode`);
 - the direct notice to the removed participant,
   :class:`EmitParticipantRemovalNoticeNode`, which is not ledgered
   (CM-31-006).
@@ -157,7 +159,7 @@ class ParticipantMoveGuardNode(DataLayerConditionWithPorts):
         raise NotImplementedError
 
 
-class RemovalNamesCaseParticipantNode(ParticipantMoveGuardNode):
+class MoveNamesCaseParticipantNode(ParticipantMoveGuardNode):
     """Guard: the ``Remove`` or ``Add(CaseParticipant)`` names a participant of the case.
 
     The frame already refuses a record that is not on the case's roster
@@ -265,7 +267,7 @@ def case_manager_admits_removal_guard(
         case_id=case_id,
         body_name="RemovalAdmissible",
         children=[
-            RemovalNamesCaseParticipantNode(
+            MoveNamesCaseParticipantNode(
                 participant_id=participant_id,
                 case_id=case_id,
                 claimed_actor_id=claimed_actor_id,
@@ -280,35 +282,35 @@ def case_manager_admits_removal_guard(
     )
 
 
-class RemoveCaseParticipantFromCaseReceivedNode(DataLayerActionWithPorts):
-    """Set the removal fact on the named participant (CM-31-001).
+class ParticipantMoveEffectNode(DataLayerActionWithPorts):
+    """Shared frame of the removal and reinstatement effects.
 
-    Records *removal_activity_id* — the Case Owner's ``Remove`` activity —
-    through :meth:`CaseParticipant.record_removal` and saves the record.  The
-    record stays in ``case_participants`` and ``actor_participant_index``
-    (CM-19-002), with its status history and embargo consent rows untouched
-    (CM-31-008); the case-level active check now finds it inert.  The replica
-    apply node records the same fact from the ledger entry (CM-31-007).
-
-    Runs after the guarded commit, so the entry's fan-out — whose recipients
-    were selected before this write — still reaches the removed participant
-    (CM-31-006).  ``FAILURE`` when the record is gone: the guards found it
-    moments earlier in the CASE_MANAGER's own store (Regime 1, ADR-0087), so
-    the handler reads it as an internal fault, never a refusal — the entry
-    is already committed.
+    Resolves the named record on the case's roster, hands it to
+    :meth:`_apply`, and saves it when that changed it.  Runs after the
+    guarded commit, so the entry's fan-out has already selected its
+    recipients from the record as it stood before this write.  ``FAILURE``
+    when the record is gone: the guards found it moments earlier in the
+    CASE_MANAGER's own store (Regime 1, ADR-0087), so the handler reads it
+    as an internal fault, never a refusal — the entry is already committed.
     """
 
     def __init__(
         self,
         participant_id: str,
         case_id: str,
-        removal_activity_id: str,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.participant_id = participant_id
         self.case_id = case_id
-        self.removal_activity_id = removal_activity_id
+
+    def _apply(self, record: CaseParticipant) -> bool:
+        """Write the move onto *record*; ``True`` when it changed it."""
+        raise NotImplementedError
+
+    def _log_applied(self) -> None:
+        """Log the applied move; subclasses name it and its spec."""
+        raise NotImplementedError
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -325,8 +327,42 @@ class RemoveCaseParticipantFromCaseReceivedNode(DataLayerActionWithPorts):
             self.feedback_message = str(exc)
             self.logger.exception("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
-        if record.record_removal(self.removal_activity_id):
+        if self._apply(record):
             self.datalayer.save(record)
+        self._log_applied()
+        return Status.SUCCESS
+
+
+class RemoveCaseParticipantFromCaseReceivedNode(ParticipantMoveEffectNode):
+    """Set the removal fact on the named participant (CM-31-001).
+
+    Records *removal_activity_id* — the Case Owner's ``Remove`` activity —
+    through :meth:`CaseParticipant.record_removal`.  The record stays in
+    ``case_participants`` and ``actor_participant_index`` (CM-19-002), with
+    its status history and embargo consent rows untouched (CM-31-008); the
+    case-level active check now finds it inert.  The replica apply node
+    records the same fact from the ledger entry (CM-31-007).
+
+    The entry's fan-out, selected before this write, still reaches the
+    removed participant (CM-31-006).
+    """
+
+    def __init__(
+        self,
+        participant_id: str,
+        case_id: str,
+        removal_activity_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(
+            participant_id=participant_id, case_id=case_id, name=name
+        )
+        self.removal_activity_id = removal_activity_id
+
+    def _apply(self, record: CaseParticipant) -> bool:
+        return record.record_removal(self.removal_activity_id)
+
+    def _log_applied(self) -> None:
         self.logger.info(
             "%s: removed participant '%s' from active participation in"
             " case '%s' by '%s'; the record stays on the roster (CM-31-001)",
@@ -335,7 +371,6 @@ class RemoveCaseParticipantFromCaseReceivedNode(DataLayerActionWithPorts):
             self.case_id,
             self.removal_activity_id,
         )
-        return Status.SUCCESS
 
 
 class EmitParticipantMoveNoticeNode(_EmitSingleActivityBase):

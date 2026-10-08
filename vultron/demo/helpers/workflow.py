@@ -37,7 +37,6 @@ from vultron.demo.helpers.polling import (
     find_case_actor_participant_id,
     find_ownership_transfer_offer_for_actor,
     resolve_case_actor_store_id,
-    wait_for_case_participants,
     wait_for_event_type_in_ledger,
     wait_for_initialized_case,
     wait_for_participant_rm_state,
@@ -63,8 +62,6 @@ from vultron.wire.as2.factories import (
     add_report_to_case_activity,
     offer_case_ownership_transfer_activity,
     parse_submit_report_offer,
-    rm_accept_invite_to_case_activity,
-    rm_invite_to_case_activity,
     rm_submit_report_activity,
     rm_validate_report_activity,
 )
@@ -844,12 +841,13 @@ def seat_participant_through_stub_invite(
     """
     # The CASE_MANAGER builds the stub Invite from its own copy of the case,
     # which needs a summary (CM-17-010).  A separate CaseActor is seeded by
-    # the chain; an owner that is its own CASE_MANAGER is seeded here.
+    # the chain; an owner that is its own CASE_MANAGER is seeded here, with
+    # the summary the caller gave the case when it has one.
     case_actor_id = find_case_actor_participant_id(client, case.id_)
     if case_actor_id is None:
         ActorSession(client=client, actor=owner).with_case(
             case
-        ).quiet().set_stub_summary(DEMO_STUB_SUMMARY)
+        ).quiet().set_stub_summary(case.stub_summary or DEMO_STUB_SUMMARY)
     run_case_invite_chain(
         case=case,
         invitee_name=invitee.name or invitee.id_,
@@ -1110,81 +1108,6 @@ def await_forwarded_ownership_transfer_offer(
     )
 
 
-def case_actor_invites_actor_to_case(
-    client: DataLayerClient,
-    case: as_VulnerabilityCase,
-    inviter: as_Actor,
-    invitee: as_Actor,
-    case_actor_id: str,
-    roles: list[str] | None = None,
-    timeout_seconds: float = 15.0,
-) -> None:
-    """Add *invitee* to *case* via the CaseActor-routed Invite/Accept handshake.
-
-    The ``Invite`` is sent **by** the CaseActor with ``attributed_to`` naming the
-    participant who asked for it, and the ``Accept`` is addressed **to** the
-    CaseActor, which is the actor that creates the ``CaseParticipant`` record
-    (ADR-0026, PCR-08-007, PCR-08-008).
-
-    This handshake — not the standalone ``Create(CaseParticipant)`` +
-    ``AddParticipantToCase`` pair — is what a canonical case needs: the
-    authoritative case lives in the CaseActor's store (ADR-0073), and the
-    standalone pair delivered to the case owner's inbox only ever updates the
-    *owner's* replica.  Any later CaseActor-side effect that resolves the new
-    participant — the ``CVDRole.CASE_OWNER`` grant on ownership transfer
-    (CM-21-002) among them — reads the CaseActor's copy and would find nothing.
-
-    Args:
-        client: DataLayerClient for the container hosting the actors.
-        case: The case to add the invitee to.
-        inviter: The participant on whose behalf the CaseActor invites.
-        invitee: The actor being invited.
-        case_actor_id: URI of the CaseActor for *case*.
-        roles: CVD role strings to request for the invitee.  ``None`` leaves
-            the role assignment to the CaseActor's default.
-        timeout_seconds: Budget for the participant-visibility gate.
-    """
-    invitee_label = invitee.name or invitee.id_
-    # Built before the step, not inside it: `invite` is read by the Accept below,
-    # and a construction failure inside a `demo_step` would leave it unbound so
-    # the next block raises UnboundLocalError instead of the real cause (#2308).
-    invite = rm_invite_to_case_activity(
-        invitee,
-        actor=case_actor_id,
-        target=case,
-        to=[invitee.id_],
-        attributed_to=inviter.id_,
-        roles=roles,
-        content=f"We're inviting you to participate in {case.name}.",
-    )
-    with demo_step(
-        f"CaseActor invites {invitee_label} to the case"
-        f" (on behalf of {inviter.name or inviter.id_})"
-    ):
-        post_to_inbox_and_wait(client, invitee.id_, invite)
-
-    with demo_step(f"{invitee_label} accepts the case invitation"):
-        accept = rm_accept_invite_to_case_activity(
-            invite,
-            actor=invitee.id_,
-            to=[case_actor_id],
-            content=f"Accepting invitation to participate in {case.name}.",
-        )
-        post_to_inbox_and_wait(client, case_actor_id, accept)
-
-    with demo_gate(
-        f"{invitee_label} is a participant on the CaseActor's replica"
-    ):
-        wait_for_case_participants(
-            vendor_client=client.model_copy(
-                update={"actor_id": case_actor_id}
-            ),
-            case_id=case.id_,
-            expected_actor_ids={invitee.id_},
-            timeout_seconds=timeout_seconds,
-        )
-
-
 def setup_two_participant_case(
     client: DataLayerClient,
     finder: as_Actor,
@@ -1201,7 +1124,9 @@ def setup_two_participant_case(
     that names a CASE_MANAGER (ADR-0115, EP-09).
 
     1. The 7-step initialised case (:func:`setup_initialized_case`)
-    2. Vendor invites coordinator; coordinator accepts → coordinator added
+    2. The coordinator is seated through its stub Invite
+       (:func:`seat_participant_through_stub_invite`), which raises when it
+       is not seated
 
     Args:
         client: DataLayerClient for the shared (or single) container.
@@ -1214,23 +1139,13 @@ def setup_two_participant_case(
         as participants.
     """
     case = setup_initialized_case(client, finder, vendor)
-
-    invite = rm_invite_to_case_activity(
-        coordinator,
-        actor=vendor.id_,
-        target=case,
-        to=[coordinator.id_],
-        content=f"Inviting you to participate in {case.name}.",
+    seat_participant_through_stub_invite(
+        client,
+        case,
+        owner=vendor,
+        invitee=coordinator,
+        role=CVDRole.COORDINATOR,
     )
-    post_to_inbox_and_wait(client, coordinator.id_, invite)
-
-    accept = rm_accept_invite_to_case_activity(
-        invite,
-        actor=coordinator.id_,
-        to=[vendor.id_],
-        content=f"Accepting invitation to {case.name}.",
-    )
-    post_to_inbox_and_wait(client, vendor.id_, accept)
 
     log_case_state(client, case.id_, "after setup (two participants)")
     logger.info(

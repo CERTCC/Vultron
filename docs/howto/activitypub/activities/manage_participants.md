@@ -142,6 +142,7 @@ A second removal of the same participant changes nothing.
 The CASE_MANAGER records your `Remove` as one ledger entry and sends that entry to every active participant, the removed one included.
 It then sends the removed participant a direct `Remove(CaseParticipant)` naming it, with `attributedTo` set to you.
 The removed participant receives no later ledger entries, and no Invite of any kind.
+The CASE_MANAGER also refuses a recommendation that names the removed participant, and your acceptance of an earlier one; reinstate the participant instead.
 See [Participant Removal](../../../reference/vultron-spec/interactions.md#114-participant-removal-n).
 
 Removal is not a closure — a participant that has finished its own work closes with `Leave(VulnerabilityCase)` instead.

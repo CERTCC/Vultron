@@ -21,7 +21,7 @@ from py_trees.common import Status
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.case_participant_received import (
-    RemovalNamesCaseParticipantNode,
+    MoveNamesCaseParticipantNode,
     RemoveCaseParticipantFromCaseReceivedNode,
 )
 from vultron.core.behaviors.case.nodes.participant_reinstatement import (
@@ -274,7 +274,7 @@ class TestReinstatementGuards:
     ) -> None:
         dl.create(case)
         dl.create(participant)
-        node = RemovalNamesCaseParticipantNode(
+        node = MoveNamesCaseParticipantNode(
             participant_id=PARTICIPANT_ID,
             case_id=CASE_ID,
             move="reinstatement",

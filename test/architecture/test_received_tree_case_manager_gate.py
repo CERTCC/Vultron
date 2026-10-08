@@ -74,7 +74,6 @@ _OUTBOX_SEAMS = frozenset(
         "outbox_append",
         "add_activity_to_outbox",
         "broadcast_case_update",
-        "_queue_participant_add_notification",
     }
 )
 

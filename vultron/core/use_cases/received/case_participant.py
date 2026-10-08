@@ -311,22 +311,8 @@ class AddCaseParticipantToCaseReceivedUseCase(
             participant_id=participant_id,
             case_id=case_id,
             sender_id=self._request.actor_id,
-            participant_actor_id=self._participant_actor_id(participant_id),
             claimed_actor_id=self._claimed_actor_id(),
         )
-
-    def _participant_actor_id(self, participant_id: str) -> str:
-        """The actor the stored record belongs to, else the one claimed.
-
-        Read from this store, which the guards judge; the claim is only a
-        fallback for a replica, where the effects never run.
-        """
-        record = self._dl.read(participant_id)
-        if isinstance(record, CaseParticipant) and (
-            actor_id := _as_id(record.attributed_to)
-        ):
-            return actor_id
-        return self._claimed_actor_id() or participant_id
 
 
 class RemoveCaseParticipantFromCaseReceivedUseCase(

@@ -64,7 +64,6 @@ def create_add_case_participant_received_tree(
     participant_id: str,
     case_id: str,
     sender_id: str,
-    participant_actor_id: str,
     claimed_actor_id: str | None = None,
 ) -> py_trees.composites.Sequence:
     """Create the BT for ``AddCaseParticipantToCaseReceivedUseCase``.
@@ -77,7 +76,7 @@ def create_add_case_participant_received_tree(
         ├── IntakeReceivedActivityNode                       # intake
         ├── AddParticipantSenderGuard (Selector)             # sender guard
         ├── ReinstatementAdmissibleIfCaseManager (Selector)  # guards (manager only)
-        │   ├── RemovalNamesCaseParticipantNode
+        │   ├── MoveNamesCaseParticipantNode
         │   ├── ParticipantHasJoinedNode
         │   └── ParticipantIsRemovedNode
         ├── GuardedCommitCaseLedgerEntryBT (Selector)        # commit
@@ -104,12 +103,10 @@ def create_add_case_participant_received_tree(
         participant_id: URI of the ``CaseParticipant`` the ``Add`` names.
         case_id: URI of the case.
         sender_id: The activity's sender, who must be the Case Owner.
-        participant_actor_id: The actor the stored record belongs to, the
-            recipient of the notice and of any embargo Invite.  At a replica
-            it is unused.
         claimed_actor_id: The actor the inline participant is attributed to,
             when it names one; it must match the stored record's actor
-            (CM-31-011), because a replica resolves the record by it.
+            (CM-31-011), because a replica resolves the record by it.  The
+            notice and any embargo Invite go to the stored record's actor.
 
     Returns:
         The root ``Sequence``, ready for ``BTBridge.execute_with_setup()``.
@@ -145,7 +142,6 @@ def create_add_case_participant_received_tree(
             ),
             InviteReinstatedParticipantToEmbargoNode(
                 case_id=case_id,
-                invitee_id=participant_actor_id,
                 participant_id=participant_id,
             ),
         ],
@@ -173,7 +169,7 @@ def create_remove_case_participant_received_tree(
         ├── IntakeReceivedActivityNode                  # intake
         ├── RemoveParticipantSenderGuard (Selector)     # sender guard
         ├── RemovalAdmissibleIfCaseManager (Selector)   # guards (manager only)
-        │   ├── RemovalNamesCaseParticipantNode
+        │   ├── MoveNamesCaseParticipantNode
         │   ├── RemovalTargetIsRemovableNode
         │   └── ParticipantNotYetRemovedNode            # idempotency
         ├── GuardedCommitCaseLedgerEntryBT (Selector)   # commit

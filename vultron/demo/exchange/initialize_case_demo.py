@@ -92,12 +92,13 @@ def demo_initialize_case(
     Steps:
     1. Finder submits a vulnerability report to vendor inbox
     2. Vendor validates the report (RmValidateReportActivity)
-    3. Vendor explicitly creates a as_VulnerabilityCase (CreateCaseActivity)
-    4. Vendor adds themselves as VendorParticipant (case creator/owner)
+    3. Vendor creates the case through the create-case trigger
+    4. The trigger registers the vendor as CASE_OWNER and CASE_MANAGER
     5. Vendor adds the report to the case (AddReportToCaseActivity)
-    6. Vendor invites the finder (RmInviteToCaseActivity)
+    6. Vendor asks the CASE_MANAGER (itself) to invite the finder, which
+       sends the stub Invite
     7. Finder accepts (RmAcceptInviteToCaseActivity), which seats it as a
-       FinderReporterParticipant (ADR-0114)
+       FINDER participant (ADR-0114)
     8. Final case state is logged
 
     This follows the workflow in docs/howto/activitypub/activities/initialize_case.md.

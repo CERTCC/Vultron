@@ -34,6 +34,7 @@ from typing import Any
 import pytest
 from py_trees.common import Status
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from test.core.use_cases.received.actor.test_case_joining_planned import (
     route_received,
 )
@@ -59,6 +60,17 @@ from vultron.core.behaviors.case.case_participant_received_tree import (
 from vultron.core.behaviors.case.nodes.participant_reinstatement import (
     ReinstateCaseParticipantReceivedNode,
 )
+from vultron.core.behaviors.case.nodes.suggest_actor import (
+    SuggestedActorIsNotRemovedNode,
+)
+from vultron.core.behaviors.case.suggest_actor_tree import (
+    create_accept_actor_recommendation_received_tree,
+    create_recommend_actor_to_case_received_tree,
+)
+from vultron.core.behaviors.embargo.nodes.reinvite import (
+    InviteReinstatedParticipantToEmbargoNode,
+    ReinviteStaleAccepterNode,
+)
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
@@ -72,6 +84,7 @@ from vultron.core.participants.recipients import invitation_recipients
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
+from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronBTInternalError
 from vultron.wire.as2.factories import (
@@ -323,7 +336,6 @@ def test_every_write_in_the_received_tree_is_case_manager_gated() -> None:
         participant_id=_participant_id(VENDOR),
         case_id=CASE_ID,
         sender_id=OWNER,
-        participant_actor_id=VENDOR,
     )
     (gate,) = [
         node
@@ -647,3 +659,185 @@ def test_replicas_add_a_new_member_from_the_accept_entry_alone(
     seated = replica.read(CASE_ID)
     assert isinstance(seated, as_VulnerabilityCase)
     assert NEWBIE in seated.actor_participant_index
+
+
+# ---------------------------------------------------------------------------
+# #4084 — who the reinstatement and re-invite Invites may reach (CM-31-013)
+# ---------------------------------------------------------------------------
+
+
+def _embargo_invites_to(case: _RemovalCase, actor_id: str) -> list[Any]:
+    return [
+        invite
+        for invite in case.activities_to("Invite", actor_id)
+        if _as_id(getattr(invite, "object_", None)) == EMBARGO_ID
+    ]
+
+
+def _run_as_manager(case: _RemovalCase, node: Any) -> Any:
+    return BTTestScenario(actor_id=MANAGER, dl=case.dl).run(
+        node, actor_id=MANAGER, case_id=CASE_ID
+    )
+
+
+@pytest.mark.spec("CM-31-013")
+@pytest.mark.spec("CM-10-006")
+def test_reinstatement_into_a_case_with_no_active_embargo_sends_no_invite(
+    case: _RemovalCase,
+) -> None:
+    """No embargo binds it, so it is active at once and only backfilled."""
+    _make_other_a_non_signatory(case)
+    case.remove(OTHER)
+    stored = case.read_case()
+    stored.active_embargo = None
+    case.dl.save(stored)
+
+    result = case.route(_owner_reinstates(case, OTHER))
+
+    assert result.disposition is HandlerDisposition.APPLIED, result.reason
+    assert _participant_id(OTHER) in case.active_ids()
+    assert _embargo_invites_to(case, OTHER) == []
+    assert EMBARGO_REINVITE_EVENT_TYPE not in {
+        e.event_type for e in case.ledger()
+    }
+
+
+@pytest.mark.spec("CM-31-013")
+@pytest.mark.spec("CM-10-007")
+def test_reinstated_participant_at_rm_closed_is_sent_no_embargo_invite() -> (
+    None
+):
+    """An RM ``CLOSED`` participant is not an invitation recipient (EP-09-002)."""
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=MANAGER)
+    case = _RemovalCase(dl=dl, case=_seed(dl, vendor_rm=RM.CLOSED))
+    record = case.participant(VENDOR)
+    case.dl.save(
+        record.model_copy(
+            update={
+                "embargo_consents": [
+                    EmbargoConsent(
+                        embargo_id=EMBARGO_ID,
+                        state=EmbargoConsentState.DECLINED,
+                    )
+                ]
+            }
+        )
+    )
+    case.remove(VENDOR)
+
+    result = case.route(_owner_reinstates(case))
+
+    assert result.disposition is HandlerDisposition.APPLIED, result.reason
+    assert not case.participant(VENDOR).removed
+    assert _embargo_invites_to(case, VENDOR) == []
+
+
+@pytest.mark.spec("CM-31-011")
+def test_reinstatement_invite_fails_when_the_record_is_gone(
+    case: _RemovalCase,
+) -> None:
+    """Regime 1: the guards just found the record, so its loss is a fault."""
+    result = _run_as_manager(
+        case,
+        InviteReinstatedParticipantToEmbargoNode(
+            case_id=CASE_ID,
+            participant_id=f"{CASE_ID}/participants/nobody",
+        ),
+    )
+
+    assert result.status == Status.FAILURE
+    assert "names no actor" in (result.feedback_message or "")
+
+
+@pytest.mark.spec("CM-31-013")
+@pytest.mark.spec("EMB-17-003")
+def test_stale_accepter_re_invite_skips_a_removed_participant(
+    case: _RemovalCase,
+) -> None:
+    case.remove(VENDOR)
+
+    result = _run_as_manager(
+        case,
+        ReinviteStaleAccepterNode(
+            case_id=CASE_ID, embargo_id=EMBARGO_ID, invitee_id=VENDOR
+        ),
+    )
+
+    assert result.status == Status.SUCCESS
+    assert _embargo_invites_to(case, VENDOR) == []
+
+
+@pytest.mark.spec("EMB-17-003")
+def test_stale_accepter_re_invite_reaches_an_invitation_recipient(
+    case: _RemovalCase,
+) -> None:
+    """Control: the same node sends the Invite to a participant that may get one."""
+    result = _run_as_manager(
+        case,
+        ReinviteStaleAccepterNode(
+            case_id=CASE_ID, embargo_id=EMBARGO_ID, invitee_id=OTHER
+        ),
+    )
+
+    assert result.status == Status.SUCCESS
+    assert len(_embargo_invites_to(case, OTHER)) == 1
+
+
+@pytest.mark.spec("CM-31-013")
+@pytest.mark.parametrize(
+    ("removed", "expected"),
+    [(True, Status.FAILURE), (False, Status.SUCCESS)],
+)
+def test_suggested_actor_guard_refuses_only_a_removed_participant(
+    case: _RemovalCase, removed: bool, expected: Status
+) -> None:
+    if removed:
+        case.remove(VENDOR)
+
+    result = _run_as_manager(
+        case,
+        SuggestedActorIsNotRemovedNode(recommended_id=VENDOR, case_id=CASE_ID),
+    )
+
+    assert result.status == expected
+    if removed:
+        assert "CM-31-013" in (result.feedback_message or "")
+
+
+@pytest.mark.spec("CM-31-013")
+def test_suggested_actor_guard_admits_an_actor_the_case_does_not_list(
+    case: _RemovalCase,
+) -> None:
+    result = _run_as_manager(
+        case,
+        SuggestedActorIsNotRemovedNode(recommended_id=NEWBIE, case_id=CASE_ID),
+    )
+
+    assert result.status == Status.SUCCESS
+
+
+@pytest.mark.spec("CM-31-013")
+@pytest.mark.parametrize(
+    "factory",
+    [
+        create_recommend_actor_to_case_received_tree,
+        create_accept_actor_recommendation_received_tree,
+    ],
+)
+def test_suggest_actor_trees_guard_a_removed_actor_before_the_commit(
+    factory: Any,
+) -> None:
+    """Both stub-Invite trees refuse a removed actor ahead of any commit."""
+    kwargs: dict[str, Any] = {
+        "recommendation_id": "https://example.org/activities/offer-1",
+        "recommender_id": OWNER,
+        "case_id": CASE_ID,
+    }
+    if factory is create_recommend_actor_to_case_received_tree:
+        kwargs["recommended_id"] = VENDOR
+    else:
+        kwargs |= {"invitee_id": VENDOR, "sender_id": OWNER}
+    names = [node.name for node in factory(**kwargs).children]
+
+    guard = names.index("SuggestedActorNotRemovedIfCaseManager")
+    assert guard < names.index("GuardedCommitCaseLedgerEntryBT")
