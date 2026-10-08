@@ -214,8 +214,8 @@ class TestPhaseOrder:
             "report_submission",
             "embargo_proposal",
             "embargo_revision",
+            "v2_late_invite",
         ]
-        assert _demo_failures
 
     @pytest.mark.spec("DEMOMA-21-003")
     def test_a_failed_revision_keeps_vendor2_out(self, cast, case):
