@@ -27,6 +27,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.embargo_register import propose
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -162,8 +163,7 @@ class TestThreatTerminationBranchNodeProposedEmPath:
         case = VulnerabilityCase(
             id_=CASE_ID, name="Test Case", attributed_to=ACTOR_ID
         )
-        case.append_case_status(em_state=EM.PROPOSED)
-        case.proposed_embargoes = [embargo.id_]
+        propose(case, embargo.id_)
         case.pending_embargo_proposal_index = {embargo.id_: invite.id_}
 
         participant = CaseParticipant(

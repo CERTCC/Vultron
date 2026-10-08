@@ -23,6 +23,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_owner_participant,
     seed_store_owner_as_case_manager,
 )
+from test.support.embargo_register import propose
 from vultron.adapters.driven.db_record import StorableRecord
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -249,7 +250,7 @@ class TestEmbargoProposalLifecycle:
             id_="https://example.org/cases/case_em3/embargo_proposals/1",
         )
         # Start from PROPOSED — the standard pre-condition for activation.
-        case.append_case_status(em_state=EM.PROPOSED)
+        propose(case, embargo.id_)
         # The receiver is the CASE_MANAGER (CM-24-006, BT-17-005).
         seed_store_owner_as_case_manager(dl, case)
         dl.create(case)
@@ -277,10 +278,15 @@ class TestEmbargoProposalLifecycle:
         assert case.active_embargo is not None
         assert case.current_status.em.state == EM.ACTIVE
 
-    def test_accept_invite_to_embargo_warns_on_non_standard_transition(
+    def test_accept_of_an_unrecorded_proposal_records_then_activates_it(
         self, monkeypatch, make_payload, caplog
     ):
-        """accept_invite_to_embargo_on_case ledgers WARNING when EM state is not on the standard machine path."""
+        """An OBSERVED accept of a proposal this store never recorded proposes it, then activates it.
+
+        The register is never forced (ADR-0122): following the owner's
+        decision, a store that missed the proposal adds its entry first, so
+        NONE → ACTIVE is two legal steps, not a state-sync override.
+        """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.objects.embargo_event import (
             as_EmbargoEvent,
@@ -312,7 +318,7 @@ class TestEmbargoProposalLifecycle:
             to=[coordinator_id],
             id_="https://example.org/cases/case_em3_warn/embargo_proposals/1",
         )
-        # Default em_state is NONE — not a valid predecessor for ACTIVE.
+        # The register is empty (EM NONE): the proposal was never recorded.
         # The receiver is the CASE_MANAGER (CM-24-006, BT-17-005).
         seed_store_owner_as_case_manager(dl, case)
         dl.create(case)
@@ -334,11 +340,15 @@ class TestEmbargoProposalLifecycle:
                 sync_port=SyncActivityAdapter(dl),
             ).execute()
 
-        assert any("state-sync override" in r.message for r in caplog.records)
+        assert not any(
+            "state-sync override" in r.message for r in caplog.records
+        )
         case = dl.read(case.id_)
         assert case is not None
         case = cast(VulnerabilityCase, case)
-        assert case.current_status.em.state == EM.ACTIVE
+        assert case.em_state == EM.ACTIVE
+        assert case.active_embargo_id == embargo.id_
+        assert case.proposed_embargo_ids == []
 
     def test_accept_invite_to_embargo_records_embargo_on_participant(
         self, monkeypatch, make_payload
@@ -630,15 +640,18 @@ def _make_pxa_case(
         name="PXA Guard Test",
         attributed_to=coordinator_id,
     )
-    case.append_case_status(
-        em_state=em_state, pxa_state=CS_pxa[pxa_state_name]
-    )
+    case.append_case_status(pxa_state=CS_pxa[pxa_state_name])
     embargo = as_EmbargoEvent(
         id_=embargo_id,
         content="PXA test embargo",
         context=case_id,
         end_time=days_from_now_utc(45),
     )
+    # The register derives *em_state*: PROPOSED holds the embargo as an open
+    # proposal, NONE holds no entry.
+    if em_state == EM.PROPOSED:
+        propose(case, embargo.id_)
+    assert case.em_state == em_state
     proposal = em_propose_embargo_activity(
         embargo,
         context=case.id_,
@@ -963,16 +976,16 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
         case = VulnerabilityCase(
             id_=case_id, name="PXA clear EA", attributed_to=coordinator_id
         )
-        case.append_case_status(em_state=EM.PROPOSED)
         # The receiver is the CASE_MANAGER (CM-24-006, BT-17-005).
         seed_store_owner_as_case_manager(dl, case)
-        dl.create(case)
         embargo = as_EmbargoEvent(
             id_=f"{case_id}/embargo_events/e1",
             content="clear embargo",
             context=case_id,
             end_time=days_from_now_utc(45),
         )
+        propose(case, embargo.id_)
+        dl.create(case)
         dl.create(embargo)
         proposal = em_propose_embargo_activity(
             embargo,

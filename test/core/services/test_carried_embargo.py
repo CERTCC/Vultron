@@ -17,6 +17,7 @@ from collections.abc import Generator
 
 import pytest
 
+from test.support.embargo_register import register
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -64,7 +65,9 @@ def test_an_inline_embargo_is_stored_as_its_own_record(
     dl: SqliteDataLayer,
 ) -> None:
     embargo = _embargo()
-    case = VulnerabilityCase(id_=_CASE, name="c", active_embargo=embargo)
+    case = VulnerabilityCase(
+        id_=_CASE, name="c", embargo_register=register(active=embargo)
+    )
 
     store_carried_embargo(case, dl)
 
@@ -83,7 +86,9 @@ def test_an_inline_embargo_of_another_case_is_refused_unstored(
         context=other_case,
         end_time=days_from_now_utc(45),
     )
-    case = VulnerabilityCase(id_=_CASE, name="c", active_embargo=foreign)
+    case = VulnerabilityCase(
+        id_=_CASE, name="c", embargo_register=register(active=foreign)
+    )
 
     with pytest.raises(VultronValidationError, match=other_case):
         store_carried_embargo(case, dl)
@@ -95,7 +100,9 @@ def test_an_inline_embargo_of_another_case_is_refused_unstored(
 def test_a_bare_reference_the_store_holds_passes(dl: SqliteDataLayer) -> None:
     embargo = _embargo()
     dl.create(embargo)
-    case = VulnerabilityCase(id_=_CASE, name="c", active_embargo=embargo.id_)
+    case = VulnerabilityCase(
+        id_=_CASE, name="c", embargo_register=register(active=embargo.id_)
+    )
 
     store_carried_embargo(case, dl)
 
@@ -105,7 +112,9 @@ def test_a_bare_reference_the_store_lacks_is_refused(
     dl: SqliteDataLayer,
 ) -> None:
     missing = f"{_CASE}/embargo_events/missing"
-    case = VulnerabilityCase(id_=_CASE, name="c", active_embargo=missing)
+    case = VulnerabilityCase(
+        id_=_CASE, name="c", embargo_register=register(active=missing)
+    )
 
     with pytest.raises(VultronNotFoundError) as excinfo:
         store_carried_embargo(case, dl)
@@ -121,7 +130,9 @@ def test_a_reference_to_a_non_embargo_record_is_refused(
         id_="https://example.org/reports/r1", name="r", content="c"
     )
     dl.create(report)
-    case = VulnerabilityCase(id_=_CASE, name="c", active_embargo=report.id_)
+    case = VulnerabilityCase(
+        id_=_CASE, name="c", embargo_register=register(active=report.id_)
+    )
 
     with pytest.raises(VultronValidationError):
         store_carried_embargo(case, dl)

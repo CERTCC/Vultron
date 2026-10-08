@@ -27,6 +27,7 @@ from typing import cast
 import pytest
 from py_trees.common import Status
 
+from test.support.embargo_register import terminate
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -517,21 +518,22 @@ def test_the_managers_noop_decision_is_committed_and_replayed_by_a_replica():
     bystander_pid = net.case(MANAGER).actor_participant_index[BYSTANDER]
 
     # Deliver proposal entries and the Invite to BYSTANDER so an Accept is
-    # queued in BYSTANDER's outbox before we force EM to EXITED.
+    # queued in BYSTANDER's outbox before the embargo is terminated.
     _replay_to_bystander(net)
     net.deliver(MANAGER, to=BYSTANDER, type_="Invite")
     (accept,) = net.queued(BYSTANDER, to=MANAGER, type_="Accept")
     body = read_sealed_body_dict(net.stores[BYSTANDER], accept.id_)
     assert body is not None
 
-    # Force EM EXITED on MANAGER's store so the noop branch fires (EMB-17-004).
+    # Terminate the embargo on MANAGER's store (EM EXITED) so the noop branch fires (EMB-17-004).
     # Only MANAGER's store needs EXITED: the fan-out uses MANAGER's embargo
     # state (embargo_in_force=False → all participants are recipients), and
     # the expiry/noop replay nodes on OWNER's store have no EM dependency.
     # BYSTANDER's store keeps the original state — it is the sender, not the judge.
     dl_mgr = net.stores[MANAGER]
     case_mgr = net.case(MANAGER)
-    case_mgr.current_status.em.state = EM.EXITED
+    terminate(case_mgr)
+    assert case_mgr.em_state == EM.EXITED
     dl_mgr.save(case_mgr)
 
     # Seed BYSTANDER as INVITED with a passed deadline on MANAGER's store so

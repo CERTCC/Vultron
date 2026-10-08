@@ -37,11 +37,11 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.activity import VultronCreateCaseActivity
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.embargo_register import carry_embargo_inline
 from vultron.core.models.pending_create_case_activity import (
     PendingCreateCaseActivity,
 )
 from vultron.core.models.report import VulnerabilityReport
-from vultron.core.models.wire_keys import wire_key
 from vultron.core.participants.recipients import case_content_participants
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.embargo_ordering import read_embargo_event
@@ -257,9 +257,18 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
                 materialized.append(p_obj if p_obj is not None else ref)
             else:
                 materialized.append(ref)
-        case_copy = raw_case.model_copy(
-            update={"case_participants": materialized}
-        )
+        updates: dict[str, Any] = {"case_participants": materialized}
+        # Carry the active embargo inline too: a recipient refuses a case
+        # naming an embargo its own store cannot read (EMB-18-003), and the
+        # CASE_MANAGER minted this one, so no recipient holds it yet.  Raises
+        # when this store cannot read it — sending the bare id would only
+        # hand every recipient a case it must refuse.
+        if isinstance(raw_case.active_embargo, str):
+            updates["embargo_register"] = carry_embargo_inline(
+                raw_case.embargo_register,
+                read_embargo_event(self.datalayer, raw_case.active_embargo),
+            )
+        case_copy = raw_case.model_copy(update=updates)
         # A missing port is a composition fault, not the sender's: raise
         # VultronWiringError rather than failing the tree (ARCH-20-001).
         port = self._require_wire_render_port()
@@ -282,20 +291,6 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
             else:
                 inlined_reports.append(report_ref)
         case_dict["vulnerability_reports"] = inlined_reports
-        # Carry the active embargo inline too: a recipient refuses a case
-        # naming an embargo its own store cannot read (EMB-18-003), and the
-        # CASE_MANAGER minted this one, so no recipient holds it yet.  Raises
-        # when this store cannot read it — sending the bare id would only
-        # hand every recipient a case it must refuse.
-        if isinstance(raw_case.active_embargo, str):
-            embargo = read_embargo_event(
-                self.datalayer, raw_case.active_embargo
-            )
-            embargo_dict = port.render(embargo)
-            embargo_dict.setdefault("type", "EmbargoEvent")
-            case_dict[wire_key("active_embargo", VulnerabilityCase)] = (
-                embargo_dict
-            )
         return case_dict
 
     def _check_announced(self, case_id: str) -> Status | None:

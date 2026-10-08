@@ -25,6 +25,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     PARTICIPANT_ACTOR_ID,
     _make_entry,
 )
+from test.support.embargo_register import activate
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.sync.nodes import SendMissingEntriesNode
 from vultron.core.behaviors.sync.nodes.embargo_pause import (
@@ -75,7 +76,7 @@ def seed_case(datalayer, *, embargo_active: bool) -> None:
     datalayer.create(embargo)
     case = VulnerabilityCase(id_=CASE_ID, attributed_to=MANAGER_ID)
     if embargo_active:
-        case.set_embargo(embargo)
+        activate(case, embargo)
     for actor_id, consent, roles in (
         (MANAGER_ID, EmbargoConsentState.ACCEPTED, [CVDRole.CASE_MANAGER]),
         (SIGNATORY_ID, EmbargoConsentState.ACCEPTED, []),

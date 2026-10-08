@@ -49,6 +49,7 @@ from test.core.use_cases.received.test_participant_removal_planned import (
     _RemovalCase,
     _seed,
 )
+from test.support.embargo_register import terminate
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -689,7 +690,7 @@ def test_reinstatement_into_a_case_with_no_active_embargo_sends_no_invite(
     _make_other_a_non_signatory(case)
     case.remove(OTHER)
     stored = case.read_case()
-    stored.active_embargo = None
+    terminate(stored)
     case.dl.save(stored)
 
     result = case.route(_owner_reinstates(case, OTHER))

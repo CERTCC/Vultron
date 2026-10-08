@@ -22,6 +22,7 @@ import py_trees
 import pytest
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.embargo_register import activate
 from vultron.core.behaviors.sync.nodes.fanout import (
     CollectLogEntryRecipientsNode,
 )
@@ -32,7 +33,6 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -94,8 +94,7 @@ def test_ledger_fanout_reaches_only_active_participants() -> None:
         attributed_to=MANAGER_ID,
     )
     embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now_utc(45))
-    case.set_embargo(embargo.id_)
-    case.append_case_status(em_state=EM.ACTIVE)
+    activate(case, embargo.id_)
     participants = {
         MANAGER_ID: _participant(
             case.id_,

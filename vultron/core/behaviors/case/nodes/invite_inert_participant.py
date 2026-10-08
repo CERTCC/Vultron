@@ -402,7 +402,9 @@ class ApplyInviteRejectToParticipantNode(DataLayerActionWithPorts):
 
         # Apply PEC DECLINE when an embargo is in force
         case = self.datalayer.read_case(self.case_id)
-        active_embargo_id = _as_id(getattr(case, "active_embargo", None))
+        active_embargo_id = (
+            case.active_embargo_id if case is not None else None
+        )
         if active_embargo_id and participant.accepts_pec_trigger(
             active_embargo_id, PEC_Trigger.DECLINE
         ):

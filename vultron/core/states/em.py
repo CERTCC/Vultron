@@ -1,5 +1,10 @@
 #!/usr/bin/env python
-"""This module defines the Embargo Management states for the Vultron protocol."""
+"""This module defines the Embargo Management states for the Vultron protocol.
+
+EM has no transition table of its own: a case's EM state is derived from its
+embargo register (ADR-0122,
+:func:`vultron.core.states.embargo_register.derive_em`).
+"""
 
 #  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
@@ -14,11 +19,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from enum import StrEnum, auto
-
-from transitions import Machine
-
-from vultron.core.states.common import TransitionBase, mermaid_machine
+from enum import StrEnum
 
 
 class EM(StrEnum):
@@ -51,102 +52,17 @@ class EM(StrEnum):
     X = EXITED
 
 
-class EM_Trigger(StrEnum):
-    """
-    Embargo Management State Machine Triggers
-    """
-
-    # auto() makes these lowercase when stringified
-    PROPOSE = auto()
-    REJECT = auto()
-    ACCEPT = auto()
-    TERMINATE = auto()
-
-
-class EmTransition(TransitionBase):
-    trigger: EM_Trigger
-    source: EM
-    dest: EM
-
-
-_transitions = [
-    EmTransition(
-        trigger=EM_Trigger.PROPOSE, source=EM.NONE, dest=EM.PROPOSED
-    ).model_dump(),
-    EmTransition(
-        trigger=EM_Trigger.PROPOSE, source=EM.PROPOSED, dest=EM.PROPOSED
-    ).model_dump(),
-    EmTransition(
-        trigger=EM_Trigger.REJECT, source=EM.PROPOSED, dest=EM.NONE
-    ).model_dump(),
-    EmTransition(
-        trigger=EM_Trigger.ACCEPT, source=EM.PROPOSED, dest=EM.ACTIVE
-    ).model_dump(),
-    EmTransition(
-        trigger=EM_Trigger.PROPOSE, source=EM.ACTIVE, dest=EM.REVISE
-    ).model_dump(),
-    EmTransition(
-        trigger=EM_Trigger.PROPOSE, source=EM.REVISE, dest=EM.REVISE
-    ).model_dump(),
-    EmTransition(
-        trigger=EM_Trigger.REJECT, source=EM.REVISE, dest=EM.ACTIVE
-    ).model_dump(),
-    EmTransition(
-        trigger=EM_Trigger.ACCEPT, source=EM.REVISE, dest=EM.ACTIVE
-    ).model_dump(),
-    EmTransition(
-        trigger=EM_Trigger.TERMINATE, source=EM.ACTIVE, dest=EM.EXITED
-    ).model_dump(),
-    EmTransition(
-        trigger=EM_Trigger.TERMINATE, source=EM.REVISE, dest=EM.EXITED
-    ).model_dump(),
-]
-
-
-class EMAdapter:
-    """Adapter that lets the EM transitions machine operate on a plain .state attribute.
-
-    Seed with the current EM state, pass to ``machine.add_model(initial=...)``,
-    trigger the desired transition, then read back ``.state``.
-    """
-
-    def __init__(self, initial: EM) -> None:
-        self.state = initial
-
-
-def is_valid_em_transition(source: EM, dest: EM) -> bool:
-    """Return True if (source → dest) is a valid EM state transition."""
-    return any(
-        t["source"] == source and t["dest"] == dest for t in _transitions
-    )
-
-
 def is_em_assertion_acceptable(current: EM, asserted: EM) -> bool:
-    """Return True if a received CaseStatus may move EM *current* → *asserted*.
+    """Return True if a received CaseStatus's EM may be accepted.
 
-    The EM acceptance rule for a received ``CaseStatus`` (RSH-05-018): the
-    asserted state is the current one, or a valid EM transition from it.  The
+    The EM acceptance rule for a received ``CaseStatus`` (RSH-05-023): EM is
+    derived from the case's embargo register (ADR-0122), so a status can
+    only carry the EM the receiver already derives — it never moves EM.  The
     CASE_MANAGER's ``FilterCsEmDimensionNode`` and the replica's
     ``ApplyCaseStatusFromLedgerNode`` both apply it, so the two sides of the
     ledger cannot adjudicate EM differently.
     """
-    return asserted == current or is_valid_em_transition(current, asserted)
-
-
-def create_em_machine() -> Machine:
-    """
-    Generates a new Embargo Management State Machine
-
-    Returns:
-        A transitions Machine object representing the Embargo Management state machine
-    """
-    return Machine(
-        states=EM,
-        transitions=_transitions,
-        initial=EM.NONE,
-        auto_transitions=False,
-        name="EM FSM",
-    )
+    return asserted == current
 
 
 # Named EM state subsets (SM-07-001 style convenience constants)
@@ -154,7 +70,7 @@ def create_em_machine() -> Machine:
 EM_NEGOTIATING = (EM.PROPOSED, EM.REVISE)
 
 # States where an embargo is currently in force.
-# Per the EM machine, once ACTIVE the embargo never returns to NONE/PROPOSED.
+# Once an entry is ACTIVE the register never returns EM to NONE/PROPOSED.
 EM_EMBARGO_ACTIVE = (EM.ACTIVE, EM.REVISE)
 
 
@@ -184,8 +100,3 @@ def is_em_exited(state: EM) -> bool:
         is_em_exited(EM.PROPOSED) # False
     """
     return state == EM.EXITED
-
-
-if __name__ == "__main__":
-    M = create_em_machine()
-    print(mermaid_machine(M))

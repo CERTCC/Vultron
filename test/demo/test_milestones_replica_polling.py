@@ -72,7 +72,9 @@ def _receiver_case_payload() -> dict:
                 "pxa": {"state": "pxa"},
             }
         ],
-        "activeEmbargo": "urn:uuid:embargo-1",
+        "embargoRegister": [
+            {"embargo": "urn:uuid:embargo-1", "status": "ACTIVE"}
+        ],
     }
 
 
@@ -352,11 +354,19 @@ _PXA_RECEIVER_ID = "http://coordinator:7999/api/v2/actors/coordinator"
 
 
 def _pxa_case_payload(em_state: str = "EXITED") -> dict:
-    """Minimal case payload with EM.EXITED and no participants (participants polled separately)."""
+    """Minimal case payload with EM.EXITED and no participants (participants polled separately).
+
+    EM is derived from the embargo register (ADR-0122), so the register holds
+    the one embargo, ``TERMINATED`` for EXITED and ``ACTIVE`` for ACTIVE.
+    """
+    register_status = {"EXITED": "TERMINATED", "ACTIVE": "ACTIVE"}[em_state]
     return {
         "id": _PXA_CASE_ID,
         "type": "VulnerabilityCase",
         "actorParticipantIndex": {},
+        "embargoRegister": [
+            {"embargo": "urn:uuid:pxa-embargo", "status": register_status}
+        ],
         "caseStatuses": [
             {
                 "id": "urn:uuid:cs-pxa-1",

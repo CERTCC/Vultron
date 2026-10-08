@@ -14,9 +14,9 @@
 """Creation-time EM operation: ``initialize_creation_embargo``.
 
 At case creation the CASE_OWNER's published default (or the terms the sender
-proposed) is proposed and accepted in one step: the PROPOSE and ACCEPT
-triggers are applied together and only ``EM.ACTIVE`` is ever persisted
-(EP-04-002).  Running ``propose_embargo`` and then ``activate_embargo`` would
+proposed) is proposed and activated in one commit: the register's PROPOSE and
+ACTIVATE steps are applied together in memory and only ``EM.ACTIVE`` is ever
+persisted (EP-04-002).  Running ``propose_embargo`` and then ``activate_embargo`` would
 save the case at ``EM.PROPOSED`` in between, and a failure there left it
 stranded, because the once-per-case guard reads any state but ``NONE`` as
 "already initialized" (EP-04-012, #4123).
@@ -36,6 +36,7 @@ from pydantic import BaseModel, ConfigDict
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.embargo_register import proposal_changes
 from vultron.core.models.pending_creation_time_revision_relay import (
     PendingCreationTimeRevisionRelay,
 )
@@ -51,7 +52,7 @@ from vultron.core.services.embargo_lifecycle.results import (
 from vultron.core.services.embargo_lifecycle.staged_persistence import (
     StagedCasePersistence,
 )
-from vultron.core.states.em import EM, EM_Trigger
+from vultron.core.states.em import EM
 from vultron.errors import (
     VultronAlreadyExistsError,
     VultronError,
@@ -136,9 +137,9 @@ class _CreationOperationsMixin(_ProposalOperationsMixin):
     ) -> EmbargoLifecycleResult:
         """Initialize a case's creation-time embargo in one commit.
 
-        Drives ``NONE → PROPOSED → ACTIVE`` (PROPOSE then ACCEPT) in memory
-        and sets ``case.active_embargo`` to *embargo*, so the intermediate
-        ``EM.PROPOSED`` is never persisted (EP-04-002).  Every check runs
+        Applies the register's ``PROPOSE`` and ``ACTIVATE`` steps for
+        *embargo* in memory, so EM derives ``NONE → PROPOSED → ACTIVE`` and
+        the intermediate ``EM.PROPOSED`` is never persisted (EP-04-002).  Every check runs
         before anything is written: the P/X/A eligibility guard (EMB-01-002),
         the case owner's participant record (CM-14-002), the twin check on
         *embargo* (:func:`persist_creation_time_embargo`), the read of the
@@ -156,9 +157,9 @@ class _CreationOperationsMixin(_ProposalOperationsMixin):
         The consent effects are those of ``propose_embargo`` followed by
         ``activate_embargo``: a proposing *actor_id* that is a participant
         marks its row for the id ``ACCEPTED`` (ADR-0093); being a signatory to
-        the active embargo is then just that lookup.  The id never enters
-        ``proposed_embargoes``: activation decides the proposal that carried
-        it, so a stale listing is discarded in the same write (EP-08-003).
+        the active embargo is then just that lookup.  The proposal never
+        stays open: its register entry is activated in the same commit
+        (EP-08-003).
         The case owner — ``attributed_to``, never the executing actor, which
         on the CASE_MANAGER's creation path is someone else — is then seeded
         ``SIGNATORY`` of the embargo it set (CM-14-003).  An owner that has
@@ -169,6 +170,7 @@ class _CreationOperationsMixin(_ProposalOperationsMixin):
         shortest-wins (EP-04-003).  It is stored and proposed through
         ``propose_embargo`` (``ACTIVE → REVISE``, EMB-18-001) on behalf of
         its ``proposer_id``, whose consent record gains it (MSM-07-005).
+        EM is then ``REVISE``.
         Its ``relay`` obligation is staged first, so the revision and the
         record that its ``Invite`` is owed are written together (EP-04-011).
 
@@ -201,16 +203,16 @@ class _CreationOperationsMixin(_ProposalOperationsMixin):
                 different object (``persist_creation_time_embargo``).
         """
         case = self._read_case(case_id)
-        em_before = case.current_status.em.state
+        em_before = case.em_state
         self._assert_pxa_embargo_eligible(
             case.current_status.pxa.state, case_id, "initialize embargo"
         )
         if em_before is not EM.NONE or case.active_embargo_id is not None:
-            # PROPOSE then ACCEPT is legal from more than NONE (ACTIVE →
-            # REVISE → ACTIVE, for one), so the machine alone would not refuse
-            # a case that has already left NONE; creation is only from NONE,
-            # and never replaces an attached embargo (CSB-16: the service
-            # checks its own preconditions, not the node ahead of it).
+            # PROPOSE then ACTIVATE is legal with an embargo in force (the
+            # activation supersedes it), so the register alone would not
+            # refuse a case that has already left NONE; creation is only from
+            # NONE, and never replaces an attached embargo (CSB-16: the
+            # service checks its own preconditions, not the node ahead of it).
             raise VultronInvalidStateTransitionError(
                 f"Cannot initialize the creation-time embargo on case"
                 f" '{case_id}': EM state '{em_before}' is not NONE or an"
@@ -236,24 +238,20 @@ class _CreationOperationsMixin(_ProposalOperationsMixin):
         work._activation_arm(
             previous_embargo_id=None, activated_embargo_id=embargo_id
         )
-        em_proposed = self._drive_em_transition(
-            case_id=case_id,
-            em_before=em_before,
-            trigger=EM_Trigger.PROPOSE,
+        work._apply_register_step(
+            case,
+            proposal_changes(embargo_id),
             transition_mode=TransitionMode.STRICT,
-            fallback_dest=EM.PROPOSED,
             actor_id=actor_id,
         )
-        em_after = self._drive_em_transition(
-            case_id=case_id,
-            em_before=em_proposed,
-            trigger=EM_Trigger.ACCEPT,
+        work._activate_entry(
+            case,
+            embargo_id,
             transition_mode=TransitionMode.STRICT,
-            fallback_dest=EM.ACTIVE,
             actor_id=actor_id,
         )
-
-        work._save_activation(case, em_after=em_after, embargo_id=embargo_id)
+        staged.save(case)
+        em_after = case.em_state
         participant_changes: list[ParticipantConsentChange] = (
             work._record_proposer_consent(case, actor_id, embargo_id)
         )

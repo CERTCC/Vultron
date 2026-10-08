@@ -29,6 +29,7 @@ from typing import Any
 import pytest
 from pydantic import BaseModel
 
+from test.support.embargo_register import register
 from vultron.wire.as2.factories import (
     VultronActivityConstructionError,
     accept_case_ownership_transfer_activity,
@@ -839,7 +840,7 @@ def test_rm_invite_stub_is_enriched_from_an_inline_active_embargo(
                 em=EmDimension(state=EM.ACTIVE),
             )
         ],
-        active_embargo=embargo,
+        embargo_register=register(active=embargo),
     )
 
     invite = rm_invite_to_case_activity(
@@ -895,7 +896,7 @@ def test_enriched_stub_carries_only_the_embargo_terms(sample_actor):
                 pxa=PxaDimension(state=CS_pxa.PXa),
             )
         ],
-        active_embargo=embargo,
+        embargo_register=register(active=embargo),
     )
 
     invite = rm_invite_to_case_activity(

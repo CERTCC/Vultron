@@ -9,7 +9,7 @@ from vultron.core.models.dimensions import (
     RmDimension,
 )
 from vultron.core.states.cs import CS_pxa
-from vultron.core.states.em import EM, EM_Trigger
+from vultron.core.states.em import EM
 from vultron.core.states.rm import RM, RM_Trigger
 from vultron.errors import VultronInvalidStateTransitionError
 
@@ -26,18 +26,6 @@ class TestEmDimension:
     def test_construct_from_string(self):
         d = EmDimension.model_validate({"state": "ACTIVE"})
         assert d.state == EM.ACTIVE
-
-    def test_transition_returns_new_object(self):
-        d = EmDimension(state=EM.NONE)
-        d2 = d.transition(EM_Trigger.PROPOSE)
-        assert d2 is not d
-        assert d.state == EM.NONE  # original unchanged
-        assert d2.state == EM.PROPOSED
-
-    def test_transition_invalid_raises(self):
-        d = EmDimension(state=EM.NONE)
-        with pytest.raises(VultronInvalidStateTransitionError):
-            d.transition(EM_Trigger.TERMINATE)
 
     def test_is_active_true(self):
         assert EmDimension(state=EM.ACTIVE).is_active()

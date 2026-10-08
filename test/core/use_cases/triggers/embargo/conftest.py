@@ -4,6 +4,7 @@ from collections.abc import Generator
 
 import pytest
 
+from test.support.embargo_register import activate, propose, terminate
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -13,7 +14,6 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import compute_genesis_hash
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_consent import EmbargoConsent
-from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -72,10 +72,7 @@ def _build_active_embargo_case(
         owner_id: owner_participant.id_,
         participant_id: participant.id_,
     }
-    case.append_case_status(em_state=EM.ACTIVE)
-    case.proposed_embargoes.append(embargo.id_)
-    case.pending_embargo_proposal_index[embargo.id_] = proposal.id_
-    case.set_embargo(embargo.id_)
+    activate(case, embargo.id_)
 
     dl.create(case)
     dl.create(embargo)
@@ -136,8 +133,7 @@ def _build_proposed_embargo_case_no_owner_attribution(
         case_manager_id: case_manager_participant.id_,
         actor_id: actor_participant.id_,
     }
-    case.append_case_status(em_state=EM.PROPOSED)
-    case.proposed_embargoes.append(embargo.id_)
+    propose(case, embargo.id_)
     case.pending_embargo_proposal_index[embargo.id_] = proposal.id_
 
     dl.create(case)
@@ -164,7 +160,9 @@ def _build_exited_case(
     owner_participant.add_role(CVDRole.CASE_MANAGER)
     case.case_participants = [owner_participant.id_]
     case.actor_participant_index = {owner_id: owner_participant.id_}
-    case.append_case_status(em_state=EM.EXITED)
+    embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now_utc(45))
+    activate(case, embargo.id_)
+    terminate(case)
     dl.create(case)
     dl.create(owner_participant)
     return case
@@ -184,8 +182,6 @@ def _build_unbound_case_with_case_manager(
     owner_participant.add_role(CVDRole.CASE_MANAGER)
     case.case_participants = [owner_participant.id_]
     case.actor_participant_index = {owner_id: owner_participant.id_}
-    case.append_case_status(em_state=EM.NONE)
-    case.active_embargo = None
     dl.create(case)
     dl.create(owner_participant)
     return case
@@ -214,9 +210,7 @@ def _build_active_embargo_case_with_case_manager(
 
     case.case_participants = [owner_participant.id_]
     case.actor_participant_index = {actor_id: owner_participant.id_}
-    case.append_case_status(em_state=EM.ACTIVE)
-    case.proposed_embargoes.append(embargo.id_)
-    case.set_embargo(embargo.id_)
+    activate(case, embargo.id_)
 
     dl.create(case)
     dl.create(embargo)
@@ -351,8 +345,40 @@ def _case_with_open_proposal(
     )
     dl.create(embargo)
     dl.create(proposal)
-    case.append_case_status(em_state=EM.PROPOSED)
-    case.proposed_embargoes.append(embargo.id_)
+    propose(case, embargo.id_)
     case.pending_embargo_proposal_index[embargo.id_] = proposal.id_
     dl.save(case)
     return case, proposal.id_
+
+
+def _open_revision(
+    dl: SqliteDataLayer, case_id: str, owner_id: str, participant_id: str
+) -> tuple[as_Invite, str]:
+    """Open a revision of a stored case's active embargo (EM → REVISE).
+
+    The owner proposes it; *participant_id* is ``INVITED`` to it.  Returns the
+    proposal and the revision's embargo id.  An embargo that is already in
+    force has left the open-proposal record (EP-08-003), so a non-manager's
+    answer to a still-pending proposal is answered against a revision.
+    """
+    from typing import cast
+
+    case = cast(VulnerabilityCase, dl.read(case_id))
+    revision = as_EmbargoEvent(context=case_id, end_time=days_from_now_utc(90))
+    proposal = em_propose_embargo_activity(
+        revision, context=case_id, actor=owner_id
+    )
+    propose(case, revision.id_)
+    case.pending_embargo_proposal_index[revision.id_] = proposal.id_
+    participant = cast(FinderParticipant, dl.read(participant_id))
+    participant.embargo_consents = [
+        *participant.embargo_consents,
+        EmbargoConsent(
+            embargo_id=revision.id_, state=EmbargoConsentState.INVITED
+        ),
+    ]
+    dl.create(revision)
+    dl.create(proposal)
+    dl.save(case)
+    dl.save(participant)
+    return proposal, revision.id_

@@ -107,8 +107,10 @@ class FilterCsEmDimensionNode(_CsStatusGuardBase):
     """Adjudicates the EM dimension of a received CaseStatus (RSH-05, ISSUE-2256).
 
     Read-only precondition guard (CLP-10-006).  Initialises the per-tick
-    accumulator and evaluates whether the asserted EM transition is acceptable.
-    Refused EM is carried forward (current value); accepted EM passes through.
+    accumulator and refuses any asserted EM that differs from the case's own:
+    EM is derived from the embargo register, which only embargo messages
+    change (ADR-0122), so a status can carry it but never move it (RSH-05-023).
+    Refused EM is carried forward (the case's value); an identical one passes.
 
     Also clears ``BB_CASE_STATUS_DIM_FILTER`` unconditionally at tick start
     so that no prior execution's value leaks into this tick (BT-17-003).
@@ -192,7 +194,7 @@ class FilterCsEmDimensionNode(_CsStatusGuardBase):
             "asserted": asserted,
         }
 
-        current_em = current.em.state
+        current_em = case.em_state
         asserted_em = asserted.em.state
         if not is_em_assertion_acceptable(current_em, asserted_em):
             acc["refused"].append("em")

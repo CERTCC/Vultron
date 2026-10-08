@@ -39,6 +39,7 @@ from typing import cast
 
 import pytest
 
+from test.support.embargo_register import activate, propose, reject
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -50,6 +51,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.states.em import EM
+from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -133,11 +135,9 @@ def _build_case_with_two_open_proposals(
         owner_id: owner_participant.id_,
         participant_id: participant.id_,
     }
-    case.append_case_status(em_state=EM.PROPOSED)
-
     # Insertion order is load-bearing: the later-expiring proposal is recorded
     # first, so a resolver that returns the first entry returns the wrong one.
-    case.proposed_embargoes.extend([later.id_, earlier.id_])
+    propose(case, later.id_, earlier.id_)
     case.pending_embargo_proposal_index[later.id_] = later_proposal.id_
     case.pending_embargo_proposal_index[earlier.id_] = earlier_proposal.id_
 
@@ -237,8 +237,7 @@ def _build_case_with_one_open_proposal(
         owner_id: owner_participant.id_,
         participant_id: participant.id_,
     }
-    case.append_case_status(em_state=EM.PROPOSED)
-    case.proposed_embargoes.append(embargo.id_)
+    propose(case, embargo.id_)
     case.pending_embargo_proposal_index[embargo.id_] = proposal.id_
 
     dl.create(case)
@@ -291,7 +290,7 @@ def test_accepting_a_proposal_removes_it_from_the_open_proposal_record(
     assert (
         proposal_id not in updated_case.pending_embargo_proposal_index.values()
     )
-    assert updated_case.proposed_embargoes == []
+    assert updated_case.proposed_embargo_ids == []
 
 
 @pytest.mark.spec("EP-08-001")
@@ -320,12 +319,11 @@ def test_three_open_proposals_resolve_to_the_earliest_expiring(
         proposal = em_propose_embargo_activity(
             embargo, context=case.id_, actor=owner.id_
         )
-        case.proposed_embargoes.append(embargo.id_)
+        propose(case, embargo.id_)
         case.pending_embargo_proposal_index[embargo.id_] = proposal.id_
         finder_dl.create(embargo)
         finder_dl.create(proposal)
         proposals[days] = proposal.id_
-    case.append_case_status(em_state=EM.PROPOSED)
     finder_dl.create(case)
 
     assert find_embargo_proposal_id(case, finder_dl) == proposals[15]
@@ -361,18 +359,19 @@ def test_default_selection_refuses_an_unresolvable_candidate(
 def test_rejecting_a_proposal_removes_it_from_both_records(
     owner_actor_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """An owner's reject prunes ``proposed_embargoes`` *and* the index.
+    """An owner's reject leaves the proposal open in neither record.
 
     Before #3470 ``reject_proposed_embargo_bt`` pruned nothing and teardown
-    pruned only ``proposed_embargoes``; a rejected proposal survived in both
-    records (EP-08-003's own note).
+    pruned only the open-proposal list; a rejected proposal survived in both
+    records (EP-08-003's own note).  The register's REJECT step now closes the
+    entry and prunes its index row (ADR-0122).
     """
     owner, owner_dl = owner_actor_and_dl
     finder = _persist_actor(owner_dl, "Finder Co")
     case, proposal_id = _build_case_with_one_open_proposal(
         owner_dl, owner.id_, finder.id_
     )
-    (embargo_id,) = case.proposed_embargoes
+    (embargo_id,) = case.proposed_embargo_ids
 
     request = RejectEmbargoTriggerRequest(
         actor_id=owner.id_,
@@ -392,7 +391,7 @@ def test_rejecting_a_proposal_removes_it_from_both_records(
         "the owner's reject did not decide the proposal, so this test cannot "
         "speak to EP-08-003"
     )
-    assert embargo_id not in updated_case.proposed_embargoes
+    assert embargo_id not in updated_case.proposed_embargo_ids
     assert embargo_id not in updated_case.pending_embargo_proposal_index
     assert (
         proposal_id not in updated_case.pending_embargo_proposal_index.values()
@@ -403,7 +402,7 @@ def test_rejecting_a_proposal_removes_it_from_both_records(
 def test_tearing_down_an_embargo_removes_its_entry_from_the_index(
     owner_actor_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """Teardown already pruned ``proposed_embargoes``; now the index goes too."""
+    """Teardown cancels every open proposal *and* prunes its index entry."""
     owner, owner_dl = owner_actor_and_dl
     lifecycle = EmbargoLifecycle(persistence=owner_dl)
     case = VulnerabilityCase(name="Active embargo", attributed_to=owner.id_)
@@ -411,20 +410,51 @@ def test_tearing_down_an_embargo_removes_its_entry_from_the_index(
     embargo = as_EmbargoEvent(
         context=case.id_, start_time=start, end_time=start + timedelta(days=30)
     )
-    case.append_case_status(em_state=EM.ACTIVE)
-    case.set_embargo(embargo.id_)
-    case.proposed_embargoes.append(embargo.id_)
-    case.pending_embargo_proposal_index[embargo.id_] = (
+    revision = as_EmbargoEvent(
+        context=case.id_, start_time=start, end_time=start + timedelta(days=60)
+    )
+    activate(case, embargo.id_)
+    propose(case, revision.id_)
+    case.pending_embargo_proposal_index[revision.id_] = (
         f"{case.id_}/embargo_proposals/1"
     )
     owner_dl.create(case)
     owner_dl.create(embargo)
+    owner_dl.create(revision)
 
     result = lifecycle.terminate_active_embargo(
-        case_id=case.id_, actor_id=owner.id_
+        case_id=case.id_, actor_id=owner.id_, reason=TerminationReason.EARLY
     )
 
     assert result.em_after == EM.EXITED
     updated_case = cast(VulnerabilityCase, owner_dl.read(case.id_))
-    assert updated_case.proposed_embargoes == []
+    assert updated_case.proposed_embargo_ids == []
     assert updated_case.pending_embargo_proposal_index == {}
+
+
+@pytest.mark.spec("EP-08-003")
+def test_default_selection_skips_an_index_record_for_a_decided_proposal(
+    finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """A relay record written after its proposal was decided is never chosen.
+
+    Ledger replay can index a proposal its OBSERVED step skipped because the
+    register had already decided it; the default selection reads only the
+    proposals the register still holds open.
+    """
+    finder, finder_dl = finder_actor_and_dl
+    owner = _persist_actor(finder_dl, "Vendor Co")
+    case, later_proposal_id, earlier_proposal_id = (
+        _build_case_with_two_open_proposals(finder_dl, owner.id_, finder.id_)
+    )
+    by_proposal = {
+        proposal_id: embargo_id
+        for embargo_id, proposal_id in case.pending_embargo_proposal_index.items()
+    }
+    earlier_embargo_id = by_proposal[earlier_proposal_id]
+    reject(case, earlier_embargo_id)
+    case.pending_embargo_proposal_index[earlier_embargo_id] = (
+        earlier_proposal_id
+    )
+
+    assert find_embargo_proposal_id(case, finder_dl) == later_proposal_id

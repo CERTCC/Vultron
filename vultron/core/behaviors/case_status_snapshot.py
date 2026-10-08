@@ -121,7 +121,7 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts):
         new_status = CaseStatus(
             context=self.case_id,
             attributed_to=self.actor_id,
-            em=EmDimension(state=current.em.state),
+            em=EmDimension(state=case.em_state),
             pxa=PxaDimension(state=pxa_state),
         )
 

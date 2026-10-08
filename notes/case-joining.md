@@ -24,6 +24,7 @@ related_notes:
   - notes/sync-ledger-replication.md
   - notes/stub-objects.md
   - notes/wire-core-boundary.md
+  - notes/received-status-authorization.md
 relevant_packages:
   - vultron/core/participants/recipients.py
   - vultron/core/models/case.py
@@ -330,6 +331,12 @@ message is designed: we accept offers and invitations, never bare objects.
   participant) is refused with a reported reason and writes no ledger entry
   (CM-11-012); the check keys on the same `joined` fact as
   `is_active_participant()`, not on embargo consent.
+- **A reply's RM move is judged by the shared declaration rule, not
+  adjacency (RSH-06-006, #4311).** A second or later reply that moves forward,
+  a non-adjacent move included, is recorded; one that moves backward is
+  refused before the receipt is committed; one that restates the recorded
+  state is `SKIPPED`. See
+  [received-status-authorization.md](received-status-authorization.md).
 - **A ledger position travels in AS2 `content`, as the `LedgerPosition`
   model's own JSON dump.** The full-case Invite and each reply carry
   `{"logIndex":3,"entryHash":"..."}` (VAM-04-011..014); `target` stays the

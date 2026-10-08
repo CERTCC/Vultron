@@ -47,6 +47,7 @@ from test.core.use_cases.received.conftest import (
 from test.core.use_cases.triggers.embargo.conftest import (
     _build_active_embargo_case,
 )
+from test.support.embargo_register import activate
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -74,7 +75,6 @@ from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.predicates.participants import all_participants_rm_closed
 from vultron.core.states.cs import CS_d, CS_vf
-from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -283,8 +283,7 @@ def test_stub_invite_creates_inert_invitee_participant(actor_store) -> None:
         end_time=days_from_now_utc(45),
     )
     dl.create(embargo)
-    case.active_embargo = embargo.id_
-    case.append_case_status(em_state=EM.ACTIVE)
+    activate(case, embargo.id_)
     seed_store_owner_as_case_manager(dl, case)
     dl.create(case)
 
@@ -367,7 +366,7 @@ def test_joined_participant_never_answers_the_original_report_offer(
     )
     dl.create(embargo)
     case = VulnerabilityCase(name="Joined Case", attributed_to=case_actor.id_)
-    case.set_embargo(embargo.id_)
+    activate(case, embargo.id_)
     case.vulnerability_reports.append(report.id_)
     manager = CaseParticipant(
         attributed_to=case_actor.id_,

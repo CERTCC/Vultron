@@ -45,6 +45,7 @@ from vultron.core.behaviors.embargo.terminate_active_embargo_tree import (
 )
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.states.embargo_register import TerminationReason
 
 _CASE = "https://example.org/cases/ratchet-case"
 _ACTOR = "https://example.org/actors/ratchet-actor"
@@ -94,10 +95,17 @@ _FACTORIES: dict[str, Callable[[], py_trees.behaviour.Behaviour]] = {
         )
     ),
     "terminate_embargo_bt": lambda: trigger_tree.terminate_embargo_bt(
-        case_id=_CASE, result_out={}, activity_builder=_builder
+        case_id=_CASE,
+        result_out={},
+        reason=TerminationReason.EARLY,
+        activity_builder=_builder,
     ),
     "terminate_embargo_bt (cascade)": lambda: (
-        trigger_tree.terminate_embargo_bt(case_id=_CASE, result_out={})
+        trigger_tree.terminate_embargo_bt(
+            case_id=_CASE,
+            result_out={},
+            reason=TerminationReason.THREAT_SIGNAL,
+        )
     ),
     "reject_proposed_embargo_bt": lambda: (
         trigger_tree.reject_proposed_embargo_bt(case_id=_CASE, result_out={})

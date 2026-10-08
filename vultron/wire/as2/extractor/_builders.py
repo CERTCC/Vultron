@@ -326,7 +326,8 @@ def _build_case_object(obj: object) -> dict[str, Any]:
             if isinstance(raw_index, dict)
             else {}
         )
-        active_embargo = _get_id(getattr(obj, "active_embargo", None))
+        # Carried as received: EM and the active embargo are reads of it.
+        embargo_register = list(getattr(obj, "embargo_register", None) or [])
         raw_statuses = getattr(obj, "case_statuses", []) or []
         case_statuses: list[str | CaseStatus] = []
         for cs in raw_statuses:
@@ -352,7 +353,7 @@ def _build_case_object(obj: object) -> dict[str, Any]:
                 updated=_get_timestamp(obj, "updated"),
                 case_participants=participants,
                 actor_participant_index=actor_participant_index,
-                active_embargo=active_embargo,
+                embargo_register=embargo_register,
                 case_statuses=case_statuses if case_statuses else [],
                 # Carried, not recomputed: core would otherwise rederive it
                 # from ``published`` (CLP-08-002), which a received case

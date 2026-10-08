@@ -27,24 +27,26 @@ from py_trees.common import Status
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.states.em import EM
-from vultron.errors import BtNodePreconditionError, VultronValidationError
+from vultron.errors import (
+    BtNodePreconditionError,
+    VultronError,
+    VultronValidationError,
+)
 
 
 class ReadEmStateNode(DataLayerConditionWithPorts):
-    """Read the current EM state from a case and write it to result_out.
+    """Read a case's EM state, derived from its embargo register, into result_out.
 
-    Replaces the inline ``em_before = EM(case.current_status.em_state)`` reads
-    that previously appeared in every ``EmbargoLifecycle`` service method.
+    EM is :attr:`VulnerabilityCase.em_state`, read from the register
+    (ADR-0122), never a status field a node could read stale.
 
     On success the EM enum value is stored in ``result_out["em_before"]``
-    so downstream service calls can receive it as a parameter rather than
-    re-reading the DataLayer.
+    for the node's caller to report.
 
     Returns SUCCESS when the case is found and a valid EM state is available.
     Returns FAILURE when:
     - the DataLayer is unavailable,
-    - the case cannot be found, or
-    - the EM state field cannot be coerced to a valid ``EM`` enum value.
+    - the case cannot be found.
 
     Blackboard contract:
     - Reads: ``datalayer`` (set by BTBridge)
@@ -76,11 +78,10 @@ class ReadEmStateNode(DataLayerConditionWithPorts):
             return failure
 
         try:
-            em_state = case.current_status.em.state
-        except (ValueError, KeyError, AttributeError):
+            em_state = case.em_state
+        except (ValueError, KeyError, AttributeError, VultronError):
             err = VultronValidationError(
-                f"Case '{self._case_id}' has no materialized CaseStatus"
-                f" or an invalid em_state value."
+                f"Case '{self._case_id}' has no derivable EM state."
             )
             self._result_out["error"] = err
             self.feedback_message = str(err)
@@ -104,7 +105,7 @@ def read_case_em_state(
 
     The in-node EM read (``notes/embargo-lifecycle.md`` § "Guidance for
     Agents", item 8): a node that needs the current EM state inside its own
-    ``update()`` calls this instead of reading ``case.current_status.em``
+    ``update()`` calls this instead of reading ``case.em_state``
     inline.  When *result_out* is given, the read writes ``em_before`` (or
     ``error``) into it, as ``ReadEmStateNode`` does, so a node that exposes
     that dict to its caller keeps doing so.

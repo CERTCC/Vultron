@@ -21,7 +21,6 @@ from pydantic import ValidationError
 
 from vultron.metadata.adr.lifecycle import (
     hardened_adrs,
-    status_epoch_fault,
     today_utc,
     verified_dependents,
 )
@@ -110,8 +109,11 @@ def _check_adr_status(
       surfaces ``decision-audit`` candidates rather than blocking CI; an ADR may
       opt out with ``lint_suppress: [status_prose_contradiction]``.
 
-    - **Hard (MS-14-007)**: ``status`` MUST agree with the epoch computed from
-      ``updated`` and ``today`` unless the ADR carries a ``status_override``.
+    - **Not here (MS-14-007)**: a ``status`` that disagrees with the epoch
+      computed from ``updated`` and ``today`` is never a lint failure, because
+      the answer changes with the clock and no commit. The diff-based
+      ``adr-lifecycle-check`` fails a material edit that leaves it wrong, and
+      the scheduled ``adr-status-drift`` workflow reports the rest.
     - **Informational (MS-14-007)**: with a spec ``registry``, an ADR still in
       epoch 1 or 2 that a tested spec requirement depends on is reported as
       hardened, so a human can promote it early.
@@ -136,9 +138,6 @@ def _check_adr_status(
 
     for rel_path, fm in adr_registry.items():
         name = Path(rel_path).name
-        fault = status_epoch_fault(name, fm, today)
-        if fault:
-            errors.append(fault)
         if fm.status is not AdrStatus.ACCEPTED:
             continue
         if fm.lint_suppress and any(
