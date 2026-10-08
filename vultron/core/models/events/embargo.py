@@ -92,6 +92,14 @@ class AnnounceEmbargoEventToCaseReceivedEvent(VultronEvent):
     )
 
     @property
+    def embargo_id(self) -> str | None:
+        return self.object_id
+
+    @property
+    def embargo(self) -> "EmbargoEvent | None":
+        return cast("EmbargoEvent | None", self.object_)
+
+    @property
     def case_id(self) -> str | None:
         return self.context_id
 
