@@ -1507,8 +1507,8 @@ groups:
       actor: system
       action: Delegate to the flow-appropriate acceptance BT
       expected: >-
-        Flow A activates/records via accept_embargo_trigger_bt; Flow B advances
-        PEC to SIGNATORY via accept_invite_to_embargo_tree
+        Flow A activates/records via accept_embargo_trigger_bt; Flow B marks
+        the consent row AGREED via accept_invite_to_embargo_tree
     postconditions:
     - description: >-
         Overture accepted by default; EM (Flow A) or PEC (Flow B) advanced by
@@ -1522,7 +1522,7 @@ groups:
       note: Adds the response-decision layer above EP receipt
     - rel_type: refines
       spec_id: CM-18-003
-      note: Flow B acceptance advances the participant's consent row (INVITED → ACCEPTED)
+      note: Flow B acceptance advances the participant's consent row (INVITED → AGREED)
     stories:
     - story_2022_014
     - story_2022_006
@@ -1684,7 +1684,7 @@ groups:
       the shared EM to NONE per EMB-06) or reject_invite_to_embargo_tree
       (Flow B, recording that participant's consent per MSM-07-004: DECLINE
       when the Reject names the active embargo or the participant is not yet
-      SIGNATORY; a signatory refusing proposed terms keeps its state). The
+      a signatory; a signatory refusing proposed terms keeps its state). The
       seam MUST also honor the mandatory rejection required by EMB-01-002 when
       CS is public/exploit/attacks, independent of any adjudication outcome.
     rationale: >-
@@ -1904,10 +1904,10 @@ groups:
     kind: protocol
     statement: >-
       When the accepted embargo is the case's current embargo, the CASE_MANAGER MUST honour the late
-      Accept and mark the participant's consent row for it ACCEPTED, exactly as it would for an
-      on-time Accept. A row at EXPIRED moves directly to ACCEPTED (`EXPIRED → ACCEPTED`,
-      ADR-0118); one at DECLINED is re-invited first (`DECLINED → INVITED → ACCEPTED`), because
-      ACCEPT is not legal from DECLINED (CM-18-003).
+      Accept and mark the participant's consent row for it AGREED, exactly as it would for an
+      on-time Accept. A row at TIMED_OUT moves directly to AGREED (`TIMED_OUT → AGREED`,
+      ADR-0118); one at DECLINED is re-invited first (`DECLINED → INVITED → AGREED`), because
+      AGREE is not legal from DECLINED (CM-18-003).
     rationale: >-
       If the terms the participant agreed to are the terms in force, the
       participant is a valid signatory. The deadline governs whether the
@@ -1915,7 +1915,7 @@ groups:
     verification: >-
       Integration tests in `test/demo/` confirm that a late Accept whose embargo ID
       matches the case's current active embargo marks the participant's consent row for it
-      ACCEPTED, making the participant a signatory.
+      AGREED, making the participant a signatory.
     testable: true
     preconditions:
     - em_state:
@@ -1926,8 +1926,8 @@ groups:
     steps:
     - order: 1
       actor: system
-      action: Record the PEC ACCEPT transition for the accepting participant
-      expected: The participant's consent row for the current embargo is ACCEPTED
+      action: Record the PEC AGREE transition for the accepting participant
+      expected: The participant's consent row for the current embargo is AGREED
     postconditions:
     - description: The participant is a signatory to the current embargo
     relationships:
@@ -1945,7 +1945,7 @@ groups:
       When the accepted embargo is NOT the case's current embargo (for example the embargo was
       revised or replaced after the invitation was sent), the CASE_MANAGER MUST issue a fresh
       `Invite(EmbargoEvent)` to the accepting actor carrying the case's current embargo. An
-      accepting participant at EXPIRED moves `EXPIRED → INVITED` for the current embargo (ADR-0118).
+      accepting participant at TIMED_OUT moves `TIMED_OUT → INVITED` for the current embargo (ADR-0118).
     rationale: >-
       Recording the stale Accept as consent would make the participant a
       signatory to terms they never saw. Rejecting them would discard a
@@ -2018,8 +2018,8 @@ groups:
     statement: >-
       When the case has no current embargo (EM state is EXITED or NONE), the CASE_MANAGER MUST
       acknowledge the late Accept as a no-op on embargo state, leaving the participant's consent
-      rows unchanged: nothing is recorded after a termination (EM EXITED), and an EXPIRED row stays
-      EXPIRED when no embargo has started (EM NONE) (ADR-0118).
+      rows unchanged: nothing is recorded after a termination (EM EXITED), and a TIMED_OUT row stays
+      TIMED_OUT when no embargo has started (EM NONE) (ADR-0118).
     note: >-
       EMB-13-002 independently forbids seeking or accepting new embargoes for a
       case whose CS state is public, exploit-public, or attacks-observed. This
@@ -2100,18 +2100,18 @@ groups:
       When the CASE_MANAGER honours a late Accept (EMB-17-002), it MUST commit
       a distinct ledger entry of event type
       `honour_late_accept_invite_to_embargo_on_case` so that replicas can
-      replay the accepting participant's transition to SIGNATORY without
+      replay the accepting participant's row moving to AGREED without
       re-evaluating the deadline (RSH-08-004).
     rationale: >-
       Without a committed entry the replica has no signal to apply
-      `EXPIRED → SIGNATORY`; the replica's participant record would silently
-      stay EXPIRED while the CASE_MANAGER's record shows SIGNATORY, breaking
+      `TIMED_OUT → AGREED`; the replica's participant record would silently
+      stay TIMED_OUT while the CASE_MANAGER's record shows AGREED, breaking
       ledger-driven convergence (ADR-0108, ADR-0118).
     verification: >-
       `test_the_managers_honour_decision_is_committed_and_replayed_by_a_replica`
       drives the full path across per-actor stores: the late Accept reaches the
       CASE_MANAGER, the honour entry is committed and broadcast, and the replica
-      asserts the accepting participant reads SIGNATORY (EMB-17-001,
+      asserts the accepting participant's row reads AGREED (EMB-17-001,
       RSH-08-004).
     testable: true
     postconditions:

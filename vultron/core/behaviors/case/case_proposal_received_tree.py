@@ -18,9 +18,9 @@ entries last (CP-09-009):
   2. Add the proposer as CASE_OWNER at RM.RECEIVED, plus any
      ``ActorConfig.default_case_roles`` (AC-1)
   3. Add reporter as participant at RM.ACCEPTED (AC-2)
-  4. Initialize the default embargo, seeding the CASE_OWNER as SIGNATORY
+  4. Initialize the default embargo, seeding the CASE_OWNER as a signatory
      (AC-3, CM-14-003); record any pending revision as owed (EP-04-011)
-  5. Seed reporter as embargo SIGNATORY (CM-14-005)
+  5. Seed reporter as an embargo signatory (CM-14-005)
   6. Emit ``Accept(as_CaseProposal)``
   7. Write durable retry marker (CP-05-005)
   8. Emit ``Create(VulnerabilityCase)`` with inline participants (AC-5)
@@ -240,11 +240,11 @@ def create_case_proposal_received_tree(
          (ADR-0041 AC-2)
       6. ``InitializeDefaultEmbargoNode`` — default embargo initialized
          (ADR-0041 AC-3); its ``InitializeCreationEmbargoNode`` seeds the case
-         owner (``attributed_to``, the CASE_OWNER) as embargo SIGNATORY
+         owner (``attributed_to``, the CASE_OWNER) as an embargo signatory
          (CM-14-003); a revision it registers is first recorded as an owed
          relay (EP-04-011, #4121)
       7. ``SeedReporterSignatoryNode`` — reporter seeded as embargo
-         SIGNATORY (CM-14-005); implicit consent per ADR-0048
+         signatory (CM-14-005); implicit consent per ADR-0048
       Then the outbound messaging steps:
 
       8. ``EmitAcceptCaseProposalNode`` — emits Accept(as_CaseProposal)
@@ -344,7 +344,7 @@ def create_case_proposal_received_tree(
             ),
             case_resolution,
             # Store the inline report first: the reporter participant, its ledger
-            # entry and the SIGNATORY seed are all derived from it, and each of
+            # entry and the signatory seed are all derived from it, and each of
             # those nodes skips "best-effort" when it is missing.
             StoreProposalReportNode(
                 report_id=report_id,
@@ -363,14 +363,14 @@ def create_case_proposal_received_tree(
             AddReporterParticipantNode(report_id=report_id),
             # ADR-0041 AC-3: initialize default embargo.  Its
             # InitializeCreationEmbargoNode seeds the case owner — the
-            # CASE_OWNER this case is attributed to — as SIGNATORY
+            # CASE_OWNER this case is attributed to — as a signatory
             # (CM-14-003), the one owner-seeding path.  A contested creation
             # records its revision's relay as owed in the same commit that
             # registers the revision (EP-04-011, #4121, #4156).
             InitializeDefaultEmbargoNode(
                 actor_config=actor_config, report_id=report_id
             ),
-            # CM-14-005: seed the reporter as embargo SIGNATORY.
+            # CM-14-005: seed the reporter as an embargo signatory.
             # Reporter consent is implicit in submitting the report (ADR-0048);
             # no invitation round-trip is needed or appropriate.
             SeedReporterSignatoryNode(report_id=report_id),

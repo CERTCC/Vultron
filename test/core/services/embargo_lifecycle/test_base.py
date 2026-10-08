@@ -23,7 +23,11 @@ from typing import cast
 
 import pytest
 
-from test.support.embargo_register import activate, propose
+from test.support.embargo_register import (
+    activate,
+    propose,
+    write_consent_rows,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.services.embargo_lifecycle import (
@@ -59,6 +63,7 @@ def test_propose_embargo_strict_raises_when_pxa_set(
     case, _ = _make_case(dl, owner.id_)
     case.append_case_status(pxa_state=pxa_state)
     dl.save(case)
+    write_consent_rows(dl, case)
     embargo = _make_embargo(dl, case.id_)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
@@ -99,6 +104,7 @@ def test_propose_embargo_observed_bypasses_pxa_guard(
     case, _ = _make_case(dl, owner.id_)
     case.append_case_status(pxa_state=pxa_state)
     dl.save(case)
+    write_consent_rows(dl, case)
     embargo = _make_embargo(dl, case.id_)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
@@ -124,6 +130,7 @@ def test_accept_embargo_invite_strict_raises_when_pxa_set(
     embargo = _make_embargo(dl, case.id_)
     propose(case, embargo.id_)
     dl.save(case)
+    write_consent_rows(dl, case)
 
     # Seed owner's row to INVITED so the consent transition would be valid
     _seed_consent(dl, participants[0].id_, embargo.id_, ECS.INVITED)
@@ -146,6 +153,7 @@ def test_accept_embargo_invite_strict_allowed_when_pxa_clear(
     embargo = _make_embargo(dl, case.id_)
     propose(case, embargo.id_)
     dl.save(case)
+    write_consent_rows(dl, case)
 
     _seed_consent(dl, participants[0].id_, embargo.id_, ECS.INVITED)
 
@@ -171,6 +179,7 @@ def test_accept_embargo_invite_observed_bypasses_pxa_guard(
     embargo = _make_embargo(dl, case.id_)
     propose(case, embargo.id_)
     dl.save(case)
+    write_consent_rows(dl, case)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
     result = lifecycle.accept_embargo_invite(
@@ -196,6 +205,7 @@ def test_accept_embargo_invite_strict_non_owner_pxa_set_does_not_raise(
     embargo = _make_embargo(dl, case.id_)
     propose(case, embargo.id_)
     dl.save(case)
+    write_consent_rows(dl, case)
 
     finder_participant_id = case.actor_participant_index.get(finder.id_)
     assert finder_participant_id is not None
@@ -210,7 +220,7 @@ def test_accept_embargo_invite_strict_non_owner_pxa_set_does_not_raise(
     )
 
     assert result.em_after == EM.PROPOSED  # EM unchanged
-    assert _consent_of(dl, finder_participant_id, embargo.id_) == "ACCEPTED"
+    assert _consent_of(dl, finder_participant_id, embargo.id_) == "AGREED"
 
 
 # ---------------------------------------------------------------------------
@@ -232,6 +242,7 @@ def test_reject_embargo_invite_strict_revise_pxa_raises(
     activate(case, active.id_)
     propose(case, embargo.id_)
     dl.save(case)
+    write_consent_rows(dl, case)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
     with pytest.raises(VultronInvalidStateTransitionError):
@@ -252,6 +263,7 @@ def test_reject_embargo_invite_strict_proposed_pxa_allowed(
     embargo = _make_embargo(dl, case.id_)
     propose(case, embargo.id_)
     dl.save(case)
+    write_consent_rows(dl, case)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
     result = lifecycle.reject_embargo_invite(
@@ -277,6 +289,7 @@ def test_reject_embargo_invite_observed_revise_pxa_bypasses_guard(
     activate(case, active.id_)
     propose(case, embargo.id_)
     dl.save(case)
+    write_consent_rows(dl, case)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
     result = lifecycle.reject_embargo_invite(
@@ -330,6 +343,7 @@ class TestServiceAlwaysWritesEmState:
         embargo = _make_embargo(dl, case.id_)
         propose(case, embargo.id_)
         dl.save(case)
+        write_consent_rows(dl, case)
 
         lifecycle = EmbargoLifecycle(persistence=dl)
         result = lifecycle.reject_embargo_invite(
@@ -354,6 +368,7 @@ class TestServiceAlwaysWritesEmState:
         embargo = _make_embargo(dl, case.id_)
         activate(case, embargo.id_)
         dl.save(case)
+        write_consent_rows(dl, case)
 
         lifecycle = EmbargoLifecycle(persistence=dl)
         result = lifecycle.terminate_active_embargo(

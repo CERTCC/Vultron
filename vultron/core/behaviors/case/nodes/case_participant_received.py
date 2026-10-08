@@ -103,6 +103,8 @@ class AddCaseParticipantToCaseReceivedNode(DataLayerActionWithPorts):
             return Status.FAILURE
 
         case.add_participant(participant)
+        # add_participant writes its UNINVITED consent rows (ADR-0122).
+        self.datalayer.save(participant)
         self.datalayer.save(case)
         self.logger.info(
             "%s: added participant '%s' to case '%s'",

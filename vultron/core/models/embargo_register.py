@@ -249,6 +249,25 @@ def apply_register_step(
     )
 
 
+def register_step_is_legal(
+    entries: Sequence[EmbargoRegisterEntry],
+    changes: Sequence[RegisterChange],
+    *,
+    threat_signal: bool = False,
+) -> bool:
+    """True when :func:`apply_register_step` would accept *changes*.
+
+    For a caller that must write something else before the step lands, and
+    only if the step will (the rejecting owner's consent row is frozen once
+    its entry is ``REJECTED``, ADR-0122).
+    """
+    try:
+        apply_register_step(entries, changes, threat_signal=threat_signal)
+    except VultronInvalidStateTransitionError:
+        return False
+    return True
+
+
 def _ids_with(
     entries: Sequence[EmbargoRegisterEntry], status: EmbargoRegisterStatus
 ) -> list[str]:

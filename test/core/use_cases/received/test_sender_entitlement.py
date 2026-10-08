@@ -56,7 +56,11 @@ from test.core.use_cases.received.test_reject_sync import (
     _make_entry,
     _make_reject_event,
 )
-from test.support.embargo_register import activate, propose
+from test.support.embargo_register import (
+    activate,
+    propose,
+    write_consent_rows,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -855,6 +859,7 @@ def _embargo_case(
     assert case.em_state == em_state
     cm_store.create(case)
     cm_store.create(embargo)
+    write_consent_rows(cm_store, case)
     return embargo
 
 
@@ -878,7 +883,7 @@ def _assert_embargo_untouched(
         participant = store.read(participant_id)
         assert isinstance(participant, CaseParticipant)
         assert (
-            participant.consent_for(embargo_id) != EmbargoConsentState.ACCEPTED
+            participant.consent_for(embargo_id) != EmbargoConsentState.AGREED
         )
     assert store.list_objects("CaseLedgerEntry") == []
     assert store.outbox_list() == []

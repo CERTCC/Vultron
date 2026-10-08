@@ -940,7 +940,7 @@ class TestInviteActorUseCases:
         participant_obj = dl.get(id_=participant_id)
         assert participant_obj is not None
         participant_obj = cast(Any, participant_obj)
-        assert participant_obj.consent_for(embargo.id_) == "ACCEPTED"
+        assert participant_obj.consent_for(embargo.id_) == "AGREED"
 
     def test_accept_invite_participant_recorded_at_rm_received(
         self, make_payload

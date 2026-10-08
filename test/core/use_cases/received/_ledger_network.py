@@ -24,7 +24,11 @@ CASE_MANAGER's state, from the ``Announce(CaseLedgerEntry)`` broadcast alone
 import inspect
 from typing import Any, cast
 
-from test.support.embargo_register import activate, propose
+from test.support.embargo_register import (
+    activate,
+    propose,
+    write_consent_rows,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -75,6 +79,7 @@ class LedgerNetwork:
             activate(case_read, embargo.id_)
         assert case_read.em_state == em_state
         manager_dl.save(case_read)
+        write_consent_rows(manager_dl, case_read)
         # Every participant has signed the active embargo, so each is active
         # while it is in force and a case-content send reaches it (CM-10-004).
         # With no embargo in force every send reaches every participant.
@@ -93,7 +98,7 @@ class LedgerNetwork:
                         "embargo_consents": [
                             EmbargoConsent(
                                 embargo_id=embargo.id_,
-                                state=EmbargoConsentState.ACCEPTED,
+                                state=EmbargoConsentState.AGREED,
                             )
                         ]
                     }

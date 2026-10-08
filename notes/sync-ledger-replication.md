@@ -411,7 +411,7 @@ written, so the replay and pre-seed gates are defence in depth behind it. Withou
 Reject (SYNC-14-002) would pull the withheld entries straight through.
 
 Only a joined participant that is not active is *paused*: one the active
-embargo withholds (not `SIGNATORY` to it), or one the Case Owner removed
+embargo withholds (not a signatory to it), or one the Case Owner removed
 (CM-31-001, ADR-0116). `inactive_joined_participants()` names them, and the
 collectors publish them as `fanout_withheld`. A participant that has not
 joined is inert whatever the embargo, and gets its case and ledger through

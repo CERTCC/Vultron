@@ -13,7 +13,7 @@
 """The manager's and the proposer's consent rows at the proposal commit.
 
 EP-09-002 (#4180): committing a proposal records the proposer's row
-``ACCEPTED`` (proposing is consenting, ADR-0093) and, for a CASE_MANAGER that
+``AGREED`` (proposing is consenting, ADR-0093) and, for a CASE_MANAGER that
 is itself a stakeholder, its own row too, with no Invite to the manager.
 """
 
@@ -80,7 +80,7 @@ def test_committing_a_proposal_records_the_proposers_row_accepted(
 
     assert (
         _consent_of(dl, case_id, PROPOSER, revision.id_)
-        == EmbargoConsentState.ACCEPTED
+        == EmbargoConsentState.AGREED
     )
     # The invitee answers for itself; the commit asks, it does not answer.
     assert (
@@ -108,7 +108,7 @@ def test_a_stakeholder_manager_records_its_own_row_with_no_invite(
 
     assert (
         _consent_of(dl, case_id, MANAGER, revision.id_)
-        == EmbargoConsentState.ACCEPTED
+        == EmbargoConsentState.AGREED
     )
     assert MANAGER not in [r for a in _relayed_invites(dl) for r in a.to or []]
 
@@ -130,7 +130,7 @@ def test_a_manager_that_is_the_proposer_is_recorded_accepted(make_payload):
 
     assert (
         _consent_of(dl, case_id, MANAGER, revision.id_)
-        == EmbargoConsentState.ACCEPTED
+        == EmbargoConsentState.AGREED
     )
     assert MANAGER not in [r for a in _relayed_invites(dl) for r in a.to or []]
 
@@ -152,4 +152,8 @@ def test_a_bare_container_manager_records_nothing(make_payload):
         receiving_actor_id=MANAGER,
     )
 
-    assert _consent_of(dl, case_id, MANAGER, revision.id_) is None
+    # The bare container is never asked, and answers nothing (ADR-0122).
+    assert (
+        _consent_of(dl, case_id, MANAGER, revision.id_)
+        == EmbargoConsentState.UNINVITED
+    )

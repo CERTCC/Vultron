@@ -242,7 +242,7 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         ):
             # AC-2 of #2213: current embargo still matches — honour.
             # Commit the honour entry first so replicas learn the participant
-            # became SIGNATORY (RSH-08-004, ADR-0118, CLP-10-006).  The tree
+            # became a signatory (RSH-08-004, ADR-0118, CLP-10-006).  The tree
             # is gated on CASE_MANAGER (BT-17-001).
             honour_tree = create_honour_late_accept_tree(
                 case_id=case_id,

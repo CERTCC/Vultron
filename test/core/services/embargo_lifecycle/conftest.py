@@ -24,7 +24,11 @@ from typing import cast
 
 import pytest
 
-from test.support.embargo_register import activate, propose
+from test.support.embargo_register import (
+    activate,
+    propose,
+    write_consent_rows,
+)
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -145,12 +149,13 @@ def _record_save_many(
 
 def _consent_of(
     dl: SqliteDataLayer, participant_id: str, embargo_id: str
-) -> str | None:
-    """The stored consent row state for *embargo_id* (``None``: never asked)."""
-    state = cast(CaseParticipant, dl.read(participant_id)).consent_for(
-        embargo_id
+) -> str:
+    """The stored consent row state for *embargo_id*; raises when it has none."""
+    return (
+        cast(CaseParticipant, dl.read(participant_id))
+        .consent_for(embargo_id)
+        .value
     )
-    return state.value if state is not None else None
 
 
 def _consents_of(dl: SqliteDataLayer, participant_id: str) -> dict[str, str]:
@@ -164,16 +169,27 @@ def _seed_consent(
     participant_id: str,
     embargo_id: str,
     state: EmbargoConsentState,
+    *,
+    rsvp_deadline: datetime | None = None,
 ) -> None:
-    """Seed one consent row directly — test setup only, never a consent write."""
+    """Seed one consent row directly — test setup only, never a consent write.
+
+    Replaces the participant's row for *embargo_id* in place, or appends one.
+    *rsvp_deadline* is only valid on an ``INVITED`` row.
+    """
     participant = cast(CaseParticipant, dl.read(participant_id))
-    rows = [
-        r for r in participant.embargo_consents if r.embargo_id != embargo_id
-    ]
-    participant.embargo_consents = [
-        *rows,
-        EmbargoConsent(embargo_id=embargo_id, state=state),
-    ]
+    row = EmbargoConsent(
+        embargo_id=embargo_id, state=state, rsvp_deadline=rsvp_deadline
+    )
+    held = [r.embargo_id for r in participant.embargo_consents]
+    participant.embargo_consents = (
+        [
+            row if r.embargo_id == embargo_id else r
+            for r in participant.embargo_consents
+        ]
+        if embargo_id in held
+        else [*participant.embargo_consents, row]
+    )
     dl.save(participant)
 
 
@@ -189,10 +205,10 @@ def _is_signatory(
 def _has_lapsed(
     dl: SqliteDataLayer, case_id: str, participant_id: str
 ) -> bool:
-    """Derived: the participant accepted an older embargo, not the active one."""
+    """Derived: it agreed to a replaced embargo, not the active one."""
     case = cast(VulnerabilityCase, dl.read(case_id))
     participant = cast(CaseParticipant, dl.read(participant_id))
-    return participant.has_lapsed(case.active_embargo_id)
+    return participant.has_lapsed(case.embargo_register)
 
 
 #: An embargo id no store in these tests ever holds (EMB-18-003).
@@ -221,8 +237,9 @@ def _case_awaiting_activation(
         activate(case, active_id)
     propose(case, activated_id)
     dl.save(case)
+    write_consent_rows(dl, case)
     if active_id is not None:
-        _seed_consent(dl, owner_p.id_, active_id, EmbargoConsentState.ACCEPTED)
+        _seed_consent(dl, owner_p.id_, active_id, EmbargoConsentState.AGREED)
     return case, owner_p, active_id
 
 
@@ -240,9 +257,12 @@ def _assert_activation_wrote_nothing(
     assert untouched.active_embargo_id == active_id
     assert untouched.proposed_embargo_ids == [activated_id]
     owner = cast(CaseParticipant, dl.read(owner_p.id_))
-    assert {r.embargo_id: r.state.value for r in owner.embargo_consents} == (
-        {} if active_id is None else {active_id: "ACCEPTED"}
-    )
+    expected = {activated_id: "UNINVITED"}
+    if active_id is not None:
+        expected[active_id] = "AGREED"
+    assert {
+        r.embargo_id: r.state.value for r in owner.embargo_consents
+    } == expected
 
 
 # ---------------------------------------------------------------------------

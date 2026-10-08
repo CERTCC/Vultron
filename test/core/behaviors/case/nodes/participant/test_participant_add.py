@@ -188,7 +188,6 @@ class TestCreateCaseParticipantNode:
         participant_id = stored_case.actor_participant_index[finder_actor_id]
         participant = cast(Any, bt_scenario.dl.read(participant_id))
         assert (
-            participant.consent_for(embargo.id_)
-            == EmbargoConsentState.ACCEPTED
+            participant.consent_for(embargo.id_) == EmbargoConsentState.AGREED
         )
         assert participant.is_signatory(embargo.id_)

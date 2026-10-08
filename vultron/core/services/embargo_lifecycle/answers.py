@@ -26,7 +26,10 @@ re-evaluated only when the owner activates a revision (EP-05-001).
 import logging
 
 from vultron.core.models._helpers import _as_id
-from vultron.core.models.embargo_register import rejection_changes
+from vultron.core.models.embargo_register import (
+    register_step_is_legal,
+    rejection_changes,
+)
 from vultron.core.services.embargo_lifecycle.pec_activation import (
     _PecActivationMixin,
 )
@@ -61,8 +64,8 @@ class _AnswerOperationsMixin(_PecActivationMixin):
         who have not accepted it have lapsed by derivation (CM-18-001).  The
         carry-over runs in ``STRICT`` and ``OBSERVED`` modes alike.
 
-        For any actor (owner or not) the PEC ``ACCEPT`` trigger marks the row
-        for *embargo_id* ``ACCEPTED`` (MSM-07-003).  There is one rule whether
+        For any actor (owner or not) the PEC ``AGREE`` trigger marks the row
+        for *embargo_id* ``AGREED`` (MSM-07-003).  There is one rule whether
         *embargo_id* is the embargo in force, a proposed revision, or the
         actor's own proposal: the row is written, and being a signatory is the
         lookup of the active embargo's row (ADR-0122).
@@ -119,6 +122,10 @@ class _AnswerOperationsMixin(_PecActivationMixin):
                     case_id,
                     "accept embargo invite",
                 )
+            if not self._owner_may_activate(
+                case, embargo_id, transition_mode=transition_mode
+            ):
+                return self._unchanged_result(em_before)
             # The owner's accept decides the proposal: activation takes it
             # out of the open proposals (EP-08-003).
             case_mutated = self._activate_entry(
@@ -127,6 +134,10 @@ class _AnswerOperationsMixin(_PecActivationMixin):
                 transition_mode=transition_mode,
                 actor_id=actor_id,
             )
+            if not case_mutated:
+                # OBSERVED: the register refused the activation, so nothing
+                # the owner's accept would have caused is written.
+                return self._unchanged_result(em_before)
         em_after = case.em_state
 
         if case_mutated:
@@ -265,14 +276,23 @@ class _AnswerOperationsMixin(_PecActivationMixin):
                 case_id,
                 "reject embargo revision (use terminate_active_embargo when P/X/A is set)",
             )
-        case_mutated = decides and self._apply_register_step(
-            case,
-            rejection_changes(embargo_id),
-            transition_mode=transition_mode,
-            actor_id=actor_id,
-        )
+        changes = rejection_changes(embargo_id)
+        if decides and not register_step_is_legal(
+            case.embargo_register, changes
+        ):
+            # A refused step writes nothing: STRICT raises here, OBSERVED
+            # logs and leaves the case and every row as they were.
+            self._apply_register_step(
+                case,
+                changes,
+                transition_mode=transition_mode,
+                actor_id=actor_id,
+            )
+            return self._unchanged_result(em_before)
 
-        # Consent after the register guards (a refused step writes nothing).
+        # Consent before the step: rejecting the entry makes it final, and a
+        # row for a final entry is frozen (ADR-0122), so the rejecting
+        # actor's DECLINE is recorded while the entry is still PROPOSED.
         # The owner's EJ changes no record (MSM-07-004).
         participant_changes = (
             self._rejection_consent(
@@ -280,6 +300,12 @@ class _AnswerOperationsMixin(_PecActivationMixin):
             )
             if record_consent
             else []
+        )
+        case_mutated = decides and self._apply_register_step(
+            case,
+            changes,
+            transition_mode=transition_mode,
+            actor_id=actor_id,
         )
 
         if case_mutated:

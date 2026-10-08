@@ -90,13 +90,16 @@ def _seed(
         },
     )
     propose(case, EMBARGO_ID)
+    for record in records:
+        # The row the proposal wrote for every participant (ADR-0122).
+        record.write_uninvited_rows([EMBARGO_ID])
     embargo = as_EmbargoEvent(
         id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now_utc(30)
     )
     scenario.seed(*records, case, embargo)
 
 
-def _managers_row(scenario: BTTestScenario) -> EmbargoConsentState | None:
+def _managers_row(scenario: BTTestScenario) -> EmbargoConsentState:
     case = cast(VulnerabilityCase, scenario.dl.read(CASE_ID))
     participant = scenario.dl.read(case.actor_participant_index[MANAGER])
     assert isinstance(participant, CaseParticipant)
@@ -127,7 +130,7 @@ class TestManagerConsentAtCommit:
     ) -> None:
         _seed(bt_scenario, [CVDRole.CASE_MANAGER, CVDRole.VENDOR])
         assert _run(bt_scenario).status == Status.SUCCESS
-        assert _managers_row(bt_scenario) == EmbargoConsentState.ACCEPTED
+        assert _managers_row(bt_scenario) == EmbargoConsentState.AGREED
 
     def test_a_coordinator_manager_with_a_stake_is_covered(
         self, bt_scenario: BTTestScenario
@@ -137,7 +140,7 @@ class TestManagerConsentAtCommit:
             [CVDRole.CASE_MANAGER, CVDRole.COORDINATOR, CVDRole.DEPLOYER],
         )
         assert _run(bt_scenario).status == Status.SUCCESS
-        assert _managers_row(bt_scenario) == EmbargoConsentState.ACCEPTED
+        assert _managers_row(bt_scenario) == EmbargoConsentState.AGREED
 
     def test_a_declining_policy_records_declined(
         self, bt_scenario: BTTestScenario
@@ -152,7 +155,7 @@ class TestManagerConsentAtCommit:
     ) -> None:
         _seed(bt_scenario, [CVDRole.CASE_MANAGER, CVDRole.COORDINATOR])
         assert _run(bt_scenario).status == Status.SUCCESS
-        assert _managers_row(bt_scenario) is None
+        assert _managers_row(bt_scenario) == EmbargoConsentState.UNINVITED
 
     def test_the_owner_manager_is_left_to_its_owner_decision(
         self, bt_scenario: BTTestScenario
@@ -163,18 +166,18 @@ class TestManagerConsentAtCommit:
             owner=MANAGER,
         )
         assert _run(bt_scenario).status == Status.SUCCESS
-        assert _managers_row(bt_scenario) is None
+        assert _managers_row(bt_scenario) == EmbargoConsentState.UNINVITED
 
     def test_the_proposer_manager_is_not_written_here(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        """Its ACCEPT comes from the proposal (ADR-0093); this leaf adds none."""
+        """Its AGREE comes from the proposal (ADR-0093); this leaf adds none."""
         _seed(bt_scenario, [CVDRole.CASE_MANAGER, CVDRole.VENDOR])
         result = _run(
             bt_scenario, proposer_id=MANAGER, call_out=_declining_bundle()
         )
         assert result.status == Status.SUCCESS
-        assert _managers_row(bt_scenario) is None
+        assert _managers_row(bt_scenario) == EmbargoConsentState.UNINVITED
 
     def test_an_existing_row_is_left_alone(
         self, bt_scenario: BTTestScenario
@@ -184,4 +187,4 @@ class TestManagerConsentAtCommit:
         # A redelivered proposal: the policy now says no, the row stays.
         result = _run(bt_scenario, call_out=_declining_bundle())
         assert result.status == Status.SUCCESS
-        assert _managers_row(bt_scenario) == EmbargoConsentState.ACCEPTED
+        assert _managers_row(bt_scenario) == EmbargoConsentState.AGREED

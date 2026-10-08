@@ -376,6 +376,12 @@ class CreateInviteeParticipantNode(DataLayerActionWithPorts):
             context=self.case_id,
             case_roles=roles,
         )
+        # The record holds a row for every register entry from the moment it
+        # exists (ADR-0122): the consent nodes that follow sign it before
+        # PersistInviteeParticipantNode attaches it to the case.
+        participant.write_uninvited_rows(
+            entry.embargo_id for entry in case.embargo_register
+        )
         if roles:
             self.logger.info(
                 "%s: set case_roles %s on participant '%s' from invite"

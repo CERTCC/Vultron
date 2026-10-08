@@ -140,7 +140,7 @@ class _ActivationOperationsMixin(_PecActivationMixin):
         the owner's ``accept_embargo_invite`` does:
         a shorter-or-equal B carries every signatory over, and under a longer B
         the signatories who have not accepted it have lapsed by derivation
-        (CM-18-001).  Whoever holds an ``ACCEPTED`` row for B — its proposer,
+        (CM-18-001).  Whoever holds an ``AGREED`` row for B — its proposer,
         for one — is a signatory by lookup, with nothing to advance.  The
         carry-over runs in both modes, so a replica syncing an announced
         activation keeps its consent rows in step with the CASE_MANAGER.
@@ -175,7 +175,9 @@ class _ActivationOperationsMixin(_PecActivationMixin):
             activated_embargo_id=embargo_id,
         )
 
-        if not self._activate_entry(
+        if not self._owner_may_activate(
+            case, embargo_id, transition_mode=transition_mode
+        ) or not self._activate_entry(
             case,
             embargo_id,
             transition_mode=transition_mode,

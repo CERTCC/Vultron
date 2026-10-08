@@ -16,7 +16,7 @@ Goal tests planned under #2257.  Those still strict-``xfail`` name the issue
 that implements them (``_TRACKED_BY``); the removal itself (CM-31-001,
 CM-31-004 through CM-31-008) landed with #4080.  Every test starts from a
 CASE_MANAGER store holding a case with the CASE_MANAGER, a Case Owner, a
-joined vendor that is an ``ACCEPTED`` row for the active embargo, and a
+joined vendor that is an ``AGREED`` row for the active embargo, and a
 second joined vendor.
 
 - CM-31-001 — removal keeps the record and makes the participant inert.
@@ -51,7 +51,7 @@ from test.core.use_cases.received.actor.test_case_joining_planned import (
 from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
 )
-from test.support.embargo_register import activate
+from test.support.embargo_register import activate, write_consent_rows
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -192,7 +192,7 @@ def _participant_id(actor_id: str) -> str:
 def _record(
     actor_id: str,
     roles: list[CVDRole],
-    consent: EmbargoConsentState | None = EmbargoConsentState.ACCEPTED,
+    consent: EmbargoConsentState | None = EmbargoConsentState.AGREED,
     *,
     rm: RM | None = None,
 ) -> CaseParticipant:
@@ -245,6 +245,7 @@ def _seed(
     dl.create(embargo)
     activate(case, EMBARGO_ID)
     dl.create(case)
+    write_consent_rows(dl, case)
     return case
 
 
@@ -429,7 +430,7 @@ def test_removal_leaves_embargo_consent_untouched(removal_case) -> None:
     assert VENDOR in case.actor_participant_index
     participant = removal_case.participant(VENDOR)
     assert participant.is_signatory(EMBARGO_ID)
-    assert participant.consent_for(EMBARGO_ID) == EmbargoConsentState.ACCEPTED
+    assert participant.consent_for(EMBARGO_ID) == EmbargoConsentState.AGREED
 
 
 @pytest.mark.xfail(strict=True, reason=_planned("CM-31-009"))

@@ -15,7 +15,7 @@
 
 At case creation the PROPOSE and ACCEPT triggers are applied together and
 only ``EM.ACTIVE`` is persisted (EP-04-002).  The consent records, the owner's
-SIGNATORY seed and a contested creation's revision commit with it, so any
+signatory seed and a contested creation's revision commit with it, so any
 refusal or fault leaves the case at ``EM.NONE`` for a redelivered proposal to
 finish (EP-04-012, #4123, #4142).
 """
@@ -113,7 +113,9 @@ def test_none_to_active_in_one_commit(
     # EM.PROPOSED is never handed to the store (EP-04-002), and the owner's
     # consent goes in the same commit as the case (#4142).
     assert saved_states == [EM.ACTIVE]
-    assert commits == [[case.id_, owner_p.id_]]
+    assert [sorted(commit) for commit in commits] == [
+        sorted([case.id_, owner_p.id_])
+    ]
     assert (result.em_before, result.em_after) == (EM.NONE, EM.ACTIVE)
     stored = _stored_case(dl, case.id_)
     assert stored.current_status.em.state == EM.ACTIVE
@@ -125,11 +127,12 @@ def test_none_to_active_in_one_commit(
 def test_consent_matches_propose_then_activate(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """The proposer's row for the terms is ACCEPTED, so it is the signatory.
+    """The proposer's row for the terms is AGREED, so it is the signatory.
 
     Same effects as ``propose_embargo`` followed by ``activate_embargo``
     (ADR-0093, EP-05-001): a first activation needs no advance step, and a
-    participant that did not propose gets no row.
+    participant that did not propose keeps the UNINVITED row the proposal
+    wrote (ADR-0122).
     """
     owner, dl = owner_and_dl
     other = _make_actor(dl, "Finder")
@@ -142,9 +145,9 @@ def test_consent_matches_propose_then_activate(
         case_id=case.id_, embargo=embargo, actor_id=owner.id_
     )
 
-    assert _consents_of(dl, owner_p.id_) == {embargo.id_: "ACCEPTED"}
+    assert _consents_of(dl, owner_p.id_) == {embargo.id_: "AGREED"}
     assert _is_signatory(dl, case.id_, owner_p.id_)
-    assert _consents_of(dl, other_p.id_) == {}
+    assert _consents_of(dl, other_p.id_) == {embargo.id_: "UNINVITED"}
     assert not _is_signatory(dl, case.id_, other_p.id_)
 
 
@@ -168,7 +171,7 @@ def test_a_non_participant_proposer_still_has_the_owner_seeded(
     )
 
     assert _stored_case(dl, case.id_).active_embargo_id == embargo.id_
-    assert _consents_of(dl, owner_p.id_) == {embargo.id_: "ACCEPTED"}
+    assert _consents_of(dl, owner_p.id_) == {embargo.id_: "AGREED"}
     assert _is_signatory(dl, case.id_, owner_p.id_)
     assert [c.participant_id for c in result.participant_changes] == [
         owner_p.id_
@@ -180,17 +183,17 @@ def test_a_non_participant_proposer_still_has_the_owner_seeded(
 def test_an_owner_already_signatory_stays_signatory(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """Seeding is idempotent: no ``ACCEPT`` from ACCEPTED, no raise."""
+    """Seeding is idempotent: no ``AGREE`` from AGREED, no raise."""
     owner, dl = owner_and_dl
     case, (owner_p,) = _make_case(dl, owner.id_)
     embargo = _make_embargo(dl, case.id_)
-    _seed_consent(dl, owner_p.id_, embargo.id_, ECS.ACCEPTED)
+    _seed_consent(dl, owner_p.id_, embargo.id_, ECS.AGREED)
 
     EmbargoLifecycle(persistence=dl).initialize_creation_embargo(
         case_id=case.id_, embargo=embargo, actor_id=owner.id_
     )
 
-    assert _consents_of(dl, owner_p.id_) == {embargo.id_: "ACCEPTED"}
+    assert _consents_of(dl, owner_p.id_) == {embargo.id_: "AGREED"}
 
 
 @pytest.mark.spec("CM-14-003")
@@ -421,7 +424,7 @@ def test_a_failed_commit_writes_nothing_and_a_rerun_completes(
     )
 
     assert _stored_case(dl, case.id_).active_embargo_id == embargo.id_
-    assert _consents_of(dl, owner_p.id_) == {embargo.id_: "ACCEPTED"}
+    assert _consents_of(dl, owner_p.id_) == {embargo.id_: "AGREED"}
     assert _is_signatory(dl, case.id_, owner_p.id_)
 
 
@@ -484,8 +487,8 @@ def test_a_revision_is_stored_and_proposed_in_the_same_commit(
     # The owner both proposed the revision and is seeded on the active
     # terms: one record carries both through the commit (MSM-07-005).
     assert _consents_of(dl, owner_p.id_) == {
-        embargo.id_: "ACCEPTED",
-        revision.id_: "ACCEPTED",
+        embargo.id_: "AGREED",
+        revision.id_: "AGREED",
     }
     assert _is_signatory(dl, case.id_, owner_p.id_)
 
@@ -515,10 +518,16 @@ def test_the_revision_is_consented_to_by_its_proposer_not_the_executor(
         revision=_creation_revision(case.id_, revision, reporter_id),
     )
 
-    assert _consents_of(dl, reporter_p.id_) == {revision.id_: "ACCEPTED"}
-    # Proposing is not accepting the embargo in force (EP-05-002).
+    assert _consents_of(dl, reporter_p.id_) == {
+        embargo.id_: "UNINVITED",
+        revision.id_: "AGREED",
+    }
+    # Proposing is not agreeing to the embargo in force (EP-05-002).
     assert not _is_signatory(dl, case.id_, reporter_p.id_)
-    assert _consents_of(dl, owner_p.id_) == {embargo.id_: "ACCEPTED"}
+    assert _consents_of(dl, owner_p.id_) == {
+        embargo.id_: "AGREED",
+        revision.id_: "UNINVITED",
+    }
 
 
 @pytest.mark.spec("EP-04-003")

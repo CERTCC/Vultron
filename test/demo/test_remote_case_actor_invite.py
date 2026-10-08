@@ -231,7 +231,7 @@ def _seed_case(
         embargo_consents=[
             EmbargoConsent(
                 embargo_id=str(embargo.id_),
-                state=EmbargoConsentState.ACCEPTED,
+                state=EmbargoConsentState.AGREED,
             )
         ],
     )
@@ -245,7 +245,7 @@ def _seed_case(
         embargo_consents=[
             EmbargoConsent(
                 embargo_id=str(embargo.id_),
-                state=EmbargoConsentState.ACCEPTED,
+                state=EmbargoConsentState.AGREED,
             )
         ],
     )

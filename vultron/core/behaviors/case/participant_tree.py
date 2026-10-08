@@ -25,7 +25,7 @@ reserved for leaf ``Behaviour`` subclasses (BTND-07-003).
 Subtrees defined here:
 
 - ``SeedParticipantAsSignatoryIfEmbargoActiveNode`` — conditionally seeds a
-  new participant as SIGNATORY when an active embargo exists.
+  new participant as a signatory when an active embargo exists.
 - ``CreateCaseOwnerParticipant`` — creates and attaches the case-owner
   participant with optional RM advancement.
 - ``CreateCaseParticipantNode`` — creates and attaches a non-owner case

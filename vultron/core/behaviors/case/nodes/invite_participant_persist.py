@@ -126,8 +126,10 @@ class PersistInviteeParticipantNode(DataLayerActionWithPorts):
             )
             return Status.FAILURE
 
-        self.datalayer.create(participant)
+        # The record takes its UNINVITED consent rows from the register as it
+        # joins the roster, so it is stored after (ADR-0122).
         case.add_participant(participant)
+        self.datalayer.create(participant)
         self.datalayer.save(case)
         self.logger.info(
             "%s: participant '%s' persisted and attached to case '%s'"

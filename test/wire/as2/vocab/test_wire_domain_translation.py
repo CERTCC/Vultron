@@ -15,6 +15,8 @@
 
 """Wire/core translation tests for WIRE-TRANS-03 and WIRE-TRANS-04."""
 
+from datetime import UTC, datetime
+
 import pytest
 from pydantic import ValidationError
 
@@ -145,11 +147,12 @@ def test_case_participant_round_trips_between_core_and_wire():
         embargo_consents=[
             EmbargoConsent(
                 embargo_id="https://example.org/embargoes/1",
-                state=EmbargoConsentState.ACCEPTED,
+                state=EmbargoConsentState.AGREED,
             ),
             EmbargoConsent(
                 embargo_id="https://example.org/embargoes/2",
                 state=EmbargoConsentState.INVITED,
+                rsvp_deadline=datetime(2030, 1, 2, 3, 4, 5, tzinfo=UTC),
             ),
         ],
         participant_case_name="Vendor Case Name",
@@ -168,6 +171,10 @@ def test_case_participant_round_trips_between_core_and_wire():
     assert wire_dump["embargoConsents"][0]["embargoId"] == (
         "https://example.org/embargoes/1"
     )
+    # The invitation's RSVP deadline travels on its INVITED row (CM-28-013).
+    assert wire_dump["embargoConsents"][1]["rsvpDeadline"] == (
+        "2030-01-02T03:04:05Z"
+    )
     assert round_tripped.participant_statuses[0].rm.state == RM.ACCEPTED
 
 
@@ -185,6 +192,10 @@ def test_vulnerability_case_round_trips_between_core_and_wire():
         id_="https://example.org/cases/1/participants/vendor",
         attributed_to="https://example.org/actors/vendor",
         context="https://example.org/cases/1",
+    )
+    # A participant holds a row for every register entry (ADR-0122).
+    participant.write_uninvited_rows(
+        ["https://example.org/embargoes/1", "https://example.org/embargoes/2"]
     )
     core = VulnerabilityCase(
         id_="https://example.org/cases/1",

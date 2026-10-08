@@ -931,13 +931,11 @@ class TestWaitForParticipantEmbargoConsent:
             )
 
     def test_returns_when_consent_matches(self):
-        self._wait(EmbargoConsentState.ACCEPTED, EmbargoConsentState.ACCEPTED)
+        self._wait(EmbargoConsentState.AGREED, EmbargoConsentState.AGREED)
 
     def test_times_out_naming_the_current_consent(self):
         with pytest.raises(AssertionError, match=r"current=.*INVITED"):
-            self._wait(
-                EmbargoConsentState.INVITED, EmbargoConsentState.ACCEPTED
-            )
+            self._wait(EmbargoConsentState.INVITED, EmbargoConsentState.AGREED)
 
     def test_times_out_without_a_participant_record(self):
         with patch(
@@ -950,7 +948,7 @@ class TestWaitForParticipantEmbargoConsent:
                     CASE_ID,
                     ACTOR_A,
                     "urn:test-embargo",
-                    EmbargoConsentState.ACCEPTED,
+                    EmbargoConsentState.AGREED,
                     timeout_seconds=0.05,
                     poll_interval=0.01,
                 )
@@ -968,7 +966,7 @@ class TestWaitForParticipantEmbargoConsent:
                     CASE_ID,
                     ACTOR_A,
                     "urn:test-embargo",
-                    EmbargoConsentState.ACCEPTED,
+                    EmbargoConsentState.AGREED,
                     timeout_seconds=0.05,
                     poll_interval=0.01,
                 )
@@ -979,7 +977,7 @@ class TestWaitForParticipantEmbargoAccepted:
     def _wait(accepted: bool, embargo_id: str = "urn:revised"):
         participant = MagicMock()
         participant.consent_for.return_value = (
-            EmbargoConsentState.ACCEPTED
+            EmbargoConsentState.AGREED
             if accepted
             else EmbargoConsentState.INVITED
         )

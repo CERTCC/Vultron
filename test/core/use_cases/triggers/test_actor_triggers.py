@@ -30,7 +30,10 @@ from typing import Any, cast
 import pytest
 from pydantic import ValidationError
 
-from test.support.embargo_register import activate
+from test.support.embargo_register import (
+    activate,
+    write_consent_rows,
+)
 from test.support.received import archive_received
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -189,6 +192,7 @@ def _activate_embargo(dl: SqliteDataLayer, case_id: str) -> str:
     case = cast(Any, dl.read(case_id))
     activate(case, embargo.id_)
     dl.save(case)
+    write_consent_rows(dl, case)
     return embargo.id_
 
 

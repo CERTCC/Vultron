@@ -24,7 +24,11 @@ from typing import cast
 import pytest
 from py_trees.common import Status
 
-from test.support.embargo_register import activate, propose
+from test.support.embargo_register import (
+    activate,
+    propose,
+    write_consent_rows,
+)
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -38,7 +42,10 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.em import EM
-from vultron.core.states.embargo_register import TerminationReason
+from vultron.core.states.embargo_register import (
+    EmbargoRegisterStatus,
+    TerminationReason,
+)
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
     PEC_Trigger,
@@ -91,6 +98,7 @@ class _GateScenario:
                 stored.case_participants.append(participant_id)
         activate(stored, embargo.id_)
         self.dl.save(stored)
+        write_consent_rows(self.dl, stored)
         self.embargo = embargo
 
     def _invite_to(self, actor_id: str):
@@ -138,7 +146,7 @@ class _GateScenario:
         The case is in REVISE with the revision proposed, and *actor_id*'s
         participant lists the revision, so the CASE_MANAGER's receipt of the
         owner's ``Add(EmbargoEvent)`` admits it (CM-10-004). The revision ends
-        sooner than the active terms, so the signatories (ACCEPTED rows for the
+        sooner than the active terms, so the signatories (AGREED rows for the
         active terms) carry over by containment and stay admitted (EP-05-001).
         """
         revision = as_EmbargoEvent(
@@ -152,11 +160,16 @@ class _GateScenario:
         propose(stored, revision.id_)
         assert stored.em_state == EM.REVISE
         self.dl.save(stored)
+        write_consent_rows(self.dl, stored)
         participant = self.dl.read(
             f"{CASE_ID}/participants/{actor_id.rsplit('/', 1)[-1]}"
         )
         assert isinstance(participant, CaseParticipant)
-        participant.apply_pec_transition(revision.id_, PEC_Trigger.ACCEPT)
+        participant.apply_pec_transition(
+            revision.id_,
+            PEC_Trigger.AGREE,
+            entry_status=stored.embargo_register_status(revision.id_),
+        )
         self.dl.save(participant)
 
         activation = add_embargo_to_case_activity(
@@ -211,15 +224,16 @@ class _GateScenario:
             f"{CASE_ID}/participants/{actor_id.rsplit('/', 1)[-1]}"
         )
         assert isinstance(participant, CaseParticipant)
-        participant.apply_pec_transition_if_legal(
-            self.embargo.id_, PEC_Trigger.INVITE
+        # The invitation's deadline is on its INVITED row (CM-28-013).
+        participant.apply_pec_transition(
+            self.embargo.id_,
+            PEC_Trigger.INVITE,
+            entry_status=EmbargoRegisterStatus.ACTIVE,
+            rsvp_deadline=datetime.now(tz=UTC) - timedelta(days=1),
         )
         assert (
             participant.consent_for(self.embargo.id_)
             == EmbargoConsentState.INVITED
-        )
-        participant.invite_rsvp_deadline = datetime.now(tz=UTC) - timedelta(
-            days=1
         )
         self.dl.save(participant)
 

@@ -27,7 +27,7 @@ The expiry tree uses the canonical guard → commit → effect pattern
        ├─ Inverter(InviteExpiryNeedsApplyNode)   # nothing to commit
        └─ CommitAndApplyExpiry (Sequence)
           ├─ CommitLogEntryBT          # commit INVITE_EXPIRED_EVENT_TYPE entry
-          └─ RecordInviteExpiryNode    # EFFECT: apply INVITED → EXPIRED
+          └─ RecordInviteExpiryNode    # EFFECT: apply INVITED → TIMED_OUT
 
 A failed commit leaves the invitee unchanged; ``RecordInviteExpiryNode`` only
 runs after a successful commit.
@@ -44,7 +44,7 @@ effect::
     HonourLateAcceptBT (CASE_MANAGER-gated Sequence)
     └─ HonourLateAccept (Sequence)
        ├─ CommitLogEntryBT             # commit HONOUR_LATE_ACCEPT_EVENT_TYPE
-       └─ HonourLateAcceptNode         # EFFECT: apply EXPIRED/DECLINED → ACCEPTED
+       └─ HonourLateAcceptNode         # EFFECT: apply TIMED_OUT/DECLINED → AGREED
 
 The re-invite of a stale accepter (EMB-17-003) is a CASE_MANAGER-gated commit →
 effect node of the relay's frame::
@@ -133,7 +133,7 @@ def honour_late_accept_payload_snapshot(
     """Snapshot for the honour-late-accept entry (EMB-17-001, ADR-0118).
 
     Attributed to *accepting_actor_id*, so replicas can extract who became
-    SIGNATORY from the entry's ``actor`` field.
+    agreed from the entry's ``actor`` field.
     """
     return {
         "type": HONOUR_LATE_ACCEPT_SNAPSHOT_TYPE,
@@ -165,7 +165,8 @@ def create_invite_expiry_tree(
     reads the deadline **without writing**, the commit node persists the
     ledger entry, and only then
     :class:`~vultron.core.behaviors.embargo.nodes.expiry.RecordInviteExpiryNode`
-    applies ``INVITED → EXPIRED``.  A failed commit therefore leaves the
+    applies ``INVITED → TIMED_OUT`` to the invitation's row.  A failed commit
+    therefore leaves the
     invitee unchanged.
 
     Args:
@@ -197,6 +198,7 @@ def create_invite_expiry_tree(
             RecordInviteExpiryNode(
                 case_id=case_id,
                 invitee_id=invitee_id,
+                embargo_id=embargo_id,
             ),
         ],
     )
@@ -218,6 +220,7 @@ def create_invite_expiry_tree(
             EvaluateInviteExpiryNode(
                 case_id=case_id,
                 invitee_id=invitee_id,
+                embargo_id=embargo_id,
                 now=now,
                 result_out=result_out,
             ),
@@ -241,7 +244,7 @@ def create_honour_late_accept_tree(
     the commit node persists the :data:`HONOUR_LATE_ACCEPT_EVENT_TYPE` entry,
     and only then
     :class:`~vultron.core.behaviors.embargo.nodes.expiry.HonourLateAcceptNode`
-    applies ``EXPIRED → ACCEPTED`` (or ``DECLINED → INVITED → ACCEPTED``).
+    applies ``TIMED_OUT → AGREED`` (or ``DECLINED → INVITED → AGREED``).
 
     Replicas learn the honour decision via
     :class:`~vultron.core.behaviors.embargo.nodes.expiry.ApplyHonourLateAcceptFromLedgerNode`

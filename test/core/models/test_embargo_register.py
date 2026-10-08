@@ -29,6 +29,7 @@ from vultron.core.models.embargo_register import (
     RegisterChange,
     apply_register_step,
     carry_embargo_inline,
+    register_step_is_legal,
 )
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import (
@@ -198,6 +199,18 @@ def test_refused_step_raises(case: str) -> None:
     with pytest.raises(VultronInvalidStateTransitionError) as excinfo:
         apply_register_step(before, changes)
     assert rule in str(excinfo.value)
+
+
+@pytest.mark.parametrize("case", list(REFUSED), ids=list(REFUSED))
+def test_legality_check_agrees_with_the_refusal(case: str) -> None:
+    before, changes, _ = REFUSED[case]
+    assert register_step_is_legal(before, changes) is False
+
+
+def test_legality_check_accepts_a_legal_step_and_writes_nothing() -> None:
+    before = [_entry(A, S.PROPOSED)]
+    assert register_step_is_legal(before, [_change(A, T.REJECT)]) is True
+    assert before == [_entry(A, S.PROPOSED)]
 
 
 def test_threat_cancel_is_refused_while_an_embargo_is_active() -> None:

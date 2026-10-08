@@ -16,7 +16,7 @@
 
 """Embargo-consent seeding leaf node for the CaseProposal received tree.
 
-Seeds the reporter (CM-14-005) as embargo SIGNATORY on the case's default
+Seeds the reporter (CM-14-005) as an embargo signatory on the case's default
 active embargo. Composed by ``create_case_proposal_received_tree``
 (BTND-07-003).
 
@@ -47,13 +47,13 @@ def _seed_participant_as_signatory(
     log_label: str,
     spec_ref: str,
 ) -> None:
-    """Seed *participant* as embargo SIGNATORY on *stored_case*'s active embargo.
+    """Seed *participant* as an embargo signatory on *stored_case*'s active embargo.
 
     Used by ``SeedReporterSignatoryNode`` (CM-14-005). Uses
-    :meth:`CaseParticipant.sign_embargo` — ``ACCEPT`` on the participant's
+    :meth:`CaseParticipant.sign_embargo` — ``AGREE`` on the participant's
     row for the embargo through the authoritative consent-write path
     (CM-18-005, ADR-0048) where CM-18-003 allows it — so a retry against an
-    ``ACCEPTED`` row changes nothing, and a participant that declined the
+    ``AGREED`` row changes nothing, and a participant that declined the
     embargo is not signed (ADR-0118).  With no embargo in force there is
     nothing to sign and nothing is written (ADR-0122).
     """
@@ -65,7 +65,7 @@ def _seed_participant_as_signatory(
     participant.sign_embargo(embargo_id)
     datalayer.save(participant)
     logger.info(
-        "Seeded %s as embargo SIGNATORY in case '%s' (%s)",
+        "Seeded %s as an embargo signatory in case '%s' (%s)",
         log_label,
         stored_case.id_,
         spec_ref,
@@ -73,10 +73,10 @@ def _seed_participant_as_signatory(
 
 
 class SeedReporterSignatoryNode(DataLayerActionWithPorts):
-    """Seed the reporter participant as embargo SIGNATORY (CM-14-005).
+    """Seed the reporter participant as an embargo signatory (CM-14-005).
 
     CM-14-005 requires: "When the reporter is added as a participant during
-    case initialization, they MUST be seeded as SIGNATORY on any active
+    case initialization, they MUST be seeded as a signatory on any active
     embargo."  The reporter's consent is *implicit* in submitting the report
     (ADR-0048) — no invitation round-trip is needed.
 
@@ -85,7 +85,7 @@ class SeedReporterSignatoryNode(DataLayerActionWithPorts):
     participant record exists).  It resolves the reporter URI from the report
     in the DataLayer, looks up the participant, and calls
     ``participant.sign_embargo`` via the shared helper, so the participant's
-    row for the active embargo is marked ``ACCEPTED`` through the one
+    row for the active embargo is marked ``AGREED`` through the one
     consent-write path (CM-18-005, CM-18-006, ADR-0048).
 
     Best-effort: if the report, reporter URI, or participant cannot be
@@ -127,7 +127,7 @@ class SeedReporterSignatoryNode(DataLayerActionWithPorts):
         except VultronNotFoundError:
             logger.warning(
                 "%s: report '%s' not found, so the reporter cannot be"
-                " identified — skipping reporter SIGNATORY seed"
+                " identified — skipping reporter signatory seed"
                 " (best-effort). The report is written by"
                 " StoreProposalReportNode from the copy the proposal carries"
                 " inline (CP-01-004); if that node logged nothing, the"
@@ -138,7 +138,7 @@ class SeedReporterSignatoryNode(DataLayerActionWithPorts):
         except BtNodePreconditionError:
             logger.warning(
                 "%s: report '%s' has no attributed_to — skipping reporter"
-                " SIGNATORY seed (best-effort)",
+                " signatory seed (best-effort)",
                 self.name,
                 report_id,
             )
@@ -149,13 +149,13 @@ class SeedReporterSignatoryNode(DataLayerActionWithPorts):
     ) -> tuple[VulnerabilityCase | None, CaseParticipant | None]:
         """Return (case, participant) for *reporter_uri*, or (None, None) on miss."""
         assert self.datalayer is not None
-        # Regime 2 / best-effort seed (ADR-0087): reporter SIGNATORY seeding is
+        # Regime 2 / best-effort seed (ADR-0087): reporter signatory seeding is
         # optional enrichment; an absent/forming case is skipped, not failed
         # (conformance allowlist).
         stored_case = self.datalayer.read_case(case_id, raise_on_missing=False)
         if stored_case is None:
             logger.warning(
-                "%s: case '%s' not found — cannot seed reporter SIGNATORY"
+                "%s: case '%s' not found — cannot seed reporter signatory"
                 " (best-effort)",
                 self.name,
                 case_id,
@@ -173,7 +173,7 @@ class SeedReporterSignatoryNode(DataLayerActionWithPorts):
         if not participant_id:
             logger.warning(
                 "%s: reporter '%s' has no participant in case '%s' —"
-                " cannot seed SIGNATORY (best-effort)",
+                " cannot seed signatory (best-effort)",
                 self.name,
                 reporter_uri,
                 case_id,
@@ -185,7 +185,7 @@ class SeedReporterSignatoryNode(DataLayerActionWithPorts):
         if not isinstance(participant, CaseParticipant):
             logger.warning(
                 "%s: reporter participant '%s' not found in case '%s' —"
-                " cannot seed SIGNATORY (best-effort)",
+                " cannot seed signatory (best-effort)",
                 self.name,
                 participant_id,
                 case_id,
@@ -200,7 +200,7 @@ class SeedReporterSignatoryNode(DataLayerActionWithPorts):
 
         if self._report_id is None:
             logger.debug(
-                "%s: no report_id — skipping reporter SIGNATORY seed",
+                "%s: no report_id — skipping reporter signatory seed",
                 self.name,
             )
             return Status.SUCCESS

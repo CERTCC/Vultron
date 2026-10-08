@@ -23,7 +23,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_owner_participant,
     seed_store_owner_as_case_manager,
 )
-from test.support.embargo_register import propose
+from test.support.embargo_register import propose, write_consent_rows
 from vultron.adapters.driven.db_record import StorableRecord
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -353,7 +353,7 @@ class TestEmbargoProposalLifecycle:
     def test_accept_invite_to_embargo_records_embargo_on_participant(
         self, monkeypatch, make_payload
     ):
-        """accept_invite_to_embargo_on_case records an ACCEPTED consent row for the embargo (CM-10-002, CM-10-003)."""
+        """accept_invite_to_embargo_on_case records an AGREED consent row for the embargo (CM-10-002, CM-10-003)."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.models.case_participant import CaseParticipant
         from vultron.wire.as2.vocab.objects.embargo_event import (
@@ -414,7 +414,7 @@ class TestEmbargoProposalLifecycle:
         updated_participant = dl.get(id_=participant.id_)
         assert updated_participant is not None
         updated_participant = cast(Any, updated_participant)
-        assert updated_participant.consent_for(embargo.id_) == "ACCEPTED"
+        assert updated_participant.consent_for(embargo.id_) == "AGREED"
 
     def test_accept_invite_to_embargo_records_case_event(
         self, monkeypatch, make_payload
@@ -847,8 +847,9 @@ class TestInviteToEmbargoReceivedPxaGuard:
             context=case_id,
             case_roles=[CVDRole.CASE_MANAGER],
         )
+        # On the roster (CM-19-001), so the proposal writes its row (ADR-0122).
+        case.add_participant(cm_p)
         dl.create(cm_p)
-        case.actor_participant_index[coordinator_id] = cm_p.id_
         dl.save(case)
         embargo = as_EmbargoEvent(
             id_=f"{case_id}/embargo_events/e1",
@@ -987,6 +988,7 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
         propose(case, embargo.id_)
         dl.create(case)
         dl.create(embargo)
+        write_consent_rows(dl, case)
         proposal = em_propose_embargo_activity(
             embargo,
             context=case.id_,

@@ -50,7 +50,7 @@ from vultron.core.states.embargo_register import (
     derive_em,
     register_invariant_violations,
 )
-from vultron.errors import VultronValidationError
+from vultron.errors import VultronNotFoundError, VultronValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -321,6 +321,34 @@ class VulnerabilityCase(CoreObject):
         return self
 
     @model_validator(mode="after")
+    def _inline_participants_hold_every_row(self) -> VulnerabilityCase:
+        """Refuse an inline participant missing a row for a register entry.
+
+        Every participant holds one consent row per register entry (ADR-0122),
+        and the content gate reads them; a received case that breaks this is
+        refused here, at the edge, rather than faulting later when
+        ``active_participants`` reads a row that is not there.  A bare
+        participant reference carries no rows to check.
+        """
+        embargo_ids = [entry.embargo_id for entry in self.embargo_register]
+        problems: list[str] = []
+        for participant in self.case_participants:
+            if not isinstance(participant, CaseParticipant):
+                continue
+            held = {row.embargo_id for row in participant.embargo_consents}
+            missing = [i for i in embargo_ids if i not in held]
+            if missing:
+                problems.append(
+                    f"participant '{participant.id_}' has no consent row for"
+                    f" {missing}"
+                )
+        if problems:
+            raise ValueError(
+                f"VulnerabilityCase '{self.id_}': " + "; ".join(problems)
+            )
+        return self
+
+    @model_validator(mode="after")
     def _stamp_em_at_construction(self) -> VulnerabilityCase:
         """Stamp the register's EM onto the current status a case arrives with.
 
@@ -349,12 +377,20 @@ class VulnerabilityCase(CoreObject):
 
         The participant's ``attributed_to`` actor URI is recorded in
         ``actor_participant_index`` so callers can quickly look up a
-        participant by actor ID.
+        participant by actor ID.  The participant also gets an
+        ``UNINVITED`` consent row for every entry already in the embargo
+        register (ADR-0122), so it holds a row for each embargo the case has
+        ever had; rows it already holds are kept.  This writes to
+        *participant* too, so the caller persists both records — the
+        participant after this call.
 
         Args:
             participant: A full :class:`CaseParticipant` object (full object
                 required to update the index).
         """
+        participant.write_uninvited_rows(
+            entry.embargo_id for entry in self.embargo_register
+        )
         participant_id = participant.id_
         existing_ids = {
             p.id_ if isinstance(p, CaseParticipant) else str(p)
@@ -553,6 +589,22 @@ class VulnerabilityCase(CoreObject):
             None,
         )
 
+    def embargo_register_status(
+        self, embargo_id: str
+    ) -> EmbargoRegisterStatus:
+        """The register status of *embargo_id*, the input every consent write needs.
+
+        Raises:
+            VultronNotFoundError: the register has no entry for *embargo_id*;
+                a consent row exists only for a register entry (ADR-0122).
+        """
+        entry = self.embargo_register_entry(embargo_id)
+        if entry is None:
+            raise VultronNotFoundError(
+                "EmbargoRegisterEntry", f"{embargo_id} on case {self.id_}"
+            )
+        return entry.status
+
     @property
     def em_state(self) -> EM:
         """The case's EM state, derived from its embargo register (ADR-0122)."""
@@ -643,7 +695,7 @@ class VulnerabilityCase(CoreObject):
            sequence or accepted its stub Invite (``participant.joined``);
         2. it has not been removed (``participant.removed``, CM-31-001);
         3. when this case has an active embargo (:attr:`embargo_in_force`),
-           its consent row for the active embargo is ``ACCEPTED``
+           its consent row for the active embargo is ``AGREED``
            (:meth:`CaseParticipant.is_signatory`, CM-18-001).
 
         Every other participant is **inert**.  A removed participant is inert

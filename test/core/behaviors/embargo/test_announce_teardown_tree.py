@@ -177,7 +177,7 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
         for participant_id in updated.actor_participant_index.values():
             participant = cast(CaseParticipant, dl.read(participant_id))
             assert participant.consent_for(embargo_id) is (
-                EmbargoConsentState.ACCEPTED
+                EmbargoConsentState.AGREED
             )
             assert not participant.is_signatory(updated.active_embargo_id)
 

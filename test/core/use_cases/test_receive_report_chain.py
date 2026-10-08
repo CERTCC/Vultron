@@ -17,7 +17,7 @@ from typing import cast
 
 import pytest
 
-from test.support.embargo_register import activate
+from test.support.embargo_register import activate, write_consent_rows
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -148,6 +148,7 @@ def _build_case(
     dl.create(vendor_p)
     dl.create(finder_p)
     dl.create(case_manager_p)
+    write_consent_rows(dl, case)
     return case
 
 

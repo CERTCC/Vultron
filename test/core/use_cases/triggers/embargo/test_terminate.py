@@ -6,7 +6,10 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
-from test.support.embargo_register import propose
+from test.support.embargo_register import (
+    propose,
+    write_consent_rows,
+)
 from test.support.ledger import committed_event_types
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -145,6 +148,7 @@ def test_terminate_embargo_forgets_every_open_revision_via_bt_path(
         revision_b: f"{case.id_}/embargo_proposals/b",
     }
     owner_dl.save(case_obj)
+    write_consent_rows(owner_dl, case_obj)
 
     SvcTerminateEmbargoUseCase(
         owner_dl,

@@ -301,7 +301,7 @@ class StoreProposalReportNode(DataLayerAction):
             return
         logger.warning(
             "%s: the inline report '%s' has no attributed_to, so the"
-            " reporter participant, its ledger entry and the SIGNATORY"
+            " reporter participant, its ledger entry and the signatory"
             " seed cannot be derived from it (CP-01-004 requires a report"
             " attributed to its reporter)",
             self.name,

@@ -77,12 +77,15 @@ def _participant(
     signatory: bool = False,
 ) -> CaseParticipant:
     """A roster record: a row for the relayed embargo (*consent*, ``None`` for
-    no row) and, for a *signatory*, an ACCEPTED row for the embargo in force."""
+    no answer) and, for a *signatory*, an AGREED row for the embargo in force.
+
+    Every other register entry gets its ``UNINVITED`` row from
+    :func:`_seed_case` (ADR-0122)."""
     rows = [
         EmbargoConsent(embargo_id=embargo_id, state=state)
         for embargo_id, state in (
             (EMBARGO_ID, consent),
-            (ACTIVE_ID, EmbargoConsentState.ACCEPTED if signatory else None),
+            (ACTIVE_ID, EmbargoConsentState.AGREED if signatory else None),
         )
         if state is not None
     ]
@@ -103,13 +106,15 @@ def _seed_case(
     em_state: EM = EM.ACTIVE,
     participants: dict[str, EmbargoConsentState | None] | None = None,
     signatories: tuple[str, ...] = (),
+    relayed: bool = False,
 ) -> VulnerabilityCase:
     """A case at *em_state* with the manager, the proposer and *participants*.
 
     *participants* maps an actor to its consent row for the relayed embargo
-    (``None`` for no row); *signatories* also hold an ACCEPTED row for the
+    (``None`` for ``UNINVITED``); *signatories* also hold an AGREED row for the
     embargo in force, ``ACTIVE_ID`` (so they need EM ``ACTIVE`` or
-    ``REVISE``).
+    ``REVISE``).  With *relayed* the relayed embargo is an open proposal, as
+    it is once its proposal is recorded and the relay runs (EP-09-002).
     """
     roster: dict[str, EmbargoConsentState | None] = {
         MANAGER: None,
@@ -138,8 +143,15 @@ def _seed_case(
     if signatories and em_state not in (EM.ACTIVE, EM.REVISE):
         raise ValueError("signatories need an embargo in force")
     _drive_register_to(case, em_state)
+    if relayed:
+        propose(case, EMBARGO_ID)
     if case.embargo_register:
         scenario.seed(active)
+    for record in records:
+        # The rows the proposals wrote (ADR-0122).
+        record.write_uninvited_rows(
+            e.embargo_id for e in case.embargo_register
+        )
     scenario.seed(*records, case, embargo)
     return case
 
@@ -165,7 +177,7 @@ def _drive_register_to(case: VulnerabilityCase, em_state: EM) -> None:
 
 def _consent(
     scenario: BTTestScenario, actor_id: str, embargo_id: str = EMBARGO_ID
-) -> EmbargoConsentState | None:
+) -> EmbargoConsentState:
     case = cast(VulnerabilityCase, scenario.dl.read(CASE_ID))
     participant = scenario.dl.read(case.actor_participant_index[actor_id])
     assert isinstance(participant, CaseParticipant)
@@ -289,7 +301,10 @@ class TestCollectEmbargoInviteRecipientsNode:
                 OTHER_B: EmbargoConsentState.INVITED,
             },
         )
-        unjoined = _participant(OTHER_A).model_copy(update={"joined": False})
+        unjoined = cast(
+            CaseParticipant,
+            bt_scenario.dl.read(case.actor_participant_index[OTHER_A]),
+        ).model_copy(update={"joined": False})
         closed = CaseParticipant(
             id_=f"{CASE_ID}/participants/relay-closed",
             attributed_to=closed_actor,
@@ -303,8 +318,8 @@ class TestCollectEmbargoInviteRecipientsNode:
             ],
         )
         bt_scenario.dl.save(unjoined)
-        bt_scenario.dl.save(closed)
         case.add_participant(closed)
+        bt_scenario.dl.save(closed)
         bt_scenario.dl.save(case)
 
         result = bt_scenario.run(
@@ -366,7 +381,7 @@ class TestRelayEmbargoInviteToEachNode:
         case = cast(VulnerabilityCase, scenario.dl.read(CASE_ID))
         record = scenario.dl.read(case.actor_participant_index[actor_id])
         assert isinstance(record, CaseParticipant)
-        return record.invite_rsvp_deadline
+        return record.rsvp_deadline_for(EMBARGO_ID)
 
     @pytest.mark.executes_as(MANAGER)
     @pytest.mark.spec("CM-28-012")
@@ -377,6 +392,7 @@ class TestRelayEmbargoInviteToEachNode:
         """``endTime`` = ``published`` + the window, recorded as emitted."""
         _seed_case(
             bt_scenario,
+            relayed=True,
             participants={OTHER_A: None, OTHER_B: None},
             signatories=(OTHER_B,),
         )
@@ -397,7 +413,7 @@ class TestRelayEmbargoInviteToEachNode:
     def test_the_configured_window_sets_the_deadline(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        _seed_case(bt_scenario, participants={OTHER_A: None})
+        _seed_case(bt_scenario, relayed=True, participants={OTHER_A: None})
         result = self._relay(
             bt_scenario,
             [OTHER_A],
@@ -415,7 +431,7 @@ class TestRelayEmbargoInviteToEachNode:
         self, bt_scenario: BTTestScenario
     ) -> None:
         """A window longer than the embargo is capped at the embargo's end."""
-        _seed_case(bt_scenario, participants={OTHER_A: None})
+        _seed_case(bt_scenario, relayed=True, participants={OTHER_A: None})
         result = self._relay(
             bt_scenario,
             [OTHER_A],
@@ -433,7 +449,7 @@ class TestRelayEmbargoInviteToEachNode:
         self, bt_scenario: BTTestScenario
     ) -> None:
         """A replica records the deadline from the entry, so it must be there."""
-        _seed_case(bt_scenario, participants={OTHER_A: None})
+        _seed_case(bt_scenario, relayed=True, participants={OTHER_A: None})
         result = self._relay(bt_scenario, [OTHER_A])
         bt_scenario.assert_success(result)
         (invite,) = _queued_invites(bt_scenario)
@@ -457,6 +473,7 @@ class TestRelayEmbargoInviteToEachNode:
     ) -> None:
         _seed_case(
             bt_scenario,
+            relayed=True,
             participants={OTHER_A: None, OTHER_B: None},
         )
         result = self._relay(bt_scenario, [OTHER_A, OTHER_B])
@@ -475,6 +492,7 @@ class TestRelayEmbargoInviteToEachNode:
     ) -> None:
         _seed_case(
             bt_scenario,
+            relayed=True,
             participants={OTHER_A: None, OTHER_B: None},
         )
         result = self._relay(bt_scenario, [OTHER_A, OTHER_B])
@@ -491,6 +509,7 @@ class TestRelayEmbargoInviteToEachNode:
     ) -> None:
         _seed_case(
             bt_scenario,
+            relayed=True,
             participants={OTHER_A: None, OTHER_B: None},
             signatories=(OTHER_B,),
         )
@@ -501,7 +520,7 @@ class TestRelayEmbargoInviteToEachNode:
         # the embargo in force (EP-09-004).
         assert _consent(bt_scenario, OTHER_B) is EmbargoConsentState.INVITED
         assert _consent(bt_scenario, OTHER_B, ACTIVE_ID) is (
-            EmbargoConsentState.ACCEPTED
+            EmbargoConsentState.AGREED
         )
         # Both were still asked: consent state is not what decides the relay.
         assert len(_queued_invites(bt_scenario)) == 2
@@ -509,12 +528,12 @@ class TestRelayEmbargoInviteToEachNode:
     @pytest.mark.executes_as(MANAGER)
     @pytest.mark.spec("CM-18-003")
     @pytest.mark.parametrize(
-        "prior", [EmbargoConsentState.EXPIRED, EmbargoConsentState.DECLINED]
+        "prior", [EmbargoConsentState.TIMED_OUT, EmbargoConsentState.DECLINED]
     )
     def test_invite_re_invites_expired_and_declined(
         self, bt_scenario: BTTestScenario, prior: EmbargoConsentState
     ) -> None:
-        _seed_case(bt_scenario, participants={OTHER_A: prior})
+        _seed_case(bt_scenario, relayed=True, participants={OTHER_A: prior})
         result = self._relay(bt_scenario, [OTHER_A])
         bt_scenario.assert_success(result)
         assert _consent(bt_scenario, OTHER_A) is EmbargoConsentState.INVITED
@@ -523,7 +542,7 @@ class TestRelayEmbargoInviteToEachNode:
     def test_no_recipients_is_a_successful_no_op(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        _seed_case(bt_scenario)
+        _seed_case(bt_scenario, relayed=True)
         result = self._relay(bt_scenario, [])
         bt_scenario.assert_success(result)
         assert _queued_invites(bt_scenario) == []
@@ -535,7 +554,7 @@ class TestRelayEmbargoInviteToEachNode:
         self, bt_scenario: BTTestScenario
     ) -> None:
         """Not a refusal: the node catches nothing, so the bridge classifies it."""
-        _seed_case(bt_scenario, participants={OTHER_A: None})
+        _seed_case(bt_scenario, relayed=True, participants={OTHER_A: None})
         factory = MagicMock()
         factory.propose_embargo.side_effect = RuntimeError("factory down")
         result = bt_scenario.run(
@@ -549,7 +568,7 @@ class TestRelayEmbargoInviteToEachNode:
         assert result.internal_error is True
         assert "factory down" in result.feedback_message
         assert bt_scenario.dl.outbox_list() == []
-        assert _consent(bt_scenario, OTHER_A) is None
+        assert _consent(bt_scenario, OTHER_A) is EmbargoConsentState.UNINVITED
 
     @pytest.mark.executes_as(MANAGER)
     @pytest.mark.spec("BT-14-001")
@@ -557,7 +576,7 @@ class TestRelayEmbargoInviteToEachNode:
         self, bt_scenario: BTTestScenario
     ) -> None:
         """The roster named it, so its absence is a fault, not a lenient skip."""
-        _seed_case(bt_scenario)
+        _seed_case(bt_scenario, relayed=True)
         stranger = "https://example.org/actors/relay-stranger"
         result = self._relay(bt_scenario, [stranger])
         assert result.status == Status.FAILURE
@@ -570,7 +589,7 @@ class TestRelayEmbargoInviteToEachNode:
         self, bt_scenario: BTTestScenario
     ) -> None:
         """The stamp's missing embargo is the manager's fault, never REFUSED."""
-        _seed_case(bt_scenario, participants={OTHER_A: None})
+        _seed_case(bt_scenario, relayed=True, participants={OTHER_A: None})
         missing = f"{CASE_ID}/embargoes/relay-missing"
         result = bt_scenario.run(
             RelayEmbargoInviteToEachNode(
@@ -582,7 +601,7 @@ class TestRelayEmbargoInviteToEachNode:
         assert result.internal_error is True
         assert missing in result.feedback_message
         assert bt_scenario.dl.outbox_list() == []
-        assert _consent(bt_scenario, OTHER_A) is None
+        assert _consent(bt_scenario, OTHER_A) is EmbargoConsentState.UNINVITED
 
 
 class TestEmbargoProposalNotYetRecordedNode:

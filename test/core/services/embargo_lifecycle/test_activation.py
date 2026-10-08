@@ -24,7 +24,11 @@ from typing import cast
 
 import pytest
 
-from test.support.embargo_register import activate, propose
+from test.support.embargo_register import (
+    activate,
+    propose,
+    write_consent_rows,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.services.embargo_lifecycle import (
@@ -79,6 +83,7 @@ def test_activate_embargo_prunes_the_proposal_from_both_records(
         other.id_: f"{case.id_}/embargo_proposals/2",
     }
     dl.save(case)
+    write_consent_rows(dl, case)
 
     result = EmbargoLifecycle(persistence=dl).activate_embargo(
         case_id=case.id_, embargo_id=embargo.id_, actor_id=owner.id_
@@ -116,7 +121,7 @@ def test_terminate_active_embargo_strict_active_to_exited(
     embargo = _make_embargo(dl, case.id_)
     activate(case, embargo.id_)
     dl.save(case)
-    _seed_consent(dl, owner_participant_id, embargo.id_, ECS.ACCEPTED)
+    _seed_consent(dl, owner_participant_id, embargo.id_, ECS.AGREED)
     _seed_consent(dl, finder_participant_id, embargo.id_, ECS.INVITED)
     assert _is_signatory(dl, case.id_, owner_participant_id)
 
@@ -130,7 +135,7 @@ def test_terminate_active_embargo_strict_active_to_exited(
     assert result.em_before == EM.ACTIVE
     assert result.em_after == EM.EXITED
     assert result.participant_changes == []
-    assert _consents_of(dl, owner_participant_id) == {embargo.id_: "ACCEPTED"}
+    assert _consents_of(dl, owner_participant_id) == {embargo.id_: "AGREED"}
     assert _consents_of(dl, finder_participant_id) == {embargo.id_: "INVITED"}
     for pid in (owner_participant_id, finder_participant_id):
         assert not _is_signatory(dl, case.id_, pid)
@@ -305,7 +310,7 @@ def test_activate_embargo_replacing_a_longer_one_carries_signatories_over(
     """``activate_embargo`` runs the containment carry-over (shorter arm).
 
     A B ending before A asks nothing new of a signatory to A, so both the
-    owner and the silent signatory gain ACCEPTED(B); each change is reported.
+    owner and the silent signatory gain AGREED(B); each change is reported.
     """
     owner, dl = owner_and_dl
     signer = _make_actor(dl, "Signer")
@@ -317,8 +322,9 @@ def test_activate_embargo_replacing_a_longer_one_carries_signatories_over(
     activate(case, active.id_)
     propose(case, revision.id_)
     dl.save(case)
-    _seed_consent(dl, owner_p.id_, active.id_, ECS.ACCEPTED)
-    _seed_consent(dl, signer_p.id_, active.id_, ECS.ACCEPTED)
+    write_consent_rows(dl, case)
+    _seed_consent(dl, owner_p.id_, active.id_, ECS.AGREED)
+    _seed_consent(dl, signer_p.id_, active.id_, ECS.AGREED)
 
     result = EmbargoLifecycle(persistence=dl).activate_embargo(
         case_id=case.id_, embargo_id=revision.id_, actor_id=owner.id_
@@ -329,13 +335,13 @@ def test_activate_embargo_replacing_a_longer_one_carries_signatories_over(
         (c.participant_id, c.embargo_id, c.consent_before, c.consent_after)
         for c in result.participant_changes
     } == {
-        (pid, revision.id_, None, "ACCEPTED")
+        (pid, revision.id_, "UNINVITED", "AGREED")
         for pid in (owner_p.id_, signer_p.id_)
     }
     for pid in (owner_p.id_, signer_p.id_):
         assert _consents_of(dl, pid) == {
-            active.id_: "ACCEPTED",
-            revision.id_: "ACCEPTED",
+            active.id_: "AGREED",
+            revision.id_: "AGREED",
         }
         assert _is_signatory(dl, case.id_, pid)
 
@@ -348,9 +354,9 @@ def test_activate_embargo_replacing_a_shorter_one_lapses_non_acceptors(
 ) -> None:
     """Longer arm, OBSERVED (a replica syncing an Add): nothing is written.
 
-    The owner already holds ACCEPTED(B), so no row changes at all.  The
-    signatory that never accepted B is no longer a signatory and
-    ``has_lapsed`` holds by derivation; the early acceptor stays bound.
+    The owner already holds AGREED(B), so no row changes at all.  The
+    signatory that never agreed to B is no longer a signatory and
+    ``has_lapsed`` holds by derivation; the early agreer stays bound.
     """
     owner, dl = owner_and_dl
     signer = _make_actor(dl, "Signer")
@@ -365,10 +371,11 @@ def test_activate_embargo_replacing_a_shorter_one_lapses_non_acceptors(
     activate(case, active.id_)
     propose(case, revision.id_)
     dl.save(case)
+    write_consent_rows(dl, case)
     for p in (owner_p, signer_p, acceptor_p):
-        _seed_consent(dl, p.id_, active.id_, ECS.ACCEPTED)
-    _seed_consent(dl, owner_p.id_, revision.id_, ECS.ACCEPTED)
-    _seed_consent(dl, acceptor_p.id_, revision.id_, ECS.ACCEPTED)
+        _seed_consent(dl, p.id_, active.id_, ECS.AGREED)
+    _seed_consent(dl, owner_p.id_, revision.id_, ECS.AGREED)
+    _seed_consent(dl, acceptor_p.id_, revision.id_, ECS.AGREED)
 
     result = EmbargoLifecycle(persistence=dl).activate_embargo(
         case_id=case.id_,
@@ -379,7 +386,10 @@ def test_activate_embargo_replacing_a_shorter_one_lapses_non_acceptors(
 
     assert result.em_after == EM.ACTIVE
     assert result.participant_changes == []
-    assert _consents_of(dl, signer_p.id_) == {active.id_: "ACCEPTED"}
+    assert _consents_of(dl, signer_p.id_) == {
+        active.id_: "AGREED",
+        revision.id_: "UNINVITED",
+    }
     assert _is_signatory(dl, case.id_, owner_p.id_)
     assert _is_signatory(dl, case.id_, acceptor_p.id_)
     assert not _is_signatory(dl, case.id_, signer_p.id_)
@@ -388,14 +398,15 @@ def test_activate_embargo_replacing_a_shorter_one_lapses_non_acceptors(
 
 @pytest.mark.spec("EP-05-001")
 @pytest.mark.spec("CM-18-016")
-def test_activate_embargo_first_activation_writes_no_consent(
+def test_activate_embargo_first_activation_writes_only_the_owners_agreement(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """PROPOSED -> ACTIVE replaces nothing, so no row is written.
+    """PROPOSED -> ACTIVE replaces nothing; the owner's agreement is the one write.
 
-    Holders of ACCEPTED(B) (the proposer, an early acceptor) are signatories
-    by lookup with no advance step; a merely INVITED participant is not, and
-    has not lapsed either.
+    Activating is the owner agreeing to the terms (ADR-0122).  Holders of
+    AGREED(B) (the proposer, an early agreer) are signatories by lookup with
+    no advance step; a merely INVITED participant is not, and has not lapsed
+    either.
     """
     owner, dl = owner_and_dl
     proposer = _make_actor(dl, "Proposer")
@@ -408,7 +419,8 @@ def test_activate_embargo_first_activation_writes_no_consent(
     embargo = _make_embargo(dl, case.id_)
     propose(case, embargo.id_)
     dl.save(case)
-    _seed_consent(dl, proposer_p.id_, embargo.id_, ECS.ACCEPTED)
+    write_consent_rows(dl, case)
+    _seed_consent(dl, proposer_p.id_, embargo.id_, ECS.AGREED)
     _seed_consent(dl, invitee_p.id_, embargo.id_, ECS.INVITED)
 
     result = EmbargoLifecycle(persistence=dl).activate_embargo(
@@ -416,9 +428,12 @@ def test_activate_embargo_first_activation_writes_no_consent(
     )
 
     assert result.em_after == EM.ACTIVE
-    assert result.participant_changes == []
-    assert _consents_of(dl, owner_p.id_) == {}
-    assert _consents_of(dl, proposer_p.id_) == {embargo.id_: "ACCEPTED"}
+    assert [
+        (c.participant_id, c.consent_before, c.consent_after)
+        for c in result.participant_changes
+    ] == [(owner_p.id_, "UNINVITED", "AGREED")]
+    assert _consents_of(dl, owner_p.id_) == {embargo.id_: "AGREED"}
+    assert _consents_of(dl, proposer_p.id_) == {embargo.id_: "AGREED"}
     assert _consents_of(dl, invitee_p.id_) == {embargo.id_: "INVITED"}
     assert _is_signatory(dl, case.id_, proposer_p.id_)
     assert not _is_signatory(dl, case.id_, invitee_p.id_)
@@ -432,8 +447,8 @@ def test_activate_embargo_records_the_owners_acceptance_of_a_longer_revision(
     """Activating B is the owner's decision, so the owner never lapses by it.
 
     A replica syncing an announced activation (``SetEmbargoActiveNode``,
-    OBSERVED) sees the owner ACCEPTED on A with no row for B; the owner gains
-    ACCEPTED(B) and stays a signatory while a silent signatory lapses by
+    OBSERVED) sees the owner AGREED on A and UNINVITED on B; the owner gains
+    AGREED(B) and stays a signatory while a silent signatory lapses by
     derivation.  The owner's row is the only one written.
     """
     owner, dl = owner_and_dl
@@ -446,8 +461,9 @@ def test_activate_embargo_records_the_owners_acceptance_of_a_longer_revision(
     activate(case, active.id_)
     propose(case, revision.id_)
     dl.save(case)
-    _seed_consent(dl, owner_p.id_, active.id_, ECS.ACCEPTED)
-    _seed_consent(dl, signer_p.id_, active.id_, ECS.ACCEPTED)
+    write_consent_rows(dl, case)
+    _seed_consent(dl, owner_p.id_, active.id_, ECS.AGREED)
+    _seed_consent(dl, signer_p.id_, active.id_, ECS.AGREED)
 
     result = EmbargoLifecycle(persistence=dl).activate_embargo(
         case_id=case.id_,
@@ -457,16 +473,19 @@ def test_activate_embargo_records_the_owners_acceptance_of_a_longer_revision(
     )
 
     assert _consents_of(dl, owner_p.id_) == {
-        active.id_: "ACCEPTED",
-        revision.id_: "ACCEPTED",
+        active.id_: "AGREED",
+        revision.id_: "AGREED",
     }
     assert _is_signatory(dl, case.id_, owner_p.id_)
-    assert _consents_of(dl, signer_p.id_) == {active.id_: "ACCEPTED"}
+    assert _consents_of(dl, signer_p.id_) == {
+        active.id_: "AGREED",
+        revision.id_: "UNINVITED",
+    }
     assert _has_lapsed(dl, case.id_, signer_p.id_)
     assert [
         (c.participant_id, c.embargo_id, c.consent_after)
         for c in result.participant_changes
-    ] == [(owner_p.id_, revision.id_, "ACCEPTED")]
+    ] == [(owner_p.id_, revision.id_, "AGREED")]
 
 
 @pytest.mark.spec("EP-05-001")
@@ -484,13 +503,14 @@ def test_activate_embargo_of_equal_terms_carries_signatories_over(
     activate(case, active.id_)
     propose(case, same.id_)
     dl.save(case)
-    _seed_consent(dl, signer_p.id_, active.id_, ECS.ACCEPTED)
+    write_consent_rows(dl, case)
+    _seed_consent(dl, signer_p.id_, active.id_, ECS.AGREED)
 
     EmbargoLifecycle(persistence=dl).activate_embargo(
         case_id=case.id_, embargo_id=same.id_, actor_id=owner.id_
     )
 
-    assert _consent_of(dl, signer_p.id_, same.id_) == "ACCEPTED"
+    assert _consent_of(dl, signer_p.id_, same.id_) == "AGREED"
     assert _is_signatory(dl, case.id_, signer_p.id_)
     assert _is_signatory(dl, case.id_, owner_p.id_)
 
@@ -597,3 +617,39 @@ def test_activation_of_a_non_embargo_record_writes_nothing(
         active_id=active_id,
         activated_id=stranger.id_,
     )
+
+
+@pytest.mark.spec("CM-18-003")
+def test_activate_embargo_is_refused_when_the_owner_declined_it(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """The activation is the owner's agreement, which a DECLINED row refuses.
+
+    STRICT raises; OBSERVED leaves the case and the owner's row as they were
+    (ADR-0122).
+    """
+    owner, dl = owner_and_dl
+    case, (owner_p,) = _make_case(dl, owner.id_)
+    embargo = _make_embargo(dl, case.id_)
+    propose(case, embargo.id_)
+    dl.save(case)
+    write_consent_rows(dl, case)
+    _seed_consent(dl, owner_p.id_, embargo.id_, ECS.DECLINED)
+    lifecycle = EmbargoLifecycle(persistence=dl)
+
+    with pytest.raises(VultronInvalidStateTransitionError):
+        lifecycle.activate_embargo(
+            case_id=case.id_, embargo_id=embargo.id_, actor_id=owner.id_
+        )
+    observed = lifecycle.activate_embargo(
+        case_id=case.id_,
+        embargo_id=embargo.id_,
+        actor_id=owner.id_,
+        transition_mode=TransitionMode.OBSERVED,
+    )
+
+    assert observed.case_embargo_changed is False
+    untouched = cast(VulnerabilityCase, dl.read(case.id_))
+    assert untouched.em_state == EM.PROPOSED
+    assert untouched.proposed_embargo_ids == [embargo.id_]
+    assert _consent_of(dl, owner_p.id_, embargo.id_) == "DECLINED"

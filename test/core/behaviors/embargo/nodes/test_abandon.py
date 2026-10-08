@@ -32,7 +32,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
     make_case_with_manager,
     setup_blackboard,
 )
-from test.support.embargo_register import propose
+from test.support.embargo_register import propose, write_consent_rows
 from test.support.ledger import committed_event_types
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -70,7 +70,7 @@ def _proposed_case(
     days: tuple[int, ...] = (60, 15),
     *,
     indexed: bool = True,
-    consent: EmbargoConsentState = EmbargoConsentState.ACCEPTED,
+    consent: EmbargoConsentState = EmbargoConsentState.AGREED,
 ) -> tuple[VulnerabilityCase, SqliteDataLayer, dict[str, str]]:
     """A PROPOSED case in the CASE_MANAGER's store with open proposals.
 
@@ -103,6 +103,7 @@ def _proposed_case(
     if indexed:
         case.pending_embargo_proposal_index = dict(proposals)
     dl.save(case)
+    write_consent_rows(dl, case)
     return case, dl, proposals
 
 

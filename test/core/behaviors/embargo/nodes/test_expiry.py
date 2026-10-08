@@ -83,25 +83,34 @@ def _seed(
         },
     )
     activate(case, EMBARGO_ID)
+    manager.write_uninvited_rows([EMBARGO_ID])
     scenario.seed(manager, invitee, case)
     return invitee.id_
 
 
 def _consent(
     scenario: BTTestScenario, participant_id: str
-) -> EmbargoConsentState | None:
+) -> EmbargoConsentState:
     record = scenario.dl.read(participant_id)
     assert isinstance(record, CaseParticipant)
     return record.consent_for(EMBARGO_ID)
 
 
-def _expiry_event(actor: str | None) -> Any:
+def _expiry_event(
+    actor: str | None, embargo_id: str | None = EMBARGO_ID
+) -> Any:
     snapshot: dict[str, Any] = {
         "type": "Expire",
         "context": CASE_ID,
     }
     if actor is not None:
         snapshot["actor"] = actor
+    if embargo_id is not None:
+        snapshot["object"] = {
+            "type": "Invite",
+            "id": f"{CASE_ID}/embargo_invites/i1",
+            "object": {"type": "EmbargoEvent", "id": embargo_id},
+        }
     entry = _to_persistable_entry(
         HashChainLedgerRecord(
             case_id=CASE_ID,
@@ -132,7 +141,7 @@ class TestApplyInviteExpiryFromLedgerNode:
         bt_scenario.assert_success(result)
         assert (
             _consent(bt_scenario, participant_id)
-            is EmbargoConsentState.EXPIRED
+            is EmbargoConsentState.TIMED_OUT
         )
 
     @pytest.mark.executes_as(INVITEE)
@@ -140,9 +149,9 @@ class TestApplyInviteExpiryFromLedgerNode:
     def test_already_expired_is_idempotent(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        """An already-EXPIRED participant is left unchanged."""
+        """An already-TIMED_OUT row is left unchanged."""
         participant_id = _seed(
-            bt_scenario, consent=EmbargoConsentState.EXPIRED
+            bt_scenario, consent=EmbargoConsentState.TIMED_OUT
         )
         result = bt_scenario.run(
             ApplyInviteExpiryFromLedgerNode(name="ApplyExpiry"),
@@ -151,7 +160,7 @@ class TestApplyInviteExpiryFromLedgerNode:
         bt_scenario.assert_success(result)
         assert (
             _consent(bt_scenario, participant_id)
-            is EmbargoConsentState.EXPIRED
+            is EmbargoConsentState.TIMED_OUT
         )
 
     @pytest.mark.executes_as(INVITEE)
@@ -162,6 +171,23 @@ class TestApplyInviteExpiryFromLedgerNode:
         result = bt_scenario.run(
             ApplyInviteExpiryFromLedgerNode(name="ApplyExpiry"),
             activity=_expiry_event(None),
+        )
+        assert result.status == Status.FAILURE
+        assert (
+            _consent(bt_scenario, participant_id)
+            is EmbargoConsentState.INVITED
+        )
+
+    @pytest.mark.executes_as(INVITEE)
+    @pytest.mark.spec("CM-28-012")
+    def test_an_entry_naming_no_embargo_fails(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """The deadline belongs to one invitation, so the entry must name it."""
+        participant_id = _seed(bt_scenario)
+        result = bt_scenario.run(
+            ApplyInviteExpiryFromLedgerNode(name="ApplyExpiry"),
+            activity=_expiry_event(INVITEE, embargo_id=None),
         )
         assert result.status == Status.FAILURE
         assert (
@@ -238,7 +264,7 @@ class TestApplyHonourLateAcceptFromLedgerNode:
         )
 
         participant_id = _seed(
-            bt_scenario, consent=EmbargoConsentState.EXPIRED
+            bt_scenario, consent=EmbargoConsentState.TIMED_OUT
         )
         result = bt_scenario.run(
             ApplyHonourLateAcceptFromLedgerNode(name="ApplyHonour"),
@@ -246,8 +272,7 @@ class TestApplyHonourLateAcceptFromLedgerNode:
         )
         bt_scenario.assert_success(result)
         assert (
-            _consent(bt_scenario, participant_id)
-            is EmbargoConsentState.ACCEPTED
+            _consent(bt_scenario, participant_id) is EmbargoConsentState.AGREED
         )
 
     @pytest.mark.executes_as(INVITEE)
@@ -269,8 +294,7 @@ class TestApplyHonourLateAcceptFromLedgerNode:
         )
         bt_scenario.assert_success(result)
         assert (
-            _consent(bt_scenario, participant_id)
-            is EmbargoConsentState.ACCEPTED
+            _consent(bt_scenario, participant_id) is EmbargoConsentState.AGREED
         )
 
     @pytest.mark.executes_as(INVITEE)
@@ -278,22 +302,19 @@ class TestApplyHonourLateAcceptFromLedgerNode:
     def test_already_accepted_is_idempotent(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        """An ACCEPTED row is not changed by replay (idempotent)."""
+        """An AGREED row is not changed by replay (idempotent)."""
         from vultron.core.behaviors.embargo.nodes.expiry import (
             ApplyHonourLateAcceptFromLedgerNode,
         )
 
-        participant_id = _seed(
-            bt_scenario, consent=EmbargoConsentState.ACCEPTED
-        )
+        participant_id = _seed(bt_scenario, consent=EmbargoConsentState.AGREED)
         result = bt_scenario.run(
             ApplyHonourLateAcceptFromLedgerNode(name="ApplyHonour"),
             activity=_honour_late_accept_event(INVITEE),
         )
         bt_scenario.assert_success(result)
         assert (
-            _consent(bt_scenario, participant_id)
-            is EmbargoConsentState.ACCEPTED
+            _consent(bt_scenario, participant_id) is EmbargoConsentState.AGREED
         )
 
     @pytest.mark.executes_as(INVITEE)
@@ -305,7 +326,7 @@ class TestApplyHonourLateAcceptFromLedgerNode:
             ApplyHonourLateAcceptFromLedgerNode,
         )
 
-        _seed(bt_scenario, consent=EmbargoConsentState.EXPIRED)
+        _seed(bt_scenario, consent=EmbargoConsentState.TIMED_OUT)
         result = bt_scenario.run(
             ApplyHonourLateAcceptFromLedgerNode(name="ApplyHonour"),
             activity=_honour_late_accept_event(None),

@@ -143,11 +143,11 @@ def _set_pxa(bt_scenario: BTTestScenario) -> None:
 
 
 def _accepted_ids(participant: CaseParticipant) -> list[str]:
-    """Ids of the embargoes *participant* holds an ACCEPTED row for."""
+    """Ids of the embargoes *participant* holds an AGREED row for."""
     return [
         row.embargo_id
         for row in participant.embargo_consents
-        if row.state == EmbargoConsentState.ACCEPTED
+        if row.state == EmbargoConsentState.AGREED
     ]
 
 

@@ -102,7 +102,7 @@ class _ProposalOperationsMixin(_PecActivationMixin):
         it (``accept_embargo_invite`` / ``activate_embargo``, EP-05-001).
         Proposing terms is consenting to them, so when *actor_id* is a
         participant of the case its row for the proposed embargo is marked
-        ``ACCEPTED`` (MSM-07-005).
+        ``AGREED`` (MSM-07-005).
 
         The ``EmbargoEvent`` identified by *embargo_id* MUST already exist in
         the DataLayer before this method is called; the caller is responsible
@@ -146,6 +146,10 @@ class _ProposalOperationsMixin(_PecActivationMixin):
                 transition_mode=transition_mode,
                 actor_id=actor_id,
             )
+            if not case_mutated:
+                # OBSERVED: the register refused the proposal, so there is no
+                # entry and no row for the proposer to agree on.
+                return self._unchanged_result(em_before)
         elif entry.status == EmbargoRegisterStatus.PROPOSED:
             case_mutated = False
         elif transition_mode == TransitionMode.STRICT:
@@ -282,7 +286,7 @@ class _ProposalOperationsMixin(_PecActivationMixin):
     ) -> list[ParticipantConsentChange]:
         """Record that proposing *embargo_id* is *actor_id*'s consent to it.
 
-        The proposer's row for *embargo_id* is marked ``ACCEPTED`` — only that
+        The proposer's row for *embargo_id* is marked ``AGREED`` — only that
         row, so its consent to the embargo in force is untouched (ADR-0093).
         A proposer with no participant record (the case-creation default, for
         one) has no consent to record.

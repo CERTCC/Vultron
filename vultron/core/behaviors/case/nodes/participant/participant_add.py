@@ -399,7 +399,7 @@ class CaseHasNoActiveEmbargoNode(DataLayerActionWithPorts):
 
 
 class SeedParticipantAsSignatoryNode(DataLayerActionWithPorts):
-    """Seed the new participant as SIGNATORY when an embargo is active."""
+    """Seed the new participant as a signatory when an embargo is active."""
 
     def __init__(
         self,
@@ -454,17 +454,17 @@ class SeedParticipantAsSignatoryNode(DataLayerActionWithPorts):
         active_embargo_id = _as_id(stored_case.active_embargo)
         if active_embargo_id is None:
             self.logger.error(
-                "%s: cannot seed SIGNATORY without active embargo",
+                "%s: cannot seed signatory without active embargo",
                 self.name,
             )
             return Status.FAILURE
 
-        # An ACCEPTED row stays; a participant that declined this embargo is
+        # An AGREED row stays; a participant that declined this embargo is
         # not signed (ADR-0118).
         participant.sign_embargo(active_embargo_id)
         self.datalayer.save(participant)
         self.logger.info(
-            "Seeded participant '%s' (actor '%s') as SIGNATORY"
+            "Seeded participant '%s' (actor '%s') as a signatory"
             " for active embargo in case '%s' (CM-14-005)",
             participant.id_,
             self.participant_actor_id,

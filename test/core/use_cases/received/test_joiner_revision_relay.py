@@ -31,7 +31,10 @@ from test.core.use_cases.received.test_embargo_revision_relay import (
     _consent_of,
     _deliver,
 )
-from test.support.embargo_register import propose
+from test.support.embargo_register import (
+    propose,
+    write_consent_rows,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -42,6 +45,7 @@ from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import (
@@ -143,7 +147,7 @@ def test_joiner_during_revise_is_invited_to_the_open_revision(make_payload):
     # The joiner signs the terms in force and is asked about the revision.
     assert (
         _consent_of(dl, case_id, JOINER, _active_id(dl, case_id))
-        is EmbargoConsentState.ACCEPTED
+        is EmbargoConsentState.AGREED
     )
     assert (
         _consent_of(dl, case_id, JOINER, revision.id_)
@@ -172,7 +176,7 @@ def test_joiner_that_accepts_the_relayed_revision_holds_its_consent(
 ):
     """AC-2: the joiner's Accept lands on the revision's row, A's row is kept.
 
-    A row ``ACCEPTED`` for the revision is what makes the joiner a signatory of
+    A row ``AGREED`` for the revision is what makes the joiner a signatory of
     it when the owner activates it (EP-05-001).
     """
     from vultron.core.use_cases.received.embargo import (
@@ -202,11 +206,11 @@ def test_joiner_that_accepts_the_relayed_revision_holds_its_consent(
 
     assert (
         _consent_of(dl, case_id, JOINER, revision.id_)
-        is EmbargoConsentState.ACCEPTED
+        is EmbargoConsentState.AGREED
     )
     assert (
         _consent_of(dl, case_id, JOINER, active_before)
-        is EmbargoConsentState.ACCEPTED
+        is EmbargoConsentState.AGREED
     )
 
 
@@ -282,8 +286,57 @@ def test_an_open_proposal_with_no_committed_entry_is_an_internal_error(
     case = cast(VulnerabilityCase, dl.read(case_id))
     propose(case, f"{case_id}/embargo_events/ghost")
     dl.save(case)
+    write_consent_rows(dl, case)
 
     result = _run_relay_again(dl, case_id)
 
     assert result.status.name == "FAILURE"
     assert result.internal_error
+
+
+def _rows_by_participant(
+    dl: SqliteDataLayer, case_id: str
+) -> dict[str, list[str]]:
+    """Each roster participant's consent-row embargo ids, in order."""
+    case = cast(VulnerabilityCase, dl.read_case(case_id))
+    rows: dict[str, list[str]] = {}
+    for entry in case.case_participants:
+        participant_id = entry if isinstance(entry, str) else entry.id_
+        record = cast(CaseParticipant, dl.read(participant_id))
+        assert record is not None, participant_id
+        rows[participant_id] = [r.embargo_id for r in record.embargo_consents]
+    return rows
+
+
+@pytest.mark.spec("CM-18-001")
+@pytest.mark.spec("CM-10-001")
+def test_every_participant_holds_one_row_per_register_entry_after_a_join(
+    make_payload,
+):
+    """AC-2 of #4291: setup, a received proposal and a join write every row.
+
+    The case starts with an active embargo and a received revision proposal;
+    a participant then joins.  Every record on the roster — the seated ones,
+    the proposer and the joiner — holds exactly one row for each register
+    entry, and the joiner is asked only about the embargo in force and the
+    open revision (AC-3).
+    """
+    case_id = "https://example.org/cases/joiner-rows"
+    dl, revision = _open_revision(case_id, make_payload)
+
+    assert _join(dl, case_id, make_payload).disposition is (
+        HandlerDisposition.APPLIED
+    )
+
+    case = cast(VulnerabilityCase, dl.read_case(case_id))
+    register_ids = [e.embargo_id for e in case.embargo_register]
+    assert revision.id_ in register_ids and len(register_ids) == 2
+    rows = _rows_by_participant(dl, case_id)
+    assert JOINER in case.actor_participant_index
+    assert len(rows) >= 3
+    for participant_id, embargo_ids in rows.items():
+        assert sorted(embargo_ids) == sorted(register_ids), participant_id
+    assert {e: _consent_of(dl, case_id, JOINER, e) for e in register_ids} == {
+        _active_id(dl, case_id): EmbargoConsentState.AGREED,
+        revision.id_: EmbargoConsentState.INVITED,
+    }

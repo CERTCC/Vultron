@@ -86,7 +86,7 @@ def _case_with_rejecter(
 class TestRecordParticipantRejectionNode:
     def test_records_a_withdrawal_and_succeeds(self, dl: SqliteDataLayer):
         case, embargo_id, participant_id = _case_with_rejecter(
-            dl, consent=EmbargoConsentState.ACCEPTED
+            dl, consent=EmbargoConsentState.AGREED
         )
         setup_blackboard(dl)
         node = RecordParticipantRejectionNode(
@@ -186,8 +186,13 @@ class TestRecordParticipantAcceptanceNodeFailsClosed:
             context=case.id_,
             embargo_consents=[
                 EmbargoConsent(
-                    embargo_id=active.id_, state=EmbargoConsentState.ACCEPTED
-                )
+                    embargo_id=active.id_, state=EmbargoConsentState.AGREED
+                ),
+                # The row the revision's proposal wrote (ADR-0122).
+                EmbargoConsent(
+                    embargo_id=revision.id_,
+                    state=EmbargoConsentState.UNINVITED,
+                ),
             ],
         )
         case.actor_participant_index[OWNER] = owner_p.id_
@@ -227,7 +232,9 @@ class TestRecordParticipantAcceptanceNodeFailsClosed:
         assert untouched.proposed_embargo_ids == [revision_id]
         owner_p = cast(CaseParticipant, dl.read(owner_p_id))
         assert owner_p.is_signatory(active_id)
-        assert owner_p.consent_for(revision_id) is None
+        assert (
+            owner_p.consent_for(revision_id) is EmbargoConsentState.UNINVITED
+        )
 
     @pytest.mark.spec("EMB-18-003")
     @pytest.mark.spec("EP-05-001")
@@ -258,7 +265,9 @@ class TestRecordParticipantAcceptanceNodeFailsClosed:
         assert untouched.proposed_embargo_ids == [revision_id]
         owner_p = cast(CaseParticipant, dl.read(owner_p_id))
         assert owner_p.is_signatory(active_id)
-        assert owner_p.consent_for(revision_id) is None
+        assert (
+            owner_p.consent_for(revision_id) is EmbargoConsentState.UNINVITED
+        )
 
     @pytest.mark.spec("EMB-18-003")
     def test_unknown_accepted_embargo_fails_without_an_invariant_error(
@@ -286,4 +295,6 @@ class TestRecordParticipantAcceptanceNodeFailsClosed:
         assert untouched.proposed_embargo_ids == [revision_id]
         owner_p = cast(CaseParticipant, dl.read(owner_p_id))
         assert owner_p.is_signatory(active_id)
-        assert owner_p.consent_for(revision_id) is None
+        assert (
+            owner_p.consent_for(revision_id) is EmbargoConsentState.UNINVITED
+        )

@@ -701,12 +701,12 @@ groups:
     Normative record of how each EM wire activity drives the per-participant, per-embargo
     Participant Embargo Consent (PEC) rows as a side-effect, and which consent positions are
     derived rather than written. PEC is participant-local state tracking each actor's
-    relationship to each embargo it was asked about; its transitions are not independent
-    protocol messages and have no formal shorthands in the 28-shorthand set. A participant's
-    consent to an embargo is one row holding INVITED, ACCEPTED, DECLINED or EXPIRED; whether
-    the participant is bound by the *current* active embargo is a lookup of the active
-    embargo's row, and a lapse is read from the rows when a longer embargo replaces the one
-    the participant accepted. Unlike RM state (self-reported by the participant) and VF/D state
+    relationship to each embargo in the case's embargo register; its transitions are not
+    independent protocol messages and have no formal shorthands in the 28-shorthand set. A
+    participant's consent to an embargo is one row holding UNINVITED, INVITED, AGREED, DECLINED
+    or TIMED_OUT; whether the participant is bound by the *current* active embargo is a lookup
+    of the active embargo's row, and a lapse is read from the rows and the register when a
+    longer embargo replaces the one the participant agreed to. Unlike RM state (self-reported by the participant) and VF/D state
     (self-reported by vendor/deployer), consent rows are set by the CASE_MANAGER (CM-28-003)
     based on observed participant behavior — incoming Accept/Reject wire activities and
     timer-enforced invitation expiry — and replayed on each replica. Normative authority:
@@ -740,14 +740,14 @@ groups:
     statement: >-
       The wire activity INVITE_TO_EMBARGO_ON_CASE (EP wire form:
       Invite(Event)[context=VulnerabilityCase]) MUST apply the PEC INVITE trigger to the
-      invited participant's row for the invited embargo, advancing it from no row, DECLINED
-      or EXPIRED to INVITED.
+      invited participant's row for the invited embargo, advancing it from UNINVITED, DECLINED
+      or TIMED_OUT to INVITED.
     rationale: >-
       An embargo proposal is an invitation to consent; the EP wire activity conveys the invitation
       and the PEC rows record each participant's position on each embargo. A participant whose row
-      is ACCEPTED is unaffected by EP; INVITE is not legal from ACCEPTED (CM-18-003), and a
-      signatory asked about a revision gains a row for the revision while its row for the active
-      embargo stays ACCEPTED (EP-09-004). The PEC trigger is applied via
+      is AGREED is unaffected by EP; INVITE is not legal from AGREED (CM-18-003), and a
+      signatory asked about a revision has its row for the revision invited while its row for the
+      active embargo stays AGREED (EP-09-004). The PEC trigger is applied via
       EmbargoLifecycle.record_embargo_invite() on the CASE_MANAGER as it relays the Invite, and on
       each replica as it replays the relay's ledger entry (EP-09-007).
     verification: >-
@@ -770,21 +770,21 @@ groups:
       embargo's register entry, superseding any entry in force, so the derived EM
       becomes ACTIVE (ADR-0122; for EC this replaces the active embargo and applies
       the MSM-07-005 consent rule);
-      (2) for any accepting participant it MUST apply the PEC ACCEPT trigger to the
-      participant's row for the accepted embargo, advancing it from no row, INVITED or
-      EXPIRED to ACCEPTED. The rule is the same whether the accepted embargo is the
+      (2) for any accepting participant it MUST apply the PEC AGREE trigger to the
+      participant's row for the accepted embargo, advancing it from UNINVITED, INVITED or
+      TIMED_OUT to AGREED. The rule is the same whether the accepted embargo is the
       case's active embargo, a first proposal (EM PROPOSED) or a *proposed revision* of an
       embargo still in force: the accepted embargo's row is marked, and only that row. A
-      participant is a signatory exactly when the row for the active embargo is ACCEPTED, so
+      participant is a signatory exactly when the row for the active embargo is AGREED, so
       accepting a proposed revision binds the participant to nothing new until the owner
       activates it (MSM-07-005). A participant whose row for the accepted embargo is DECLINED
-      records nothing — ACCEPT is not legal from DECLINED (CM-18-003), so it is re-invited
-      first.
+      records nothing — AGREE is not legal from DECLINED (CM-18-003), so it is re-invited
+      first — and neither does one whose row's register entry is final (CM-18-003).
     rationale: >-
       The same wire activity simultaneously drives the case's embargo register
       (for the case owner) and the participant-level PEC rows (for the accepting
       actor). An implementer handling this activity MUST update both, not
-      just the register. The PEC ACCEPT trigger is valid directly from no row
+      just the register. The PEC AGREE trigger is valid directly from UNINVITED
       because consent can be self-determined without an invitation (ADR-0048,
       ADR-0091, CM-18-003). Consent is per embargo (CM-10-001, ADR-0093, ADR-0122): an Accept
       is always a statement about the embargo it names, so it always marks that embargo's row
@@ -792,8 +792,8 @@ groups:
     verification: >-
       Unit tests in `test/core/services/embargo_lifecycle/test_answers.py` assert that a
       non-owner accepting the embargo in force, a first proposal and a proposed revision each
-      marks exactly that embargo's row ACCEPTED, that a signatory accepting a proposed revision
-      keeps its ACCEPTED row for the active embargo, that a non-owner proposer of a first
+      marks exactly that embargo's row AGREED, that a signatory accepting a proposed revision
+      keeps its AGREED row for the active embargo, that a non-owner proposer of a first
       proposal is a signatory once the owner accepts it, and that a DECLINED participant's
       Accept records nothing.
     relationships:
@@ -816,22 +816,22 @@ groups:
       stays PROPOSED or REVISE while another is (ADR-0122); an EJ MUST NOT change
       any participant's consent rows, the owner's included;
       (2) for any rejecting participant it MUST apply the PEC DECLINE trigger to the
-      participant's row for the rejected embargo (valid from no row, INVITED, ACCEPTED or
-      EXPIRED). Rejecting the case's *active* embargo is consent withdrawal and MUST also
-      decline every open proposal's row the participant had ACCEPTED — every open proposal is
+      participant's row for the rejected embargo (valid from UNINVITED, INVITED, AGREED or
+      TIMED_OUT). Rejecting the case's *active* embargo is consent withdrawal and MUST also
+      decline every open proposal's row the participant had AGREED to — every open proposal is
       a revision of the embargo withdrawn from (EP-08-004), and a DECLINED participant MUST
-      NOT hold an ACCEPTED row for an embargo that can become active without re-invitation.
+      NOT hold an AGREED row for an embargo that can become active without re-invitation.
       Rejecting a *proposed* embargo that is not active declines that embargo's row only and
       MUST leave the participant's row for the active embargo unchanged — a signatory's
       rejection of a proposed revision refuses those terms; it is not withdrawal from the
       embargo in force. When no embargo is in force (EM PROPOSED) a Reject of a proposal declines that
       proposal's row only: it withdraws from nothing, and other open proposals the
-      participant accepted stay accepted.
+      participant agreed to stay AGREED.
     rationale: >-
       Symmetric with MSM-07-003: the reject wire activity drives both the embargo
       register (case-owner path) and the PEC rows (rejecting participant path). The PEC
-      DECLINE trigger is valid directly from no row for symmetric reasons to
-      ACCEPT (ADR-0048, ADR-0091, CM-18-003), and from ACCEPTED as first-class
+      DECLINE trigger is valid directly from UNINVITED for symmetric reasons to
+      AGREE (ADR-0048, ADR-0091, CM-18-003), and from AGREED as first-class
       consent withdrawal (ADR-0093, VP-13-007, VP-13-008). Consent is per embargo,
       so a signatory who refuses proposed terms is still bound by, and still
       consents to, the embargo that remains active; only the case owner decides
@@ -860,37 +860,42 @@ groups:
       with revision B (the register activates B and supersedes A, so the derived EM
       goes REVISE → ACTIVE),
       implementations MUST settle every participant's consent rows against B:
-      if B ends no later than A, every participant whose row for A is ACCEPTED MUST be carried
-      over by marking its row for B ACCEPTED (where ACCEPT is legal, CM-18-003); if B ends
-      later than A, implementations MUST NOT write any row to lapse anyone — a participant
-      whose row for B is not ACCEPTED is not a signatory to B and has lapsed if it had
-      accepted A (CM-18-001). Activating B advances no one: a participant holding an ACCEPTED
-      row for B is its signatory by lookup, whether it is the proposer, an early acceptor or
-      the owner. Only participants whose row for A is ACCEPTED are carried over: a participant
-      that had lapsed from an earlier embargo stays lapsed until it is re-invited or accepts B,
-      and a participant INVITED to A whose invitation B has made stale is handled by the
-      stale-terms re-invite path (EMB-17). A revision proposal (EV, ACTIVE → REVISE, or a
-      counter-revision REVISE → REVISE) MUST NOT change any participant's consent to the
-      embargo in force, and the proposer's row for the proposed embargo MUST be marked
-      ACCEPTED. The carry-over MUST run whether the transition is driven locally or observed
+      if B ends no later than A, every participant whose row for A is AGREED MUST be carried
+      over by applying CARRY_OVER to its row for B, a DECLINED row for B included
+      (CM-18-003); if B ends later than A, implementations MUST NOT write any row to lapse
+      anyone — a participant whose row for B is not AGREED is not a signatory to B and has
+      lapsed if it had agreed to A (CM-18-001). The owner's row for B is AGREED unless it
+      already is, and an owner whose row for B is DECLINED cannot activate it: AGREE refuses
+      DECLINED, so the activation is refused and the owner is invited again first (ADR-0122).
+      Activating B advances no one else: a participant holding an AGREED row for B is its
+      signatory by lookup, whether it is the proposer or an early acceptor. Only participants
+      whose row for A is AGREED are carried over: a participant that had lapsed from an
+      earlier embargo stays lapsed until it is re-invited or agrees to B, and a participant
+      INVITED to A whose invitation B has made stale is handled by the stale-terms re-invite
+      path (EMB-17), because its row for the now-SUPERSEDED A is frozen. A revision proposal
+      (EV, ACTIVE → REVISE, or a counter-revision REVISE → REVISE) MUST NOT change any
+      participant's consent to the embargo in force, and the proposer's row for the proposed
+      embargo MUST be marked AGREED. The carry-over MUST run whether the transition is driven locally or observed
       from the wire. No separate outbound wire activity is emitted for these per-participant
       consent writes; they are an internal side-effect of the activation.
     rationale: >-
       A participant has lapsed when the active embargo was replaced by longer terms it has not
-      accepted. While a revision is merely proposed the prior embargo is still in force and
+      agreed to. While a revision is merely proposed the prior embargo is still in force and
       every signatory to it is still bound by it, so nothing about their consent has changed
       (ADR-0093). Agreeing to N days is agreeing to every shorter period — the containment that
       makes shortest-wins safe (EP-04-003) — so a shorter revision asks nothing new of an
-      existing signatory and carries them over. Longer terms ask for more than they promised,
-      so only those who accepted B are bound by B, and the rows say so without a write. Only
+      existing signatory and carries them over, even one that declined B: its decline objected
+      to losing time, not to keeping the embargo. Longer terms ask for more than they promised,
+      so only those who agreed to B are bound by B, and the rows say so without a write. Only
       the owner's acceptance changes the embargo on the case; other participants' accepts and
       rejects are recorded per embargo and inform that decision. Running the carry-over in the
       observed path too keeps every replica's consent rows in step with the CASE_MANAGER's.
     verification: >-
       Inspection of vultron/core/services/embargo_lifecycle/ confirms that
-      propose_embargo() writes only the proposer's row for the proposed id, and that
-      accept_embargo_invite() on the owner path carries signatories over to a revision that
-      ends no later than the replaced embargo and writes nothing for a longer one. Unit tests
+      propose_embargo() answers only the proposer's row for the proposed id (every other
+      participant's new row is UNINVITED), and that accept_embargo_invite() on the owner path
+      applies CARRY_OVER to a revision that ends no later than the replaced embargo and writes
+      only the owner's row for a longer one. Unit tests
       in test/core/services/embargo_lifecycle/ assert both arms, the derived lapse, and the
       no-op on proposal.
     relationships:
@@ -917,7 +922,7 @@ groups:
       terminated embargo can never be invited to again. That is a fact about the case, which every replica holds once it replays the
       teardown, so it does not need to be copied onto each participant record as the terminal
       state it was before ADR-0122 (ADR-0118). Leaving the rows as they were also keeps the
-      history of who accepted what.
+      history of who agreed to what, and every row of a final entry is frozen (CM-18-003).
     verification: >-
       Inspection of vultron/core/services/embargo_lifecycle/ confirms that
       terminate_active_embargo() writes no consent row. Unit tests in
@@ -936,23 +941,24 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The timer-based pocket-veto transition — INVITED to EXPIRED after the invitation deadline
-      passes — MUST be enforced lazily with no outbound wire message emitted for the consent
+      The timer-based pocket-veto transition — INVITED to TIMED_OUT on the row of the
+      invitation whose deadline passed — MUST be enforced lazily with no outbound wire message emitted for the consent
       change itself. A lapse has no timer path (CM-18-002): a lapsed participant is re-invited, and
       the deadline attaches to that invitation. The CASE_MANAGER MUST author a case-ledger entry
       recording the expiry (CM-28-005) so the consent change is visible in the canonical ledger, but
       no additional protocol wire activity is required.
     rationale: >-
       Inaction cannot produce an outbound message because there is no actor-observable event to
-      report. The expiry is a derived conclusion from (invite_rsvp_deadline, now); the ledger entry
+      report. The expiry is a derived conclusion from (the row's rsvp_deadline, now); the ledger entry
       is the record of that conclusion, not a message sent by the silent participant. Requiring a
       wire message would demand the system speak on behalf of a participant who has said nothing,
       which contradicts the Actor Knowledge Model (AKM).
     verification: >-
       Inspection of vultron/core/services/embargo_lifecycle/ confirms detect_and_apply_expiry()
-      applies PEC_Trigger.EXPIRE without emitting an outbound wire activity, that a
+      applies PEC_Trigger.TIME_OUT without emitting an outbound wire activity, that a
       CASE_MANAGER-authored ledger entry is written per CM-28-005, and that
-      detect_and_apply_expiry() applies it only to rows in INVITED.
+      detect_and_apply_expiry() applies it only to the named invitation's row, and only from
+      INVITED.
     relationships:
     - rel_type: derives_from
       spec_id: CM-18-002

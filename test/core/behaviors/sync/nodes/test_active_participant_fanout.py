@@ -102,7 +102,7 @@ def test_ledger_fanout_reaches_only_active_participants() -> None:
             CVDRole.CASE_MANAGER,
             RM.ACCEPTED,
             embargo.id_,
-            EmbargoConsentState.ACCEPTED,
+            EmbargoConsentState.AGREED,
         ),
         SIGNATORY_ID: _participant(
             case.id_,
@@ -110,7 +110,7 @@ def test_ledger_fanout_reaches_only_active_participants() -> None:
             CVDRole.FINDER,
             RM.ACCEPTED,
             embargo.id_,
-            EmbargoConsentState.ACCEPTED,
+            EmbargoConsentState.AGREED,
         ),
         UNCONSENTED_ID: _participant(
             case.id_,

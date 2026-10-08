@@ -18,7 +18,12 @@
 import py_trees
 import pytest
 
-from test.support.embargo_register import activate, propose, terminate
+from test.support.embargo_register import (
+    activate,
+    propose,
+    terminate,
+    write_consent_rows,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
@@ -94,7 +99,7 @@ def make_case_with_manager(
     em_state: EM = EM.ACTIVE,
     case_manager_actor: str = CASE_MANAGER_ACTOR,
     other_participants: tuple[str, ...] = (OTHER_PARTICIPANT_ACTOR,),
-    other_consent: EmbargoConsentState | None = EmbargoConsentState.ACCEPTED,
+    other_consent: EmbargoConsentState | None = EmbargoConsentState.AGREED,
 ) -> tuple[VulnerabilityCase, as_CaseParticipant, SqliteDataLayer]:
     """Return a DataLayer with a case, a CASE_MANAGER, and other participants.
 
@@ -105,7 +110,8 @@ def make_case_with_manager(
     fixture built that way unable to observe the emission at all.
 
     Every participant holds an *other_consent* row for the case's embargo —
-    ``ACCEPTED`` by default (``None`` for no row), so it is a signatory, active
+    ``AGREED`` by default (``None``: only the ``UNINVITED`` row every register
+    entry gets), so it is a signatory, active
     while the embargo is (CM-10-004) and a case-content send reaches
     it.
     """
@@ -140,6 +146,9 @@ def make_case_with_manager(
         dl.create(participant)
 
     dl.create(case)
+    # Every other register entry (the REVISE proposal) gets its UNINVITED row,
+    # as a proposal writes it (ADR-0122).
+    write_consent_rows(dl, case)
     return case, cm_participant, dl
 
 

@@ -118,7 +118,7 @@ wrong with using any such roster-wide list as `to:`:
 1. On the **participant sender** side it bypasses the CASE_MANAGER
    (PCR-08-001/002).
 2. On the **CASE_MANAGER broadcast** side it reaches inert participants —
-   those that have not accepted the stub Invite, or are not SIGNATORY to an
+   those that have not accepted the stub Invite, or are not a signatory to an
    active embargo (CM-10-004, ADR-0114).
 
 ```python
@@ -268,7 +268,7 @@ AcceptInviteActorToCaseReceivedUseCase, at every receiver of a copy:
   2. CASE_MANAGER gate (create_case_manager_gated_tree, BT-17-001):
      a non-manager stops here and the handler reports REFUSED (HP-01-005)
   3. Activates the existing record: RM stays RECEIVED, VF V for a vendor,
-     consent SIGNATORY if an embargo is active (CM-11-001) — joining, not a
+     consent row `AGREED` if an embargo is active (CM-11-001) — joining, not a
      judgement of the case
   4. Emits Announce(VulnerabilityCase) to the participant and replays the
      prior ledger to it (CM-11-008)
@@ -420,8 +420,8 @@ The participant side has two halves, and only the first runs on receipt:
 | relayed Invite (same type, `actor` the CASE_MANAGER, `attributedTo` someone else) | `EmbargoInviteRelay` | invitee PEC `INVITE` where legal; the RSVP deadline the entry carries as `endTime` stored (CM-28-013) |
 | `accept_invite_to_embargo_on_case` | `EmbargoAcceptance` | the answerer's consent; the owner's Accept activates B |
 | `reject_invite_to_embargo_on_case` | `EmbargoRejection` | the answerer declines; the owner's Reject returns EM to A and forgets B |
-| `invite_to_embargo_on_case_expired` (the CASE_MANAGER's expiry, attributed to the invitee) | `InviteExpiry` | invitee PEC `EXPIRE` (`INVITED → EXPIRED`); no deadline re-evaluated (CM-28-014) |
-| `honour_late_accept_invite_to_embargo_on_case` (the CASE_MANAGER's honour, attributed to the accepting actor) | `InviteHonourLateAccept` | `EXPIRED → SIGNATORY` or `DECLINED → INVITED → SIGNATORY` (EMB-17-001, EMB-17-009) |
+| `invite_to_embargo_on_case_expired` (the CASE_MANAGER's expiry, attributed to the invitee) | `InviteExpiry` | invitee PEC `TIME_OUT` on that invitation's row (`INVITED → TIMED_OUT`); no deadline re-evaluated (CM-28-014) |
+| `honour_late_accept_invite_to_embargo_on_case` (the CASE_MANAGER's honour, attributed to the accepting actor) | `InviteHonourLateAccept` | `TIMED_OUT → AGREED` or `DECLINED → INVITED → AGREED` (EMB-17-001, EMB-17-009) |
 | `invite_to_embargo_on_case_expired_noop` (the CASE_MANAGER's no-op ack, attributed to the accepting actor) | `InviteExpiryNoop` | no PEC change (EMB-17-004, EMB-17-010) |
 | `invite_to_embargo_on_case_reinvite` (the CASE_MANAGER's own fresh Invite to a late accepter of a stale embargo; no `attributedTo`) | `EmbargoReinvite` | invitee PEC `INVITE` and the `endTime` deadline; no EM change, no proposal (EMB-17-003, EMB-17-011) |
 | `remove_embargo_event_from_case` | teardown | unchanged |

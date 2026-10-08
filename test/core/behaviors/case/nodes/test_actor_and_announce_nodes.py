@@ -38,10 +38,14 @@ from vultron.core.behaviors.case.nodes.ownership_transfer import (
 )
 from vultron.core.models._helpers import days_from_now_utc, now_utc
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
+)
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
 )
 from vultron.enums.roles import CVDRole
 from vultron.semantic_registry import extract_event
@@ -515,6 +519,12 @@ class TestSeedAnnouncedCaseNode:
                     id_=participant_id,
                     attributed_to=ACTOR_ID,
                     context=CASE_ID2,
+                    embargo_consents=[
+                        EmbargoConsent(
+                            embargo_id=f"{CASE_ID2}/embargo_events/unheld",
+                            state=EmbargoConsentState.UNINVITED,
+                        )
+                    ],
                 )
             ],
         )
@@ -1062,7 +1072,7 @@ class TestEmitAddCaseParticipantNode:
             (
                 existing_actor_1,
                 existing_p1_id,
-                EmbargoConsentState.ACCEPTED,
+                EmbargoConsentState.AGREED,
                 True,
             ),
             (
@@ -1074,7 +1084,7 @@ class TestEmitAddCaseParticipantNode:
             (
                 unjoined_actor,
                 unjoined_p_id,
-                EmbargoConsentState.ACCEPTED,
+                EmbargoConsentState.AGREED,
                 False,
             ),
         ):
