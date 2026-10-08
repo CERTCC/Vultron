@@ -701,3 +701,22 @@ def stub_summary_seed():
 
     with patch.object(invite_chain, "_seed_stub_summary", seed):
         yield
+
+
+@pytest.fixture(autouse=True)
+def stub_full_case_invite_poll():
+    """Answer the chain's full-case Invite poll without a live DataLayer.
+
+    The invite chain polls the invitee's container for the full-case Invite
+    after the join (CM-11-010).  Mock-driven scenario tests have no container
+    to poll, so they get an id back; ``test_invite_chain`` patches the poll
+    again to assert on it.
+    """
+    from vultron.demo.helpers import invite_chain
+
+    with patch.object(
+        invite_chain,
+        "find_full_case_invite_for_actor",
+        return_value="urn:test:full-case-invite",
+    ):
+        yield
