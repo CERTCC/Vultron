@@ -39,6 +39,7 @@ from vultron.core.use_cases.received._store_only import (
 )
 
 if TYPE_CHECKING:
+    from vultron.config.actor import ActorConfig
     from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
 
@@ -127,16 +128,20 @@ class AddEmbargoEventToCaseReceivedUseCase:
         dl: CaseOutboxPersistence,
         request: AddEmbargoEventToCaseReceivedEvent,
         sync_port: "SyncActivityPort | None" = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
+        trigger_activity: "TriggerActivityPort | None" = None,
+        actor_config: "ActorConfig | None" = None,
     ) -> None:
         self._dl = dl
-        # The CASE_MANAGER's embargo-ending notices to the bound signatories
-        # the ledger no longer reaches are built through it (CM-31-009).
-        self._trigger_activity = trigger_activity
         self._wire_render_port = wire_render_port
         self._request: AddEmbargoEventToCaseReceivedEvent = request
         self._sync_port = sync_port
+        # The CASE_MANAGER re-issues outstanding stub Invites when the active
+        # embargo changes (CM-11-016) and sends the embargo-ending notices to
+        # the bound signatories the ledger no longer reaches (CM-31-009), so
+        # it must be able to emit.
+        self._trigger_activity = trigger_activity
+        self._actor_config = actor_config
 
     def execute(self) -> HandlerResult:
         request = self._request
@@ -167,6 +172,7 @@ class AddEmbargoEventToCaseReceivedUseCase:
             case_id=case_id,
             embargo_id=embargo_id,
             sender_actor_id=request.actor_id,
+            actor_config=self._actor_config,
         )
         bridge = BTBridge(
             datalayer=self._dl,
@@ -206,16 +212,20 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
         dl: CaseOutboxPersistence,
         request: RemoveEmbargoEventFromCaseReceivedEvent,
         sync_port: "SyncActivityPort | None" = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
+        trigger_activity: "TriggerActivityPort | None" = None,
+        actor_config: "ActorConfig | None" = None,
     ) -> None:
         self._dl = dl
-        # The CASE_MANAGER's embargo-ending notices to the bound signatories
-        # the ledger no longer reaches are built through it (CM-31-009).
-        self._trigger_activity = trigger_activity
         self._wire_render_port = wire_render_port
         self._request: RemoveEmbargoEventFromCaseReceivedEvent = request
         self._sync_port = sync_port
+        # The CASE_MANAGER re-issues outstanding stub Invites when the active
+        # embargo changes (CM-11-016) and sends the embargo-ending notices to
+        # the bound signatories the ledger no longer reaches (CM-31-009), so
+        # it must be able to emit.
+        self._trigger_activity = trigger_activity
+        self._actor_config = actor_config
 
     def execute(self) -> HandlerResult:
         request = self._request
@@ -250,6 +260,7 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
             case_id=case_id,
             embargo_id=embargo_id,
             sender_actor_id=request.actor_id,
+            actor_config=self._actor_config,
         )
         bridge = BTBridge(
             datalayer=self._dl,

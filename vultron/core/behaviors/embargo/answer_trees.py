@@ -33,6 +33,10 @@ import logging
 
 import py_trees
 
+from vultron.config.actor import ActorConfig
+from vultron.core.behaviors.case.nodes.invite_actor_emit import (
+    ReissueStubInvitesNode,
+)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -60,6 +64,7 @@ def accept_invite_to_embargo_tree(
     embargo_id: str,
     accepting_actor_id: str,
     invite_id: str,
+    actor_config: ActorConfig | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for accepting embargo invitation (protocol EA).
 
@@ -75,6 +80,8 @@ def accept_invite_to_embargo_tree(
         embargo_id: ID of the EmbargoEvent being accepted.
         accepting_actor_id: Actor ID of the participant accepting.
         invite_id: ID of the InviteToEmbargoOnCase activity.
+        actor_config: The CASE_MANAGER's configuration; its RSVP windows set
+            the deadline of a stub Invite the owner's acceptance re-issues.
 
     Returns:
         Root node of the ``AcceptInviteToEmbargoBT`` Sequence.
@@ -103,6 +110,10 @@ def accept_invite_to_embargo_tree(
             # owner's, activate the revision) after its entry was
             # fanned out; send what the gate withheld (CM-10-006).
             BackfillAdmittedParticipantsNode(case_id=case_id),
+            # The owner's accept of a revision changes the active embargo
+            # under any stub Invite still outstanding (CM-11-016); a
+            # participant's accept changes nothing.
+            ReissueStubInvitesNode(case_id=case_id, actor_config=actor_config),
         ],
         manager_case_id=case_id,
         manager_gate_name="RecordEmbargoAcceptance",
@@ -121,6 +132,7 @@ def _decide_owner_rejection(
     case_id: str,
     embargo_id: str,
     rejecting_actor_id: str,
+    actor_config: ActorConfig | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """The owner's Reject decides the proposal; with P/X/A set it ends the embargo.
 
@@ -157,6 +169,7 @@ def _decide_owner_rejection(
                         result_out={},
                         requested_by=rejecting_actor_id,
                         reason=TerminationReason.THREAT_SIGNAL,
+                        actor_config=actor_config,
                     ),
                 ],
             ),
@@ -178,6 +191,7 @@ def reject_invite_to_embargo_tree(
     rejecting_actor_id: str,
     invite_id: str,
     embargo_id: str,
+    actor_config: ActorConfig | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for rejecting embargo invitation (protocol ER / EJ).
 
@@ -213,6 +227,9 @@ def reject_invite_to_embargo_tree(
         invite_id: ID of the InviteToEmbargoOnCase activity.
         embargo_id: ID of the EmbargoEvent the Reject names (required: which
             terms are refused decides the consent effect, MSM-07-004).
+        actor_config: The CASE_MANAGER's configuration; its RSVP windows set
+            the deadline of a stub Invite re-issued after an ET.  ``None``
+            applies the ``ActorConfig`` defaults.
 
     Returns:
         Root node of the ``RejectInviteToEmbargoBT`` Sequence.
@@ -234,7 +251,9 @@ def reject_invite_to_embargo_tree(
                 embargo_id=embargo_id,
                 rejecting_actor_id=rejecting_actor_id,
             ),
-            _decide_owner_rejection(case_id, embargo_id, rejecting_actor_id),
+            _decide_owner_rejection(
+                case_id, embargo_id, rejecting_actor_id, actor_config
+            ),
             # The owner's Reject decides the proposal (ER / EJ); a
             # participant's is consent and decides nothing (#3470).
             # After an ET the proposal is already gone, so this is a

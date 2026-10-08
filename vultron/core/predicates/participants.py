@@ -78,6 +78,10 @@ def all_participants_rm_closed(
     immediately — their convergence state is unknown and must be treated as
     incomplete.
 
+    Only participants that have joined are counted (CM-11-014): those seated
+    by the case initialization sequence and those that accepted their stub
+    Invite.  An inert invitee (``joined=False``) is skipped, whatever its RM.
+
     The CASE_MANAGER is included, not exempt.  It has a full RM lifecycle
     (ADR-0051, CM-23-005) and CM-23-010 makes ``RM.CLOSED`` mean "the Case Owner
     has left and the case is fully closed" for its participant record
@@ -98,6 +102,11 @@ def all_participants_rm_closed(
         otherwise.
     """
     for participant in participants:
+        if not participant.joined:
+            # An invitee that has not accepted its stub Invite is not part of
+            # the case yet; its silence must not keep the case open
+            # (CM-11-014, ADR-0114).
+            continue
         latest = participant.participant_status
         if latest is None:
             return False

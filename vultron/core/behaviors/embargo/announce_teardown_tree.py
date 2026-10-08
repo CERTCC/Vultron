@@ -61,6 +61,9 @@ import logging
 import py_trees
 
 from vultron.config.actor import ActorConfig
+from vultron.core.behaviors.case.nodes.invite_actor_emit import (
+    ReissueStubInvitesNode,
+)
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_participant_replica_gated_tree,
 )
@@ -128,6 +131,7 @@ def remove_embargo_from_case_tree(
     case_id: str,
     embargo_id: str,
     sender_actor_id: str,
+    actor_config: ActorConfig | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for receiver-side embargo removal (protocol ET).
 
@@ -158,6 +162,9 @@ def remove_embargo_from_case_tree(
         sender_actor_id: Sender of the ``Remove``; the Case Owner (or the
             CASE_MANAGER) at the CASE_MANAGER, the CASE_MANAGER elsewhere
             (ADR-0115, EP-09-005, PCR-03-001).
+        actor_config: The CASE_MANAGER's configuration; its RSVP windows set
+            the deadline of a re-issued stub Invite.  ``None`` applies the
+            ``ActorConfig`` defaults.
 
     Returns:
         Root node of the ``RemoveEmbargoFromCaseBT`` Sequence.
@@ -189,6 +196,7 @@ def remove_embargo_from_case_tree(
                     ClearActiveEmbargoNode(case_id=case_id),
                     embargo_admission_backfill_tree(
                         case_id,
+                        actor_config,
                         leading=[
                             SendAnnounceEmbargoEventNode(
                                 case_id=case_id, embargo_id=embargo_id
@@ -223,6 +231,7 @@ def add_embargo_to_case_tree(
     case_id: str,
     embargo_id: str,
     sender_actor_id: str,
+    actor_config: ActorConfig | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for receiver-side embargo activation (protocol EA).
 
@@ -240,6 +249,9 @@ def add_embargo_to_case_tree(
         sender_actor_id: Sender of the ``Add``; the Case Owner (or the
             CASE_MANAGER) at the CASE_MANAGER, the CASE_MANAGER elsewhere
             (ADR-0115, EP-09-005, PCR-03-001).
+        actor_config: The CASE_MANAGER's configuration; its RSVP windows set
+            the deadline of a re-issued stub Invite.  ``None`` applies the
+            ``ActorConfig`` defaults.
 
     Returns:
         Root node of the ``AddEmbargoToCaseBT`` Sequence.
@@ -271,6 +283,9 @@ def add_embargo_to_case_tree(
         manager_effects=[
             notices,
             BackfillAdmittedParticipantsNode(case_id=case_id),
+            # The activation can change the terms of a stub Invite still
+            # outstanding (CM-11-016).
+            ReissueStubInvitesNode(case_id=case_id, actor_config=actor_config),
         ],
         manager_case_id=case_id,
         manager_gate_name="EmbargoAdmissionBackfill",

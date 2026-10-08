@@ -1254,14 +1254,19 @@ groups:
     statement: >-
       When the CASE_MANAGER re-invites an invitee that has not answered its stub
       Invite, or whose stub Invite expired, the re-invite MUST be a fresh stub
-      Invite on the same participant record with a new deadline. A re-invite to
-      a participant at `RM.CLOSED` MUST be refused (ADR-0085).
+      Invite on the same participant record with a new deadline, and its
+      `inReplyTo` MUST be the id of the invitee's earlier stub Invite. A
+      re-invite to a participant at `RM.CLOSED` MUST be refused (ADR-0085).
     rationale: >-
       One actor has one participant record per case. `RM.CLOSED` is terminal
-      with no rejoin path, and a stub reject is a closure (CM-11-007).
+      with no rejoin path, and a stub reject is a closure (CM-11-007). Naming
+      the earlier stub in the standard AS2 `inReplyTo` property leaves the
+      invitee one live stub, and CM-11-016 then refuses an `Accept` of the
+      earlier one, naming the fresh one.
     verification: >-
-      Tests confirm a re-invite reuses the existing record with a new deadline,
-      and a re-invite to a participant at `RM.CLOSED` is refused.
+      Tests confirm a re-invite reuses the existing record with a new deadline
+      and names the earlier stub in `inReplyTo`, and a re-invite to a
+      participant at `RM.CLOSED` is refused.
     adr:
     - ADR-0114
     - ADR-0085
@@ -1274,7 +1279,8 @@ groups:
       When the active embargo is activated, revised or terminated while a stub
       Invite is outstanding, the CASE_MANAGER MUST re-issue the stub Invite on
       the same participant record with the current embargo terms and a new
-      deadline, and the replacement MUST name the Invite it supersedes. The
+      deadline, and the replacement MUST name the Invite it supersedes by
+      setting its `inReplyTo` to that Invite's id. The
       CASE_MANAGER MUST refuse an `Accept` of a superseded stub Invite, naming
       the replacement in the refusal, and MUST honour a `Reject` of it.
     rationale: >-
