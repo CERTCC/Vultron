@@ -96,10 +96,19 @@ issue under epic #3472:
   engage/defer, and the full-case Invite replies — onto the *sender's*
   participant. Every committed event type is
   classified, from code, in
-  `test/architecture/test_ledger_event_types_are_replayed.py`; the gating half
-  follows, and `test/architecture/test_received_tree_state_writes_are_gated.py`
-  holds every received tree that still writes state outside the CASE_MANAGER
-  gate to an owned ratchet until it does.
+  `test/architecture/test_ledger_event_types_are_replayed.py`. The gating half
+  of #3814 then wrapped every one of those received-side state-writing effects
+  in the factory's CASE_MANAGER gate (`manager_effects`): a non-CASE_MANAGER
+  replica now stores the activity and writes no participant or case state, and
+  converges on the `Announce(CaseLedgerEntry)` fan-out (RSH-08-003,
+  PCR-03-001). The one deliberate exception is a signatory whose ledger stream
+  is paused (removed, withheld, or at RM `CLOSED`): the CASE_MANAGER's direct
+  `Remove(EmbargoEvent)` or `Announce(EmbargoEvent)` is its only channel, so it
+  applies its own teardown or revision through `EmbargoLifecycle`, gated on
+  `AwaitsEmbargoEndingNoticeNode` (CM-31-010).
+  `test/architecture/test_received_tree_state_writes_are_gated.py` now holds the
+  invariant that every received-side state write is CASE_MANAGER-gated, with the
+  ledger-replay and bootstrap writes classified in `REPLICA_STATE_WRITES`.
 
 What is **not** changed: the CS dimensions, the PEC side-effect model, the single
 `ParticipantStatus` writer, and this note's two-gate design for adoption.

@@ -34,11 +34,14 @@ force, and only the CASE_MANAGER announces (BT-17-008):
     RemoveEmbargoFromCaseBT (Sequence)
     ├─ ValidateCaseExistsNode             # case must exist as VulnerabilityCase
     ├─ GuardedCommitCaseLedgerEntryBT     # record receipt before effects (CLP-10-006)
-    ├─ TeardownOnReplica (Selector)       # participant replica: own copy only
+    ├─ TeardownOnReplica (Selector)       # participant replica: paused only
     │  ├─ SkipIfCaseManager
-    │  └─ ReplicaTeardownIfActive (Selector)
-    │     ├─ EmbargoWasNotActive / EmbargoAlreadyExited   # nothing to tear down
-    │     └─ ReplicaActiveTeardown: ClearActiveEmbargoNode   # sends nothing
+    │  └─ ReplicaTeardownIfEndingNoticeAwaited (Selector)  # CM-31-010 only
+    │     ├─ SkipUnlessEndingNoticeAwaited (Inverter)      # active replica: skip
+    │     │  └─ AwaitsEmbargoEndingNoticeNode              # paused-stream check
+    │     └─ ReplicaTeardownIfActive (Selector)
+    │        ├─ EmbargoWasNotActive / EmbargoAlreadyExited # nothing to tear down
+    │        └─ ReplicaActiveTeardown: ClearActiveEmbargoNode   # sends nothing
     └─ TeardownAndAnnounceIfCaseManager (CaseManagerGate, from the factory)
        └─ TeardownIfActive (Selector)
           ├─ EmbargoWasNotActive / EmbargoAlreadyExited   # nothing to tear down
@@ -51,14 +54,16 @@ force, and only the CASE_MANAGER announces (BT-17-008):
              └─ ReissueStubInvitesNode       # re-issue stale stub Invites (CM-11-016)
 
 At a replica the teardown is the CASE_MANAGER's ``Remove(EmbargoEvent)``,
-admitted by the sender guard only from the CASE_MANAGER (ADR-0115).  The
-replica writes only its own copy and sends no notice; the CM-31-009 ending
-notices are the CASE_MANAGER's, so they sit in the CASE_MANAGER arm.  For a
-replica whose ledger stream is paused (removed, withheld, or at RM
-``CLOSED``) that direct notice is the only channel, and it applies it through
-``EmbargoLifecycle`` (CM-31-010) on the receive side.  When the RSH-08-003
-replica gate lands (#3814) it must keep admitting that case;
-``AwaitsEmbargoEndingNoticeNode`` is the check.
+admitted by the sender guard only from the CASE_MANAGER (ADR-0115).  An active
+replica takes the teardown from the ledger (EmbargoTeardown slot) and writes
+nothing (RSH-08-003); the CM-31-009 ending notices are the CASE_MANAGER's, so
+they sit in the CASE_MANAGER arm.  The one replica that still writes its own
+copy is a signatory whose ledger stream is paused (removed, withheld, or at RM
+``CLOSED``): that direct notice is its only channel, and it applies the
+teardown through ``EmbargoLifecycle`` (CM-31-010) on the receive side.  The
+RSH-08-003 replica gate (#3814) gates that write on
+``AwaitsEmbargoEndingNoticeNode``, so only the paused signatory tears down
+directly.
 
 Per specs/behavior-tree-integration.yaml BT-06-001.
 """
@@ -85,6 +90,7 @@ from vultron.core.behaviors.embargo.answer_trees import (  # noqa: F401
     reject_invite_to_embargo_tree,
 )
 from vultron.core.behaviors.embargo.nodes import (
+    AwaitsEmbargoEndingNoticeNode,
     CanAnswerEmbargoInviteNode,
     ClearActiveEmbargoNode,
     CollectEmbargoInviteRecipientsNode,
@@ -231,15 +237,35 @@ def remove_embargo_from_case_tree(
             manager_arm=SenderEntitlementKind.CASE_OWNER,
         ),
         precondition_guards=[ValidateCaseExistsNode(case_id=case_id)],
-        # A replica still writes its own copy here, outside the CASE_MANAGER
-        # gate; #3814 decides that write under RSH-08-003 and CM-31-010.  It
-        # tears down only and sends nothing, so it carries no capture/notice.
+        # RSH-08-003/CM-31-010: an active replica takes the teardown from the
+        # ledger (EmbargoTeardown slot), so it writes nothing here (#3814).
+        # The one exception is a signatory the ledger no longer reaches — a
+        # replica removed, withheld, or at RM ``CLOSED`` — for which the
+        # CASE_MANAGER's direct ``Remove(EmbargoEvent)`` is the only channel;
+        # that paused replica, and only it, applies its own teardown through
+        # ``EmbargoLifecycle`` (CM-31-010), gated by
+        # ``AwaitsEmbargoEndingNoticeNode``.  It tears down only and sends
+        # nothing, so it carries no capture/notice.
         replica_effects=[
             create_participant_replica_gated_tree(
                 name="TeardownOnReplica",
                 case_id=case_id,
                 children=[
-                    _teardown_if_active(case_id, embargo_id, prefix="Replica"),
+                    py_trees.composites.Selector(
+                        name="ReplicaTeardownIfEndingNoticeAwaited",
+                        memory=False,
+                        children=[
+                            py_trees.decorators.Inverter(
+                                name="SkipUnlessEndingNoticeAwaited",
+                                child=AwaitsEmbargoEndingNoticeNode(
+                                    case_id=case_id
+                                ),
+                            ),
+                            _teardown_if_active(
+                                case_id, embargo_id, prefix="Replica"
+                            ),
+                        ],
+                    ),
                 ],
             ),
         ],
@@ -311,25 +337,26 @@ def add_embargo_to_case_tree(
             manager_arm=SenderEntitlementKind.CASE_OWNER,
         ),
         precondition_guards=[ValidateCaseExistsNode(case_id=case_id)],
-        replica_effects=[
+        # RSH-08-003: EM → ACTIVE is canonical case state only the CASE_MANAGER
+        # writes; ``add_embargo_event_to_case`` is committed and replayed
+        # (EmbargoActivation slot), so a replica learns the activation from the
+        # ledger fan-out, not from the direct Add (#3814).  The capture of the
+        # embargo in force runs ahead of the write for the CM-31-009 revision
+        # notice, and admitting a participant the newly active embargo lets in
+        # (CM-10-006) and re-issuing a stub Invite whose terms changed
+        # (CM-11-016) are the CASE_MANAGER's follow-ons.
+        manager_effects=[
             capture,
             SetEmbargoActiveNode(
                 case_id=case_id,
                 embargo_id=embargo_id,
                 transition_mode=TransitionMode.OBSERVED,
             ),
-        ],
-        # A shorter revision is announced to the bound signatories the ledger
-        # no longer reaches (CM-31-009).  Activating a revision can admit a
-        # participant that had already accepted it, after the Add entry was
-        # fanned out (CM-10-006), and can change the terms of a stub Invite
-        # still outstanding (CM-11-016).
-        manager_effects=[
             notices,
             *embargo_admission_backfill_nodes(case_id, actor_config),
         ],
         manager_case_id=case_id,
-        manager_gate_name="EmbargoAdmissionBackfill",
+        manager_gate_name="ActivateEmbargoAndBackfillIfCaseManager",
     )
     logger.info(
         "Created AddEmbargoToCaseBT for case=%s embargo=%s",

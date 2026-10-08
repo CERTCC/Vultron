@@ -36,6 +36,9 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.core.use_cases.received.conftest import (
+    seed_case_manager_participant,
+)
 from test.support.embargo_register import activate, propose
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -137,7 +140,12 @@ def bridge(dl):
 
 @pytest.fixture
 def case():
-    return as_VulnerabilityCase(id_=CASE_ID, name="BT Case")
+    # RSH-08-003 (#3814): AppendCaseStatusToCaseNode and the teardown effects
+    # are CASE_MANAGER-gated, so ACTOR_ID (the store owner these tree-level
+    # tests run as) holds the role; attributed_to seeds the CLP-08 genesis.
+    return as_VulnerabilityCase(
+        id_=CASE_ID, name="BT Case", attributed_to=ACTOR_ID
+    )
 
 
 @pytest.fixture
@@ -147,6 +155,7 @@ def status_obj():
 
 @pytest.fixture
 def populated_dl(dl, case, status_obj):
+    seed_case_manager_participant(dl, case, ACTOR_ID)
     dl.create(case)
     dl.create(status_obj)
     return dl
@@ -738,6 +747,9 @@ class TestAddCaseStatusTree:
         case = VulnerabilityCase(
             id_=CASE_ID, name="EM PXA Split", attributed_to=ACTOR_ID
         )
+        # RSH-08-003 (#3814): the append is CASE_MANAGER-gated, so ACTOR_ID
+        # (the store owner) holds the role.
+        seed_case_manager_participant(dl, case, ACTOR_ID)
         # Auto-seeded CaseStatus has pxa=pxa and EM NONE.
         dl.create(case)
 
@@ -1042,8 +1054,14 @@ class TestAddCaseStatusToCaseReceivedUseCase:
             "sqlite:///:memory:",
             actor_id=CASE_MANAGER_ID,
         )
-        case = as_VulnerabilityCase(id_=CASE_ID, name="UC Case")
+        # RSH-08-003 (#3814): the append is CASE_MANAGER-gated, so the
+        # receiving store (CASE_MANAGER_ID) holds the role; attributed_to
+        # seeds the CLP-08 genesis.
+        case = as_VulnerabilityCase(
+            id_=CASE_ID, name="UC Case", attributed_to=CASE_MANAGER_ID
+        )
         status_obj = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
+        seed_case_manager_participant(dl, case, CASE_MANAGER_ID)
         dl.create(case)
         dl.create(status_obj)
 
@@ -1053,7 +1071,10 @@ class TestAddCaseStatusToCaseReceivedUseCase:
         event = make_payload(activity)
 
         AddCaseStatusToCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))

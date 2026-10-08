@@ -65,12 +65,24 @@ def create_accept_ownership_transfer_tree(
         name="AcceptOwnershipTransferBT",
         case_id=case_id,
         precondition_guards=[],
-        replica_effects=[
+        # A receiver that does not hold the case is simply not its
+        # CASE_MANAGER (ADR-0087 Regime 3), for both the guarded commit and
+        # the gated effect: read the absence as "not the CASE_MANAGER" at
+        # debug rather than a Regime-1 anomaly.
+        case_may_be_absent=True,
+        # RSH-08-003: the ownership change is canonical case state only the
+        # CASE_MANAGER writes; it is committed and replayed from the ledger
+        # (OwnershipTransfer slot), so a replica learns the new owner from the
+        # fan-out, not from a direct Accept (#3814).
+        manager_effects=[
             AcceptCaseOwnershipTransferNode(
                 case_id=case_id,
                 new_owner_id=new_owner_id,
             ),
         ],
+        manager_case_id=case_id,
+        manager_gate_name="AcceptOwnershipTransferIfCaseManager",
+        manager_case_may_be_absent=True,
     )
     logger.debug(
         "Created AcceptOwnershipTransferBT for case='%s' new_owner='%s'",
