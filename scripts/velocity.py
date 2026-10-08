@@ -92,7 +92,7 @@ query($owner: String!, $name: String!, $cursor: String, $since: DateTime!) {
         state
         stateReason
         issueType { name }
-        labels(first: 20) { nodes { name } }
+        labels(first: 100) { nodes { name } }
       }
     }
   }
@@ -177,6 +177,8 @@ def _period_keys(start: date, today: date) -> tuple[list[str], list[str]]:
         all_weeks.append(week_key(cursor))
         all_months.add(month_key(cursor))
         cursor += timedelta(weeks=1)
+    # A week's Monday can fall in the previous month, so add the end points.
+    all_months.update({month_key(start), month_key(today)})
     return all_weeks, sorted(all_months)
 
 

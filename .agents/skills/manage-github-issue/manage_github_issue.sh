@@ -126,6 +126,9 @@ if [[ -z "${ISSUE_NUMBER}" ]]; then
 
 Where: ${WHERE}"
   fi
+elif [[ -n "${OPENED_AS}" || -n "${WHERE}" || "${PLANNED}" -eq 1 ]]; then
+  echo "ERROR: --opened-as, --where, and --planned apply only when creating an issue" >&2
+  exit 1
 fi
 
 REPO_OWNER="${REPO%%/*}"

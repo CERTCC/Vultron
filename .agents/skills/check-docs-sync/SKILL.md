@@ -156,6 +156,8 @@ skill to file a `type:Concern` issue. Provide these details as context:
 - **Source**: PD-03-007 — implementation PR must include docs updates or a
   linked Concern; deferred only when multiple pages require simultaneous rewrite
 - **Deferred from PR**: `<PR_URL>` (fill in after the PR opens)
+- **Opened as**: `debt`, with `--where` naming the affected pages (a PR-originated
+  deferral is not planned work)
 
 `new-item` handles duplicate detection, parent epic selection, and creation.
 
