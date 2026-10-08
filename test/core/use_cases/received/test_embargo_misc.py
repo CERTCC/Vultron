@@ -21,6 +21,7 @@ import pytest
 from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
 )
+from test.support.embargo_register import activate
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import HandlerDisposition
@@ -62,8 +63,7 @@ class TestAnnounceEmbargoEventToCaseReceivedUseCase:
             context=case.id_,
             end_time=days_from_now_utc(45),
         )
-        case.active_embargo = embargo.id_
-        case.append_case_status(em_state=EM.ACTIVE)
+        activate(case, embargo.id_)
         # Only the CASE_MANAGER announces canonical embargo state (ADR-0115).
         seed_case_manager_participant(
             dl, case, "https://example.org/users/vendor"
@@ -246,8 +246,7 @@ class TestResetEmbargoConsentWithInlineParticipants:
             name="Inline Participant Regression Test",
             attributed_to=actor_id,
         )
-        case.active_embargo = embargo.id_
-        case.append_case_status(em_state=EM.ACTIVE)
+        activate(case, embargo.id_)
         case.case_participants.append(participant)  # type: ignore[arg-type]  # inline wire object (regression test for #609)
         case.actor_participant_index[actor_id] = participant_id
         case_manager_id = "https://example.org/users/case-manager"

@@ -21,13 +21,16 @@ from typing import cast
 
 import pytest
 
+from test.support.embargo_register import activate, propose
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
+from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState as ECS,
 )
+from vultron.errors import VultronInvalidStateTransitionError
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
 from .conftest import (
@@ -43,15 +46,16 @@ def _case_with_two_open(
     dl: SqliteDataLayer, owner_id: str, em_state: EM
 ) -> tuple[VulnerabilityCase, str, str, str | None]:
     """A case at *em_state* with proposals r1 and r2 open (and e1 if REVISE)."""
-    case, _ = _make_case(dl, owner_id, em_state=em_state)
+    case, _ = _make_case(dl, owner_id)
     active_id = None
     if em_state is EM.REVISE:
         active_id = _make_embargo(dl, case.id_).id_
-        case.active_embargo = active_id
+        activate(case, active_id)
     r1 = _make_embargo(dl, case.id_, days=90).id_
     r2 = _make_embargo(dl, case.id_, days=120).id_
-    case.proposed_embargoes = [r1, r2]
+    propose(case, r1, r2)
     dl.save(case)
+    assert case.em_state is em_state
     return case, r1, r2, active_id
 
 
@@ -70,6 +74,7 @@ def test_owner_rejecting_one_of_two_open_proposals_keeps_the_em_state(
 
     assert result.em_after == em_state
     updated = cast(VulnerabilityCase, dl.read(case.id_))
+    assert updated.em_state == em_state
     assert updated.current_status.em.state == em_state
     assert updated.proposed_embargo_ids == [r2]
     assert updated.active_embargo_id == active_id
@@ -96,6 +101,36 @@ def test_owner_rejecting_the_last_open_revision_returns_to_active(
     assert updated.active_embargo_id == active_id
 
 
+@pytest.mark.spec("EMB-04-002")
+@pytest.mark.spec("EP-08-001")
+def test_owner_rejecting_one_of_two_revisions_with_pxa_set_is_allowed(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """The P/X/A guard bars only a Reject that returns the case to ACTIVE.
+
+    With another revision still open, EM stays ``REVISE``: the case is not
+    kept on the prior terms, so there is nothing for EMB-04-002 to refuse.
+    """
+    owner, dl = owner_and_dl
+    case, r1, r2, active_id = _case_with_two_open(dl, owner.id_, EM.REVISE)
+    case.append_case_status(pxa_state=CS_pxa.Pxa)
+    dl.save(case)
+    lifecycle = EmbargoLifecycle(persistence=dl)
+
+    result = lifecycle.reject_embargo_invite(
+        case_id=case.id_, embargo_id=r1, actor_id=owner.id_
+    )
+
+    assert result.em_after == EM.REVISE
+    updated = cast(VulnerabilityCase, dl.read(case.id_))
+    assert updated.proposed_embargo_ids == [r2]
+    assert updated.active_embargo_id == active_id
+    with pytest.raises(VultronInvalidStateTransitionError):
+        lifecycle.reject_embargo_invite(
+            case_id=case.id_, embargo_id=r2, actor_id=owner.id_
+        )
+
+
 @pytest.mark.spec("MSM-07-004")
 def test_record_consent_false_leaves_the_rejecting_participant_alone(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
@@ -103,11 +138,9 @@ def test_record_consent_false_leaves_the_rejecting_participant_alone(
     """The received tree records consent once, then decides (#3915)."""
     owner, dl = owner_and_dl
     finder = _make_actor(dl, "Finder Org")
-    case, _ = _make_case(
-        dl, owner.id_, extra_participant_ids=[finder.id_], em_state=EM.PROPOSED
-    )
+    case, _ = _make_case(dl, owner.id_, extra_participant_ids=[finder.id_])
     embargo = _make_embargo(dl, case.id_)
-    case.proposed_embargoes = [embargo.id_]
+    propose(case, embargo.id_)
     dl.save(case)
     finder_pid = case.actor_participant_index[finder.id_]
     _seed_consent(dl, finder_pid, embargo.id_, ECS.INVITED)

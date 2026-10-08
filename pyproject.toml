@@ -370,7 +370,8 @@ ignore-words-list = "cna,ot,dialogues"
 #   6.2.5 Report Acknowledgement   ISO/IEC 29147:2018 clause title (cited)
 #   National Cyber Security Centre proper noun (UK NCSC)
 #   ../../Acknowledgements.md      include-markdown target (repo-root file)
-ignore-regex = "py_trees\\.behaviour\\.Behaviour|Analysing an Email Corpus|6\\.2\\.5 Report Acknowledgement|National Cyber Security Centre|Acknowledgements\\.md"
+#   `CANCELLED`                    embargo register status value (ADR-0122), inline code
+ignore-regex = "py_trees\\.behaviour\\.Behaviour|Analysing an Email Corpus|6\\.2\\.5 Report Acknowledgement|National Cyber Security Centre|Acknowledgements\\.md|`CANCELLED`"
 # Paths as codespell sees them — no `./` prefix. Each directory pattern ends in
 # `*` because codespell matches skip globs with fnmatch against the full path,
 # and it sees two shapes: `docs/adr` while walking `codespell docs/`, and

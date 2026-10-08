@@ -15,6 +15,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from test.support.embargo_register import activate, propose
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -29,7 +30,6 @@ from vultron.adapters.driving.fastapi.routers import (
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.states.em import EM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import em_propose_embargo_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
@@ -287,8 +287,7 @@ def case_with_embargo(dl, actor):
         context=case_obj.id_, end_time=days_from_now_utc(45)
     )
     dl.create(embargo)
-    case_obj.set_embargo(embargo.id_)
-    case_obj.append_case_status(em_state=EM.ACTIVE)
+    activate(case_obj, embargo.id_)
     dl.create(case_obj)
     _add_case_manager(case_obj, dl)
     return case_obj, embargo
@@ -309,8 +308,7 @@ def case_with_proposal(dl, actor):
         embargo, context=case_obj.id_, actor=actor.id_
     )
     dl.create(proposal)
-    case_obj.append_case_status(em_state=EM.PROPOSED)
-    case_obj.proposed_embargoes.append(embargo.id_)
+    propose(case_obj, embargo.id_)
     case_obj.pending_embargo_proposal_index[embargo.id_] = proposal.id_
     dl.create(case_obj)
     _add_case_manager(case_obj, dl)

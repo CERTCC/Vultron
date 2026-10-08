@@ -17,7 +17,7 @@
 
 EP-04-011 says the revision that shortest-wins registers at case creation MUST
 be relayed as an ``Invite(EmbargoEvent)``.  The registration persists the
-revision (EM ``REVISE``, ``proposed_embargoes``) inside the creation-time
+revision (EM ``REVISE``, a ``PROPOSED`` register entry) inside the creation-time
 initialization, but who the proposer is and which id the Invite carries exist
 only for that one execution.  Initialization runs once per case (EP-04-012), so
 a redelivered ``Create(as_CaseProposal)`` never registers it again: had the

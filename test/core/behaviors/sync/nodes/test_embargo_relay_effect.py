@@ -20,6 +20,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_event,
     _to_persistable_entry,
 )
+from test.support.embargo_register import activate
 from vultron.core.behaviors.embargo.nodes import (
     ApplyEmbargoAcceptanceFromLedgerNode,
     ApplyEmbargoInviteFromLedgerNode,
@@ -167,8 +168,7 @@ def revising_case(datalayer) -> VulnerabilityCase:
     )
     datalayer.create(active)
     case = VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
-    case.set_embargo(ACTIVE_EMBARGO_ID)
-    case.append_case_status(em_state=EM.ACTIVE)
+    activate(case, ACTIVE_EMBARGO_ID)
     _participant(
         datalayer,
         case,

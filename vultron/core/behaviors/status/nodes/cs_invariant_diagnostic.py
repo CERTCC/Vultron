@@ -115,7 +115,7 @@ class PxaEmInvariantDiagnosticNode(_EmitSingleActivityBase):
         if case is None:
             return Status.SUCCESS
 
-        em = case.current_status.em.state
+        em = case.em_state
         violation = violation_pxa_em_entailment(pxa, em)
         if violation is None:
             return Status.SUCCESS

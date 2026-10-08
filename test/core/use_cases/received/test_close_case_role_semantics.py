@@ -30,6 +30,7 @@ from unittest.mock import MagicMock
 import py_trees
 import pytest
 
+from test.support.embargo_register import activate, propose, terminate
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -646,8 +647,7 @@ class TestPostCloseBoundary:
             end_time=datetime.now(tz=UTC) + timedelta(days=45),
         )
         dl.create(embargo)
-        case.proposed_embargoes = [embargo.id_]
-        case.append_case_status(em_state=EM.PROPOSED)
+        propose(case, embargo.id_)
         dl.save(case)
         vendor = dl.read(case.actor_participant_index[VENDOR_ID])
         assert isinstance(vendor, CaseParticipant)
@@ -1029,7 +1029,11 @@ class TestClosureRMBoundary:
 def _seed_active_embargo(
     dl: SqliteDataLayer, em_state: EM = EM.ACTIVE
 ) -> None:
-    """Give CASE_ID a live embargo: active_embargo set + EM state *em_state*."""
+    """Give CASE_ID a live embargo whose register derives EM *em_state*.
+
+    ``EM.ACTIVE`` holds one embargo in force; ``EM.REVISE`` adds an open
+    revision proposal on top of it.
+    """
     case = dl.read_case(CASE_ID)
     assert isinstance(case, VulnerabilityCase)
     # Hold the record too: a case never names an embargo its own store
@@ -1040,17 +1044,24 @@ def _seed_active_embargo(
         end_time=days_from_now_utc(45),
     )
     dl.save(embargo)
-    case.active_embargo = embargo.id_
-    case.append_case_status(em_state=em_state)
+    activate(case, embargo.id_)
+    if em_state == EM.REVISE:
+        revision = EmbargoEvent(
+            id_=f"{CASE_ID}/embargo_events/e2",
+            context=CASE_ID,
+            end_time=days_from_now_utc(60),
+        )
+        dl.save(revision)
+        propose(case, revision.id_)
+    assert case.em_state == em_state
     dl.save(case)
 
 
 def _terminate_embargo(dl: SqliteDataLayer) -> None:
-    """Clear the active embargo and move EM to EXITED (normal EM teardown)."""
+    """Terminate the active embargo, so EM derives EXITED (normal teardown)."""
     case = dl.read_case(CASE_ID)
     assert isinstance(case, VulnerabilityCase)
-    case.active_embargo = None
-    case.append_case_status(em_state=EM.EXITED)
+    terminate(case)
     dl.save(case)
 
 

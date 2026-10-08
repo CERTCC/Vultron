@@ -140,9 +140,8 @@ class GetActionRulesUseCase:
         em_state: EM = EM.EMBARGO_MANAGEMENT_NONE
         pxa_state: CS_pxa = CS_pxa.pxa
         if has_case_statuses(case):
-            current_cs = case.current_status
-            em_state = current_cs.em.state
-            pxa_state = current_cs.pxa.state
+            em_state = case.em_state
+            pxa_state = case.current_status.pxa.state
 
         # 5. Build the combined 6-character CS state string (VFD + PXA)
         vf_str = vf_state.value if vf_state is not None else CS_vf.vf.value

@@ -51,7 +51,7 @@ groups:
   - id: SM-02-003
     priority: SHOULD
     kind: project
-    statement: Trigger names for `transitions` library machines SHOULD be defined as a companion `StrEnum` (e.g., `EM_Trigger`)
+    statement: Trigger names for `transitions` library machines SHOULD be defined as a companion `StrEnum` (e.g., `RM_Trigger`)
       using `auto()` so that trigger strings remain stable and are not inlined as string literals scattered across the codebase
 - id: SM-03
   title: Transition Definitions

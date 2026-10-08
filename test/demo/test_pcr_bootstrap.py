@@ -40,6 +40,7 @@ the handler's side effect (note appended to ``replica.notes``).
 import pytest
 
 from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
+from test.support.embargo_register import activate
 from vultron.core.models.dimensions import (
     RmDimension,
 )
@@ -341,7 +342,7 @@ def _bootstrap_case_for_participant(
     # on the validate path (ISSUE-2548), where the checks moved upstream of every
     # write instead of running after the RM.VALID latch had already been written:
     #
-    #   - active_embargo, without which RM.VALID is refused (DUR-07-004);
+    #   - an active embargo, without which RM.VALID is refused (DUR-07-004);
     #   - a CaseParticipant for the owner, reachable through
     #     actor_participant_index (CM-19-003), without which the case-scoped half
     #     of the RM.VALID transition has nothing to advance.
@@ -351,9 +352,7 @@ def _bootstrap_case_for_participant(
     assert case_obj is not None, (
         f"case {case_id!r} not readable from the owner's own store"
     )
-    object.__setattr__(
-        case_obj, "active_embargo", f"{case_id}/embargoes/bootstrap-embargo"
-    )
+    activate(case_obj, f"{case_id}/embargoes/bootstrap-embargo")
 
     # The owner submitted the CaseProposal, so it holds CASE_OWNER — a role never
     # delegated to the CaseActor.  RM.RECEIVED is the state it holds after taking

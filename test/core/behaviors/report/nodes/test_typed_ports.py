@@ -27,6 +27,7 @@ import pytest
 from py_trees.ports import NoDataAvailable
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.embargo_register import activate
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
@@ -283,15 +284,12 @@ class TestEnsureEmbargoExistsPorts:
     ) -> None:
         actor = CaseActor(id_=ACTOR_ID, name="Vendor")
         report = VulnerabilityReport(id_=REPORT_ID, name="R1", content="c")
-        # active_embargo is a str | None URI field on VulnerabilityCase
         case = VulnerabilityCase(
             name="Test Case",
             vulnerability_reports=[REPORT_ID],
             attributed_to=ACTOR_ID,
         )
-        object.__setattr__(
-            case, "active_embargo", "https://example.org/embargos/em-001"
-        )
+        activate(case, "https://example.org/embargos/em-001")
         bt_scenario.seed(actor, report, case)
         result = bt_scenario.run(
             EnsureEmbargoExists(report_id=REPORT_ID),

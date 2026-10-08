@@ -56,6 +56,7 @@ from test.core.use_cases.received.test_reject_sync import (
     _make_entry,
     _make_reject_event,
 )
+from test.support.embargo_register import activate, propose
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -845,11 +846,13 @@ def _embargo_case(
     seed_case_owner_participant(cm_store, case, _OWNER_ID)
     seed_case_participant(cm_store, case, _BYSTANDER_ID, [CVDRole.VENDOR])
     seed_case_participant(cm_store, case, _INVITEE_ID, [CVDRole.VENDOR])
-    case.append_case_status(em_state=em_state)
+    # The register derives *em_state*: the embargo in force when *active*,
+    # an open proposal at PROPOSED, and no entry at all at NONE.
     if active:
-        case.active_embargo = embargo.id_
-    else:
-        case.proposed_embargoes.append(embargo.id_)
+        activate(case, embargo.id_)
+    elif em_state == EM.PROPOSED:
+        propose(case, embargo.id_)
+    assert case.em_state == em_state
     cm_store.create(case)
     cm_store.create(embargo)
     return embargo

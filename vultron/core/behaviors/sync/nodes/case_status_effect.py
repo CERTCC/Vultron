@@ -24,7 +24,7 @@ replays the entry on a participant replica, so the replica's
 the ``Add(CaseStatus)`` reaching the replica directly (PCR-03-001).
 
 The replica adjudicates EM and P/X/A with the same acceptance rules the
-CASE_MANAGER's ``add_case_status_tree`` uses (RSH-05-018, RSH-05-019), through
+CASE_MANAGER's ``add_case_status_tree`` uses (RSH-05-023, RSH-05-019), through
 the shared predicates :func:`~vultron.core.states.em.is_em_assertion_acceptable`
 and :func:`~vultron.core.states.cs.is_pxa_assertion_acceptable`: a refused
 dimension carries the replica's current value forward.  For an entry in ledger
@@ -99,7 +99,7 @@ class ApplyCaseStatusFromLedgerNode(_LedgerEffectNode):
     * every dimension is refused and the result is the replica's current
       state, so there is nothing new to record (the replica-side reading of
       RSH-05-005).  Carrying the replica's value forward *is* the entry's
-      applied effect under RSH-05-018/019, as it is for a regressing RM move
+      applied effect under RSH-05-023/019, as it is for a regressing RM move
       under RSH-05-007, so persisting the entry does not break SYNC-12-002.
 
     FAILURE, so the entry is not persisted (SYNC-12-001): the snapshot names
@@ -200,7 +200,7 @@ class ApplyCaseStatusFromLedgerNode(_LedgerEffectNode):
             return None
         self.logger.warning(
             "%s: case status '%s' partly refused on case '%s'; carrying the"
-            " replica's value forward (RSH-05-018, RSH-05-019)",
+            " replica's value forward (RSH-05-023, RSH-05-019)",
             self.name,
             asserted.id_,
             case.id_,

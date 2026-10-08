@@ -431,10 +431,16 @@ class TestStatusUseCases:
         assert result.reason is not None
         assert "wholly refused" in result.reason
 
-    def test_add_case_status_allows_valid_em_transition(
+    def test_add_case_status_refuses_an_em_move_the_register_has_not_made(
         self, monkeypatch, make_payload
     ):
-        """Valid EM transition is permitted; status is appended."""
+        """A status asserting EM other than the case's derived EM is refused.
+
+        EM is derived from the embargo register and is never moved by a
+        status (ADR-0122, RSH-05-023): even ``NONE → PROPOSED``, a move the
+        EM machine once allowed, is refused, and the case's EM is carried
+        forward unchanged.
+        """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
@@ -451,20 +457,22 @@ class TestStatusUseCases:
         case.case_statuses.append(initial_status)  # type: ignore[arg-type]
         dl.create(case)
 
-        # NONE → PROPOSED is a valid transition
-        good_status = as_CaseStatus(
-            id_="https://example.org/cases/case_em_valid/statuses/s_good",
+        # NONE → PROPOSED with no proposal in the register
+        asserted_status = as_CaseStatus(
+            id_="https://example.org/cases/case_em_valid/statuses/s_asserted",
             context=case.id_,
             em=EmDimension(state=EM.PROPOSED),
         )
-        dl.create(good_status)
+        dl.create(asserted_status)
 
         activity = add_status_to_case_activity(
-            good_status, target=case, actor="https://example.org/users/vendor"
+            asserted_status,
+            target=case,
+            actor="https://example.org/users/vendor",
         )
         event = make_payload(activity)
 
-        AddCaseStatusToCaseReceivedUseCase(
+        result = AddCaseStatusToCaseReceivedUseCase(
             dl, event, wire_render_port=As2WireRenderAdapter()
         ).execute()
 
@@ -472,7 +480,10 @@ class TestStatusUseCases:
         assert updated_case is not None
         updated_case = cast(as_VulnerabilityCase, updated_case)
         status_ids = [getattr(s, "id_", s) for s in updated_case.case_statuses]
-        assert good_status.id_ in status_ids
+        assert asserted_status.id_ not in status_ids
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert updated_case.em_state == EM.NONE
+        assert updated_case.current_status.em.state == EM.NONE
 
     def test_create_participant_status_stores_status(
         self, monkeypatch, make_payload

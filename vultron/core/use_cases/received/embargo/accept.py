@@ -231,11 +231,7 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
     ) -> None:
         """EMB-17: late-Accept compatibility routing after an invite expired."""
         _fresh_case = self._dl.read_case(case_id)
-        em_state = (
-            _fresh_case.current_status.em.state
-            if _fresh_case is not None
-            else EM.NONE
-        )
+        em_state = _fresh_case.em_state if _fresh_case is not None else EM.NONE
         active_embargo_id = (
             _as_id(_fresh_case.active_embargo)
             if _fresh_case is not None

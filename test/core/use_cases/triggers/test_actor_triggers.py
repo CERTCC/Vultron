@@ -30,6 +30,7 @@ from typing import Any, cast
 import pytest
 from pydantic import ValidationError
 
+from test.support.embargo_register import activate
 from test.support.received import archive_received
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -176,7 +177,6 @@ def _activate_embargo(dl: SqliteDataLayer, case_id: str) -> str:
     """Give *case_id* an ACTIVE embargo in *dl*; return the embargo id."""
     from datetime import datetime
 
-    from vultron.core.states.em import EM
     from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
     embargo = as_EmbargoEvent(
@@ -187,8 +187,7 @@ def _activate_embargo(dl: SqliteDataLayer, case_id: str) -> str:
     )
     dl.create(embargo)
     case = cast(Any, dl.read(case_id))
-    object.__setattr__(case, "active_embargo", embargo.id_)
-    case.append_case_status(em_state=EM.ACTIVE)
+    activate(case, embargo.id_)
     dl.save(case)
     return embargo.id_
 

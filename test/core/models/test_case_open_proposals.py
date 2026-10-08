@@ -11,18 +11,26 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""``VulnerabilityCase.discard_proposed_embargo`` — one pruner for both records.
+"""A register step keeps ``pending_embargo_proposal_index`` with the register.
 
-``proposed_embargoes`` and ``pending_embargo_proposal_index`` both record open
-proposals; EP-08-003 requires a decided proposal to leave every such record,
-and pruning them from one place is what keeps them from drifting (#3470).
+The embargo register is the one record of a case's open proposals (its
+``PROPOSED`` entries, ADR-0122); ``pending_embargo_proposal_index`` maps each
+to the Invite that relayed it.  EP-08-003 requires a decided proposal to leave
+every such record, so every register step prunes the index of any proposal
+that has been decided (#3470); termination decides them all at once
+(EP-08-004).  A record for an embargo the register has not recorded yet stays
+(EP-09-007).
 """
 
 import pytest
 
+from test.support.embargo_register import activate, propose, reject, terminate
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.states.em import EM
+from vultron.errors import VultronInvalidStateTransitionError
 
 _OWNER = "https://example.org/actors/owner"
+_E0 = "https://example.org/cases/1/embargo_events/0"
 _E1 = "https://example.org/cases/1/embargo_events/1"
 _E2 = "https://example.org/cases/1/embargo_events/2"
 _P1 = "https://example.org/cases/1/embargo_proposals/1"
@@ -31,76 +39,108 @@ _P2 = "https://example.org/cases/1/embargo_proposals/2"
 
 def _case_with_two_open_proposals() -> VulnerabilityCase:
     case = VulnerabilityCase(name="c", attributed_to=_OWNER)
-    case.proposed_embargoes.extend([_E1, _E2])
+    propose(case, _E1, _E2)
     case.pending_embargo_proposal_index.update({_E1: _P1, _E2: _P2})
     return case
 
 
 @pytest.mark.spec("EP-08-003")
-def test_discard_removes_the_proposal_from_both_records_and_only_that_one():
+def test_rejection_prunes_the_proposal_from_both_records_and_only_that_one():
     case = _case_with_two_open_proposals()
 
-    assert case.discard_proposed_embargo(_E1) is True
+    reject(case, _E1)
 
-    assert case.proposed_embargoes == [_E2]
+    assert case.proposed_embargo_ids == [_E2]
+    assert case.pending_embargo_proposal_index == {_E2: _P2}
+    assert case.em_state == EM.PROPOSED
+
+
+@pytest.mark.spec("EP-08-003")
+def test_activation_prunes_the_activated_proposal_only():
+    case = _case_with_two_open_proposals()
+
+    activate(case, _E1)
+
+    assert case.active_embargo_id == _E1
+    assert case.proposed_embargo_ids == [_E2]
     assert case.pending_embargo_proposal_index == {_E2: _P2}
 
 
 @pytest.mark.spec("EP-08-003")
-def test_discard_is_idempotent_and_reports_no_change_the_second_time():
+def test_a_refused_step_changes_neither_record():
+    """Deciding an already-decided proposal is refused, and prunes nothing."""
     case = _case_with_two_open_proposals()
-    case.discard_proposed_embargo(_E1)
+    reject(case, _E1)
 
-    assert case.discard_proposed_embargo(_E1) is False
-    assert case.proposed_embargoes == [_E2]
+    with pytest.raises(VultronInvalidStateTransitionError):
+        reject(case, _E1)
+
+    assert case.proposed_embargo_ids == [_E2]
     assert case.pending_embargo_proposal_index == {_E2: _P2}
 
 
-@pytest.mark.spec("EP-08-003")
-def test_discard_prunes_a_record_the_other_does_not_hold():
-    """The two records can disagree (they were pruned on different paths);
-    each is pruned on its own evidence."""
+@pytest.mark.spec("EP-09-007")
+def test_a_step_keeps_an_index_record_the_register_has_not_recorded_yet():
+    """A relayed Invite can be indexed before replay records its proposal.
+
+    The record keeps its place until that proposal is decided, so the
+    addressee's own Invite is the one it answers.
+    """
     case = VulnerabilityCase(name="c", attributed_to=_OWNER)
     case.pending_embargo_proposal_index[_E1] = _P1  # index only
 
-    assert case.discard_proposed_embargo(_E1) is True
+    activate(case, _E2)
+
+    assert case.proposed_embargo_ids == []
+    assert case.pending_embargo_proposal_index == {_E1: _P1}
+
+
+@pytest.mark.spec("EP-08-003")
+def test_a_step_prunes_an_index_record_for_an_already_decided_proposal():
+    """An index record written after its proposal was decided is pruned."""
+    case = VulnerabilityCase(name="c", attributed_to=_OWNER)
+    propose(case, _E1)
+    reject(case, _E1)
+    case.pending_embargo_proposal_index[_E1] = _P1  # late relay record
+
+    assert not case.proposal_is_undecided(_E1)
+    propose(case, _E2)
+
+    assert case.proposed_embargo_ids == [_E2]
     assert case.pending_embargo_proposal_index == {}
 
-    case.proposed_embargoes.append(_E2)  # list only
-    assert case.discard_proposed_embargo(_E2) is True
-    assert case.proposed_embargoes == []
+
+@pytest.mark.spec("EP-08-004")
+def test_termination_prunes_an_index_record_the_register_never_recorded():
+    """After termination nothing can be proposed, so no record survives."""
+    case = VulnerabilityCase(name="c", attributed_to=_OWNER)
+    activate(case, _E0)
+    case.pending_embargo_proposal_index[_E1] = _P1  # index only
+
+    terminate(case)
+
+    assert case.pending_embargo_proposal_index == {}
 
 
-def test_discard_of_an_unknown_embargo_changes_nothing():
+def test_proposing_another_embargo_keeps_every_open_record():
     case = _case_with_two_open_proposals()
 
-    assert case.discard_proposed_embargo("urn:uuid:nobody") is False
-    assert case.proposed_embargoes == [_E1, _E2]
+    propose(case, _E0)
+
+    assert case.proposed_embargo_ids == [_E1, _E2, _E0]
     assert case.pending_embargo_proposal_index == {_E1: _P1, _E2: _P2}
 
 
 @pytest.mark.spec("EP-08-004")
-def test_discard_all_clears_both_records_together_and_reports_change():
-    """Termination's whole-record pruner: both records leave in one call."""
+def test_termination_clears_both_records_together():
+    """Termination cancels every open proposal; the index leaves with them."""
     case = VulnerabilityCase(name="Open proposals", attributed_to="urn:o")
-    case.proposed_embargoes = ["urn:e1", "urn:e2"]
-    case.pending_embargo_proposal_index = {
-        "urn:e1": "urn:p1",
-        "urn:e2": "urn:p2",
-    }
+    activate(case, _E0)
+    propose(case, _E1, _E2)
+    case.pending_embargo_proposal_index = {_E1: _P1, _E2: _P2}
 
-    assert case.discard_all_proposed_embargoes() is True
-    assert case.proposed_embargoes == []
+    terminate(case)
+
+    assert case.em_state == EM.EXITED
+    assert case.proposed_embargo_ids == []
     assert case.pending_embargo_proposal_index == {}
-
-
-@pytest.mark.spec("EP-08-004")
-def test_discard_all_is_idempotent_and_clears_a_record_the_other_lacks():
-    """A second call reports no change; a lopsided pair is still cleared."""
-    case = VulnerabilityCase(name="Open proposals", attributed_to="urn:o")
-    assert case.discard_all_proposed_embargoes() is False
-
-    case.pending_embargo_proposal_index = {"urn:e1": "urn:p1"}
-    assert case.discard_all_proposed_embargoes() is True
-    assert case.pending_embargo_proposal_index == {}
-    assert case.discard_all_proposed_embargoes() is False

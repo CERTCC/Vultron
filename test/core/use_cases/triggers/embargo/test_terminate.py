@@ -6,6 +6,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.embargo_register import propose
 from test.support.ledger import committed_event_types
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -137,11 +138,7 @@ def test_terminate_embargo_forgets_every_open_revision_via_bt_path(
     case_obj = cast(VulnerabilityCase, owner_dl.read(case.id_))
     revision_a = f"{case.id_}/embargo_events/revision-a"
     revision_b = f"{case.id_}/embargo_events/revision-b"
-    case_obj.proposed_embargoes = [
-        *case_obj.proposed_embargoes,
-        revision_a,
-        revision_b,
-    ]
+    propose(case_obj, revision_a, revision_b)
     case_obj.pending_embargo_proposal_index = {
         **case_obj.pending_embargo_proposal_index,
         revision_a: f"{case.id_}/embargo_proposals/a",
@@ -159,7 +156,7 @@ def test_terminate_embargo_forgets_every_open_revision_via_bt_path(
 
     updated_case = cast(VulnerabilityCase, owner_dl.read(case.id_))
     assert updated_case.current_status.em.state == EM.EXITED
-    assert updated_case.proposed_embargoes == []
+    assert updated_case.proposed_embargo_ids == []
     assert updated_case.pending_embargo_proposal_index == {}
 
 

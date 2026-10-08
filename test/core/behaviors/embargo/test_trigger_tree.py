@@ -50,6 +50,7 @@ from vultron.core.behaviors.embargo.trigger_tree import (
     terminate_embargo_bt,
 )
 from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.states.embargo_register import TerminationReason
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 CASE_ID = "https://example.org/cases/case-trigger-tree"
@@ -238,6 +239,7 @@ class TestTerminateEmbargoBt:
         tree = terminate_embargo_bt(
             case_id=CASE_ID,
             result_out=result_out,
+            reason=TerminationReason.EARLY,
             activity_builder=activity_builder,
         )
         _assert_manager_arm_order(tree, TerminateEmbargoLifecycleNode)
@@ -245,7 +247,11 @@ class TestTerminateEmbargoBt:
     def test_cascade_manager_arm_writes_commits_then_declares(
         self, result_out
     ):
-        tree = terminate_embargo_bt(case_id=CASE_ID, result_out=result_out)
+        tree = terminate_embargo_bt(
+            case_id=CASE_ID,
+            result_out=result_out,
+            reason=TerminationReason.EARLY,
+        )
         _assert_manager_arm_order(
             tree, TerminateEmbargoLifecycleNode, CommitEmbargoTeardownNode
         )
@@ -254,6 +260,7 @@ class TestTerminateEmbargoBt:
         tree = terminate_embargo_bt(
             case_id=CASE_ID,
             result_out=result_out,
+            reason=TerminationReason.EARLY,
         )
         all_nodes = _collect_nodes(tree)
         node_types = [type(n).__name__ for n in all_nodes]

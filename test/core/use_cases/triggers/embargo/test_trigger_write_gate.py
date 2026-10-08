@@ -23,6 +23,7 @@ from typing import cast
 
 import pytest
 
+from test.support.embargo_register import activate, terminate
 from test.support.ledger import committed_event_types
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -61,6 +62,7 @@ from vultron.wire.as2.vocab.objects.case_participant import (
 from .conftest import (
     _assert_asked_case_manager,
     _build_active_embargo_case,
+    _open_revision,
     _persist_actor,
 )
 
@@ -86,8 +88,6 @@ def _case_managed_by_someone_else(
         MANAGER: manager.id_,
         finder_id: finder.id_,
     }
-    case.append_case_status(em_state=EM.NONE)
-    case.active_embargo = None
     dl.create(case)
     dl.create(manager)
     dl.create(finder)
@@ -215,8 +215,11 @@ def test_repeated_non_manager_answer_or_teardown_is_suppressed(
     re-emitted: its subject (the proposal, the embargo) is still pending."""
     finder, finder_dl = finder_actor_and_dl
     owner = _persist_actor(finder_dl, "Vendor Co")
-    case, proposal, _ = _build_active_embargo_case(
+    case, _, participant_id = _build_active_embargo_case(
         finder_dl, owner.id_, finder.id_
+    )
+    proposal, _ = _open_revision(
+        finder_dl, case.id_, owner.id_, participant_id
     )
 
     first = _answer_or_teardown(
@@ -254,7 +257,7 @@ def test_non_manager_revision_asks_and_writes_no_em_state(
     updated = cast(VulnerabilityCase, finder_dl.read(case.id_))
     assert updated.current_status.em.state == EM.ACTIVE
     assert updated.active_embargo == case.active_embargo
-    assert updated.proposed_embargoes == case.proposed_embargoes
+    assert updated.proposed_embargo_ids == case.proposed_embargo_ids
     assert committed_event_types(finder_dl, case.id_) == []
     _assert_asked_case_manager(
         finder_dl,
@@ -279,7 +282,8 @@ def test_non_manager_propose_on_exited_case_is_refused_locally(
     """
     finder, finder_dl = finder_actor_and_dl
     case = _case_managed_by_someone_else(finder_dl, finder.id_)
-    case.append_case_status(em_state=EM.EXITED)
+    activate(case, f"{case.id_}/embargo_events/ended")
+    terminate(case)
     finder_dl.save(case)
     request = ProposeEmbargoTriggerRequest(
         actor_id=finder.id_,

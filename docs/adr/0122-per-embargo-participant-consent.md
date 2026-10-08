@@ -61,7 +61,8 @@ Chosen option: "Record consent per (participant, embargo) with every row written
 
 ### The embargo register
 
-`VulnerabilityCase.embargo_register` holds one **embargo register entry** `(embargo_id, status, replaces)` for every embargo ever proposed on the case.
+`VulnerabilityCase.embargo_register` holds one **embargo register entry** `(embargo, status, replaces)` for every embargo ever proposed on the case.
+`embargo` names the `EmbargoEvent`, carried inline when a sender carried it so a recipient can read the terms without a dereference (AKM-03-001).
 Entries are appended and never removed.
 `replaces` names the embargo an activated revision replaced.
 
@@ -102,6 +103,8 @@ The EM states use the same words for an aggregate over the whole register, so pr
 
 EM has no transition table of its own.
 The EM transition table and `EMAdapter` are retired; their callers move to register triggers.
+`CaseStatus` keeps its EM field as a copy that the case stamps from the register: at construction, at every register change and when a status is appended.
+A received status can report EM but never move it: an asserted EM that differs from the register's is refused and the case's carried forward.
 
 | `ACTIVE` entries | `PROPOSED` entries | `TERMINATED` entries | EM |
 |---|---|---|---|
