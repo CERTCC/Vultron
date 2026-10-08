@@ -74,6 +74,7 @@ When the Reporter reports public disclosure, the embargo ends on its own; no par
 ### 1. Report submission
 
 The Reporter submits the report, the Coordinator validates it and engages the case, and Vendor1 joins by invitation.
+The Reporter then asks about the embargo in a case note and Vendor1 answers.
 The default embargo is active from case creation, so the case is at Embargo Management (EM) state `ACTIVE`.
 
 *Antecedent:* Reporter has knowledge of the vulnerability.
