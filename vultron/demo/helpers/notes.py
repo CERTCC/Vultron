@@ -95,3 +95,41 @@ def participant_adds_note_to_case(
         note = as_Note(**note_data)
 
     return note
+
+
+def reporter_asks_vendor_answers(
+    reporter: ActorSession,
+    vendor: ActorSession,
+    watching_client: DataLayerClient,
+    case: as_VulnerabilityCase,
+) -> None:
+    """The Reporter asks about the embargo and the Vendor answers.
+
+    The shared note exchange of the embargo scenarios; it puts
+    ``add_note_to_case`` in the case ledger (DEMOMA-16-001).  Failures are
+    recorded by :func:`participant_adds_note_to_case`.
+
+    Args:
+        reporter: Session in the Reporter's container; posts the question.
+        vendor: Session in the Vendor's container; posts the reply.
+        watching_client: Client where delivery of each note is verified
+            (typically the Coordinator, who hosts the case).
+        case: The case the notes belong to.
+    """
+    question = participant_adds_note_to_case(
+        posting_client=reporter.client,
+        watching_client=watching_client,
+        poster=reporter.actor,
+        case=case,
+        note_name="Question from Reporter",
+        note_content="Could the embargo be shorter than the default?",
+    )
+    participant_adds_note_to_case(
+        posting_client=vendor.client,
+        watching_client=watching_client,
+        poster=vendor.actor,
+        case=case,
+        note_name="Vendor Status Update",
+        note_content="A fix is in progress; a shorter embargo is workable.",
+        in_reply_to=question.id_ if question is not None else None,
+    )
