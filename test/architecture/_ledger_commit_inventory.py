@@ -55,7 +55,6 @@ import ast
 import functools
 import importlib
 import inspect
-import re
 from collections.abc import Callable, Iterator
 from types import ModuleType
 from typing import Any
@@ -94,80 +93,20 @@ def _resolve(name: str, module: ModuleType) -> Any:
     return None
 
 
-#: A top-level ``def`` or ``class`` line, and a bare-name call.
-_TOP_LEVEL_DEFINITION = re.compile(
-    r"^(?:async\s+def|def|class)\s+(\w+)", re.MULTILINE
-)
-_DEFINING_PREFIXES = ("def ", "class ")
-
-
-def _called_names(span: str) -> frozenset[str]:
-    """Every identifier written directly before a ``(`` in *span*.
-
-    Splits on ``(`` and takes each chunk's trailing identifier, skipping the
-    name a ``def`` or ``class`` line defines — several times faster than a
-    regex, which retries at every position of a mostly-prose file.
-    """
-    names: set[str] = set()
-    for chunk in span.split("(")[:-1]:
-        end = len(chunk)
-        start = end
-        while start and (
-            chunk[start - 1].isalnum() or chunk[start - 1] == "_"
-        ):
-            start -= 1
-        if start == end or chunk[start].isdigit():
-            continue
-        if chunk.endswith(_DEFINING_PREFIXES, 0, start):
-            continue
-        names.add(chunk[start:end])
-    return frozenset(names)
-
-
-def _text_summaries(source: str) -> Iterator[tuple[str, frozenset[str]]]:
-    """``(name, called names)`` for each top-level definition in *source*.
-
-    Text, not AST: a definition's span runs to the next top-level definition,
-    and every ``name(`` in it counts as a call.  Both over-approximate (a
-    trailing module statement, a name in a string, a class's every method),
-    which :func:`_names_that_may_commit` permits.
-    """
-    starts = list(_TOP_LEVEL_DEFINITION.finditer(source))
-    if not starts:
-        return
-    ends = [match.start() for match in starts[1:]] + [len(source)]
-    for match, end in zip(starts, ends, strict=True):
-        span = source[match.end() : end]
-        yield match.group(1), _called_names(span)
-
-
 @functools.cache
 def _names_that_may_commit() -> frozenset[str]:
     """Top-level ``vultron.core`` names whose definition may reach a commit.
 
-    A fixed point by name over source text: start from the commit builders
-    and the receive factory, then add every top-level function or class
-    whose span calls a name already in the set.  It reads each module's text
-    once from ``_corpus`` and parses none, so it needs no prefilter; its
-    result *is* the prefilter of the precise walk, which parses only a module
-    that mentions one of these names (TB-13-002, TB-13-008).  It
-    over-approximates — by name, not by resolution, and ignoring
-    ``case_id=None`` — and :func:`_commits` decides.
+    :func:`_corpus.names_reaching` from the commit builders and the receive
+    factory: a text-only fixed point that parses nothing, and whose result
+    *is* the prefilter of the precise walk, which parses only a module that
+    mentions one of these names (TB-13-002, TB-13-008).  It over-approximates
+    — by name, not by resolution, and ignoring ``case_id=None`` — and
+    :func:`_commits` decides.
     """
-    seeds = frozenset({*_COMMIT_BUILDERS, _RECEIVE_FACTORY})
-    summaries = [
-        summary
-        for _, source in _corpus.all_sources(under=_CORE_ROOT)
-        for summary in _text_summaries(source)
-    ]
-    names: set[str] = set()
-    while found := {
-        name
-        for name, called in summaries
-        if name not in names and called & (seeds | names)
-    }:
-        names |= found
-    return frozenset(names)
+    return _corpus.names_reaching(
+        frozenset({*_COMMIT_BUILDERS, _RECEIVE_FACTORY}), under=_CORE_ROOT
+    )
 
 
 def _calls_in(node: ast.AST) -> Iterator[ast.Call]:
@@ -230,6 +169,8 @@ def _call_commits(
         return True
     if name == _RECEIVE_FACTORY:
         return _passes_a_case_id(call)
+    # A call through an alias (``import f as g``, ``g = f``) is in the set
+    # too: the fixed point summarises each alias as a call of its original.
     if name not in _names_that_may_commit():
         return False
     target = _resolve(name, module)

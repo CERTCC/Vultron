@@ -146,7 +146,7 @@ class ClearActiveEmbargoNode(DataLayerActionWithPorts, StateWriteCapable):
         return Status.SUCCESS
 
 
-class ApplyEmbargoTeardownNode(DataLayerActionWithPorts):
+class ApplyEmbargoTeardownNode(DataLayerActionWithPorts, StateWriteCapable):
     """Apply receiver-side embargo teardown.
 
     Performs the ACTIVE/REVISE → EXITED EM state transition and clears

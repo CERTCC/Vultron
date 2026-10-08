@@ -263,7 +263,9 @@ class CreateInertInviteeParticipantNode(
         return Status.SUCCESS
 
 
-class AdvanceInviteeVFToVendorAwareNode(DataLayerActionWithPorts):
+class AdvanceInviteeVFToVendorAwareNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
     """Record VF ``Vf`` (vendor aware) on a VENDOR invitee after a stub reply.
 
     CM-11-009: any reply to the stub Invite — Accept or Reject — is evidence

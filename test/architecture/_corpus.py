@@ -17,9 +17,11 @@ Spec: ``specs/testability.yaml`` TB-13-001 through TB-13-003.
 
 import ast
 import contextlib
+import functools
 import gc
 import inspect
 import os
+import re
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -237,8 +239,13 @@ _definitions: dict[
 ] = {}
 
 
+@functools.cache
 def _cached_path(source_file: str) -> Path | None:
-    """The corpus key for *source_file*, resolving symlinks only on a miss."""
+    """The corpus key for *source_file*, resolving symlinks only on a miss.
+
+    Cached: a miss resolves every corpus path, and the corpus never changes
+    after import.
+    """
     found = _paths_by_text.get(source_file)
     if found is not None:
         return found
@@ -302,3 +309,101 @@ def function_definition(
     if mentioning and not any(f in _source_cache[path] for f in mentioning):
         return None
     return _definitions_in(path).get(code.co_firstlineno)
+
+
+# ---------------------------------------------------------------------------
+# Text-only call graph — a by-name fixed point that parses nothing.
+# ---------------------------------------------------------------------------
+#: A top-level ``def`` or ``class`` line.
+_TOP_LEVEL_DEFINITION = re.compile(
+    r"^(?:async\s+def|def|class)\s+(\w+)", re.MULTILINE
+)
+#: A top-level alias: ``from m import a as b`` (one name per line, as ruff
+#: formats a parenthesised import) or ``b = a``.
+_IDENTIFIER = r"[A-Za-z_]\w*"
+_TOP_LEVEL_ALIAS = re.compile(
+    rf"^(?:\s*(?:from\s+\S+\s+import\s+)?({_IDENTIFIER})\s+as\s+"
+    rf"({_IDENTIFIER}),?|({_IDENTIFIER})\s*=\s*({_IDENTIFIER}))\s*$",
+    re.MULTILINE,
+)
+_DEFINING_PREFIXES = ("def ", "class ")
+
+
+def called_names(span: str) -> frozenset[str]:
+    """Every identifier written directly before a ``(`` in *span*.
+
+    Splits on ``(`` and takes each chunk's trailing identifier, skipping the
+    name a ``def`` or ``class`` line defines — several times faster than a
+    regex, which retries at every position of a mostly-prose file.  An
+    attribute call counts by its attribute (``dl.save(`` → ``save``).
+    """
+    names: set[str] = set()
+    for chunk in span.split("(")[:-1]:
+        end = len(chunk)
+        start = end
+        while start and (
+            chunk[start - 1].isalnum() or chunk[start - 1] == "_"
+        ):
+            start -= 1
+        if start == end or chunk[start].isdigit():
+            continue
+        if chunk.endswith(_DEFINING_PREFIXES, 0, start):
+            continue
+        names.add(chunk[start:end])
+    return frozenset(names)
+
+
+def definition_summaries(
+    source: str, *, classes: bool = True
+) -> Iterator[tuple[str, frozenset[str]]]:
+    """``(name, called names)`` for each top-level definition in *source*.
+
+    Text, not AST: a definition's span runs to the next top-level definition,
+    and every ``name(`` in it counts as a call.  Both over-approximate (a
+    trailing module statement, a name in a string, a class's every method).
+    A top-level alias (``import a as b``, ``b = a``) is summarised as a
+    definition of ``b`` that calls ``a``, so a call through the alias is
+    still followed.  With *classes* ``False`` only functions are summarised:
+    a class span holds every method, so one writing method would make every
+    caller of the class look like a writer.
+    """
+    starts = list(_TOP_LEVEL_DEFINITION.finditer(source))
+    ends = [match.start() for match in starts[1:]] + [len(source)]
+    for match, end in zip(starts, ends[: len(starts)], strict=True):
+        if classes or not match.group(0).startswith("class"):
+            yield match.group(1), called_names(source[match.end() : end])
+    for match in _TOP_LEVEL_ALIAS.finditer(source):
+        original, alias = (
+            match.group(1) or match.group(4),
+            (match.group(2) or match.group(3)),
+        )
+        if original != alias:
+            yield alias, frozenset({original})
+
+
+def names_reaching(
+    seeds: frozenset[str], *, under: Path, classes: bool = True
+) -> frozenset[str]:
+    """Top-level names under *under* whose definition may call a *seed*.
+
+    A fixed point by name over source text (:func:`definition_summaries`):
+    start from *seeds*, then add every definition whose span calls a name
+    already in the set.  It reads each module's text once and parses none,
+    so it needs no prefilter; its result is meant to *be* the prefilter of a
+    precise walk (TB-13-002, TB-13-008).  It over-approximates — by name,
+    not by resolution — and the walk decides.  A definition nested in an
+    ``if`` or ``try`` block is not top-level here, so it is not followed.
+    """
+    summaries = [
+        summary
+        for _, source in all_sources(under=under)
+        for summary in definition_summaries(source, classes=classes)
+    ]
+    names: set[str] = set()
+    while found := {
+        name
+        for name, called in summaries
+        if name not in names and called & (seeds | names)
+    }:
+        names |= found
+    return frozenset(names)

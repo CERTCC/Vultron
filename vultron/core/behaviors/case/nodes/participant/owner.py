@@ -100,7 +100,9 @@ class CreateOwnerParticipantNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class CreateOwnerInitialStatusNode(DataLayerActionWithPorts):
+class CreateOwnerInitialStatusNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
     """Apply the owner's initial ParticipantStatus via the writer node.
 
     Pre-builds a :class:`CreateParticipantStatusNode` in ``__init__`` and
@@ -161,7 +163,9 @@ class CreateOwnerInitialStatusNode(DataLayerActionWithPorts):
         return result.status
 
 
-class AttachOwnerParticipantToCaseNode(DataLayerActionWithPorts):
+class AttachOwnerParticipantToCaseNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
     """Persist and attach staged owner participant to the case."""
 
     def __init__(

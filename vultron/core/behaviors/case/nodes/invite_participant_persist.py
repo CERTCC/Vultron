@@ -142,7 +142,9 @@ class PersistInviteeParticipantNode(
         return Status.SUCCESS
 
 
-class AdvanceInviteeToReceivedNode(DataLayerActionWithPorts):
+class AdvanceInviteeToReceivedNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
     """Advance the freshly-attached invitee participant to RM.RECEIVED.
 
     ADR-0089 birth step 3 (*advance*): once

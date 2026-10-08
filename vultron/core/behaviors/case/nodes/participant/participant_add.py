@@ -41,7 +41,9 @@ from vultron.core.states.rm import RM as _RM
 from vultron.enums.roles import CVDRole
 
 
-class CreateParticipantInitialStatusNode(DataLayerActionWithPorts):
+class CreateParticipantInitialStatusNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
     """Apply the participant's initial RM.ACCEPTED status via the writer node.
 
     Pre-builds a :class:`CreateParticipantStatusNode` in ``__init__`` and

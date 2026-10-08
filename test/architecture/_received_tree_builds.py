@@ -26,7 +26,9 @@ function under ``vultron/core/behaviors/`` that calls
 Each factory is called with an argument synthesized per parameter
 (:func:`_argument_for`): a URI for an id, a minimal domain object for a
 domain-typed parameter, a ``MagicMock`` for the received event (factories
-only read ids off it to configure nodes).  An optional parameter is
+only read ids off it to configure nodes), and the real nodes for a node list
+a use case builds and hands in (:data:`_CALLER_SUPPLIED_NODES`), so those
+are walked where they run.  An optional parameter is
 *supplied*, not left at ``None``, so a node that a factory adds only when the
 argument is present is built and walked too; a ``bool`` or a defaulted
 bundle keeps its default.  A factory the synthesizer cannot build fails the
@@ -47,6 +49,9 @@ import py_trees
 from test.architecture import _corpus
 from test.architecture.test_received_tree_case_manager_gate import (
     _receive_calls,
+)
+from vultron.core.behaviors.case.nodes.submit_report import (
+    submit_report_received_effects,
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
@@ -90,13 +95,50 @@ def _members(annotation: Any) -> tuple[Any, ...]:
     return (annotation,)
 
 
+def _report_received_effects() -> list[py_trees.behaviour.Behaviour]:
+    return submit_report_received_effects(MagicMock(name="request"))
+
+
+#: Node lists a received use case builds and hands to its tree factory, by
+#: parameter name: the real builder, so the walk sees the nodes that run.
+_CALLER_SUPPLIED_NODES: dict[
+    str, Callable[[], list[py_trees.behaviour.Behaviour]]
+] = {"received_effects": _report_received_effects}
+
+
+def _is_node_sequence(members: tuple[Any, ...]) -> bool:
+    return any(
+        get_origin(m) in (Sequence, list)
+        and any(
+            inspect.isclass(arg)
+            and issubclass(arg, py_trees.behaviour.Behaviour)
+            for arg in get_args(m)
+        )
+        for m in members
+    )
+
+
+def _caller_supplied_nodes(name: str) -> list[py_trees.behaviour.Behaviour]:
+    if name not in _CALLER_SUPPLIED_NODES:
+        raise TypeError(
+            f"no builder for caller-supplied nodes {name!r}; add the use"
+            " case's builder to _CALLER_SUPPLIED_NODES"
+        )
+    return _CALLER_SUPPLIED_NODES[name]()
+
+
 def _argument_for(param: inspect.Parameter, domain: dict[type, Any]) -> Any:
     """A value for *param* that builds the factory's fullest tree.
 
     Raises:
-        TypeError: no synthesis rule covers the parameter's annotation.
+        TypeError: no synthesis rule covers the parameter's annotation, or
+            a caller-supplied node list has no builder in
+            :data:`_CALLER_SUPPLIED_NODES`.
     """
     members = _members(param.annotation)
+    if _is_node_sequence(members):
+        # Nodes a use case hands in run in this tree: build the real ones.
+        return _caller_supplied_nodes(param.name)
     for member in members:
         if member in domain:
             return domain[member]
@@ -120,7 +162,6 @@ def _argument_for(param: inspect.Parameter, domain: dict[type, Any]) -> Any:
     if param.name.endswith("_obj"):
         return MagicMock(name=param.name)
     if any(get_origin(m) in (Sequence, list) for m in members):
-        # Nodes a caller hands in are walked in the caller's own tree.
         return []
     raise TypeError(
         f"no argument rule for parameter {param.name!r}"

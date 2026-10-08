@@ -52,10 +52,16 @@ an already-listed tree fails too.
 """
 
 import ast
+import functools
 import importlib
 import inspect
+from pathlib import Path
+from typing import NamedTuple
 
 import pytest
+from py_trees.behaviour import Behaviour
+from py_trees.composites import Composite
+from py_trees.decorators import Decorator
 
 from test.architecture import _corpus
 from test.architecture._received_tree_builds import built_received_trees
@@ -68,7 +74,8 @@ from test.architecture.test_received_tree_case_manager_gate import (
 from vultron.core.behaviors.case.receive_activity_tree import ungated_nodes
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 
-_BEHAVIORS_ROOT = _corpus.REPO_ROOT / "vultron" / "core" / "behaviors"
+_CORE_ROOT = _corpus.REPO_ROOT / "vultron" / "core"
+_BEHAVIORS_ROOT = _CORE_ROOT / "behaviors"
 
 _Write = tuple[str, str, str]
 
@@ -83,17 +90,15 @@ _Y = "vultron/core/behaviors/sync"
 _DATALAYER_WRITES = frozenset(
     {"save", "create", "save_many", "save_if_unchanged", "delete"}
 )
-#: Core services that write case or participant state on a node's behalf.
-_STATE_WRITE_SERVICES = frozenset(
+#: State writes the text fixed point cannot reach, because it follows only
+#: top-level functions: the consent-row model methods (CM-18-005) and the
+#: EM-state service (EMB-18-001).  A helper *function* that writes is
+#: derived (:func:`_state_write_helpers`), never listed here.
+_STATE_WRITE_METHODS = frozenset(
     {
         "EmbargoLifecycle",
         "apply_pec_transition",
         "apply_pec_transition_if_legal",
-        "idempotent_store",
-        "link_report_case_links",
-        "persist_creation_time_embargo",
-        "store_carried_embargo",
-        "store_embedded_participants",
     }
 )
 
@@ -111,6 +116,18 @@ KNOWN_UNGATED_STATE_WRITES: frozenset[_Write] = frozenset(
             f"{_C}/case_participant_received_tree.py",
             "create_add_case_participant_received_tree",
             "AddCaseParticipantToCaseReceivedNode",
+        ),
+        # owner: #3814
+        (
+            f"{_C}/receive_close_case_tree.py",
+            "create_close_case_received_tree",
+            "AdvanceCaseActorToRMClosedNode",
+        ),
+        # owner: #3814
+        (
+            f"{_C}/receive_close_case_tree.py",
+            "create_close_case_received_tree",
+            "AdvanceParticipantToRMClosedNode",
         ),
         # owner: #3814
         (
@@ -252,6 +269,7 @@ REPLICA_STATE_WRITES: dict[_Write, str] = {
             "ApplyEmbargoProposalFromLedgerNode",
             "ApplyEmbargoReinviteFromLedgerNode",
             "ApplyEmbargoRejectionFromLedgerNode",
+            "ApplyEmbargoTeardownNode",
             "ApplyHonourLateAcceptFromLedgerNode",
             "ApplyInviteAcceptFromLedgerNode",
             "ApplyInviteExpiryFromLedgerNode",
@@ -296,12 +314,18 @@ REPLICA_STATE_WRITES: dict[_Write, str] = {
             "CreateCaseFromProposalNode",
             "InitializeCreationEmbargoNode",
             "RelayCreationTimeRevisionNode",
+            "SeedReporterSignatoryNode",
         )
     },
     # create_create_case_tree has no production caller; #4330 retires or wires it
     **{
         (f"{_C}/create_tree.py", "create_create_case_tree", cls): _MINT
-        for cls in ("PersistCase", "PersistOwnerCaseNode")
+        for cls in (
+            "AttachOwnerParticipantToCaseNode",
+            "CreateOwnerInitialStatusNode",
+            "PersistCase",
+            "PersistOwnerCaseNode",
+        )
     },
 }
 
@@ -318,6 +342,14 @@ _LEDGER = "writes ledger records, gated by ledger authority (ADR-0073)"
 _LOCAL = (
     "the actor's own bookkeeping before or beside a case, not a record of"
     " the case (ADR-0041, CP-06)"
+)
+_REPLICATION = (
+    "writes the CASE_MANAGER's per-peer replication state (pause, replay"
+    " position), not a record of the case (CM-10-005, SYNC-15-003)"
+)
+_PROPOSAL_INDEX = (
+    "records which Invite proposed an embargo to this replica, a per-replica"
+    " correlation the replay never displaces (EP-09-003, EP-09-007)"
 )
 _B = "vultron.core.behaviors"
 # permanent: RSH-08-003 (writes that are not participant or case state)
@@ -390,14 +422,28 @@ WRITES_NO_CASE_STATE: dict[tuple[str, str], str] = {
     (f"{_B}.embargo.nodes.expiry", "EvaluateInviteExpiryNode"): (
         "asks EmbargoLifecycle whether an invite expired; writes nothing"
     ),
+    (
+        f"{_B}.embargo.nodes.manager_commit",
+        "IndexOwnEmbargoProposalNode",
+    ): _PROPOSAL_INDEX,
     (f"{_B}.embargo.nodes.proposal", "CreateAndStoreInviteNode"): _ARCHIVE,
+    (
+        f"{_B}.embargo.nodes.proposal",
+        "IndexReceivedEmbargoProposalNode",
+    ): _PROPOSAL_INDEX,
     (f"{_B}.helpers", "CreateObject"): _ARCHIVE,
     (f"{_B}.note.nodes.storage", "SaveNoteNode"): _ARCHIVE,
     (f"{_B}.report.nodes.case_creation", "CreateCaseActivity"): _ARCHIVE,
     (f"{_B}.report.nodes.storage", "StoreReportNode"): _ARCHIVE,
     (f"{_B}.sync.nodes.chain", "PersistLogEntryNode"): _LEDGER,
-    (f"{_B}.sync.nodes.chain", "UpdateReplicationStateNode"): _LEDGER,
+    (f"{_B}.sync.nodes.chain", "UpdateReplicationStateNode"): (_REPLICATION),
+    (
+        f"{_B}.sync.nodes.embargo_backfill",
+        "BackfillAdmittedParticipantsNode",
+    ): _REPLICATION,
+    (f"{_B}.sync.nodes.fanout", "SendLogEntryToEachNode"): _REPLICATION,
     (f"{_B}.sync.nodes.receive", "PersistReceivedLogEntryNode"): _LEDGER,
+    (f"{_B}.sync.nodes.replay", "SendMissingEntriesNode"): _REPLICATION,
 }
 
 
@@ -456,36 +502,128 @@ def test_each_exempt_write_carries_a_one_line_reason(write: _Write) -> None:
     assert reason.strip() and "\n" not in reason, write
 
 
-@_corpus.gc_paused()
-def _state_write_seam_classes() -> frozenset[tuple[str, str]]:
-    """(module, class) for each behaviors class that calls a state-write seam."""
-    found: set[tuple[str, str]] = set()
-    fragments = (
-        *(f".{name}(" for name in _DATALAYER_WRITES),
-        *_STATE_WRITE_SERVICES,
+@functools.cache
+def _state_write_helpers() -> frozenset[str]:
+    """Top-level ``vultron.core`` functions that may reach a state write.
+
+    A text-only fixed point (:func:`_corpus.names_reaching`) from the
+    DataLayer write methods and :data:`_STATE_WRITE_METHODS`, over functions
+    only, so a node that writes through a helper — ``record_embargo_proposal_index``,
+    ``_create_and_attach_participant`` — is found as surely as one that calls
+    ``dl.save`` itself.  The DataLayer method names are matched separately,
+    as attribute calls.
+    """
+    return (
+        _corpus.names_reaching(
+            _DATALAYER_WRITES | _STATE_WRITE_METHODS,
+            under=_CORE_ROOT,
+            classes=False,
+        )
+        - _DATALAYER_WRITES
     )
-    for path, tree in _corpus.files_mentioning(
-        *fragments, under=_BEHAVIORS_ROOT
-    ):
-        module = _rel(path).removesuffix(".py").replace("/", ".")
-        for scope in _top_level_scopes(tree):
-            if not isinstance(scope, ast.ClassDef):
-                continue
-            if any(
-                name in _STATE_WRITE_SERVICES
-                or (
+
+
+class _ClassSummary(NamedTuple):
+    """What the seam scan needs from one top-level behaviors class."""
+
+    site: tuple[str, str]
+    called: frozenset[str]
+    calls_a_datalayer_write: bool
+    bases: frozenset[str]
+
+
+def _class_summaries(path: Path, tree: ast.AST) -> list[_ClassSummary]:
+    module = _rel(path).removesuffix(".py").replace("/", ".")
+    summaries: list[_ClassSummary] = []
+    for scope in _top_level_scopes(tree):
+        if not isinstance(scope, ast.ClassDef):
+            continue
+        calls = list(_calls(scope))
+        summaries.append(
+            _ClassSummary(
+                site=(module, scope.name),
+                called=frozenset(name for _, name in calls),
+                calls_a_datalayer_write=any(
                     name in _DATALAYER_WRITES
                     and isinstance(call.func, ast.Attribute)
+                    for call, name in calls
+                ),
+                bases=frozenset(
+                    base.id
+                    for base in scope.bases
+                    if isinstance(base, ast.Name)
+                ),
+            )
+        )
+    return summaries
+
+
+def _hides_children(module: str, name: str) -> bool:
+    """True unless the class is a composite or decorator the walk descends.
+
+    A leaf node, or a plain helper class, that builds a writer node and
+    ticks it itself hides that write from the tree walk; a composite that
+    takes it as a child does not.
+    """
+    cls = getattr(importlib.import_module(module), name)
+    return not issubclass(cls, (Composite, Decorator))
+
+
+@functools.cache
+@_corpus.gc_paused()
+def _state_write_seam_classes() -> frozenset[tuple[str, str]]:
+    """(module, class) for each behaviors class that reaches a state write.
+
+    A class reaches one by calling, in any of its methods, a DataLayer write
+    method, a :data:`_STATE_WRITE_METHODS` seam, or a derived write helper
+    (:func:`_state_write_helpers`) — or, unless it is a composite the walk
+    descends, by building a writer class (``RMClosureWriter`` ticking a
+    ``CreateParticipantStatusNode``).  The writer classes are a fixed point:
+    every class found, and every subclass of one, unless pinned in
+    :data:`WRITES_NO_CASE_STATE`.  Each file is parsed and walked once, and
+    only when it mentions a seam or a writer found so far (TB-13-008).
+    """
+    seams = _STATE_WRITE_METHODS | _state_write_helpers()
+    summaries: dict[Path, list[_ClassSummary]] = {}
+    found: set[tuple[str, str]] = set()
+    writers: set[str] = set()
+    fragments: set[str] = {f".{name}(" for name in _DATALAYER_WRITES} | seams
+    while True:
+        for path, tree in _corpus.files_mentioning(
+            *fragments, under=_BEHAVIORS_ROOT
+        ):
+            if path not in summaries:
+                summaries[path] = _class_summaries(path, tree)
+        before = len(writers)
+        for summary in (s for group in summaries.values() for s in group):
+            if (
+                summary.calls_a_datalayer_write
+                or summary.called & seams
+                or (
+                    summary.called & writers and _hides_children(*summary.site)
                 )
-                for call, name in _calls(scope)
             ):
-                found.add((module, scope.name))
-    return frozenset(found)
+                found.add(summary.site)
+            elif not summary.bases & writers:
+                continue
+            if summary.site not in WRITES_NO_CASE_STATE:
+                writers.add(summary.site[1])
+        if len(writers) == before:
+            return frozenset(found)
+        fragments |= writers
 
 
 def _is_marked(module: str, name: str) -> bool:
     cls = getattr(importlib.import_module(module), name)
     return inspect.isclass(cls) and issubclass(cls, StateWriteCapable)
+
+
+def _is_node(module: str, name: str) -> bool:
+    """A tree node, which the walk can meet — not a helper such as
+    ``RMClosureWriter``, which counts as a writer only through the node
+    that builds it."""
+    cls = getattr(importlib.import_module(module), name)
+    return inspect.isclass(cls) and issubclass(cls, Behaviour)
 
 
 @pytest.mark.spec("RSH-08-003")
@@ -495,7 +633,11 @@ def test_every_state_writer_carries_the_marker_or_is_pinned() -> None:
     assert classes, "no state-write seam caller found — seam names drifted?"
     _assert_pinned(
         "unmarked class reaching a state-write seam",
-        frozenset(site for site in classes if not _is_marked(*site)),
+        frozenset(
+            site
+            for site in classes
+            if _is_node(*site) and not _is_marked(*site)
+        ),
         frozenset(WRITES_NO_CASE_STATE),
         "mix in StateWriteCapable if it writes participant or case state;"
         " otherwise add it to WRITES_NO_CASE_STATE with the reason",
@@ -534,3 +676,20 @@ def test_the_marker_covers_the_named_write_families() -> None:
         _LedgerEffectNode,
     ):
         assert issubclass(cls, StateWriteCapable), cls
+
+
+def test_the_seam_scan_follows_helpers_and_hidden_nodes() -> None:
+    """A write through a helper function or a privately ticked writer node
+    is found as surely as a direct ``dl.save`` (the marker check's reach)."""
+    found = _state_write_seam_classes()
+    for site in (
+        # through a helper that saves the participant
+        (f"{_B}.case.nodes.proposal_consent", "SeedReporterSignatoryNode"),
+        # through a helper that saves the case
+        (f"{_B}.embargo.nodes.proposal", "IndexReceivedEmbargoProposalNode"),
+        # ticking a CreateParticipantStatusNode it builds itself
+        (f"{_B}.report.nodes.develop_fix", "TransitionCStoFixReady"),
+        # through RMClosureWriter, a helper class that ticks one
+        (f"{_B}.case.nodes.leave.advance", "AdvanceParticipantToRMClosedNode"),
+    ):
+        assert site in found, site

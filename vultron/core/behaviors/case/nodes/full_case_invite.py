@@ -40,6 +40,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerCondition,
     _EmitSingleActivityBase,
 )
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_participant import CaseParticipant
@@ -203,7 +204,7 @@ class CheckFullCaseReplyNode(DataLayerCondition):
         return Status.SUCCESS
 
 
-class ApplyFullCaseReplyToParticipantNode(DataLayerAction):
+class ApplyFullCaseReplyToParticipantNode(DataLayerAction, StateWriteCapable):
     """Record a full-case reply as the participant's RM transition (CM-11-011).
 
     Writes ``rm_state`` for the replier through the sole ParticipantStatus
