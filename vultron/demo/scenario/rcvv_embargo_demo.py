@@ -62,6 +62,7 @@ from vultron.demo.helpers.embargo_phases import (
     revise_default_embargo,
 )
 from vultron.demo.helpers.harness import ScenarioHarness, scenario_harness
+from vultron.demo.helpers.notes import reporter_asks_vendor_answers
 from vultron.demo.helpers.polling import (
     resolve_case_actor_store_id,
     wait_for_case_em_state,
@@ -295,6 +296,11 @@ def _phase_report_submission(
             actor=get_actor_by_id(vendor2_client, vendor2.id_),
         ).with_case(case),
     )
+    # The shared note exchange puts add_note_to_case in the ledger
+    # (DEMOMA-16-001); Vendor1 is seated, Vendor2 is not yet.
+    reporter_asks_vendor_answers(
+        cast.reporter, cast.vendor, cast.coordinator.client, case
+    )
     assert_canonical_em_state(
         cast.coordinator, case, EM.ACTIVE, "report_submission"
     )
@@ -360,7 +366,11 @@ def _phase_v2_late_invite(
     opened: CoordinatedCase,
     embargo_id: str,
 ) -> None:
-    """Invite Vendor2 once the revision is active; it signs the embargo."""
+    """Invite Vendor2 once the revision is active; it signs the embargo.
+
+    Raises:
+        AssertionError: Vendor2 is not a signatory of the embargo in force.
+    """
     logger.info("─" * 80)
     logger.info(
         "Phase 4: Vendor2 late invite — joins under the revised embargo"
@@ -385,20 +395,20 @@ def _phase_v2_late_invite(
         active_embargo_id=embargo_id,
     )
     # Accepting the invitation consents to the embargo in force (CM-11-002), so
-    # Vendor2 is a signatory before it does anything else (DEMOMA-21-012).  A
-    # gate: the fix lifecycle presupposes a vendor that is party to the embargo.
-    with demo_gate("Vendor2 is a SIGNATORY to the active embargo"):
-        wait_for_participant_embargo_consent(
-            cast.coordinator.client,
-            case.id_,
-            cast.vendor2.actor.id_,
-            embargo_id,
-            EmbargoConsentState.ACCEPTED,
-            COMMIT_TIMEOUT_SECONDS,
-            dl_actor_id=resolve_case_actor_store_id(
-                cast.coordinator.client, case.id_
-            ),
-        )
+    # Vendor2 is a signatory before it does anything else (DEMOMA-21-012).
+    # Raises when it is not; run_rcvv_embargo_demo gates the fix lifecycle,
+    # collapse and closure on that, so they do not pile secondary failures on it.
+    wait_for_participant_embargo_consent(
+        cast.coordinator.client,
+        case.id_,
+        cast.vendor2.actor.id_,
+        embargo_id,
+        EmbargoConsentState.ACCEPTED,
+        COMMIT_TIMEOUT_SECONDS,
+        dl_actor_id=resolve_case_actor_store_id(
+            cast.coordinator.client, case.id_
+        ),
+    )
     with demo_check("Vendor2's replica has the revised embargo active"):
         wait_for_case_em_state(
             cast.vendor2.client,
@@ -579,10 +589,15 @@ def run_rcvv_embargo_demo(
                         "no second revision; skipping phases 4-7"
                         " (v2_late_invite through case_closure)"
                     )
-                _phase_v2_late_invite(cast, case, opened, revised_embargo_id)
-                _phase_fix_lifecycle(cast, case)
-                _phase_accidental_collapse(cast, case)
-                _phase_case_closure(cast, case)
+                with demo_gate(
+                    "Vendor2 joined and signed the revised embargo"
+                ):
+                    _phase_v2_late_invite(
+                        cast, case, opened, revised_embargo_id
+                    )
+                    _phase_fix_lifecycle(cast, case)
+                    _phase_accidental_collapse(cast, case)
+                    _phase_case_closure(cast, case)
 
     logger.info("=" * 80)
     logger.info(

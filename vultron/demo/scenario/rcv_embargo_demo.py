@@ -57,7 +57,7 @@ from vultron.demo.helpers.embargo_phases import (
     revise_default_embargo,
 )
 from vultron.demo.helpers.harness import ScenarioHarness, scenario_harness
-from vultron.demo.helpers.notes import participant_adds_note_to_case
+from vultron.demo.helpers.notes import reporter_asks_vendor_answers
 from vultron.demo.helpers.polling import (
     wait_for_case_em_terminated,
 )
@@ -187,22 +187,8 @@ def reset_containers(
 
 def _notes_exchange(cast: _Cast, case: as_VulnerabilityCase) -> None:
     """The Reporter asks about the embargo and the Vendor answers (DEMOMA-16-001)."""
-    question = participant_adds_note_to_case(
-        posting_client=cast.reporter.client,
-        watching_client=cast.coordinator.client,
-        poster=cast.reporter.actor,
-        case=case,
-        note_name="Question from Reporter",
-        note_content="Could the embargo be shorter than the default?",
-    )
-    participant_adds_note_to_case(
-        posting_client=cast.vendor.client,
-        watching_client=cast.coordinator.client,
-        poster=cast.vendor.actor,
-        case=case,
-        note_name="Vendor Status Update",
-        note_content="A fix is in progress; a shorter embargo is workable.",
-        in_reply_to=question.id_ if question is not None else None,
+    reporter_asks_vendor_answers(
+        cast.reporter, cast.vendor, cast.coordinator.client, case
     )
 
 

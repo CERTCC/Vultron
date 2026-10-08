@@ -117,7 +117,7 @@ class TestRegistration:
 
 class TestPhaseOrder:
     @staticmethod
-    def _run(cast, case, proposed, revised):
+    def _run(cast, case, proposed, revised, v2_error=None):
         """Run the scenario with stubbed phases; return the phases that ran."""
         order: list[str] = []
 
@@ -152,7 +152,7 @@ class TestPhaseOrder:
             patch.object(
                 demo,
                 "_phase_v2_late_invite",
-                side_effect=phase("v2_late_invite"),
+                side_effect=v2_error or phase("v2_late_invite"),
             ),
             patch.object(
                 demo,
@@ -196,6 +196,25 @@ class TestPhaseOrder:
     def test_a_failed_proposal_skips_every_later_phase(self, cast, case):
         order = self._run(cast, case, None, None)
         assert order == ["report_submission", "embargo_proposal"]
+        assert _demo_failures
+
+    @pytest.mark.spec("DEMOMA-21-012")
+    def test_a_vendor2_that_does_not_sign_skips_the_later_phases(
+        self, cast, case
+    ):
+        """Fix lifecycle, collapse and closure presuppose a signatory Vendor2."""
+        order = self._run(
+            cast,
+            case,
+            "urn:embargo:1",
+            "urn:embargo:2",
+            v2_error=AssertionError("timed out"),
+        )
+        assert order == [
+            "report_submission",
+            "embargo_proposal",
+            "embargo_revision",
+        ]
         assert _demo_failures
 
     @pytest.mark.spec("DEMOMA-21-003")
@@ -313,7 +332,7 @@ class TestEmStateAfterEachPhase:
         assert not _demo_failures
 
     @pytest.mark.spec("DEMOMA-21-012")
-    def test_a_vendor2_that_never_signs_is_a_recorded_failure(
+    def test_a_vendor2_that_never_signs_fails_the_late_invite_phase(
         self, cast, case, em_waits
     ):
         with (
@@ -328,11 +347,10 @@ class TestEmStateAfterEachPhase:
                 demo, "resolve_case_actor_store_id", return_value="urn:mgr"
             ),
         ):
-            demo._phase_v2_late_invite(
-                cast, case, MagicMock(), "urn:embargo:two"
-            )
-
-        assert _demo_failures
+            with pytest.raises(AssertionError, match="timed out"):
+                demo._phase_v2_late_invite(
+                    cast, case, MagicMock(), "urn:embargo:two"
+                )
 
     @pytest.mark.spec("DEMOMA-21-008")
     def test_fix_lifecycle_runs_for_both_vendors_and_keeps_em_active(
