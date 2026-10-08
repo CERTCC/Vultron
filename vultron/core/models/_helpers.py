@@ -431,6 +431,9 @@ def _as_id(obj: Any) -> str | None:
 
     - If *obj* is ``None``, returns ``None``.
     - If *obj* has an ``id_`` attribute, returns ``obj.id_``.
+    - If *obj* is a ``dict`` (an inline object as stored), returns its ``id_``
+      or ``id`` string, so an inline case is named by its URI rather than by the
+      ``str()`` of the whole mapping.
     - Otherwise returns ``str(obj)``.
 
     This handles the mixed ``str | <wire-type>`` collections that arise when
@@ -438,7 +441,8 @@ def _as_id(obj: Any) -> str | None:
     """
     if obj is None:
         return None
-    id_ = getattr(obj, "id_", None)
+    id_ = obj.get("id_") or obj.get("id") if isinstance(obj, dict) else None
+    id_ = id_ or getattr(obj, "id_", None)
     if isinstance(id_, str):
         return id_
     return str(obj)
