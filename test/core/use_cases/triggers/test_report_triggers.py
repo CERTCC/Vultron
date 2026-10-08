@@ -29,6 +29,7 @@ from datetime import UTC, datetime
 import pytest
 from pydantic import ValidationError
 
+from test.support.embargo_register import activate
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -137,7 +138,7 @@ def _make_case_with_embargo(
     dl.create(embargo)
 
     case = VulnerabilityCase(name="Test Case", attributed_to=vendor_id)
-    case.set_embargo(embargo.id_)
+    activate(case, embargo.id_)
     case.vulnerability_reports.append(report_id)
 
     vendor_participant = as_CaseParticipant(

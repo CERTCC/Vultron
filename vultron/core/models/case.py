@@ -21,7 +21,7 @@ import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any, ClassVar, Literal
 
-from pydantic import Field, ValidationInfo, model_validator
+from pydantic import Field, ValidationInfo, computed_field, model_validator
 
 from vultron.core.models._helpers import (
     INBOUND_CONTEXT_KEY,
@@ -34,9 +34,22 @@ from vultron.core.models.base import CoreObject, NonEmptyString
 from vultron.core.models.case_ledger import compute_genesis_hash
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.dimensions import EmDimension
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.embargo_register import (
+    EmbargoRegisterEntry,
+    RegisterChange,
+    apply_register_step,
+    repeated_ids,
+)
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.wire_keys import wire_key
+from vultron.core.states.em import EM
+from vultron.core.states.embargo_register import (
+    EmbargoRegisterStatus,
+    derive_em,
+    register_invariant_violations,
+)
 from vultron.errors import VultronValidationError
 
 logger = logging.getLogger(__name__)
@@ -107,10 +120,11 @@ class VulnerabilityCase(CoreObject):
         validation_alias="type",
         serialization_alias="type",
     )
-    # DL-08-002: active_embargo must be stored inline so recipients can read it
-    # back without a dereference mechanism (AKM-03-001).
+    # DL-08-001: the register's entries carry the embargo object when a sender
+    # carried it, so recipients can read the terms back without a dereference
+    # mechanism (AKM-03-001).
     inline_required_refs: ClassVar[frozenset[str]] = frozenset(
-        {"active_embargo"}
+        {"embargo_register"}
     )
     # Every reference slot below carries ``NonEmptyString`` for its IRI form:
     # a blank reference names nothing, so it is refused at construction rather
@@ -135,16 +149,13 @@ class VulnerabilityCase(CoreObject):
     # (CS-08-002): None means "not yet set"; an empty or blank string is
     # refused at construction time.
     stub_summary: NonEmptyString | None = None
-    # Admits the object, not only a reference, for the same reason
-    # `case_participants` does: a recipient cannot dereference a URI it does not
-    # hold, and no dereferencing mechanism is specified (AKM-03-001). While this
-    # was `str | None` the object could not survive a store round-trip — so
-    # every round-trip, including the one `outbox_delivery` performs when
-    # it re-serialises a queued activity, reduced a carried embargo back to a
-    # bare id and the recipient was handed a reference it could never resolve.
-    # Readers wanting the id should use `_as_id`/`active_embargo_id`.
-    active_embargo: NonEmptyString | EmbargoEvent | None = None
-    proposed_embargoes: list[NonEmptyString] = Field(default_factory=list)
+    # One entry for every embargo ever proposed on the case, appended and never
+    # removed (ADR-0122).  EM, the active embargo and the open proposals are
+    # all read from it; it changes only through
+    # :meth:`apply_embargo_register_step`.
+    embargo_register: list[EmbargoRegisterEntry] = Field(default_factory=list)
+    # The proposal Invite that relayed each *open* proposal (EP-09); an entry
+    # leaves with its proposal (EP-08-003).
     pending_embargo_proposal_index: dict[NonEmptyString, NonEmptyString] = (
         Field(default_factory=dict)
     )
@@ -287,6 +298,40 @@ class VulnerabilityCase(CoreObject):
         object.__setattr__(self, "case_statuses", statuses)
         return self
 
+    @model_validator(mode="after")
+    def _register_keeps_invariants(self) -> VulnerabilityCase:
+        """Refuse a register that breaks ADR-0122's invariants or repeats an id.
+
+        Fail-fast at construction (ARCH-10-001): a received or stored case
+        whose register no step could have produced is refused, rather than
+        derived into an EM state the table does not define.
+        """
+        ids = [entry.embargo_id for entry in self.embargo_register]
+        problems = register_invariant_violations(
+            entry.status for entry in self.embargo_register
+        )
+        repeated = repeated_ids(ids)
+        if repeated:
+            problems.append(f"embargoes {repeated} have more than one entry")
+        if problems:
+            raise ValueError(
+                f"VulnerabilityCase '{self.id_}' embargo register: "
+                + "; ".join(problems)
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _stamp_em_at_construction(self) -> VulnerabilityCase:
+        """Stamp the register's EM onto the current status a case arrives with.
+
+        A stored or received case's status carries an EM copy that may
+        predate, or disagree with, its register; the register wins
+        (ADR-0122).  Like :meth:`_set_cs_context`, this replaces the status
+        with a copy rather than assigning through the model (ARCH-21-004).
+        """
+        self._stamp_em()
+        return self
+
     # ------------------------------------------------------------------
     # Domain methods
     # ------------------------------------------------------------------
@@ -336,27 +381,6 @@ class VulnerabilityCase(CoreObject):
             )
         self.actor_participant_index[actor_id] = participant_id
 
-    def remove_participant(self, participant_id: str) -> None:
-        """Remove a participant and update the actor→participant index.
-
-        Args:
-            participant_id: Full URI of the :class:`CaseParticipant` to
-                remove.
-        """
-        self.case_participants = [
-            p
-            for p in self.case_participants
-            if (p.id_ if isinstance(p, CaseParticipant) else p)
-            != participant_id
-        ]
-        actors_to_remove = [
-            actor_id
-            for actor_id, p_id in self.actor_participant_index.items()
-            if p_id == participant_id
-        ]
-        for actor_id in actors_to_remove:
-            del self.actor_participant_index[actor_id]
-
     def add_case_status(self, status: CaseStatus) -> None:
         """Append a CaseStatus to this case's history.
 
@@ -378,39 +402,42 @@ class VulnerabilityCase(CoreObject):
                 f"got {type(status).__name__}"
             )
         self.case_statuses.append(status)
+        # EM is the register's, never the appended status's (ADR-0122).
+        self._stamp_em()
 
     def append_case_status(self, **kwargs: Any) -> None:
         """Append a new CaseStatus derived from the current one with fields overridden.
 
         Inherits all fields from ``current_status`` then applies ``kwargs``,
-        so passing ``em_state=EM.ACTIVE`` keeps existing ``pxa_state`` and
-        vice-versa. Timestamps are bumped to ensure the new entry sorts as
-        ``current_status``.
+        so passing ``pxa_state=CS_pxa.Pxa`` keeps every other dimension.
+        Timestamps are bumped to ensure the new entry sorts as
+        ``current_status``.  EM is not a status field to set: it is derived
+        from the embargo register (ADR-0122), so ``em_state`` is refused.
+
+        Raises:
+            VultronValidationError: when ``em_state`` is passed.
         """
+        if "em_state" in kwargs:
+            raise VultronValidationError(
+                "append_case_status: EM is derived from the embargo register"
+                " (ADR-0122); change the register instead of the status."
+            )
         current = self.current_status
         latest = current.updated or current.published
         now = datetime.now(UTC)
         if latest is not None and latest >= now:
             now = latest + timedelta(microseconds=1)
 
-        # Map flat state kwargs to nested dimension updates so that model_copy
-        # (which does not re-run validators) applies them correctly.
-        em_update: dict = {}
+        # Map the flat pxa kwarg to its nested dimension so that model_copy
+        # (which does not re-run validators) applies it correctly.
         pxa_update: dict = {}
         passthrough: dict = {}
         for k, v in kwargs.items():
-            if k == "em_state":
-                em_update["state"] = v
-            elif k == "pxa_state":
+            if k == "pxa_state":
                 pxa_update["state"] = v
             else:
                 passthrough[k] = v
 
-        em = (
-            current.em.model_copy(update=em_update)
-            if em_update
-            else current.em
-        )
         pxa = (
             current.pxa.model_copy(update=pxa_update)
             if pxa_update
@@ -421,7 +448,6 @@ class VulnerabilityCase(CoreObject):
             current.model_copy(
                 update={
                     **passthrough,
-                    "em": em,
                     "pxa": pxa,
                     "context": self.id_,
                     "published": now,
@@ -430,86 +456,137 @@ class VulnerabilityCase(CoreObject):
             )
         )
 
-    def set_embargo(self, embargo: str | EmbargoEvent | None) -> None:
-        """Set the active embargo for this case.
+    # ------------------------------------------------------------------
+    # Embargo register (ADR-0122)
+    # ------------------------------------------------------------------
 
-        Args:
-            embargo: The active :class:`EmbargoEvent`, its full URI, or ``None``
-                to clear. The object form is accepted so a received case can keep
-                what the sender carried (AKM-03-001); see
-                :attr:`active_embargo`.
+    def apply_embargo_register_step(
+        self,
+        changes: list[RegisterChange],
+        *,
+        threat_signal: bool = False,
+    ) -> None:
+        """Apply one register step, the only writer of the case's embargoes.
+
+        The step is checked whole by
+        :func:`~vultron.core.models.embargo_register.apply_register_step`
+        and refused, leaving the case untouched, when any rule breaks.  An
+        entry that has left ``PROPOSED`` takes its relay record out of
+        ``pending_embargo_proposal_index`` with it (EP-08-003); a record for
+        an embargo the register has not recorded yet stays (EP-09-007).  The
+        current :class:`CaseStatus` is stamped with the derived EM, so the
+        copy it carries on the wire never disagrees with the register.
+
+        Raises:
+            VultronInvalidStateTransitionError: the step breaks a register
+                rule or invariant.
         """
-        self.active_embargo = embargo
-
-    def discard_proposed_embargo(self, embargo_id: str) -> bool:
-        """Forget *embargo_id* as an open proposal, in both records.
-
-        A decided proposal — accepted, rejected, or whose embargo was torn
-        down — leaves ``proposed_embargoes`` and
-        ``pending_embargo_proposal_index`` together (EP-08-003, ADR-0100):
-        two records of open proposals pruned on different subsets of the
-        decision paths is the drift that let a decided entry win a default
-        selection.  Idempotent; returns whether anything changed.
-        """
-        remaining = [
-            e for e in self.proposed_embargoes if _as_id(e) != embargo_id
-        ]
-        changed = len(remaining) != len(self.proposed_embargoes)
-        if changed:
-            self.proposed_embargoes = remaining
-        if embargo_id in self.pending_embargo_proposal_index:
-            index = dict(self.pending_embargo_proposal_index)
-            del index[embargo_id]
-            self.pending_embargo_proposal_index = index
-            changed = True
-        return changed
-
-    def discard_all_proposed_embargoes(self) -> bool:
-        """Forget every open proposal, in both records (EP-08-004).
-
-        Termination decides every open proposal at once: a case has one
-        active embargo (VP-04-002), so every proposal open while EM is
-        ``ACTIVE`` or ``REVISE`` is a revision of it, and a revision of an
-        embargo that no longer exists cannot be accepted (ADR-0113).  The
-        sibling of :meth:`discard_proposed_embargo` for the whole record —
-        the two records leave together, never by assignment to one of them.
-        Idempotent; returns whether anything changed.
-        """
-        changed = bool(self.proposed_embargoes) or bool(
-            self.pending_embargo_proposal_index
+        self.embargo_register = apply_register_step(
+            self.embargo_register, changes, threat_signal=threat_signal
         )
-        if self.proposed_embargoes:
-            self.proposed_embargoes = []
-        if self.pending_embargo_proposal_index:
-            self.pending_embargo_proposal_index = {}
-        return changed
+        if not all(
+            self.proposal_is_undecided(i)
+            for i in self.pending_embargo_proposal_index
+        ):
+            self.pending_embargo_proposal_index = {
+                embargo_id: invite_id
+                for embargo_id, invite_id in (
+                    self.pending_embargo_proposal_index.items()
+                )
+                if self.proposal_is_undecided(embargo_id)
+            }
+        self._stamp_em()
+
+    def proposal_is_undecided(self, embargo_id: str) -> bool:
+        """Whether *embargo_id* may still be answered as a proposal.
+
+        True for a ``PROPOSED`` entry, and for an embargo the register has
+        not recorded yet: a replica indexes a relayed Invite when it arrives,
+        which can be before ledger replay records the proposal (EP-09-007).
+        False once the entry has left ``PROPOSED`` (EP-08-003), and for every
+        embargo once one has terminated: nothing is proposed after that
+        (EP-08-004, register invariant 4).
+        """
+        entry = self.embargo_register_entry(embargo_id)
+        if entry is None:
+            return not any(
+                e.status == EmbargoRegisterStatus.TERMINATED
+                for e in self.embargo_register
+            )
+        return entry.status == EmbargoRegisterStatus.PROPOSED
+
+    def _em_stamped_statuses(self) -> list[str | CaseStatus] | None:
+        """``case_statuses`` with the current status's EM copy set from the register.
+
+        ``None`` when there is no materialized status or its copy already
+        agrees.  The status is replaced by a copy, never mutated, so a status
+        object a caller handed in is left as it was.
+        """
+        materialized = [
+            s for s in self.case_statuses if isinstance(s, CaseStatus)
+        ]
+        if not materialized:
+            return None
+        current = most_recent_status(materialized)
+        em = self.em_state
+        if current.em.state == em:
+            return None
+        stamped = current.model_copy(update={"em": EmDimension(state=em)})
+        return [stamped if s is current else s for s in self.case_statuses]
+
+    def _stamp_em(self) -> None:
+        """Write the derived EM onto the current status's copy (ADR-0122).
+
+        Bypasses assignment validation like :meth:`_set_cs_context`: the copy
+        differs only by a freshly validated ``EmDimension`` (ARCH-21-004).
+        """
+        statuses = self._em_stamped_statuses()
+        if statuses is not None:
+            object.__setattr__(self, "case_statuses", statuses)
+
+    def embargo_register_entry(
+        self, embargo_id: str
+    ) -> EmbargoRegisterEntry | None:
+        """The register entry for *embargo_id*, or ``None`` when it has none."""
+        return next(
+            (e for e in self.embargo_register if e.embargo_id == embargo_id),
+            None,
+        )
 
     @property
-    def proposed_embargo_ids(self) -> list[str]:
-        """The ids of the open proposals — the one place they are derived.
+    def em_state(self) -> EM:
+        """The case's EM state, derived from its embargo register (ADR-0122)."""
+        return derive_em(entry.status for entry in self.embargo_register)
 
-        The lifecycle's idempotent append, the pruner and the public-disclosure
-        cascade each used to derive these ids themselves; one derivation keeps
-        them from disagreeing.  It goes through ``_as_id`` for the same
-        reference contract :attr:`active_embargo_id` honours, not because an
-        inline object can appear here (``proposed_embargoes`` is ``list[str]``
-        and validated on assignment).
+    @property
+    def active_embargo(self) -> str | EmbargoEvent | None:
+        """The embargo in force — the object when one was carried, else its id.
+
+        A view of the register's ``ACTIVE`` entry.  Most callers want the id
+        and should use :attr:`active_embargo_id`.
         """
-        return [i for i in (_as_id(e) for e in self.proposed_embargoes) if i]
+        return next(
+            (
+                entry.embargo
+                for entry in self.embargo_register
+                if entry.status == EmbargoRegisterStatus.ACTIVE
+            ),
+            None,
+        )
 
     @property
     def active_embargo_id(self) -> str | None:
-        """The active embargo's id, whichever shape the field holds.
+        """The id of the register's ``ACTIVE`` entry, or ``None``."""
+        return _as_id(self.active_embargo)
 
-        Most callers want the id and should use this rather than assuming
-        ``active_embargo`` is a string — it may be the whole object when a
-        received case carried one.
-        """
-        if self.active_embargo is None:
-            return None
-        if isinstance(self.active_embargo, str):
-            return self.active_embargo or None
-        return getattr(self.active_embargo, "id_", None)
+    @property
+    def proposed_embargo_ids(self) -> list[str]:
+        """The ids of the open proposals: the register's ``PROPOSED`` entries."""
+        return [
+            entry.embargo_id
+            for entry in self.embargo_register
+            if entry.status == EmbargoRegisterStatus.PROPOSED
+        ]
 
     def record_activity(self, activity_id: str) -> None:
         """Append an activity ID to the case activity log.
@@ -564,11 +641,14 @@ class VulnerabilityCase(CoreObject):
 
         1. it has joined the case — seated by the case initialization
            sequence or accepted its stub Invite (``participant.joined``);
-        2. when this case has an active embargo (:attr:`embargo_in_force`),
+        2. it has not been removed (``participant.removed``, CM-31-001);
+        3. when this case has an active embargo (:attr:`embargo_in_force`),
            its consent row for the active embargo is ``ACCEPTED``
            (:meth:`CaseParticipant.is_signatory`, CM-18-001).
 
-        Every other participant is **inert**.  RM ``CLOSED`` is deliberately
+        Every other participant is **inert**.  A removed participant is inert
+        whatever its embargo consent: a removed signatory stays bound but
+        receives no content (CM-31-008, ADR-0116).  RM ``CLOSED`` is deliberately
         not part of this check: a closed participant still receives the
         ledger entries that let its replica learn how the case ended (the
         ``case_fully_closed`` signal, CM-23-002), and only the sends that
@@ -579,7 +659,7 @@ class VulnerabilityCase(CoreObject):
         selected through :mod:`vultron.core.participants.recipients`, which
         resolves each roster entry to its record and asks this method.
         """
-        if not participant.joined:
+        if not participant.joined or participant.removed:
             return False
         if not self.embargo_in_force:
             return True
@@ -587,15 +667,60 @@ class VulnerabilityCase(CoreObject):
 
     @property
     def embargo_in_force(self) -> bool:
-        """True when this case has an active embargo.
+        """True when this case's register has an ``ACTIVE`` entry.
 
         Read from :attr:`active_embargo_id`, the same fact the consent
-        bookkeeping keys on (``embargo_lifecycle.pec``): an embargo is set
-        there when it is activated and cleared when it is torn down, and stays
-        set through a revision (EM ``REVISE``).  A proposal alone does not set
-        it.
+        bookkeeping keys on (``embargo_lifecycle.pec``): an entry is
+        ``ACTIVE`` from its activation until a revision supersedes it or the
+        embargo is terminated, so it holds through a revision (EM
+        ``REVISE``).  A proposal alone does not make one.
         """
         return self.active_embargo_id is not None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def active_participants(self) -> list[str]:
+        """The ids of the participants this case finds active (CM-31-003).
+
+        Published as ``activeParticipants`` and never stored as a field: it
+        is :meth:`is_active_participant` applied to every participant record
+        the case carries inline, in roster order (ADR-0116).  A case put on
+        the wire carries its participant records inline
+        (``_case_for_wire``), so the published view is complete there.  A
+        bare participant reference is not provably active and is left out
+        of this list; while any roster entry is a bare reference the AS2
+        dump leaves ``activeParticipants`` out altogether
+        (:meth:`_as2_unpublished_fields`), so the case never publishes a
+        partial view as if it were exact.  A case read from the store holds
+        references only, so in-process callers select recipients through
+        :mod:`vultron.core.participants.recipients`, which resolves each
+        reference to its record, not through this view.
+
+        Reading a dump back in strips a value that matches the derived one
+        and refuses one that contradicts it (``CoreObject``'s computed-field
+        check, ARCH-23-005), so a case's own dump round-trips despite
+        ``extra="forbid"``.
+        """
+        return [
+            entry.id_
+            for entry in self.case_participants
+            if isinstance(entry, CaseParticipant)
+            and self.is_active_participant(entry)
+        ]
+
+    def _as2_unpublished_fields(self) -> frozenset[str]:
+        """Leave ``activeParticipants`` out while a roster entry is a reference.
+
+        The check needs each participant's record; a bare reference cannot be
+        evaluated, so the view would be partial.  CM-31-003 publishes exactly
+        the active participants, so a partial view is not published at all.
+        """
+        if all(
+            isinstance(entry, CaseParticipant)
+            for entry in self.case_participants
+        ):
+            return frozenset()
+        return frozenset({"active_participants"})
 
 
 def has_case_statuses(case: VulnerabilityCase) -> bool:

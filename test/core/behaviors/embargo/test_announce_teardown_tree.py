@@ -183,15 +183,14 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
 
     def test_no_announce_when_embargo_not_active(self):
         """EmbargoWasNotActive path does NOT emit Announce(EmbargoEvent)."""
-        # Build a case that starts in PROPOSED state (not ACTIVE), so the
-        # IsActiveEmbargoNode guard fails and the ActiveTeardown Sequence is
-        # skipped — the Selector falls through to EmbargoWasNotActive.
+        # Build a case whose register holds the embargo only as an open
+        # proposal (EM PROPOSED, not ACTIVE), so the IsActiveEmbargoNode guard
+        # fails and the ActiveTeardown Sequence is skipped — the Selector falls
+        # through to EmbargoWasNotActive.
         case, _, dl = make_case_with_manager("atrt2", em_state=EM.PROPOSED)
         _, embargo = make_case_and_embargo("atrt2")
         dl.create(embargo)
-        object.__setattr__(case, "active_embargo", None)
-        case.proposed_embargoes.append(embargo.id_)
-        dl.save(case)
+        assert case.proposed_embargo_ids == [embargo.id_]
         factory = _make_factory()
 
         tree = remove_embargo_from_case_tree(
@@ -218,6 +217,11 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
         assert result.status == py_trees.common.Status.SUCCESS
         factory.announce_embargo.assert_not_called()
         assert dl.outbox_list() == []
+        # A Remove naming a merely-proposed embargo changes no register entry
+        # (ADR-0122): the proposal stays open.
+        updated = cast(VulnerabilityCase, dl.read(case.id_))
+        assert updated.em_state == EM.PROPOSED
+        assert updated.proposed_embargo_ids == [embargo.id_]
 
     def test_announce_skipped_gracefully_when_no_factory(self):
         """Tree succeeds when factory is absent (no announce emitted)."""
@@ -291,7 +295,7 @@ class TestRemoveEmbargoTeardownFailuresSurface:
         factory.announce_embargo.assert_not_called()
 
     def test_already_exited_embargo_is_not_torn_down_again(self):
-        """An active_embargo left on an EXITED case falls back to success."""
+        """A Remove of an already-terminated embargo falls back to success."""
         case, _, dl = make_case_with_manager("atrt5", em_state=EM.EXITED)
         _, embargo = make_case_and_embargo("atrt5")
         dl.create(embargo)

@@ -30,6 +30,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_event,
     _to_persistable_entry,
 )
+from test.support.embargo_register import activate
 from vultron.core.behaviors.embargo.nodes.expiry import (
     ApplyInviteExpiryFromLedgerNode,
 )
@@ -40,7 +41,6 @@ from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.rsvp_deadline import (
     INVITE_EXPIRED_EVENT_TYPE,
 )
-from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -82,7 +82,7 @@ def _seed(
             INVITEE: invitee.id_,
         },
     )
-    case.append_case_status(em_state=EM.ACTIVE)
+    activate(case, EMBARGO_ID)
     scenario.seed(manager, invitee, case)
     return invitee.id_
 

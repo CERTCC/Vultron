@@ -21,7 +21,6 @@ from pydantic import ValidationError
 
 from vultron.metadata.adr.lifecycle import (
     hardened_adrs,
-    status_epoch_fault,
     today_utc,
     verified_dependents,
 )
@@ -110,8 +109,11 @@ def _check_adr_status(
       surfaces ``decision-audit`` candidates rather than blocking CI; an ADR may
       opt out with ``lint_suppress: [status_prose_contradiction]``.
 
-    - **Hard (MS-14-007)**: ``status`` MUST agree with the epoch computed from
-      ``updated`` and ``today`` unless the ADR carries a ``status_override``.
+    - **Not here (MS-14-007)**: a ``status`` that disagrees with the epoch
+      computed from ``updated`` and ``today`` is never a lint failure, because
+      the answer changes with the clock and no commit. The diff-based
+      ``adr-lifecycle-check`` fails a material edit that leaves it wrong, and
+      the scheduled ``adr-status-drift`` workflow reports the rest.
     - **Informational (MS-14-007)**: with a spec ``registry``, an ADR still in
       epoch 1 or 2 that a tested spec requirement depends on is reported as
       hardened, so a human can promote it early.
@@ -136,9 +138,6 @@ def _check_adr_status(
 
     for rel_path, fm in adr_registry.items():
         name = Path(rel_path).name
-        fault = status_epoch_fault(name, fm, today)
-        if fault:
-            errors.append(fault)
         if fm.status is not AdrStatus.ACCEPTED:
             continue
         if fm.lint_suppress and any(
@@ -928,6 +927,16 @@ def _check_phantom_symbols(
     return errors
 
 
+def _report_closed_debt_owners(
+    registry: SpecRegistry, debt_owners: Mapping[SpecKind, frozenset[str]]
+) -> int:
+    """Print each closed or unreadable owner as an error; return the exit code."""
+    errors = closed_debt_owners(debt_owner_refs(registry, debt_owners))
+    for e in errors:
+        print(f"[ERROR] {e}", file=sys.stderr)
+    return 1 if errors else 0
+
+
 def lint(
     spec_dir: Path,
     adr_dir: Path | None = None,
@@ -961,10 +970,12 @@ def lint(
             Defaults to the live
             :data:`~vultron.metadata.specs.verification.VERIFICATION_DEBT_OWNERS`;
             tests pass a fixture table.
-        check_debt_owners: Also fail on any ``verification_debt`` marker or
-            owner entry naming a closed issue (MS-10-006;
-            ``--check-debt-owners`` on the CLI). Needs the ``gh`` CLI and a
-            token, so CI runs it and the pre-commit hook does not.
+        check_debt_owners: Run only the open-owner check: fail on any
+            ``verification_debt`` marker or owner entry naming a closed issue
+            (MS-10-006; ``--check-debt-owners`` on the CLI), and on nothing
+            else, so an unrelated lint error cannot file the owners-closed
+            tracking issue (ARCH-18-004). Needs the ``gh`` CLI and a token, so
+            CI runs it and the pre-commit hook does not.
         closing_pr: Also fail when this pull request closes an owner issue
             that a marker or owner entry still names (MS-10-006;
             ``--check-closing-pr N`` on the CLI). Needs ``gh`` and a token.
@@ -988,6 +999,9 @@ def lint(
             print(f"[FATAL] Registry load failed:\n{exc}", file=sys.stderr)
             return 1
 
+    if check_debt_owners:
+        return _report_closed_debt_owners(registry, debt_owners)
+
     hard_errors.extend(registry.validate_cross_references())
     hard_errors.extend(_check_prefix_consistency(registry))
     hard_errors.extend(_check_spec_id_prefix_consistency(registry))
@@ -1006,10 +1020,6 @@ def lint(
     )
     hard_errors.extend(verification_errors)
     status_lines.extend(verification_lines)
-    if check_debt_owners:
-        hard_errors.extend(
-            closed_debt_owners(debt_owner_refs(registry, debt_owners))
-        )
     if closing_pr is not None:
         hard_errors.extend(check_closing_pr(registry, debt_owners, closing_pr))
 
@@ -1063,8 +1073,9 @@ def main() -> None:
         "--check-debt-owners",
         action="store_true",
         help=(
-            "Fail when a verification_debt marker or owner entry names a "
-            "closed issue (MS-10-006); needs the gh CLI and a token"
+            "Run only the owner check: fail when a verification_debt marker "
+            "or owner entry names a closed issue (MS-10-006); needs the gh "
+            "CLI and a token"
         ),
     )
     parser.add_argument(

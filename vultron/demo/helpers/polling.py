@@ -1616,6 +1616,51 @@ def find_embargo_invite_for_actor(
     )
 
 
+def wait_for_embargo_proposal_indexed(
+    client: DataLayerClient,
+    case_id: str,
+    embargo_id: str,
+    invite_id: str,
+    timeout_seconds: float = 15.0,
+    poll_interval: float = 0.25,
+) -> None:
+    """Poll until the invitee's case maps *embargo_id* to *invite_id*.
+
+    The relayed Invite is readable as soon as intake archives it, but the
+    accept and reject triggers correlate an embargo with its Invite through the
+    case's proposal index, which the received tree writes last (ID-04-005).
+    An answer posted between the two builds its Accept with no object, so the
+    Invite alone is not evidence the invitee can answer yet (EDF-06-002).
+
+    Args:
+        client: DataLayerClient connected to the invitee's container.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        embargo_id: Full URI of the proposed ``EmbargoEvent``.
+        invite_id: The relayed Invite's activity ID, as the invitee holds it.
+        timeout_seconds: Maximum time to wait.
+        poll_interval: Seconds between DataLayer poll attempts.
+
+    Raises:
+        AssertionError: If the index does not name *invite_id* within
+            *timeout_seconds*.
+    """
+
+    def _check() -> bool:
+        case = as_VulnerabilityCase.model_validate(
+            client.get(client.dl_path(case_id))
+        )
+        return case.pending_embargo_proposal_index.get(embargo_id) == invite_id
+
+    _poll_until(
+        _check,
+        timeout_seconds,
+        poll_interval,
+        f"Timed out waiting for the case '{case_id}' at {client.base_url} to"
+        f" index Invite {invite_id!r} for embargo {embargo_id!r}",
+        swallow_exceptions=True,
+    )
+
+
 def wait_for_participant_embargo_consent(
     client: DataLayerClient,
     case_id: str,

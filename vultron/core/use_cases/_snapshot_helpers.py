@@ -46,8 +46,8 @@ _SNAPSHOT_REFERENCE_CORE_FIELDS = (
     "object",
     "object_",
     "target",
-    "active_embargo",
-    "proposed_embargoes",
+    # An embargo register entry's embargo (ADR-0122).
+    "embargo",
     "vulnerability_reports",
     "notes",
     "case_participants",

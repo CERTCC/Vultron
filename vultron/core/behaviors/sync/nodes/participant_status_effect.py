@@ -60,7 +60,7 @@ from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.composite_state_invariants import (
     composite_state_violations,
 )
-from vultron.core.states.rm import RM, is_rm_at_least
+from vultron.core.states.rm import RM, is_rm_replay_acceptable
 
 logger = logging.getLogger(__name__)
 
@@ -83,10 +83,8 @@ def _ratchet_rm(
         The status to record and the refused RM value, or ``(status_obj, None)``
         when nothing was refused.
     """
-    if local_rm is None:
-        return status_obj, None
     entry_rm = status_obj.rm.state
-    if entry_rm == local_rm or is_rm_at_least(entry_rm, local_rm):
+    if local_rm is None or is_rm_replay_acceptable(local_rm, entry_rm):
         return status_obj, None
     return (
         status_obj.model_copy(
@@ -277,7 +275,8 @@ class ApplyParticipantStatusFromLedgerNode(DataLayerActionWithPorts):
         d = status_obj.d.state if status_obj.d is not None else None
         violations = composite_state_violations(rm, vf, d)
         if violations:
-            self.feedback_message = violations[0].message
+            # Report every violation, not the first (EH-07-001).
+            self.feedback_message = "; ".join(v.message for v in violations)
             self.logger.warning(
                 "%s: ledger entry '%s' for participant '%s' describes an"
                 " impossible composite state (rm=%s, vf=%s, d=%s):"
@@ -288,7 +287,7 @@ class ApplyParticipantStatusFromLedgerNode(DataLayerActionWithPorts):
                 rm.name,
                 vf.name if vf is not None else "None",
                 d.name if d is not None else "None",
-                violations[0].message,
+                self.feedback_message,
             )
             return Status.FAILURE
 

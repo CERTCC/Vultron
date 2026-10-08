@@ -36,6 +36,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.embargo_register import activate, propose
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
@@ -462,7 +463,6 @@ class TestFilterCsPxaDimensionNodeBug2706:
 
     def _build_dl(self):
         """Return a DataLayer with pxa=Pxa current state and a pxa=pxa regression asserted."""
-        from vultron.core.states.em import EM
         from vultron.enums.roles import CVDRole
 
         dl = SqliteDataLayer(
@@ -480,7 +480,7 @@ class TestFilterCsPxaDimensionNodeBug2706:
             attributed_to=CASE_MANAGER_ID_2706,
         )
         case.add_participant(cm_participant)
-        case.append_case_status(pxa_state=CS_pxa.Pxa, em_state=EM.NONE)
+        case.append_case_status(pxa_state=CS_pxa.Pxa)
         dl.create(case)
         dl.create(cm_participant)
         # Asserted: pxa regression (pxa=pxa instead of Pxa), same EM
@@ -630,9 +630,14 @@ class TestAddCaseStatusTree:
         assert BTBridge.get_failure_reason(tree) == CASE_STATUS_ALREADY_PRESENT
 
     @pytest.mark.spec("RSH-05-017")
-    @pytest.mark.spec("RSH-05-018")
-    def test_invalid_em_transition_fails(self, dl, make_payload):
-        """Invalid EM transition → BT FAILURE; status not appended."""
+    @pytest.mark.spec("RSH-05-023")
+    def test_status_moving_em_alone_is_refused(self, dl, make_payload):
+        """A status whose only change is EM → refused in full; not appended.
+
+        EM is derived from the embargo register and no status moves it
+        (RSH-05-023): the asserted EM is refused and the case's carried
+        forward, which leaves nothing new, so the tree FAILS (RSH-05-005).
+        """
         case = as_VulnerabilityCase(id_=CASE_ID, name="EM Guard")
         initial = as_CaseStatus(
             id_=f"{CASE_ID}/statuses/init",
@@ -666,6 +671,7 @@ class TestAddCaseStatusTree:
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         status_ids = [getattr(s, "id_", s) for s in updated_case.case_statuses]
         assert STATUS_ID not in status_ids
+        assert updated_case.em_state == EM.NONE
 
     @pytest.mark.spec("CSB-17-012")
     def test_px_ephemeral_a_event_rejected_no_ledger_write(
@@ -716,34 +722,31 @@ class TestAddCaseStatusTree:
 
     @pytest.mark.spec("RSH-05-015")
     @pytest.mark.spec("RSH-05-016")
-    @pytest.mark.spec("RSH-05-018")
+    @pytest.mark.spec("RSH-05-023")
     @pytest.mark.spec("RSH-05-019")
-    def test_valid_em_advance_with_pxa_regression_applies_em_and_refuses_pxa(
+    def test_em_move_with_pxa_advance_refuses_em_and_applies_pxa(
         self, dl, make_payload
     ):
-        """EM advances (NONE→PROPOSED) with stale PXA regression → BT SUCCEEDS.
+        """EM move (NONE→PROPOSED) with a PXA advance → BT SUCCEEDS.
 
-        Bug #2256: all-or-nothing CS validation discarded the valid EM advance
-        when PXA regressed and aborted the Sequence before
-        ThreatTerminationBranchNode.  Per-dimension adjudication must accept
-        the EM advance and carry the current PXA forward.
+        Bug #2256: all-or-nothing CS validation discarded a valid dimension
+        when another was refused, aborting the Sequence before
+        ThreatTerminationBranchNode.  Per-dimension adjudication refuses the
+        asserted EM — a status never moves EM (RSH-05-023) — carries the
+        case's EM forward, and still accepts the PXA advance.
         """
         case = VulnerabilityCase(
             id_=CASE_ID, name="EM PXA Split", attributed_to=ACTOR_ID
         )
-        # Auto-seeded CaseStatus has pxa=pxa; advance pxa to Pxa so that
-        # the asserted pxa=pxa from the sender is a real regression.
-        case.append_case_status(pxa_state=CS_pxa.Pxa)
+        # Auto-seeded CaseStatus has pxa=pxa and EM NONE.
         dl.create(case)
 
-        # Sender asserts EM NONE→PROPOSED (valid) + PXA Pxa→pxa (stale regression)
+        # Sender asserts EM NONE→PROPOSED (refused) + PXA pxa→Pxa (valid)
         asserted = as_CaseStatus(
             id_=STATUS_ID,
             context=CASE_ID,
             em=EmDimension(state=EM.PROPOSED),
-            pxa=PxaDimension(
-                state=CS_pxa.pxa
-            ),  # regression: P was True, sender claims False
+            pxa=PxaDimension(state=CS_pxa.Pxa),
         )
         dl.create(asserted)
 
@@ -769,14 +772,62 @@ class TestAddCaseStatusTree:
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         status_ids = [getattr(s, "id_", s) for s in updated_case.case_statuses]
         assert STATUS_ID in status_ids
+        assert updated_case.em_state == EM.NONE
 
-        # EM advance accepted, PXA carried forward (not regressed).
-        # Assert on the saved domain CaseStatus at STATUS_ID, not
-        # current_status: current_status uses max-by-ID and the auto-seeded
-        # UUID-ID status sorts lexically higher than STATUS_ID.
+        # PXA advance accepted, EM carried forward (not moved).  Assert on
+        # the saved domain CaseStatus at STATUS_ID, not current_status.
+        saved_status = cast(CaseStatus, dl.read(STATUS_ID))
+        assert saved_status.em.state == EM.NONE
+        assert saved_status.pxa.state == CS_pxa.Pxa
+
+    @pytest.mark.spec("RSH-05-023")
+    def test_status_carrying_the_cases_em_passes_it(
+        self, dl, make_payload, caplog
+    ):
+        """An asserted EM identical to the case's is not refused (RSH-05-023)."""
+        import logging
+
+        case = VulnerabilityCase(
+            id_=CASE_ID, name="EM Carried", attributed_to=ACTOR_ID
+        )
+        propose(case, f"{CASE_ID}/embargo_events/carried")
+        dl.create(case)
+
+        asserted = as_CaseStatus(
+            id_=STATUS_ID,
+            context=CASE_ID,
+            em=EmDimension(state=EM.PROPOSED),
+            pxa=PxaDimension(state=CS_pxa.Pxa),
+        )
+        dl.create(asserted)
+
+        activity = add_status_to_case_activity(
+            asserted, target=case.id_, actor=ACTOR_ID
+        )
+        event = make_payload(activity)
+        tree = add_case_status_tree(
+            request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
+        )
+        bridge = BTBridge(
+            datalayer=dl,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        )
+
+        with caplog.at_level(logging.WARNING):
+            result = bridge.execute_with_setup(
+                tree=tree, actor_id=ACTOR_ID, activity=event
+            )
+
+        assert result.status == Status.SUCCESS
+        assert not [
+            r for r in caplog.records if "refused EM" in r.getMessage()
+        ]
         saved_status = cast(CaseStatus, dl.read(STATUS_ID))
         assert saved_status.em.state == EM.PROPOSED
         assert saved_status.pxa.state == CS_pxa.Pxa
+        updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
+        assert updated_case.em_state == EM.PROPOSED
 
     @pytest.mark.spec("RSH-05-019")
     @pytest.mark.spec("SL-03-001")
@@ -798,12 +849,13 @@ class TestAddCaseStatusTree:
         case.append_case_status(pxa_state=CS_pxa.Pxa)
         dl.create(case)
 
-        # Valid EM advance + PXA regression → PXA dimension refused, tree
-        # still SUCCEEDS (partial accept), and the refusal is logged.
+        # The case's own EM + PXA regression → PXA dimension refused and
+        # logged; nothing else is new, so the status is refused in full
+        # (RSH-05-005) — the warning fires either way.
         asserted = as_CaseStatus(
             id_=STATUS_ID,
             context=CASE_ID,
-            em=EmDimension(state=EM.PROPOSED),
+            em=EmDimension(state=EM.NONE),
             pxa=PxaDimension(state=CS_pxa.pxa),
         )
         dl.create(asserted)
@@ -825,7 +877,7 @@ class TestAddCaseStatusTree:
             result = bridge.execute_with_setup(
                 tree=tree, actor_id=ACTOR_ID, activity=event
             )
-        assert result.status == Status.SUCCESS
+        assert result.status == Status.FAILURE
 
         pxa_refusals = [
             r.getMessage()
@@ -838,7 +890,7 @@ class TestAddCaseStatusTree:
         assert f"status '{STATUS_ID}'" in msg, msg
         assert f"for case '{STATUS_ID}'" not in msg, msg
 
-    @pytest.mark.spec("RSH-05-018")
+    @pytest.mark.spec("RSH-05-023")
     @pytest.mark.spec("SL-03-001")
     def test_em_refusal_warning_names_case_id_and_labelled_status_id(
         self, dl, make_payload, caplog
@@ -857,7 +909,7 @@ class TestAddCaseStatusTree:
         case.append_case_status(pxa_state=CS_pxa.pxa)
         dl.create(case)
 
-        # Invalid EM jump (NONE → ACTIVE) + valid PXA advance → EM dimension
+        # EM other than the case's (NONE → ACTIVE) + valid PXA advance → EM
         # refused, tree still SUCCEEDS (partial accept), refusal is logged.
         asserted = as_CaseStatus(
             id_=STATUS_ID,
@@ -911,14 +963,16 @@ class TestAddCaseStatusTree:
         case = VulnerabilityCase(
             id_=CASE_ID, name="EM PXA Split", attributed_to=ACTOR_ID
         )
-        case.append_case_status(pxa_state=CS_pxa.Pxa)
+        propose(case, f"{CASE_ID}/embargo_events/serialized")
         dl.create(case)
 
+        # EM PROPOSED→ACTIVE refused (carried forward as PROPOSED) + PXA
+        # pxa→Pxa accepted: a partial accept, so Finalize writes the override.
         asserted = as_CaseStatus(
             id_=STATUS_ID,
             context=CASE_ID,
-            em=EmDimension(state=EM.PROPOSED),
-            pxa=PxaDimension(state=CS_pxa.pxa),
+            em=EmDimension(state=EM.ACTIVE),
+            pxa=PxaDimension(state=CS_pxa.Pxa),
         )
         dl.create(asserted)
 
@@ -1155,7 +1209,6 @@ class TestThreatTerminationBranchNode:
         EM state, which only the CASE_MANAGER does (EP-09-008), and the
         canonical CaseStatus this branch follows is adopted there.
         """
-        from vultron.core.states.em import EM
         from vultron.enums.roles import CVDRole
 
         # ResolveCaseManagerNode requires a CASE_MANAGER participant in the case.
@@ -1174,8 +1227,7 @@ class TestThreatTerminationBranchNode:
             context=CASE_ID,
             end_time=days_from_now_utc(45),
         )
-        case.active_embargo = embargo.id_
-        case.append_case_status(em_state=EM.ACTIVE)
+        activate(case, embargo.id_)
         dl.create(case)
         dl.create(cm_participant)
         dl.create(embargo)
@@ -1514,8 +1566,7 @@ class TestThreatTerminationBranchNodeProposedEm:
             id_=CASE_ID, name="Proposed Case", attributed_to=ACTOR_ID
         )
         case.add_participant(cm_participant)
-        case.append_case_status(em_state=EM.PROPOSED)
-        case.proposed_embargoes = [embargo.id_]
+        propose(case, embargo.id_)
         case.pending_embargo_proposal_index = {embargo.id_: invite.id_}
         status_obj = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
         object.__setattr__(status_obj, "pxa_state", CS_pxa.Pxa)
@@ -1626,8 +1677,7 @@ class TestAddCaseStatusTreeSeam2:
             id_=CASE_ID, name="Seam2 Guard Case", attributed_to=CASE_MANAGER_ID
         )
         case.add_participant(cm_participant)
-        case.active_embargo = embargo.id_
-        case.append_case_status(em_state=EM.ACTIVE)
+        activate(case, embargo.id_)
         status_obj = as_CaseStatus(
             id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.Pxa)
         )
@@ -1734,8 +1784,7 @@ class TestRegressionCSPTeardownPath:
             id_=CASE_ID, name="Regression Case", attributed_to=manager_id
         )
         case.add_participant(cm_participant)
-        case.active_embargo = embargo.id_
-        case.append_case_status(em_state=EM.ACTIVE)
+        activate(case, embargo.id_)
         dl.create(case)
         dl.create(cm_participant)
         dl.create(embargo)
@@ -2103,8 +2152,7 @@ class TestPxaEmInvariantDiagnosticNode:
             attributed_to=actor_id,
         )
         case.add_participant(cm_participant)
-        case.active_embargo = embargo.id_
-        case.append_case_status(em_state=EM.ACTIVE)
+        activate(case, embargo.id_)
         status_obj = as_CaseStatus(
             id_=DIAG_STATUS_ID,
             context=DIAG_CASE_ID,

@@ -21,6 +21,7 @@ import py_trees
 import pytest
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.embargo_register import activate
 from vultron.core.behaviors.case.nodes.participant import (
     AttachParticipantToCaseNode,
     CaseHasActiveEmbargoNode,
@@ -172,7 +173,7 @@ class TestCreateCaseParticipantNode:
         )
         bt_scenario.dl.create(embargo)
         stored_case = cast(Any, bt_scenario.dl.read(case_obj.id_))
-        object.__setattr__(stored_case, "active_embargo", embargo.id_)
+        activate(stored_case, embargo.id_)
         bt_scenario.dl.save(stored_case)
 
         bt_scenario.run(

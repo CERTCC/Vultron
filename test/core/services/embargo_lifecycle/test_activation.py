@@ -24,6 +24,7 @@ from typing import cast
 
 import pytest
 
+from test.support.embargo_register import activate, propose
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.services.embargo_lifecycle import (
@@ -31,6 +32,7 @@ from vultron.core.services.embargo_lifecycle import (
     TransitionMode,
 )
 from vultron.core.states.em import EM
+from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState as ECS,
 )
@@ -68,10 +70,10 @@ def test_activate_embargo_prunes_the_proposal_from_both_records(
     (EP-08-003, #3470).
     """
     owner, dl = owner_and_dl
-    case, _ = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
+    case, _ = _make_case(dl, owner.id_)
     embargo = _make_embargo(dl, case.id_)
     other = _make_embargo(dl, case.id_)
-    case.proposed_embargoes = [embargo.id_, other.id_]
+    propose(case, embargo.id_, other.id_)
     case.pending_embargo_proposal_index = {
         embargo.id_: f"{case.id_}/embargo_proposals/1",
         other.id_: f"{case.id_}/embargo_proposals/2",
@@ -82,11 +84,13 @@ def test_activate_embargo_prunes_the_proposal_from_both_records(
         case_id=case.id_, embargo_id=embargo.id_, actor_id=owner.id_
     )
 
-    assert result.em_after == EM.ACTIVE
+    # The other proposal is still open, so it is now a revision of the
+    # embargo in force: EM derives REVISE (ADR-0122).
+    assert result.em_after == EM.REVISE
     activated = cast(VulnerabilityCase, dl.read(case.id_))
     assert activated.active_embargo_id == embargo.id_
     # The decided proposal left both records; the other stays open.
-    assert activated.proposed_embargoes == [other.id_]
+    assert activated.proposed_embargo_ids == [other.id_]
     assert activated.pending_embargo_proposal_index == {
         other.id_: f"{case.id_}/embargo_proposals/2"
     }
@@ -107,11 +111,10 @@ def test_terminate_active_embargo_strict_active_to_exited(
         dl,
         owner.id_,
         extra_participant_ids=[finder.id_],
-        em_state=EM.ACTIVE,
     )
     owner_participant_id, finder_participant_id = (p.id_ for p in participants)
     embargo = _make_embargo(dl, case.id_)
-    case.active_embargo = embargo.id_
+    activate(case, embargo.id_)
     dl.save(case)
     _seed_consent(dl, owner_participant_id, embargo.id_, ECS.ACCEPTED)
     _seed_consent(dl, finder_participant_id, embargo.id_, ECS.INVITED)
@@ -119,6 +122,7 @@ def test_terminate_active_embargo_strict_active_to_exited(
 
     lifecycle = EmbargoLifecycle(persistence=dl)
     result = lifecycle.terminate_active_embargo(
+        reason=TerminationReason.EARLY,
         case_id=case.id_,
         actor_id=owner.id_,
     )
@@ -138,13 +142,14 @@ def test_terminate_active_embargo_strict_revise_to_exited(
 ) -> None:
     """Terminate from REVISE: EM → EXITED."""
     owner, dl = owner_and_dl
-    case, _ = _make_case(dl, owner.id_, em_state=EM.REVISE)
+    case, _ = _make_case(dl, owner.id_)
     embargo = _make_embargo(dl, case.id_)
-    case.active_embargo = embargo.id_
+    activate(case, embargo.id_)
     dl.save(case)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
     result = lifecycle.terminate_active_embargo(
+        reason=TerminationReason.EARLY,
         case_id=case.id_,
         actor_id=owner.id_,
     )
@@ -155,55 +160,70 @@ def test_terminate_active_embargo_strict_revise_to_exited(
 def test_terminate_active_embargo_strict_no_active_embargo_raises(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """STRICT terminate with no active_embargo raises VultronInvalidStateTransitionError."""
+    """STRICT terminate with no embargo at all (EM NONE) raises."""
     owner, dl = owner_and_dl
-    case, _ = _make_case(dl, owner.id_, em_state=EM.ACTIVE)
-    # active_embargo deliberately not set on the case
+    case, _ = _make_case(dl, owner.id_)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
     with pytest.raises(VultronInvalidStateTransitionError):
         lifecycle.terminate_active_embargo(
+            reason=TerminationReason.EARLY,
             case_id=case.id_,
             actor_id=owner.id_,
         )
 
 
-def test_terminate_active_embargo_strict_invalid_em_state_raises(
+def test_terminate_active_embargo_strict_proposed_only_raises(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """STRICT terminate from PROPOSED (not ACTIVE/REVISE) raises."""
+    """STRICT terminate from PROPOSED (nothing in force) raises, case unchanged."""
     owner, dl = owner_and_dl
-    case, _ = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
+    case, _ = _make_case(dl, owner.id_)
     embargo = _make_embargo(dl, case.id_)
-    case.active_embargo = embargo.id_
+    propose(case, embargo.id_)
     dl.save(case)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
     with pytest.raises(VultronInvalidStateTransitionError):
         lifecycle.terminate_active_embargo(
+            reason=TerminationReason.EARLY,
             case_id=case.id_,
             actor_id=owner.id_,
         )
 
+    untouched = cast(VulnerabilityCase, dl.read(case.id_))
+    assert untouched.em_state == EM.PROPOSED
+    assert untouched.proposed_embargo_ids == [embargo.id_]
 
-def test_terminate_active_embargo_observed_invalid_no_raise(
+
+def test_terminate_active_embargo_observed_with_nothing_in_force_changes_nothing(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """OBSERVED mode: invalid EM state syncs to EXITED without raising."""
+    """OBSERVED mode: no active embargo is logged and skipped, never forced.
+
+    The register is never driven into a state its rules refuse (ADR-0122):
+    with only an open proposal there is nothing to terminate, so the replica
+    keeps its proposal and EM stays PROPOSED rather than syncing to EXITED.
+    """
     owner, dl = owner_and_dl
-    case, _ = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
+    case, _ = _make_case(dl, owner.id_)
     embargo = _make_embargo(dl, case.id_)
-    case.active_embargo = embargo.id_
+    propose(case, embargo.id_)
     dl.save(case)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
     result = lifecycle.terminate_active_embargo(
+        reason=TerminationReason.EARLY,
         case_id=case.id_,
         actor_id=owner.id_,
         transition_mode=TransitionMode.OBSERVED,
     )
 
-    assert result.em_after == EM.EXITED
+    assert result.em_after == EM.PROPOSED
+    assert not result.case_changed
+    untouched = cast(VulnerabilityCase, dl.read(case.id_))
+    assert untouched.em_state == EM.PROPOSED
+    assert untouched.proposed_embargo_ids == [embargo.id_]
 
 
 @pytest.mark.spec("EP-08-004")
@@ -218,24 +238,24 @@ def test_terminate_clears_every_open_revision_of_the_terminated_embargo(
     teardown with a revision pending.
     """
     owner, dl = owner_and_dl
-    case, _ = _make_case(dl, owner.id_, em_state=EM.REVISE)
+    case, _ = _make_case(dl, owner.id_)
     active = _make_embargo(dl, case.id_)
     revision = _make_embargo(dl, case.id_)
-    case.active_embargo = active.id_
-    case.proposed_embargoes = [revision.id_]
+    activate(case, active.id_)
+    propose(case, revision.id_)
     case.pending_embargo_proposal_index = {
         revision.id_: f"{case.id_}/embargo_proposals/revision",
     }
     dl.save(case)
 
     result = EmbargoLifecycle(persistence=dl).terminate_active_embargo(
-        case_id=case.id_, actor_id=owner.id_
+        reason=TerminationReason.EARLY, case_id=case.id_, actor_id=owner.id_
     )
 
     assert result.em_after == EM.EXITED
     torn_down = cast(VulnerabilityCase, dl.read(case.id_))
     assert torn_down.active_embargo is None
-    assert torn_down.proposed_embargoes == []
+    assert torn_down.proposed_embargo_ids == []
     assert torn_down.pending_embargo_proposal_index == {}
 
 
@@ -251,12 +271,12 @@ def test_terminate_in_observed_mode_clears_every_open_revision_too(
     node of its own — this pins that the mode makes no difference.
     """
     owner, dl = owner_and_dl
-    case, _ = _make_case(dl, owner.id_, em_state=EM.ACTIVE)
+    case, _ = _make_case(dl, owner.id_)
     active = _make_embargo(dl, case.id_)
     revision_a = _make_embargo(dl, case.id_, days=60)
     revision_b = _make_embargo(dl, case.id_, days=90)
-    case.active_embargo = active.id_
-    case.proposed_embargoes = [revision_a.id_, revision_b.id_]
+    activate(case, active.id_)
+    propose(case, revision_a.id_, revision_b.id_)
     case.pending_embargo_proposal_index = {
         revision_a.id_: f"{case.id_}/embargo_proposals/a",
         revision_b.id_: f"{case.id_}/embargo_proposals/b",
@@ -264,6 +284,7 @@ def test_terminate_in_observed_mode_clears_every_open_revision_too(
     dl.save(case)
 
     result = EmbargoLifecycle(persistence=dl).terminate_active_embargo(
+        reason=TerminationReason.EARLY,
         case_id=case.id_,
         actor_id=owner.id_,
         transition_mode=TransitionMode.OBSERVED,
@@ -272,7 +293,7 @@ def test_terminate_in_observed_mode_clears_every_open_revision_too(
     assert result.em_after == EM.EXITED
     torn_down = cast(VulnerabilityCase, dl.read(case.id_))
     assert torn_down.active_embargo is None
-    assert torn_down.proposed_embargoes == []
+    assert torn_down.proposed_embargo_ids == []
     assert torn_down.pending_embargo_proposal_index == {}
 
 
@@ -289,12 +310,12 @@ def test_activate_embargo_replacing_a_longer_one_carries_signatories_over(
     owner, dl = owner_and_dl
     signer = _make_actor(dl, "Signer")
     case, (owner_p, signer_p) = _make_case(
-        dl, owner.id_, extra_participant_ids=[signer.id_], em_state=EM.REVISE
+        dl, owner.id_, extra_participant_ids=[signer.id_]
     )
     active = _make_embargo(dl, case.id_)
     revision = _make_embargo(dl, case.id_, days=30)
-    case.active_embargo = active.id_
-    case.proposed_embargoes = [revision.id_]
+    activate(case, active.id_)
+    propose(case, revision.id_)
     dl.save(case)
     _seed_consent(dl, owner_p.id_, active.id_, ECS.ACCEPTED)
     _seed_consent(dl, signer_p.id_, active.id_, ECS.ACCEPTED)
@@ -338,12 +359,11 @@ def test_activate_embargo_replacing_a_shorter_one_lapses_non_acceptors(
         dl,
         owner.id_,
         extra_participant_ids=[signer.id_, acceptor.id_],
-        em_state=EM.REVISE,
     )
     active = _make_embargo(dl, case.id_)
     revision = _make_embargo(dl, case.id_, days=90)
-    case.active_embargo = active.id_
-    case.proposed_embargoes = [revision.id_]
+    activate(case, active.id_)
+    propose(case, revision.id_)
     dl.save(case)
     for p in (owner_p, signer_p, acceptor_p):
         _seed_consent(dl, p.id_, active.id_, ECS.ACCEPTED)
@@ -384,10 +404,9 @@ def test_activate_embargo_first_activation_writes_no_consent(
         dl,
         owner.id_,
         extra_participant_ids=[proposer.id_, invitee.id_],
-        em_state=EM.PROPOSED,
     )
     embargo = _make_embargo(dl, case.id_)
-    case.proposed_embargoes = [embargo.id_]
+    propose(case, embargo.id_)
     dl.save(case)
     _seed_consent(dl, proposer_p.id_, embargo.id_, ECS.ACCEPTED)
     _seed_consent(dl, invitee_p.id_, embargo.id_, ECS.INVITED)
@@ -420,12 +439,12 @@ def test_activate_embargo_records_the_owners_acceptance_of_a_longer_revision(
     owner, dl = owner_and_dl
     signer = _make_actor(dl, "Signer")
     case, (owner_p, signer_p) = _make_case(
-        dl, owner.id_, extra_participant_ids=[signer.id_], em_state=EM.REVISE
+        dl, owner.id_, extra_participant_ids=[signer.id_]
     )
     active = _make_embargo(dl, case.id_)
     revision = _make_embargo(dl, case.id_, days=90)
-    case.active_embargo = active.id_
-    case.proposed_embargoes = [revision.id_]
+    activate(case, active.id_)
+    propose(case, revision.id_)
     dl.save(case)
     _seed_consent(dl, owner_p.id_, active.id_, ECS.ACCEPTED)
     _seed_consent(dl, signer_p.id_, active.id_, ECS.ACCEPTED)
@@ -458,12 +477,12 @@ def test_activate_embargo_of_equal_terms_carries_signatories_over(
     owner, dl = owner_and_dl
     signer = _make_actor(dl, "Signer")
     case, (owner_p, signer_p) = _make_case(
-        dl, owner.id_, extra_participant_ids=[signer.id_], em_state=EM.REVISE
+        dl, owner.id_, extra_participant_ids=[signer.id_]
     )
     active = _make_embargo(dl, case.id_)
     same = _make_embargo(dl, case.id_, end_time=active.end_time)
-    case.active_embargo = active.id_
-    case.proposed_embargoes = [same.id_]
+    activate(case, active.id_)
+    propose(case, same.id_)
     dl.save(case)
     _seed_consent(dl, signer_p.id_, active.id_, ECS.ACCEPTED)
 
@@ -486,10 +505,10 @@ def test_activate_embargo_with_an_unreadable_previous_embargo_changes_nothing(
 ) -> None:
     """The A-vs-B read fails closed *before* EM or active_embargo move."""
     owner, dl = owner_and_dl
-    case, _ = _make_case(dl, owner.id_, em_state=EM.REVISE)
+    case, _ = _make_case(dl, owner.id_)
     revision = _make_embargo(dl, case.id_, days=90)
-    case.active_embargo = "https://example.org/embargoes/not-replicated"
-    case.proposed_embargoes = [revision.id_]
+    activate(case, "https://example.org/embargoes/not-replicated")
+    propose(case, revision.id_)
     dl.save(case)
 
     with pytest.raises(VultronNotFoundError):
@@ -505,7 +524,7 @@ def test_activate_embargo_with_an_unreadable_previous_embargo_changes_nothing(
     assert untouched.active_embargo_id == (
         "https://example.org/embargoes/not-replicated"
     )
-    assert untouched.proposed_embargoes == [revision.id_]
+    assert untouched.proposed_embargo_ids == [revision.id_]
 
 
 @pytest.mark.spec("EMB-18-003")

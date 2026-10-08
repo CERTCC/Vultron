@@ -33,8 +33,12 @@ Submodules:
 - ``effects``: Ledger-apply side-effect nodes (note, invite-accept)
 - ``participant_status_effect``: Ledger-apply of ``ParticipantStatus``, with the
   monotonic-RM ratchet (ADR-0061)
-- ``offer_report_effect``, ``ownership_effects``, ``ownership_offer_effect``:
-  per-effect ledger-apply nodes
+- ``offer_report_effect``, ``ownership_effects``, ``ownership_offer_effect``,
+  ``participant_removal_effect``: per-effect ledger-apply nodes
+- ``case_status_effect``: Ledger-apply of ``add_case_status_to_case``, under
+  the RSH-05-023/019 acceptance rules
+- ``rm_verdict_effect``: Ledger-apply of the activity-typed RM moves (report
+  verdicts, engage/defer) to the sender's participant
 
 The ``close_case`` effect is not here: it composes the case participant-status
 writer, so it lives in :mod:`vultron.core.behaviors.case.nodes.close_case_effect`.
@@ -44,6 +48,10 @@ a module here that imported ``case.nodes`` would close an import cycle
 (CS-05-003).  Nodes in this package depend on no domain node package.
 """
 
+from vultron.core.behaviors.sync.nodes.case_status_effect import (
+    ApplyCaseStatusFromLedgerNode,
+    IsAddCaseStatusEventNode,
+)
 from vultron.core.behaviors.sync.nodes.chain import (
     CreateLogEntryNode,
     PersistLogEntryNode,
@@ -107,6 +115,10 @@ from vultron.core.behaviors.sync.nodes.ownership_offer_effect import (
     ApplyOfferOwnershipTransferFromLedgerNode,
     IsOfferOwnershipTransferEventNode,
 )
+from vultron.core.behaviors.sync.nodes.participant_removal_effect import (
+    ApplyRemoveCaseParticipantFromLedgerNode,
+    IsRemoveCaseParticipantEventNode,
+)
 from vultron.core.behaviors.sync.nodes.participant_status_effect import (
     ApplyParticipantStatusFromLedgerNode,
     EmitImpossibleStateFaultNode,
@@ -127,6 +139,11 @@ from vultron.core.behaviors.sync.nodes.replay import (
     FindDivergenceIndexNode,
     ReplayMissingEntriesNode,
     SendMissingEntriesNode,
+)
+from vultron.core.behaviors.sync.nodes.rm_verdict_effect import (
+    RM_VERDICT_TARGETS,
+    ApplyRmVerdictFromLedgerNode,
+    IsRmVerdictEventNode,
 )
 
 __all__ = [
@@ -162,6 +179,14 @@ __all__ = [
     "ApplyOwnershipTransferFromLedgerNode",
     "ApplyOfferOwnershipTransferFromLedgerNode",
     "IsOfferOwnershipTransferEventNode",
+    # participant_removal_effect (CM-31-007)
+    "ApplyRemoveCaseParticipantFromLedgerNode",
+    "IsRemoveCaseParticipantEventNode",
+    "ApplyCaseStatusFromLedgerNode",
+    "IsAddCaseStatusEventNode",
+    "RM_VERDICT_TARGETS",
+    "ApplyRmVerdictFromLedgerNode",
+    "IsRmVerdictEventNode",
     # receive
     "LogDeliveryConfirmationNode",
     "PersistReceivedLogEntryNode",

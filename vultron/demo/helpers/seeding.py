@@ -817,6 +817,72 @@ def seed_containers_fcv(
     return finder, coordinator, vendor
 
 
+def seed_containers_rcvv(
+    reporter_client: DataLayerClient,
+    coordinator_client: DataLayerClient,
+    vendor_client: DataLayerClient,
+    vendor2_client: DataLayerClient,
+    reporter_actor_id: str | None = None,
+    coordinator_actor_id: str | None = None,
+    vendor_actor_id: str | None = None,
+    vendor2_actor_id: str | None = None,
+) -> tuple[as_Actor, as_Actor, as_Actor, as_Actor]:
+    """Seed four containers for the RCVV-embargo scenario.
+
+    Containers: Reporter (Person), Coordinator (Organization, CASE_OWNER),
+    Vendor1 and Vendor2 (Organizations).  Every actor is created on its own
+    container, then registered as a peer on each of the other three.  The
+    function is idempotent, as the other ``seed_containers_*`` are.
+
+    Returns:
+        Tuple of ``(reporter, coordinator, vendor, vendor2)`` ``as_Actor``
+        objects as created on their respective containers.
+    """
+    members = [
+        (reporter_client, "Reporter", "Person", reporter_actor_id),
+        (
+            coordinator_client,
+            "Coordinator",
+            "Organization",
+            coordinator_actor_id,
+        ),
+        (vendor_client, "Vendor1", "Organization", vendor_actor_id),
+        (vendor2_client, "Vendor2", "Organization", vendor2_actor_id),
+    ]
+    logger.info("Phase 1: creating local actors on each container...")
+    actors: list[as_Actor] = []
+    for client, name, actor_type, actor_id in members:
+        actor = _own_actor(
+            client,
+            seed_actor(
+                client=client,
+                name=name,
+                actor_type=actor_type,
+                actor_id=actor_id,
+            ),
+        )
+        logger.info("%s actor seeded: %s", name, actor.id_)
+        actors.append(actor)
+
+    logger.info("Phase 2: registering cross-container peers...")
+    for (client, _, _, _), local in zip(members, actors, strict=True):
+        for (_, name, actor_type, _), peer in zip(
+            members, actors, strict=True
+        ):
+            if peer.id_ != local.id_:
+                seed_peer(
+                    client=client,
+                    local_actor_id=local.id_,
+                    peer_id=peer.id_,
+                    name=name,
+                    actor_type=actor_type,
+                )
+    logger.info("Every actor registered as a peer on the other containers")
+
+    reporter, coordinator, vendor, vendor2 = actors
+    return reporter, coordinator, vendor, vendor2
+
+
 def seed_containers_fcvcv(
     finder_client: DataLayerClient,
     c1_client: DataLayerClient,

@@ -20,7 +20,7 @@ from vultron.core.behaviors.case.full_case_invite_trees import (
 )
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlement,
-    exempt,
+    SenderEntitlementKind,
 )
 from vultron.core.models.events.actor import (
     AcceptInviteActorToFullCaseReceivedEvent,
@@ -39,6 +39,7 @@ from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
     intake_verdict,
     not_case_manager_refusal,
+    rm_declaration_verdict,
     verdict_from_bt,
 )
 
@@ -58,8 +59,8 @@ class InviteActorToFullCaseReceivedUseCase:
     from the Invite.
     """
 
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4071", "no sender check for the full-case Invite"
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.CASE_MANAGER
     )
 
     def __init__(
@@ -113,14 +114,14 @@ class _FullCaseInviteReplyReceivedUseCase:
     """The CASE_MANAGER processes a reply to the full-case Invite.
 
     Subclasses name the RM state the reply records (CM-11-011).  A reply the
-    guard refuses (CM-11-012), or one that reaches an actor that is not the
-    case's CASE_MANAGER (HP-01-005), is ``REFUSED`` and writes nothing.
+    guard refuses (CM-11-012), one declaring a backward RM move (RSH-06-002),
+    or one that reaches an actor that is not the case's CASE_MANAGER
+    (HP-01-005), is ``REFUSED`` and writes nothing.  A reply restating the RM
+    state already recorded is ``SKIPPED`` (RSH-08-002).
     """
 
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4071",
-        "the reply's sender is checked against the recorded Invite in"
-        " CheckFullCaseReplyNode",
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.INVITEE
     )
     rm_state: ClassVar[RM]
     tree_name: ClassVar[str]
@@ -176,8 +177,17 @@ class _FullCaseInviteReplyReceivedUseCase:
             trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
-        ).execute_with_setup(tree=tree, actor_id=actor_id, activity=request)
-        verdict = verdict_from_bt(tree, result, label=self.tree_name)
+        ).execute_with_setup(
+            tree=tree, actor_id=actor_id, activity=request, case_id=case_id
+        )
+        # A restated reply (the RM state is already recorded) changes nothing
+        # but the receipt, so it reads SKIPPED like every other RM
+        # declaration (RSH-08-002).
+        verdict = rm_declaration_verdict(
+            tree,
+            verdict_from_bt(tree, result, label=self.tree_name),
+            label=self.tree_name,
+        )
         if verdict.disposition is not HandlerDisposition.REFUSED:
             refusal = not_case_manager_refusal(tree, self._dl, case_id)
             if refusal is not None:

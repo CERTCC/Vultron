@@ -17,13 +17,15 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: Each status dimension (EM, PXA, RM, VFD, PEC) MUST be implemented as a lightweight Pydantic BaseModel subclass
-      (not a CoreObject subclass) that holds exactly one state enum field and owns the transition validation and guard methods
-      for that machine.
+    statement: Each status dimension (EM, PXA, RM, VFD) MUST be implemented as a lightweight Pydantic BaseModel subclass
+      (not a CoreObject subclass) that holds exactly one state enum field and, except EM, owns the transition validation and
+      guard methods for that machine. EM has no transitions of its own, and `EmDimension` holds the copy of the EM state that the
+      case derives from its embargo register (ADR-0122).
     rationale: Dimension objects are embedded value objects; they have no independent identity and do not require CORE_VOCABULARY
       registration or AS2 id_. See ADR-0036.
     adr:
     - ADR-0036
+    - ADR-0122
   - id: SDO-01-002
     priority: MUST_NOT
     kind: protocol
@@ -77,8 +79,9 @@ groups:
   - id: SDO-02-001
     priority: MUST
     kind: protocol
-    statement: Each dimension object MUST implement a transition(trigger) method that validates the trigger against the current
-      state, applies the state machine rules, and returns a NEW dimension object with the updated state.
+    statement: Each dimension object except `EmDimension` MUST implement a transition(trigger) method that validates the trigger
+      against the current state, applies the state machine rules, and returns a NEW dimension object with the updated state.
+      `EmDimension` has none, because EM changes only by an embargo register step (ADR-0122).
     rationale: Immutable transitions are consistent with Pydantic's design philosophy and with the append-only status history
       model. Callers replace the embedded field rather than mutating the existing object. See ADR-0036.
     verification: Unit tests confirm that calling `transition(trigger)` on each dimension object returns a new instance

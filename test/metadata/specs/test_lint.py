@@ -453,6 +453,31 @@ def test_lint_check_debt_owners_fails_on_a_closed_owner(
     assert "#1" not in err
 
 
+@pytest.mark.spec("MS-10-006")
+@pytest.mark.spec("ARCH-18-004")
+def test_lint_check_debt_owners_ignores_unrelated_lint_errors(
+    tmp_path, capsys, monkeypatch
+):
+    """The owner check reports closed owners only: an unrelated lint error,
+    here an ADR with an invalid status, is spec-check's failure (#4336)."""
+    write_yaml(tmp_path, _verification_corpus(_MIXED_ITEMS))
+    adr_dir = _make_adr_dir(tmp_path)
+    _write_dated_adr(adr_dir, "0099", "no-such-status", "2020-01-01")
+    monkeypatch.setattr(
+        verification_module, "gh_issue_state", lambda ref: "OPEN"
+    )
+    assert lint(tmp_path, adr_dir=adr_dir, debt_owners=_MIXED_OWNERS) == 1
+    capsys.readouterr()
+    result = lint(
+        tmp_path,
+        adr_dir=adr_dir,
+        debt_owners=_MIXED_OWNERS,
+        check_debt_owners=True,
+    )
+    assert result == 0
+    assert "MS-14-001" not in capsys.readouterr().err
+
+
 @pytest.mark.spec("MS-10-005")
 def test_main_list_unverified_flag(tmp_path, capsys, monkeypatch):
     """`spec-lint <dir> --list-unverified` reaches lint() as the opt-in."""
@@ -2017,31 +2042,17 @@ def _write_dated_adr(adr_dir, num, status, updated, override=""):
     )
 
 
-def test_lint_adr_status_disagreeing_with_epoch_is_hard_error(
+@pytest.mark.spec("MS-14-007")
+def test_lint_adr_status_disagreeing_with_epoch_is_not_a_lint_failure(
     tmp_path, capsys
 ):
-    """A proposed ADR last edited long ago fails the epoch check (MS-14-007)."""
+    """The clock alone never fails the full lint: a stale status is the drift
+    report's and the diff-based edit check's, not spec-lint's (#4340)."""
     write_yaml(tmp_path, _minimal_spec())
     adr_dir = _make_adr_dir(tmp_path)
     _write_dated_adr(adr_dir, "0099", "proposed", "2020-01-01")
-    assert lint(tmp_path, adr_dir=adr_dir) == 1
-    captured = capsys.readouterr()
-    assert "MS-14-007" in captured.err
-    assert "0099" in captured.err
-
-
-def test_lint_adr_status_override_silences_epoch_error(tmp_path):
-    """A status_override with a reason lets the disagreement stand."""
-    write_yaml(tmp_path, _minimal_spec())
-    adr_dir = _make_adr_dir(tmp_path)
-    _write_dated_adr(
-        adr_dir,
-        "0099",
-        "proposed",
-        "2020-01-01",
-        override="status_override: a human chose this\n",
-    )
     assert lint(tmp_path, adr_dir=adr_dir) == 0
+    assert "MS-14-007" not in capsys.readouterr().err
 
 
 def test_lint_reports_hardened_unsettled_adr_as_info(tmp_path):

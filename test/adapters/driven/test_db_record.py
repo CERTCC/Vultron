@@ -16,6 +16,7 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.embargo_register import register
 from vultron.adapters.driven.db_record import (
     _KEEP_INLINE_NESTED_TYPES,
     Record,
@@ -591,7 +592,7 @@ def _case_carrying_its_embargo():
         id_=case_id,
         attributed_to="https://example.org/actors/case-actor-dl08",
         published=datetime(2026, 8, 24, tzinfo=UTC),
-        active_embargo=embargo,
+        embargo_register=register(active=embargo),
     )
 
 
@@ -607,7 +608,9 @@ def test_case_declares_active_embargo_as_an_inline_required_ref():
         as_VulnerabilityCase,
     )
 
-    assert "active_embargo" in as_VulnerabilityCase.inline_required_refs
+    # The case's embargoes are its register entries (ADR-0122); each entry's
+    # embargo is what must be carried inline.
+    assert "embargo_register" in as_VulnerabilityCase.inline_required_refs
 
 
 def test_case_active_embargo_survives_storage_as_an_inline_object():
@@ -622,7 +625,8 @@ def test_case_active_embargo_survives_storage_as_an_inline_object():
     case = _case_carrying_its_embargo()
     record = object_to_record(cast(Any, case))
 
-    stored = record.data_["active_embargo"]
+    (entry,) = record.data_["embargo_register"]
+    stored = entry["embargo"]
     assert not isinstance(stored, str), (
         "AKM-03-001 requires the embargo inline; storage reduced it to"
         f" {stored!r}, which the receiver cannot resolve"
@@ -667,7 +671,9 @@ def test_case_passes_through_a_bare_embargo_id():
         id_="urn:uuid:case-dl08001-0000-0000-000000000001",
         attributed_to="https://example.org/actors/case-actor-dl08",
         published=datetime(2026, 8, 24, tzinfo=UTC),
-        active_embargo="urn:uuid:emb-dl08001-0000-0000-000000000001",
+        embargo_register=register(
+            active="urn:uuid:emb-dl08001-0000-0000-000000000001"
+        ),
     )
 
     assert case.active_embargo == "urn:uuid:emb-dl08001-0000-0000-000000000001"
@@ -894,7 +900,8 @@ def test_from_obj_wire_identity_keys_apply_to_inline_objects():
     case = _case_carrying_its_embargo()
     record = object_to_record(cast(Any, case))
 
-    stored_embargo = record.data_["active_embargo"]
+    (entry,) = record.data_["embargo_register"]
+    stored_embargo = entry["embargo"]
     assert isinstance(stored_embargo, dict)
     assert "id_" not in stored_embargo, (
         "ARCH-23-005: inline dict MUST NOT carry trailing-underscore 'id_'"
@@ -1009,3 +1016,28 @@ def test_is_generic_object_ref_sees_through_the_non_empty_string_branch():
     assert _is_generic_object_ref(as_ObjectRequiredRef)
     # A *narrowed* reference is still not a generic one.
     assert not _is_generic_object_ref(as_ActorRef)
+
+
+@pytest.mark.spec("CM-31-003")
+def test_computed_active_participants_is_not_in_the_stored_row() -> None:
+    """The persistence record carries the facts, not the derived view."""
+    from vultron.core.models.case import VulnerabilityCase
+    from vultron.core.models.case_participant import CaseParticipant
+
+    case_id = "https://example.org/cases/stored-row"
+    participant = CaseParticipant(
+        id_=f"{case_id}/participants/p1",
+        attributed_to="https://example.org/actors/p1",
+        context=case_id,
+    )
+    case = VulnerabilityCase(
+        id_=case_id,
+        attributed_to="https://example.org/actors/p1",
+        case_participants=[participant],
+    )
+    assert case.active_participants == [participant.id_]
+
+    data = Record.from_obj(case).data_
+
+    assert "active_participants" not in data
+    assert "activeParticipants" not in data

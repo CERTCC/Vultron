@@ -28,6 +28,7 @@ from py_trees.common import Status
 from py_trees.ports import NoDataAvailable
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.embargo_register import register
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.embargo.nodes.manager_commit import (
@@ -101,7 +102,7 @@ def _seed_case_with_manager(dl: SqliteDataLayer) -> None:
         id_=CASE_ID,
         name="Teardown ask",
         attributed_to=_VENDOR_ID,
-        active_embargo=_EMBARGO_ID,
+        embargo_register=register(active=_EMBARGO_ID),
     )
     for p in parts:
         case.add_participant(p)

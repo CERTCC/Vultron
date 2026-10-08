@@ -8,6 +8,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.embargo_register import activate, terminate
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sync.announce_tree import (
@@ -360,13 +361,16 @@ def _make_remove_embargo_entry(
     )
 
 
+ACTIVE_EMBARGO_ID = f"{CASE_ID}/embargo_events/active"
+
+
 def _make_case_with_em_active(
     datalayer: SqliteDataLayer,
 ) -> VulnerabilityCase:
     case = VulnerabilityCase(
         id_=CASE_ID, name="Test Case", attributed_to=OWNER_ACTOR_ID
     )
-    case.append_case_status(em_state=EM.ACTIVE)
+    activate(case, ACTIVE_EMBARGO_ID)
     datalayer.create(case)
     return case
 
@@ -404,7 +408,9 @@ class TestAnnounceLogEntryAppliesEmbargoTeardown:
         case = VulnerabilityCase(
             id_=CASE_ID, name="Test Case", attributed_to=OWNER_ACTOR_ID
         )
-        case.append_case_status(em_state=EM.EXITED)  # effect already applied
+        # effect already applied
+        activate(case, ACTIVE_EMBARGO_ID)
+        terminate(case)
         datalayer.create(case)
         entry = _make_remove_embargo_entry(0)
         datalayer.save(
@@ -443,7 +449,8 @@ class TestAnnounceLogEntryAppliesEmbargoTeardown:
         case = VulnerabilityCase(
             id_=CASE_ID, name="Test Case", attributed_to=OWNER_ACTOR_ID
         )
-        case.append_case_status(em_state=EM.EXITED)
+        activate(case, ACTIVE_EMBARGO_ID)
+        terminate(case)
         datalayer.create(case)
         entry = _make_remove_embargo_entry(0, case.genesis_hash)
         event = _make_event(entry, actor_id=case_actor.id_)

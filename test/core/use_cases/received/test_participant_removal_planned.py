@@ -12,10 +12,12 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Planned participant removal and reinstatement (ADR-0116, CM-31).
 
-Strict-``xfail`` goal tests planned under #2257; each test names the issue
-that implements it (``_TRACKED_BY``).  Every test starts from a CASE_MANAGER store holding a
-case with the CASE_MANAGER, a Case Owner, a joined vendor that is
-an ``ACCEPTED`` row for the active embargo, and a second joined vendor.
+Goal tests planned under #2257.  Those still strict-``xfail`` name the issue
+that implements them (``_TRACKED_BY``); the removal itself (CM-31-001,
+CM-31-004 through CM-31-008) landed with #4080.  Every test starts from a
+CASE_MANAGER store holding a case with the CASE_MANAGER, a Case Owner, a
+joined vendor that is an ``ACCEPTED`` row for the active embargo, and a
+second joined vendor.
 
 - CM-31-001 — removal keeps the record and makes the participant inert.
 - CM-31-003 — the case publishes a computed ``activeParticipants``.
@@ -49,7 +51,9 @@ from test.core.use_cases.received.actor.test_case_joining_planned import (
 from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
 )
+from test.support.embargo_register import activate
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -65,7 +69,6 @@ from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
 )
-from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -95,13 +98,6 @@ EMBARGO_ID = f"{CASE_ID}/embargo_events/active"
 
 # The issue implementing each CM-31 requirement (ADR-0116).
 _TRACKED_BY = {
-    "CM-31-001": 4080,
-    "CM-31-003": 4079,
-    "CM-31-004": 4080,
-    "CM-31-005": 4080,
-    "CM-31-006": 4080,
-    "CM-31-007": 4080,
-    "CM-31-008": 4080,
     "CM-31-009": 4083,
     "CM-31-010": 4083,
     # The non-manager half is the general RSH-08-003 replica gate.
@@ -137,10 +133,13 @@ class _RemovalCase:
         return participant
 
     def route(self, activity: Any) -> HandlerResult:
+        # A real sync port, so the ledger fan-out leaves its
+        # ``Announce(CaseLedgerEntry)`` activities in the store (CM-31-006).
         return route_received(
             self.dl,
             activity,
             receiving_actor_id=MANAGER,
+            sync_port=SyncActivityAdapter(self.dl),
             trigger_activity=TriggerActivityAdapter(self.dl),
         )
 
@@ -167,8 +166,22 @@ class _RemovalCase:
             and actor_id in [_as_id(t) for t in getattr(obj, "to", None) or []]
         ]
 
+    def carried_case(self) -> as_VulnerabilityCase:
+        """The stored case with its participant records carried inline.
+
+        The shape a case goes on the wire in (``_case_for_wire``): the stored
+        case holds participant references only, and ``activeParticipants``
+        is derived from the records the case carries (CM-31-003).
+        """
+        case = self.read_case()
+        ids = [_as_id(entry) for entry in case.case_participants]
+        assert all(ids), ids
+        records = [self.dl.read(i) for i in ids if i]
+        assert all(isinstance(r, CaseParticipant) for r in records)
+        return case.model_copy(update={"case_participants": records})
+
     def active_ids(self) -> set[str]:
-        dumped = self.read_case().model_dump(by_alias=True, mode="json")
+        dumped = self.carried_case().model_dump(by_alias=True, mode="json")
         return {getattr(p, "id_", p) for p in dumped["activeParticipants"]}
 
 
@@ -230,8 +243,7 @@ def _seed(
         id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now_utc(60)
     )
     dl.create(embargo)
-    case.append_case_status(em_state=EM.ACTIVE)
-    case.active_embargo = EMBARGO_ID
+    activate(case, EMBARGO_ID)
     dl.create(case)
     return case
 
@@ -242,7 +254,6 @@ def removal_case() -> _RemovalCase:
     return _RemovalCase(dl=dl, case=_seed(dl))
 
 
-@pytest.mark.xfail(strict=True, reason=_planned("CM-31-001"))
 @pytest.mark.spec("CM-31-001")
 def test_removal_keeps_the_record_on_the_roster(removal_case) -> None:
     """Removal withdraws entitlement; the record, and its index entry, stay."""
@@ -257,26 +268,29 @@ def test_removal_keeps_the_record_on_the_roster(removal_case) -> None:
     assert _participant_id(VENDOR) not in removal_case.active_ids()
 
 
-@pytest.mark.xfail(strict=True, reason=_planned("CM-31-003"))
 @pytest.mark.spec("CM-31-003")
 def test_case_publishes_active_participants_and_round_trips(
     removal_case,
 ) -> None:
     """``activeParticipants`` is computed, published, and read back cleanly.
 
-    Every seeded participant is active (joined and ``ACCEPTED`` for the embargo); that a
-    removed one leaves the view is CM-31-001's test.
+    Every seeded vendor is active (joined and ``ACCEPTED`` for the embargo); that a
+    removed one leaves the view is CM-31-001's test.  The view is read from
+    the case as it goes on the wire, carrying its participant records.
     """
-    case = removal_case.read_case()
+    case = removal_case.carried_case()
 
     dumped = case.model_dump(by_alias=True, mode="json")
     assert "activeParticipants" in dumped
     active = removal_case.active_ids()
     assert {_participant_id(VENDOR), _participant_id(OTHER)} <= active
     assert as_VulnerabilityCase.model_validate(dumped) == case
+    assert (
+        as_VulnerabilityCase.model_validate(case.model_dump(by_alias=True))
+        == case
+    )
 
 
-@pytest.mark.xfail(strict=True, reason=_planned("CM-31-004"))
 @pytest.mark.spec("CM-31-004")
 @pytest.mark.parametrize(
     ("sender", "removed"),
@@ -306,7 +320,6 @@ def test_removal_is_refused_unless_the_owner_removes_a_removable_participant(
     assert result.disposition is HandlerDisposition.REFUSED
 
 
-@pytest.mark.xfail(strict=True, reason=_planned("CM-31-004"))
 @pytest.mark.spec("CM-31-004")
 def test_removal_naming_no_participant_of_the_case_is_refused(
     removal_case,
@@ -326,7 +339,6 @@ def test_removal_naming_no_participant_of_the_case_is_refused(
     assert removal_case.read_case().case_participants == before
 
 
-@pytest.mark.xfail(strict=True, reason=_planned("CM-31-004"))
 @pytest.mark.spec("CM-31-004")
 def test_a_second_removal_is_skipped(removal_case) -> None:
     """Removing an already-removed participant is a no-op, reported as such."""
@@ -341,7 +353,6 @@ def test_a_second_removal_is_skipped(removal_case) -> None:
     assert second.disposition is HandlerDisposition.SKIPPED
 
 
-@pytest.mark.xfail(strict=True, reason=_planned("CM-31-005"))
 @pytest.mark.spec("CM-31-005")
 def test_removal_is_one_canonical_ledger_entry_by_the_owner(
     removal_case,
@@ -361,7 +372,6 @@ def test_removal_is_one_canonical_ledger_entry_by_the_owner(
     assert added[0].payload_snapshot.get("actor") == OWNER
 
 
-@pytest.mark.xfail(strict=True, reason=_planned("CM-31-006"))
 @pytest.mark.spec("CM-31-006")
 def test_removed_participant_is_sent_a_direct_remove_naming_it(
     removal_case,
@@ -374,7 +384,6 @@ def test_removed_participant_is_sent_a_direct_remove_naming_it(
     assert getattr(notices[0], "attributed_to", None) == OWNER
 
 
-@pytest.mark.xfail(strict=True, reason=_planned("CM-31-006"))
 @pytest.mark.spec("CM-31-006")
 def test_removal_entry_fans_out_to_the_removed_participant(
     removal_case,
@@ -392,7 +401,6 @@ def test_removal_entry_fans_out_to_the_removed_participant(
     assert added[0].id_ in announced
 
 
-@pytest.mark.xfail(strict=True, reason=_planned("CM-31-007"))
 @pytest.mark.spec("CM-31-007")
 def test_announce_tree_has_a_removal_replay_node() -> None:
     """A replica applies removal from the ledger entry, not the direct notice.
@@ -412,7 +420,6 @@ def test_announce_tree_has_a_removal_replay_node() -> None:
     assert any("Remove" in n and "Participant" in n for n in names), names
 
 
-@pytest.mark.xfail(strict=True, reason=_planned("CM-31-008"))
 @pytest.mark.spec("CM-31-008")
 def test_removal_leaves_embargo_consent_untouched(removal_case) -> None:
     """A removed signatory stays bound by the embargo it accepted."""
@@ -537,7 +544,9 @@ def test_accept_invite_tree_emits_no_add_case_participant() -> None:
     names = [
         type(node).__name__
         for node in create_accept_invite_actor_to_case_tree(
-            case_id=CASE_ID, invitee_id=VENDOR
+            case_id=CASE_ID,
+            invitee_id=VENDOR,
+            invite_id=f"{CASE_ID}/invitations/1",
         ).iterate()
     ]
     assert "EmitAddCaseParticipantNode" not in names

@@ -13,6 +13,7 @@ related_specs:
   - specs/cs-behavior.yaml
   - specs/embargo-policy.yaml
   - specs/em-behavior.yaml
+  - specs/sync-ledger-replication.yaml
 related_notes:
   - notes/embargo-lifecycle.md
   - notes/bt-integration.md
@@ -21,6 +22,7 @@ related_notes:
   - notes/message-type-reference.md
   - notes/bt-pitfalls.md
   - notes/case-communication-model.md
+  - notes/case-joining.md
 relevant_packages:
   - vultron/core/behaviors/status
   - vultron/core/behaviors/report
@@ -38,10 +40,10 @@ the other forms relate to it. CONCERN-3473's inventory found, per state machine:
 
 | Machine | Act (activity-typed) | Declaration (status-typed) | Ledger |
 |---|---|---|---|
-| RM | `Accept`/`TentativeReject`/`Reject(Offer(Report))`, `Join`/`Ignore(Case)`, `Leave(Case)` | `Add(ParticipantStatus).rmState` | `add_participant_status_to_participant`, `close_case` |
-| EM | `Accept`/`Reject(Invite(EmbargoEvent))`, `Add`/`Remove(EmbargoEvent)` | `Add(CaseStatus).emState`, embedded `caseStatus` | `remove_embargo_event_from_case`; the revision relay's `invite_to_embargo_on_case` (proposal and each relayed Invite) and `accept`/`reject_invite_to_embargo_on_case` (#3915) |
+| RM | `Accept`/`TentativeReject`/`Reject(Offer(Report))`, `Join`/`Ignore(Case)`, `Leave(Case)` | `Add(ParticipantStatus).rmState` | `add_participant_status_to_participant`, `close_case`; `validate_report`, `engage_case`, `defer_case`, the full-case Invite replies (#3814); `invalidate_report`, `close_report` replayed but not yet committed (#4304) |
+| EM | `Accept`/`Reject(Invite(EmbargoEvent))`, `Add`/`Remove(EmbargoEvent)` | `Add(CaseStatus).emState`, embedded `caseStatus` | `add_embargo_event_to_case` (#3814), `remove_embargo_event_from_case`; the revision relay's `invite_to_embargo_on_case` (proposal and each relayed Invite) and `accept`/`reject_invite_to_embargo_on_case` (#3915) |
 | CS V/F/D | — | `Add(ParticipantStatus).vfdState` | `add_participant_status_to_participant` |
-| CS P/X/A | — | `Add(CaseStatus).pxaState`, embedded `caseStatus` | **none** |
+| CS P/X/A | — | `Add(CaseStatus).pxaState`, embedded `caseStatus` | `add_case_status_to_case` (#3814) |
 | PEC | side-effects of EM acts only (MSM-07) | derived, never asserted | via participant status |
 
 The act and the declaration are **two layers of one move**, both expected, and
@@ -51,28 +53,47 @@ case state, applying the state machine's acceptance rule to the *sender's*
 declaration whichever message carried it (RSH-06-006, RSH-08-001); every other
 participant applies the ledger (PCR-03-001, RSH-08-003).
 
-Three defects follow from that rule being unstated, and each is an implementation
+Three defects followed from that rule being unstated, each an implementation
 issue under epic #3472:
 
-- **Subject.** The report-invalid and report-closed received trees advance the
-  *receiving* actor's RM; the valid handler advances the sender's. See
-  [bt-pitfalls.md](bt-pitfalls.md) § "The Store Is Not the Subject".
-- **Acceptance rule.** The activity-typed RM handlers validate adjacency only and
-  never check the sender is a participant; `FilterParticipantStatusDimensionsNode`
-  accepts forward moves, refuses backward ones and posts the RSH-06 note. The
-  activity-typed handlers adopt the latter (RSH-06-006).
+- **Subject** (fixed, #3812). The report-invalid and report-closed received trees
+  advanced the *receiving* actor's RM; the valid handler advanced the sender's.
+  All three now write the sender's. See [bt-pitfalls.md](bt-pitfalls.md) § "The
+  Store Is Not the Subject".
+- **Acceptance rule** (fixed, #3813). The activity-typed RM handlers validated
+  adjacency only and never checked the sender was a participant. Report valid,
+  invalid and closed, engage/defer, and the full-case Invite replies (#4311)
+  now share the rule
+  `FilterParticipantStatusDimensionsNode` applies, from one place:
+  `classify_rm_declaration` (`core/states/rm.py`) classifies the move,
+  `rm_anomaly` (`status/nodes/rm_rule.py`) logs and flags it, and
+  `report/rm_declaration_tree.py` composes the guard
+  (`AdjudicateRMDeclarationNode`, before the commit) and the effects (an
+  idempotent write with `rm_rule=RMRule.DECLARATION`, then `EmitRMGapNoteNode`).
+  The write node keeps its own evaluator call, held to the declaration rule
+  rather than adjacency (BTND-10-003). Tests on both paths run one table,
+  `test/support/rm_declaration.py`. A restated declaration is reported
+  `SKIPPED` (`rm_declaration_verdict`) unless the handler has another effect
+  to run. Neither path posts the RSH-06-004 note
+  for a wholly refused regression, because the refusal ends the tree before its
+  effects (#4310).
 - **Pipeline.** Every received tree gates its *commit* on `CheckIsCaseManagerNode`
   but runs its *effects* at every inbox, so `Add(EmbargoEvent)`,
   `Remove(EmbargoEvent)` and `Add(CaseStatus)` move a replica's state from any
-  sender. Those effects exist because the ledger does not yet carry every
-  transition — `create_announce_log_entry_tree` replays only a fixed subset of
-  event types and
-  has no node for `add_case_status_to_case`, the report verdicts, or
-  engage/defer. Order of repair is fixed: add the replay nodes (RSH-08-004), then
+  sender. Those effects existed because the ledger did not carry every
+  transition. Order of repair is fixed: add the replay nodes (RSH-08-004), then
   gate the effects (RSH-08-003). Gating first blinds every replica. The
-  embargo Invite path is the first done in that order (#3915): its relay
+  embargo Invite path was the first done in that order (#3915): its relay
   entries are replayed, and the participant's Invite tree now stores and
-  answers without writing state (EP-09-003).
+  answers without writing state (EP-09-003). The replay half of the rest is
+  #3814: `create_announce_log_entry_tree` now replays `add_case_status_to_case`
+  (under the RSH-05-023/019 rules), `add_embargo_event_to_case` (through
+  `EmbargoLifecycle`), and the activity-typed RM moves — the report verdicts and
+  engage/defer, and the full-case Invite replies — onto the *sender's*
+  participant. Every committed event type is
+  classified, from code, in
+  `test/architecture/test_ledger_event_types_are_replayed.py`; the gating half
+  follows.
 
 What is **not** changed: the CS dimensions, the PEC side-effect model, the single
 `ParticipantStatus` writer, and this note's two-gate design for adoption.
@@ -391,7 +412,7 @@ AddCaseStatusToCaseBT (Sequence)
 ├─ CheckCaseStatusIdempotencyNode       ← precondition guard (CLP-10-009)
 ├─ CheckCsEphemeralStateNode            ← pX ephemeral guard (CSB-17-012, #2524)
 ├─ CheckCsHistoryPrefixNode             ← history prefix guard (CSB-17-005, #2524)
-├─ FilterCsEmDimensionNode              ← per-dim EM adjudication (RSH-05-018); FAILURE when case absent (CLP-10-009, #2957), SUCCESS otherwise
+├─ FilterCsEmDimensionNode              ← per-dim EM adjudication (RSH-05-023); FAILURE when case absent (CLP-10-009, #2957), SUCCESS otherwise
 ├─ FilterCsPxaDimensionNode             ← per-dim PXA adjudication (RSH-05-019); always SUCCESS
 ├─ FinalizeCsFilterNode                 ← FAILURE on whole-refusal; publishes filter
 ├─ GuardedCommitOrSkip                  ← canonical ledger commit (CLP-10-006)
@@ -407,9 +428,10 @@ removed; per-dimension filter nodes are its replacement.
 
 `FilterCsEmDimensionNode` runs first: it clears `BB_CASE_STATUS_DIM_FILTER` and
 the per-tick accumulator unconditionally (RSH-05-010, BT-17-003), returns FAILURE
-when the case is not found in the DataLayer (CLP-10-009, #2957 AC-1), evaluates
-the EM transition per the acceptance predicate in RSH-05-018
-(`is_valid_em_transition()`), and writes a per-tick accumulator dict to the
+when the case is not found in the DataLayer (CLP-10-009, #2957 AC-1), refuses any
+asserted EM that differs from the case's own `case.em_state` (RSH-05-023: EM
+is derived from the embargo register, so a status never moves it, ADR-0122),
+and writes a per-tick accumulator dict to the
 blackboard. `BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE` is **not** touched here; its
 sole owner is `FinalizeCsFilterNode` (CONCERN-2711, #2957 AC-2).
 
@@ -430,7 +452,8 @@ forward), and publishes both `BB_CASE_STATUS_DIM_FILTER` (for
 no new state is carried (RSH-05-005).
 
 `FinalizeCsFilterNode` is a REJECTION_VALIDATORS member: it MUST appear in
-`precondition_guards`, never in `effect_nodes` (CLP-10-009).
+`precondition_guards`, never among the effects (`replica_effects`,
+`manager_effects` or the legacy `effect_nodes`; CLP-10-009).
 
 ### Blackboard keys
 

@@ -22,7 +22,8 @@ Structural ratchets for receive-side BT composition (CLP-10-006, CLP-10-010).
    fixes the stage order intake → guards → commit → effects.  Only
    ``vultron/core/behaviors/case/receive_activity_tree.py`` — which *defines*
    both factories — is exempt.
-2. No rejection validator sits in ``effect_nodes`` (CLP-10-009).
+2. No rejection validator sits in an effect stage (``effect_nodes``,
+   ``replica_effects`` or ``manager_effects``; CLP-10-009).
 3. No node that any factory uses as a protocol effect appears as a
    precondition guard anywhere — a corpus-derived check that no effect
    precedes the commit (CLP-10-006 verification).
@@ -117,6 +118,12 @@ REJECTION_VALIDATORS = {
 
 RECEIVE_ACTIVITY_TREE_CALL = "create_receive_activity_tree"
 
+#: The factory's effect-stage keywords: the legacy ``effect_nodes`` and the
+#: BT-17-008 ``replica_effects`` / ``manager_effects`` that replace it.
+EFFECT_KEYWORDS = frozenset(
+    {"effect_nodes", "replica_effects", "manager_effects"}
+)
+
 
 def _call_name(node: ast.expr) -> str | None:
     """Return the bare name of a Call expression, or None."""
@@ -133,7 +140,7 @@ def _validator_violations_in_call(
     """Return violations for one create_receive_activity_tree(...) call."""
     violations: list[tuple[str, int, str]] = []
     for kw in call.keywords:
-        if kw.arg != "effect_nodes":
+        if kw.arg not in EFFECT_KEYWORDS:
             continue
         if not isinstance(kw.value, ast.List):
             continue
@@ -231,7 +238,8 @@ def _stage_rosters() -> tuple[set[str], dict[str, list[str]]]:
                 and _call_name(node.func) == RECEIVE_ACTIVITY_TREE_CALL
             ):
                 continue
-            effects |= _list_arg_names(node, "effect_nodes")
+            for keyword in EFFECT_KEYWORDS:
+                effects |= _list_arg_names(node, keyword)
             for name in _list_arg_names(node, "precondition_guards"):
                 guards.setdefault(name, []).append(f"{rel_path}:{node.lineno}")
     return effects, guards

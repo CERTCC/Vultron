@@ -57,6 +57,7 @@ from vultron.core.behaviors.embargo.nodes.em_state import read_case_em_state
 from vultron.core.behaviors.embargo.rsvp_stamp import (
     stamp_invite_rsvp_deadline,
 )
+from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
@@ -65,16 +66,14 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.behaviors.idempotency import SilentIdempotencyGuardMixin
 from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
 from vultron.core.models._helpers import parse_published
-from vultron.core.models.dimensions import EmDimension
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.wire_keys import wire_key
 from vultron.core.participants.recipients import invitation_recipients
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
-from vultron.core.states.em import EM_Trigger
+from vultron.core.states.em import is_em_exited
 from vultron.errors import (
     BtNodePreconditionError,
-    VultronInvalidStateTransitionError,
     VultronNotFoundError,
 )
 
@@ -165,9 +164,9 @@ class EmStateAdmitsProposalNode(DataLayerConditionWithPorts):
             self.feedback_message = str(exc)
             return Status.FAILURE
 
-        try:
-            EmDimension(state=em_before).transition(EM_Trigger.PROPOSE)
-        except VultronInvalidStateTransitionError:
+        if is_em_exited(em_before):
+            # The register accepts no change once its embargo has ended
+            # (ADR-0122 invariant 4).
             self.feedback_message = (
                 f"Case '{self._case_id}' is at EM {em_before.name}, which"
                 " admits no embargo proposal (EP-09-001)"
@@ -263,7 +262,7 @@ class CollectEmbargoInviteRecipientsNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts):
+class RelayEmbargoInviteToEachNode(DataLayerActionWithPorts, EmitCapable):
     """Emit, commit and record one relayed ``Invite(EmbargoEvent)`` per recipient.
 
     For each recipient the collect node named: build the Invite through the

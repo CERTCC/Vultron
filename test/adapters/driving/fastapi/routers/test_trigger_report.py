@@ -26,6 +26,7 @@ import pytest
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
+from test.support.embargo_register import register
 from vultron.adapters.driving.fastapi.deps import get_trigger_dl
 from vultron.adapters.driving.fastapi.routers import (
     trigger_report as trigger_report_router,
@@ -134,7 +135,7 @@ def received_report(dl, actor, report):
         name="Test Case at Received",
         attributed_to=actor.id_,
         vulnerability_reports=[report.id_],
-        active_embargo=embargo_id,
+        embargo_register=register(active=embargo_id),
     )
     dl.create(case_obj)
     case_actor = as_Service(name=f"Case Actor for {case_obj.name}")

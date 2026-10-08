@@ -16,6 +16,7 @@ import logging
 
 import pytest
 
+from test.support.embargo_register import activate, register
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -120,7 +121,9 @@ class TestEngageDeferCaseBTFailureReason:
         case = VulnerabilityCase(
             id_=case_id,
             name="engage snapshot",
-            active_embargo=f"{case_id}/embargo_events/unheld",
+            embargo_register=register(
+                active=f"{case_id}/embargo_events/unheld"
+            ),
             case_participants=[participant],
         )
         event = EngageCaseReceivedEvent(
@@ -141,7 +144,7 @@ class TestEngageDeferCaseBTFailureReason:
     ):
         """EngageCaseBT WARNING includes a non-empty failure reason.
 
-        When CheckParticipantExists fails (no participant record),
+        When SenderIsActiveParticipantNode fails (no participant record),
         the warning must name the failing node, not end with a bare colon.
         """
         event = self._engage_event(actor_id, case_id)
@@ -176,7 +179,7 @@ class TestEngageDeferCaseBTFailureReason:
     ):
         """DeferCaseBT WARNING includes a non-empty failure reason.
 
-        When CheckParticipantExists fails (no participant record),
+        When SenderIsActiveParticipantNode fails (no participant record),
         the warning must name the failing node, not end with a bare colon.
         """
         event = self._defer_event(actor_id, case_id)
@@ -312,9 +315,8 @@ class TestEngageCaseStoresEmbeddedParticipants:
         self, dl, case_with_inline_participant
     ):
         """A case naming an embargo this store cannot read stores nothing."""
-        object.__setattr__(
+        activate(
             case_with_inline_participant,
-            "active_embargo",
             f"{self._CASE_ID}/embargo_events/unheld",
         )
         event = EngageCaseReceivedEvent(

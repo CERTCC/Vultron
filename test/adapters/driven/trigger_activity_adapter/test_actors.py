@@ -21,6 +21,7 @@ import json
 
 import pytest
 
+from test.support.embargo_register import register
 from test.support.received import archive_received
 from vultron.errors import (
     VultronActivityConstructionError,
@@ -92,7 +93,7 @@ class TestInviteActorToCaseWithInlineEmbargo:
                     em=EmDimension(state=EM.ACTIVE),
                 )
             ],
-            active_embargo=embargo,
+            embargo_register=register(active=embargo),
         )
         dl.create(case)
         stored = dl.read(case_id)
@@ -444,6 +445,47 @@ class TestAddParticipantToCase:
         )
 
         assert dl.read(activity_id) is not None
+
+
+class TestRemoveParticipantFromCase:
+    """The CASE_MANAGER's removal notice (CM-31-006, CM-24)."""
+
+    def test_returns_a_delegated_remove_naming_the_participant(
+        self, adapter, dl
+    ):
+        case = _make_case(dl)
+        participant = _make_participant(dl, case.id_)
+
+        activity_id, blob = adapter.remove_participant_from_case(
+            participant_id=participant.id_,
+            case_id=case.id_,
+            actor=_ACTOR,
+            attributed_to=_INVITEE,
+            to=[_INVITEE],
+        )
+
+        body = json.loads(blob)
+        assert body["id"] == activity_id
+        assert body["type"] == "Remove"
+        assert body["actor"] == _ACTOR
+        assert body["attributedTo"] == _INVITEE
+        assert body["to"] == [_INVITEE]
+        assert body["object"]["id"] == participant.id_
+        assert body["target"] == case.id_
+        assert body["context"] == case.id_
+        assert dl.read(activity_id) is not None
+
+    def test_unknown_participant_raises(self, adapter, dl):
+        case = _make_case(dl)
+
+        with pytest.raises(VultronNotFoundError):
+            adapter.remove_participant_from_case(
+                participant_id=f"{case.id_}/participants/missing",
+                case_id=case.id_,
+                actor=_ACTOR,
+                attributed_to=_INVITEE,
+                to=[_INVITEE],
+            )
 
 
 class TestAcceptCaseParticipantOffer:

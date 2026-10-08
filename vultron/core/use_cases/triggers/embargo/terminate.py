@@ -23,6 +23,7 @@ import py_trees.behaviour
 
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
 from vultron.core.models.events.base import MessageSemantics
+from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.use_cases.triggers._base import SvcEmbargoTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
     _coerce_embargo_event,
@@ -78,6 +79,7 @@ class SvcTerminateEmbargoUseCase(SvcEmbargoTriggerBase):
         return terminate_embargo_bt(
             case_id=self._case.id_,
             result_out=self._result_out,
+            reason=TerminationReason.EARLY,
             activity_builder=_build_activity,
         )
 

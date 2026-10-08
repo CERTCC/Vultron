@@ -45,6 +45,7 @@ from vultron.core.use_cases.received._bt_verdict import (
     find_node,
     node_failed,
     node_succeeded,
+    rm_declaration_verdict,
     verdict_from_bt,
 )
 from vultron.errors import (
@@ -59,6 +60,7 @@ if TYPE_CHECKING:
 
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlement,
+    SenderEntitlementKind,
     exempt,
 )
 
@@ -139,21 +141,6 @@ def _run_submit_report_case_creation(
     return verdict
 
 
-def _case_id_for_report(
-    dl: CasePersistence, report_id: str | None
-) -> str | None:
-    """The id of this store's case for *report_id*, or ``None``.
-
-    A pre-flight lookup for the guarded-commit stage, not a domain-significant
-    mutation: the tree's own ``RequireCaseForReport`` guard still decides
-    whether an absent case refuses the activity.
-    """
-    if report_id is None:
-        return None
-    case = dl.find_case_by_report_id(report_id)
-    return getattr(case, "id_", None)
-
-
 def _log_refusal(verdict: HandlerResult, activity_id: str) -> HandlerResult:
     if verdict.disposition is HandlerDisposition.REFUSED:
         logger.warning(
@@ -162,9 +149,24 @@ def _log_refusal(verdict: HandlerResult, activity_id: str) -> HandlerResult:
     return verdict
 
 
+def _case_id_for_report(
+    dl: CasePersistence, report_id: str | None
+) -> str | None:
+    """Return the id of this store's case for *report_id*, or ``None``.
+
+    A pre-flight read for the tree factories, not a domain mutation
+    (CLP-10-005).  ``None`` is a real answer: the receiver may not hold the
+    case yet, and the tree then refuses the activity itself.
+    """
+    if report_id is None:
+        return None
+    case = dl.find_case_by_report_id(report_id)
+    return case.id_ if case is not None else None
+
+
 class CreateReportReceivedUseCase:
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4071", "no sender check defined for report creation"
+        "#4325", "no sender check defined for report creation"
     )
 
     def __init__(
@@ -204,7 +206,7 @@ class CreateReportReceivedUseCase:
 
 class SubmitReportReceivedUseCase:
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4071", "no sender check defined for report submission"
+        "#4325", "no sender check defined for report submission"
     )
 
     def __init__(
@@ -264,8 +266,10 @@ class SubmitReportReceivedUseCase:
 
 
 class ValidateReportReceivedUseCase:
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4071", "no sender check defined for report validation"
+    # The sender declares its own RM state; only a participant of the case may
+    # (HP-01-006, RSH-06-006).
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.ACTIVE_PARTICIPANT
     )
 
     def __init__(
@@ -308,13 +312,11 @@ class ValidateReportReceivedUseCase:
             receiving_actor_id,
         )
 
-        # Resolve case_id for the guarded-commit subtree (pre-flight lookup,
-        # not domain-significant mutation).
         case_id = _case_id_for_report(self._dl, report_id)
         if case_id is None:
             logger.debug(
                 "ValidateReportReceivedUseCase: no case found for report '%s'"
-                " — guarded commit will be skipped",
+                " — the sender guard will refuse the activity",
                 report_id,
             )
 
@@ -326,6 +328,7 @@ class ValidateReportReceivedUseCase:
         )
         bridge = BTBridge(
             datalayer=self._dl,
+            trigger_activity=self._trigger_activity,
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,
         )
@@ -355,39 +358,43 @@ class ValidateReportReceivedUseCase:
 
 
 class InvalidateReportReceivedUseCase:
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4071", "no sender check defined for report invalidation"
+    # The sender declares its own RM state; only a participant of the case may
+    # (HP-01-006, RSH-06-006).
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.ACTIVE_PARTICIPANT
     )
 
     def __init__(
         self,
         dl: CasePersistence,
         request: InvalidateReportReceivedEvent,
+        trigger_activity: "TriggerActivityPort | None" = None,
         sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
+        self._trigger_activity = trigger_activity
         self._sync_port = sync_port
         self._request: InvalidateReportReceivedEvent = request
 
     def execute(self) -> HandlerResult:
         request = self._request
-        # The *receiving* actor, not the sender (BT-17-005): an inbound
-        # activity is applied to the receiver's own replica, so the tree must
-        # execute in the receiver's store.  The actor_id is also passed to the
-        # tree factory so the subject of the RM write is explicit (BTND-10-005,
-        # ADR-0089).
+        # Two different actors, deliberately (RSH-08-001, BT-17-006): the tree
+        # *executes* in the receiving actor's store, but the RM write is about
+        # the *sender*, ``request.actor_id`` — the activity is an assertion
+        # about the sender's state (HP-00-001), which the tree factory reads
+        # from the request.
         receiving_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
         )
+        # The case the sender guard and the RM adjudication read.
         tree = create_invalidate_report_received_tree(
-            request,
-            actor_id=receiving_actor_id,
-            case_id=_case_id_for_report(self._dl, request.report_id),
+            request, case_id=_case_id_for_report(self._dl, request.report_id)
         )
         bridge = BTBridge(
             datalayer=self._dl,
+            trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
         )
@@ -396,15 +403,21 @@ class InvalidateReportReceivedUseCase:
             actor_id=receiving_actor_id,
             activity=request,
         )
-        return _log_refusal(
-            verdict_from_bt(tree, result, label="InvalidateReportReceivedBT"),
-            request.activity_id,
+        return rm_declaration_verdict(
+            tree,
+            _log_refusal(
+                verdict_from_bt(
+                    tree, result, label="InvalidateReportReceivedBT"
+                ),
+                request.activity_id,
+            ),
+            label="InvalidateReportReceivedBT",
         )
 
 
 class AckReportReceivedUseCase:
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4071",
+        "#4325",
         "sender is internal echo route (SenderIsExecutingActorNode inside effect node), not an entitlement guard",
     )
 
@@ -430,9 +443,9 @@ class AckReportReceivedUseCase:
         )
 
         # Resolve case_id for the guarded-commit subtree.
-        case_id = _case_id_for_report(self._dl, request.report_id)
-
-        tree = create_ack_report_received_tree(request, case_id=case_id)
+        tree = create_ack_report_received_tree(
+            request, case_id=_case_id_for_report(self._dl, request.report_id)
+        )
         bridge = BTBridge(
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
@@ -451,39 +464,43 @@ class AckReportReceivedUseCase:
 
 
 class CloseReportReceivedUseCase:
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4071", "no sender check defined for report closure"
+    # The sender declares its own RM state; only a participant of the case may
+    # (HP-01-006, RSH-06-006).
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.ACTIVE_PARTICIPANT
     )
 
     def __init__(
         self,
         dl: CasePersistence,
         request: CloseReportReceivedEvent,
+        trigger_activity: "TriggerActivityPort | None" = None,
         sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
+        self._trigger_activity = trigger_activity
         self._sync_port = sync_port
         self._request: CloseReportReceivedEvent = request
 
     def execute(self) -> HandlerResult:
         request = self._request
-        # The *receiving* actor, not the sender (BT-17-005): an inbound
-        # activity is applied to the receiver's own replica, so the tree must
-        # execute in the receiver's store.  The actor_id is also passed to the
-        # tree factory so the subject of the RM write is explicit (BTND-10-005,
-        # ADR-0089).
+        # Two different actors, deliberately (RSH-08-001, BT-17-006): the tree
+        # *executes* in the receiving actor's store, but the RM write is about
+        # the *sender*, ``request.actor_id`` — the activity is an assertion
+        # about the sender's state (HP-00-001), which the tree factory reads
+        # from the request.
         receiving_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
         )
+        # The case the sender guard and the RM adjudication read.
         tree = create_close_report_received_tree(
-            request,
-            actor_id=receiving_actor_id,
-            case_id=_case_id_for_report(self._dl, request.report_id),
+            request, case_id=_case_id_for_report(self._dl, request.report_id)
         )
         bridge = BTBridge(
             datalayer=self._dl,
+            trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
         )
@@ -492,7 +509,11 @@ class CloseReportReceivedUseCase:
             actor_id=receiving_actor_id,
             activity=request,
         )
-        return _log_refusal(
-            verdict_from_bt(tree, result, label="CloseReportReceivedBT"),
-            request.activity_id,
+        return rm_declaration_verdict(
+            tree,
+            _log_refusal(
+                verdict_from_bt(tree, result, label="CloseReportReceivedBT"),
+                request.activity_id,
+            ),
+            label="CloseReportReceivedBT",
         )

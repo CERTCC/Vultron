@@ -21,9 +21,10 @@ exist, and they differ on purpose (ADR-0114 § "Inert and active"):
   participants (:meth:`VulnerabilityCase.is_active_participant`, CM-10-004).
   ``skip_closed=True`` also leaves out participants at RM ``CLOSED``, for
   the fan-out that names CM-23-004.
-- :func:`embargo_withheld_participants` — the joined participants the
-  active embargo alone withholds case content from, whose ledger streams are
-  paused and backfilled on admission (CM-10-005, CM-10-006).
+- :func:`inactive_joined_participants` — the joined participants that are
+  not active, whose ledger streams are paused and backfilled on admission
+  (CM-10-005, CM-10-006): the active embargo withholds them, or they were
+  removed (CM-31-001).
 - :func:`invitation_recipients` — an Invite addressed to a participant *so
   that* it can consent (the relayed embargo Invite, EP-09-002).  Every
   participant whose RM is not ``CLOSED``, inert ones included (CM-10-007).
@@ -184,25 +185,25 @@ def inert_participants(
     return set(case.actor_participant_index) - active
 
 
-def embargo_withheld_participants(
+def inactive_joined_participants(
     case: VulnerabilityCase,
     dl: CasePersistence,
     *,
     excluding: Collection[str] = (),
     skip_closed: bool = False,
 ) -> list[str]:
-    """Return the actor IDs the active embargo alone withholds content from.
+    """Return the actor IDs of the joined participants that are not active.
 
-    A joined participant that is not active: with :attr:`embargo_in_force`
-    that means it is not a signatory to the active embargo (CM-10-004).
-    These are the
-    participants whose ledger stream is paused and backfilled on admission
-    (CM-10-005, CM-10-006).  A participant that has not joined is left out:
-    it is inert whatever the embargo, and its case copy and ledger arrive
-    through the join path (ADR-0114).  A roster entry whose record cannot be
-    read is left out too; :func:`case_content_recipients` already names it.
-    Roster order is kept; *excluding* and *skip_closed* narrow the roster as
-    they do there.
+    A joined participant that is not active: it is not a signatory to the
+    active embargo (CM-10-004), or it carries the removal fact (CM-31-001).
+    These are the participants whose ledger stream is paused and backfilled
+    on admission (CM-10-005, CM-10-006); a removed participant is admitted
+    when the fact is cleared (CM-31-011).  A participant that has not joined
+    is left out: it is inert whatever the embargo, and its case copy and
+    ledger arrive through the join path (ADR-0114).  A roster entry whose
+    record cannot be read is left out too; :func:`case_content_recipients`
+    already names it.  Roster order is kept; *excluding* and *skip_closed*
+    narrow the roster as they do there.
     """
     withheld: list[str] = []
     for actor_id, record in _roster_records(case, dl):

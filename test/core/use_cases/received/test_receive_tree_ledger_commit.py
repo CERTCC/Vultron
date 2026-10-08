@@ -95,11 +95,15 @@ def _participant(
     )
 
 
-def _store(owner_id: str, rm: RM = RM.RECEIVED) -> SqliteDataLayer:
+def _store(
+    owner_id: str, rm: RM = RM.RECEIVED, finder_known: bool = True
+) -> SqliteDataLayer:
     """*owner_id*'s replica: MANAGER_ID holds CASE_MANAGER, VENDOR_ID is a peer.
 
     Every owner gets the same case, so a role gate always has a roster to
-    resolve the CASE_MANAGER from; only who executes differs.
+    resolve the CASE_MANAGER from; only who executes differs.  FINDER_ID, the
+    sender of the report verdicts, is a participant at RM *rm* unless
+    *finder_known* is false.
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=owner_id)
     dl.save(as_VulnerabilityReport(id_=REPORT_ID, name="r"))
@@ -108,10 +112,13 @@ def _store(owner_id: str, rm: RM = RM.RECEIVED) -> SqliteDataLayer:
         id_=CASE_ID, name="4304", attributed_to=MANAGER_ID
     )
     case.vulnerability_reports.append(REPORT_ID)
-    for actor_id, roles, tag in (
+    roster = [
         (MANAGER_ID, (CVDRole.CASE_MANAGER,), "manager"),
         (VENDOR_ID, (), "vendor"),
-    ):
+    ]
+    if finder_known:
+        roster.append((FINDER_ID, (), "finder"))
+    for actor_id, roles, tag in roster:
         participant = _participant(actor_id, rm, *roles, tag=tag)
         dl.save(participant)
         case.case_participants.append(participant.id_)
@@ -145,18 +152,16 @@ def _offer():
 @pytest.mark.spec("CLP-10-013")
 class TestCloseAndInvalidateReportCommit:
     @pytest.mark.parametrize(
-        ("use_case", "build", "rm", "semantic"),
+        ("use_case", "build", "semantic"),
         [
             (
                 CloseReportReceivedUseCase,
                 rm_close_report_activity,
-                RM.INVALID,
                 MessageSemantics.CLOSE_REPORT,
             ),
             (
                 InvalidateReportReceivedUseCase,
                 rm_invalidate_report_activity,
-                RM.RECEIVED,
                 MessageSemantics.INVALIDATE_REPORT,
             ),
         ],
@@ -168,16 +173,16 @@ class TestCloseAndInvalidateReportCommit:
         ids=["case_manager", "other_receiver"],
     )
     def test_commits_for_case_manager_only(
-        self, use_case, build, rm, semantic, receiver, commits
+        self, use_case, build, semantic, receiver, commits
     ):
-        dl = _store(receiver, rm)
+        dl = _store(receiver)
         event = extract_event(build(_offer(), actor=FINDER_ID))
         event = event.model_copy(update={"receiving_actor_id": receiver})
 
         result = use_case(dl, event, **_ports(dl)).execute()
 
         assert result.disposition is HandlerDisposition.APPLIED
-        assert (semantic.value in _committed(dl)) is commits
+        assert _committed(dl).count(semantic.value) == (1 if commits else 0)
 
     @pytest.mark.parametrize(
         ("use_case", "build", "semantic"),
@@ -207,6 +212,67 @@ class TestCloseAndInvalidateReportCommit:
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert _committed(dl) == []
+
+    @pytest.mark.parametrize(
+        ("use_case", "build", "finder_known", "sender_rm"),
+        [
+            (
+                CloseReportReceivedUseCase,
+                rm_close_report_activity,
+                False,
+                RM.RECEIVED,
+            ),
+            (
+                InvalidateReportReceivedUseCase,
+                rm_invalidate_report_activity,
+                False,
+                RM.RECEIVED,
+            ),
+            # Closed is terminal: declaring INVALID afterwards is backward.
+            (
+                InvalidateReportReceivedUseCase,
+                rm_invalidate_report_activity,
+                True,
+                RM.CLOSED,
+            ),
+        ],
+        ids=[
+            "close-sender_not_a_participant",
+            "invalidate-sender_not_a_participant",
+            "invalidate-backward_declaration",
+        ],
+    )
+    def test_refused_declaration_commits_nothing(
+        self, use_case, build, finder_known, sender_rm
+    ):
+        """The case manager refuses ahead of the commit (CLP-10-009).
+
+        Neither an unknown sender nor a backward RM move leaves a canonical
+        entry behind.
+        """
+        dl = _store(MANAGER_ID, sender_rm, finder_known=finder_known)
+        event = extract_event(build(_offer(), actor=FINDER_ID))
+        event = event.model_copy(update={"receiving_actor_id": MANAGER_ID})
+
+        result = use_case(dl, event, **_ports(dl)).execute()
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert _committed(dl) == []
+
+    def test_redelivered_activity_commits_once(self):
+        """A repeat of the same activity is skipped and adds no entry."""
+        dl = _store(MANAGER_ID)
+        event = extract_event(
+            rm_close_report_activity(_offer(), actor=FINDER_ID)
+        )
+        event = event.model_copy(update={"receiving_actor_id": MANAGER_ID})
+
+        first = CloseReportReceivedUseCase(dl, event, **_ports(dl)).execute()
+        second = CloseReportReceivedUseCase(dl, event, **_ports(dl)).execute()
+
+        assert first.disposition is HandlerDisposition.APPLIED
+        assert second.disposition is HandlerDisposition.SKIPPED
+        assert _committed(dl).count("close_report") == 1
 
 
 @pytest.mark.spec("CLP-10-013")
@@ -246,7 +312,7 @@ class TestAddCaseParticipantCommit:
 
         assert result.disposition is HandlerDisposition.APPLIED
         added = MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE.value
-        assert (added in _committed(dl)) is commits
+        assert _committed(dl).count(added) == (1 if commits else 0)
 
     def test_unknown_participant_commits_nothing(self):
         """The guard refuses ahead of the commit (CLP-10-009)."""

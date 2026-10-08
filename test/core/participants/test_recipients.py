@@ -19,6 +19,7 @@ import logging
 
 import pytest
 
+from test.support.embargo_register import activate
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -28,6 +29,7 @@ from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.participants.recipients import (
     case_content_participants,
     case_content_recipients,
+    inactive_joined_participants,
     inert_participants,
     invitation_recipients,
     is_case_content_recipient,
@@ -89,7 +91,7 @@ def _seat(
 def _embargoed_case(dl: SqliteDataLayer) -> VulnerabilityCase:
     """A case under an active embargo with one participant of each kind."""
     case = VulnerabilityCase(id_=_CASE_ID, attributed_to=_SENDER)
-    case.set_embargo(_EMBARGO_ID)
+    activate(case, _EMBARGO_ID)
     _seat(dl, case, _SENDER)
     _seat(dl, case, _SIGNATORY)
     _seat(dl, case, _INVITED, consent=EmbargoConsentState.INVITED)
@@ -221,3 +223,32 @@ def test_case_content_participants_pairs_each_recipient_with_its_record(
         (_INVITED, inline.id_),
     ]
     assert [a for a, _ in pairs] == case_content_recipients(case, dl)
+
+
+_REMOVED = "https://example.org/actors/removed"
+
+
+@pytest.mark.spec("CM-31-001", "CM-10-007")
+@pytest.mark.parametrize("embargo", [False, True])
+def test_removed_participant_gets_no_case_content(
+    dl: SqliteDataLayer, embargo: bool
+) -> None:
+    """The shared selection asks the case-level check, which reads the fact.
+
+    The removed participant is a signatory and joined; only the removal fact
+    makes it inert.  It stays on the roster (CM-19-001).
+    """
+    case = VulnerabilityCase(id_=_CASE_ID, attributed_to=_SENDER)
+    if embargo:
+        activate(case, _EMBARGO_ID)
+    _seat(dl, case, _SIGNATORY)
+    removed = _seat(dl, case, _REMOVED)
+    removed.removal_activity = f"{_CASE_ID}/activities/remove-1"
+    dl.save(removed)
+
+    assert case_content_recipients(case, dl) == [_SIGNATORY]
+    assert not is_case_content_recipient(case, dl, _REMOVED)
+    assert inert_participants(case, dl) == {_REMOVED}
+    # Joined but not active, so its ledger stream is paused for backfill.
+    assert inactive_joined_participants(case, dl) == [_REMOVED]
+    assert _REMOVED in case.actor_participant_index

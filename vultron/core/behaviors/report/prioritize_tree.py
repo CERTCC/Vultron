@@ -30,19 +30,31 @@ Per specs/behavior-tree-integration.yaml BT-06 requirements.
 Structure:
 
     EngageCaseBT (Sequence)
+    ├─ Intake
     ├─ HoldCarriedEmbargoNode                        # Only when the Engage carried a case snapshot
     ├─ StoreEmbeddedParticipantsNode                 # Only when the Engage carried a case snapshot
-    ├─ CheckParticipantExists                        # Precondition: actor has a participant record
-    ├─ GuardedCommitCaseLedgerEntryBT                  # Record receipt before effects (CLP-10-006)
-    ├─ TransitionParticipantRMtoAccepted             # Update RM state to ACCEPTED
+    ├─ SenderIsActiveParticipantNode                 # Sender guard (HP-01-006)
+    ├─ AdjudicateRMDeclarationNode(ACCEPTED)         # RM acceptance rule (RSH-06-006)
+    ├─ GuardedCommitCaseLedgerEntryBT                # Record receipt before effects (CLP-10-006)
+    ├─ IdempotentTransitionRMtoAccepted              # Record the sender's ACCEPTED (RSH-08-001)
+    ├─ EmitRMGapNoteNode                             # RSH-06-004 note on a non-adjacent jump
     └─ GuardedBroadcastEngageCaseBT                  # CASE_MANAGER only (CM-06-001)
        ├─ CaptureCaseUpdateBroadcastExclusionsNode   # Resolve embargo-based exclusions
        └─ BroadcastCaseUpdateNode                    # Announce(VulnerabilityCase) → all participants
 
     DeferCaseBT (Sequence)
-    ├─ CheckParticipantExists              # Precondition: actor has a participant record
-    ├─ GuardedCommitCaseLedgerEntryBT         # Record receipt before effects (CLP-10-006)
-    └─ TransitionParticipantRMtoDeferred   # Update RM state to DEFERRED
+    ├─ Intake
+    ├─ SenderIsActiveParticipantNode            # Sender guard (HP-01-006)
+    ├─ AdjudicateRMDeclarationNode(DEFERRED)    # RM acceptance rule (RSH-06-006)
+    ├─ GuardedCommitCaseLedgerEntryBT           # Record receipt before effects (CLP-10-006)
+    ├─ IdempotentTransitionRMtoDeferred         # Record the sender's DEFERRED (RSH-08-001)
+    └─ EmitRMGapNoteNode                        # RSH-06-004 note on a non-adjacent jump
+
+The RM stages are shared with the report-verdict handlers through
+:mod:`vultron.core.behaviors.report.rm_declaration_tree`, so every
+activity-typed RM handler applies the acceptance rule of
+``Add(ParticipantStatus)``: a forward move is recorded, a non-adjacent one
+included, and a backward one is refused before the commit (RSH-06-006).
 
 EvaluateCasePriority is now injected via bundle.evaluate_priority_factory
 in create_prioritize_subtree (BT-18-004). The core class in
@@ -65,9 +77,6 @@ from vultron.core.behaviors.case.nodes.carried_snapshot import (
     HoldCarriedEmbargoNode,
     StoreEmbeddedParticipantsNode,
 )
-from vultron.core.behaviors.case.nodes.participant.status import (
-    CreateParticipantStatusNode,
-)
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
 )
@@ -78,12 +87,12 @@ from vultron.core.behaviors.case.nodes.update import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
-from vultron.core.behaviors.report.nodes import (
-    CheckParticipantExists,
+from vultron.core.behaviors.report.rm_declaration_tree import (
+    record_rm_declaration,
+    rm_declaration_guard,
 )
-from vultron.core.behaviors.report.nodes.conditions import (
-    CheckRMStateAccepted,
-    CheckRMStateDeferred,
+from vultron.core.behaviors.sender_entitlement import (
+    SenderIsActiveParticipantNode,
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.rm import RM
@@ -116,7 +125,8 @@ def create_engage_case_tree(
 
     Args:
         case_id: ID of VulnerabilityCase being engaged
-        actor_id: ID of Actor whose RM state transitions to ACCEPTED
+        actor_id: The sender, whose declared RM state (ACCEPTED) is recorded
+            (RSH-08-001)
         case_obj: The case snapshot the Engage carried, if any.  Its embargo
             is held and its inline participants are stored before the
             participant guard looks for them (CBT-05-005, EMB-18-003).
@@ -137,23 +147,16 @@ def create_engage_case_tree(
         case_id=case_id,
         precondition_guards=[
             *snapshot_steps,
-            CheckParticipantExists(case_id=case_id, actor_id=actor_id),
+            # After the snapshot steps, not in the factory's sender-guard
+            # slot: an Engage may carry the sender's own participant inline.
+            SenderIsActiveParticipantNode(
+                status_id="", sender_actor_id=actor_id, case_id=case_id
+            ),
+            rm_declaration_guard(actor_id, RM.ACCEPTED, case_id),
         ],
         effect_nodes=[
-            py_trees.composites.Selector(
-                name="IdempotentTransitionRMtoAccepted",
-                memory=False,
-                children=[
-                    CheckRMStateAccepted(case_id=case_id, actor_id=actor_id),
-                    CreateParticipantStatusNode(
-                        actor_id=actor_id,
-                        rm_state=RM.ACCEPTED,
-                        vf_state=None,
-                        d_state=None,
-                        pxa_state=None,
-                        name="TransitionRMtoAccepted",
-                    ),
-                ],
+            *record_rm_declaration(
+                actor_id, RM.ACCEPTED, case_id, name="TransitionRMtoAccepted"
             ),
             # Only the CASE_MANAGER announces canonical case state: the
             # broadcast is authored as the executing actor (CM-06-001).
@@ -187,7 +190,8 @@ def create_defer_case_tree(
 
     Args:
         case_id: ID of VulnerabilityCase being deferred
-        actor_id: ID of Actor whose RM state transitions to DEFERRED
+        actor_id: The sender, whose declared RM state (DEFERRED) is recorded
+            (RSH-08-001)
 
     Returns:
         Root node of the defer_case behavior tree (Sequence)
@@ -195,26 +199,15 @@ def create_defer_case_tree(
     root = create_receive_activity_tree(
         name="DeferCaseBT",
         case_id=case_id,
+        sender_guard=SenderIsActiveParticipantNode(
+            status_id="", sender_actor_id=actor_id, case_id=case_id
+        ),
         precondition_guards=[
-            CheckParticipantExists(case_id=case_id, actor_id=actor_id),
+            rm_declaration_guard(actor_id, RM.DEFERRED, case_id),
         ],
-        effect_nodes=[
-            py_trees.composites.Selector(
-                name="IdempotentTransitionRMtoDeferred",
-                memory=False,
-                children=[
-                    CheckRMStateDeferred(case_id=case_id, actor_id=actor_id),
-                    CreateParticipantStatusNode(
-                        actor_id=actor_id,
-                        rm_state=RM.DEFERRED,
-                        vf_state=None,
-                        d_state=None,
-                        pxa_state=None,
-                        name="TransitionRMtoDeferred",
-                    ),
-                ],
-            ),
-        ],
+        effect_nodes=record_rm_declaration(
+            actor_id, RM.DEFERRED, case_id, name="TransitionRMtoDeferred"
+        ),
     )
 
     logger.info("Created DeferCaseBT for case=%s, actor=%s", case_id, actor_id)

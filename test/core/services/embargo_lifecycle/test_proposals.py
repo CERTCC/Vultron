@@ -25,6 +25,7 @@ from typing import cast
 
 import pytest
 
+from test.support.embargo_register import activate, propose, terminate
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.services.embargo_lifecycle import (
@@ -33,6 +34,7 @@ from vultron.core.services.embargo_lifecycle import (
     TransitionMode,
 )
 from vultron.core.states.em import EM
+from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState as ECS,
 )
@@ -57,7 +59,7 @@ def test_propose_embargo_none_to_proposed(
 ) -> None:
     """propose_embargo from NONE transitions case to PROPOSED."""
     owner, dl = owner_and_dl
-    case, _ = _make_case(dl, owner.id_, em_state=EM.NONE)
+    case, _ = _make_case(dl, owner.id_)
     embargo = _make_embargo(dl, case.id_)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
@@ -75,8 +77,9 @@ def test_propose_embargo_none_to_proposed(
     assert result.participant_changes == []
 
     updated = cast(VulnerabilityCase, dl.read(case.id_))
+    assert updated.em_state == EM.PROPOSED
     assert updated.current_status.em.state == EM.PROPOSED
-    assert embargo.id_ in updated.proposed_embargoes
+    assert embargo.id_ in updated.proposed_embargo_ids
 
 
 def test_propose_embargo_idempotent_repropse(
@@ -84,15 +87,15 @@ def test_propose_embargo_idempotent_repropse(
 ) -> None:
     """propose_embargo from PROPOSED → PROPOSED is valid (counter-proposal).
 
-    Calling with the same embargo_id twice must not duplicate the entry in
-    proposed_embargoes.
+    Calling with the same embargo_id twice must not duplicate its register
+    entry.
     """
     owner, dl = owner_and_dl
-    case, _ = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
+    case, _ = _make_case(dl, owner.id_)
     embargo = _make_embargo(dl, case.id_)
 
     # Seed the case as already having this embargo proposed
-    case.proposed_embargoes.append(embargo.id_)
+    propose(case, embargo.id_)
     dl.save(case)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
@@ -109,7 +112,8 @@ def test_propose_embargo_idempotent_repropse(
 
     updated = cast(VulnerabilityCase, dl.read(case.id_))
     # Must not have been duplicated
-    assert updated.proposed_embargoes.count(embargo.id_) == 1
+    assert updated.proposed_embargo_ids.count(embargo.id_) == 1
+    assert len(updated.embargo_register) == 1
 
 
 @pytest.mark.spec("EP-05-002")
@@ -128,10 +132,10 @@ def test_propose_embargo_active_to_revise_lapses_nobody(
     owner, dl = owner_and_dl
     finder = _make_actor(dl, "Finder Org")
     case, participants = _make_case(
-        dl, owner.id_, extra_participant_ids=[finder.id_], em_state=EM.ACTIVE
+        dl, owner.id_, extra_participant_ids=[finder.id_]
     )
     active = _make_embargo(dl, case.id_)
-    case.active_embargo = active.id_
+    activate(case, active.id_)
     dl.save(case)
     for p in participants:
         _seed_consent(dl, p.id_, active.id_, ECS.ACCEPTED)
@@ -151,7 +155,7 @@ def test_propose_embargo_active_to_revise_lapses_nobody(
     assert result.participant_changes == []
 
     updated = cast(VulnerabilityCase, dl.read(case.id_))
-    assert updated.current_status.em.state == EM.REVISE
+    assert updated.em_state == EM.REVISE
     owner_p, finder_p = participants
     for p in participants:
         assert _is_signatory(dl, case.id_, p.id_)
@@ -180,13 +184,12 @@ def test_propose_embargo_revise_to_revise_lapses_nobody(
         dl,
         owner.id_,
         extra_participant_ids=[finder.id_, invitee.id_],
-        em_state=EM.REVISE,
     )
     owner_p, finder_p, invitee_p = participants
     active = _make_embargo(dl, case.id_)
     first_revision = _make_embargo(dl, case.id_, days=90)
-    case.active_embargo = active.id_
-    case.proposed_embargoes = [first_revision.id_]
+    activate(case, active.id_)
+    propose(case, first_revision.id_)
     dl.save(case)
     _seed_consent(dl, owner_p.id_, active.id_, ECS.ACCEPTED)
     _seed_consent(dl, finder_p.id_, active.id_, ECS.ACCEPTED)
@@ -210,7 +213,7 @@ def test_propose_embargo_revise_to_revise_lapses_nobody(
     assert _consents_of(dl, owner_p.id_) == {active.id_: "ACCEPTED"}
     assert _consents_of(dl, invitee_p.id_) == {first_revision.id_: "INVITED"}
     updated = cast(VulnerabilityCase, dl.read(case.id_))
-    assert updated.proposed_embargoes == [first_revision.id_, counter.id_]
+    assert updated.proposed_embargo_ids == [first_revision.id_, counter.id_]
 
 
 def test_propose_embargo_by_a_non_participant_records_no_consent(
@@ -218,7 +221,7 @@ def test_propose_embargo_by_a_non_participant_records_no_consent(
 ) -> None:
     """A proposer with no participant record (the creation default) has nothing to record."""
     owner, dl = owner_and_dl
-    case, (owner_p,) = _make_case(dl, owner.id_, em_state=EM.NONE)
+    case, (owner_p,) = _make_case(dl, owner.id_)
     embargo = _make_embargo(dl, case.id_)
 
     result = EmbargoLifecycle(persistence=dl).propose_embargo(
@@ -243,7 +246,7 @@ def test_propose_embargo_by_a_declined_participant_records_no_consent(
     owner, dl = owner_and_dl
     proposer = _make_actor(dl, "Proposer")
     case, (_owner_p, proposer_p) = _make_case(
-        dl, owner.id_, extra_participant_ids=[proposer.id_], em_state=EM.NONE
+        dl, owner.id_, extra_participant_ids=[proposer.id_]
     )
     embargo = _make_embargo(dl, case.id_)
     _seed_consent(dl, proposer_p.id_, embargo.id_, ECS.DECLINED)
@@ -264,9 +267,17 @@ def test_propose_embargo_by_a_declined_participant_records_no_consent(
 def test_propose_embargo_invalid_state_raises(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """propose_embargo from EXITED raises VultronInvalidStateTransitionError."""
+    """propose_embargo from EXITED raises VultronInvalidStateTransitionError.
+
+    Once an embargo is TERMINATED the register accepts no further change
+    (ADR-0122 invariant 4), so the case is left as it was.
+    """
     owner, dl = owner_and_dl
-    case, _ = _make_case(dl, owner.id_, em_state=EM.EXITED)
+    case, _ = _make_case(dl, owner.id_)
+    ended = _make_embargo(dl, case.id_)
+    activate(case, ended.id_)
+    terminate(case)
+    dl.save(case)
     embargo = _make_embargo(dl, case.id_)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
@@ -277,14 +288,26 @@ def test_propose_embargo_invalid_state_raises(
             actor_id=owner.id_,
         )
 
+    untouched = cast(VulnerabilityCase, dl.read(case.id_))
+    assert untouched.em_state == EM.EXITED
+    assert untouched.embargo_register_entry(embargo.id_) is None
 
-def test_propose_embargo_observed_mode_syncs_invalid_state(
+
+def test_propose_embargo_observed_mode_skips_a_refused_proposal(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """OBSERVED mode on an invalid start state force-syncs to PROPOSED (no raise)."""
+    """OBSERVED mode skips a proposal the register refuses (no raise).
+
+    The register is never forced into a state its rules refuse (ADR-0122):
+    after a TERMINATED entry nothing can change, so the case stays EXITED and
+    the refused embargo gains no entry.
+    """
     owner, dl = owner_and_dl
-    # EXITED cannot normally transition to PROPOSED; OBSERVED syncs anyway
-    case, _ = _make_case(dl, owner.id_, em_state=EM.EXITED)
+    case, _ = _make_case(dl, owner.id_)
+    ended = _make_embargo(dl, case.id_)
+    activate(case, ended.id_)
+    terminate(case)
+    dl.save(case)
     embargo = _make_embargo(dl, case.id_)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
@@ -295,8 +318,12 @@ def test_propose_embargo_observed_mode_syncs_invalid_state(
         transition_mode=TransitionMode.OBSERVED,
     )
 
-    # Must not raise; OBSERVED falls back to PROPOSED
-    assert result.em_after == EM.PROPOSED
+    # Must not raise; the refused step leaves the case unchanged
+    assert (result.em_before, result.em_after) == (EM.EXITED, EM.EXITED)
+    assert result.case_changed is False
+    untouched = cast(VulnerabilityCase, dl.read(case.id_))
+    assert untouched.em_state == EM.EXITED
+    assert untouched.embargo_register_entry(embargo.id_) is None
 
 
 # ---------------------------------------------------------------------------
@@ -309,7 +336,7 @@ def test_propose_embargo_owner_succeeds(
 ) -> None:
     """The case owner can propose an embargo."""
     owner, dl = owner_and_dl
-    case, _ = _make_case(dl, owner.id_, em_state=EM.NONE)
+    case, _ = _make_case(dl, owner.id_)
     embargo = _make_embargo(dl, case.id_)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
@@ -333,9 +360,7 @@ def test_propose_embargo_non_owner_succeeds(
     """
     owner, dl = owner_and_dl
     finder = _make_actor(dl, "Finder Org")
-    case, _ = _make_case(
-        dl, owner.id_, extra_participant_ids=[finder.id_], em_state=EM.NONE
-    )
+    case, _ = _make_case(dl, owner.id_, extra_participant_ids=[finder.id_])
     embargo = _make_embargo(dl, case.id_)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
@@ -354,14 +379,20 @@ def test_propose_embargo_non_owner_succeeds(
 
 
 def _case_with_open_proposals(
-    dl: SqliteDataLayer, owner_id: str, n: int, em_state: EM = EM.PROPOSED
+    dl: SqliteDataLayer, owner_id: str, n: int, *, with_active: bool = False
 ) -> tuple[VulnerabilityCase, list[str]]:
-    """A case at *em_state* with *n* open, indexed proposals."""
-    case, _ = _make_case(dl, owner_id, em_state=em_state)
+    """A case with *n* open, indexed proposals.
+
+    EM is ``PROPOSED``, or ``REVISE`` when *with_active* puts an embargo in
+    force first.
+    """
+    case, _ = _make_case(dl, owner_id)
+    if with_active:
+        activate(case, _make_embargo(dl, case.id_).id_)
     ids = [
         _make_embargo(dl, case.id_, days=30 * (i + 1)).id_ for i in range(n)
     ]
-    case.proposed_embargoes = list(ids)
+    propose(case, *ids)
     case.pending_embargo_proposal_index = {
         embargo_id: f"{embargo_id}/invite" for embargo_id in ids
     }
@@ -384,9 +415,14 @@ def test_abandon_every_open_proposal_returns_em_to_none(
     assert result.case_changed is True
     assert result.participant_changes == []
     updated = cast(VulnerabilityCase, dl.read(case.id_))
+    assert updated.em_state == EM.NONE
     assert updated.current_status.em.state == EM.NONE
     assert updated.proposed_embargo_ids == []
     assert updated.pending_embargo_proposal_index == {}
+    # AC-5 of #4290: nobody decided them, so they are cancelled, not rejected.
+    assert {e.embargo_id: e.status for e in updated.embargo_register} == {
+        i: EmbargoRegisterStatus.CANCELLED for i in ids
+    }
 
 
 @pytest.mark.spec("EMB-16-001")
@@ -448,17 +484,17 @@ def test_strict_abandonment_of_no_open_proposal_is_refused(
 
     updated = cast(VulnerabilityCase, dl.read(case.id_))
     assert updated.proposed_embargo_ids == ids
-    assert updated.current_status.em.state == EM.PROPOSED
+    assert updated.em_state == EM.PROPOSED
 
 
 @pytest.mark.spec("EMB-18-003")
 def test_strict_abandonment_outside_proposed_is_refused(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """In REVISE the open proposals are revisions of an embargo in force;
-    the P/X/A cascade terminates it instead (EMB-07-002)."""
+    """With an embargo in force (REVISE) the open proposals are revisions of
+    it; the P/X/A cascade terminates it instead (EMB-07-002)."""
     owner, dl = owner_and_dl
-    case, ids = _case_with_open_proposals(dl, owner.id_, 1, EM.REVISE)
+    case, ids = _case_with_open_proposals(dl, owner.id_, 1, with_active=True)
 
     with pytest.raises(VultronInvalidStateTransitionError):
         EmbargoLifecycle(persistence=dl).abandon_embargo_proposals(
@@ -467,3 +503,4 @@ def test_strict_abandonment_outside_proposed_is_refused(
 
     updated = cast(VulnerabilityCase, dl.read(case.id_))
     assert updated.proposed_embargo_ids == ids
+    assert updated.em_state == EM.REVISE

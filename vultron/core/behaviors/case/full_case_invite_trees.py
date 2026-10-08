@@ -13,13 +13,12 @@
 
 """Received-side BT factories for the full-case Invite and its replies.
 
-See CM-11-010, CM-11-011, CM-11-012, ADR-0121.
+See CM-11-010, CM-11-011, CM-11-012, ADR-0121, RSH-06-006.
 """
 
 import py_trees
 
 from vultron.core.behaviors.case.nodes.full_case_invite import (
-    ApplyFullCaseReplyToParticipantNode,
     CheckFullCaseReplyNode,
     LogFullCaseInviteReceivedNode,
 )
@@ -29,6 +28,14 @@ from vultron.core.behaviors.case.nodes.role_gates import (
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
+)
+from vultron.core.behaviors.report.rm_declaration_tree import (
+    record_rm_declaration,
+    rm_declaration_guard,
+)
+from vultron.core.behaviors.sender_entitlement import (
+    SenderIsCaseManagerNode,
+    SenderIsInviteeNode,
 )
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.states.rm import RM
@@ -46,10 +53,15 @@ def create_invite_actor_to_full_case_received_tree(
     receives its own Invite (ADR-0109), so the receiver is the invitee.  It
     holds the case from the Announce, so the Invite needs no record beyond the
     archive that intake writes (CLP-10-017); the tree logs the receipt
-    (SL-04-006)::
+    (SL-04-006).
+
+    The sender must be the case's CASE_MANAGER: the replica's, else the one
+    recorded as the trust anchor from the stub Invite, else the Invite is
+    refused (``anchored``, PCR-03-004, HP-01-006, ADR-0115)::
 
         InviteActorToFullCaseReceivedBT (Sequence)
         ├── Intake
+        ├── SenderIsCaseManagerNode          # anchored; refuses any other sender
         ├── GuardedCommitCaseLedgerEntryBT   # CASE_MANAGER only — skips here
         └── InviteeRecordsFullCaseInvite     # not the CASE_MANAGER
             └── LogFullCaseInviteReceivedNode
@@ -57,6 +69,7 @@ def create_invite_actor_to_full_case_received_tree(
     return create_receive_activity_tree(
         name="InviteActorToFullCaseReceivedBT",
         case_id=case_id,
+        sender_guard=SenderIsCaseManagerNode(case_id=case_id, anchored=True),
         precondition_guards=[],
         effect_nodes=[
             create_participant_replica_gated_tree(
@@ -87,40 +100,50 @@ def create_full_case_invite_reply_received_tree(
 ) -> py_trees.composites.Sequence:
     """Received-side BT for a reply to the full-case Invite.
 
+    The sender must be the invitee of the Invite this store recorded
+    (CM-11-017, HP-01-006, ADR-0115).
     The CASE_MANAGER checks the reply's ledger position against the Invite's
-    floor before it commits anything (CM-11-012), commits the receipt, then
-    records the participant's RM transition (CM-11-011)::
+    floor before it commits anything (CM-11-012), adjudicates the RM
+    declaration with the shared rule (RSH-06-006), commits the receipt, then
+    records the participant's RM state via the idempotent DECLARATION write
+    and posts a gap note when the move was non-adjacent (RSH-06-001,
+    RSH-06-004)::
 
         <name> (Sequence)
         ├── Intake
-        ├── CheckFullCaseReplyNode           # judges only as the CASE_MANAGER
+        ├── SenderIsInviteeNode              # sender is the recorded invitee
+        ├── CheckFullCaseReplyNode           # position / participant checks
+        ├── AdjudicateRMDeclarationNode      # shared rule (RSH-06-006)
         ├── GuardedCommitCaseLedgerEntryBT
         └── FullCaseReplyEffects             # CASE_MANAGER only
-            └── ApplyFullCaseReplyToParticipantNode
+            ├── Idempotent<name> (Selector)  # already recorded → skip
+            └── EmitRMGapNote               # gap note when anomalous
     """
     return create_receive_activity_tree(
         name=name,
         case_id=case_id,
+        sender_guard=SenderIsInviteeNode(
+            invite_id=invite_id, sender_actor_id=replier_id, case_id=case_id
+        ),
         precondition_guards=[
             CheckFullCaseReplyNode(
                 case_id=case_id,
                 invite_id=invite_id,
                 replier_id=replier_id,
                 position=position,
-                rm_state=rm_state,
-            )
+            ),
+            rm_declaration_guard(replier_id, rm_state, case_id),
         ],
         effect_nodes=[
             create_case_manager_gated_tree(
                 name="FullCaseReplyEffects",
                 case_id=case_id,
-                children=[
-                    ApplyFullCaseReplyToParticipantNode(
-                        case_id=case_id,
-                        replier_id=replier_id,
-                        rm_state=rm_state,
-                    )
-                ],
+                children=record_rm_declaration(
+                    sender_actor_id=replier_id,
+                    declared_rm=rm_state,
+                    case_id=case_id,
+                    name=f"TransitionRMto{rm_state.name.title()}",
+                ),
             )
         ],
     )

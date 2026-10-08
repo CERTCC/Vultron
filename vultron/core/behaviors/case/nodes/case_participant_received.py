@@ -15,22 +15,51 @@
 
 """BT leaf nodes for received Add/Remove CaseParticipant activities.
 
-Provides action nodes that apply participant membership changes to a
+``AddCaseParticipantToCaseReceivedNode`` applies a membership change to a
 ``VulnerabilityCase`` in the DataLayer.
+
+The removal nodes implement the Case Owner's ``Remove(CaseParticipant)``
+at the CASE_MANAGER (CM-31-004 through CM-31-008, ADR-0116):
+
+- three read-only precondition guards — the named participant is on the
+  case's roster, holds neither ``CASE_MANAGER`` nor ``CASE_OWNER``, and is
+  not already removed (the idempotency guard, read as ``SKIPPED``);
+- one effect, :class:`RemoveCaseParticipantFromCaseReceivedNode`, which sets
+  the removal fact and keeps the record on the roster (CM-31-001);
+- the direct notice to the removed participant,
+  :class:`EmitParticipantRemovalNoticeNode`, which is not ledgered
+  (CM-31-006).
 
 Composite tree factories assembling these nodes are in
 ``case_participant_received_tree.py`` at the process-area root per
 BTND-07-003.
 """
 
+import py_trees
 from py_trees.common import Status
 
+from vultron.core.behaviors.case.nodes.role_gates import (
+    create_case_manager_gated_tree,
+)
+from vultron.core.behaviors.delegated_authorship import delegated_authorship
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
+    _EmitSingleActivityBase,
 )
+from vultron.core.behaviors.idempotency import SilentIdempotencyGuardMixin
 from vultron.core.models._helpers import _as_id
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.ports.case_persistence import CasePersistence
+from vultron.enums.roles import CVDRole
+from vultron.errors import VultronNotFoundError
+
+#: Roles a removal may not take away (CM-31-004): the CASE_MANAGER role is
+#: never unfilled (CM-24-006), and ownership is transferred first (CM-21).
+PROTECTED_ROLES: frozenset[CVDRole] = frozenset(
+    {CVDRole.CASE_MANAGER, CVDRole.CASE_OWNER}
+)
 
 
 class CheckParticipantAddableNode(DataLayerConditionWithPorts):
@@ -123,23 +152,41 @@ class AddCaseParticipantToCaseReceivedNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class RemoveCaseParticipantFromCaseReceivedNode(DataLayerActionWithPorts):
-    """Remove a participant from a case and persist the updated case.
+def require_roster_record(
+    dl: CasePersistence, case: VulnerabilityCase, participant_id: str
+) -> CaseParticipant:
+    """The stored record *participant_id* names on *case*'s roster.
 
-    Reads the case from the DataLayer and calls
-    ``case.remove_participant(participant_id)``.  Idempotent: if the
-    participant is not present in the case, returns ``SUCCESS`` without
-    mutation.
+    The canonical set is ``case_participants`` (CM-19-003); a record that
+    is not on it, or that the store cannot read, names no participant of
+    the case.
 
-    Returns ``SUCCESS`` when the participant is absent or removed,
-    ``FAILURE`` when the case cannot be found.
+    Raises:
+        VultronNotFoundError: *participant_id* names no participant of
+            *case* (CM-31-004).
+    """
+    if participant_id in [_as_id(p) for p in case.case_participants]:
+        record = dl.read(participant_id)
+        if isinstance(record, CaseParticipant):
+            return record
+    raise VultronNotFoundError(
+        "CaseParticipant",
+        f"'{participant_id}' is not a participant of case '{case.id_}'",
+    )
+
+
+class _RemovalGuardNode(DataLayerConditionWithPorts):
+    """Shared frame of the three read-only removal guards (CM-31-004).
+
+    Resolves the case and the named record, then hands the record to
+    :meth:`_check`.  A record that names no participant of the case fails
+    the guard with a refusal reason; ``FAILURE`` is read by the handler as
+    ``REFUSED`` unless a subclass is the idempotency guard.  Read-only, so
+    every subclass precedes the guarded commit (CLP-10-006).
     """
 
     def __init__(
-        self,
-        participant_id: str,
-        case_id: str,
-        name: str | None = None,
+        self, participant_id: str, case_id: str, name: str | None = None
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.participant_id = participant_id
@@ -149,27 +196,268 @@ class RemoveCaseParticipantFromCaseReceivedNode(DataLayerActionWithPorts):
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1: the CASE_MANAGER holds its case
+        try:
+            record = require_roster_record(
+                self.datalayer, case, self.participant_id
+            )
+        except VultronNotFoundError:
+            self.feedback_message = (
+                f"'{self.participant_id}' is not a participant of case"
+                f" '{self.case_id}' — removal REFUSED (CM-31-004)"
+            )
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+        return self._check(record)
 
+    def _check(self, record: CaseParticipant) -> Status:
+        """Judge the resolved *record*; subclasses implement it."""
+        raise NotImplementedError
+
+
+class RemovalNamesCaseParticipantNode(_RemovalGuardNode):
+    """Guard: the ``Remove(CaseParticipant)`` names a participant of the case.
+
+    The frame already refuses a record that is not on the case's roster
+    (CM-31-004).  The inline participant must also name the stored record's
+    actor when it names one: the ledger entry carries the activity as
+    received, and a replica resolves its own copy of the record by that
+    actor (CM-31-007), so an ``attributedTo`` that disagrees with the record
+    would remove a different participant on every replica than the one
+    judged here — possibly the CASE_MANAGER or the Case Owner.
+    """
+
+    def __init__(
+        self,
+        participant_id: str,
+        case_id: str,
+        claimed_actor_id: str | None = None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(
+            participant_id=participant_id, case_id=case_id, name=name
+        )
+        self.claimed_actor_id = claimed_actor_id
+
+    def _check(self, record: CaseParticipant) -> Status:
+        record_actor_id = _as_id(record.attributed_to)
+        if (
+            self.claimed_actor_id is None
+            or self.claimed_actor_id == record_actor_id
+        ):
+            return Status.SUCCESS
+        self.feedback_message = (
+            f"the removal names participant '{self.participant_id}' as"
+            f" '{self.claimed_actor_id}', but that record belongs to"
+            f" '{record_actor_id}' on case '{self.case_id}' — removal REFUSED"
+            " (CM-31-004)"
+        )
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
+
+class RemovalTargetIsRemovableNode(_RemovalGuardNode):
+    """Guard: the named participant holds neither ``CASE_MANAGER`` nor ``CASE_OWNER``.
+
+    The CASE_MANAGER role is never unfilled (CM-24-006) and ownership is
+    transferred before its holder can leave (CM-21), so a removal naming
+    either is refused (CM-31-004).
+    """
+
+    def _check(self, record: CaseParticipant) -> Status:
+        protected = sorted(r.name for r in PROTECTED_ROLES & set(record.roles))
+        if not protected:
+            return Status.SUCCESS
+        self.feedback_message = (
+            f"participant '{self.participant_id}' holds"
+            f" {', '.join(protected)} on case '{self.case_id}' and cannot"
+            " be removed — removal REFUSED (CM-31-004)"
+        )
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
+
+class ParticipantNotYetRemovedNode(
+    SilentIdempotencyGuardMixin, _RemovalGuardNode
+):
+    """Idempotency guard: the named participant does not carry the removal fact.
+
+    A removal of an already-removed participant is a legitimate no-op
+    (CM-31-004, HP-01-003): this guard fails silently before the guarded
+    commit, so the repeat commits no ledger entry (CLP-13-001), and the
+    handler reads its ``FAILURE`` as ``SKIPPED``.  The first removal stands;
+    the participant is not sent a second notice.
+    """
+
+    def _check(self, record: CaseParticipant) -> Status:
+        if not record.removed:
+            return Status.SUCCESS
+        self.feedback_message = (
+            f"participant '{self.participant_id}' was already removed"
+            f" from case '{self.case_id}' by '{record.removal_activity}'"
+        )
+        return self._idempotent_failure(
+            self.logger,
+            "%s: %s — skipping (CLP-13-001)",
+            self.name,
+            self.feedback_message,
+        )
+
+
+def case_manager_admits_removal_guard(
+    participant_id: str,
+    case_id: str,
+    claimed_actor_id: str | None = None,
+) -> py_trees.composites.Selector:
+    """Precondition guard: when this actor is the CASE_MANAGER, the removal is admissible.
+
+    A read-only composite for the received tree's ``precondition_guards``
+    (CLP-10-009), in the shape of ``case_manager_admits_proposal_guard``: a
+    replica skips it as ``SUCCESS`` (it writes nothing, RSH-08-003), and the
+    CASE_MANAGER runs the three removal guards in order, so a removal it
+    refuses or skips leaves no ledger entry (CM-31-004, CLP-13-001).
+    *claimed_actor_id* is the actor the inline participant is attributed
+    to, when it names one.
+    """
+    return create_case_manager_gated_tree(
+        name="RemovalAdmissibleIfCaseManager",
+        case_id=case_id,
+        body_name="RemovalAdmissible",
+        children=[
+            RemovalNamesCaseParticipantNode(
+                participant_id=participant_id,
+                case_id=case_id,
+                claimed_actor_id=claimed_actor_id,
+            ),
+            RemovalTargetIsRemovableNode(
+                participant_id=participant_id, case_id=case_id
+            ),
+            ParticipantNotYetRemovedNode(
+                participant_id=participant_id, case_id=case_id
+            ),
+        ],
+    )
+
+
+class RemoveCaseParticipantFromCaseReceivedNode(DataLayerActionWithPorts):
+    """Set the removal fact on the named participant (CM-31-001).
+
+    Records *removal_activity_id* — the Case Owner's ``Remove`` activity —
+    through :meth:`CaseParticipant.record_removal` and saves the record.  The
+    record stays in ``case_participants`` and ``actor_participant_index``
+    (CM-19-002), with its status history and embargo consent rows untouched
+    (CM-31-008); the case-level active check now finds it inert.  The replica
+    apply node records the same fact from the ledger entry (CM-31-007).
+
+    Runs after the guarded commit, so the entry's fan-out — whose recipients
+    were selected before this write — still reaches the removed participant
+    (CM-31-006).  ``FAILURE`` when the record is gone: the guards found it
+    moments earlier in the CASE_MANAGER's own store (Regime 1, ADR-0087), so
+    the handler reads it as an internal fault, never a refusal — the entry
+    is already committed.
+    """
+
+    def __init__(
+        self,
+        participant_id: str,
+        case_id: str,
+        removal_activity_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.participant_id = participant_id
+        self.case_id = case_id
+        self.removal_activity_id = removal_activity_id
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
         case, failure = self._require_case(self.case_id)
         if failure is not None:
             return failure  # Regime 1: case must exist (ADR-0087)
-
-        existing_ids = [_as_id(p) for p in case.case_participants]
-        if self.participant_id not in existing_ids:
-            self.logger.info(
-                "%s: participant '%s' not in case '%s' — skipping (idempotent)",
-                self.name,
-                self.participant_id,
-                self.case_id,
+        try:
+            record = require_roster_record(
+                self.datalayer, case, self.participant_id
             )
-            return Status.SUCCESS
-
-        case.remove_participant(self.participant_id)
-        self.datalayer.save(case)
+        except VultronNotFoundError as exc:
+            self.feedback_message = str(exc)
+            self.logger.exception("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+        if record.record_removal(self.removal_activity_id):
+            self.datalayer.save(record)
         self.logger.info(
-            "%s: removed participant '%s' from case '%s'",
+            "%s: removed participant '%s' from active participation in"
+            " case '%s' by '%s'; the record stays on the roster (CM-31-001)",
             self.name,
             self.participant_id,
             self.case_id,
+            self.removal_activity_id,
         )
         return Status.SUCCESS
+
+
+class EmitParticipantRemovalNoticeNode(_EmitSingleActivityBase):
+    """Send the removed participant its direct ``Remove(CaseParticipant)`` notice.
+
+    The CASE_MANAGER is the ``actor`` and the Case Owner who asked for the
+    removal is ``attributedTo`` (CM-24-001, CM-24-002, from
+    :func:`delegated_authorship`); the one recipient is the removed
+    participant (CM-31-006).  The notice is delivery, not a record: it is
+    queued on the outbox and never committed to the ledger.  The removed
+    participant learns the removal as case state from the removal entry's
+    fan-out, which it is still sent; its replica applies that entry, not this
+    notice (CM-31-007, RSH-08-003).
+
+    The handler treats a ``FAILURE`` here as an internal fault, never a
+    refusal: by now the removal is committed and applied.
+    """
+
+    def __init__(
+        self,
+        participant_id: str,
+        case_id: str,
+        requesting_actor_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name)
+        self.participant_id = participant_id
+        self.case_id = case_id
+        self.requesting_actor_id = requesting_actor_id
+
+    def _call_factory(self) -> tuple[str, str]:
+        assert self.datalayer is not None
+        assert self.actor_id is not None
+        assert self.trigger_activity_factory is not None
+        record = self.datalayer.read(self.participant_id)
+        if not isinstance(record, CaseParticipant):
+            raise VultronNotFoundError("CaseParticipant", self.participant_id)
+        removed_actor_id = _as_id(record.attributed_to)
+        if not removed_actor_id:
+            raise ValueError(
+                f"{self.name}: participant '{self.participant_id}' names no"
+                " actor to notify"
+            )
+        authorship = delegated_authorship(
+            doing_actor_id=self.actor_id,
+            requesting_actor_id=self.requesting_actor_id,
+        )
+        return self.trigger_activity_factory.remove_participant_from_case(
+            participant_id=self.participant_id,
+            case_id=self.case_id,
+            actor=authorship.actor,
+            attributed_to=authorship.attributed_to,
+            to=[removed_actor_id],
+        )
+
+    def _on_success(self, activity_id: str, activity_blob: str) -> None:
+        self.logger.info(
+            "%s: sent removal notice '%s' for participant '%s' of case '%s'"
+            " (CM-31-006)",
+            self.name,
+            activity_id,
+            self.participant_id,
+            self.case_id,
+        )

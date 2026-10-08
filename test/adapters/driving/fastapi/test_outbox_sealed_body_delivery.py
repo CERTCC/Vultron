@@ -31,6 +31,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from test.support.embargo_register import register
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -209,7 +210,7 @@ def test_ledger_snapshot_equals_delivered_body_end_to_end(dl):
                 em=EmDimension(state=EM.ACTIVE),
             )
         ],
-        active_embargo=str(embargo.id_),
+        embargo_register=register(active=str(embargo.id_)),
     )
     for obj in (manager, embargo, case):
         dl.create(obj)

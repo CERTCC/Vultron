@@ -42,6 +42,7 @@ def _session(name: str, log: list[str]) -> MagicMock:
     # Dataclass fields are instance attributes, so autospec does not copy them.
     session.actor = MagicMock()
     session.client = MagicMock()
+    session.case = MagicMock(id_=CASE_ID)
     session.actor.id_ = f"http://{name}:7999/api/v2/actors/{name}"
     session.client.base_url = f"http://{name}:7999/api/v2"
     session.with_case.return_value = session
@@ -95,6 +96,15 @@ def polls():
                     ),
                 )
             ),
+            "indexed": stack.enter_context(
+                patch.object(
+                    lifecycle,
+                    "wait_for_embargo_proposal_indexed",
+                    side_effect=lambda **kw: log.append(
+                        "indexed:" + kw["client"].base_url.split("/")[2][:-5]
+                    ),
+                )
+            ),
             "em": stack.enter_context(
                 patch.object(
                     lifecycle,
@@ -138,11 +148,13 @@ class TestProposeAndActivate:
         """The reporter proposes; the vendor answers, then the owner decides."""
         _, log = polls
         self._run(case, log)
-        assert log[:5] == [
+        assert log[:7] == [
             "reporter:propose",
             "invite:vendor",
+            "indexed:vendor",
             "vendor:accept",
             "invite:coordinator",
+            "indexed:coordinator",
             "coordinator:accept",
         ]
 
@@ -293,16 +305,29 @@ class TestProposeRevision:
         """The replicas read ACTIVE both before and after; REVISE goes first."""
         _, log = polls
         self._run(case, log)
-        assert log[:7] == [
+        assert log[:9] == [
             "proposer:propose-revision",
             "em:REVISE",
             "invite:acceptor",
+            "indexed:acceptor",
             "acceptor:accept",
             "accepted",
             "invite:owner",
+            "indexed:owner",
             "owner:accept",
         ]
-        assert log[7:] == ["em:ACTIVE"] * 4
+        assert log[9:] == ["em:ACTIVE"] * 4
+
+    @pytest.mark.spec("EP-09-003")
+    def test_an_answer_waits_for_its_invite_to_be_indexed(self, case, polls):
+        """The accept trigger needs the proposal index, not just the Invite."""
+        mocks, log = polls
+        mocks["invite"].side_effect = lambda **kw: "urn:test:invite"
+        _, accepting, _ = self._run(case, log)
+        call = mocks["indexed"].call_args_list[0]
+        assert call.kwargs["client"] is accepting.client
+        assert call.kwargs["embargo_id"] == EMBARGO_ID
+        assert call.kwargs["invite_id"] == "urn:test:invite"
 
     @pytest.mark.spec("EP-05-001")
     def test_owner_waits_for_the_acceptors_answer_to_commit(self, case, polls):

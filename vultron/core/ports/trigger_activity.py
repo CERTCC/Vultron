@@ -586,6 +586,25 @@ class TriggerActivityPort(Protocol):
         """
         ...
 
+    def remove_participant_from_case(
+        self,
+        participant_id: str,
+        case_id: str,
+        actor: str,
+        attributed_to: str,
+        to: list[str],
+    ) -> tuple[str, str]:
+        """Create and persist a ``Remove(CaseParticipant, Case)`` notice.
+
+        The CASE_MANAGER's direct notice to a removed participant (CM-31-006):
+        ``actor`` is the CASE_MANAGER and ``attributed_to`` the Case Owner who
+        asked for the removal (CM-24-001, CM-24-002).  The notice is delivery,
+        not a record, so the caller does not ledger it.
+
+        Returns ``(activity_id, activity_blob)``.
+        """
+        ...
+
     def add_participant_status_to_participant(
         self,
         status_id: str,

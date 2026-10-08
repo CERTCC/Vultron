@@ -25,8 +25,9 @@ Closed-filtered fan-out (active participants not at RM.CLOSED, CM-23-004):
 Both collectors pick recipients through the shared selection
 (``vultron.core.participants.recipients``, CM-10-007), so only active
 participants receive an entry (CM-10-004). They also publish, as
-``fanout_withheld``, the participants the active embargo alone withholds
-(``embargo_withheld_participants``). The send node pauses a withheld peer's
+``fanout_withheld``, the joined participants that are not active — the
+active embargo withholds them, or they were removed (CM-31-001)
+(``inactive_joined_participants``). The send node pauses a withheld peer's
 stream from this entry on (CM-10-005) and, before sending, backfills any
 paused peer the gate now admits (CM-10-006) — see ``embargo_pause.py``.
 """
@@ -52,7 +53,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.participants.recipients import (
     case_content_recipients,
-    embargo_withheld_participants,
+    inactive_joined_participants,
 )
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
@@ -111,8 +112,9 @@ class CollectLogEntryRecipientsNode(DataLayerActionWithPorts):
 
     Every participant entitled to case content except the sender
     (CM-10-004, SYNC-02-003), chosen by the shared selection (CM-10-007).
-    The participants the active embargo alone withholds go to
-    ``fanout_withheld``, so the send node can pause their streams (CM-10-005).
+    The joined participants that are not active (not signatories to the
+    active embargo, or removed, CM-31-001) go to ``fanout_withheld``, so the
+    send node can pause their streams (CM-10-005).
     """
 
     #: Also leave out participants at RM.CLOSED (CM-23-004).
@@ -161,7 +163,7 @@ class CollectLogEntryRecipientsNode(DataLayerActionWithPorts):
             excluding=excluding,
             skip_closed=self.SKIP_CLOSED,
         )
-        withheld = embargo_withheld_participants(
+        withheld = inactive_joined_participants(
             case_obj,
             self.datalayer,
             excluding=excluding,
@@ -305,7 +307,7 @@ class SendLogEntryToEachNode(DataLayerActionWithPorts):
             )
         self.logger.info(
             "%s: fanned out log entry '%s' to %d recipients"
-            " (%d withheld by the embargo gate — CM-10-005)",
+            " (%d joined but inactive, stream paused — CM-10-005)",
             self.name,
             entry.id_,
             len(recipients),

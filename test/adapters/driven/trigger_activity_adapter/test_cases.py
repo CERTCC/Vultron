@@ -19,6 +19,7 @@ from unittest.mock import patch
 import pytest
 from pydantic import ValidationError
 
+from test.support.embargo_register import activate, register
 from vultron.adapters.driven.trigger_activity_adapter import _base
 from vultron.adapters.driven.trigger_activity_adapter._base import (
     _to_wire_object,
@@ -536,13 +537,15 @@ class TestCaseOnTheWireCarriesItsParticipants:
             end_time=days_from_now_utc(45),
         )
         dl.create(embargo)
-        dl.create(case.model_copy(update={"active_embargo": embargo.id_}))
+        activate(case, embargo.id_)
+        dl.create(case)
 
         activity_id, _ = adapter.create_case(
             case_id=case.id_, actor=_ACTOR, to=[_PEER]
         )
 
-        carried = self._sealed_case(dl, activity_id)["activeEmbargo"]
+        (entry,) = self._sealed_case(dl, activity_id)["embargoRegister"]
+        carried = entry["embargo"]
         assert isinstance(carried, dict) and carried["id"] == embargo.id_
 
     @pytest.mark.spec("EMB-18-003")
@@ -550,7 +553,9 @@ class TestCaseOnTheWireCarriesItsParticipants:
         case = as_VulnerabilityCase(
             name="CVE-2025-033",
             attributed_to=_ACTOR,
-            active_embargo="https://example.org/embargo_events/absent",
+            embargo_register=register(
+                active="https://example.org/embargo_events/absent"
+            ),
         )
         dl.create(case)
 
@@ -564,7 +569,9 @@ class TestCaseOnTheWireCarriesItsParticipants:
         note = VultronNote(content="not an embargo")
         dl.create(note)
         case = as_VulnerabilityCase(
-            name="CVE-2025-034", attributed_to=_ACTOR, active_embargo=note.id_
+            name="CVE-2025-034",
+            attributed_to=_ACTOR,
+            embargo_register=register(active=note.id_),
         )
         dl.create(case)
 
@@ -582,7 +589,8 @@ class TestCaseOnTheWireCarriesItsParticipants:
             end_time=days_from_now_utc(45),
         )
         dl.create(embargo)
-        dl.create(case.model_copy(update={"active_embargo": embargo.id_}))
+        activate(case, embargo.id_)
+        dl.create(case)
         real_to_wire = _base._to_wire
 
         def _refuse_embargo(obj, cls):

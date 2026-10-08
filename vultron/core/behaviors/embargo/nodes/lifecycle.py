@@ -27,17 +27,16 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.behaviors.narrative_log import log_em_transition
 from vultron.core.models._helpers import _as_id
-from vultron.core.models.dimensions import EmDimension
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     EmbargoLifecycleResult,
     TransitionMode,
 )
 from vultron.core.states.em import (
-    EM,
-    EM_Trigger,
     is_em_embargo_active,
+    is_em_exited,
 )
+from vultron.core.states.embargo_register import TerminationReason
 from vultron.errors import (
     BtNodePreconditionError,
     VultronError,
@@ -98,8 +97,9 @@ class ValidateEmbargoProposalStateNode(DataLayerActionWithPorts):
     """Guard that the case EM state admits an embargo proposal.
 
     A read-only precondition for the propose trigger, ahead of the role arms:
-    ``EXITED`` admits no proposal, because the EM machine never returns from
-    it (EP-09-001).  A participant that is not the CASE_MANAGER writes no EM
+    ``EXITED`` admits no proposal, because once an embargo register entry is
+    ``TERMINATED`` the register accepts no further change (EP-09-001,
+    ADR-0122 invariant 4).  A participant that is not the CASE_MANAGER writes no EM
     state and so runs no ``STRICT`` check (EP-09-008); without this guard its
     proposal would be queued, refused by the CASE_MANAGER's admission guard
     without a ``Reject``, and leave a pending assertion behind.  Returns
@@ -130,9 +130,7 @@ class ValidateEmbargoProposalStateNode(DataLayerActionWithPorts):
             self.feedback_message = str(exc)
             return Status.FAILURE
 
-        try:
-            EmDimension(state=em_state).transition(EM_Trigger.PROPOSE)
-        except VultronInvalidStateTransitionError:
+        if is_em_exited(em_state):
             bad_state = VultronInvalidStateTransitionError(
                 f"Cannot propose embargo: case '{self._case_id}' EM state"
                 f" '{em_state}' admits no embargo proposal (EP-09-001)."
@@ -165,7 +163,6 @@ class _EmbargoLifecycleNode(DataLayerActionWithPorts):
         self,
         _lifecycle: EmbargoLifecycle,
         _actor_id: str,
-        _em_before: EM,
     ) -> EmbargoLifecycleResult:
         raise NotImplementedError
 
@@ -177,7 +174,7 @@ class _EmbargoLifecycleNode(DataLayerActionWithPorts):
 
         # AC-1: read em_state via ReadEmStateNode, not inline service code.
         try:
-            em_before = read_case_em_state(
+            read_case_em_state(
                 self.datalayer, self._case_id(), self._result_out
             )
         except BtNodePreconditionError as exc:
@@ -186,7 +183,7 @@ class _EmbargoLifecycleNode(DataLayerActionWithPorts):
 
         lifecycle = EmbargoLifecycle(persistence=self.datalayer)
         try:
-            result = self._transition(lifecycle, self.actor_id, em_before)
+            result = self._transition(lifecycle, self.actor_id)
         except VultronError as exc:
             self._result_out["error"] = exc
             self.feedback_message = str(exc)
@@ -230,7 +227,6 @@ class ProposeEmbargoLifecycleNode(_EmbargoLifecycleNode):
         self,
         lifecycle: EmbargoLifecycle,
         actor_id: str,
-        em_before: EM,
     ) -> EmbargoLifecycleResult:
         return lifecycle.propose_embargo(
             case_id=self._case_id_value,
@@ -241,7 +237,6 @@ class ProposeEmbargoLifecycleNode(_EmbargoLifecycleNode):
                 else actor_id
             ),
             transition_mode=TransitionMode.STRICT,
-            em_before=em_before,
         )
 
 
@@ -266,14 +261,12 @@ class AcceptEmbargoLifecycleNode(_EmbargoLifecycleNode):
         self,
         lifecycle: EmbargoLifecycle,
         actor_id: str,
-        em_before: EM,
     ) -> EmbargoLifecycleResult:
         return lifecycle.accept_embargo_invite(
             case_id=self._case_id_value,
             embargo_id=self._embargo_id,
             actor_id=actor_id,
             transition_mode=TransitionMode.STRICT,
-            em_before=em_before,
         )
 
 
@@ -298,19 +291,17 @@ class RejectEmbargoLifecycleNode(_EmbargoLifecycleNode):
         self,
         lifecycle: EmbargoLifecycle,
         actor_id: str,
-        em_before: EM,
     ) -> EmbargoLifecycleResult:
         return lifecycle.reject_embargo_invite(
             case_id=self._case_id_value,
             embargo_id=self._embargo_id,
             actor_id=actor_id,
             transition_mode=TransitionMode.STRICT,
-            em_before=em_before,
         )
 
 
 class TerminateEmbargoLifecycleNode(_EmbargoLifecycleNode):
-    """Apply STRICT terminate-active-embargo transition.
+    """Apply STRICT terminate-active-embargo transition, for *reason*.
 
     AC-3: terminate semantics require an active embargo; the upstream
     ``HasActiveEmbargoNode`` guard in ``terminate_embargo_bt`` enforces that
@@ -321,10 +312,12 @@ class TerminateEmbargoLifecycleNode(_EmbargoLifecycleNode):
         self,
         case_id: str,
         result_out: dict[str, object],
+        reason: TerminationReason,
         name: str | None = None,
     ) -> None:
         super().__init__(result_out=result_out, name=name)
         self._case_id_value = case_id
+        self._reason = reason
 
     def _case_id(self) -> str:
         return self._case_id_value
@@ -333,13 +326,12 @@ class TerminateEmbargoLifecycleNode(_EmbargoLifecycleNode):
         self,
         lifecycle: EmbargoLifecycle,
         actor_id: str,
-        em_before: EM,
     ) -> EmbargoLifecycleResult:
         return lifecycle.terminate_active_embargo(
             case_id=self._case_id_value,
+            reason=self._reason,
             actor_id=actor_id,
             transition_mode=TransitionMode.STRICT,
-            em_before=em_before,
         )
 
 
@@ -386,9 +378,9 @@ class ReadEmbargoIdNode(DataLayerActionWithPorts):
 class SetEmbargoActiveNode(DataLayerActionWithPorts):
     """Set embargo active on case and transition EM → ACTIVE.
 
-    Routes EM activation through ``EmbargoLifecycle.activate_embargo()``
-    in STRICT mode (EMB-18-001).  Returns FAILURE for non-standard EM
-    transitions (EMB-18-002): valid source states are PROPOSED and REVISE.
+    Routes the activation through ``EmbargoLifecycle.activate_embargo()``
+    (EMB-18-001).  Returns FAILURE when the register refuses it
+    (EMB-18-002): in STRICT mode the embargo must be an open proposal.
     """
 
     def __init__(
@@ -409,16 +401,13 @@ class SetEmbargoActiveNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
 
         # Idempotency check: avoid calling EmbargoLifecycle when the embargo
-        # is already active (ACTIVE + matching id is not a valid ACCEPT source).
+        # is already the register's ACTIVE entry (not a valid ACTIVATE source).
         case, failure = self._require_case(self.case_id)
         if failure is not None:
             return failure  # Regime 1 (ADR-0087)
 
         current_embargo_id = _as_id(case.active_embargo)
-        if (
-            current_embargo_id == self.embargo_id
-            and case.current_status.em.state == EM.ACTIVE
-        ):
+        if current_embargo_id == self.embargo_id:
             self.feedback_message = (
                 f"Case '{self.case_id}' already has embargo"
                 f" '{self.embargo_id}' active — idempotent no-op"

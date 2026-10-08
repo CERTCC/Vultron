@@ -26,13 +26,13 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
     seed_case_owner_participant,
 )
+from test.support.embargo_register import activate
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import HandlerDisposition
-from vultron.core.states.em import EM
 from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
     AddEmbargoEventToCaseReceivedUseCase,
@@ -194,8 +194,7 @@ class TestFailedTeardownIsRefused:
             context=case.id_,
             end_time=days_from_now_utc(45),
         )
-        case.active_embargo = embargo.id_
-        case.append_case_status(em_state=EM.ACTIVE)
+        activate(case, embargo.id_)
         seed_case_manager_participant(dl, case, _COORD)
         seed_case_owner_participant(dl, case, _VENDOR)
         dl.create(case)

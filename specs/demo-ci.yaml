@@ -813,12 +813,15 @@ groups:
         verification_debt: '#2573'
         statement: >-
           The minimum PR validation scenario set is `fv`, `fvcv-handoff`,
-          `fcvcv`, and `fcv-reject`. Together these scenarios cover all
+          `fcvcv`, `fcv-reject`, `rcv-embargo`, and `rcvv-embargo`. Together these scenarios
+          cover all
           distinct protocol event types exercised by the full scenario suite:
           the universal types (DEMOMA-16-001) plus `invite_actor_to_case`,
           `offer_case_participant`, `accept_invite_actor_to_case`,
           `accept_actor_recommendation`, `accept_case_ownership_transfer`,
-          and `reject_invite_actor_to_case`.
+          `reject_invite_actor_to_case`, `invite_to_embargo_on_case`,
+          `accept_invite_to_embargo_on_case`, and
+          `remove_embargo_event_from_case`.
           The `demo-integration.yml` workflow MUST use this scenario set as
           the `pull_request` matrix and run only these scenarios on every PR
           commit.
@@ -848,7 +851,7 @@ groups:
           The `demo-integration.yml` workflow MUST include a `push: branches:
           ["main"]` trigger that runs all scenarios (`fv`, `fvv`,
           `fvcv-extension`, `fvcv-handoff`, `fccv-extension`, `fccv-handoff`,
-          `fcvcv`, `fcv`, `fcv-reject`).
+          `fcvcv`, `fcv`, `fcv-reject`, `rcv-embargo`, `rcvv-embargo`).
         rationale: >-
           The post-merge run is the safety net for cross-PR regressions; it
           must cover all scenarios to ensure no scenario silently degrades after

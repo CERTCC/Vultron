@@ -17,14 +17,15 @@ from datetime import UTC, datetime
 
 import pytest
 
+from test.support.embargo_register import activate, terminate
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import (
     FinderParticipant,
-    VendorParticipant,
 )
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.registry import CORE_VOCABULARY
+from vultron.core.states.em import EM
 from vultron.errors import VultronValidationError
 
 _ACTOR = "https://example.org/actor"
@@ -232,49 +233,24 @@ class TestVulnerabilityCaseAddParticipant:
             case.add_participant(participant)
 
 
-class TestVulnerabilityCaseRemoveParticipant:
-    """remove_participant removes from list and index."""
+class TestVulnerabilityCaseActiveEmbargoView:
+    """active_embargo is a view of the register's ACTIVE entry (ADR-0122)."""
 
-    def test_remove_participant_clears_from_list(
+    def test_activation_makes_the_embargo_active(
         self, case: VulnerabilityCase
     ):
-        p = VendorParticipant(
-            id_="urn:uuid:part-1",
-            attributed_to="https://example.org/vendor",
-        )
-        case.add_participant(p)
-        case.remove_participant("urn:uuid:part-1")
-        assert p.id_ not in case.case_participants
-
-    def test_remove_participant_clears_from_index(
-        self, case: VulnerabilityCase
-    ):
-        p = VendorParticipant(
-            id_="urn:uuid:part-1",
-            attributed_to="https://example.org/vendor",
-        )
-        case.add_participant(p)
-        case.remove_participant("urn:uuid:part-1")
-        assert "https://example.org/vendor" not in case.actor_participant_index
-
-    def test_remove_nonexistent_participant_is_noop(
-        self, case: VulnerabilityCase
-    ):
-        case.remove_participant("urn:uuid:no-such")
-        assert case.case_participants == []
-
-
-class TestVulnerabilityCaseSetEmbargo:
-    """set_embargo updates active_embargo field."""
-
-    def test_set_embargo_stores_id(self, case: VulnerabilityCase):
-        case.set_embargo("urn:uuid:embargo-1")
+        activate(case, "urn:uuid:embargo-1")
         assert case.active_embargo == "urn:uuid:embargo-1"
+        assert case.active_embargo_id == "urn:uuid:embargo-1"
+        assert case.em_state == EM.ACTIVE
 
-    def test_set_embargo_clears_with_none(self, case: VulnerabilityCase):
-        case.set_embargo("urn:uuid:embargo-1")
-        case.set_embargo(None)
+    def test_termination_leaves_no_active_embargo(
+        self, case: VulnerabilityCase
+    ):
+        activate(case, "urn:uuid:embargo-1")
+        terminate(case)
         assert case.active_embargo is None
+        assert case.em_state == EM.EXITED
 
 
 class TestVulnerabilityCaseRecordActivity:
@@ -388,5 +364,10 @@ class TestVulnerabilityCaseWireRoundTrip:
             id_="urn:uuid:vc-rt",
             attributed_to="https://example.org/actor",
         )
-        core_case.set_embargo("urn:uuid:embargo-1")
+        activate(core_case, "urn:uuid:embargo-1")
         assert core_case.active_embargo == "urn:uuid:embargo-1"
+        restored = VulnerabilityCase.model_validate(
+            core_case.model_dump(by_alias=True)
+        )
+        assert restored.active_embargo_id == "urn:uuid:embargo-1"
+        assert restored.em_state == EM.ACTIVE

@@ -56,6 +56,7 @@ from test.core.use_cases.received.test_reject_sync import (
     _make_entry,
     _make_reject_event,
 )
+from test.support.embargo_register import activate, propose
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -77,6 +78,7 @@ from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import EmbargoConsentState
 from vultron.core.use_cases.received.actor.invite import (
     AcceptInviteActorToCaseReceivedUseCase,
+    RejectInviteActorToCaseReceivedUseCase,
 )
 from vultron.core.use_cases.received.actor.offer_case_participant import (
     AcceptOfferCaseParticipantReceivedUseCase,
@@ -124,6 +126,7 @@ from vultron.wire.as2.factories import (
     remove_embargo_from_case_activity,
     rm_accept_invite_to_case_activity,
     rm_invite_to_case_activity,
+    rm_reject_invite_to_case_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
@@ -223,11 +226,6 @@ def test_ownership_accept_from_non_transferee_is_refused(
     assert cm_store.outbox_list() == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="CM-11-017: Accept of an Invite never recorded admits the sender. Tracked by #4071.",
-)
 @pytest.mark.spec("CM-11-017")
 def test_accept_of_unrecorded_invite_is_refused(
     cm_store, owned_case, make_payload
@@ -258,11 +256,6 @@ def test_accept_of_unrecorded_invite_is_refused(
     assert cm_store.outbox_list() == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="CM-11-017: roles are taken from the Invite embedded in the reply. Tracked by #4071.",
-)
 @pytest.mark.spec("CM-11-017")
 def test_accept_of_invite_takes_roles_from_recorded_invite(
     cm_store, owned_case, make_payload
@@ -276,7 +269,8 @@ def test_accept_of_invite_takes_roles_from_recorded_invite(
             as_Actor(id_=invitee_id),
             target=as_VulnerabilityCaseStub(case_id=owned_case.id_),
             roles=[CVDRole.VENDOR],
-            actor=_OWNER_ID,
+            to=[invitee_id],
+            actor=_CASE_MANAGER_ID,
             id_=invite_id,
         )
     )
@@ -302,6 +296,165 @@ def test_accept_of_invite_takes_roles_from_recorded_invite(
     participant = cm_store.read(case.actor_participant_index[invitee_id])
     assert isinstance(participant, CaseParticipant)
     assert CVDRole.CASE_OWNER not in participant.case_roles
+
+
+_INVITEE_ID = "https://example.org/actors/invitee"
+
+
+def _record_stub_invite(cm_store, case, invitee_id=_INVITEE_ID, suffix="rec"):
+    """The stub Invite the CASE_MANAGER sent and recorded, addressed to the invitee."""
+    invite = rm_invite_to_case_activity(
+        as_Actor(id_=invitee_id),
+        target=as_VulnerabilityCaseStub(case_id=case.id_),
+        roles=[CVDRole.VENDOR],
+        to=[invitee_id],
+        actor=_CASE_MANAGER_ID,
+        id_=f"{case.id_}/invitations/{suffix}",
+    )
+    cm_store.create(invite)
+    return invite
+
+
+@pytest.mark.spec("CM-11-017")
+@pytest.mark.spec("HP-01-006")
+@pytest.mark.parametrize("sender", [_IMPOSTOR_ID, _OWNER_ID])
+def test_accept_from_a_sender_that_is_not_the_recorded_invitee_is_refused(
+    cm_store, owned_case, make_payload, sender
+):
+    """A third party echoes the real Invite; nobody is admitted."""
+    cm_store.create(owned_case)
+    invite = _record_stub_invite(cm_store, owned_case)
+    event = make_payload(
+        rm_accept_invite_to_case_activity(invite, actor=sender)
+    )
+    entries_before = len(cm_store.list_objects("CaseLedgerEntry"))
+
+    result = AcceptInviteActorToCaseReceivedUseCase(
+        cm_store,
+        event,
+        sync_port=MagicMock(),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute()
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    case = _reload_case(cm_store, owned_case.id_)
+    assert sender not in case.actor_participant_index
+    assert _INVITEE_ID not in case.actor_participant_index
+    assert cm_store.outbox_list() == []
+    assert len(cm_store.list_objects("CaseLedgerEntry")) == entries_before
+
+
+@pytest.mark.spec("CM-11-017")
+@pytest.mark.spec("HP-01-006")
+def test_accept_of_an_invite_recorded_for_another_case_is_refused(
+    cm_store, owned_case, make_payload
+):
+    """The invitee cannot carry a recorded Invite's roles into another case."""
+    cm_store.create(owned_case)
+    other_case_id = "https://example.org/cases/another-case"
+    other_invite = rm_invite_to_case_activity(
+        as_Actor(id_=_INVITEE_ID),
+        target=as_VulnerabilityCaseStub(case_id=other_case_id),
+        roles=[CVDRole.VENDOR],
+        to=[_INVITEE_ID],
+        actor=_CASE_MANAGER_ID,
+        id_=f"{other_case_id}/invitations/rec",
+    )
+    cm_store.create(other_invite)
+    forged = rm_invite_to_case_activity(
+        as_Actor(id_=_INVITEE_ID),
+        target=as_VulnerabilityCaseStub(case_id=owned_case.id_),
+        roles=[CVDRole.VENDOR],
+        to=[_INVITEE_ID],
+        actor=_OWNER_ID,
+        id_=other_invite.id_,
+    )
+    event = make_payload(
+        rm_accept_invite_to_case_activity(forged, actor=_INVITEE_ID)
+    )
+
+    result = AcceptInviteActorToCaseReceivedUseCase(
+        cm_store,
+        event,
+        sync_port=MagicMock(),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute()
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    case = _reload_case(cm_store, owned_case.id_)
+    assert _INVITEE_ID not in case.actor_participant_index
+    assert cm_store.outbox_list() == []
+
+
+@pytest.mark.spec("CM-11-017")
+@pytest.mark.spec("HP-01-006")
+def test_accept_of_an_invite_the_case_manager_did_not_issue_is_refused(
+    cm_store, owned_case, make_payload
+):
+    """A stored Invite the CASE_MANAGER did not send admits no one."""
+    cm_store.create(owned_case)
+    invite = rm_invite_to_case_activity(
+        as_Actor(id_=_IMPOSTOR_ID),
+        target=as_VulnerabilityCaseStub(case_id=owned_case.id_),
+        roles=[CVDRole.VENDOR],
+        to=[_IMPOSTOR_ID],
+        actor=_IMPOSTOR_ID,
+        id_=f"{owned_case.id_}/invitations/self-issued",
+    )
+    cm_store.create(invite)
+    event = make_payload(
+        rm_accept_invite_to_case_activity(invite, actor=_IMPOSTOR_ID)
+    )
+    entries_before = len(cm_store.list_objects("CaseLedgerEntry"))
+
+    result = AcceptInviteActorToCaseReceivedUseCase(
+        cm_store,
+        event,
+        sync_port=MagicMock(),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute()
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    case = _reload_case(cm_store, owned_case.id_)
+    assert _IMPOSTOR_ID not in case.actor_participant_index
+    assert cm_store.outbox_list() == []
+    assert len(cm_store.list_objects("CaseLedgerEntry")) == entries_before
+
+
+@pytest.mark.spec("CM-11-017")
+@pytest.mark.spec("HP-01-006")
+@pytest.mark.parametrize("recorded", [True, False])
+def test_reject_from_a_sender_that_is_not_the_recorded_invitee_is_refused(
+    cm_store, owned_case, make_payload, recorded
+):
+    """The same sender check applies to Reject(Invite(stub))."""
+    cm_store.create(owned_case)
+    if recorded:
+        invite = _record_stub_invite(cm_store, owned_case)
+    else:
+        invite = rm_invite_to_case_activity(
+            as_Actor(id_=_IMPOSTOR_ID),
+            target=as_VulnerabilityCaseStub(case_id=owned_case.id_),
+            roles=[CVDRole.VENDOR],
+            to=[_IMPOSTOR_ID],
+            actor=_OWNER_ID,
+            id_=f"{owned_case.id_}/invitations/forged",
+        )
+    event = make_payload(
+        rm_reject_invite_to_case_activity(invite, actor=_IMPOSTOR_ID)
+    )
+
+    result = RejectInviteActorToCaseReceivedUseCase(
+        cm_store,
+        event,
+        sync_port=MagicMock(),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute()
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    case = _reload_case(cm_store, owned_case.id_)
+    assert _IMPOSTOR_ID not in case.actor_participant_index
+    assert cm_store.outbox_list() == []
 
 
 @pytest.mark.spec("CM-16-019")
@@ -693,11 +846,13 @@ def _embargo_case(
     seed_case_owner_participant(cm_store, case, _OWNER_ID)
     seed_case_participant(cm_store, case, _BYSTANDER_ID, [CVDRole.VENDOR])
     seed_case_participant(cm_store, case, _INVITEE_ID, [CVDRole.VENDOR])
-    case.append_case_status(em_state=em_state)
+    # The register derives *em_state*: the embargo in force when *active*,
+    # an open proposal at PROPOSED, and no entry at all at NONE.
     if active:
-        case.active_embargo = embargo.id_
-    else:
-        case.proposed_embargoes.append(embargo.id_)
+        activate(case, embargo.id_)
+    elif em_state == EM.PROPOSED:
+        propose(case, embargo.id_)
+    assert case.em_state == em_state
     cm_store.create(case)
     cm_store.create(embargo)
     return embargo

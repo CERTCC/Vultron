@@ -24,6 +24,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
     seed_store_owner_as_case_manager,
 )
+from test.support.embargo_register import activate, propose, terminate
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -135,8 +136,13 @@ def _make_active_embargo_case(
     embargo_id: str,
     invitee_consent: EmbargoConsentState | None = EmbargoConsentState.INVITED,
     invitee_deadline: datetime | None = None,
+    *,
+    em_active: bool = True,
 ):
     """Create and persist a case with an active embargo and one invitee participant.
+
+    With ``em_active=False`` the embargo record is stored but the case's
+    register holds no entry for it (EM NONE).
 
     ``_COORD`` holds the CASE_MANAGER role in every store, since the role is
     never unfilled (CM-24-006) and only its holder evaluates lapse (CM-28-014).
@@ -148,11 +154,11 @@ def _make_active_embargo_case(
         name="Expiry Test Case",
         attributed_to=_COORD,
     )
-    case.append_case_status(em_state=EM.ACTIVE)
     embargo = as_EmbargoEvent(
         id_=embargo_id, context=case_id, end_time=days_from_now_utc(45)
     )
-    case.set_embargo(embargo_id)
+    if em_active:
+        activate(case, embargo_id)
 
     invitee_cp = WireCP(
         attributed_to=_INVITEE,
@@ -354,10 +360,10 @@ class TestInviteReceiptStoresNoDeadline:
         case = VulnerabilityCase(
             id_=case_id, name="Store Deadline", attributed_to=_COORD
         )
-        case.append_case_status(em_state=EM.PROPOSED)
         embargo = as_EmbargoEvent(
             id_=embargo_id, context=case_id, end_time=days_from_now_utc(45)
         )
+        propose(case, embargo_id)
 
         invitee_cp = WireCP(
             attributed_to=_INVITEE,
@@ -441,22 +447,19 @@ class TestInviteeIsTheAddressee:
 
         ``embargo_is`` places the embargo on the case: ``"proposed"`` (EM
         PROPOSED, an open proposal), ``"active"`` (EM ACTIVE, the embargo
-        in force) or ``"unknown"`` (EM PROPOSED, the case has never seen
+        in force) or ``"unknown"`` (EM NONE, the case has never seen
         it).  ``invitee_accepted`` seeds ACCEPTED rows for the invitee.
         """
         case = VulnerabilityCase(
             id_=case_id, name="Addressee Test", attributed_to=_COORD
         )
-        case.append_case_status(
-            em_state=EM.ACTIVE if embargo_is == "active" else EM.PROPOSED
-        )
         embargo = as_EmbargoEvent(
             id_=embargo_id, context=case_id, end_time=days_from_now_utc(45)
         )
         if embargo_is == "active":
-            case.set_embargo(embargo_id)
+            activate(case, embargo_id)
         elif embargo_is == "proposed":
-            case.proposed_embargoes = [embargo_id]
+            propose(case, embargo_id)
 
         coord_cp = WireCP(
             attributed_to=_COORD,
@@ -1021,7 +1024,7 @@ class TestInviteeIsTheAddressee:
         )
         dl.create(revision)
         case_obj = cast(VulnerabilityCase, dl.read(case_id))
-        case_obj.proposed_embargoes = [revision.id_]
+        propose(case_obj, revision.id_)
         dl.save(case_obj)
         invitee = self._read_participant(dl, invitee_p_id)
         invitee.apply_pec_transition(revision.id_, PEC_Trigger.ACCEPT)
@@ -1056,7 +1059,7 @@ class TestInviteeIsTheAddressee:
         )
         # A participant's Reject is consent, not a decision (EP-08-003).
         case_after = cast(VulnerabilityCase, dl.read(case_id))
-        assert case_after.proposed_embargoes == [revision.id_]
+        assert case_after.proposed_embargo_ids == [revision.id_]
 
     @pytest.mark.spec("MSM-07-004")
     def test_owner_reject_of_a_revision_changes_no_record_on_receipt(
@@ -1088,8 +1091,7 @@ class TestInviteeIsTheAddressee:
         dl.create(revision)
         case_obj = cast(VulnerabilityCase, dl.read(case_id))
         # An open revision of the active embargo puts the case in REVISE.
-        case_obj.append_case_status(em_state=EM.REVISE)
-        case_obj.proposed_embargoes = [revision.id_]
+        propose(case_obj, revision.id_)
         case_obj.pending_embargo_proposal_index = {
             revision.id_: f"{case_id}/proposals/revision"
         }
@@ -1132,7 +1134,7 @@ class TestInviteeIsTheAddressee:
             )
         ]
         case_after = cast(VulnerabilityCase, dl.read(case_id))
-        assert case_after.proposed_embargoes == []
+        assert case_after.proposed_embargo_ids == []
         assert case_after.pending_embargo_proposal_index == {}
         assert case_after.active_embargo_id == active_id
         # EJ: the owner keeps the prior terms (MSM-07-004).
@@ -1436,14 +1438,13 @@ class TestAcceptWhenTheReplacedEmbargoIsUnreadable:
         case = VulnerabilityCase(
             id_=case_id, name="Replica gap", attributed_to=_COORD
         )
-        case.append_case_status(em_state=EM.REVISE)
-        case.set_embargo(missing_id)
+        activate(case, missing_id)
         revision = as_EmbargoEvent(
             id_=f"{case_id}/embargos/e2",
             context=case_id,
             end_time=days_from_now_utc(90),
         )
-        case.proposed_embargoes = [revision.id_]
+        propose(case, revision.id_)
         coord_cp = WireCP(
             attributed_to=_COORD,
             context=case_id,
@@ -1488,7 +1489,7 @@ class TestAcceptWhenTheReplacedEmbargoIsUnreadable:
         fresh = cast(CoreCase, dl.read(case_id))
         assert fresh.current_status.em.state == EM.REVISE
         assert fresh.active_embargo_id == missing_id
-        assert fresh.proposed_embargoes == [revision.id_]
+        assert fresh.proposed_embargo_ids == [revision.id_]
 
 
 class TestAssessAndRecordInviteExpiry:
@@ -1977,8 +1978,7 @@ class TestLateAcceptHandling:
             invitee_deadline=_PAST,
         )
         # Simulate EM EXITED (embargo terminated)
-        case.append_case_status(em_state=EM.EXITED)
-        case.set_embargo(None)
+        terminate(case)
         dl.save(case)
 
         proposal = em_propose_embargo_activity(
@@ -2035,10 +2035,9 @@ class TestLateAcceptHandling:
             embargo_id,
             invitee_consent=EmbargoConsentState.INVITED,
             invitee_deadline=_PAST,
+            em_active=False,
         )
-        case.append_case_status(em_state=EM.NONE)
-        case.set_embargo(None)
-        dl.save(case)
+        assert case.em_state == EM.NONE
 
         proposal = em_propose_embargo_activity(
             embargo=embargo,
@@ -2093,8 +2092,15 @@ class TestLateAcceptHandling:
             invitee_consent=EmbargoConsentState.INVITED,
             invitee_deadline=_PAST,
         )
-        # Transition EM to REVISE while keeping the same active embargo
-        case.append_case_status(em_state=EM.REVISE)
+        # An open revision puts EM in REVISE; the same embargo stays active.
+        revision = as_EmbargoEvent(
+            id_=f"{case_id}/embargos/e2",
+            context=case_id,
+            end_time=days_from_now_utc(90),
+        )
+        dl.create(revision)
+        propose(case, revision.id_)
+        assert case.em_state == EM.REVISE
         dl.save(case)
 
         proposal = em_propose_embargo_activity(
@@ -2133,10 +2139,10 @@ class TestLateAcceptHandling:
         case = VulnerabilityCase(
             id_=case_id, name="Normal Accept", attributed_to=_COORD
         )
-        case.append_case_status(em_state=EM.PROPOSED)
         embargo = as_EmbargoEvent(
             id_=embargo_id, context=case_id, end_time=days_from_now_utc(45)
         )
+        propose(case, embargo_id)
 
         invitee_cp = WireCP(
             attributed_to=_INVITEE,
@@ -2188,10 +2194,10 @@ class TestLateAcceptHandling:
         case = VulnerabilityCase(
             id_=case_id, name="No Deadline Accept", attributed_to=_COORD
         )
-        case.append_case_status(em_state=EM.PROPOSED)
         embargo = as_EmbargoEvent(
             id_=embargo_id, context=case_id, end_time=days_from_now_utc(45)
         )
+        propose(case, embargo_id)
 
         invitee_cp = WireCP(
             attributed_to=_INVITEE,
@@ -2494,8 +2500,7 @@ class TestLapseIsDerived:
         case = VulnerabilityCase(
             id_=case_id, name="Derived lapse", attributed_to=_COORD
         )
-        case.append_case_status(em_state=EM.ACTIVE)
-        case.set_embargo(active_id)
+        activate(case, active_id)
         signatory = WireCP(
             attributed_to=_INVITEE,
             context=case_id,
@@ -2522,7 +2527,7 @@ class TestLapseIsDerived:
         assert case.is_active_participant(participant)
 
         # B is activated; nothing is written for the silent signatory.
-        case.set_embargo(b_id)
+        activate(case, b_id)
         before = list(participant.embargo_consents)
 
         assert participant.embargo_consents == before
@@ -2541,7 +2546,7 @@ class TestLapseIsDerived:
         a_id = "https://example.org/cases/derived-lapse/embargos/a"
         b_id = "https://example.org/cases/derived-lapse/embargos/b"
         case, participant_id = self._case_with_signatory(dl, a_id, a_id)
-        case.set_embargo(b_id)
+        activate(case, b_id)
         dl.save(case)
 
         change = EmbargoLifecycle(persistence=dl).record_embargo_invite(
@@ -2574,7 +2579,7 @@ class TestLapseIsDerived:
         a_id = "https://example.org/cases/derived-lapse/embargos/a"
         b_id = "https://example.org/cases/derived-lapse/embargos/b"
         case, participant_id = self._case_with_signatory(dl, a_id, a_id)
-        case.set_embargo(b_id)
+        activate(case, b_id)
         participant = cast(CaseParticipant, dl.read(participant_id))
         participant.apply_pec_transition(b_id, PEC_Trigger.DECLINE)
 
@@ -2609,13 +2614,31 @@ class TestOwnerAnswerToRelayedInvite:
         case = VulnerabilityCase(
             id_=case_id, name="Owner Answer", attributed_to=_COORD
         )
-        case.append_case_status(em_state=em_state)
         embargo = as_EmbargoEvent(
             id_=f"{case_id}/embargos/e1",
             context=case_id,
             end_time=days_from_now_utc(proposal_days),
         )
         dl.create(embargo)
+        # ACTIVE: a prior embargo is in force, so e1 is a revision.  REVISE:
+        # another revision of it is already open as well.
+        if em_state in (EM.ACTIVE, EM.REVISE):
+            prior = as_EmbargoEvent(
+                id_=f"{case_id}/embargos/e0",
+                context=case_id,
+                end_time=days_from_now_utc(30),
+            )
+            dl.create(prior)
+            activate(case, prior.id_)
+        if em_state == EM.REVISE:
+            other = as_EmbargoEvent(
+                id_=f"{case_id}/embargos/e-other",
+                context=case_id,
+                end_time=days_from_now_utc(20),
+            )
+            dl.create(other)
+            propose(case, other.id_)
+        assert case.em_state == em_state
         coord_cp = WireCP(
             attributed_to=_COORD,
             context=case_id,

@@ -28,6 +28,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.embargo_register import register
 from vultron.core.behaviors.case.nodes import (
     CreateInviteeParticipantNode,
 )
@@ -47,6 +48,8 @@ from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
 from vultron.enums.roles import CVDRole
+from vultron.wire.as2.factories import rm_invite_to_case_activity
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
 _ACTOR_ID = "https://example.org/actors/invitee"
 _EMBARGO_ID = "https://example.org/embargoes/embargo-001"
@@ -207,18 +210,18 @@ class TestSignEmbargoConsentLeafNode:
 _REVISION_ID = "https://example.org/embargoes/embargo-002"
 
 
-def _case_at(em_state: str, embargo: bool) -> VulnerabilityCase:
-    from vultron.core.models.case_status import CaseStatus
-    from vultron.core.models.dimensions import EmDimension
-    from vultron.core.states.em import EM
+_REGISTERS = {
+    "ACTIVE": lambda: register(active=_EMBARGO_ID),
+    "REVISE": lambda: register(active=_EMBARGO_ID, proposed=[_REVISION_ID]),
+    "NONE": lambda: [],
+}
 
+
+def _case_at(em_state: str) -> VulnerabilityCase:
+    """A case whose embargo register derives *em_state* (ADR-0122)."""
     case_id = "https://example.org/cases/joiner"
     return VulnerabilityCase(
-        id_=case_id,
-        case_statuses=[
-            CaseStatus(context=case_id, em=EmDimension(state=EM[em_state]))
-        ],
-        active_embargo=_EMBARGO_ID if embargo else None,
+        id_=case_id, embargo_register=_REGISTERS[em_state]()
     )
 
 
@@ -238,8 +241,7 @@ def test_joiner_during_revise_signs_the_terms_in_force_not_the_revision(
         MaybeSignEmbargoConsentNode,
     )
 
-    case = _case_at("REVISE", embargo=True)
-    case.proposed_embargoes.append(_REVISION_ID)
+    case = _case_at("REVISE")
     participant = CaseParticipant(
         id_=_ACTOR_ID,
         attributed_to=_ACTOR_ID,
@@ -261,15 +263,15 @@ def test_joiner_during_revise_signs_the_terms_in_force_not_the_revision(
 
 @pytest.mark.spec("CM-10-004")
 @pytest.mark.parametrize(
-    ("em_state", "embargo", "signs"),
+    ("em_state", "signs"),
     [
-        ("ACTIVE", True, True),
-        ("REVISE", True, True),
-        ("NONE", False, False),
+        ("ACTIVE", True),
+        ("REVISE", True),
+        ("NONE", False),
     ],
 )
 def test_joiner_signs_the_embargo_in_force(
-    bt_scenario: BTTestScenario, em_state: str, embargo: bool, signs: bool
+    bt_scenario: BTTestScenario, em_state: str, signs: bool
 ) -> None:
     """A joiner signs the terms in force at ACTIVE *and* during REVISE.
 
@@ -277,7 +279,7 @@ def test_joiner_signs_the_embargo_in_force(
     without a row under an active embargo — inert (CM-10-004), and never asked:
     the revision Invite was relayed before it joined (#4046).
     """
-    case = _case_at(em_state, embargo)
+    case = _case_at(em_state)
     node = _CheckEmbargoActiveStateNode(case_id=case.id_)
 
     result = bt_scenario.run(node, actor_id=_ACTOR_ID, invitee_case=case)
@@ -294,33 +296,56 @@ _CM17_CASE_ACTOR_ID = "https://example.org/actors/case-actor"
 _CM17_INVITE_ID = "https://example.org/activities/invite-cm17"
 
 
+def _recorded_invite(
+    bt_scenario: BTTestScenario,
+    invite_id: str,
+    case_id: str,
+    invitee_id: str,
+    roles: list[CVDRole] | None,
+) -> None:
+    """Record the stub Invite the CASE_MANAGER sent (CM-11-017)."""
+    bt_scenario.seed(
+        rm_invite_to_case_activity(
+            as_Actor(id_=invitee_id),
+            target=case_id,
+            actor=_CM17_CASE_ACTOR_ID,
+            to=[invitee_id],
+            roles=[r.value for r in roles] if roles else None,
+            id_=invite_id,
+        )
+    )
+
+
 @pytest.mark.spec("CM-17-003")
-def test_create_invitee_participant_reads_roles_from_accept_activity_when_invite_absent_from_datalayer(
+@pytest.mark.spec("CM-11-017")
+def test_create_invitee_participant_reads_roles_from_the_recorded_invite(
     bt_scenario: BTTestScenario,
 ) -> None:
-    """CM-17-003: roles come from event.activity.object_.roles, not DataLayer.
+    """CM-11-017: roles come from the recorded Invite, not the reply's copy.
 
-    Reproduces the race condition where the Invite has not yet been stored in
-    the CaseActor's DataLayer when the Accept arrives (ISSUE-2719 Bug 1).
-    Before fix: _read_invite_roles() returned [] because datalayer.read()
-    returned None; the participant was persisted with case_roles=[].
-    After fix: roles are read from event.activity.object_.roles (the Invite
-    embedded in the Accept message), so DataLayer absence does not matter.
+    The Accept embeds a copy of the Invite carrying a forged extra role; the
+    participant takes only the roles of the Invite the CASE_MANAGER recorded.
     """
     case = VulnerabilityCase(
         id_=_CM17_CASE_ID, attributed_to=_CM17_CASE_ACTOR_ID
     )
     bt_scenario.seed(case)
+    _recorded_invite(
+        bt_scenario,
+        _CM17_INVITE_ID,
+        _CM17_CASE_ID,
+        _CM17_INVITEE_ID,
+        [CVDRole.VENDOR],
+    )
 
-    # Build an Accept event whose activity.object_ carries roles.
-    # The Invite is intentionally NOT stored in the DataLayer to simulate
-    # the race condition (cc self-delivery not yet processed).
-    invite_wire = types.SimpleNamespace(roles=["vendor"])
+    forged_copy = types.SimpleNamespace(
+        roles=[CVDRole.VENDOR, CVDRole.CASE_OWNER]
+    )
     accept_activity = VultronActivity(
         id_="https://example.org/activities/accept-cm17",
         type_="Accept",
         actor=_CM17_INVITEE_ID,
-        object_=invite_wire,
+        object_=forged_copy,
     )
     event = AcceptInviteActorToCaseReceivedEvent(
         activity_id="https://example.org/activities/accept-cm17",
@@ -332,11 +357,12 @@ def test_create_invitee_participant_reads_roles_from_accept_activity_when_invite
     node = CreateInviteeParticipantNode(
         case_id=_CM17_CASE_ID,
         invitee_id=_CM17_INVITEE_ID,
+        invite_id=_CM17_INVITE_ID,
     )
 
     result = bt_scenario.run(
         node,
-        actor_id=_CM17_CASE_ACTOR_ID,
+        actor_id=bt_scenario.actor_id,
         activity=event,
         invitee_case=case,
         invitee_already_participant=False,
@@ -348,115 +374,73 @@ def test_create_invitee_participant_reads_roles_from_accept_activity_when_invite
     )
     assert participant is not None
     assert CVDRole.VENDOR in participant.case_roles
+    assert CVDRole.CASE_OWNER not in participant.case_roles
 
 
 @pytest.mark.spec("CM-17-003")
+@pytest.mark.spec("CM-11-017")
 @pytest.mark.spec("CM-11-019")
-def test_read_invite_roles_warns_when_invite_object_missing(
+def test_read_invite_roles_warns_when_no_invite_is_recorded(
     bt_scenario: BTTestScenario,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """#2802 / CM-11-019: WARNING logged and FAILURE returned when object_ is None.
+    """CM-11-017 / CM-11-019: no recorded Invite means no roles, so FAILURE.
 
-    A missing embedded Invite object in the Accept activity is a protocol
-    violation: the node MUST log a WARNING about the missing object_ and then
-    FAIL (per CM-11-019 — never create a participant with empty roles).
+    The node logs a WARNING that it has no recorded Invite to read roles from
+    and fails (never create a participant with empty roles).
     """
     case = VulnerabilityCase(
         id_=_CM17_CASE_ID, attributed_to=_CM17_CASE_ACTOR_ID
     )
     bt_scenario.seed(case)
-
-    accept_activity = VultronActivity(
-        id_="https://example.org/activities/accept-no-obj",
-        type_="Accept",
-        actor=_CM17_INVITEE_ID,
-        object_=None,
-    )
-    event = AcceptInviteActorToCaseReceivedEvent(
-        activity_id="https://example.org/activities/accept-no-obj",
-        actor_id=_CM17_INVITEE_ID,
-        object_=CoreObject(id_=_CM17_INVITE_ID, type_="Invite"),
-        activity=accept_activity,
-    )
     node = CreateInviteeParticipantNode(
         case_id=_CM17_CASE_ID,
         invitee_id=_CM17_INVITEE_ID,
+        invite_id=_CM17_INVITE_ID,
     )
 
     with caplog.at_level(logging.WARNING):
         result = bt_scenario.run(
             node,
-            actor_id=_CM17_CASE_ACTOR_ID,
-            activity=event,
+            actor_id=bt_scenario.actor_id,
             invitee_case=case,
             invitee_already_participant=False,
         )
 
-    # CM-11-019: no roles → FAILURE (never create participant with empty roles)
     assert result.status == Status.FAILURE
     warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
-    assert any(
-        "object_" in r.message and "protocol violation" in r.message
-        for r in warnings
-    ), (
-        f"Expected WARNING about missing object_ / protocol violation, got: {[r.message for r in warnings]}"
+    assert any("no recorded Invite" in r.message for r in warnings), (
+        f"Expected WARNING about the missing recorded Invite, got: {[r.message for r in warnings]}"
     )
 
 
 @pytest.mark.spec("CM-17-003")
 @pytest.mark.spec("CM-11-019")
-def test_read_invite_roles_warns_when_roles_field_absent(
+def test_read_invite_roles_fails_when_recorded_invite_has_no_roles(
     bt_scenario: BTTestScenario,
-    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """#2802 / CM-11-019: WARNING logged and FAILURE returned when roles absent.
-
-    A missing roles field on the embedded Invite is a protocol violation.
-    The node MUST log a WARNING about the missing roles, then FAIL per
-    CM-11-019 (never create a participant with empty roles).
-    """
+    """CM-11-019: a recorded Invite with no roles creates no participant."""
     case = VulnerabilityCase(
         id_=_CM17_CASE_ID, attributed_to=_CM17_CASE_ACTOR_ID
     )
     bt_scenario.seed(case)
-
-    invite_without_roles = types.SimpleNamespace()  # no .roles attribute
-    accept_activity = VultronActivity(
-        id_="https://example.org/activities/accept-no-roles",
-        type_="Accept",
-        actor=_CM17_INVITEE_ID,
-        object_=invite_without_roles,
-    )
-    event = AcceptInviteActorToCaseReceivedEvent(
-        activity_id="https://example.org/activities/accept-no-roles",
-        actor_id=_CM17_INVITEE_ID,
-        object_=CoreObject(id_=_CM17_INVITE_ID, type_="Invite"),
-        activity=accept_activity,
+    _recorded_invite(
+        bt_scenario, _CM17_INVITE_ID, _CM17_CASE_ID, _CM17_INVITEE_ID, None
     )
     node = CreateInviteeParticipantNode(
         case_id=_CM17_CASE_ID,
         invitee_id=_CM17_INVITEE_ID,
+        invite_id=_CM17_INVITE_ID,
     )
 
-    with caplog.at_level(logging.WARNING):
-        result = bt_scenario.run(
-            node,
-            actor_id=_CM17_CASE_ACTOR_ID,
-            activity=event,
-            invitee_case=case,
-            invitee_already_participant=False,
-        )
+    result = bt_scenario.run(
+        node,
+        actor_id=bt_scenario.actor_id,
+        invitee_case=case,
+        invitee_already_participant=False,
+    )
 
-    # CM-11-019: no roles → FAILURE (never create participant with empty roles)
     assert result.status == Status.FAILURE
-    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
-    assert any(
-        "roles" in r.message and "protocol violation" in r.message
-        for r in warnings
-    ), (
-        f"Expected WARNING about missing roles / protocol violation, got: {[r.message for r in warnings]}"
-    )
 
 
 @pytest.mark.spec("CM-17-003")
@@ -476,22 +460,17 @@ def test_read_invite_roles_warns_and_recovers_on_typeerror(
     )
     bt_scenario.seed(case)
 
-    invite_with_integer_roles = types.SimpleNamespace(roles=42)
-    accept_activity = VultronActivity(
-        id_="https://example.org/activities/accept-typeerror",
-        type_="Accept",
-        actor=_CM17_INVITEE_ID,
-        object_=invite_with_integer_roles,
-    )
-    event = AcceptInviteActorToCaseReceivedEvent(
-        activity_id="https://example.org/activities/accept-typeerror",
-        actor_id=_CM17_INVITEE_ID,
-        object_=CoreObject(id_=_CM17_INVITE_ID, type_="Invite"),
-        activity=accept_activity,
+    _recorded_invite(
+        bt_scenario,
+        _CM17_INVITE_ID,
+        _CM17_CASE_ID,
+        _CM17_INVITEE_ID,
+        [CVDRole.VENDOR],
     )
     node = CreateInviteeParticipantNode(
         case_id=_CM17_CASE_ID,
         invitee_id=_CM17_INVITEE_ID,
+        invite_id=_CM17_INVITE_ID,
     )
 
     with patch(
@@ -500,8 +479,7 @@ def test_read_invite_roles_warns_and_recovers_on_typeerror(
     ):
         result = bt_scenario.run(
             node,
-            actor_id=_CM17_CASE_ACTOR_ID,
-            activity=event,
+            actor_id=bt_scenario.actor_id,
             invitee_case=case,
             invitee_already_participant=False,
         )
@@ -541,14 +519,11 @@ def test_invitee_birth_is_construct_attach_then_advance(
     )
     bt_scenario.seed(case)
 
-    # CM-11-019: CreateInviteeParticipantNode requires roles in the invite.
-    # Provide a minimal fake activity so _read_invite_roles() returns ["vendor"].
-    _fake_invite = types.SimpleNamespace(roles=["vendor"])
-    _fake_activity = types.SimpleNamespace(object_=_fake_invite)
-    _fake_event = types.SimpleNamespace(
-        activity=_fake_activity,
-        activity_id="https://example.org/activities/fake-accept-birth",
-        actor_id=invitee_id,
+    # CM-11-019: CreateInviteeParticipantNode requires roles in the invite;
+    # it reads them from the Invite the CASE_MANAGER recorded (CM-11-017).
+    invite_id = f"{case.id_}/invitations/birth"
+    _recorded_invite(
+        bt_scenario, invite_id, case.id_, invitee_id, [CVDRole.VENDOR]
     )
 
     # Steps 1 (construct at RM.START) + 2 (attach and save).
@@ -557,7 +532,7 @@ def test_invitee_birth_is_construct_attach_then_advance(
         memory=True,
         children=[
             CreateInviteeParticipantNode(
-                case_id=case.id_, invitee_id=invitee_id
+                case_id=case.id_, invitee_id=invitee_id, invite_id=invite_id
             ),
             PersistInviteeParticipantNode(
                 case_id=case.id_, invitee_id=invitee_id
@@ -567,7 +542,6 @@ def test_invitee_birth_is_construct_attach_then_advance(
     result = bt_scenario.run(
         create_then_persist,
         actor_id=case_actor_id,
-        activity=_fake_event,
         invitee_case=case,
         invitee_already_participant=False,
     )
@@ -615,14 +589,11 @@ def _seed_case_with_persisted_invitee(
         PersistInviteeParticipantNode,
     )
 
-    # CM-11-019: provide a minimal fake activity with roles so
-    # CreateInviteeParticipantNode can resolve them.
-    _fake_invite = types.SimpleNamespace(roles=["vendor"])
-    _fake_activity = types.SimpleNamespace(object_=_fake_invite)
-    _fake_event = types.SimpleNamespace(
-        activity=_fake_activity,
-        activity_id="https://example.org/activities/fake-accept-seed",
-        actor_id=invitee_id,
+    # CM-11-019: record an Invite with roles so CreateInviteeParticipantNode
+    # can resolve them (CM-11-017).
+    invite_id = f"{case.id_}/invitations/seed"
+    _recorded_invite(
+        bt_scenario, invite_id, case.id_, invitee_id, [CVDRole.VENDOR]
     )
 
     result = bt_scenario.run(
@@ -631,7 +602,9 @@ def _seed_case_with_persisted_invitee(
             memory=True,
             children=[
                 CreateInviteeParticipantNode(
-                    case_id=case.id_, invitee_id=invitee_id
+                    case_id=case.id_,
+                    invitee_id=invitee_id,
+                    invite_id=invite_id,
                 ),
                 PersistInviteeParticipantNode(
                     case_id=case.id_, invitee_id=invitee_id
@@ -639,7 +612,6 @@ def _seed_case_with_persisted_invitee(
             ],
         ),
         actor_id=case_actor_id,
-        activity=_fake_event,
         invitee_case=case,
         invitee_already_participant=False,
     )
@@ -773,6 +745,7 @@ def test_every_accept_invite_effect_is_inside_the_case_manager_gate():
     tree = create_accept_invite_actor_to_case_tree(
         case_id="https://example.org/cases/gate",
         invitee_id="https://example.org/actors/invitee",
+        invite_id="https://example.org/cases/gate/invitations/1",
     )
     gates = [
         n
@@ -833,6 +806,7 @@ def test_case_announce_and_backfill_precede_the_add_participant_fanout():
     tree = create_accept_invite_actor_to_case_tree(
         case_id="https://example.org/cases/order",
         invitee_id="https://example.org/actors/late-joiner",
+        invite_id="https://example.org/cases/order/invitations/1",
     )
     leaves = [
         type(n)

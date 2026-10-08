@@ -25,7 +25,6 @@ from vultron.core.behaviors.case.nodes.participant.common import (
 )
 from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
-    FindParticipantByActorIdNode,
 )
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
@@ -135,7 +134,7 @@ class _CheckParticipantRMStateBase(DataLayerConditionWithPorts):
 
     def __init__(
         self,
-        case_id: str,
+        case_id: str | None,
         actor_id: str,
         name: str | None = None,
     ) -> None:
@@ -195,18 +194,18 @@ class CheckRMStateAccepted(_CheckParticipantRMStateBase):
     _target_rm = RM.ACCEPTED
 
 
-class CheckRMStateDeferred(_CheckParticipantRMStateBase):
-    """Guard: actor RM state is already DEFERRED.
+class CheckParticipantRMState(_CheckParticipantRMStateBase):
+    """Guard: actor RM is already *target_rm*; a restated move is recorded once."""
 
-    Returns ``SUCCESS`` when the actor's latest RM state is ``RM.DEFERRED``.
-    Returns ``FAILURE`` otherwise.
-
-    Used as an idempotency guard in ``create_defer_case_tree`` so that
-    receiving a second ``Ignore(VulnerabilityCase)`` from an already-deferred
-    actor does not append a duplicate ParticipantStatus record.
-    """
-
-    _target_rm = RM.DEFERRED
+    def __init__(
+        self,
+        case_id: str | None,
+        actor_id: str,
+        target_rm: RM,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(case_id=case_id, actor_id=actor_id, name=name)
+        self._target_rm = target_rm
 
 
 class EnsureEmbargoExists(CaseIdInputPortMixin, DataLayerConditionWithPorts):
@@ -381,36 +380,6 @@ class EvaluateCasePriority(DataLayerConditionWithPorts):
             self.case_id,
         )
         return Status.SUCCESS
-
-
-class CheckParticipantExists(FindParticipantByActorIdNode):
-    """
-    Check if actor has a CaseParticipant record in the specified case.
-
-    Returns SUCCESS if the actor's CaseParticipant is found in
-    case.case_participants. Returns FAILURE if the case is not found or
-    the actor has no participant record.
-
-    This is the precondition for engage_case and defer_case BTs: RM state
-    for a case is tracked in CaseParticipant.participant_status, so a
-    participant record must exist before transitioning RM state.
-    """
-
-    def __init__(self, case_id: str, actor_id: str, name: str | None = None):
-        """
-        Initialize CheckParticipantExists node.
-
-        Args:
-            case_id: ID of VulnerabilityCase to check
-            actor_id: ID of Actor to find in case_participants
-            name: Optional custom node name (defaults to class name)
-        """
-        super().__init__(
-            case_id=case_id,
-            target_actor_id=actor_id,
-            participant_key="participant",
-            name=name or self.__class__.__name__,
-        )
 
 
 class CheckReportNotClosed(DataLayerConditionWithPorts):

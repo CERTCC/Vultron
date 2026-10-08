@@ -20,6 +20,7 @@ from typing import cast
 
 import pytest
 
+from test.support.embargo_register import register
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -213,7 +214,7 @@ class TestFullReportFlow:
             name="Flow test case",
             vulnerability_reports=[self.REPORT_ID],
             case_participants=[case_manager, vendor_participant],
-            active_embargo=embargo.id_,
+            embargo_register=register(active=embargo.id_),
             # The index travels on the wire alongside the inline participants
             # (CM-19-003): participants are resolved through it, never by
             # scanning inline snapshots.
@@ -686,6 +687,7 @@ class TestValidateReportReceivedGuardedCommit:
             case_id: str | None = None,
             precondition_guards: list | None = None,
             effect_nodes: list | None = None,
+            **kwargs,
         ):
             commit_tree_calls.append(case_id)
             return original_create(
@@ -693,6 +695,7 @@ class TestValidateReportReceivedGuardedCommit:
                 case_id=case_id,
                 precondition_guards=precondition_guards or [],
                 effect_nodes=effect_nodes or [],
+                **kwargs,
             )
 
         monkeypatch.setattr(

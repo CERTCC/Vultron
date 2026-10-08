@@ -410,8 +410,9 @@ is not an active participant gets `REFUSED` before replication state is
 written, so the replay and pre-seed gates are defence in depth behind it. Without the replay gate, the paused replica's forward-gap
 Reject (SYNC-14-002) would pull the withheld entries straight through.
 
-Only a joined participant the active embargo withholds (not `SIGNATORY` to
-it) is *paused*; `embargo_withheld_participants()` names them, and the
+Only a joined participant that is not active is *paused*: one the active
+embargo withholds (not `SIGNATORY` to it), or one the Case Owner removed
+(CM-31-001, ADR-0116). `inactive_joined_participants()` names them, and the
 collectors publish them as `fanout_withheld`. A participant that has not
 joined is inert whatever the embargo, and gets its case and ledger through
 the join path (ADR-0114), so no pause record is created for it.

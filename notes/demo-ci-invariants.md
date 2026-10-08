@@ -378,6 +378,8 @@ restating the block.
 | FVCV-extension | DEMOMA-16-004 | same | invite_actor_to_case, offer_case_participant, accept_invite_actor_to_case, accept_actor_recommendation |
 | FVCV-handoff | DEMOMA-16-005 | same | invite_actor_to_case, accept_invite_actor_to_case, accept_case_ownership_transfer |
 | FVV | DEMOMA-16-003 | same | invite_actor_to_case, accept_invite_actor_to_case |
+| RCV embargo | DEMOMA-16-016 | same | invite_actor_to_case, accept_invite_actor_to_case, invite_to_embargo_on_case, accept_invite_to_embargo_on_case, remove_embargo_event_from_case |
+| RCVV embargo | DEMOMA-16-017 | same | invite_actor_to_case, accept_invite_actor_to_case, invite_to_embargo_on_case, accept_invite_to_embargo_on_case, remove_embargo_event_from_case |
 
 ### Relationship to scenario-specific test functions
 

@@ -27,12 +27,14 @@ from test.core.use_cases.received.actor.test_case_joining_planned import (  # no
     _ledger_tail,
     _rm_history,
     joining_case,
+    route_received,
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.events.actor import (
     InviteActorToFullCaseReceivedEvent,
 )
 from vultron.core.models.ledger_position import LedgerPosition
+from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.protocol_pair import (
     INVITE_ACTOR_TO_FULL_CASE_REPLY_TYPES,
 )
@@ -326,13 +328,63 @@ def test_a_reply_with_unparseable_content_is_refused_at_the_edge(
         extract_event(reply)
 
 
-@pytest.mark.spec("CM-11-011")
-@pytest.mark.parametrize("second", ["accept", "reject"])
-def test_a_second_reply_is_refused_and_writes_no_ledger_entry(
+@pytest.mark.spec("RSH-06-006")
+@pytest.mark.spec("RSH-08-002")
+@pytest.mark.parametrize(
+    "second,expected_rm,expected_disposition,new_records",
+    [
+        # CONFIRMATION: idempotent, RM stays VALID, nothing new recorded.
+        ("accept", RM.VALID, HandlerDisposition.SKIPPED, 0),
+        # GAP: non-adjacent forward, RM advances.
+        ("reject", RM.CLOSED, HandlerDisposition.APPLIED, 1),
+    ],
+    ids=["confirmation", "gap"],
+)
+def test_confirmation_and_gap_replies_are_accepted(
     joining_case,  # noqa: F811
     second: str,
+    expected_rm: RM,
+    expected_disposition: HandlerDisposition,
+    new_records: int,
 ) -> None:
-    """A duplicate or contradictory reply is refused before any receipt."""
+    """Under the DECLARATION rule a repeat or a gap move is accepted (RSH-06-006).
+
+    A second Accept (VALID→VALID, a confirmation) is idempotent: the receipt is
+    committed, but no new status record is written, so it reads ``SKIPPED``
+    (RSH-08-002).
+    A Reject after Accept (VALID→CLOSED, a gap) is a forward move and is also
+    accepted, and a new status record *is* written.
+    """
+    tail = _ledger_tail(joining_case)[-1]
+    invite = _full_case_invite_at(
+        joining_case, log_index=tail.log_index, entry_hash=tail.entry_hash
+    )
+    first = joining_case.route(
+        _full_case_reply_at("accept", joining_case, invite, position=tail)
+    )
+    assert first.disposition is not HandlerDisposition.REFUSED
+    assert _rm_history(joining_case)[-1] == RM.VALID
+    tail = _ledger_tail(joining_case)[-1]
+    before = len(_ledger_tail(joining_case))
+    records_before = len(_rm_history(joining_case))
+
+    result = joining_case.route(
+        _full_case_reply_at(second, joining_case, invite, position=tail)
+    )
+
+    assert result.disposition is expected_disposition, result.reason
+    assert _rm_history(joining_case)[-1] == expected_rm
+    assert len(_rm_history(joining_case)) == records_before + new_records
+    assert len(_ledger_tail(joining_case)) == before + 1, (
+        "the receipt is committed even for a confirmation or gap"
+    )
+
+
+@pytest.mark.spec("RSH-06-006")
+def test_a_regression_reply_is_refused_before_receipt(
+    joining_case,  # noqa: F811
+) -> None:
+    """A backward move (VALID→INVALID) is refused before any receipt (RSH-06-006)."""
     tail = _ledger_tail(joining_case)[-1]
     invite = _full_case_invite_at(
         joining_case, log_index=tail.log_index, entry_hash=tail.entry_hash
@@ -346,11 +398,12 @@ def test_a_second_reply_is_refused_and_writes_no_ledger_entry(
     before = len(_ledger_tail(joining_case))
 
     result = joining_case.route(
-        _full_case_reply_at(second, joining_case, invite, position=tail)
+        _full_case_reply_at(
+            "tentative_reject", joining_case, invite, position=tail
+        )
     )
 
-    assert result.disposition is HandlerDisposition.REFUSED
-    assert "cannot move" in (result.reason or "")
+    assert result.disposition is HandlerDisposition.REFUSED, result.reason
     assert _rm_history(joining_case)[-1] == RM.VALID
     assert len(_ledger_tail(joining_case)) == before
 
@@ -406,3 +459,132 @@ def test_an_invite_for_another_case_or_invitee_does_not_suppress_the_invite(
     assert (
         joining_case.trigger_activity.invite_actor_to_full_case.call_count == 1
     )
+
+
+_INVITEE_STORE_ID = "https://example.org/actors/vendor-join"
+_IMPOSTOR_ID = "https://example.org/actors/impostor"
+
+
+def _full_case_invite_from(joining, sender: str, suffix: str):
+    """A full-case Invite to the invitee, claiming to come from *sender*."""
+    return rm_invite_to_full_case_activity(
+        as_Organization(id_=joining.invitee_id),
+        joining.case.id_,
+        LedgerPosition(log_index=0, entry_hash=_HASH),
+        id_=f"{joining.case.id_}/invitations/full-{suffix}",
+        actor=sender,
+        to=[joining.invitee_id],
+    )
+
+
+def _receive_as_invitee(dl, joining, invite):
+    return route_received(dl, invite, receiving_actor_id=joining.invitee_id)
+
+
+@pytest.fixture
+def invitee_with_replica(joining_case):  # noqa: F811
+    """The invitee's own store, holding the case replica the Announce seeded."""
+    dl = SqliteDataLayer(
+        "sqlite:///:memory:", actor_id=joining_case.invitee_id
+    )
+    case = joining_case.dl.read(joining_case.case.id_)
+    for participant_id in case.actor_participant_index.values():
+        dl.save(joining_case.dl.read(participant_id))
+    dl.save(case)
+    return dl
+
+
+@pytest.mark.spec("CM-11-010")
+@pytest.mark.spec("HP-01-006")
+def test_a_full_case_invite_from_the_case_manager_is_accepted(
+    joining_case,  # noqa: F811
+    invitee_with_replica,
+) -> None:
+    """The case's CASE_MANAGER is the one sender the invitee accepts."""
+    invite = _full_case_invite_from(
+        joining_case, joining_case.case_actor_id, "cm"
+    )
+
+    result = _receive_as_invitee(invitee_with_replica, joining_case, invite)
+
+    assert result.disposition is not HandlerDisposition.REFUSED
+
+
+@pytest.mark.spec("CM-11-010")
+@pytest.mark.spec("HP-01-006")
+def test_a_full_case_invite_from_another_actor_is_refused_and_writes_nothing(
+    joining_case,  # noqa: F811
+    invitee_with_replica,
+) -> None:
+    """Any sender other than the CASE_MANAGER is refused past intake."""
+    invite = _full_case_invite_from(joining_case, _IMPOSTOR_ID, "forged")
+    case_before = invitee_with_replica.read(joining_case.case.id_)
+    ledger_before = len(invitee_with_replica.list_objects("CaseLedgerEntry"))
+
+    result = _receive_as_invitee(invitee_with_replica, joining_case, invite)
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert (
+        len(invitee_with_replica.list_objects("CaseLedgerEntry"))
+        == ledger_before
+    )
+    assert invitee_with_replica.read(joining_case.case.id_) == case_before
+    assert invitee_with_replica.outbox_list() == []
+
+
+@pytest.fixture
+def invitee_without_replica(joining_case):  # noqa: F811
+    """An invitee store that has the stub Invite's trust anchor but no case yet."""
+    dl = SqliteDataLayer(
+        "sqlite:///:memory:", actor_id=joining_case.invitee_id
+    )
+    dl.save(
+        VultronPendingCaseInbox(
+            case_id=joining_case.case.id_,
+            case_actor_id=joining_case.case_actor_id,
+        )
+    )
+    return dl
+
+
+@pytest.mark.spec("CM-11-010")
+@pytest.mark.spec("PCR-03-004")
+@pytest.mark.spec("HP-01-006")
+def test_before_the_announce_the_recorded_trust_anchor_is_the_case_manager(
+    joining_case,  # noqa: F811
+    invitee_without_replica,
+) -> None:
+    """With no replica yet, the CASE_MANAGER recorded from the stub Invite decides."""
+    accepted = _receive_as_invitee(
+        invitee_without_replica,
+        joining_case,
+        _full_case_invite_from(joining_case, joining_case.case_actor_id, "a"),
+    )
+    refused = _receive_as_invitee(
+        invitee_without_replica,
+        joining_case,
+        _full_case_invite_from(joining_case, _IMPOSTOR_ID, "b"),
+    )
+
+    assert accepted.disposition is not HandlerDisposition.REFUSED
+    assert refused.disposition is HandlerDisposition.REFUSED
+
+
+@pytest.mark.spec("CM-11-010")
+@pytest.mark.spec("PCR-03-004")
+@pytest.mark.spec("HP-01-006")
+def test_with_no_replica_and_no_trust_anchor_a_full_case_invite_is_refused(
+    joining_case,  # noqa: F811
+) -> None:
+    """No CASE_MANAGER known to match the sender: fail closed, never admit."""
+    bare = SqliteDataLayer(
+        "sqlite:///:memory:", actor_id=joining_case.invitee_id
+    )
+
+    result = _receive_as_invitee(
+        bare,
+        joining_case,
+        _full_case_invite_from(joining_case, joining_case.case_actor_id, "c"),
+    )
+
+    assert result.disposition is HandlerDisposition.REFUSED

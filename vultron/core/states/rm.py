@@ -246,6 +246,68 @@ def is_monotonic_rm_forward(source: RM, dest: RM) -> bool:
     return _RM_PROGRESS.get(dest, 0) > _RM_PROGRESS.get(source, 0)
 
 
+class RMDeclaration(StrEnum):
+    """How a received RM declaration relates to the sender's recorded state.
+
+    The classification behind the received-side RM acceptance rule (RSH-06-001
+    to RSH-06-003, RSH-06-006), applied whichever wire activity carried the
+    declaration:
+
+    - ``CONFIRMATION`` — the declared state is the recorded one; a restated
+      move, not an anomaly (RSH-08-002).
+    - ``ADVANCE`` — an edge of the RM transition function.
+    - ``GAP`` — a non-adjacent forward move; accepted, but anomalous
+      (RSH-06-001).
+    - ``REGRESSION`` — anything else: a backward move, a sideways move between
+      states of equal progress, or any move out of ``CLOSED``; refused, and
+      anomalous (RSH-06-002).
+    """
+
+    CONFIRMATION = auto()
+    ADVANCE = auto()
+    GAP = auto()
+    REGRESSION = auto()
+
+
+def classify_rm_declaration(current: RM, declared: RM) -> RMDeclaration:
+    """Classify a received RM declaration against the recorded *current* state.
+
+    Examples::
+
+        classify_rm_declaration(RM.RECEIVED, RM.RECEIVED)  # CONFIRMATION
+        classify_rm_declaration(RM.RECEIVED, RM.VALID)     # ADVANCE
+        classify_rm_declaration(RM.VALID, RM.CLOSED)       # GAP
+        classify_rm_declaration(RM.ACCEPTED, RM.INVALID)   # REGRESSION
+        classify_rm_declaration(RM.CLOSED, RM.RECEIVED)    # REGRESSION
+    """
+    if declared == current:
+        return RMDeclaration.CONFIRMATION
+    if current == RM.CLOSED:
+        return RMDeclaration.REGRESSION
+    if is_valid_rm_transition(current, declared):
+        return RMDeclaration.ADVANCE
+    if is_monotonic_rm_forward(current, declared):
+        return RMDeclaration.GAP
+    return RMDeclaration.REGRESSION
+
+
+class RMRule(StrEnum):
+    """Which RM rule a ``ParticipantStatus`` write is held to.
+
+    - ``TRANSITION`` — an actor moving its own RM, or the bootstrap of a
+      participant record: the declared state must be the current one or an
+      edge of the RM transition function (CSB-16-001).
+    - ``DECLARATION`` — a received-side write recording the state the sender
+      declared about itself (RSH-08-001): the acceptance rule of
+      :func:`classify_rm_declaration`, which also admits a non-adjacent
+      forward move (RSH-06-001, RSH-06-006).  Adjacency-only validation is
+      never the receive-side rule.
+    """
+
+    TRANSITION = auto()
+    DECLARATION = auto()
+
+
 def is_rm_at_least(state: RM, threshold: RM) -> bool:
     """Return True if *state* is at or beyond *threshold* on the RM progress scale.
 
@@ -259,6 +321,20 @@ def is_rm_at_least(state: RM, threshold: RM) -> bool:
         is_rm_at_least(RM.START,    RM.ACCEPTED)  # False
     """
     return _RM_PROGRESS.get(state, 0) >= _RM_PROGRESS.get(threshold, 0)
+
+
+def is_rm_replay_acceptable(local: RM | None, recorded: RM) -> bool:
+    """Return True if a replayed ledger entry may move RM *local* → *recorded*.
+
+    The no-regression ratchet for a replica applying the CASE_MANAGER's ledger
+    (RSH-05-007): the recorded state must not be behind the replica's local one
+    on the RM progress scale.  Same-rank moves (``VALID`` ↔ ``INVALID``,
+    ``DEFERRED`` ↔ ``ACCEPTED``) are re-adjudication and are accepted; with no
+    local state anything is.  ``ApplyParticipantStatusFromLedgerNode`` and
+    ``ApplyRmVerdictFromLedgerNode`` both apply it, so the two replay paths
+    cannot ratchet differently.
+    """
+    return local is None or is_rm_at_least(recorded, local)
 
 
 def is_rm_validated(state: RM) -> bool:

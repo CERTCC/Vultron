@@ -32,6 +32,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.embargo_register import activate, propose, terminate
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.embargo.nodes.relay import (
@@ -66,6 +67,7 @@ PROPOSER = "https://example.org/actors/relay-proposer"
 OTHER_A = "https://example.org/actors/relay-a"
 OTHER_B = "https://example.org/actors/relay-b"
 ACTIVE_ID = f"{CASE_ID}/embargo_events/active"
+OTHER_PROPOSAL_ID = f"{CASE_ID}/embargo_events/other-proposal"
 
 
 def _participant(
@@ -106,7 +108,8 @@ def _seed_case(
 
     *participants* maps an actor to its consent row for the relayed embargo
     (``None`` for no row); *signatories* also hold an ACCEPTED row for the
-    embargo in force, ``ACTIVE_ID``.
+    embargo in force, ``ACTIVE_ID`` (so they need EM ``ACTIVE`` or
+    ``REVISE``).
     """
     roster: dict[str, EmbargoConsentState | None] = {
         MANAGER: None,
@@ -126,18 +129,38 @@ def _seed_case(
             cast(str, p.attributed_to): p.id_ for p in records
         },
     )
-    case.append_case_status(em_state=em_state)
     embargo = as_EmbargoEvent(
         id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now_utc(60)
     )
-    if signatories:
-        active = as_EmbargoEvent(
-            id_=ACTIVE_ID, context=CASE_ID, end_time=days_from_now_utc(30)
-        )
-        case.set_embargo(active.id_)
+    active = as_EmbargoEvent(
+        id_=ACTIVE_ID, context=CASE_ID, end_time=days_from_now_utc(30)
+    )
+    if signatories and em_state not in (EM.ACTIVE, EM.REVISE):
+        raise ValueError("signatories need an embargo in force")
+    _drive_register_to(case, em_state)
+    if case.embargo_register:
         scenario.seed(active)
     scenario.seed(*records, case, embargo)
     return case
+
+
+def _drive_register_to(case: VulnerabilityCase, em_state: EM) -> None:
+    """Step *case*'s register until its derived EM is *em_state* (ADR-0122).
+
+    ``ACTIVE_ID`` is the embargo in force; an open proposal other than the
+    relayed ``EMBARGO_ID`` (``OTHER_PROPOSAL_ID``) makes EM ``PROPOSED`` or,
+    beside an active embargo, ``REVISE``; ``EXITED`` terminates ``ACTIVE_ID``.
+    """
+    if em_state == EM.NONE:
+        return
+    if em_state == EM.PROPOSED:
+        propose(case, OTHER_PROPOSAL_ID)
+        return
+    activate(case, ACTIVE_ID)
+    if em_state == EM.REVISE:
+        propose(case, OTHER_PROPOSAL_ID)
+    elif em_state == EM.EXITED:
+        terminate(case)
 
 
 def _consent(

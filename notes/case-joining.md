@@ -23,12 +23,18 @@ related_notes:
   - notes/participant-role-management.md
   - notes/sync-ledger-replication.md
   - notes/stub-objects.md
+  - notes/wire-core-boundary.md
+  - notes/received-status-authorization.md
 relevant_packages:
   - vultron/core/participants/recipients.py
+  - vultron/core/models/case.py
+  - vultron/core/models/case_participant.py
   - vultron/core/behaviors/case/nodes/invite_participant.py
   - vultron/core/behaviors/case/nodes/invite_ledger_backfill.py
   - vultron/core/behaviors/case/nodes/on_behalf_guards.py
   - vultron/core/behaviors/case/nodes/case_participant_received.py
+  - vultron/core/behaviors/case/case_participant_received_tree.py
+  - vultron/core/behaviors/sync/nodes/participant_removal_effect.py
   - vultron/core/behaviors/case/nodes/accept_invite.py
   - vultron/core/models/case.py
   - vultron/core/states/rm.py
@@ -173,6 +179,27 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
   that is not removed or never joined. The CASE_MANAGER no longer emits `Add`
   after a stub-Invite acceptance; replicas learn of a new member from the
   `Accept(Invite)` entry (CM-31-012).
+- **Where the fact and the check live (#4079).** The fact is
+  `CaseParticipant.removal_activity`: the id of the `Remove` activity, or
+  `None` (`removed` reads it). The one check is
+  `VulnerabilityCase.is_active_participant`, which the shared recipient
+  selection calls. `VulnerabilityCase.active_participants` (`activeParticipants`
+  on the wire) applies it to the participant records the case carries inline,
+  so it is complete on a case as sent. While any roster entry is a bare
+  reference (a stored case), the AS2 dump leaves it out rather than publish a
+  partial view. Persistence never stores it.
+- **Where the removal pipeline lives (#4080).** The received tree is
+  `create_remove_case_participant_received_tree`: a role-scoped sender guard
+  (Case Owner at the manager, CASE_MANAGER at a replica), the three removal
+  guards behind `case_manager_admits_removal_guard`, the guarded commit, then
+  the CASE_MANAGER-gated effect (`RemoveCaseParticipantFromCaseReceivedNode`,
+  via `CaseParticipant.record_removal`) and notice
+  (`EmitParticipantRemovalNoticeNode`, port method
+  `remove_participant_from_case`). Replicas replay the entry through
+  `ApplyRemoveCaseParticipantFromLedgerNode`, which resolves the record by
+  actor through `actor_participant_index`. At a replica the received tree
+  writes nothing: the manager's notice is `SKIPPED`, anyone else's `Remove` is
+  `REFUSED`. Reinstatement (#4081) mirrors each piece.
 - **Catch-up follows the active check.** A participant reinstated into a case
   whose embargo it has not accepted stays inert; it is sent that embargo's
   Invite, and its backfill waits for its consent.
@@ -266,6 +293,12 @@ message is designed: we accept offers and invitations, never bare objects.
   participant) is refused with a reported reason and writes no ledger entry
   (CM-11-012); the check keys on the same `joined` fact as
   `is_active_participant()`, not on embargo consent.
+- **A reply's RM move is judged by the shared declaration rule, not
+  adjacency (RSH-06-006, #4311).** A second or later reply that moves forward,
+  a non-adjacent move included, is recorded; one that moves backward is
+  refused before the receipt is committed; one that restates the recorded
+  state is `SKIPPED`. See
+  [received-status-authorization.md](received-status-authorization.md).
 - **A ledger position travels in AS2 `content`, as the `LedgerPosition`
   model's own JSON dump.** The full-case Invite and each reply carry
   `{"logIndex":3,"entryHash":"..."}` (VAM-04-011..014); `target` stays the

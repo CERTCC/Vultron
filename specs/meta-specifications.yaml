@@ -1029,18 +1029,30 @@ groups:
       An ADR's `status` MUST agree with the lifecycle epoch computed from its `updated` date
       (ADR-0120): `proposed` under 72 hours, `accepted-provisional` from 72 hours to day 10, and
       `accepted` from day 10 on. A human MAY override the computed value with a
-      `status_override:` field whose value is the reason, and `spec-lint` MUST fail an ADR whose
-      status disagrees with its epoch and carries no override.
+      `status_override:` field whose value is the reason. A pull request that materially edits an
+      ADR (its `updated` date changes, or the ADR is new) MUST leave the status on the epoch for
+      that date or carry an override, and a check comparing the pull request against its base MUST
+      fail it otherwise. No merge-blocking check may depend on today's date for an ADR the pull
+      request did not materially edit. A scheduled check MUST report every ADR whose status
+      disagrees with today's epoch through one tracking issue that closes itself when none
+      remain, and MUST NOT fail the build.
     rationale: >-
       An ADR's status is the confidence signal agents read, and an unmaintained status drifts from
       how settled the decision really is. Computing the expected value from `updated` makes the
       drift mechanical to find; the override keeps a human's judgement (for example a merged
       dependent implementation hardening an ADR early) above the clock. Boundaries are counted in
-      whole days (3 and 10) because `updated` is a date.
+      whole days (3 and 10) because `updated` is a date. An ADR crossing a boundary changes no
+      commit, so a merge-blocking check that read today's date would turn `main` and every open
+      pull request red at an arbitrary time (ADR-0110, 2026-10-08); the author of a material edit
+      owns the status on that date, and the clock's drift is reported instead (ARCH-18-004).
     verification: >-
-      `test/metadata/test_adr_lifecycle.py` checks the epoch boundaries and the status comparison,
-      and `test/metadata/specs/test_lint.py` checks that `spec-lint` fails a disagreeing status and
-      accepts an override.
+      `test/metadata/test_adr_lifecycle.py` checks the epoch boundaries, the status comparison, that
+      a material edit and a new ADR must match their epoch or carry an override, that an edit
+      leaving `updated` alone passes, and the drift report. `test/metadata/specs/test_lint.py`
+      checks that `spec-lint` does not fail a status the clock has made stale.
+      `test/ci/test_adr_lifecycle_workflows.py` checks that `adr-lifecycle.yml` runs the edit check
+      against the merge base on pull requests and that `adr-status-drift.yml` reports at least
+      hourly and never fails the build.
     relationships:
     - rel_type: depends_on
       spec_id: MS-14-001
@@ -1079,14 +1091,17 @@ groups:
       A pre-commit check (`adr-lifecycle-check`) MUST fail a diff that changes the Decision Outcome
       or Considered Options section of an epoch-3 ADR without adding a dated Amendment block, and
       MUST fail a diff that bumps `updated` on an ADR that was past epoch 1 unless the ADR carries
-      a `status_override`.
+      a `status_override`. The same check MUST also run on every pull request that changes an ADR,
+      against the merge base, so a skipped local hook cannot bypass it.
     rationale: >-
       ADR-0120 forbids rewriting an accepted ADR under its own number, and the audit that produced
       it found exactly that done by agents. The rule is only as strong as the gate that refuses the
       edit, and a reviewer reading a large diff does not reliably see a changed section. A heading
       that names "Amendment" and a date is the mechanical mark of a dated Amendment block.
     verification: >-
-      `test/metadata/test_adr_lifecycle.py` checks each refused and each permitted edit.
+      `test/metadata/test_adr_lifecycle.py` checks each refused and each permitted edit, and
+      `test/ci/test_adr_lifecycle_workflows.py` checks that the pull-request job runs it against the
+      merge base.
     relationships:
     - rel_type: depends_on
       spec_id: MS-14-007

@@ -29,6 +29,7 @@ from .conftest import (
     _assert_asked_case_manager,
     _build_active_embargo_case,
     _case_with_open_proposal,
+    _open_revision,
     _persist_actor,
 )
 
@@ -40,8 +41,11 @@ def test_non_manager_reject_embargo_asks_the_case_manager(
     """A participant's reject asks the CASE_MANAGER and unwinds nothing."""
     finder, finder_dl = finder_actor_and_dl
     owner = _persist_actor(finder_dl, "Vendor Co")
-    case, proposal, participant_id = _build_active_embargo_case(
+    case, _, participant_id = _build_active_embargo_case(
         finder_dl, owner.id_, finder.id_
+    )
+    proposal, revision_id = _open_revision(
+        finder_dl, case.id_, owner.id_, participant_id
     )
 
     request = RejectEmbargoTriggerRequest(
@@ -67,12 +71,13 @@ def test_non_manager_reject_embargo_asks_the_case_manager(
     assert updated_participant is not None
     updated_case = cast(VulnerabilityCase, updated_case)
     updated_participant = cast(as_CaseParticipant, updated_participant)
-    assert updated_case.current_status.em.state == EM.ACTIVE
+    assert updated_case.current_status.em.state == EM.REVISE
     assert updated_case.active_embargo == case.active_embargo
+    assert updated_case.proposed_embargo_ids == [revision_id]
     # Not the CASE_MANAGER: the refusal is asked for, not recorded here; the
     # replica moves when the manager's commit is announced (EP-09-008).
     assert (
-        updated_participant.consent_for(str(case.active_embargo_id))
+        updated_participant.consent_for(revision_id)
         == EmbargoConsentState.INVITED
     )
     _assert_asked_case_manager(
@@ -110,7 +115,7 @@ def test_manager_reject_embargo_commits_the_decision(
 
     updated = cast(VulnerabilityCase, dl.read(case.id_))
     assert updated.current_status.em.state == EM.NONE
-    assert updated.proposed_embargoes == []
+    assert updated.proposed_embargo_ids == []
     assert (
         MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE.value
         in committed_event_types(dl, case.id_)

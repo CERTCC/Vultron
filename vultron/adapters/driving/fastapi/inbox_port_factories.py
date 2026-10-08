@@ -223,6 +223,10 @@ _TRIGGER_ACTIVITY_PORT_SEMANTICS = frozenset(
         # CLOSE_CASE emits the as:Reject that declines an owner close during a
         # live embargo (CM-23-011).
         MessageSemantics.CLOSE_CASE,
+        # CLOSE_REPORT and INVALIDATE_REPORT post the RSH-06-004
+        # clarification note on a non-adjacent RM jump (RSH-06-006).
+        MessageSemantics.CLOSE_REPORT,
+        MessageSemantics.INVALIDATE_REPORT,
         # ENGAGE_CASE and DEFER_CASE build outbound wire activities such as the
         # Announce(VulnerabilityCase) broadcast.
         MessageSemantics.DEFER_CASE,
@@ -236,6 +240,9 @@ _TRIGGER_ACTIVITY_PORT_SEMANTICS = frozenset(
         # to a peer that has no case yet before replaying entries (SYNC-15-002).
         MessageSemantics.REJECT_CASE_LEDGER_ENTRY,
         MessageSemantics.REJECT_OFFER_CASE_PARTICIPANT,
+        # REMOVE_CASE_PARTICIPANT_FROM_CASE sends the removed participant its
+        # direct Remove(CaseParticipant) notice (CM-31-006).
+        MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE,
         # UPDATE_CASE broadcasts Announce(VulnerabilityCase) to the
         # participants (CM-06-001); the adapter builds and seals it
         # (VM-08-003).

@@ -23,6 +23,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from test.support.embargo_register import register
 from test.support.received import archive_received
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case_status import CaseStatus
@@ -41,6 +42,7 @@ from vultron.demo.helpers.polling import (
     wait_for_case_attributed_to,
     wait_for_case_em_state,
     wait_for_case_participants,
+    wait_for_embargo_proposal_indexed,
     wait_for_ledger_event,
     wait_for_participant_embargo_accepted,
     wait_for_participant_embargo_consent,
@@ -793,18 +795,62 @@ class TestFindEmbargoInviteForActor:
 
 
 def _case_client(em: EM, active_embargo_id: str | None) -> MagicMock:
+    """A client whose case is ACTIVE under *active_embargo_id* (ADR-0122)."""
+    assert em is EM.ACTIVE  # the only state these tests serve
     client = MagicMock()
     client.base_url = "http://vendor:7999"
     client.actor_id = ACTOR_B
     case = as_VulnerabilityCase(
         id_=CASE_ID,
-        active_embargo=active_embargo_id,
-        case_statuses=[CaseStatus(em_state=em, context=CASE_ID)],  # type: ignore[arg-type,call-arg]
+        embargo_register=register(active=active_embargo_id or "urn:embargo"),
+        case_statuses=[CaseStatus(context=CASE_ID)],  # type: ignore[call-arg]
     )
     client.get.return_value = case.model_dump(
         mode="json", by_alias=True, exclude_none=True
     )
     return client
+
+
+def _indexed_client(index: dict[str, str]) -> MagicMock:
+    client = MagicMock()
+    client.base_url = "http://vendor:7999"
+    case = as_VulnerabilityCase(
+        id_=CASE_ID, pending_embargo_proposal_index=index
+    )
+    client.get.return_value = case.model_dump(
+        mode="json", by_alias=True, exclude_none=True
+    )
+    return client
+
+
+class TestWaitForEmbargoProposalIndexed:
+    def test_returns_when_the_index_names_the_invite(self):
+        wait_for_embargo_proposal_indexed(
+            _indexed_client({"urn:embargo": "urn:invite"}),
+            CASE_ID,
+            "urn:embargo",
+            "urn:invite",
+            timeout_seconds=1.0,
+            poll_interval=0.01,
+        )
+
+    @pytest.mark.parametrize(
+        "index",
+        [{}, {"urn:embargo": "urn:proposer-proposal"}],
+        ids=["not-yet-indexed", "indexed-to-another-proposal"],
+    )
+    def test_times_out_when_the_invite_is_not_the_indexed_proposal(
+        self, index
+    ):
+        with pytest.raises(AssertionError, match="index Invite"):
+            wait_for_embargo_proposal_indexed(
+                _indexed_client(index),
+                CASE_ID,
+                "urn:embargo",
+                "urn:invite",
+                timeout_seconds=0.05,
+                poll_interval=0.01,
+            )
 
 
 class TestWaitForCaseEmState:

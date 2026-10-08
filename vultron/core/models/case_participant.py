@@ -102,6 +102,18 @@ class CaseParticipant(CoreObject):
     # those two moments — case initialization or the Accept of the Invite; the
     # record created at Invite time (#4048) sets False explicitly.
     joined: bool = True
+    # The removal fact (CM-31-001, ADR-0116): the id of the ``Remove`` activity
+    # that took this participant out of active participation, or ``None`` when
+    # it is not removed.  Removal keeps the record on the roster; this fact is
+    # the second input to the case-level active check
+    # (``VulnerabilityCase.is_active_participant``), never the answer itself.
+    # The Case Owner's ``Remove(CaseParticipant)`` sets it (#4080) and
+    # its ``Add(CaseParticipant)`` clears it (#4081).  Storing the activity id
+    # rather than a flag keeps the fact replicable from the ledger entry
+    # that records it, and names that entry for the reinstatement backfill
+    # (CM-10-006).  ``NonEmptyString | None`` follows "if present, then
+    # non-empty" (CS-08-002).
+    removal_activity: NonEmptyString | None = None
     participant_case_name: NonEmptyString | None = None
     # Local bookkeeping, not an AS2 property: the deadline by which this actor's
     # own implementation wants an RSVP.  Kept in the stored row and dropped from
@@ -275,6 +287,38 @@ class CaseParticipant(CoreObject):
         """
         self.apply_pec_transition_if_legal(embargo_id, PEC_Trigger.ACCEPT)
         return self.consent_for(embargo_id) == EmbargoConsentState.ACCEPTED
+
+    @property
+    def removed(self) -> bool:
+        """True when this participant carries the removal fact (CM-31-001).
+
+        One input to the case-level active check, not a partial answer to
+        it: a participant that is not removed may still be inert (it has not
+        joined, or is not a signatory to the active embargo).  Use
+        :meth:`VulnerabilityCase.is_active_participant` to decide
+        entitlement (CM-31-002).
+        """
+        return self.removal_activity is not None
+
+    def record_removal(self, removal_activity_id: str) -> bool:
+        """Set the removal fact from the ``Remove`` activity that decided it.
+
+        The one write of :attr:`removal_activity` for a removal (CM-31-001):
+        the CASE_MANAGER calls it for the Case Owner's received
+        ``Remove(CaseParticipant)``, and a replica calls it when it replays
+        that activity's ledger entry (CM-31-007), so both record the same
+        fact.  The record stays on the roster, and its status history and
+        embargo consent rows are untouched (CM-31-008).  A participant that
+        is already removed keeps its first removal: the call is a no-op and
+        returns ``False``.  The caller persists the record.
+
+        Returns:
+            ``True`` when the fact was set, ``False`` when already removed.
+        """
+        if self.removed:
+            return False
+        self.removal_activity = removal_activity_id
+        return True
 
     @property
     def rm_closed(self) -> bool:

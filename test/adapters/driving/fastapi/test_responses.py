@@ -76,7 +76,7 @@ def test_subclass_fields_not_stripped():
         attributed_to="https://example.org/actor",
         vulnerability_reports=[report.id_],
         case_participants=[],
-        proposed_embargoes=[],
+        embargo_register=[],
         case_activity=[],
     )
     response = AS2JSONResponse(case)
@@ -85,7 +85,7 @@ def test_subclass_fields_not_stripped():
     case_specific_fields = [
         "vulnerabilityReports",
         "caseParticipants",
-        "proposedEmbargoes",
+        "embargoRegister",
         "caseActivity",
     ]
     for field in case_specific_fields:
