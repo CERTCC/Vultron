@@ -334,7 +334,7 @@ message is designed: we accept offers and invitations, never bare objects.
 - **A joined participant never answers the original `Offer(VulnerabilityReport)`**
   and never runs `validate-report`/`invalidate-report`/`reject-report` for the
   case's report; it judges the case by answering the full-case Invite
-  (CM-11-018, ADR-0121).
+  (CM-11-020, ADR-0121).
 - **A status update never creates a participant.** An on-behalf assertion whose
   target is not a participant is refused before any write (PRM-06-006).
 - **Removal is not deletion and not a consent state.** Do not drop a removed

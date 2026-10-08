@@ -9,8 +9,7 @@ no prior ``Announce(VulnerabilityCase)`` carrying an embedded report object.
 
 The detectable signal: when ``ApplyOfferReportFromLedgerNode`` processes the
 historical ``add_report_to_case`` ledger entry it MUST store the
-``VulnerabilityReport`` object so that ``SvcValidateReportUseCase`` can find it
-without a 404.
+``VulnerabilityReport`` object so that report lookups on the replica succeed.
 
 The #2180 fix inside ``ApplyOfferReportFromLedgerNode`` (``a5cb0e24``)
 performs exactly this reconstruction from the ledger snapshot.  These tests
@@ -124,8 +123,7 @@ class TestReportReplicatedToPostTransferParticipant:
     A new participant who joined after ownership transfer never received
     ``Announce(VulnerabilityCase)`` carrying an embedded report — the ledger
     snapshot is their only source.  ``ApplyOfferReportFromLedgerNode`` must
-    reconstruct and store the ``VulnerabilityReport`` so that validate-report
-    does not 404.
+    reconstruct and store the ``VulnerabilityReport``.
     """
 
     def test_report_stored_from_add_report_to_case_ledger_entry(
@@ -163,70 +161,22 @@ class TestReportReplicatedToPostTransferParticipant:
         assert stored_report is not None, (
             "VulnerabilityReport MUST be stored by ApplyOfferReportFromLedgerNode "
             "when a post-ownership-transfer participant processes the historical "
-            "add_report_to_case ledger entry — otherwise validate-report 404s "
+            "add_report_to_case ledger entry — otherwise the report is missing "
             "(ISSUE-2193, fixed by #2180 / a5cb0e24)"
         )
         assert isinstance(stored_report, VulnerabilityReport)
         assert stored_report.id_ == REPORT_ID
 
-    def test_offer_record_created_for_post_transfer_participant(
+    def test_no_offer_record_or_report_link_for_post_transfer_participant(
         self, bridge, dl, new_owner_case_actor
     ) -> None:
-        """VultronOfferRecord is created so validate-report can find the offer.
+        """No OfferRecord or report link is created for a joined participant.
 
-        The offer record keyed by VultronOfferRecord.build_id(offer_id) must
-        exist in the new participant's DataLayer after ledger processing.
+        The participant was never sent the reporter's Offer, so it holds no
+        record of it and cannot answer it (CM-11-020, ADR-0121).
         """
         from vultron.core.behaviors.sync.nodes.offer_report_effect import (
             ApplyOfferReportFromLedgerNode,
-        )
-
-        offer_record_id = VultronOfferRecord.build_id(OFFER_ID)
-        assert dl.read(offer_record_id) is None
-
-        entry = _make_add_report_ledger_entry()
-        event = _make_event(entry, actor_id=new_owner_case_actor.id_)
-
-        result = bridge.execute_with_setup(
-            tree=ApplyOfferReportFromLedgerNode(
-                name="ApplyOfferReportFromLedger"
-            ),
-            actor_id=NEW_OWNER_ACTOR_ID,
-            activity=event,
-        )
-
-        assert result.status == Status.SUCCESS
-
-        offer_record = dl.read(offer_record_id)
-        assert offer_record is not None, (
-            "VultronOfferRecord must be created for the post-transfer participant "
-            "when add_report_to_case ledger entry is processed (ISSUE-2193)"
-        )
-        assert isinstance(offer_record, VultronOfferRecord)
-        assert offer_record.offer_id == OFFER_ID
-        assert offer_record.report_id == REPORT_ID
-        assert offer_record.offer_actor_id == REPORTER_ACTOR_ID
-
-    def test_report_case_link_seeded_for_invited_replica(
-        self, bridge, dl, new_owner_case_actor
-    ) -> None:
-        """VultronReportCaseLink is seeded so TransitionRMtoValid can advance rm_state.
-
-        Regression for phase11-demo-ci-invited-participant-validate-0:
-        TransitionRMtoValid returns FAILURE when no VultronReportCaseLink
-        exists for the report, blocking validate-report for invited participants
-        who never received Offer(VulnerabilityReport) directly (BTND-10-006,
-        ADR-0089).  ApplyOfferReportFromLedgerNode must seed the link so that
-        TransitionRMtoValid can complete.
-        """
-        from vultron.core.behaviors.sync.nodes.offer_report_effect import (
-            ApplyOfferReportFromLedgerNode,
-        )
-        from vultron.core.states.rm import RM
-
-        link_id = VultronReportCaseLink.build_id(REPORT_ID)
-        assert dl.read(link_id) is None, (
-            "pre-condition: no link before ledger replay"
         )
 
         entry = _make_add_report_ledger_entry()
@@ -241,19 +191,8 @@ class TestReportReplicatedToPostTransferParticipant:
         )
 
         assert result.status == Status.SUCCESS
-
-        link = dl.read(link_id)
-        assert link is not None, (
-            "VultronReportCaseLink MUST be seeded by ApplyOfferReportFromLedgerNode "
-            "so that TransitionRMtoValid can advance rm_state to RM.VALID when an "
-            "invited participant calls validate-report (BTND-10-006, ADR-0089, "
-            "phase11-demo-ci-invited-participant-validate-0)"
-        )
-        assert isinstance(link, VultronReportCaseLink)
-        assert link.report_id == REPORT_ID
-        assert link.rm_state == RM.RECEIVED, (
-            "Seeded link must start at RM.RECEIVED; ValidateBT advances it to RM.VALID"
-        )
+        assert dl.read(VultronOfferRecord.build_id(OFFER_ID)) is None
+        assert dl.read(VultronReportCaseLink.build_id(REPORT_ID)) is None
 
     def test_idempotent_on_repeated_ledger_replay(
         self, bridge, dl, new_owner_case_actor
@@ -277,5 +216,4 @@ class TestReportReplicatedToPostTransferParticipant:
             assert result.status == Status.SUCCESS
 
         assert dl.read(REPORT_ID) is not None
-        assert dl.read(VultronOfferRecord.build_id(OFFER_ID)) is not None
-        assert dl.read(VultronReportCaseLink.build_id(REPORT_ID)) is not None
+        assert dl.list_objects("OfferRecord") == []

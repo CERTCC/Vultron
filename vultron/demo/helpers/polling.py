@@ -760,23 +760,30 @@ def _received_activity_id(raw_id: str, obj_data: dict) -> str:
     return str(activity_id)
 
 
-def _is_case_invite_for(obj_data: dict, case_id: str, invitee_id: str) -> bool:
+def _is_case_invite_for(
+    obj_data: dict, case_id: str, invitee_id: str, *, full_case: bool = False
+) -> bool:
     """Return True if *obj_data* holds a case Invite for *invitee_id*/*case_id*.
 
     A stub Invite names its case in the stub's ``caseId`` (CM-11-013); the
     stub's own ``id`` is ``<case-id>/stub`` and is never parsed.  A full-case
-    Invite names the case by URI (AKM-02-003).
+    Invite names the case by URI (AKM-02-003).  *full_case* selects which of the
+    two is wanted: any case Invite by default, only a full-case one when true.
     """
     invite = _received_activity(obj_data)
     if invite.get("type") != "Invite":
         return False
     target_raw = invite.get("target")
+    is_stub = (
+        isinstance(target_raw, dict)
+        and target_raw.get("type")
+        == VultronObjectType.VULNERABILITY_CASE_STUB.value
+    )
+    if full_case and is_stub:
+        return False
     if isinstance(target_raw, dict):
         target_case_id = (
-            target_raw.get("caseId")
-            if target_raw.get("type")
-            == VultronObjectType.VULNERABILITY_CASE_STUB.value
-            else target_raw.get("id")
+            target_raw.get("caseId") if is_stub else target_raw.get("id")
         )
     else:
         target_case_id = target_raw
@@ -878,6 +885,52 @@ def find_case_invite_for_actor(
         error_msg=(
             f"Timed out waiting for CaseActor Invite for actor {invitee_id!r}"
             f" on case {case_id!r} to appear in DataLayer at {client.base_url}"
+        ),
+    )
+
+
+def find_full_case_invite_for_actor(
+    client: DataLayerClient,
+    case_id: str,
+    invitee_id: str,
+    timeout_seconds: float = 15.0,
+    poll_interval: float = 0.5,
+) -> str:
+    """Poll until the CASE_MANAGER's full-case Invite for *invitee_id* arrives.
+
+    The CASE_MANAGER sends it after the join-time ``Announce(VulnerabilityCase)``
+    and ledger replay (CM-11-010); the joined participant answers it with
+    ``accept-full-case-invite`` or one of its two siblings (CM-11-011).
+
+    Args:
+        client: DataLayerClient connected to the invitee container.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        invitee_id: Full URI of the joined participant.
+        timeout_seconds: Maximum time to wait before raising.
+        poll_interval: Seconds between DataLayer poll attempts.
+
+    Returns:
+        The full-case Invite activity ID string.
+
+    Raises:
+        AssertionError: If no matching Invite is found within *timeout_seconds*.
+    """
+    return _poll_datalayer_for(
+        client=client,
+        discriminator_fn=lambda obj: _is_case_invite_for(
+            obj, case_id, invitee_id, full_case=True
+        ),
+        id_fn=_received_activity_id,
+        timeout_seconds=timeout_seconds,
+        poll_interval=poll_interval,
+        log_msg=(
+            f"Found full-case Invite for actor {invitee_id} on case"
+            f" {case_id}: %s"
+        ),
+        error_msg=(
+            f"Timed out waiting for the full-case Invite for actor"
+            f" {invitee_id!r} on case {case_id!r} to appear in DataLayer at"
+            f" {client.base_url}"
         ),
     )
 

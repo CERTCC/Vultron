@@ -67,6 +67,7 @@ from vultron.enums.roles import CVDRole
 from vultron.errors import (
     VultronInvalidStateTransitionError,
     VultronNotFoundError,
+    VultronValidationError,
 )
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
@@ -667,6 +668,53 @@ class TestSvcRejectReportUseCase(_ReportTriggerBase):
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
             ).execute()
+
+
+# ---------------------------------------------------------------------------
+# A participant that joined through an Invite never answers the report Offer
+# ---------------------------------------------------------------------------
+
+
+class TestReportTriggersRefuseAnActorNotSentTheOffer(_ReportTriggerBase):
+    """validate/invalidate/reject-report refuse an actor the Offer was not sent to."""
+
+    @pytest.mark.spec("CM-11-020")
+    @pytest.mark.parametrize(
+        ("use_case", "request_cls", "verb"),
+        [
+            (
+                SvcValidateReportUseCase,
+                ValidateReportTriggerRequest,
+                "validate-report",
+            ),
+            (
+                SvcInvalidateReportUseCase,
+                InvalidateReportTriggerRequest,
+                "invalidate-report",
+            ),
+            (
+                SvcRejectReportUseCase,
+                RejectReportTriggerRequest,
+                "reject-report",
+            ),
+        ],
+    )
+    def test_actor_not_sent_the_offer_is_refused_with_a_reason(
+        self, use_case, request_cls, verb
+    ):
+        joiner, _ = _make_actor_dl("Joiner Co")
+        self.dl.create(joiner)
+        before = set(self.dl.outbox_list())
+
+        with pytest.raises(VultronValidationError, match=verb) as excinfo:
+            use_case(
+                self.dl,
+                request_cls(actor_id=joiner.id_, offer_id=self.offer.id_),
+                trigger_activity=TriggerActivityAdapter(self.dl),
+            ).execute()
+
+        assert "full-case Invite" in str(excinfo.value)
+        assert set(self.dl.outbox_list()) == before
 
 
 # ---------------------------------------------------------------------------
