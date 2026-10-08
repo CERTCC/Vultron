@@ -778,6 +778,14 @@ class BTBridge:
                 # only on the creation arm, so a redelivery that skips that arm
                 # would otherwise hand the reader the previous execution's value.
                 "creation_time_revision_candidate",
+                # Published by the RM adjudication guards
+                # (FilterParticipantStatusDimensionsNode,
+                # AdjudicateRMDeclarationNode), read by EmitRMGapNoteNode.
+                # The note runs as a refusal effect (CLP-10-022) whenever any
+                # precondition guard refuses, including one ahead of the
+                # adjudication that never ticked it, so a previous
+                # execution's anomaly must not survive to be noted again.
+                "rm_transition_anomaly",
                 # The executing actor's identity is execution-scoped too, and for
                 # a sharper reason than the ports above.  Every node base in
                 # `helpers.py` re-reads `/actor_id` into `self.actor_id` in

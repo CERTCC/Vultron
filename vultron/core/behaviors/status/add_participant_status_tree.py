@@ -30,7 +30,9 @@ the inbox seam (RSH-04-004).  Side-effects (embargo teardown) belong in
     AddParticipantStatusBT (Sequence)
     ├─ [IntakeReceivedActivityNode]           # Always first (CLP-10-017)
     ├─ SenderIsActiveParticipantNode          # Sender guard: must be known participant (ADR-0115)
-    ├─ FilterParticipantStatusDimensionsNode  # Guard: adjudicate rm/vfd/pxa separately (RSH-05)
+    ├─ PreconditionGuardStage                 # Refusal-effects stage (CLP-10-022)
+    │   ├─ FilterParticipantStatusDimensionsNode  # Guard: adjudicate rm/vfd/pxa separately (RSH-05)
+    │   └─ RefusalEffects → IfCaseManager[EmitRMGapNoteNode]  # Note on a wholly refused regression (RSH-06-004)
     ├─ GuardedCommitOrSkip (Selector, only if case_id)  # Record receipt first (CLP-10-006)
     │   ├─ Sequence("SkipIfNotCaseManager")
     │   │   └─ Inverter(CheckIsCaseManagerNode)
@@ -52,7 +54,9 @@ dimension no longer discards the accepted dimensions or aborts the Sequence
 before the StatusAdoptionGate emit (RSH-05, ISSUE-2235).  It replaced the
 former ``CheckParticipantRMNotClosedNode`` guard (now removed), subsuming the
 terminal-``RM.CLOSED`` check: a wholly refused assertion still returns FAILURE
-here, before any canonical ledger entry is committed.
+here, before any canonical ledger entry is committed.  When that refusal was
+an RM regression, the factory's refusal-effects stage posts the RSH-06-004
+note before the tree fails (CLP-10-022).
 
 Per specs/multi-actor-demo.yaml DEMOMA-07-003, DEMOMA-07-005.
 Per specs/received-status-handling.yaml RSH-01-001 to RSH-01-004, RSH-05.
@@ -83,8 +87,8 @@ from vultron.core.behaviors.status.append_participant_status_tree import (
     append_participant_status_tree,
 )
 from vultron.core.behaviors.status.nodes import (
-    EmitRMGapNoteNode,
     FilterParticipantStatusDimensionsNode,
+    rm_gap_note,
 )
 from vultron.core.behaviors.status.nodes.threat_termination import (
     ThreatTerminationBranchNode,
@@ -236,13 +240,13 @@ def add_participant_status_tree(
                     ],
                 ),
             ),
-            EmitRMGapNoteNode(
-                sender_actor_id=actor_id,
-                case_id=tree_case_id,
-                name="EmitRMGapNote",
-            ),
+            rm_gap_note(actor_id, tree_case_id),
         ],
         replica_emit_exemption=RSH_STATUS,
+        # A wholly refused regression owes the sender the same note
+        # (RSH-06-004); the factory runs it only on the refusal, at the
+        # CASE_MANAGER, once per received activity (CLP-10-022).
+        refusal_effects=[rm_gap_note(actor_id, tree_case_id)],
     )
     logger.debug(
         "Created AddParticipantStatusBT for status=%s participant=%s"
