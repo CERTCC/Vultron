@@ -55,12 +55,21 @@ from vultron.metadata.specs.coverage import SPEC_MARKER_RE
 # the protocol tier. That relabel removes one uncovered protocol spec, pulling the
 # live count back down to the pinned 703 after it had drifted to 704 (a concurrent
 # count-pin race, #3984) — so the pin is unchanged but once again tight.
+# Lowered to 702 — the live count — when #4371 restored CP-04-001's lost marker.
+# CP-04-001 (a wire-observable protocol obligation: the report receiver sends
+# Create(as_CaseProposal) with its own URI as actor) is verified by
+# test/demo/test_case_proposal_round_trip.py — exactly the test its verification:
+# field names — but #4355 deleted the dead-code create_create_case_tree test that
+# had carried its only @pytest.mark.spec marker, dropping it into the uncovered
+# set. #4346's BTND-05-003 relabel masked the net count but not the regression;
+# restoring the marker on the test that actually verifies CP-04-001 removes it
+# from the uncovered population for real.
 # Lower this constant as more @pytest.mark.spec markers are added;
 # never raise it to hide regressions in your own PR. Keep it pinned to the
 # actual count — slack between the two is room for uncovered specs to grow
 # unnoticed, which is the regression this ratchet exists to prevent.
 # ---------------------------------------------------------------------------
-MAX_UNCOVERED_PROTOCOL_SPECS = 703
+MAX_UNCOVERED_PROTOCOL_SPECS = 702
 
 _TEST_ROOT = _corpus.REPO_ROOT / "test"
 _SPEC_DIR = _corpus.REPO_ROOT / "specs"
