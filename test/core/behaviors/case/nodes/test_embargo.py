@@ -45,9 +45,6 @@ from vultron.core.behaviors.case.nodes.embargo_resolution import (
 from vultron.core.behaviors.case.nodes.embargo_revision import (
     ResolveCreationTimeRevisionNode,
 )
-from vultron.core.behaviors.case.participant_tree import (
-    CreateCaseOwnerParticipant,
-)
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.case import VulnerabilityCase
@@ -222,13 +219,6 @@ class TestInitializeDefaultEmbargoNode:
         case_obj: VulnerabilityCase,
     ) -> None:
         """Owner participant is seeded with an ACCEPTED row for the default embargo (CM-14-003)."""
-        # First create an owner participant
-        bt_scenario.run(
-            CreateCaseOwnerParticipant(),
-            actor_id=actor_id,
-            case_id=case_obj.id_,
-        )
-
         bt_scenario.run(
             InitializeDefaultEmbargoNode(),
             actor_id=actor_id,
@@ -365,12 +355,6 @@ class TestInitializeDefaultEmbargoNode:
         )
         bt_scenario.dl.create(embargo)
 
-        bt_scenario.run(
-            CreateCaseOwnerParticipant(),
-            actor_id=actor_id,
-            case_id=case_obj.id_,
-        )
-
         class FakeEmbargoLifecycle:
             def __init__(self, persistence: Any) -> None:
                 self.persistence = persistence
@@ -432,12 +416,6 @@ class TestInitializeCreationEmbargoNodeAC1:
         )
         bt_scenario.dl.create(embargo)
 
-        bt_scenario.run(
-            CreateCaseOwnerParticipant(),
-            actor_id=actor_id,
-            case_id=case_obj.id_,
-        )
-
         with patch.object(
             EmbargoLifecycle,
             "initialize_creation_embargo",
@@ -478,11 +456,6 @@ class TestInitializeCreationEmbargoNodeAC1:
         )
         bt_scenario.dl.create(attached)
         bt_scenario.dl.create(default)
-        bt_scenario.run(
-            CreateCaseOwnerParticipant(),
-            actor_id=actor_id,
-            case_id=case_obj.id_,
-        )
         stored = cast(VulnerabilityCase, bt_scenario.dl.read(case_obj.id_))
         activate(stored, attached.id_)
         bt_scenario.dl.save(stored)

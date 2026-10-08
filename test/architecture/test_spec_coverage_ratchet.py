@@ -54,7 +54,9 @@ from vultron.metadata.specs.coverage import SPEC_MARKER_RE
 # actual count — slack between the two is room for uncovered specs to grow
 # unnoticed, which is the regression this ratchet exists to prevent.
 # ---------------------------------------------------------------------------
-MAX_UNCOVERED_PROTOCOL_SPECS = 703
+# 708 after #4353 (deleted orphaned case-construction nodes and their tests;
+# 5 specs lost coverage because their only tests were for orphaned production code)
+MAX_UNCOVERED_PROTOCOL_SPECS = 708
 
 _TEST_ROOT = _corpus.REPO_ROOT / "test"
 _SPEC_DIR = _corpus.REPO_ROOT / "specs"
