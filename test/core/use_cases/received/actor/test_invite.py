@@ -1656,10 +1656,10 @@ class TestInviteActorUseCases:
 
 
 class TestAcceptInviteRolesAC4:
-    """AC-4: CreateInviteeParticipantNode reads roles from Invite."""
+    """AC-4: the inert record the stub Invite created carries the Invite's roles."""
 
     def test_roles_from_invite_set_on_participant(self, make_payload):
-        """AC-4: Accept(Invite) causes new participant to inherit roles from Invite."""
+        """AC-4: Accept(Invite) activates the record, which keeps the Invite's roles."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.base.objects.actors import as_Organization
@@ -1713,10 +1713,9 @@ class TestAcceptInviteRolesAC4:
     def test_no_roles_invite_refused_not_applied(self, make_payload):
         """CM-11-019: Accept of a no-roles Invite is REFUSED, no participant created.
 
-        A stub Invite with no roles must be refused at send time
-        (EvaluateDefaultRolesNode) and again at Accept time as defence-in-depth
-        (CreateInviteeParticipantNode).  A participant with empty case_roles must
-        never be created.
+        A stub Invite with no roles is refused at send time, so no inert record
+        exists for it; the Accept finds none and is refused (CM-11-021).  A
+        participant with empty case_roles is never created.
         """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.base.objects.actors import as_Organization
