@@ -45,12 +45,15 @@ from test.support.rm_declaration import (
     CM_PARTICIPANT_ID,
     PARTICIPANT_ID,
     REPORT_ID,
+    STRANGER_ID,
     RMDeclarationCase,
+    assert_anomaly_flagged_and_noted,
     cases_declaring,
     current_status,
     queued_notes,
     recorded_rm,
     seed_case,
+    status_count,
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -94,8 +97,6 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
-
-STRANGER_ID = "https://example.org/actors/stranger"
 
 
 def _offer() -> Any:
@@ -171,13 +172,6 @@ def _deliver(
     ).execute()
 
 
-def _status_count(
-    dl: SqliteDataLayer, participant_id: str = PARTICIPANT_ID
-) -> int:
-    participant = cast(CaseParticipant, dl.read(participant_id))
-    return len(participant.participant_statuses)
-
-
 @pytest.mark.executes_as(CASE_MANAGER_ID)
 class TestActivityTypedHandlersApplyTheSharedRule:
     """Each handler, against every row of the shared table that it declares."""
@@ -192,13 +186,13 @@ class TestActivityTypedHandlersApplyTheSharedRule:
     ):
         dl = store_for(CASE_MANAGER_ID)
         _seed(dl, case.current)
-        before = _status_count(dl)
+        before = status_count(dl)
 
         result = _deliver(dl, case.declared, make_payload)
 
         assert recorded_rm(dl) == case.expected_rm
         if case.verdict is RMDeclaration.CONFIRMATION:
-            assert _status_count(dl) == before, (
+            assert status_count(dl) == before, (
                 "a confirmation is recorded once (RSH-08-002)"
             )
             # Engage still runs the CASE_MANAGER's broadcast, and validate
@@ -217,10 +211,10 @@ class TestActivityTypedHandlersApplyTheSharedRule:
             assert result.disposition is HandlerDisposition.APPLIED, (
                 result.reason
             )
-            assert _status_count(dl) == before + 1, "one move, one record"
+            assert status_count(dl) == before + 1, "one move, one record"
         else:
             assert result.disposition is HandlerDisposition.REFUSED
-            assert _status_count(dl) == before, "a refusal writes nothing"
+            assert status_count(dl) == before, "a refusal writes nothing"
 
     @pytest.mark.spec("RSH-06-003")
     @pytest.mark.spec("RSH-06-004")
@@ -235,27 +229,8 @@ class TestActivityTypedHandlersApplyTheSharedRule:
         with caplog.at_level(logging.WARNING):
             _deliver(dl, case.declared, make_payload)
 
-        anomaly_logs = [
-            r.getMessage()
-            for r in caplog.records
-            if r.levelno == logging.WARNING
-            and f"RM {case.anomaly} declared by '{ACTOR_ID}'" in r.getMessage()
-        ]
-        if case.anomaly is None:
-            assert not [
-                r for r in caplog.records if "declared by" in r.getMessage()
-            ]
-        else:
-            assert anomaly_logs, "RSH-06-003: the anomaly must not be silent"
-            assert case.current in anomaly_logs[0]
-            assert case.declared in anomaly_logs[0]
-        # Same as the Add(ParticipantStatus) path: an accepted gap posts the
-        # clarification note to the sender; a refused regression ends the
-        # tree before its effects.
-        notes = queued_notes(dl)
-        assert len(notes) == (1 if case.anomaly == "gap" else 0)
-        if notes:
-            assert ACTOR_ID in (getattr(notes[0], "to", None) or [])
+        # Same as the Add(ParticipantStatus) path.
+        assert_anomaly_flagged_and_noted(case, dl, caplog.records)
 
 
 @pytest.mark.executes_as(CASE_MANAGER_ID)
@@ -271,15 +246,15 @@ class TestSenderMustBeAParticipant:
     ):
         dl = store_for(CASE_MANAGER_ID)
         _seed(dl, RM.RECEIVED)
-        before = _status_count(dl)
-        manager_before = _status_count(dl, CM_PARTICIPANT_ID)
+        before = status_count(dl)
+        manager_before = status_count(dl, CM_PARTICIPANT_ID)
 
         result = _deliver(dl, declared, make_payload, sender=STRANGER_ID)
 
         assert result.disposition is HandlerDisposition.REFUSED
-        assert _status_count(dl) == before
+        assert status_count(dl) == before
         # Not the receiver's either: the receiver is not the mover (RSH-08-001).
-        assert _status_count(dl, CM_PARTICIPANT_ID) == manager_before
+        assert status_count(dl, CM_PARTICIPANT_ID) == manager_before
 
 
 def _run_status_declaration(dl: SqliteDataLayer, rm: RM, make_payload) -> Any:
@@ -355,12 +330,12 @@ class TestActAndDeclarationAreOneMove:
         seeded = len(_rm_history(dl)) - 1
 
         _run_status_declaration(dl, RM.INVALID, make_payload)
-        before = _status_count(dl)
+        before = status_count(dl)
         with caplog.at_level(logging.WARNING):
             act = _deliver(dl, RM.INVALID, make_payload)
 
         assert act.disposition is HandlerDisposition.SKIPPED, act.reason
-        assert _status_count(dl) == before, "a confirmation is recorded once"
+        assert status_count(dl) == before, "a confirmation is recorded once"
         assert _transitions(_rm_history(dl)[seeded:]) == [
             (RM.RECEIVED, RM.INVALID)
         ]

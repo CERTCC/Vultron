@@ -17,15 +17,18 @@
 
 The CASE_MANAGER applies one RM acceptance rule to every received declaration,
 whichever wire activity carried it (RSH-06-006).  The ``Add(ParticipantStatus)``
-tests (``test/core/behaviors/status/test_partial_accept_participant_status.py``)
-and the activity-typed handler tests
-(``test/core/behaviors/report/test_rm_declaration_adjudication.py``) both build
+tests (``test/core/behaviors/status/test_partial_accept_participant_status.py``),
+the activity-typed handler tests
+(``test/core/behaviors/report/test_rm_declaration_adjudication.py``) and the
+full-case Invite reply tests
+(``test/core/behaviors/case/test_full_case_invite_rm_declaration.py``) all build
 their case from this module and run against :data:`RM_DECLARATION_CASES`, so
-the two paths are asserted against the same table.
+every path is asserted against the same table.
 """
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any, cast
@@ -58,6 +61,7 @@ REPORT_ID = "https://example.org/reports/report-2235"
 PARTICIPANT_ID = f"{CASE_ID}/participants/vendor"
 CM_PARTICIPANT_ID = f"{CASE_ID}/participants/case-actor"
 CURRENT_STATUS_ID = f"{PARTICIPANT_ID}/statuses/current"
+STRANGER_ID = "https://example.org/actors/stranger"
 
 
 @pytest.fixture
@@ -148,6 +152,14 @@ def recorded_rm(dl: SqliteDataLayer) -> RM:
     return participant.participant_statuses[-1].rm.state
 
 
+def status_count(
+    dl: SqliteDataLayer, participant_id: str = PARTICIPANT_ID
+) -> int:
+    """Return how many statuses *participant_id* has recorded."""
+    participant = cast(CaseParticipant, dl.read(participant_id))
+    return len(participant.participant_statuses)
+
+
 def queued_notes(dl: SqliteDataLayer) -> list[Any]:
     """Return the ``Add(Note)`` activities in *dl*'s outbox (RSH-06-004)."""
     notes = []
@@ -227,6 +239,35 @@ RM_DECLARATION_CASES: tuple[RMDeclarationCase, ...] = (
     _C(RM.CLOSED, RM.INVALID, _V.REGRESSION),
     _C(RM.CLOSED, RM.ACCEPTED, _V.REGRESSION),
 )
+
+
+def assert_anomaly_flagged_and_noted(
+    case: RMDeclarationCase,
+    dl: SqliteDataLayer,
+    records: list[logging.LogRecord],
+) -> None:
+    """Assert the run logged *case*'s anomaly and posted the note it owes.
+
+    An anomaly is logged at WARNING naming both states (RSH-06-003); an
+    accepted gap posts the RSH-06-004 clarification note to the sender, and a
+    refused regression ends the tree before its effects, so it posts none.
+    """
+    anomaly_logs = [
+        r.getMessage()
+        for r in records
+        if r.levelno == logging.WARNING
+        and f"RM {case.anomaly} declared by '{ACTOR_ID}'" in r.getMessage()
+    ]
+    if case.anomaly is None:
+        assert not [r for r in records if "declared by" in r.getMessage()]
+    else:
+        assert anomaly_logs, "RSH-06-003: the anomaly must not be silent"
+        assert case.current in anomaly_logs[0]
+        assert case.declared in anomaly_logs[0]
+    notes = queued_notes(dl)
+    assert len(notes) == (1 if case.anomaly == "gap" else 0)
+    if notes:
+        assert ACTOR_ID in (getattr(notes[0], "to", None) or [])
 
 
 def cases_declaring(*declared: RM) -> list[Any]:

@@ -22,6 +22,7 @@ related_notes:
   - notes/message-type-reference.md
   - notes/bt-pitfalls.md
   - notes/case-communication-model.md
+  - notes/case-joining.md
 relevant_packages:
   - vultron/core/behaviors/status
   - vultron/core/behaviors/report
@@ -61,7 +62,8 @@ issue under epic #3472:
   Store Is Not the Subject".
 - **Acceptance rule** (fixed, #3813). The activity-typed RM handlers validated
   adjacency only and never checked the sender was a participant. Report valid,
-  invalid and closed and engage/defer now share the rule
+  invalid and closed, engage/defer, and the full-case Invite replies (#4311)
+  now share the rule
   `FilterParticipantStatusDimensionsNode` applies, from one place:
   `classify_rm_declaration` (`core/states/rm.py`) classifies the move,
   `rm_anomaly` (`status/nodes/rm_rule.py`) logs and flags it, and
@@ -70,8 +72,9 @@ issue under epic #3472:
   idempotent write with `rm_rule=RMRule.DECLARATION`, then `EmitRMGapNoteNode`).
   The write node keeps its own evaluator call, held to the declaration rule
   rather than adjacency (BTND-10-003). Tests on both paths run one table,
-  `test/support/rm_declaration.py`. The full-case Invite replies RSH-06-006 also
-  names are not yet on this rule (#4311). Neither path posts the RSH-06-004 note
+  `test/support/rm_declaration.py`. A restated declaration is reported
+  `SKIPPED` (`rm_declaration_verdict`) unless the handler has another effect
+  to run. Neither path posts the RSH-06-004 note
   for a wholly refused regression, because the refusal ends the tree before its
   effects (#4310).
 - **Pipeline.** Every received tree gates its *commit* on `CheckIsCaseManagerNode`
