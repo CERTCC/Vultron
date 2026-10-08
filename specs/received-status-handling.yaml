@@ -1032,7 +1032,7 @@ groups:
       pragmatic substitute. The note makes the anomaly visible at the protocol
       level, not just in local logs.
     note: >
-      Implemented by `EmitRMGapNoteNode` in `effect_nodes` of
+      Implemented by `EmitRMGapNoteNode` in `replica_effects` of
       `add_participant_status_tree`. The standalone `append_participant_status_tree`
       path (test-only, no production callers) has no case context; it MUST log
       (RSH-06-003) but MUST NOT attempt to emit a note.

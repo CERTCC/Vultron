@@ -282,9 +282,11 @@ def create_receive_activity_tree(
     A received-tree module does not call ``create_case_manager_gated_tree``
     itself.
 
-    ``effect_nodes`` is the pre-BT-17-008 form, kept until the last received
-    trees migrate (#4307): it runs ungated where ``replica_effects`` would,
-    unchecked.  It cannot be combined with the two new kinds.
+    ``effect_nodes`` is the pre-BT-17-008 form, kept only for the close-case
+    tree, whose ungated decline emit is #3825's to gate: it runs ungated
+    where ``replica_effects`` would, unchecked.  It cannot be combined with
+    the two new kinds.  Every other received tree passes the two new kinds
+    (#4307); delete the parameter when the close-case tree moves.
 
     When ``case_id`` is ``None`` the commit step is omitted entirely,
     preserving behaviour for trees that receive no explicit case context;
@@ -300,7 +302,8 @@ def create_receive_activity_tree(
         name: Name for the root ``Sequence`` node.
         case_id: Case URI for the guarded-commit stage; ``None`` omits it.
         precondition_guards: Read-only guard nodes after the sender guard.
-        effect_nodes: Legacy ungated effects, unchecked; migrating away.
+        effect_nodes: Legacy ungated effects, unchecked; only the close-case
+            tree still passes them (#3825).
         case_may_be_absent: Pass ``True`` when the receiver may not hold the
             case yet (e.g. an invitee seeing the first Invite).
         sender_guard: Optional sender-entitlement condition node, placed

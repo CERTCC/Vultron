@@ -148,8 +148,9 @@ Receiver (on Create(VulnerabilityCase)):
   the operation's later deletion belongs to ADR-0039.
 - `CreateCaseActorNode` from the vendor's `receive_report_case_tree.py` — the
   CaseActor is a pre-existing service; the vendor does not spawn it at report
-  receipt. The node itself is **retained**: `create_tree.py` still uses it for
-  standalone case construction outside the report-receipt flow.
+  receipt. The node itself was **retained** for `create_tree.py`'s standalone
+  case construction, but that factory had no production caller and was
+  deleted (#4330); #4353 tracks deleting the node.
 
 ### Signature authorization
 

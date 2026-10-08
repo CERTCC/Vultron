@@ -307,16 +307,6 @@ REPLICA_STATE_WRITES: dict[_Write, str] = {
             "SeedReporterSignatoryNode",
         )
     },
-    # create_create_case_tree has no production caller; #4330 retires or wires it
-    **{
-        (f"{_C}/create_tree.py", "create_create_case_tree", cls): _MINT
-        for cls in (
-            "AttachOwnerParticipantToCaseNode",
-            "CreateOwnerInitialStatusNode",
-            "PersistCase",
-            "PersistOwnerCaseNode",
-        )
-    },
 }
 
 # ---------------------------------------------------------------------------
