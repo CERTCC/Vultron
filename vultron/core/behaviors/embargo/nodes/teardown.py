@@ -240,10 +240,11 @@ class SendAnnounceEmbargoEventNode(_SendEmbargoActivityBase):
     not be blocked by notification gaps.  Returns FAILURE only on hard data
     errors (case read fails, case not found, factory dispatch raises).
 
-    Used immediately after ``ApplyEmbargoTeardownNode`` in the
+    Used immediately after ``ClearActiveEmbargoNode`` in the CASE_MANAGER's
     ``ActiveTeardown`` sequence of ``remove_embargo_from_case_tree`` so
     that all participants receive a protocol-level announcement of the
-    embargo termination.
+    embargo termination; a participant replica's arm never runs it
+    (BT-17-008).
     """
 
     def __init__(
@@ -280,8 +281,8 @@ class SendAnnounceEmbargoEventNode(_SendEmbargoActivityBase):
             return Status.SUCCESS
 
         # Recipients are every *other* participant, not the Case Manager.  This
-        # node runs inside `remove_embargo_from_case_tree`, whose ledger commit
-        # is gated on CASE_MANAGER, so the executing actor *is* the manager —
+        # node runs in the CASE_MANAGER arm of `remove_embargo_from_case_tree`
+        # (its `manager_effects`), so the executing actor *is* the manager —
         # addressing the announce to the manager addressed it to itself and the
         # teardown reached nobody.  The Case Manager is still resolved above,
         # because "the case has a manager" remains the precondition for

@@ -73,6 +73,7 @@ from vultron.core.use_cases._helpers import (
 from vultron.core.use_cases.received._bt_verdict import (
     node_failed,
     node_succeeded,
+    not_case_manager_refusal,
     verdict_from_bt,
 )
 from vultron.errors import VultronValidationError
@@ -390,7 +391,9 @@ class RejectLedgerEntryReceivedUseCase:
     2. Replay all missing entries from after the last-accepted hash to the
        peer — ``SendMissingEntriesNode`` (SYNC-03-002).
 
-    Only an active participant's rejection is acted on (SYNC-03-005).
+    Only an active participant's rejection is acted on, and only at the
+    case's CASE_MANAGER: any other receiver reports ``REFUSED`` and sends
+    nothing (SYNC-03-005, HP-01-005).
 
     Spec: SYNC-03-001, SYNC-03-002, SYNC-03-005, SYNC-04-001, SYNC-04-002.
     """
@@ -433,7 +436,7 @@ class RejectLedgerEntryReceivedUseCase:
             rejected_entry.case_id,
             request.last_accepted_hash,
         )
-        tree = create_reject_log_entry_tree()
+        tree = create_reject_log_entry_tree(rejected_entry.case_id)
         result = BTBridge(
             datalayer=self._dl,
             sync_port=self._sync_port,
@@ -449,6 +452,14 @@ class RejectLedgerEntryReceivedUseCase:
         verdict = verdict_from_bt(
             tree, result, label="RejectLogEntryReceivedBT"
         )
+        if verdict.disposition is HandlerDisposition.APPLIED:
+            # Only the CASE_MANAGER answers a rejection; a replica that
+            # receives one was misaddressed (SYNC-03-005, HP-01-005).
+            refusal = not_case_manager_refusal(
+                tree, self._dl, rejected_entry.case_id
+            )
+            if refusal is not None:
+                verdict = refusal
         if verdict.disposition is HandlerDisposition.REFUSED:
             logger.warning(
                 "sync: could not act on Reject(CaseLedgerEntry) '%s': %s",

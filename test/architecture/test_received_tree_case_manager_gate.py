@@ -102,7 +102,6 @@ _E = "vultron/core/behaviors/embargo"
 _N = "vultron/core/behaviors/note"
 _R = "vultron/core/behaviors/report"
 _S = "vultron/core/behaviors/status"
-_Y = "vultron/core/behaviors/sync"
 
 # ---------------------------------------------------------------------------
 # 1. Received-tree functions that still call create_case_manager_gated_tree.
@@ -140,9 +139,8 @@ KNOWN_LEGACY_EFFECT_NODES: frozenset[_Site] = frozenset(
 #    hold no effect and no emit, which is all BT-17-008 governs (#4301
 #    keeps their direct gate).  The admission backfill is a CM-10-006
 #    follow-on that the embargo Accept use case runs on its own, given no
-#    activity; the Remove(EmbargoEvent) teardown nests it in its active-only
-#    branch (#4301 moved it out of the received-tree module rather than
-#    reshape that branch).
+#    activity; the Add and Remove(EmbargoEvent) trees run the same nodes
+#    (embargo_admission_backfill_nodes) in their manager_effects (#4323).
 # ---------------------------------------------------------------------------
 # permanent: BT-17-008 (binds received-side trees only; #4301 keeps these)
 GATE_CALLERS_OUTSIDE_RECEIVED_TREES: frozenset[_Site] = frozenset(
@@ -229,8 +227,7 @@ LEDGER_REPLICATION_SENDERS: frozenset[tuple[str, str]] = frozenset(
 #    Each entry is the decision recorded in replica_emit_exemptions.py.
 # ---------------------------------------------------------------------------
 # permanent: BT-17-008 (one recorded decision per entry; the reasons are in
-# replica_emit_exemptions.py, and GENESIS_REJECT_ANNOUNCE names the issue
-# that deletes it: #4324)
+# replica_emit_exemptions.py)
 REPLICA_EMIT_EXEMPTION_USES: frozenset[tuple[str, str, str]] = frozenset(
     {
         (
@@ -272,11 +269,6 @@ REPLICA_EMIT_EXEMPTION_USES: frozenset[tuple[str, str, str]] = frozenset(
             "EMBARGO_INVITE_REFUSAL",
             f"{_E}/refusal_tree.py",
             "embargo_invite_refusal_tree",
-        ),
-        (
-            "GENESIS_REJECT_ANNOUNCE",
-            f"{_Y}/reject_tree.py",
-            "create_reject_log_entry_tree",
         ),
         (
             "INVALIDATE_REPORT_RM_DECLARATION",

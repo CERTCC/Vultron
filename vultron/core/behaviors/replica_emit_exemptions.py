@@ -54,7 +54,6 @@ __all__ = [
     "EMBARGO_INVITE_ANSWER",
     "EMBARGO_INVITE_REFUSAL",
     "ENGAGE_RM_DECLARATION",
-    "GENESIS_REJECT_ANNOUNCE",
     "INVALIDATE_REPORT_RM_DECLARATION",
     "OFFER_ROLE",
     "REPLICA_EMIT_EXEMPTIONS",
@@ -195,20 +194,6 @@ REPORT_CASE_PROPOSAL: Final = ReplicaEmitExemption(
     covers=frozenset({"ProposeReportCaseToActorNode"}),
 )
 
-GENESIS_REJECT_ANNOUNCE: Final = ReplicaEmitExemption(
-    name="genesis-reject-announce",
-    reason=(
-        "The genesis pre-seed Announce(VulnerabilityCase) is the ledger"
-        " holder's answer to the rejecting peer, addressed to that peer, and"
-        " runs only behind the tree's in-place CheckIsCaseManagerNode,"
-        " ahead of the entry replay so the peer can anchor its chain"
-        " (SYNC-15-002, ADR-0073). The in-place check masks a failure at the"
-        " CASE_MANAGER as a skip (BTND-07-005); #4324 moves it onto a real"
-        " gate and deletes this exemption."
-    ),
-    covers=frozenset({"AnnounceCaseOnGenesisRejectNode"}),
-)
-
 
 def _rm_declaration_exemption(
     name: str, activity: str
@@ -261,7 +246,6 @@ REPLICA_EMIT_EXEMPTIONS: Final[Mapping[str, ReplicaEmitExemption]] = (
                 EMBARGO_INVITE_ANSWER,
                 EMBARGO_INVITE_REFUSAL,
                 REPORT_CASE_PROPOSAL,
-                GENESIS_REJECT_ANNOUNCE,
                 ENGAGE_RM_DECLARATION,
                 DEFER_RM_DECLARATION,
                 VALIDATE_REPORT_RM_DECLARATION,

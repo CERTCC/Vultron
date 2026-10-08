@@ -1333,10 +1333,10 @@ The cause was structural: about fifteen trees each wrapped their effects in
   case-proposal tree, the report receiver's case proposal, the RSH and
   case-status trees, the RM gap notes of the engage, defer, validate, close
   and invalidate trees, the embargo-Invite answer and the P/X/A refusal ER.
-  One more is not a design decision but preserved behaviour, naming the issue
-  that deletes it: the genesis pre-seed behind the reject-log-entry tree's
-  hand-rolled check (#4324). (The Remove(EmbargoEvent) teardown announce was
-  the other such case; #4323 gated it and deleted its exemption.)
+  An exemption kept only to preserve behaviour during a migration names the
+  issue that deletes it in its reason; the last two such cases (the
+  Remove(EmbargoEvent) teardown announce, #4323, and the genesis pre-seed,
+  #4324) are now gone.
   A sender check added to a tree without a named exemption never passes,
   because it says nothing about whether this replica owns the case (#2667).
 - **Refusal effects get the same gate.**
@@ -1365,8 +1365,18 @@ The cause was structural: about fifteen trees each wrapped their effects in
   to finish first, and the gate and the participant-replica arm are mutually
   exclusive and cover every receiver, the step goes at the end of each arm
   (the embargo-Invite proposal index).
-  A gated subtree nested inside a conditional branch, which cannot become
-  `manager_effects` without reshaping the branch, is a standalone helper
+  A gated emit inside a conditional branch whose guards cannot be re-checked
+  after the branch runs is not split from it: each arm builds the whole branch
+  from one helper. The Remove(EmbargoEvent) tree's participant-replica arm
+  tears down its own copy; its `manager_effects` arm tears down, announces and
+  backfills (`_teardown_if_active`, #4323).
+  Where an emit must precede a later step and that step is also the
+  CASE_MANAGER's alone, both move into `manager_effects` in order: the
+  reject-log-entry tree's replication state, genesis pre-seed and replay
+  (SYNC-03-005, SYNC-15-002, #4324). Never keep the order with an in-place
+  `Selector[Sequence[check, emit], Success]`: at the CASE_MANAGER it reads a
+  failed emit as a skip (BTND-07-005).
+  A gated subtree a use case also runs standalone, given no activity, lives
   outside the received-tree modules and is pinned in
   `GATE_CALLERS_OUTSIDE_RECEIVED_TREES` (the embargo admission backfill).
 - **State writes carry their own marker, checked on the built tree.**

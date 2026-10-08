@@ -3,14 +3,8 @@
 
 import py_trees
 
-from vultron.core.behaviors.case.nodes.conditions import (
-    CheckIsCaseManagerNode,
-)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
-)
-from vultron.core.behaviors.replica_emit_exemptions import (
-    GENESIS_REJECT_ANNOUNCE,
 )
 from vultron.core.behaviors.sender_entitlement import (
     SenderIsActiveLedgerParticipantNode,
@@ -23,22 +17,34 @@ from vultron.core.behaviors.sync.nodes import (
 )
 
 
-def create_reject_log_entry_tree() -> py_trees.behaviour.Behaviour:
+def create_reject_log_entry_tree(
+    case_id: str,
+) -> py_trees.behaviour.Behaviour:
     """Create the BT for inbound ``Reject(CaseLedgerEntry)`` handling.
 
-    The genesis pre-seed announces a ``VulnerabilityCase`` authored as the
-    CaseActor, so it is role-gated: only the case's ``CASE_MANAGER`` may
-    announce canonical case state.  The gate resolves the role **from the
-    case** rather than comparing against the CaseActor entity that
-    ``FindCaseActorNode`` looks up — the authority is a role, and its holder
-    may be any Actor type (CLP-09 precedent; see ADR-0073).
+    Answering a rejection is the CASE_MANAGER's act alone (SYNC-03-005): it
+    holds the canonical ledger, the per-peer replication state is its own,
+    and the replay is sent in its name.  So every effect sits in
+    ``manager_effects``, gated by the factory on the case's CASE_MANAGER
+    role (BT-17-001, BT-17-008); a replica that receives a ``Reject`` sends
+    nothing and records nothing, and the use case reports it ``REFUSED``.
+    The role is resolved **from the case** rather than compared against the
+    address ``FindCaseActorNode`` looks up: the authority is a role, and its
+    holder may be any Actor type (CLP-09 precedent; see ADR-0073).
+
+    Inside the gate the genesis pre-seed precedes the replay: when the peer
+    has no ``VulnerabilityCase`` yet (``last_accepted_hash=""``) it is sent
+    ``Announce(VulnerabilityCase)`` first, so it can anchor its hash chain
+    before the entries arrive (SYNC-15-002).  A pre-seed that fails at the
+    CASE_MANAGER — its embargo gate undecidable — fails the tree before the
+    replay, instead of reading as "not the CASE_MANAGER" (BTND-07-005).
 
     The sender must be an active participant (SYNC-03-005); any other sender
     halts the tree before replication state is written.
 
-    A non-manager skips the pre-seed rather than failing: replaying entries it
-    already holds is still correct, and only the authoritative actor may seed a
-    peer's replica.
+    Args:
+        case_id: The case the rejected entry belongs to, whose CASE_MANAGER
+            gates the answer.
     """
     # The envelope is never a canonical entry (CLP-10-004): no commit stage.
     return create_receive_activity_tree(
@@ -53,30 +59,14 @@ def create_reject_log_entry_tree() -> py_trees.behaviour.Behaviour:
             SenderIsActiveLedgerParticipantNode(
                 name="SenderIsActiveParticipant"
             ),
+        ],
+        manager_effects=[
             UpdateReplicationStateNode(name="UpdateReplicationState"),
-            # When the peer has no VulnerabilityCase yet (last_accepted_hash=""),
-            # send Announce(VulnerabilityCase) before replaying entries so the
-            # peer can anchor its hash chain (SYNC-15-002).
-            py_trees.composites.Selector(
-                name="GuardedAnnounceCaseOnGenesisRejectBT",
-                memory=False,
-                children=[
-                    py_trees.composites.Sequence(
-                        name="AnnounceCaseIfCaseManager",
-                        memory=False,
-                        children=[
-                            CheckIsCaseManagerNode(),
-                            AnnounceCaseOnGenesisRejectNode(
-                                name="AnnounceCaseOnGenesisReject"
-                            ),
-                        ],
-                    ),
-                    py_trees.behaviours.Success(
-                        name="AnnounceCaseSkippedNotCaseManager"
-                    ),
-                ],
+            AnnounceCaseOnGenesisRejectNode(
+                name="AnnounceCaseOnGenesisReject"
             ),
             ReplayMissingEntriesNode(name="ReplayMissingEntries"),
         ],
-        replica_emit_exemption=GENESIS_REJECT_ANNOUNCE,
+        manager_case_id=case_id,
+        manager_gate_name="AnswerRejectIfCaseManager",
     )

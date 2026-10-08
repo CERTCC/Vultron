@@ -142,7 +142,9 @@ KNOWN_UNGATED_STATE_WRITES: frozenset[_Write] = frozenset(
             "add_embargo_to_case_tree",
             "SetEmbargoActiveNode",
         ),
-        # owner: #3814 — CM-31-010's paused-stream exception is decided here
+        # owner: #3814 — the participant-replica arm's write to its own copy;
+        # the CASE_MANAGER arm is gated (#4323). CM-31-010's paused-stream
+        # exception is decided here
         (
             f"{_E}/announce_teardown_tree.py",
             "remove_embargo_from_case_tree",
