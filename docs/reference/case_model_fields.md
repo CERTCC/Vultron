@@ -27,9 +27,8 @@ Defined in `vultron/core/models/case.py`.
 | `vulnerability_reports` | Reports associated with this case (objects or URIs) |
 | `case_statuses` | Append-only history of `CaseStatus` snapshots |
 | `notes` | URIs of notes attached to the case |
-| `active_embargo` | The currently active `EmbargoEvent` (at most one) |
-| `proposed_embargoes` | URIs of embargoes under negotiation |
-| `pending_embargo_proposal_index` | Map: embargo URI → the proposal activity that offered it |
+| `embargo_register` | One entry per embargo ever proposed on the case, appended and never removed: the embargo (object or URI), its status (`PROPOSED`, `ACTIVE`, `REJECTED`, `SUPERSEDED`, `CANCELLED` or `TERMINATED`) and the embargo an activated revision replaced. The case's Embargo Management (EM) state, its active embargo and its open proposals are all read from it (ADR-0122) |
+| `pending_embargo_proposal_index` | Map: embargo URI → the proposal activity that offered it, for open proposals only |
 | `recommendation_recommender_index` | Map: actor-recommendation URI → the participant who made it |
 | `case_activity` | Activity IDs recorded against this case (not the case ledger — see `genesis_hash`) |
 | `genesis_hash` | SHA-256 hash binding the ledger to this case's origin identity: the case id, creation time and owner (`attributed_to`), computed when the case is created; a replica keeps the hash it receives, or derives the same value from the carried case when none arrives ([CLP-08-002](specs/protocol.md#clp-08-002)) |
@@ -73,7 +72,7 @@ Stored in `VulnerabilityCase.case_statuses`.
 
 | Field | Description |
 |---|---|
-| `em` | `EmDimension` — the Embargo Management (EM) state (None / Proposed / Active / Revise / eXited) |
+| `em` | `EmDimension` — the Embargo Management (EM) state (None / Proposed / Active / Revise / eXited). On a case's status this is a copy the case stamps from its `embargo_register`, so it never disagrees with the register (ADR-0122) |
 | `pxa` | `PxaDimension` — the Publication/eXploit/Active-attacks (PXA) state |
 | `context` | The URI of the case this status belongs to |
 | `attributed_to` | The actor who reported this status (optional) |

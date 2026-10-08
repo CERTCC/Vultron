@@ -52,6 +52,7 @@ from vultron.core.behaviors.sender_entitlement import SenderIsInviteeNode
 from vultron.core.behaviors.sync.nodes.embargo_backfill import (
     BackfillAdmittedParticipantsNode,
 )
+from vultron.core.states.embargo_register import TerminationReason
 
 logger = logging.getLogger(__name__)
 
@@ -161,6 +162,7 @@ def _decide_owner_rejection(
                         case_id=case_id,
                         result_out={},
                         requested_by=rejecting_actor_id,
+                        reason=TerminationReason.THREAT_SIGNAL,
                     ),
                 ],
             ),

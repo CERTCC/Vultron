@@ -14,6 +14,7 @@
 
 from typing import cast
 
+from test.support.embargo_register import activate, propose
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.case import VulnerabilityCase
@@ -52,7 +53,7 @@ class TestEmbargoLogEntryCascade:
         )
         case_read = cast(VulnerabilityCase, dl.read(case.id_))
         assert case_read is not None
-        case_read.current_status.em.state = EM.PROPOSED
+        propose(case_read, embargo.id_)
         dl.save(case_read)
 
         case_ref = as_VulnerabilityCase(id_=case_id)
@@ -92,9 +93,7 @@ class TestEmbargoLogEntryCascade:
         )
         case = cast(VulnerabilityCase, dl.read(case.id_))
         assert case is not None
-        case.current_status.em.state = EM.ACTIVE
-        case.proposed_embargoes.append(embargo.id_)
-        object.__setattr__(case, "active_embargo", embargo.id_)
+        activate(case, embargo.id_)
         dl.save(case)
 
         activity = remove_embargo_from_case_activity(
@@ -141,8 +140,7 @@ class TestEmbargoLogEntryCascade:
         # EM.NONE: no active embargo — BT will FAIL (IsActiveEmbargoNode)
         case = cast(VulnerabilityCase, dl.read(case.id_))
         assert case is not None
-        case.current_status.em.state = EM.NONE
-        dl.save(case)
+        assert case.em_state == EM.NONE
 
         activity = remove_embargo_from_case_activity(
             embargo, origin=case.id_, actor=author_id
@@ -230,7 +228,7 @@ class TestEmbargoLogEntryCascade:
         )
         case = cast(VulnerabilityCase, dl.read(case.id_))
         assert case is not None
-        case.current_status.em.state = EM.PROPOSED
+        propose(case, embargo.id_)
         dl.save(case)
 
         proposal = em_propose_embargo_activity(
@@ -297,7 +295,7 @@ class TestEmbargoLogEntryCascade:
         dl.create(proposal)
         # The Reject names an open proposal of the case.
         case_obj = cast(VulnerabilityCase, dl.read(case_id))
-        case_obj.proposed_embargoes = [embargo.id_]
+        propose(case_obj, embargo.id_)
         dl.save(case_obj)
 
         # The vendor rejects; the CASE_MANAGER receives and commits.  See the

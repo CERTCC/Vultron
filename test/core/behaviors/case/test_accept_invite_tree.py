@@ -28,6 +28,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.embargo_register import register
 from vultron.core.behaviors.case.nodes import (
     CreateInviteeParticipantNode,
 )
@@ -209,18 +210,18 @@ class TestSignEmbargoConsentLeafNode:
 _REVISION_ID = "https://example.org/embargoes/embargo-002"
 
 
-def _case_at(em_state: str, embargo: bool) -> VulnerabilityCase:
-    from vultron.core.models.case_status import CaseStatus
-    from vultron.core.models.dimensions import EmDimension
-    from vultron.core.states.em import EM
+_REGISTERS = {
+    "ACTIVE": lambda: register(active=_EMBARGO_ID),
+    "REVISE": lambda: register(active=_EMBARGO_ID, proposed=[_REVISION_ID]),
+    "NONE": lambda: [],
+}
 
+
+def _case_at(em_state: str) -> VulnerabilityCase:
+    """A case whose embargo register derives *em_state* (ADR-0122)."""
     case_id = "https://example.org/cases/joiner"
     return VulnerabilityCase(
-        id_=case_id,
-        case_statuses=[
-            CaseStatus(context=case_id, em=EmDimension(state=EM[em_state]))
-        ],
-        active_embargo=_EMBARGO_ID if embargo else None,
+        id_=case_id, embargo_register=_REGISTERS[em_state]()
     )
 
 
@@ -240,8 +241,7 @@ def test_joiner_during_revise_signs_the_terms_in_force_not_the_revision(
         MaybeSignEmbargoConsentNode,
     )
 
-    case = _case_at("REVISE", embargo=True)
-    case.proposed_embargoes.append(_REVISION_ID)
+    case = _case_at("REVISE")
     participant = CaseParticipant(
         id_=_ACTOR_ID,
         attributed_to=_ACTOR_ID,
@@ -263,15 +263,15 @@ def test_joiner_during_revise_signs_the_terms_in_force_not_the_revision(
 
 @pytest.mark.spec("CM-10-004")
 @pytest.mark.parametrize(
-    ("em_state", "embargo", "signs"),
+    ("em_state", "signs"),
     [
-        ("ACTIVE", True, True),
-        ("REVISE", True, True),
-        ("NONE", False, False),
+        ("ACTIVE", True),
+        ("REVISE", True),
+        ("NONE", False),
     ],
 )
 def test_joiner_signs_the_embargo_in_force(
-    bt_scenario: BTTestScenario, em_state: str, embargo: bool, signs: bool
+    bt_scenario: BTTestScenario, em_state: str, signs: bool
 ) -> None:
     """A joiner signs the terms in force at ACTIVE *and* during REVISE.
 
@@ -279,7 +279,7 @@ def test_joiner_signs_the_embargo_in_force(
     without a row under an active embargo — inert (CM-10-004), and never asked:
     the revision Invite was relayed before it joined (#4046).
     """
-    case = _case_at(em_state, embargo)
+    case = _case_at(em_state)
     node = _CheckEmbargoActiveStateNode(case_id=case.id_)
 
     result = bt_scenario.run(node, actor_id=_ACTOR_ID, invitee_case=case)

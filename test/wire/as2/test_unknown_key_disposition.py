@@ -302,6 +302,43 @@ def test_retired_scalar_consent_name_is_refused_with_adr_0120_message(
     assert "embargoConsents" in message
 
 
+EMBARGO_FIELD_RETIRED_KEYS = [
+    ("activeEmbargo", "https://example.org/embargoes/1"),
+    ("active_embargo", "https://example.org/embargoes/1"),
+    ("proposedEmbargoes", ["https://example.org/embargoes/2"]),
+    ("proposed_embargoes", ["https://example.org/embargoes/2"]),
+]
+
+
+@pytest.mark.spec("MV-11-002")
+@pytest.mark.parametrize("retired,value", EMBARGO_FIELD_RETIRED_KEYS)
+def test_retired_case_embargo_field_is_refused_naming_the_register(
+    retired: str, value: Any
+) -> None:
+    """The case's stored embargo fields are retired by ADR-0122 (#4290).
+
+    A case carries its embargoes as ``embargoRegister`` entries.  A sender
+    still using the old fields has the activity refused at the parse edge,
+    rather than the key set aside and the case read as having no embargo
+    (EM ``NONE``).
+    """
+    body = _with_inline_object(
+        {
+            "type": "VulnerabilityCase",
+            "id": "https://example.org/cases/1",
+            "attributedTo": SENDER,
+            "name": "c",
+            retired: value,
+        }
+    )
+    with pytest.raises(VultronParseValidationError) as exc_info:
+        parse_activity(body)
+    message = str(exc_info.value)
+    assert retired in message
+    assert "ADR-0122" in message
+    assert "embargoRegister" in message
+
+
 @pytest.mark.spec("MV-11-002")
 def test_no_similarity_helper_in_the_parse_edge() -> None:
     """The near-miss test is normalisation plus a list; nothing fuzzier (MV-11-002).

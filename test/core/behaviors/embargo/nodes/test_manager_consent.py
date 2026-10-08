@@ -27,6 +27,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.embargo_register import propose
 from vultron.core.behaviors.call_out.bundles.embargo import (
     EmbargoCallOutBundle,
 )
@@ -36,7 +37,6 @@ from vultron.core.behaviors.embargo.nodes.manager_consent import (
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -89,7 +89,7 @@ def _seed(
             cast(str, p.attributed_to): p.id_ for p in records
         },
     )
-    case.append_case_status(em_state=EM.PROPOSED)
+    propose(case, EMBARGO_ID)
     embargo = as_EmbargoEvent(
         id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now_utc(30)
     )

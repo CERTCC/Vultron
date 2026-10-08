@@ -26,6 +26,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.embargo_register import propose
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.embargo.nodes.reject_proposed import (
     DecideRejectedEmbargoProposalNode,
@@ -48,11 +49,17 @@ PARTICIPANT = "https://example.org/users/participant"
 
 
 def _revising_case(
-    dl: SqliteDataLayer, suffix: str, *, em_state: EM = EM.REVISE
+    dl: SqliteDataLayer, suffix: str, *, with_active: bool = True
 ) -> tuple[VulnerabilityCase, str, str]:
-    """A case with an active embargo and one open revision of it."""
+    """A case with an active embargo and one open revision of it (REVISE).
+
+    With *with_active* false no embargo is in force, so the open proposal is
+    an initial one (PROPOSED).
+    """
     case, active = make_case_and_embargo(
-        suffix, em_state=em_state, attributed_to=OWNER
+        suffix,
+        em_state=EM.ACTIVE if with_active else EM.NONE,
+        attributed_to=OWNER,
     )
     revision = as_EmbargoEvent(
         id_=f"{case.id_}/embargo_events/revision",
@@ -61,7 +68,7 @@ def _revising_case(
     )
     dl.create(active)
     dl.create(revision)
-    case.proposed_embargoes.append(revision.id_)
+    propose(case, revision)
     case.pending_embargo_proposal_index[revision.id_] = (
         f"{case.id_}/embargo_proposals/1"
     )
@@ -112,9 +119,7 @@ def test_the_owners_reject_of_a_revision_returns_to_the_prior_terms(
 def test_the_owners_reject_of_an_initial_proposal_leaves_no_embargo(
     dl: SqliteDataLayer,
 ) -> None:
-    case, _, proposal_id = _revising_case(dl, "er", em_state=EM.PROPOSED)
-    case.active_embargo = None
-    dl.save(case)
+    case, _, proposal_id = _revising_case(dl, "er", with_active=False)
     setup_blackboard(dl, actor_id=OWNER)
 
     status = _tick(

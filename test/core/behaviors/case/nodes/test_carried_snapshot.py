@@ -4,6 +4,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.embargo_register import register
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.carried_snapshot import (
@@ -60,7 +61,7 @@ def test_a_case_naming_an_unheld_embargo_is_refused(dl):
     case = as_VulnerabilityCase(
         id_=_CASE_ID,
         name="snapshot",
-        active_embargo=f"{_CASE_ID}/embargo_events/unheld",
+        embargo_register=register(active=f"{_CASE_ID}/embargo_events/unheld"),
     )
     node = HoldCarriedEmbargoNode(case, _CASE_ID)
 

@@ -24,6 +24,7 @@ from typing import cast
 
 import pytest
 
+from test.support.embargo_register import activate, propose, terminate
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
@@ -68,9 +69,9 @@ def _stored_case(dl: SqliteDataLayer, case_id: str) -> VulnerabilityCase:
 
 def _assert_untouched(dl: SqliteDataLayer, case_id: str) -> None:
     case = _stored_case(dl, case_id)
+    assert case.em_state == EM.NONE
     assert case.current_status.em.state == EM.NONE
-    assert case.active_embargo_id is None
-    assert case.proposed_embargoes == []
+    assert case.embargo_register == []
 
 
 def _unstored_embargo(context: str, days: int = 45) -> as_EmbargoEvent:
@@ -118,7 +119,7 @@ def test_none_to_active_in_one_commit(
     assert stored.current_status.em.state == EM.ACTIVE
     assert stored.active_embargo_id == embargo.id_
     # Activation decides the proposal at once, so none is left open.
-    assert stored.proposed_embargoes == []
+    assert stored.proposed_embargo_ids == []
 
 
 def test_consent_matches_propose_then_activate(
@@ -243,16 +244,36 @@ def test_an_owner_without_a_participant_record_is_refused_unchanged(
     assert _consents_of(dl, owner_p.id_) == {}
 
 
+def _leave_none(
+    dl: SqliteDataLayer, case: VulnerabilityCase, em_state: EM
+) -> None:
+    """Drive *case*'s register to *em_state* (not NONE) and store it."""
+    first = _make_embargo(dl, case.id_).id_
+    if em_state is EM.PROPOSED:
+        propose(case, first)
+    else:
+        activate(case, first)
+    if em_state is EM.REVISE:
+        propose(case, _make_embargo(dl, case.id_, days=90).id_)
+    elif em_state is EM.EXITED:
+        terminate(case)
+    assert case.em_state is em_state
+    dl.save(case)
+
+
 @pytest.mark.parametrize(
     "em_state", [state for state in EM if state != EM.NONE]
 )
 def test_a_case_that_has_left_none_is_refused_unchanged(
     owner_and_dl: tuple[as_Service, SqliteDataLayer], em_state: EM
 ) -> None:
-    """Creation runs only from NONE — PROPOSE then ACCEPT is also legal from
-    ACTIVE (via REVISE), so the machine alone would not refuse it."""
+    """Creation runs only from NONE — PROPOSE then ACTIVATE is also legal
+    with an embargo in force (the activation supersedes it), so the register
+    alone would not refuse it, and creation never replaces an attached
+    embargo (CSB-16)."""
     owner, dl = owner_and_dl
-    case, _ = _make_case(dl, owner.id_, em_state=em_state)
+    case, _ = _make_case(dl, owner.id_)
+    _leave_none(dl, case, em_state)
     embargo = _make_embargo(dl, case.id_)
 
     with pytest.raises(VultronInvalidStateTransitionError, match="not NONE"):
@@ -261,50 +282,9 @@ def test_a_case_that_has_left_none_is_refused_unchanged(
         )
 
     stored = _stored_case(dl, case.id_)
-    assert stored.current_status.em.state == em_state
-    assert stored.active_embargo_id is None
-
-
-def test_a_none_case_with_an_attached_embargo_is_refused_unchanged(
-    owner_and_dl: tuple[as_Service, SqliteDataLayer],
-) -> None:
-    """Creation never replaces an attached embargo, even at NONE (CSB-16)."""
-    owner, dl = owner_and_dl
-    case, _ = _make_case(dl, owner.id_)
-    attached = _make_embargo(dl, case.id_)
-    case.set_embargo(attached.id_)
-    dl.save(case)
-    embargo = _make_embargo(dl, case.id_)
-
-    with pytest.raises(
-        VultronInvalidStateTransitionError, match="already attached"
-    ):
-        EmbargoLifecycle(persistence=dl).initialize_creation_embargo(
-            case_id=case.id_, embargo=embargo, actor_id=owner.id_
-        )
-
-    stored = _stored_case(dl, case.id_)
-    assert stored.current_status.em.state == EM.NONE
-    assert stored.active_embargo_id == attached.id_
-
-
-def test_a_stale_proposed_listing_is_discarded_in_the_same_write(
-    owner_and_dl: tuple[as_Service, SqliteDataLayer],
-) -> None:
-    """Activation decides the proposal that carried the id (EP-08-003)."""
-    owner, dl = owner_and_dl
-    case, _ = _make_case(dl, owner.id_)
-    embargo = _make_embargo(dl, case.id_)
-    case.proposed_embargoes = [*case.proposed_embargoes, embargo.id_]
-    dl.save(case)
-
-    EmbargoLifecycle(persistence=dl).initialize_creation_embargo(
-        case_id=case.id_, embargo=embargo, actor_id=owner.id_
-    )
-
-    stored = _stored_case(dl, case.id_)
-    assert stored.active_embargo_id == embargo.id_
-    assert stored.proposed_embargoes == []
+    assert stored.em_state == em_state
+    assert stored.embargo_register == case.embargo_register
+    assert stored.embargo_register_entry(embargo.id_) is None
 
 
 @pytest.mark.spec("EMB-01-002")
@@ -496,9 +476,10 @@ def test_a_revision_is_stored_and_proposed_in_the_same_commit(
     ]
     assert (result.em_before, result.em_after) == (EM.NONE, EM.REVISE)
     stored = _stored_case(dl, case.id_)
+    assert stored.em_state == EM.REVISE
     assert stored.current_status.em.state == EM.REVISE
     assert stored.active_embargo_id == embargo.id_
-    assert stored.proposed_embargoes == [revision.id_]
+    assert stored.proposed_embargo_ids == [revision.id_]
     assert isinstance(dl.read(revision.id_), as_EmbargoEvent)
     # The owner both proposed the revision and is seeded on the active
     # terms: one record carries both through the commit (MSM-07-005).

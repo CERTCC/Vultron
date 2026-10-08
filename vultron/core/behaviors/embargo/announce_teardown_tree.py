@@ -32,7 +32,6 @@ activity (protocol ET message).  Sequence:
     RemoveEmbargoFromCaseBT (Sequence)
     ├─ ValidateCaseExistsNode             # case must exist as VulnerabilityCase
     ├─ GuardedCommitCaseLedgerEntryBT     # record receipt before effects (CLP-10-006)
-    ├─ RemoveFromProposedEmbargoesNode    # idempotent proposed-list cleanup
     └─ TeardownIfActive (Selector)        # skip when there is nothing to tear down
        ├─ EmbargoWasNotActive (Inverter)  # not the active embargo (only proposed)
        │  └─ IsActiveEmbargoNode
@@ -40,7 +39,7 @@ activity (protocol ET message).  Sequence:
        │  └─ HasEmbargoActiveNode
        └─ ActiveTeardown (Sequence)       # its FAILURE is the tree's FAILURE
           ├─ CaptureActiveEmbargoNode     # the embargo in force before the write
-          ├─ ClearActiveEmbargoNode       # ACTIVE/REVISE→EXITED + clear active_embargo
+          ├─ ClearActiveEmbargoNode       # TERMINATE + CANCEL every proposal → EXITED
           └─ EmbargoAdmissionBackfill     # CASE_MANAGER only:
              ├─ SendAnnounceEmbargoEventNode   # Announce(EmbargoEvent) to the others
              ├─ SendEmbargoEndingNoticesNode   # ET to unreached signatories (CM-31-009)
@@ -90,7 +89,6 @@ from vultron.core.behaviors.embargo.nodes import (
     PersistEmbargoEventNode,
     ProposeEmbargoLifecycleNode,
     RelayEmbargoInviteToEachNode,
-    RemoveFromProposedEmbargoesNode,
     SendAnnounceEmbargoEventNode,
     SendEmbargoInviteAnswerNode,
     SetEmbargoActiveNode,
@@ -150,17 +148,19 @@ def remove_embargo_from_case_tree(
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for receiver-side embargo removal (protocol ET).
 
-    Handles receipt of a ``Remove(EmbargoEvent)`` activity.  Removes the
-    embargo from ``proposed_embargoes`` (idempotent) and, if the embargo is
-    the active one, applies the ACTIVE/REVISE → EXITED EM state transition,
-    and clears ``active_embargo``; no participant consent is written, since with
-    EM ``EXITED`` nobody is bound (ADR-0118, ADR-0122).
+    Handles receipt of a ``Remove(EmbargoEvent)`` activity.  If the embargo
+    is the active one, its register entry is terminated and every open
+    proposal cancelled in one step, so EM derives ``EXITED`` (ADR-0122); no
+    participant consent is written, since with no embargo in force nobody is
+    bound (ADR-0118).  A ``Remove`` naming an embargo that is not in force
+    changes nothing: the register cancels a proposal only with a
+    termination or on a threat signal.
     Always commits a canonical ledger entry when the executing actor holds
     the ``CASE_MANAGER`` role (via the guarded commit subtree).
 
     The inner ``TeardownIfActive`` Selector skips the teardown when there is
-    nothing to tear down: the embargo was only in ``proposed_embargoes`` (not
-    the active embargo), or the EM state is already EXITED.  Only those two
+    nothing to tear down: the embargo is not the active one, or the EM state
+    is already EXITED.  Only those two
     guards fall back.  A teardown step that fails fails the tree, so the
     handler can report it instead of mistaking it for "was not active"
     (#2255).
@@ -226,12 +226,7 @@ def remove_embargo_from_case_tree(
             manager_arm=SenderEntitlementKind.CASE_OWNER,
         ),
         precondition_guards=[ValidateCaseExistsNode(case_id=case_id)],
-        effect_nodes=[
-            RemoveFromProposedEmbargoesNode(
-                case_id=case_id, embargo_id=embargo_id
-            ),
-            teardown_if_active,
-        ],
+        effect_nodes=[teardown_if_active],
     )
     logger.info(
         "Created RemoveEmbargoFromCaseBT for case=%s embargo=%s",

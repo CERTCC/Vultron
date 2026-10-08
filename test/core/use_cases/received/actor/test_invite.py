@@ -20,6 +20,7 @@ import pytest
 from test.core.use_cases.received.conftest import (
     seed_store_owner_as_case_manager,
 )
+from test.support.embargo_register import activate
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models._helpers import days_from_now_utc
@@ -879,7 +880,6 @@ class TestInviteActorUseCases:
         """AcceptInviteActorToCaseReceivedUseCase records the active embargo ID on the new participant (CM-10-001, CM-10-003)."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.models.case import VulnerabilityCase
-        from vultron.core.states.em import EM
         from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.base.objects.actors import as_Organization
         from vultron.wire.as2.vocab.objects.embargo_event import (
@@ -903,8 +903,7 @@ class TestInviteActorUseCases:
             context=case.id_,
             end_time=days_from_now_utc(45),
         )
-        case.active_embargo = embargo.id_
-        case.append_case_status(em_state=EM.ACTIVE)
+        activate(case, embargo.id_)
         seed_store_owner_as_case_manager(dl, case)
         invite = rm_invite_to_case_activity(
             invitee,

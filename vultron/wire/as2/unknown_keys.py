@@ -84,6 +84,11 @@ _CONSENT_RETIRED = (
     " per embargo and travels as the participant's embargoConsents rows"
 )
 
+_EMBARGO_FIELDS_RETIRED = (
+    "the case's stored activeEmbargo and proposedEmbargoes are retired"
+    " (ADR-0122); a case carries its embargoes as embargoRegister entries"
+)
+
 RETIRED_NAMES: Mapping[str, str] = MappingProxyType(
     {
         "vfd_state": _VFD_RETIRED,
@@ -100,6 +105,15 @@ RETIRED_NAMES: Mapping[str, str] = MappingProxyType(
                 "accepted_embargo_ids",
             ),
             _CONSENT_RETIRED,
+        ),
+        **dict.fromkeys(
+            (
+                "activeEmbargo",
+                "active_embargo",
+                "proposedEmbargoes",
+                "proposed_embargoes",
+            ),
+            _EMBARGO_FIELDS_RETIRED,
         ),
     }
 )

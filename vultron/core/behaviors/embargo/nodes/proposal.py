@@ -31,7 +31,6 @@ from vultron.core.services.embargo_lifecycle import (
     TransitionMode,
 )
 from vultron.core.services.idempotent_store import idempotent_store
-from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -228,7 +227,7 @@ class RecordParticipantAcceptanceNode(DataLayerActionWithPorts):
 
         service = EmbargoLifecycle(persistence=self.datalayer)
         try:
-            result = service.accept_embargo_invite(
+            service.accept_embargo_invite(
                 case_id=self.case_id,
                 embargo_id=self.embargo_id,
                 actor_id=actor_id,
@@ -255,18 +254,6 @@ class RecordParticipantAcceptanceNode(DataLayerActionWithPorts):
                 self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
-        if result.em_after == EM.ACTIVE and result.em_before not in (
-            EM.PROPOSED,
-            EM.REVISE,
-        ):
-            self.logger.warning(
-                "%s: EM transition %s → ACTIVE is not a standard machine"
-                " transition for case '%s'; applying state-sync override",
-                self.name,
-                result.em_before,
-                self.case_id,
-            )
-
         self.feedback_message = (
             f"Recorded acceptance of embargo '{self.embargo_id}'"
             f" for case '{self.case_id}'"
@@ -285,9 +272,8 @@ class RecordParticipantRejectionNode(DataLayerActionWithPorts):
     consent withdrawal (the actor's row for it becomes ``DECLINED``, a
     signatory's included); one naming a *proposed* embargo declines that
     embargo's row only; the owner's EJ changes nobody's record.  Moves no EM
-    state: deciding the proposal is the tree's
-    :class:`RemoveFromProposedEmbargoesNode`, and the owner's EM move is the
-    CASE_MANAGER's adjudication (EP-09-005).
+    state: deciding the proposal is the CASE_MANAGER's adjudication
+    (``DecideRejectedEmbargoProposalNode``, EP-09-005).
 
     ``rejecting_actor_id`` names the message's actor (the tree executes as the
     receiving actor, ADR-0022).  Returns SUCCESS when the actor has no

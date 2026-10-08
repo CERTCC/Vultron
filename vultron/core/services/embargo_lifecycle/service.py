@@ -42,14 +42,13 @@ class EmbargoLifecycle(
     _ActivationOperationsMixin,
     _ConsentOperationsMixin,
 ):
-    """Consolidated EM + PEC state management service.
+    """Consolidated embargo register + PEC state management service.
 
-    Owns all Embargo Management (EM) and Participant Embargo Consent (PEC)
-    state transition logic.  Hides ``create_em_machine()``, ``EMAdapter``,
-    ``MachineError`` handling, actor-to-participant lookup via
-    ``actor_participant_index``, PEC trigger application, and idempotent
-    ``proposed_embargoes`` management and the per-embargo consent rows
-    (ADR-0122).
+    Owns every change to a case's embargo register — and so to the EM state
+    derived from it — and to Participant Embargo Consent (PEC) rows
+    (ADR-0122).  Hides the register steps and their refusals, actor-to-
+    participant lookup via ``actor_participant_index``, and PEC trigger
+    application.
 
     Callers inject a :class:`~vultron.core.ports.case_persistence.CasePersistence`
     instance once at construction.  ``SqliteDataLayer`` satisfies the protocol

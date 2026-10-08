@@ -23,6 +23,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.embargo_register import activate, register
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
@@ -461,7 +462,9 @@ class TestSeedAnnouncedCaseNode:
             end_time=days_from_now_utc(45),
         )
         case = as_VulnerabilityCase(
-            id_=CASE_ID2, name="Inline Embargo", active_embargo=embargo
+            id_=CASE_ID2,
+            name="Inline Embargo",
+            embargo_register=register(active=embargo),
         )
         event = _announce_event_for(case)
         tree = SeedAnnouncedCaseNode(
@@ -480,7 +483,9 @@ class TestSeedAnnouncedCaseNode:
         case = as_VulnerabilityCase(
             id_=CASE_ID2,
             name="Unheld Embargo",
-            active_embargo=f"{CASE_ID2}/embargo_events/unheld",
+            embargo_register=register(
+                active=f"{CASE_ID2}/embargo_events/unheld"
+            ),
         )
         event = _announce_event_for(case)
         tree = SeedAnnouncedCaseNode(
@@ -502,7 +507,9 @@ class TestSeedAnnouncedCaseNode:
         reannounced = as_VulnerabilityCase(
             id_=CASE_ID2,
             name="Re-announced",
-            active_embargo=f"{CASE_ID2}/embargo_events/unheld",
+            embargo_register=register(
+                active=f"{CASE_ID2}/embargo_events/unheld"
+            ),
             case_participants=[
                 as_CaseParticipant(
                     id_=participant_id,
@@ -1047,7 +1054,7 @@ class TestEmitAddCaseParticipantNode:
             },
         )
         if embargoed:
-            case.set_embargo(f"{EMIT_ADD_CASE_ID}/embargoes/e1")
+            activate(case, f"{EMIT_ADD_CASE_ID}/embargoes/e1")
         dl.create(case)
         # The recipient selection reads each roster entry's record (CM-10-007).
         # existing_actor_2 has been invited to the embargo but not accepted.

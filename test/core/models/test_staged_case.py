@@ -20,6 +20,7 @@ LST-02-001 through LST-05-003.
 import pytest
 from pydantic import ValidationError
 
+from test.support.embargo_register import activate, propose, terminate
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import (
     CaseParticipant,
@@ -35,6 +36,7 @@ from vultron.core.states.em import EM
 _ACTOR = "https://example.org/actor"
 _REPORT_ID = "urn:uuid:report-1"
 _EMBARGO_ID = "urn:uuid:embargo-1"
+_REVISION_ID = "urn:uuid:embargo-2"
 
 
 # ---------------------------------------------------------------------------
@@ -67,15 +69,9 @@ def _minimal_case() -> VulnerabilityCase:
 def _embargoed_case_data() -> VulnerabilityCase:
     """VulnerabilityCase that satisfies EmbargoedCase invariants."""
     vc = _minimal_case()
-    object.__setattr__(vc, "active_embargo", _EMBARGO_ID)
-    # Seed a status with em_state=ACTIVE
-    vc.case_statuses = [
-        CaseStatus(
-            context=vc.id_,
-            attributed_to=_ACTOR,
-            em=EmDimension(state=EM.ACTIVE),
-        )
-    ]
+    # EM is derived from the register (ADR-0122): activating is what makes it
+    # ACTIVE.
+    activate(vc, _EMBARGO_ID)
     return vc
 
 
@@ -254,14 +250,9 @@ class TestEmbargoedCase:
 
     def test_valid_with_revise_em_state(self):
         vc = _embargoed_case_data()
-        vc.case_statuses = [
-            CaseStatus(
-                context=vc.id_,
-                attributed_to=_ACTOR,
-                em=EmDimension(state=EM.REVISE),
-            )
-        ]
+        propose(vc, _REVISION_ID)
         ec = EmbargoedCase.model_validate(vc)
+        assert ec.em_state == EM.REVISE
         assert ec.current_status.em.state == EM.REVISE
 
     def test_raises_when_active_embargo_is_none(self):
@@ -271,45 +262,50 @@ class TestEmbargoedCase:
             EmbargoedCase.model_validate(vc)
 
     def test_raises_when_em_state_is_no_embargo(self):
-        vc = _embargoed_case_data()
-        vc.case_statuses = [
-            CaseStatus(
-                context=vc.id_,
-                attributed_to=_ACTOR,
-                em=EmDimension(state=EM.NONE),
-            )
-        ]
-        with pytest.raises(ValidationError, match="em_state"):
+        vc = _minimal_case()
+        assert vc.em_state == EM.NONE
+        with pytest.raises(ValidationError, match="active_embargo"):
             EmbargoedCase.model_validate(vc)
 
     def test_raises_when_em_state_is_proposed(self):
-        vc = _embargoed_case_data()
-        vc.case_statuses = [
-            CaseStatus(
-                context=vc.id_,
-                attributed_to=_ACTOR,
-                em=EmDimension(state=EM.PROPOSED),
-            )
-        ]
-        with pytest.raises(ValidationError, match="em_state"):
+        """An open proposal alone is not an embargo in force."""
+        vc = _minimal_case()
+        propose(vc, _EMBARGO_ID)
+        assert vc.em_state == EM.PROPOSED
+        with pytest.raises(ValidationError, match="active_embargo"):
             EmbargoedCase.model_validate(vc)
 
     def test_raises_when_em_state_is_exited(self):
         vc = _embargoed_case_data()
-        vc.case_statuses = [
-            CaseStatus(
-                context=vc.id_,
-                attributed_to=_ACTOR,
-                em=EmDimension(state=EM.EXITED),
-            )
-        ]
-        with pytest.raises(ValidationError, match="em_state"):
+        terminate(vc)
+        assert vc.em_state == EM.EXITED
+        with pytest.raises(ValidationError, match="active_embargo"):
             EmbargoedCase.model_validate(vc)
+
+    def test_a_status_em_copy_does_not_make_a_case_embargoed(self):
+        """EM is the register's; a status claiming ACTIVE is overruled."""
+        vc = _minimal_case()
+        claimed = VulnerabilityCase.model_validate(
+            {
+                **vc.model_dump(by_alias=True),
+                "caseStatuses": [
+                    CaseStatus(
+                        context=vc.id_,
+                        attributed_to=_ACTOR,
+                        em=EmDimension(state=EM.ACTIVE),
+                    ).model_dump(by_alias=True)
+                ],
+            }
+        )
+        assert claimed.em_state == EM.NONE
+        assert claimed.current_status.em.state == EM.NONE
+        with pytest.raises(ValidationError, match="active_embargo"):
+            EmbargoedCase.model_validate(claimed)
 
     def test_inherits_case_invariants(self):
         """EmbargoedCase is a Case: it also enforces Case invariants."""
         vc = VulnerabilityCase(attributed_to=_ACTOR)
-        object.__setattr__(vc, "active_embargo", _EMBARGO_ID)
+        activate(vc, _EMBARGO_ID)
         # No reports: should fail the Case check first
         with pytest.raises(ValidationError):
             EmbargoedCase.model_validate(vc)

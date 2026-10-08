@@ -126,7 +126,6 @@ from vultron.core.behaviors.embargo.nodes.teardown import (
     ApplyEmbargoTeardownNode,
     ClearActiveEmbargoNode,
     HasEmbargoActiveNode,
-    RemoveFromProposedEmbargoesNode,
     SendAnnounceEmbargoEventNode,
 )
 from vultron.core.behaviors.embargo.nodes.terminate import (
@@ -156,7 +155,6 @@ __all__ = [
     "HasEmbargoActiveNode",
     "ClearActiveEmbargoNode",
     "ApplyEmbargoTeardownNode",
-    "RemoveFromProposedEmbargoesNode",
     "SendAnnounceEmbargoEventNode",
     # Embargo-ending notices to unreached signatories (CM-31-009, CM-31-010)
     "ApplyAnnouncedEmbargoRevisionNode",

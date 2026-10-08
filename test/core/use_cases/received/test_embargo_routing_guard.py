@@ -22,6 +22,7 @@ from __future__ import annotations
 
 from typing import cast
 
+from test.support.embargo_register import activate, propose
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -32,7 +33,6 @@ from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.use_case_result import HandlerDisposition
-from vultron.core.states.em import EM
 from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
     InviteToEmbargoOnCaseReceivedUseCase,
@@ -278,7 +278,7 @@ class TestAcceptInviteToEmbargoRoutingGuard:
         )
         case = cast(VulnerabilityCase, dl.read(case.id_))
         assert case is not None
-        case.current_status.em.state = EM.PROPOSED
+        propose(case, embargo.id_)
         dl.save(case)
 
         # The CASE_MANAGER relayed the Invite to the coordinator, who answers.
@@ -406,11 +406,12 @@ class TestRemoveEmbargoRoutingGuard:
         dl, case_actor, case, embargo = _make_embargo_case(
             self.CASE_ID, self.AUTHOR_ID, self.CASE_ACTOR_ID
         )
-        # Add embargo to proposed list so the BT removal step succeeds.
+        # Make the embargo the one in force: Remove ends the active embargo
+        # (a Remove naming a merely-proposed one changes nothing, ADR-0122).
         read_case = dl.read(case.id_)
         assert read_case is not None
         case = cast(as_VulnerabilityCase, read_case)
-        case.proposed_embargoes.append(embargo.id_)
+        activate(case, embargo.id_)
         dl.save(case)
         return dl, case_actor, case, embargo
 

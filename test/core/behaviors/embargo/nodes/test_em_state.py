@@ -97,7 +97,6 @@ class TestReadEmStateNode:
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
         case, _ = make_case_and_embargo("rsn3", em_state=EM.NONE)
-        case.set_embargo(None)
         dl.create(case)
         setup_blackboard(dl)
 
@@ -143,13 +142,13 @@ class TestReadEmStateNode:
 
         assert status == py_trees.common.Status.FAILURE
 
-    def test_returns_failure_when_current_status_raises_value_error(self):
-        """FAILURE when case.current_status raises ValueError (no materialized status)."""
+    def test_returns_failure_when_em_state_raises_value_error(self):
+        """FAILURE when case.em_state raises ValueError (no derivable EM state)."""
         from vultron.core.models.case import VulnerabilityCase
 
         mock_case = MagicMock(spec=VulnerabilityCase)
-        type(mock_case).current_status = PropertyMock(
-            side_effect=ValueError("no materialized CaseStatus")
+        type(mock_case).em_state = PropertyMock(
+            side_effect=ValueError("no derivable EM state")
         )
         mock_dl = MagicMock()
         mock_dl.read_case.return_value = mock_case

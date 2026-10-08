@@ -41,6 +41,7 @@ from test.core.use_cases.received.actor.test_case_joining_planned import (
 from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
 )
+from test.support import embargo_register
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -79,6 +80,7 @@ from vultron.core.participants.recipients import (
 )
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
+from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -181,8 +183,7 @@ def _seed(dl: SqliteDataLayer, *, end_in_days: int = 60) -> None:
             end_time=days_from_now_utc(end_in_days),
         )
     )
-    case.append_case_status(em_state=EM.ACTIVE)
-    case.active_embargo = EMBARGO_ID
+    embargo_register.activate(case, EMBARGO_ID)
     dl.create(case)
 
 
@@ -252,8 +253,7 @@ class _Manager:
         self.dl.create(revision)
         case = self.dl.read(CASE_ID)
         assert isinstance(case, as_VulnerabilityCase)
-        case.current_status.em.state = EM.REVISE
-        case.proposed_embargoes.append(REVISION_ID)
+        embargo_register.propose(case, REVISION_ID)
         self.dl.save(case)
         return revision
 
@@ -343,7 +343,7 @@ def test_owner_ej_after_disclosure_sends_et_crediting_the_owner() -> None:
     revision = manager.stage_revision(end_in_days=30)
     case = manager.dl.read(CASE_ID)
     assert isinstance(case, as_VulnerabilityCase)
-    case.append_case_status(em_state=EM.REVISE, pxa_state=CS_pxa.Pxa)
+    case.append_case_status(pxa_state=CS_pxa.Pxa)
     manager.dl.save(case)
     invite = em_propose_embargo_activity(
         revision,
@@ -386,7 +386,11 @@ def _cascade_terminate(manager: _Manager) -> None:
         sync_port=sync_port,
         wire_render_port=As2WireRenderAdapter(),
     ).execute_with_setup(
-        tree=terminate_embargo_bt(case_id=CASE_ID, result_out={}),
+        tree=terminate_embargo_bt(
+            case_id=CASE_ID,
+            result_out={},
+            reason=TerminationReason.THREAT_SIGNAL,
+        ),
         actor_id=MANAGER,
         sync_port=sync_port,
     )
@@ -628,7 +632,7 @@ class _Replica:
         return (
             case.current_status.em.state,
             case.active_embargo_id,
-            tuple(case.proposed_embargoes),
+            tuple(case.proposed_embargo_ids),
             len(case.case_statuses),
             tuple(
                 (row.embargo_id, row.state)

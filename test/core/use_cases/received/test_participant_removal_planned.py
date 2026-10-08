@@ -52,6 +52,7 @@ from test.core.use_cases.received.actor.test_case_joining_planned import (
 from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
 )
+from test.support.embargo_register import activate
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -69,7 +70,6 @@ from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
 )
-from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -242,8 +242,7 @@ def _seed(
         id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now_utc(60)
     )
     dl.create(embargo)
-    case.append_case_status(em_state=EM.ACTIVE)
-    case.active_embargo = EMBARGO_ID
+    activate(case, EMBARGO_ID)
     dl.create(case)
     return case
 

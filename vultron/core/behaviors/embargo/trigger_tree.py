@@ -84,6 +84,7 @@ from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.pending_assertion import (
     ASSERTED_ACTIVITY_KEY,
 )
+from vultron.core.states.embargo_register import TerminationReason
 
 _ACCEPT_EVENT_TYPE = MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value
 _REJECT_EVENT_TYPE = MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE.value
@@ -422,10 +423,15 @@ def terminate_embargo_bt(
     *,
     case_id: str,
     result_out: dict[str, object],
+    reason: TerminationReason,
     activity_builder: EmbargoActivityBuilder | None = None,
     requested_by: str | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Shared BT for terminating the active embargo (BT-19-001, EP-09-008).
+
+    *reason* is why the embargo ends: ``EARLY`` for a participant's own
+    decision, ``THREAT_SIGNAL`` for the CS ``P``/``X``/``A`` cascades
+    (ADR-0122).
 
     Satisfies the routing-gated state-mutation ordering:
 
@@ -487,7 +493,7 @@ def terminate_embargo_bt(
                 as_case_manager=[
                     capture,
                     TerminateEmbargoLifecycleNode(
-                        case_id=case_id, result_out=result_out
+                        case_id=case_id, result_out=result_out, reason=reason
                     ),
                     commit,
                     _make_emit_node(case_id),

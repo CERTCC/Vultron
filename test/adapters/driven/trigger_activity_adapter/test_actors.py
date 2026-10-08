@@ -21,6 +21,7 @@ import json
 
 import pytest
 
+from test.support.embargo_register import register
 from test.support.received import archive_received
 from vultron.errors import (
     VultronActivityConstructionError,
@@ -92,7 +93,7 @@ class TestInviteActorToCaseWithInlineEmbargo:
                     em=EmDimension(state=EM.ACTIVE),
                 )
             ],
-            active_embargo=embargo,
+            embargo_register=register(active=embargo),
         )
         dl.create(case)
         stored = dl.read(case_id)

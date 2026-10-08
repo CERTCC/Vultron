@@ -2,8 +2,9 @@
 title: Embargo Lifecycle — Architecture and Implementation Notes
 status: active
 description: >
-  Target architecture for EM state management; the inline-EMAdapter
-  instantiation anti-pattern in trigger use cases; P/X/A embargo-eligibility
+  Target architecture for EM state management; the embargo register on the
+  case, from which EM is derived and which only EmbargoLifecycle changes,
+  one checked step at a time (ADR-0122); P/X/A embargo-eligibility
   precondition guards in EmbargoLifecycle; the earliest-expiration resolution
   order for multiple open proposals (EP-08); and the fragmentation concern that
   motivates the EmbargoLifecycle service (see #538); and the revision relay
@@ -48,6 +49,8 @@ related_notes:
   - notes/case-joining.md
 relevant_packages:
   - vultron/core/states/em.py
+  - vultron/core/states/embargo_register.py
+  - vultron/core/models/embargo_register.py
   - vultron/core/services/embargo_lifecycle/
   - vultron/core/services/carried_embargo.py
   - vultron/core/behaviors/embargo/
@@ -70,10 +73,13 @@ relevant_packages:
 
 ## Background
 
-The embargo lifecycle involves three interacting state machines:
+The embargo lifecycle involves two records and one derived read:
 
-1. **EM** (`vultron/core/states/em.py`) — the case-level embargo state:
-   `NONE → PROPOSED → ACTIVE ↔ REVISE → EXITED`
+1. **The embargo register** (`VulnerabilityCase.embargo_register`,
+   `vultron/core/models/embargo_register.py`) — one entry per embargo ever
+   proposed on the case, appended and never removed (ADR-0122). EM
+   (`NONE`, `PROPOSED`, `ACTIVE`, `REVISE`, `EXITED`) is *derived* from it
+   (`case.em_state`); see § "The Embargo Register and the Derived EM".
 2. **PEC** (`vultron/core/states/participant_embargo_consent.py`) — the
    per-participant, per-embargo consent rows (`CaseParticipant.embargo_consents`),
    each `INVITED`, `ACCEPTED`, `DECLINED` or `EXPIRED` (ADR-0122). A participant
@@ -83,10 +89,66 @@ The embargo lifecycle involves three interacting state machines:
    and "lapsed" are read from the rows, never stored. See
    `notes/participant-embargo-consent.md` for the full transition table and
    the direct-assignment pitfall (CM-18-005).
-3. **`VulnerabilityCase.active_embargo`** — the pointer to the currently
-   active `EmbargoEvent` object
+3. **`VulnerabilityCase.active_embargo`**, `active_embargo_id` and
+   `proposed_embargo_ids` — views of the register's `ACTIVE` and `PROPOSED`
+   entries, not records of their own.
 
-A correct embargo lifecycle transition must update **all three** consistently.
+A correct embargo lifecycle operation changes the register and the consent
+rows consistently; EM and the views follow from the register.
+
+---
+
+## The Embargo Register and the Derived EM (ADR-0122)
+
+Each `EmbargoRegisterEntry` is `(embargo, status, replaces)`: `embargo` is the
+`EmbargoEvent` or its id (the object when a sender carried it, AKM-03-001),
+`replaces` the embargo an activated revision superseded. The statuses and
+triggers are in `vultron/core/states/embargo_register.py`:
+
+| Trigger | Change |
+|---|---|
+| `PROPOSE` | new entry → `PROPOSED` |
+| `ACTIVATE` | `PROPOSED → ACTIVE` |
+| `REJECT` | `PROPOSED → REJECTED` |
+| `SUPERSEDE` | `ACTIVE → SUPERSEDED`, only with another entry's `ACTIVATE` |
+| `TERMINATE` | `ACTIVE → TERMINATED`, with a `TerminationReason` |
+| `CANCEL` | `PROPOSED → CANCELLED`, with a `TERMINATE` or on a threat signal |
+
+Every change is a **step** — the whole change one protocol event causes —
+applied by `apply_register_step()` and checked whole: each trigger must be
+legal, the four invariants must hold afterwards (at most one `ACTIVE` and one
+`TERMINATED`, never both; `SUPERSEDED` only beside one of them; nothing
+`PROPOSED` beside `TERMINATED`; nothing changes after `TERMINATED`), and a
+refused step raises `VultronInvalidStateTransitionError` naming every rule it
+broke (EH-07-001), leaving the register as it was. The `*_changes()` builders
+name the step each event causes; `VulnerabilityCase.apply_embargo_register_step`
+and its wrappers apply it to a case, prune `pending_embargo_proposal_index` for
+every entry that left `PROPOSED` (EP-08-003), and stamp the derived EM onto the
+current `CaseStatus`.
+
+`derive_em()` reads EM from the statuses: no `ACTIVE`/`PROPOSED`/`TERMINATED`
+entry is `NONE`; `PROPOSED` only is `PROPOSED`; `ACTIVE` is `ACTIVE`, or
+`REVISE` with a `PROPOSED` beside it; `TERMINATED` is `EXITED`. So rejecting
+one of two open proposals leaves EM `PROPOSED` (or `REVISE`), and a case that
+has had an embargo in force never returns to `NONE` or `PROPOSED`. EM has no
+transition table of its own: the EM machine, `EMAdapter` and
+`is_valid_em_transition()` are deleted.
+
+**`CaseStatus.em` is a stamped copy.** The status still carries EM on the wire
+and inside `ParticipantStatus`, but the case writes it from the register: at
+construction, at every register step and in `add_case_status`.
+`append_case_status(em_state=...)` is refused, and a received `Add(CaseStatus)`
+whose EM differs from `case.em_state` has its EM refused and the case's carried
+forward (RSH-05-023). Core code reads `case.em_state`, never the status copy.
+
+**The termination reason** (`END_TIME_REACHED`, `EARLY`, `THREAT_SIGNAL`) is
+required on every `TERMINATE` — `terminate_active_embargo(reason=...)`,
+`terminate_embargo_bt(reason=...)` — but not yet stored on the entry: a replica
+learns a termination from a `Remove` that does not carry its reason, so storing
+it would let the CASE_MANAGER's register and a replica's disagree. Carrying it
+in the `Remove` and on the entry is #4293. A `Remove` naming an embargo that is
+not in force changes nothing: the register cancels a proposal only with a
+termination or on a threat signal.
 
 ---
 
@@ -114,7 +176,7 @@ class EmbargoLifecycle:
         self, *, case_id, embargo_id, actor_id, transition_mode=STRICT
     ) -> EmbargoLifecycleResult: ...
     def terminate_active_embargo(
-        self, *, case_id, actor_id, transition_mode=STRICT
+        self, *, case_id, reason, actor_id, transition_mode=STRICT
     ) -> EmbargoLifecycleResult: ...
     def activate_embargo(
         self, *, case_id, embargo_id, actor_id=None, transition_mode=STRICT
@@ -186,7 +248,7 @@ first:
   when the entry names the embargo by id only and the replica lacks it.
 - **The activation writers** — `accept_embargo_invite()`,
   `activate_embargo()` and the creation-time `initialize_creation_embargo()`,
-  the only paths that *activate* an embargo (EM state plus `active_embargo`).
+  the only paths that *activate* an embargo (a register `ACTIVATE` step).
   All three compute their EP-05-001 arm through
   `EmbargoLifecycle._activation_arm()` before any write: it reads the
   activated record, and on a revision the replaced one too, so a bare id from
@@ -209,11 +271,13 @@ and the handler reports `REFUSED` (HP-01-003). A sender-side refusal to build
 an announce during sync replay is logged at ERROR too, not as a recoverable
 WARNING. An unknown *accepted* embargo stays an ordinary WARNING refusal.
 
-**`TransitionMode`**: `STRICT` enforces valid transitions and precondition
-guards. A trigger runs it only in its CASE_MANAGER arm; a non-manager's trigger
-runs no lifecycle write at all (EP-09-008). `OBSERVED` syncs local state
-unconditionally to match the CASE_MANAGER's committed assertion (used by
-received-side and ledger-replay nodes — bypasses all guards).
+**`TransitionMode`**: `STRICT` raises on a refused register step and enforces
+the precondition guards. A trigger runs it only in its CASE_MANAGER arm; a
+non-manager's trigger runs no lifecycle write at all (EP-09-008). `OBSERVED`
+follows the CASE_MANAGER's committed assertion (received-side and ledger-replay
+nodes): it skips the P/X/A guards, records a proposal a replica never saw before
+activating it, and logs and skips a step the register refuses — it never forces
+the register into a state its rules refuse.
 
 **P/X/A embargo-eligibility guards** (added in
 [#1454](https://github.com/CERTCC/Vultron/issues/1454)): `EmbargoLifecycle`
@@ -229,9 +293,9 @@ enforces EMB-01-002, EMB-02-002, and EMB-04-002 via
 The received-side path (`received/embargo/`) reaches `EmbargoLifecycle`
 through nodes: the received Accept runs `accept_embargo_invite(OBSERVED)`
 (`RecordParticipantAcceptanceNode`), the received Reject records consent through
-`record_embargo_rejection` (`RecordParticipantRejectionNode`) and decides the
-proposal through `RemoveFromProposedEmbargoesNode`, and the teardown replay runs
-`terminate_active_embargo(OBSERVED)`.
+`record_embargo_rejection` (`RecordParticipantRejectionNode`) and the owner's
+Reject decides the proposal through `DecideRejectedEmbargoProposalNode`, and the
+teardown replay runs `terminate_active_embargo(OBSERVED)`.
 
 **Late-Accept routing (EMB-17)**: when an inbound `Accept(Invite(EmbargoEvent))`
 arrives after the RSVP deadline, `AcceptInviteToEmbargoOnCaseReceivedUseCase`
@@ -342,7 +406,7 @@ EM state:
   the cascade path for AC-2 of issue #1454.
 - **EM PROPOSED** → `reject_proposed_embargo_bt`. EMB-16-001: continuing to
   negotiate a proposed embargo after P/X/A is set is not viable, so every open
-  proposal is abandoned (EM → NONE). Only the CASE_MANAGER writes; anyone else
+  proposal is cancelled (EM derives NONE). Only the CASE_MANAGER writes; anyone else
   writes and sends nothing (EMB-16-002; see the write gate below).
 - **EM NONE or EXITED** → skip (nothing to tear down).
 
@@ -364,11 +428,10 @@ catch `VultronError` and return `Status.FAILURE`.
 When implementing any code that transitions embargo state:
 
 1. **Always use `EmbargoLifecycle`** (`vultron/core/services/embargo_lifecycle/`).
-   Never instantiate `create_em_machine()` + `EMAdapter` inline.
-   BT nodes MUST NOT directly assign `EmDimension` to `case.current_status.em`
-   and call `dl.save(case)` as a substitute — route through `EmbargoLifecycle`
-   instead (EMB-18-001). Warning-only `is_valid_em_transition()` guards that
-   proceed regardless of result MUST NOT be used (EMB-18-002).
+   BT nodes MUST NOT apply a register step to the case themselves, or assign
+   `case.current_status.em`, and call `dl.save(case)` as a substitute — route
+   through `EmbargoLifecycle` instead (EMB-18-001). A refused step raises or
+   fails the node without a write (EMB-18-002).
 2. **P/X/A precondition**: STRICT mode guards `propose_embargo()` and
    `accept_embargo_invite()` (owner-only) against PXA-set cases.  If your
    caller receives `VultronInvalidStateTransitionError`, the case is no longer
@@ -383,26 +446,27 @@ When implementing any code that transitions embargo state:
    carries every signatory over by marking the revision's row `ACCEPTED`, and
    under *longer* terms the signatories who have not accepted them have lapsed
    by derivation, with nothing written (MSM-07-005).
-   `terminate_active_embargo()` clears the active embargo and writes no consent
+   `terminate_active_embargo()` terminates the embargo in force, cancels every
+   open proposal and writes no consent
    (MSM-07-006); an unanswered invite past its deadline moves its `INVITED` row to
    `EXPIRED` (`EXPIRE`, CM-28-004). Callers do not need to do this manually.
 5. **OBSERVED mode** (received-side): pass
-   `transition_mode=TransitionMode.OBSERVED` to sync local state with a remote
-   assertion. EM transition guards are bypassed in OBSERVED mode; the PEC
+   `transition_mode=TransitionMode.OBSERVED` to follow a remote assertion. A
+   step the register refuses is logged and skipped, never forced; the PEC
    cascades still run, so a replica's consent records stay in step with the
    CASE_MANAGER's.
 6. **PROPOSED + P/X/A**: when a CS public/exploit/attacks event fires while EM
    is PROPOSED, use `reject_proposed_embargo_bt` (not `terminate_embargo_bt`).
    `terminate_embargo_bt` requires an active embargo (`HasActiveEmbargoNode`
    guard); it fails when EM is PROPOSED. `reject_proposed_embargo_bt` calls
-   `abandon_embargo_proposals()` as the CASE_MANAGER, which drops every open
-   proposal and drives PROPOSED → NONE (EMB-16-001, EP-09-008).
+   `abandon_embargo_proposals()` as the CASE_MANAGER, which cancels every open
+   proposal so EM derives NONE (EMB-16-001, EP-09-008).
 7. **Several proposals can be open at once, and order is by expiration, not
    arrival** (EP-08, ADR-0100). See the section below before touching any
    proposal-selection code.
 8. **Reading EM state inside an action node** goes through `ReadEmStateNode`
    (`vultron/core/behaviors/embargo/nodes/em_state.py`), never
-   `case.current_status.em` inline (AC-1, #1474; `WriteEmStateNode` was retired
+   `case.em_state` or `case.current_status.em` inline (AC-1, #1474; `WriteEmStateNode` was retired
    in #2712 — writes go through the service). Call the shared
    `read_case_em_state()` helper beside it rather than wiring a
    `ReadEmStateNode` up by hand; it raises `BtNodePreconditionError` when the
@@ -444,47 +508,38 @@ reason EP-08 exists:
   counter-proposal a default `accept` took the **superseded** terms. Fixed by
   #3470.
 - **Neither record of open proposals was fully pruned.** Nothing removed a
-  decided entry from `pending_embargo_proposal_index`, and `proposed_embargoes`
-  was pruned only on teardown, so a **rejected** proposal survived in both.
-  Fixed by #3470: `VulnerabilityCase.discard_proposed_embargo` forgets a
-  proposal in both records at once, and every decision path calls it —
-  activation, the owner's `Reject` (`answers.py`), teardown and the P/X/A
-  abandonment. An unpruned record is not a weaker guarantee than a
-  pruned one; it is a different and wrong answer, because a decided proposal
-  stays selectable.
+  decided entry from `pending_embargo_proposal_index`, and the old
+  `proposed_embargoes` list was pruned only on teardown, so a **rejected**
+  proposal survived in both. #3470 pruned both on every decision path; ADR-0122
+  then made the open proposals a view of the register (its `PROPOSED` entries),
+  so a decided proposal leaves by changing status and the relay index is pruned
+  in the same step. An unpruned record is not a weaker guarantee than a pruned
+  one; it is a different and wrong answer, because a decided proposal stays
+  selectable.
 
 Two rules follow for any new proposal-selection code:
 
 - **Never select by insertion or arrival order.** Resolve candidates' embargo
   `end_time` and take the earliest. `#3392` needs the same comparison for
   EP-04-003 shortest-wins at case creation — use one shared comparator, not two.
-- **Prune on decision, in both records and on every decision path.** Before #3470
-  teardown was the only path that pruned anything, and it pruned only
-  `proposed_embargoes`; accept and reject pruned nothing. Two records of overlapping
-  state, each pruned on a different subset of the decision paths, is exactly the
-  drift EP-08-003 closes: `VulnerabilityCase.discard_proposed_embargo` now forgets
-  a decided proposal in both records, and every `EmbargoLifecycle` decision (owner
-  accept, owner reject, activation, termination) and `RemoveFromProposedEmbargoesNode`
-  call it. A participant's accept or reject is consent, not a decision, and prunes
-  nothing. Replicas prune too: the received Accept goes through
+- **Decide through the register, on every decision path.** Owner accept
+  (`ACTIVATE`), owner reject (`REJECT`), termination (`TERMINATE` plus
+  `CANCEL`) and the P/X/A abandonment (`CANCEL`) each change the proposal's
+  register entry through `EmbargoLifecycle`, and the step prunes the relay
+  index with it. A participant's accept or reject is consent, not a decision,
+  and changes no entry. Replicas decide too: the received Accept goes through
   `accept_embargo_invite`, and the received `Reject(Invite)` tree and its ledger
   replay both run `DecideRejectedEmbargoProposalNode`, which acts only when the
-  rejecting actor is the case owner and goes through `reject_embargo_invite` — so
-  the decided proposal is forgotten and EM leaves `REVISE`/`PROPOSED` in every
-  store, where a later default selection could otherwise still pick it. Termination decides *every* open proposal, not only the terminated
-  embargo's own entry (EP-08-004, ADR-0113): a case has one active embargo
-  (VP-04-002), so every proposal open while EM is `ACTIVE` or `REVISE` is a
-  revision of it, and a revision of an embargo that no longer exists cannot be
-  accepted. No field linking a revision to its embargo is needed.
-  `terminate_active_embargo` clears both records through
-  `VulnerabilityCase.discard_all_proposed_embargoes` (the whole-record sibling of
-  `discard_proposed_embargo`; never by assigning one field), and because the
-  teardown replay node (`ClearActiveEmbargoNode`) runs
-  `terminate_active_embargo(OBSERVED)`, the rule holds on every replica for free
-  (#3914).
+  rejecting actor is the case owner. Termination decides *every* open proposal,
+  not only the terminated embargo's own entry (EP-08-004, ADR-0113): a case has
+  one active embargo (VP-04-002), so every proposal open while EM is `ACTIVE` or
+  `REVISE` is a revision of it. The register enforces this (invariant 3 refuses
+  a `TERMINATED` entry beside a `PROPOSED` one), and because the teardown replay
+  node (`ClearActiveEmbargoNode`) runs `terminate_active_embargo(OBSERVED)`, the
+  rule holds on every replica (#3914).
 - **A Reject names the active embargo or an open proposal — nothing else.**
   `reject_embargo_invite` and `record_embargo_rejection` classify the named
-  embargo before the owner's decision prunes it: the active one is consent
+  embargo before the owner's decision changes its entry: the active one is consent
   withdrawal, an open proposal is a refusal of those terms, and anything else
   raises `VultronValidationError` (a protocol error, not a consent change;
   ADR-0093). Test seeding that hands the service an embargo the case has never
