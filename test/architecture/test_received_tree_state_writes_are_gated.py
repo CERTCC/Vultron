@@ -351,10 +351,6 @@ WRITES_NO_CASE_STATE: dict[tuple[str, str], str] = {
         "RecordCaseActorAcceptanceNode",
     ): _LOCAL,
     (f"{_B}.case.nodes.case_setup", "EnsureCaseActorHostedNode"): _LOCAL,
-    (
-        f"{_B}.case.nodes.communication",
-        "CreateAndPersistCaseActivityNode",
-    ): _ARCHIVE,
     (f"{_B}.case.nodes.conditions", "WritePendingReportCaseLinkNode"): _LOCAL,
     (f"{_B}.case.nodes.embargo_resolution", "CaseNotEmbargoEligibleNode"): (
         "asks EmbargoLifecycle whether the case is eligible; writes nothing"

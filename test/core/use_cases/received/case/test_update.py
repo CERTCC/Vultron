@@ -507,6 +507,7 @@ class TestCaseUseCases:
     # Broadcast tests (CM-06-001, CM-06-002)
     # ------------------------------------------------------------------
 
+    @pytest.mark.spec("CM-06-003")
     @pytest.mark.parametrize(
         "receiving_actor_id",
         [RECEIVER_ID, None],

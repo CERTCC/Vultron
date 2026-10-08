@@ -60,9 +60,6 @@ CASE_ID = "https://example.org/cases/case-001"
 #: below fails if the roster grows beyond this table, so a new node cannot be
 #: silently dropped from the enforcement tests.
 CONSTRUCTOR_KWARGS: dict[str, dict[str, Any]] = {
-    "PersistOwnerCaseNode": {},
-    "RecordOwnerJoinedEventNode": {},
-    "AttachOwnerParticipantToCaseNode": {},
     "AttachParticipantToCaseNode": {
         "participant_actor_id": PARTICIPANT_ACTOR_ID
     },
