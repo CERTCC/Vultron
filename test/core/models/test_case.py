@@ -22,7 +22,6 @@ from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import (
     FinderParticipant,
-    VendorParticipant,
 )
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.registry import CORE_VOCABULARY
@@ -232,38 +231,6 @@ class TestVulnerabilityCaseAddParticipant:
         )
         with pytest.raises(VultronValidationError, match="divergence"):
             case.add_participant(participant)
-
-
-class TestVulnerabilityCaseRemoveParticipant:
-    """remove_participant removes from list and index."""
-
-    def test_remove_participant_clears_from_list(
-        self, case: VulnerabilityCase
-    ):
-        p = VendorParticipant(
-            id_="urn:uuid:part-1",
-            attributed_to="https://example.org/vendor",
-        )
-        case.add_participant(p)
-        case.remove_participant("urn:uuid:part-1")
-        assert p.id_ not in case.case_participants
-
-    def test_remove_participant_clears_from_index(
-        self, case: VulnerabilityCase
-    ):
-        p = VendorParticipant(
-            id_="urn:uuid:part-1",
-            attributed_to="https://example.org/vendor",
-        )
-        case.add_participant(p)
-        case.remove_participant("urn:uuid:part-1")
-        assert "https://example.org/vendor" not in case.actor_participant_index
-
-    def test_remove_nonexistent_participant_is_noop(
-        self, case: VulnerabilityCase
-    ):
-        case.remove_participant("urn:uuid:no-such")
-        assert case.case_participants == []
 
 
 class TestVulnerabilityCaseActiveEmbargoView:

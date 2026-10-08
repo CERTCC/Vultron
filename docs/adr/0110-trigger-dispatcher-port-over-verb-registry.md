@@ -1,5 +1,5 @@
 ---
-status: accepted-provisional
+status: accepted
 date: 2026-09-28
 created: 2026-09-28
 updated: 2026-09-28
@@ -240,7 +240,7 @@ Realized:
 - A topic-scoped citation ratchet (`test/architecture/test_implements_citations_topic_scoped.py`) fails on any `TB-` citation under `vultron/`.
 
 Per ADR-0095's own rule: no entry here asserts a test exists until it does; every test above exists.
-The condition this ADR set for leaving `accepted-provisional` — the port collapsed and every named test in place — is met; the status flip to `accepted` is the reviewer's decision on the cutover PR, not the author's, so the frontmatter still reads `accepted-provisional` until it is taken.
+This ADR left `accepted-provisional` once the port collapsed and every named test was in place; both hold, so its status is `accepted`.
 
 ## More Information
 

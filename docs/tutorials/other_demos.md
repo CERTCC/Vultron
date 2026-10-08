@@ -160,7 +160,8 @@ See [How to Suggest an Actor for a Case](../howto/activitypub/activities/suggest
 vultron-demo manage-participants
 ```
 
-This demo combines the full participant lifecycle: invite, accept, create the participant record, add it to the case, record a participant status, and remove the participant from the case.
+This demo combines the full participant lifecycle: invite, accept, create the participant record, add it to the case, record a participant status, and remove the participant from active participation.
+The vendor is both Case Owner and CASE_MANAGER here, so the removal is the owner's request to itself, and the participant receives the CASE_MANAGER's direct removal notice; its record stays on the case.
 A second path shows the rejection outcome.
 Each step is logged so we can follow the state changes.
 
@@ -177,7 +178,8 @@ sequenceDiagram
         P-->>O: Accept Invite to Case<br/>Accept(Invite)
         Note over O: Create(CaseParticipant)<br/>Add(CaseParticipant)
         P->>P: Create(ParticipantStatus)<br/>Add(ParticipantStatus)
-        O->>P: Remove Case Participant from Case<br/>Remove(CaseParticipant)
+        Note over O: Remove(CaseParticipant), ledgered<br/>record kept, removal fact set
+        O->>P: Removal notice<br/>Remove(CaseParticipant)
     else Participant rejects
         P-->>O: Reject Invite to Case<br/>Reject(Invite)
         Note over O: No participant created

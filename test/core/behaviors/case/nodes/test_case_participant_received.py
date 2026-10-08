@@ -25,6 +25,7 @@ from vultron.core.behaviors.case.nodes.case_participant_received import (
     RemoveCaseParticipantFromCaseReceivedNode,
 )
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
@@ -121,59 +122,85 @@ class TestAddCaseParticipantToCaseReceivedNode:
         assert result.status == Status.FAILURE
 
 
-class TestRemoveCaseParticipantFromCaseReceivedNode:
-    """Unit tests for RemoveCaseParticipantFromCaseReceivedNode."""
+REMOVE_ID = "https://example.org/activities/remove-coord"
 
-    @pytest.mark.spec("CM-23-003")
-    def test_removes_participant_from_case(
+
+class TestRemoveCaseParticipantFromCaseReceivedNode:
+    """Removal sets the fact and keeps the record (CM-31-001, ADR-0116)."""
+
+    def _run(self, bridge, case_id: str = CASE_ID):
+        tree = RemoveCaseParticipantFromCaseReceivedNode(
+            participant_id=PARTICIPANT_ID,
+            case_id=case_id,
+            removal_activity_id=REMOVE_ID,
+        )
+        return bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+
+    @pytest.mark.spec("CM-31-001")
+    def test_keeps_the_participant_on_the_roster(
         self, bridge, dl, case, participant
     ) -> None:
-        """Happy path: participant removed and case persisted."""
+        """Inverted from the deletion pin: the record stays in the case."""
         case.add_participant(participant)
         dl.create(case)
         dl.create(participant)
-        tree = RemoveCaseParticipantFromCaseReceivedNode(
-            participant_id=PARTICIPANT_ID, case_id=CASE_ID
-        )
-        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+
+        result = self._run(bridge)
+
         assert result.status == Status.SUCCESS
         refreshed = dl.read(CASE_ID)
         assert refreshed is not None
         pids = [getattr(p, "id_", p) for p in refreshed.case_participants]
-        assert PARTICIPANT_ID not in pids
+        assert PARTICIPANT_ID in pids
+        record = dl.read(PARTICIPANT_ID)
+        assert isinstance(record, CaseParticipant)
+        assert record.removal_activity == REMOVE_ID
+        assert not refreshed.is_active_participant(record)
 
-    def test_clears_actor_participant_index(
+    @pytest.mark.spec("CM-19-002")
+    def test_keeps_the_actor_participant_index_entry(
         self, bridge, dl, case, participant
     ) -> None:
-        """actor_participant_index entry is removed after remove."""
+        """Inverted from the index-clearing pin: the index entry stays."""
         case.add_participant(participant)
         dl.create(case)
         dl.create(participant)
-        assert COORDINATOR_ID in case.actor_participant_index
-        tree = RemoveCaseParticipantFromCaseReceivedNode(
-            participant_id=PARTICIPANT_ID, case_id=CASE_ID
-        )
-        bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+
+        self._run(bridge)
+
         refreshed = dl.read(CASE_ID)
         assert refreshed is not None
-        assert COORDINATOR_ID not in refreshed.actor_participant_index
-
-    def test_idempotent_when_participant_already_absent(
-        self, bridge, dl, case
-    ) -> None:
-        """SUCCESS when participant is not in case (no-op, idempotent)."""
-        dl.create(case)
-        tree = RemoveCaseParticipantFromCaseReceivedNode(
-            participant_id=PARTICIPANT_ID, case_id=CASE_ID
+        assert refreshed.actor_participant_index[COORDINATOR_ID] == (
+            PARTICIPANT_ID
         )
-        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
-        assert result.status == Status.SUCCESS
+
+    @pytest.mark.spec("CM-31-001")
+    def test_a_second_removal_keeps_the_first_fact(
+        self, bridge, dl, case, participant
+    ) -> None:
+        participant.removal_activity = "https://example.org/activities/first"
+        case.add_participant(participant)
+        dl.create(case)
+        dl.create(participant)
+
+        assert self._run(bridge).status == Status.SUCCESS
+
+        record = dl.read(PARTICIPANT_ID)
+        assert isinstance(record, CaseParticipant)
+        assert record.removal_activity == (
+            "https://example.org/activities/first"
+        )
+
+    def test_fails_when_participant_not_on_the_case(
+        self, bridge, dl, case, participant
+    ) -> None:
+        """Regime 1: the guards found it, so its absence is a fault."""
+        dl.create(case)
+        dl.create(participant)
+
+        assert self._run(bridge).status == Status.FAILURE
 
     def test_fails_when_case_not_found(self, bridge, dl) -> None:
         """FAILURE when case is missing from DataLayer."""
-        tree = RemoveCaseParticipantFromCaseReceivedNode(
-            participant_id=PARTICIPANT_ID,
-            case_id="https://example.org/cases/missing",
-        )
-        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+        result = self._run(bridge, case_id="https://example.org/cases/missing")
         assert result.status == Status.FAILURE
