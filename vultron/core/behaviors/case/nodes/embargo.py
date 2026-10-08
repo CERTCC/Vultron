@@ -45,6 +45,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models._helpers import _as_id, from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
@@ -165,7 +166,9 @@ class CreateEmbargoEventNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class InitializeCreationEmbargoNode(DataLayerActionWithPorts):
+class InitializeCreationEmbargoNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
     """Take the case's creation-time embargo from ``EM.NONE`` to ``EM.ACTIVE``.
 
     One commit: ``EmbargoLifecycle.initialize_creation_embargo`` applies the

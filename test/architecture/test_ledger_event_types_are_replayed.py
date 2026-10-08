@@ -42,6 +42,13 @@ row for a type no longer committed, fails the ratchet.
 
 :data:`AWAITING_COMMIT` lists types replayed ahead of the commit that will
 produce them; it must stay disjoint from the committed set.
+
+Every declared row carries a one-line reason.  The strict-``xfail`` goal test
+passes — and so fails the build — once :data:`KNOWN_UNREPLAYED` empties, so
+the change that closes the last gap deletes the set and the goal test instead
+of leaving an empty ratchet behind.  The derivation is cached per process and
+routed through ``_corpus`` (TB-13-001 through TB-13-003), which keeps each
+test inside the TB-13-004 budget.
 """
 
 from typing import Any
@@ -116,7 +123,9 @@ _RECOMMENDATION = (
     " lead to arrives with accept_invite_actor_to_case"
 )
 
-#: Committed event types that change no state a replica holds.
+#: Committed event types that change no state a replica holds.  A pinned
+#: exemption set (ARCH-18-005): each row is a decision, not awaiting a fix.
+# permanent: RSH-08-004 (the recorded no-replica-effect declarations)
 NO_REPLICA_EFFECT: dict[str, str] = {
     "create_case": (
         "the genesis entry anchors the chain; a replica is seeded by the"
@@ -151,7 +160,9 @@ NO_REPLICA_EFFECT: dict[str, str] = {
 }
 
 #: Committed event types whose replica effect has no slot yet, and the open
-#: issue that owns it.  Each reason names the issue.
+#: issue that owns it.  Each reason names the issue.  A ratchet whose
+#: terminal value is empty (ARCH-18-005).
+# owner: #4294 #4295 #3764 (one per entry, named first in its reason)
 KNOWN_UNREPLAYED: dict[str, str] = {
     MS.INVITE_ACTOR_TO_CASE.value: (
         "#4294 / #4295: the stub Invite creates the inert invitee's record"
@@ -174,6 +185,7 @@ KNOWN_UNREPLAYED: dict[str, str] = {
 }
 
 #: Replayed ahead of the commit that will produce them (event type → issue).
+# owner: #4304
 AWAITING_COMMIT: dict[str, str] = {
     MS.INVALIDATE_REPORT.value: (
         "#4304: TentativeReject(Offer) is canonical but its received tree"
@@ -252,6 +264,43 @@ def test_declared_types_have_no_slot(event_type):
     assert matching_slots(event_type, {"actor": MANAGER}) == []
 
 
-@pytest.mark.parametrize("event_type", sorted(KNOWN_UNREPLAYED))
+@pytest.mark.parametrize(
+    "event_type", sorted({**KNOWN_UNREPLAYED, **AWAITING_COMMIT})
+)
 def test_each_owned_gap_names_its_issue(event_type):
-    assert KNOWN_UNREPLAYED[event_type].startswith("#")
+    reason = {**KNOWN_UNREPLAYED, **AWAITING_COMMIT}[event_type]
+    assert reason.startswith("#"), reason
+
+
+@pytest.mark.parametrize(
+    ("table", "event_type"),
+    [
+        (name, event_type)
+        for name, rows in (
+            ("NO_REPLICA_EFFECT", NO_REPLICA_EFFECT),
+            ("KNOWN_UNREPLAYED", KNOWN_UNREPLAYED),
+            ("AWAITING_COMMIT", AWAITING_COMMIT),
+        )
+        for event_type in sorted(rows)
+    ],
+)
+def test_each_declared_row_carries_a_one_line_reason(table, event_type):
+    """A row is a recorded decision: a reason, on one line (RSH-08-004)."""
+    reason = {
+        "NO_REPLICA_EFFECT": NO_REPLICA_EFFECT,
+        "KNOWN_UNREPLAYED": KNOWN_UNREPLAYED,
+        "AWAITING_COMMIT": AWAITING_COMMIT,
+    }[table][event_type]
+    assert reason.strip(), f"{table}[{event_type!r}] has no reason"
+    assert "\n" not in reason, f"{table}[{event_type!r}] spans lines"
+
+
+@pytest.mark.spec("RSH-08-004")
+@pytest.mark.xfail(
+    strict=True,
+    reason="goal: every committed type with a replica effect is replayed"
+    " (#4294, #4295, #3764); when KNOWN_UNREPLAYED empties this passes and"
+    " strict xfail fails the build — delete this test and the empty set",
+)
+def test_goal_no_committed_type_is_left_unreplayed():
+    assert KNOWN_UNREPLAYED == {}

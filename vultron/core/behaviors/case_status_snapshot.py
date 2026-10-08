@@ -36,6 +36,7 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
@@ -57,7 +58,7 @@ def promote_pxa(pxa: CS_pxa) -> CS_pxa:
     return pxa
 
 
-class EmitCaseStatusUpdateNode(DataLayerActionWithPorts):
+class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
     """Snapshot the post-mutation CaseStatus, commit a CaseLedgerEntry, and fan out.
 
     After an EM or PXA lifecycle node mutates the case state, this node:

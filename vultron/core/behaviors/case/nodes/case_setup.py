@@ -38,13 +38,14 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.store_scope import store_for_actor
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor
 from vultron.errors import VultronAlreadyExistsError
 
 
-class PersistCase(DataLayerActionWithPorts):
+class PersistCase(DataLayerActionWithPorts, StateWriteCapable):
     """
     Persist a VulnerabilityCase to the DataLayer.
 

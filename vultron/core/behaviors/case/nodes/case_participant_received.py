@@ -48,6 +48,7 @@ from vultron.core.behaviors.helpers import (
     _EmitSingleActivityBase,
 )
 from vultron.core.behaviors.idempotency import SilentIdempotencyGuardMixin
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -62,7 +63,9 @@ PROTECTED_ROLES: frozenset[CVDRole] = frozenset(
 )
 
 
-class AddCaseParticipantToCaseReceivedNode(DataLayerActionWithPorts):
+class AddCaseParticipantToCaseReceivedNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
     """Add a participant to a case and persist the updated case.
 
     Reads both the participant and the case from the DataLayer, calls
@@ -302,7 +305,9 @@ def case_manager_admits_removal_guard(
     )
 
 
-class RemoveCaseParticipantFromCaseReceivedNode(DataLayerActionWithPorts):
+class RemoveCaseParticipantFromCaseReceivedNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
     """Set the removal fact on the named participant (CM-31-001).
 
     Records *removal_activity_id* — the Case Owner's ``Remove`` activity —

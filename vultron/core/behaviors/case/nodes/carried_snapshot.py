@@ -31,6 +31,7 @@ from typing import Any
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.services.carried_embargo import store_carried_embargo
 from vultron.core.services.case_replica_seeding import (
     store_embedded_participants,
@@ -38,7 +39,7 @@ from vultron.core.services.case_replica_seeding import (
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
 
-class HoldCarriedEmbargoNode(DataLayerActionWithPorts):
+class HoldCarriedEmbargoNode(DataLayerActionWithPorts, StateWriteCapable):
     """Hold the ``EmbargoEvent`` the received case names, before it is saved.
 
     ``FAILURE`` when the case names an embargo this store cannot read, with
@@ -73,7 +74,9 @@ class HoldCarriedEmbargoNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class StoreEmbeddedParticipantsNode(DataLayerActionWithPorts):
+class StoreEmbeddedParticipantsNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
     """Store the participants a received case snapshot carries inline.
 
     Idempotent, and never regresses local RM progress

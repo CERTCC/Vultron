@@ -46,6 +46,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     PortInformation,
 )
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.nodes.conditions import (
     _require_log_entry,
 )
@@ -98,7 +99,9 @@ class IsOfferOwnershipTransferEventNode(DataLayerConditionWithPorts):
         return Status.FAILURE
 
 
-class ApplyOfferOwnershipTransferFromLedgerNode(DataLayerActionWithPorts):
+class ApplyOfferOwnershipTransferFromLedgerNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
     """Apply an ``offer_case_ownership_transfer`` ledger entry to the local DataLayer.
 
     When a participant receives ``Announce(CaseLedgerEntry)`` for the
