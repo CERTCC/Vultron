@@ -10,6 +10,7 @@ related_specs:
   - specs/case-management.yaml
   - specs/case-ledger-processing.yaml
   - specs/event-driven-control-flow.yaml
+  - specs/behavior-tree-integration.yaml
 related_notes:
   - notes/case-communication-model.md
   - notes/protocol-event-cascades.md
@@ -124,7 +125,8 @@ inside the BT:
 1. Store the Offer object via `create_receive_activity_tree`'s idempotency guard.
 2. Commit a `CaseLedgerEntry` via the guarded-commit node (CASE_MANAGER only).
 3. Forward the Offer to the transferee via `ForwardOfferToTransfereeNode`,
-   wrapped in `create_case_manager_gated_tree` (CASE_MANAGER only, CM-21-005).
+   passed as `manager_effects` so the factory wraps it in the CASE_MANAGER
+   gate (CASE_MANAGER only, CM-21-005, BT-17-008).
 
 **Forwarded-Offer wire format** (CM-21-005):
 
@@ -174,14 +176,14 @@ Audit any peer that reads `request.actor_id` where it means "who asked for this"
 
 `create_accept_ownership_transfer_tree()` MUST pass `case_id` to
 `create_receive_activity_tree` and include ONLY `AcceptCaseOwnershipTransferNode`
-in `effect_nodes`:
+in `replica_effects`:
 
 ```python
 tree = create_receive_activity_tree(
     name="AcceptOwnershipTransferBT",
     case_id=case_id,
     precondition_guards=[],
-    effect_nodes=[
+    replica_effects=[
         AcceptCaseOwnershipTransferNode(case_id=case_id, new_owner_id=new_owner_id),
     ],
 )
@@ -189,7 +191,7 @@ tree = create_receive_activity_tree(
 
 `create_receive_activity_tree` already injects `GuardedCommitCaseLedgerEntryBT`
 (with `CheckIsCaseManagerNode`) as the canonical single-writer commit step.
-Adding a second `CommitCaseLedgerEntryNode` to `effect_nodes` is a
+Adding a second `CommitCaseLedgerEntryNode` to the effects is a
 **double-write bug**: the guarded commit fires for CASE_MANAGER at log_index=N;
 the extra unguarded node fires for all actors, including the transferee, also
 at log_index=N but with a different `received_at` and `payload_snapshot` —

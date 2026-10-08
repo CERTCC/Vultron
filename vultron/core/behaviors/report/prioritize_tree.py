@@ -77,15 +77,16 @@ from vultron.core.behaviors.case.nodes.carried_snapshot import (
     HoldCarriedEmbargoNode,
     StoreEmbeddedParticipantsNode,
 )
-from vultron.core.behaviors.case.nodes.role_gates import (
-    create_case_manager_gated_tree,
-)
 from vultron.core.behaviors.case.nodes.update import (
     BroadcastCaseUpdateNode,
     CaptureCaseUpdateBroadcastExclusionsNode,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
+)
+from vultron.core.behaviors.replica_emit_exemptions import (
+    DEFER_RM_DECLARATION,
+    ENGAGE_RM_DECLARATION,
 )
 from vultron.core.behaviors.report.rm_declaration_tree import (
     record_rm_declaration,
@@ -154,21 +155,18 @@ def create_engage_case_tree(
             ),
             rm_declaration_guard(actor_id, RM.ACCEPTED, case_id),
         ],
-        effect_nodes=[
-            *record_rm_declaration(
-                actor_id, RM.ACCEPTED, case_id, name="TransitionRMtoAccepted"
-            ),
-            # Only the CASE_MANAGER announces canonical case state: the
-            # broadcast is authored as the executing actor (CM-06-001).
-            create_case_manager_gated_tree(
-                name="GuardedBroadcastEngageCaseBT",
-                case_id=case_id,
-                children=[
-                    CaptureCaseUpdateBroadcastExclusionsNode(case_id=case_id),
-                    BroadcastCaseUpdateNode(case_id=case_id),
-                ],
-            ),
+        replica_effects=record_rm_declaration(
+            actor_id, RM.ACCEPTED, case_id, name="TransitionRMtoAccepted"
+        ),
+        replica_emit_exemption=ENGAGE_RM_DECLARATION,
+        # Only the CASE_MANAGER announces canonical case state: the
+        # broadcast is authored as the executing actor (CM-06-001).
+        manager_effects=[
+            CaptureCaseUpdateBroadcastExclusionsNode(case_id=case_id),
+            BroadcastCaseUpdateNode(case_id=case_id),
         ],
+        manager_case_id=case_id,
+        manager_gate_name="GuardedBroadcastEngageCaseBT",
     )
 
     logger.info(
@@ -205,9 +203,10 @@ def create_defer_case_tree(
         precondition_guards=[
             rm_declaration_guard(actor_id, RM.DEFERRED, case_id),
         ],
-        effect_nodes=record_rm_declaration(
+        replica_effects=record_rm_declaration(
             actor_id, RM.DEFERRED, case_id, name="TransitionRMtoDeferred"
         ),
+        replica_emit_exemption=DEFER_RM_DECLARATION,
     )
 
     logger.info("Created DeferCaseBT for case=%s, actor=%s", case_id, actor_id)

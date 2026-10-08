@@ -9,6 +9,9 @@ from vultron.core.behaviors.case.nodes.conditions import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.replica_emit_exemptions import (
+    GENESIS_REJECT_ANNOUNCE,
+)
 from vultron.core.behaviors.sender_entitlement import (
     SenderIsActiveLedgerParticipantNode,
 )
@@ -42,7 +45,7 @@ def create_reject_log_entry_tree() -> py_trees.behaviour.Behaviour:
         name="RejectLogEntryReceivedBT",
         case_id=None,
         precondition_guards=[],
-        effect_nodes=[
+        replica_effects=[
             FindCaseActorNode(name="FindCaseActor"),
             # Sender entitlement (SYNC-03-005, HP-01-006): only an active
             # participant's rejection is acted on, and the check precedes any
@@ -75,4 +78,5 @@ def create_reject_log_entry_tree() -> py_trees.behaviour.Behaviour:
             ),
             ReplayMissingEntriesNode(name="ReplayMissingEntries"),
         ],
+        replica_emit_exemption=GENESIS_REJECT_ANNOUNCE,
     )
