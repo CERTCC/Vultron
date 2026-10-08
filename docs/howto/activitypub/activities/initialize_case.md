@@ -23,8 +23,9 @@ You finish with a case whose roster and report are in place and whose ledger has
 
 ## The exchange
 
-The flowchart below shows the four activities case initialization can use.
-The three `as:Add` activities branch from `Create(VulnerabilityCase)` because each attaches a different kind of object to the new case.
+The flowchart below shows the activities case initialization can use.
+The two `as:Add` activities branch from `Create(VulnerabilityCase)` because each attaches a different kind of object to the new case.
+A participant is not attached: it is invited, and it joins when it accepts.
 
 ```mermaid
 ---
@@ -36,11 +37,17 @@ flowchart LR
     end
     subgraph as:Add
         AddReportToCase["Add Report to Case<br/>Add(VulnerabilityReport)"]
-        AddParticipantToCase["Add Case Participant to Case<br/>Add(CaseParticipant)"]
         AddNoteToCase["Post a note to the case<br/>Add(Note)"]
     end
+    subgraph as:Invite
+        RmInviteToCase["Invite Actor to Case<br/>Invite(Actor)"]
+    end
+    subgraph as:Accept
+        RmAcceptInviteToCase["Accept Invite to Case<br/>Accept(Invite(Actor))"]
+    end
     CreateCase --> AddReportToCase
-    CreateCase --> AddParticipantToCase
+    CreateCase --> RmInviteToCase
+    RmInviteToCase --> RmAcceptInviteToCase
     CreateCase --> AddNoteToCase
 ```
 
@@ -52,15 +59,17 @@ flowchart LR
    Set yourself as Case Owner.
 2. Attach the report with `Add(VulnerabilityReport)`, targeting the case.
    Only the Case Owner may send it, and the receiving actor must be the case's CASE_MANAGER, so mint the case through the create-case trigger (which seats the creator as Case Owner and CASE_MANAGER) rather than as a bare `Create(VulnerabilityCase)`.
-3. Seat each participant you already know with `Add(CaseParticipant)`, targeting the case.
+3. Seat each participant you already know by asking the CASE_MANAGER to invite it, naming its roles; it joins when it accepts.
+   See [How to Seat a Participant on an Existing Case](initialize_participant.md).
+   `Add(CaseParticipant)` does not seat a member: it reinstates one the Case Owner removed.
 4. If the case needs opening context, attach it with `Add(Note)`.
    See [How to Post a Status Update or a Case Note](status_updates.md).
 
 If every report, participant, and note is known when you create the case, carry them inline on the `Create(VulnerabilityCase)` activity and skip steps 2 through 4.
+Participants carried inline are seated by case initialization itself.
 The steps are separated here because they are easier to follow one at a time, not because a conformant implementation must emit them individually.
 
-If a participant becomes known later, seat it with its own activity pair — see [How to Seat a Participant on an Existing Case](initialize_participant.md).
-If the actor has not agreed to join, invite it instead: [How to Invite an Actor to a Case](invite_actor.md).
+If a participant becomes known later, invite it the same way — see [How to Invite an Actor to a Case](invite_actor.md).
 
 !!! warning "A second report needs its own `Add`"
 
@@ -75,7 +84,7 @@ If the actor has not agreed to join, invite it instead: [How to Invite an Actor 
 |---|---|
 | `Create(VulnerabilityCase)` | The case exists and names you as Case Owner. |
 | `Add(VulnerabilityReport)` | The case lists the report. |
-| `Add(CaseParticipant)` | The case roster holds the participant with its roles. |
+| `Accept(Invite(Actor))` | The case roster holds the participant with its roles. |
 | `Add(Note)` | The note appears on the case. |
 
 Every one of these is committed to the case ledger by the CASE_MANAGER and fanned out to each participant, so each participant's replica should show the same roster.

@@ -245,8 +245,8 @@ def test_stub_invite_creates_inert_invitee_participant(actor_store) -> None:
 
     A VENDOR invitee to a case with an active embargo is a participant at RM
     ``RECEIVED``, VF ``v`` and consent ``INVITED`` straight after the stub
-    Invite is sent, and the creation is on the case ledger.  Today the
-    participant is created only when the invitee's ``Accept`` arrives.
+    Invite is sent, and the creation is on the case ledger as the stub
+    Invite's entry.
     """
     manager, dl = actor_store("CaseManager")
     invitee, _ = actor_store("Vendor")
@@ -277,15 +277,25 @@ def test_stub_invite_creates_inert_invitee_participant(actor_store) -> None:
     assert participant_status_vf_state(latest) == CS_vf.vf
     assert participant.consent_for(embargo.id_) == EmbargoConsentState.INVITED
 
+    # The stub Invite's own entry records the creation: the record is made
+    # in the same step, from the roles the Invite names (CM-11-006).  No
+    # Add(CaseParticipant) follows it; that message only reinstates
+    # (CM-31-011, CM-31-012).
     creation_entries = [
         e
         for e in dl.list_objects("CaseLedgerEntry")
         if isinstance(e, CaseLedgerEntry)
         and e.case_id == case.id_
-        and "participant" in e.event_type
+        and e.event_type == "invite_actor_to_case"
         and invitee.id_ in json.dumps(e.payload_snapshot, default=str)
     ]
     assert creation_entries, "the participant's creation must be committed"
+    assert not [
+        e
+        for e in dl.list_objects("CaseLedgerEntry")
+        if isinstance(e, CaseLedgerEntry)
+        and e.event_type == "add_case_participant"
+    ]
 
 
 @pytest.mark.spec("CM-11-020")

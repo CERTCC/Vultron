@@ -212,6 +212,7 @@ def wait_for_case_participants(
     # 15 s: conservative cross-container delivery budget (temporal per EDF-06-006).
     timeout_seconds: float = CROSS_CONTAINER_TIMEOUT,
     poll_interval: float = 0.25,
+    dl_actor_id: str | None = None,
 ) -> None:
     """Poll until the case on *vendor_client* reflects all *expected_actor_ids*.
 
@@ -227,6 +228,9 @@ def wait_for_case_participants(
             participants before the gate passes.
         timeout_seconds: Maximum time to wait before raising.
         poll_interval: Seconds between DataLayer poll attempts.
+        dl_actor_id: Read this actor's store on the container instead of
+            the client's own — typically a self-hosted CaseActor, the only
+            store that holds an invitee that never joined (CM-11-006).
 
     Raises:
         AssertionError: If any expected actor is absent after *timeout_seconds*.
@@ -235,7 +239,9 @@ def wait_for_case_participants(
     """
 
     def _check() -> bool:
-        case_data = vendor_client.get(vendor_client.dl_path(case_id))
+        case_data = vendor_client.get(
+            vendor_client.dl_path(case_id, actor_id=dl_actor_id)
+        )
         case = as_VulnerabilityCase(**case_data)
         return expected_actor_ids.issubset(case.actor_participant_index.keys())
 

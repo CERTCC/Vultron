@@ -176,41 +176,40 @@ What it cannot do is merge the two verbs into one activity and expect a Vultron 
 
 ### Where fewer activities are worth having
 
-Adding a participant to a case is the clearest case.
-Expressed as separate activities, one participant addition is four messages.
+Posting a participant's status is the clearest case.
+Expressed as separate activities, one status update is two messages.
 
 ```mermaid
 ---
-title: Adding a participant as four separate activities
+title: Posting a participant status as two separate activities
 ---
 flowchart LR
-    a[create participant] --> b[create participant status]
-    b --> c[add participant status to participant]
-    c --> d[add participant to case]
+    a[create participant status] --> b[add participant status to participant]
 ```
 
-The diagram shows the fully expanded form: two `Create` activities and two `Add` activities to seat one participant.
-Three of the four are avoidable, because an object can be sent inline inside the activity that attaches it.
-A single `Add(CaseParticipant)[target=Case]` carrying a participant that already holds its status object expresses the same outcome.
+The diagram shows the fully expanded form: a `Create` that mints the status and an `Add` that attaches it.
+The `Create` is avoidable, because an object can be sent inline inside the activity that attaches it.
+A single `Add(ParticipantStatus)[target=CaseParticipant]` carrying the new status object expresses the same outcome.
 
 ```mermaid
 ---
-title: The same addition as one Add carrying an inline participant
+title: The same update as one Add carrying an inline status
 ---
 flowchart LR
-    a["Add(CaseParticipant with status)"] -->|target| b[case]
+    a["Add(ParticipantStatus)"] -->|target| b[participant]
 ```
 
 What shrank is the number of activities, not the verb.
-The attachment is still an `Add` with the case as its `target`, which is what a Vultron peer's dispatch recognizes.
+The attachment is still an `Add` with the participant as its `target`, which is what a Vultron peer's dispatch recognizes.
 
 The same reasoning applies at case creation.
 A case can be created with its report, its known participants, and its notes already inline in the initial case object, so no `Add` is needed for any of them.
 The activity guides break the steps out individually because the individual steps are easier to follow, not because a conformant implementation must emit them one at a time.
 
-A separate `Create(CaseParticipant)` is still necessary when the participants are not all known when the case is created.
+Participants that are not known when the case is created are not attached later with an `Add`.
 A Reporter may report a vulnerability to a Coordinator, who creates a case before the affected Vendors have been identified.
-The Coordinator seats itself and the Reporter at case creation, then adds each Vendor as it is identified.
+The Coordinator seats itself and the Reporter at case creation, then invites each Vendor as it is identified, and each Vendor joins by accepting its Invite ([ADR-0114](../adr/0114-joining-a-case-stub-invite-inert-participant.md)).
+`Add(CaseParticipant)` has one meaning: the Case Owner reinstates a participant it removed ([ADR-0116](../adr/0116-removing-a-participant-withdraws-entitlement-not-membership.md)).
 
 ### `Create(VulnerabilityReport)` and `Offer(VulnerabilityReport)`
 

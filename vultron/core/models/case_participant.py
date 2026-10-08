@@ -320,6 +320,26 @@ class CaseParticipant(CoreObject):
         self.removal_activity = removal_activity_id
         return True
 
+    def clear_removal(self) -> bool:
+        """Clear the removal fact: the participant is reinstated (CM-31-011).
+
+        The one write that reverses :meth:`record_removal`.  The CASE_MANAGER
+        calls it for the Case Owner's received ``Add(CaseParticipant)``, and a
+        replica calls it when it replays that activity's ledger entry, so both
+        hold the same record.  Nothing else changes: the participant does not
+        accept again, and its status history and embargo consent rows stay as
+        they were (ADR-0116).  A participant that is not removed is left as it
+        is: the call is a no-op and returns ``False``.  The caller persists
+        the record.
+
+        Returns:
+            ``True`` when the fact was cleared, ``False`` when not removed.
+        """
+        if not self.removed:
+            return False
+        self.removal_activity = None
+        return True
+
     @property
     def rm_closed(self) -> bool:
         """True when any recorded RM state is ``CLOSED``.

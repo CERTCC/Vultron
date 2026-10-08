@@ -355,7 +355,10 @@ def _phase_invite_vendor_reject(
         )
         # DEMOMA-27-002, CM-11-006: Vendor IS in actor_participant_index from the
         # Invite-send moment (inert record created by CreateInertInviteeParticipantNode).
-        # Finder and Coordinator must also be present.
+        # Finder and Coordinator must also be present.  Read from the CaseActor's
+        # store: the inert record is the CASE_MANAGER's alone, and a replica
+        # learns of a member only from its Accept(Invite) entry (CM-31-012),
+        # which a rejecting invitee never produces.
         with demo_check(
             "Vendor in actor_participant_index after invite (inert record, CM-11-006)"
         ):
@@ -363,6 +366,9 @@ def _phase_invite_vendor_reject(
                 vendor_client=coordinator_client,
                 case_id=case.id_,
                 expected_actor_ids={finder.id_, coordinator.id_, vendor.id_},
+                dl_actor_id=resolve_case_actor_store_id(
+                    coordinator_client, str(case.id_)
+                ),
             )
         # DEMOMA-27-002, CM-11-007: Vendor's inert record must be at RM.CLOSED
         # after the rejection — it was never active (joined=False throughout).
