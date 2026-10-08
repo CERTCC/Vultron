@@ -33,6 +33,7 @@ The remaining steps of that lifecycle are shared the same way:
 """
 
 import logging
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 from vultron.core.states.cs import CS_vf
@@ -65,7 +66,10 @@ from vultron.demo.helpers.polling import (
     wait_for_participant_vf_state,
 )
 from vultron.demo.helpers.seeding import get_actor_by_id
-from vultron.demo.helpers.sync import wait_for_replica_ledger_coverage
+from vultron.demo.helpers.sync import (
+    run_sync_verification_phase,
+    wait_for_replica_ledger_coverage,
+)
 from vultron.demo.helpers.workflow import (
     reporter_submits_report,
     run_direct_path_rm_triage,
@@ -173,8 +177,16 @@ def vendor_joins_coordinated_case(
     coordinator_client: DataLayerClient,
     vendor: as_Actor,
     vendor_client: DataLayerClient,
+    vendor_name: str = "Vendor",
+    already_seated: Sequence[as_Actor] = (),
 ) -> as_Actor:
     """The Coordinator invites the Vendor; the Vendor accepts and triages.
+
+    Args:
+        vendor_name: What the scenario calls the invitee in step labels
+            (``Vendor2`` for the second vendor of ``rcvv-embargo``).
+        already_seated: Vendors that joined before this one, so the
+            participant gate expects them as well.
 
     Returns:
         The Vendor as its own container knows it.
@@ -185,7 +197,7 @@ def vendor_joins_coordinated_case(
     run_case_invite_chain(
         case=case,
         case_manager_client=coordinator_client,
-        invitee_name="Vendor",
+        invitee_name=vendor_name,
         invitee_client=vendor_client,
         invitee=vendor,
         invitee_in_own_container=vendor_in_vendor,
@@ -203,7 +215,9 @@ def vendor_joins_coordinated_case(
     # triage: a demo_gate, not demo_check, so a timeout skips the doomed triage
     # rather than cascading (DEMOCI-01-011, vultron/demo/AGENTS.md § "Never
     # Wrap a Causal Wait in demo_check").
-    with demo_gate("Coordinator case has the Vendor before Vendor RM triage"):
+    with demo_gate(
+        f"Coordinator case has {vendor_name} before {vendor_name} RM triage"
+    ):
         wait_for_case_participants(
             vendor_client=coordinator_client,
             case_id=case.id_,
@@ -211,10 +225,11 @@ def vendor_joins_coordinated_case(
                 reporter.id_,
                 opened.coordinator_in_coordinator.id_,
                 vendor.id_,
+                *(seated.id_ for seated in already_seated),
             },
             timeout_seconds=PARTICIPANT_JOIN_TIMEOUT,
         )
-        logger.info("✓ M2: Vendor joined case")
+        logger.info("✓ M2: %s joined case", vendor_name)
 
         # The Reporter must hold the case replica before the Vendor's RM triage
         # broadcasts Announce(CaseLedgerEntry) to all participants (CLP-08-005).
@@ -239,6 +254,67 @@ def vendor_joins_coordinated_case(
         )
 
     return vendor_in_vendor
+
+
+def open_case_with_vendor(
+    *,
+    reporter_client: DataLayerClient,
+    coordinator_client: DataLayerClient,
+    vendor_client: DataLayerClient,
+    reporter: as_Actor,
+    coordinator: as_Actor,
+    vendor: as_Actor,
+    on_case_opened: Callable[[as_VulnerabilityCase], None] | None = None,
+) -> tuple[CoordinatedCase, as_Actor]:
+    """Open the case, bring the Vendor in, and verify the replicas converge.
+
+    The shared opening of ``rcv-embargo`` and ``rcvv-embargo``: the Reporter's
+    report, the Coordinator's engagement, the Vendor's invitation, then the
+    sync verification of the Reporter's and the Vendor's replicas.
+
+    Args:
+        on_case_opened: Called with the case as soon as it exists, before the
+            Vendor joins, so a scenario can register its ledger dump while every
+            later step can still fail without costing the ledgers (ISSUE-2239).
+
+    Returns:
+        The opened case and the Vendor as its own container knows it.
+    """
+    opened = open_coordinated_case(
+        reporter_client=reporter_client,
+        coordinator_client=coordinator_client,
+        reporter=reporter,
+        coordinator=coordinator,
+    )
+    if on_case_opened is not None:
+        on_case_opened(opened.case)
+
+    vendor_in_vendor = vendor_joins_coordinated_case(
+        opened=opened,
+        reporter=reporter,
+        reporter_client=reporter_client,
+        coordinator_client=coordinator_client,
+        vendor=vendor,
+        vendor_client=vendor_client,
+    )
+
+    run_sync_verification_phase(
+        auth_client=coordinator_client,
+        auth_label="Coordinator",
+        auth_actor_id=coordinator.id_,
+        finder_client=reporter_client,
+        finder_actor_id=reporter.id_,
+        replicas=[(reporter_client, "Reporter"), (vendor_client, "Vendor")],
+        case_id=opened.case.id_,
+        expected_participant_ids={reporter.id_, coordinator.id_, vendor.id_},
+        # The Vendor joins by invitation after the case exists (#2202).
+        late_joiners=(vendor_client,),
+        state_checks=[
+            (reporter_client, "Reporter"),
+            (vendor_client, "Vendor"),
+        ],
+    )
+    return opened, vendor_in_vendor
 
 
 def vendor_reports_fix_ready(
@@ -394,8 +470,14 @@ def everyone_closes_case(
     coordinator_in_coordinator: as_Actor,
     vendor_in_vendor: as_Actor,
     case: as_VulnerabilityCase,
+    later_vendors: Sequence[tuple[str, DataLayerClient, as_Actor]] = (),
 ) -> None:
-    """Every participant closes the case; check the terminal state everywhere."""
+    """Every participant closes the case; check the terminal state everywhere.
+
+    *later_vendors* are ``(label, client, actor)`` for vendors beyond the first
+    (the second vendor of ``rcvv-embargo``); each closes and is checked for
+    ledger coverage like the rest.
+    """
     with demo_step(f"Actor {ref_id(coordinator_in_coordinator)} closes case"):
         ActorSession(
             client=coordinator_client, actor=coordinator_in_coordinator
@@ -408,6 +490,11 @@ def everyone_closes_case(
         ActorSession(
             client=reporter_client, actor=reporter_in_reporter
         ).with_case(case).quiet().close_case()
+    for label, client, actor in later_vendors:
+        with demo_step(f"Actor {ref_id(actor)} ({label}) closes case"):
+            ActorSession(client=client, actor=actor).with_case(
+                case
+            ).quiet().close_case()
 
     with demo_check("M7: all participants RM.CLOSED on all replicas"):
         wait_for_all_participants_rm_closed(
@@ -441,9 +528,13 @@ def everyone_closes_case(
         replicas=[
             (reporter_client, "Reporter"),
             (vendor_client, "Vendor"),
+            *((client, label) for label, client, _ in later_vendors),
         ],
         case_id=case.id_,
-        late_joiners=(vendor_client,),
+        late_joiners=(
+            vendor_client,
+            *(client for _, client, _ in later_vendors),
+        ),
         phase_label="close phase",
         causal=False,
     )
@@ -457,6 +548,7 @@ def dump_coordinated_case_ledgers(
     coordinator_client: DataLayerClient,
     vendor_client: DataLayerClient,
     case: as_VulnerabilityCase,
+    later_vendors: Sequence[tuple[str, DataLayerClient]] = (),
 ) -> None:
     """Dump each participant's case ledger to JSONL under ``devlogs/<demo_name>/``.
 
@@ -470,6 +562,8 @@ def dump_coordinated_case_ledgers(
         reporter_name: What the scenario calls the Reporter's replica
             (``finder`` for ``fcv``, ``reporter`` for ``rcv-embargo``) —
             the invariant harness loads devlogs by this name.
+        later_vendors: ``(name, client)`` of each vendor beyond the first
+            (``vendor2`` for ``rcvv-embargo``), dumped under *name*.
     """
     # Route keys come from each client's own actor id, not from its display
     # name: the key selects the store (ADR-0073), so a literal only happens to
@@ -488,6 +582,10 @@ def dump_coordinated_case_ledgers(
         ),
         LedgerDumpTarget(
             "vendor", vendor_client, replica_route_key(vendor_client, "vendor")
+        ),
+        *(
+            LedgerDumpTarget(name, client, replica_route_key(client, name))
+            for name, client in later_vendors
         ),
     ]
     # The case-actor is a sub-actor inside the coordinator container.

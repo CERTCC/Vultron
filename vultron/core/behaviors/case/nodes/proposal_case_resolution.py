@@ -33,6 +33,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerAction,
     DataLayerActionWithPorts,
 )
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models._helpers import (
     _new_urn,
     now_utc,
@@ -106,7 +107,7 @@ def _report_ids(case: VulnerabilityCase) -> set[str]:
     }
 
 
-class CreateCaseFromProposalNode(DataLayerActionWithPorts):
+class CreateCaseFromProposalNode(DataLayerActionWithPorts, StateWriteCapable):
     """Create a VulnerabilityCase from the proposal and write case_id to blackboard.
 
     The new case is attributed to the **proposing actor** — the report

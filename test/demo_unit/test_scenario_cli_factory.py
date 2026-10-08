@@ -96,6 +96,7 @@ _SLOT_NOT_ROLE_BINDINGS = {
     ("fcvcv", "v1"): "VULTRON_VENDOR_BASE_URL",
     ("fcvcv", "v2"): "VULTRON_VENDOR_DEPLOYER_BASE_URL",
     ("rcv-embargo", "reporter"): "VULTRON_FINDER_BASE_URL",
+    ("rcvv-embargo", "reporter"): "VULTRON_FINDER_BASE_URL",
 }
 
 #: Scenarios that hand a deterministic ``--case-actor-id`` to the CaseActor.
@@ -116,6 +117,7 @@ _CASE_ACTOR_PORTS = {
     "fvcv-handoff": "http://localhost:7905/api/v2",
     "fccv-handoff": "http://localhost:7905/api/v2",
     "rcv-embargo": "http://localhost:7905/api/v2",
+    "rcvv-embargo": "http://localhost:7905/api/v2",
 }
 
 

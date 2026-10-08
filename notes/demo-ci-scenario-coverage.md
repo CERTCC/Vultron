@@ -46,6 +46,7 @@ generate-vs-check split".
 | fvcv-handoff      | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   | ✓ |   |   |   |   |
 | fvv               | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |   |   |   |   |
 | rcv-embargo       | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |   | ✓ | ✓ | ✓ |
+| rcvv-embargo      | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |   | ✓ | ✓ | ✓ |
 
 **Notes:**
 
@@ -135,7 +136,7 @@ advance the CVD protocol state and are recorded in the replicated case ledger.
 
 ### Why the minimum set is sufficient
 
-The minimum set (`fv`, `fvcv-handoff`, `fcvcv`, `fcv-reject`, `rcv-embargo`)
+The minimum set (`fv`, `fvcv-handoff`, `fcvcv`, `fcv-reject`, `rcv-embargo`, `rcvv-embargo`)
 covers every `event_type` column and the ownership-transfer path. The additional
 dimensions (CVD role variation, multi-vendor fix paths, embargo phases) are
 either:
@@ -151,7 +152,9 @@ the minimum set's event-type and protocol-path coverage. (`fcv-reject` is a
 minimum-set member because it cannot be covered by any other scenario:
 `reject_invite_actor_to_case` is unique to the invitation-rejection path;
 `rcv-embargo` is one for the same reason, as the only source of the embargo
-proposal, acceptance and termination event types.)
+proposal, acceptance and termination event types; `rcvv-embargo` is one for
+the embargo paths `rcv-embargo` never takes, a second revision cycle, a vendor
+joining under a revised embargo and a teardown caused by CS.P.)
 
 ## Minimum PR Validation Set (DEMOCI-06-002)
 
@@ -177,6 +180,7 @@ canonical order, everywhere".
 | fvcv-handoff | ✓ (member) | Adds `invite_actor_to_case` + `accept_invite_actor_to_case` + ownership-transfer protocol path |
 | fvv | covered by fvcv-handoff | Same invite+accept coverage; no additional phases |
 | rcv-embargo | ✓ (member) | Adds `invite_to_embargo_on_case` + `accept_invite_to_embargo_on_case` + `remove_embargo_event_from_case` — the only scenario that proposes, activates and terminates an embargo |
+| rcvv-embargo | ✓ (member) | Same embargo event types as `rcv-embargo`, reached by other paths: a second revision cycle, a late vendor that signs the revised embargo, and a teardown that CS.P causes instead of a deliberate termination |
 
 ### Coverage proof
 

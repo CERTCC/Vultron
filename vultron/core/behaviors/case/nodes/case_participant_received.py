@@ -57,6 +57,7 @@ from vultron.core.behaviors.helpers import (
     _EmitSingleActivityBase,
 )
 from vultron.core.behaviors.idempotency import SilentIdempotencyGuardMixin
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -282,7 +283,7 @@ def case_manager_admits_removal_guard(
     )
 
 
-class ParticipantMoveEffectNode(DataLayerActionWithPorts):
+class ParticipantMoveEffectNode(DataLayerActionWithPorts, StateWriteCapable):
     """Shared frame of the removal and reinstatement effects.
 
     Resolves the named record on the case's roster, hands it to

@@ -31,6 +31,7 @@ from py_trees.ports import NoDataAvailable, PortInformation
 from pydantic import ValidationError
 
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
 from vultron.core.behaviors.sync.nodes.conditions import (
     _require_log_entry,
@@ -48,7 +49,9 @@ from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
 
 
-class ApplyOfferReportFromLedgerNode(DataLayerActionWithPorts):
+class ApplyOfferReportFromLedgerNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
     """Apply an ``add_report_to_case`` ledger entry to the local DataLayer.
 
     When an invited actor receives ``Announce(CaseLedgerEntry)`` for the

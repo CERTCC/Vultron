@@ -30,12 +30,13 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
 )
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models._helpers import _as_id
 
 ReferenceField = Literal["notes", "vulnerability_reports"]
 
 
-class CaseReferenceEditNode(DataLayerActionWithPorts):
+class CaseReferenceEditNode(DataLayerActionWithPorts, StateWriteCapable):
     """Add or remove one reference on a case list, idempotently.
 
     Subclasses set ``FIELD`` (the case list) and ``ATTACH`` (``True`` adds the

@@ -51,6 +51,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension, VfDimension
@@ -63,7 +64,9 @@ from vultron.enums.roles import CVDRole, validate_roles
 logger = logging.getLogger(__name__)
 
 
-class CreateInertInviteeParticipantNode(DataLayerActionWithPorts):
+class CreateInertInviteeParticipantNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
     """Create the invitee's inert participant record at invite-send time.
 
     ADR-0114 / CM-11-006: the CASE_MANAGER records the invitee the moment it
@@ -234,7 +237,9 @@ class CreateInertInviteeParticipantNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class AdvanceInviteeVFToVendorAwareNode(DataLayerActionWithPorts):
+class AdvanceInviteeVFToVendorAwareNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
     """Record VF ``Vf`` (vendor aware) on a VENDOR invitee after a stub reply.
 
     CM-11-009: any reply to the stub Invite — Accept or Reject — is evidence
@@ -309,7 +314,9 @@ class AdvanceInviteeVFToVendorAwareNode(DataLayerActionWithPorts):
         return result.status
 
 
-class ApplyInviteRejectToParticipantNode(DataLayerActionWithPorts):
+class ApplyInviteRejectToParticipantNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
     """Close the invitee's inert record and mark vendor-aware on Reject.
 
     CM-11-007: ``Reject(Invite(stub))`` moves the inert participant record

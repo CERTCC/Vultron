@@ -31,6 +31,7 @@ from vultron.core.behaviors.case.nodes.participant.status import (
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
 )
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -99,7 +100,9 @@ class CreateOwnerParticipantNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class CreateOwnerInitialStatusNode(DataLayerActionWithPorts):
+class CreateOwnerInitialStatusNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
     """Apply the owner's initial ParticipantStatus via the writer node.
 
     Pre-builds a :class:`CreateParticipantStatusNode` in ``__init__`` and
@@ -160,7 +163,9 @@ class CreateOwnerInitialStatusNode(DataLayerActionWithPorts):
         return result.status
 
 
-class AttachOwnerParticipantToCaseNode(DataLayerActionWithPorts):
+class AttachOwnerParticipantToCaseNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
     """Persist and attach staged owner participant to the case."""
 
     def __init__(
@@ -237,7 +242,7 @@ class AttachOwnerParticipantToCaseNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class PersistOwnerCaseNode(DataLayerActionWithPorts):
+class PersistOwnerCaseNode(DataLayerActionWithPorts, StateWriteCapable):
     """Persist the updated case after owner participant attachment."""
 
     def __init__(
