@@ -27,6 +27,7 @@ from test.support.embargo_register import register
 from test.support.received import archive_received
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import EmbargoConsentState
 from vultron.demo.helpers.polling import (
@@ -39,6 +40,7 @@ from vultron.demo.helpers.polling import (
     assert_received_from,
     find_case_invite_for_actor,
     find_embargo_invite_for_actor,
+    find_full_case_invite_for_actor,
     wait_for_case_attributed_to,
     wait_for_case_em_state,
     wait_for_case_participants,
@@ -48,7 +50,10 @@ from vultron.demo.helpers.polling import (
     wait_for_participant_embargo_consent,
     wait_for_pending_inbox_quiescent,
 )
-from vultron.wire.as2.factories.case import rm_invite_to_case_activity
+from vultron.wire.as2.factories.case import (
+    rm_invite_to_case_activity,
+    rm_invite_to_full_case_activity,
+)
 from vultron.wire.as2.factories.embargo import em_propose_embargo_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
@@ -645,6 +650,51 @@ class TestFindCaseInviteForActor:
 
         with pytest.raises(AssertionError):
             find_case_invite_for_actor(
+                client,
+                CASE_ID,
+                ACTOR_B,
+                timeout_seconds=0.05,
+                poll_interval=0.01,
+            )
+
+
+def _archived_full_case_invite_entry() -> tuple[str, dict]:
+    """A received full-case Invite as the datalayer router serializes its record."""
+    invite = rm_invite_to_full_case_activity(
+        ACTOR_B,
+        CASE_ID,
+        LedgerPosition(log_index=3, entry_hash="ab" * 32),
+        actor=_MANAGER,
+        id_="http://example.com/activities/full-invite-1",
+    )
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_B)
+    record = archive_received(dl, invite)
+    return record.id_, record.model_dump(
+        mode="json", exclude_none=True, by_alias=True
+    )
+
+
+class TestFindFullCaseInviteForActor:
+    """The stub Invite and the full-case Invite are told apart by their target."""
+
+    @pytest.mark.spec("CM-11-010")
+    def test_finds_the_full_case_invite_and_not_the_stub_invite(self):
+        stub_id, stub = _archived_invite_entry()
+        full_id, full = _archived_full_case_invite_entry()
+        client = _dl_client({stub_id: stub, full_id: full})
+
+        found = find_full_case_invite_for_actor(
+            client, CASE_ID, ACTOR_B, timeout_seconds=1.0, poll_interval=0.01
+        )
+
+        assert found == "http://example.com/activities/full-invite-1"
+
+    def test_times_out_when_only_the_stub_invite_is_held(self):
+        stub_id, stub = _archived_invite_entry()
+        client = _dl_client({stub_id: stub})
+
+        with pytest.raises(AssertionError):
+            find_full_case_invite_for_actor(
                 client,
                 CASE_ID,
                 ACTOR_B,

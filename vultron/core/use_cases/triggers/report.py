@@ -98,6 +98,25 @@ def _resolve_offer_and_report(
     return offer_record, report
 
 
+def _require_offer_addressed_to(
+    actor_id: str, offer_record: VultronOfferRecord, trigger: str
+) -> None:
+    """Refuse *trigger* unless *actor_id* received the Offer (CM-11-020).
+
+    Only a ``to`` recipient of the ``Offer(VulnerabilityReport)`` answers it
+    (HP-09-001).  A participant that joined through an Invite never received
+    that Offer, so the record's ``offer_to`` does not name it; it judges the
+    case by replying to the full-case Invite (CM-11-011, ADR-0121).
+    """
+    if actor_id not in offer_record.offer_to:
+        raise VultronValidationError(
+            f"{trigger} refused: actor '{actor_id}' was not sent offer "
+            f"'{offer_record.offer_id}'. A participant that joined the case "
+            "through an Invite judges the case by replying to the full-case "
+            "Invite, not by answering the original report Offer (CM-11-020)."
+        )
+
+
 class SvcValidateReportUseCase(SvcActivityTriggerBase):
     """Validate a report offer using the ValidateReportBT behavior tree.
 
@@ -115,6 +134,9 @@ class SvcValidateReportUseCase(SvcActivityTriggerBase):
         self._actor_id = actor.id_
         self._offer, self._report = _resolve_offer_and_report(
             request.offer_id, self._dl
+        )
+        _require_offer_addressed_to(
+            self._actor_id, self._offer, "validate-report"
         )
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
@@ -138,6 +160,9 @@ class SvcInvalidateReportUseCase(SvcActivityTriggerBase):
         self._actor_id = actor.id_
         self._offer, self._report = _resolve_offer_and_report(
             request.offer_id, self._dl
+        )
+        _require_offer_addressed_to(
+            self._actor_id, self._offer, "invalidate-report"
         )
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
@@ -166,6 +191,9 @@ class SvcRejectReportUseCase(SvcActivityTriggerBase):
         self._actor_id = actor.id_
         self._offer, self._report = _resolve_offer_and_report(
             request.offer_id, self._dl
+        )
+        _require_offer_addressed_to(
+            self._actor_id, self._offer, "reject-report"
         )
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:

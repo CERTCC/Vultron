@@ -23,10 +23,15 @@ Structural ratchets for receive-side BT composition (CLP-10-006, CLP-10-010).
    ``vultron/core/behaviors/case/receive_activity_tree.py`` — which *defines*
    both factories — is exempt.
 2. No rejection validator sits in an effect stage (``effect_nodes``,
-   ``replica_effects`` or ``manager_effects``; CLP-10-009).
+   ``replica_effects``, ``manager_effects`` or ``refusal_effects``;
+   CLP-10-009).
 3. No node that any factory uses as a protocol effect appears as a
    precondition guard anywhere — a corpus-derived check that no effect
-   precedes the commit (CLP-10-006 verification).
+   precedes the commit (CLP-10-006 verification).  The refusal-effects
+   stage runs only when a guard refuses, so on an accepted delivery its
+   nodes never run ahead of the commit; ``test_refusal_stage.py`` pins that
+   at run time and ``test_receive_activity_tree.py`` that the factory gates
+   it (CLP-10-022).
 
 The intake-first ratchet — every receive-side factory returns the shared
 factory's result, with the bypassing and nesting factories as exact sets
@@ -117,10 +122,13 @@ REJECTION_VALIDATORS = {
 
 RECEIVE_ACTIVITY_TREE_CALL = "create_receive_activity_tree"
 
-#: The factory's effect-stage keywords: the legacy ``effect_nodes`` and the
-#: BT-17-008 ``replica_effects`` / ``manager_effects`` that replace it.
+#: The factory's effect-stage keywords: the legacy ``effect_nodes``, the
+#: BT-17-008 ``replica_effects`` / ``manager_effects`` that replace it, and
+#: the ``refusal_effects`` that run only when a guard refuses (CLP-10-022).
+#: A refusal effect is a protocol effect too: the same node used as a guard
+#: elsewhere would run ahead of a commit on an accepted delivery.
 EFFECT_KEYWORDS = frozenset(
-    {"effect_nodes", "replica_effects", "manager_effects"}
+    {"effect_nodes", "replica_effects", "manager_effects", "refusal_effects"}
 )
 
 

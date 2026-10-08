@@ -46,6 +46,7 @@ related_notes:
   - notes/activitystreams-semantics.md
   - notes/received-status-authorization.md
   - notes/protocol-asks.md
+  - notes/case-joining.md
 relevant_packages:
   - vultron/core/states/em.py
   - vultron/core/states/embargo_register.py
@@ -387,6 +388,13 @@ embargo use case first runs the door check `unaddressed_copy_refusal()`
 (`vultron/core/use_cases/_helpers.py`), which refuses (HP-01-005), before any
 write, an activity whose receiver is neither its sender nor in its `to`/`cc`, so
 an unaddressed copy is answered by nobody.
+
+**Embargo-ending notices to unreached signatories** (CM-31-009, CM-31-010):
+every CASE_MANAGER path that terminates or replaces the active embargo brackets
+its EM write with `embargo_ending_notice_nodes` (`nodes/ending_notice.py`,
+issue 4083), which sends a direct ET or `Announce(EmbargoEvent)` to each bound
+signatory the ledger no longer reaches.
+See `notes/case-joining.md` § "Removal and reinstatement".
 
 **Auto-terminate on publication** (CS.P/X/A event): the live receive path is
 `ThreatTerminationBranchNode` (`status/nodes/threat_termination.py`), under the

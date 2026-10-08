@@ -288,8 +288,8 @@ LEDGER_REPLICATION_SENDERS: frozenset[tuple[str, str]] = frozenset(
 #    Each entry is the decision recorded in replica_emit_exemptions.py.
 # ---------------------------------------------------------------------------
 # permanent: BT-17-008 (one recorded decision per entry; the reasons are in
-# replica_emit_exemptions.py, and EMBARGO_TEARDOWN_ANNOUNCE and
-# GENESIS_REJECT_ANNOUNCE name the issues that delete them: #4323, #4324)
+# replica_emit_exemptions.py, and GENESIS_REJECT_ANNOUNCE names the issue
+# that deletes it: #4324)
 REPLICA_EMIT_EXEMPTION_USES: frozenset[tuple[str, str, str]] = frozenset(
     {
         (
@@ -321,11 +321,6 @@ REPLICA_EMIT_EXEMPTION_USES: frozenset[tuple[str, str, str]] = frozenset(
             "EMBARGO_INVITE_ANSWER",
             f"{_E}/announce_teardown_tree.py",
             "invite_to_embargo_on_case_tree",
-        ),
-        (
-            "EMBARGO_TEARDOWN_ANNOUNCE",
-            f"{_E}/announce_teardown_tree.py",
-            "remove_embargo_from_case_tree",
         ),
         (
             "GENESIS_REJECT_ANNOUNCE",

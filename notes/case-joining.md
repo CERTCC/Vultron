@@ -19,6 +19,7 @@ related_specs:
   - specs/embargo-policy.yaml
 related_notes:
   - notes/case-communication-model.md
+  - notes/embargo-lifecycle.md
   - notes/participant-embargo-consent.md
   - notes/participant-role-management.md
   - notes/sync-ledger-replication.md
@@ -266,6 +267,30 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
   record's creation (CM-11-006). In the accept-invite tree the full-case
   Invite is now the first effect that commits after the join, so it carries
   the #2898 ordering: after the case announce and the backfill.
+- **Where the embargo-ending notices live (#4083).** The recipients are
+  `embargo_ending_notice_recipients` (joined, `SIGNATORY` to the ending
+  embargo, removed or RM `CLOSED`). The decision is `embargo_ending_notice`:
+  a termination before the agreed end owes ET; a revision that ends no later
+  (the EP-05-001 carry-over arm, ties included) owes `Announce(EmbargoEvent)`;
+  a longer revision or an expiry owes nothing. Every path that ends or
+  replaces the embargo at the CASE_MANAGER brackets its EM write with the pair
+  from `embargo_ending_notice_nodes` (`CaptureActiveEmbargoNode` before,
+  `SendEmbargoEndingNoticesNode` after, under the manager gate): the received
+  `Remove`/`Add(EmbargoEvent)`, the owner's received `Accept` of a revision,
+  `terminate_embargo_bt` (trigger, P/X/A cascade, owner EJ after disclosure)
+  and the trigger answer arms. One activity per recipient, never ledgered,
+  `attributedTo` the requester when it is not the manager. At the replica,
+  the received `Remove(EmbargoEvent)` tree applies ET through
+  `EmbargoLifecycle`; a replica owed a notice (`AwaitsEmbargoEndingNoticeNode`,
+  `awaits_embargo_ending_notice`: the same recipient rule, read about itself)
+  applies an announced shorter revision through
+  `ApplyAnnouncedEmbargoRevisionNode` (`activate_embargo`, `OBSERVED`). A
+  withheld replica is paused but bound by no embargo in force, so the
+  teardown `Announce` that reaches it is archived, never applied. The
+  sender guard admits only the CASE_MANAGER. The teardown `Announce` itself
+  skips RM `CLOSED` participants (CM-23-004). Until #4212 lands, a closed
+  signatory still receives fan-out and so gets both the entry and the notice;
+  both apply idempotently.
 
 ## What the old model got wrong
 
@@ -334,7 +359,7 @@ message is designed: we accept offers and invitations, never bare objects.
 - **A joined participant never answers the original `Offer(VulnerabilityReport)`**
   and never runs `validate-report`/`invalidate-report`/`reject-report` for the
   case's report; it judges the case by answering the full-case Invite
-  (CM-11-018, ADR-0121).
+  (CM-11-020, ADR-0121).
 - **A status update never creates a participant.** An on-behalf assertion whose
   target is not a participant is refused before any write (PRM-06-006).
 - **Removal is not deletion and not a consent state.** Do not drop a removed

@@ -133,18 +133,16 @@ class as_CaseProposal(as_VultronObject):
     # CP-01-007: provenance of the report this proposal is about.
     #
     # The CaseActor commits the canonical `add_report_to_case` ledger entry, and
-    # invited actors rebuild their `VultronOfferRecord` from that entry's
-    # snapshot (ADR-0035 DL-06-002, SYNC-02-002). The CaseActor cannot look the
+    # the entry's snapshot keeps the report's Offer provenance for the case's
+    # participants, who were never sent the Offer (CM-11-020). The CaseActor cannot look the
     # offer up: the `OfferRecord` lives in the store of the actor that received
     # the Offer, and a co-located CaseActor has its own store and no read into a
     # sibling's (ADR-0073, PCR-01-003). So the offer travels here, on the
     # proposal, for the same reason and by the same rule as the report itself
     # (CP-01-004).
     #
-    # Without it the snapshot carried no `offerId`, every invited actor's
-    # `ApplyOfferReportFromLedgerNode` logged "no offerId — skipping
-    # (non-fatal)", and `validate-report` answered `404 Offer not found` to an
-    # invitee that had done everything right (#2548).
+    # Without it the snapshot carried no `offerId` and the ledger lost the
+    # report's Offer provenance (#2548).
     offer_id: NonEmptyString | None = Field(
         default=None,
         validation_alias="offerId",
