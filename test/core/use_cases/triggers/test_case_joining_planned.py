@@ -539,8 +539,7 @@ def test_embargo_change_reissues_outstanding_stub_invite(actor_store) -> None:
 
     The replacement goes to the same invitee and names the Invite it
     supersedes; an ``Accept`` of the superseded Invite is then refused, and
-    the refusal names the replacement.  Today termination leaves the
-    original stub Invite outstanding and sends nothing new.
+    the refusal names the replacement.
     """
     owner, dl = actor_store("Vendor Owner")
     finder, _ = actor_store("Finder")

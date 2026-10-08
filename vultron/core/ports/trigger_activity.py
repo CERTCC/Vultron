@@ -362,9 +362,9 @@ class TriggerActivityPort(Protocol):
         ``rsvp_deadline`` becomes the Invite's ``endTime``, the reply deadline
         the CASE_MANAGER stamps as it does on an embargo Invite (CM-11-014,
         CM-28-012, ASK-03-004); ``published`` is the instant it was measured
-        from.  ``in_reply_to`` names the stub Invite this one replaces, in the standard
-        AS2 ``inReplyTo`` property, after an
-        embargo change (CM-11-016).  Each is forwarded only when given.
+        from.  ``in_reply_to`` names the stub Invite this one replaces, in the
+        standard AS2 ``inReplyTo`` property, after an embargo change or a
+        re-invite (CM-11-015, CM-11-016).  Each is forwarded only when given.
         Returns ``(activity_id, activity_dict)``.
         """
         ...

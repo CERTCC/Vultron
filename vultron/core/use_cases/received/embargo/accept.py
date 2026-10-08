@@ -144,7 +144,7 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
     def _backfill_admitted(
         self, *, case_id: str, receiving_actor_id: str
     ) -> None:
-        tree = embargo_admission_backfill_tree(case_id)
+        tree = embargo_admission_backfill_tree(case_id, self._actor_config)
         result = BTBridge(
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,

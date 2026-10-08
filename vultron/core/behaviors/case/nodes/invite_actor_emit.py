@@ -258,8 +258,8 @@ class ReissueStubInvitesNode(_EmitSingleActivityBase):
     Accepting a stub consents to the terms it carried, so when the active
     embargo is activated, revised or terminated while a stub is outstanding
     the CASE_MANAGER sends the invitee a replacement carrying the current terms
-    and a new deadline, on the same participant record, naming in ``inReplyTo`` the Invite it
-    supersedes (CM-11-016).  No ``Undo`` retracts the old one: an ``Accept`` of
+    and a new deadline, on the same participant record, naming in
+    ``inReplyTo`` the Invite it supersedes (CM-11-016).  No ``Undo`` retracts the old one: an ``Accept`` of
     it is refused, naming the replacement, and a ``Reject`` of it is honoured.
 
     *Outstanding* means the invitee has not replied and its newest Invite has

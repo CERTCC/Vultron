@@ -155,7 +155,7 @@ def create_accept_invite_actor_to_case_tree(
         AcceptInviteActorToCaseBT (memory=False)
         ├── SenderIsInviteeNode                    — sender is the recorded invitee
         ├── CheckInviteeNotAlreadyParticipantNode  — idempotency guard
-        ├── StubInviteAnswerableNode               — not superseded, not expired
+        ├── StubInviteAnswerableNode               — not superseded
         ├── CapturePreCommitBackfillTargetNode     — snapshot ledger for resume case
         ├── GuardedCommitCaseLedgerEntryBT         — record receipt (CLP-10-006)
         └── AcceptInviteIfCaseManager              — BT-17-001 gate (#3752)
@@ -212,9 +212,9 @@ def create_accept_invite_actor_to_case_tree(
             CheckInviteeNotAlreadyParticipantNode(
                 case_id=case_id, invitee_id=invitee_id
             ),
-            # A superseded or expired stub cannot be accepted (CM-11-016,
-            # CM-11-014); a redelivery of a joined invitee's Accept already
-            # ended the tree above, so this never refuses a duplicate.
+            # A superseded stub cannot be accepted (CM-11-016); an expired one
+            # can (ASK-03-008).  A redelivery of a joined invitee's Accept
+            # already ended the tree above, so this never refuses a duplicate.
             StubInviteAnswerableNode(invite_id=invite_id, case_id=case_id),
             CapturePreCommitBackfillTargetNode(case_id=case_id),
         ],

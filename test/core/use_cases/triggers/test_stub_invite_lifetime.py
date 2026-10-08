@@ -14,7 +14,7 @@
 
 CM-11-014 (a deadline; expiry closes the Invite and writes no participant
 state), CM-11-015 (re-invite on the same record), CM-11-016 (re-issue when the
-active embargo changes) and ASK-03-002 (a late ``Accept`` is void).  The
+active embargo changes) and ASK-03-008 (expiry is stale: a late reply is honoured).  The
 planned-behaviour tests for the same requirements are in
 ``test_case_joining_planned.py``.
 """
@@ -51,6 +51,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.case.stub_invite_lifetime import (
     RecordedStubInvite,
     outstanding_stale_stubs,
@@ -554,6 +555,48 @@ def test_a_received_embargo_removal_re_issues_the_outstanding_stub(
         i for i in _invites_to(dl, invitee.id_) if i.id_ != original["id"]
     ]
     assert replacement.in_reply_to == original["id"]
+
+
+@pytest.mark.spec("CM-11-014")
+def test_a_re_issued_stub_uses_the_managers_configured_rsvp_window(
+    actor_store,
+) -> None:
+    """The replacement's deadline follows the configured window, not the default."""
+    owner, dl = actor_store("Vendor Owner")
+    finder, _ = actor_store("Finder")
+    invitee, _ = actor_store("Vendor Two")
+    dl.create(finder)
+    dl.create(invitee)
+    case, _, _ = _build_active_embargo_case(dl, owner.id_, finder.id_)
+    original = _send_stub_invite(dl, owner.id_, case.id_, invitee.id_)
+    embargo = dl.read(case.active_embargo_id)
+    assert isinstance(embargo, as_EmbargoEvent)
+    window = timedelta(days=2)
+    config = ActorConfig(
+        min_rsvp_window=timedelta(hours=1), default_rsvp_window=window
+    )
+
+    result = route_received(
+        dl,
+        remove_embargo_from_case_activity(
+            embargo,
+            origin=case.id_,
+            context=case.id_,
+            actor=owner.id_,
+            to=[owner.id_],
+        ),
+        receiving_actor_id=owner.id_,
+        trigger_activity=TriggerActivityAdapter(dl),
+        actor_config=config,
+    )
+
+    assert result.disposition is HandlerDisposition.APPLIED, result.reason
+    (replacement,) = [
+        i for i in _invites_to(dl, invitee.id_) if i.id_ != original["id"]
+    ]
+    assert replacement.published is not None
+    assert replacement.end_time is not None
+    assert replacement.end_time - replacement.published == window
 
 
 @pytest.mark.spec("CM-11-016")

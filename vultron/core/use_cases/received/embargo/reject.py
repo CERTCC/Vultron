@@ -4,6 +4,7 @@ import logging
 from typing import TYPE_CHECKING, ClassVar
 
 if TYPE_CHECKING:
+    from vultron.config.actor import ActorConfig
     from vultron.core.ports.wire_render import WireRenderPort
 
 from vultron.core.behaviors.bridge import BTBridge
@@ -59,6 +60,7 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
         sync_port: "SyncActivityPort | None" = None,
         trigger_activity: "TriggerActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
+        actor_config: "ActorConfig | None" = None,
     ) -> None:
         self._dl = dl
         self._wire_render_port = wire_render_port
@@ -67,6 +69,7 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
         # The owner's Reject of a revision after disclosure terminates the
         # embargo, and the CASE_MANAGER tells the participants (EMB-04-002).
         self._trigger_activity = trigger_activity
+        self._actor_config = actor_config
 
     def execute(self) -> HandlerResult:
         request = self._request
@@ -132,6 +135,7 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
             rejecting_actor_id=rejecting_actor_id,
             invite_id=invite_id or "",
             embargo_id=embargo_id,
+            actor_config=self._actor_config,
         )
         bridge = BTBridge(
             datalayer=self._dl,

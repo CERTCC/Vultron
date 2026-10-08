@@ -80,7 +80,7 @@ class AskExpiry(StrEnum):
     """
 
     STALE = "stale"
-    """A late reply still authorizes the action once the expiry is recorded."""
+    """A late reply still authorizes the action; the asker only stops waiting."""
 
     VOID = "void"
     """A late reply authorizes nothing; the asker must ask again."""

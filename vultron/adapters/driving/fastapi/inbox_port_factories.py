@@ -220,11 +220,6 @@ _TRIGGER_ACTIVITY_PORT_SEMANTICS = frozenset(
         MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER,
         MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
         MessageSemantics.ACCEPT_OFFER_CASE_PARTICIPANT,
-        # ADD_EMBARGO_EVENT_TO_CASE and REMOVE_EMBARGO_EVENT_FROM_CASE: an
-        # embargo change re-issues the CASE_MANAGER's outstanding stub Invites
-        # (CM-11-016).
-        MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE,
-        MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE,
         # CLOSE_CASE emits the as:Reject that declines an owner close during a
         # live embargo (CM-23-011).
         MessageSemantics.CLOSE_CASE,
@@ -280,6 +275,14 @@ _EMBARGO_INVITE_SEMANTICS = frozenset(
         # OFFER_ACTOR_TO_CASE: the CASE_MANAGER's stub Invite, first or
         # re-invite, is stamped with the same RSVP window (CM-11-014).
         MessageSemantics.OFFER_ACTOR_TO_CASE,
+        # ADD_/REMOVE_EMBARGO_EVENT: an embargo change re-issues the
+        # CASE_MANAGER's outstanding stub Invites (CM-11-016), each stamped
+        # with the same RSVP window (CM-11-014).
+        MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE,
+        MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE,
+        # REJECT_INVITE_TO_EMBARGO_ON_CASE: the owner's Reject after disclosure
+        # ends the embargo and so re-issues the stubs the same way.
+        MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE,
     }
 )
 

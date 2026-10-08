@@ -108,6 +108,7 @@ logger = logging.getLogger(__name__)
 
 def embargo_admission_backfill_tree(
     case_id: str,
+    actor_config: ActorConfig | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Follow an embargo effect at the CASE_MANAGER: backfill, then re-issue.
 
@@ -118,13 +119,15 @@ def embargo_admission_backfill_tree(
     the stub Invites that are outstanding and carry the old terms; a no-op when
     none are (CM-11-016).  CASE_MANAGER only (BT-17-001): the pause records,
     the canonical ledger and the stub Invites live in its store.
+    *actor_config* sets the replacements' RSVP window; ``None`` applies the
+    ``ActorConfig`` defaults.
     """
     return create_case_manager_gated_tree(
         name="EmbargoAdmissionBackfill",
         case_id=case_id,
         children=[
             BackfillAdmittedParticipantsNode(case_id=case_id),
-            ReissueStubInvitesNode(case_id=case_id),
+            ReissueStubInvitesNode(case_id=case_id, actor_config=actor_config),
         ],
     )
 
@@ -133,6 +136,7 @@ def remove_embargo_from_case_tree(
     case_id: str,
     embargo_id: str,
     sender_actor_id: str,
+    actor_config: ActorConfig | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for receiver-side embargo removal (protocol ET).
 
@@ -163,6 +167,9 @@ def remove_embargo_from_case_tree(
         sender_actor_id: Sender of the ``Remove``; the Case Owner (or the
             CASE_MANAGER) at the CASE_MANAGER, the CASE_MANAGER elsewhere
             (ADR-0115, EP-09-005, PCR-03-001).
+        actor_config: The CASE_MANAGER's configuration; its RSVP windows set
+            the deadline of a re-issued stub Invite.  ``None`` applies the
+            ``ActorConfig`` defaults.
 
     Returns:
         Root node of the ``RemoveEmbargoFromCaseBT`` Sequence.
@@ -189,7 +196,7 @@ def remove_embargo_from_case_tree(
                     SendAnnounceEmbargoEventNode(
                         case_id=case_id, embargo_id=embargo_id
                     ),
-                    embargo_admission_backfill_tree(case_id),
+                    embargo_admission_backfill_tree(case_id, actor_config),
                 ],
             ),
         ],
@@ -217,6 +224,7 @@ def add_embargo_to_case_tree(
     case_id: str,
     embargo_id: str,
     sender_actor_id: str,
+    actor_config: ActorConfig | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for receiver-side embargo activation (protocol EA).
 
@@ -234,6 +242,9 @@ def add_embargo_to_case_tree(
         sender_actor_id: Sender of the ``Add``; the Case Owner (or the
             CASE_MANAGER) at the CASE_MANAGER, the CASE_MANAGER elsewhere
             (ADR-0115, EP-09-005, PCR-03-001).
+        actor_config: The CASE_MANAGER's configuration; its RSVP windows set
+            the deadline of a re-issued stub Invite.  ``None`` applies the
+            ``ActorConfig`` defaults.
 
     Returns:
         Root node of the ``AddEmbargoToCaseBT`` Sequence.
@@ -255,7 +266,7 @@ def add_embargo_to_case_tree(
             ),
             # Activating a revision can admit a participant that had already
             # accepted it, after the Add entry was fanned out (CM-10-006).
-            embargo_admission_backfill_tree(case_id),
+            embargo_admission_backfill_tree(case_id, actor_config),
         ],
     )
     logger.info(

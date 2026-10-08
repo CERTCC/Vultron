@@ -39,6 +39,7 @@ from collections.abc import Callable
 
 import py_trees
 
+from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.case.nodes.invite_actor_emit import (
     ReissueStubInvitesNode,
 )
@@ -153,6 +154,7 @@ def _answer_arms(
     event_type: str,
     result_out: dict[str, object],
     activity_builder: EmbargoActivityBuilder,
+    actor_config: ActorConfig | None = None,
 ) -> list[py_trees.behaviour.Behaviour]:
     """Manager: write, commit, declare; otherwise: ask the manager.
 
@@ -175,7 +177,7 @@ def _answer_arms(
             # each stub's terms with the embargo in force and does nothing
             # while a proposal is open, so a reject or a participant's accept
             # re-issues nothing.
-            ReissueStubInvitesNode(case_id=case_id),
+            ReissueStubInvitesNode(case_id=case_id, actor_config=actor_config),
         ],
         otherwise=[
             sender_side_bt(
@@ -428,6 +430,7 @@ def terminate_embargo_bt(
     result_out: dict[str, object],
     reason: TerminationReason,
     activity_builder: EmbargoActivityBuilder | None = None,
+    actor_config: ActorConfig | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Shared BT for terminating the active embargo (BT-19-001, EP-09-008).
 
@@ -455,6 +458,10 @@ def terminate_embargo_bt(
     ``/embargo_id`` and the factory from the blackboard.  Every path MUST use
     this factory so routing prerequisites are verified before the DataLayer
     state change is committed (BT-19-002).
+
+    *actor_config* sets the RSVP window of the stub Invites the CASE_MANAGER
+    re-issues once the embargo ends; ``None`` applies the ``ActorConfig``
+    defaults.
     """
     if activity_builder is not None:
         commit: py_trees.behaviour.Behaviour = CommitEmbargoDecisionNode(
@@ -495,7 +502,9 @@ def terminate_embargo_bt(
                     _make_emit_node(case_id),
                     # Termination changes the terms of every stub Invite still
                     # outstanding (CM-11-016).
-                    ReissueStubInvitesNode(case_id=case_id),
+                    ReissueStubInvitesNode(
+                        case_id=case_id, actor_config=actor_config
+                    ),
                 ],
                 otherwise=[ask],
             ),
