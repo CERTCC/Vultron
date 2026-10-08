@@ -21,6 +21,9 @@ admission backfill is its gate.
 import py_trees
 import pytest
 
+from vultron.core.behaviors.case.nodes.invite_actor_emit import (
+    ReissueStubInvitesNode,
+)
 from vultron.core.behaviors.case.nodes.role_gates import CaseManagerGate
 from vultron.core.behaviors.embargo.announce_teardown_tree import (
     add_embargo_to_case_tree,
@@ -90,4 +93,9 @@ def test_add_embargo_backfill_is_the_factory_gate() -> None:
     gate = tree.children[-1]
     assert isinstance(gate, CaseManagerGate)
     assert gate.name == "EmbargoAdmissionBackfill"
-    assert isinstance(gate.gated_branch, BackfillAdmittedParticipantsNode)
+    # The activation backfills what it admitted, then re-issues the stub
+    # Invites it left carrying old terms (CM-11-016).
+    assert [type(n) for n in gate.gated_branch.children] == [
+        BackfillAdmittedParticipantsNode,
+        ReissueStubInvitesNode,
+    ]

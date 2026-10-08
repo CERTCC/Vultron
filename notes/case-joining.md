@@ -131,19 +131,40 @@ its authority to *commit* comes from its role (CLP-09), not from being active.
 
 ## Edge cases
 
-- **Unanswered stub Invite.** It carries a reply deadline; on expiry the
-  *Invite* closes as an expired ask and the record stays inert at `RECEIVED`
-  (CM-11-014). The CASE_MANAGER never closes an invitee's RM for it, and consent
-  stays `INVITED`: the expiry-to-`EXPIRED` rule (CM-28-004) is for an expired
-  `Invite(EmbargoEvent)`, not for the terms a stub carries.
+- **Unanswered stub Invite.** It carries a reply deadline, `Invite.end_time`,
+  which the CASE_MANAGER stamps exactly as it stamps a relayed embargo Invite's
+  (CM-28-012): `published` plus `default_rsvp_window`, floored at
+  `min_rsvp_window`, capped at the active embargo's end when one is active. On
+  expiry the *Invite* closes as an expired ask and the record stays inert at
+  `RECEIVED` (CM-11-014). The CASE_MANAGER never closes an invitee's RM for it,
+  and consent stays `INVITED`: the expiry-to-`EXPIRED` rule (CM-28-004, #4153)
+  is for an expired `Invite(EmbargoEvent)`, not for the terms a stub carries.
+  Expiry is read, not recorded: an Invite is expired when `now >= end_time`
+  (the embargo Invite's comparison), judged against the CASE_MANAGER's own copy.
+  The expiry consequence is *stale* (ASK-03-002, ASK-03-008): expiry only
+  means the CASE_MANAGER stops waiting. A late `Accept` still joins and a late
+  `Reject` still closes the record. The stale-terms hazard is covered by the
+  supersede rule below, not by refusing late replies. A strict mode that
+  refuses after expiry is a possible later addition and is not built.
   "All participants closed" counts only participants that joined.
-- **Re-invite.** Same record, fresh stub Invite, new deadline. Refused for a
-  participant at `CLOSED` — terminal, no rejoin (CM-11-015, ADR-0085).
+- **Re-invite.** Same record, fresh stub Invite, new deadline, with `inReplyTo`
+  set to the earlier stub so the invitee has one live stub. Refused for a
+  participant at `CLOSED` — terminal, no rejoin (CM-11-015, ADR-0085). The
+  owner's trigger refuses it before anything is queued, and the CASE_MANAGER's
+  recommend-actor tree refuses an Offer that arrives anyway. The re-invite arm
+  sits ahead of the duplicate arms, because an inert record is on the roster and
+  its stub is "in flight" until the invitee answers.
 - **Embargo changes during the invitation window.** The CASE_MANAGER re-issues
   the stub Invite with current terms; the replacement names the Invite it
   supersedes. `Accept` of a superseded stub is refused with the replacement
   named; `Reject` of it is honoured (CM-11-016). Without this, an invitee
-  accepting stale longer terms would join lapsed.
+  accepting stale longer terms would join lapsed. Only an *outstanding* stub is
+  re-issued: the invitee has not replied and the newest stub has not expired. An
+  expired, unanswered stub waits for a re-invite. The check compares the embargo
+  each stub carried with the one a new stub would carry, so it runs after any
+  step that may have changed the embargo (the termination, the activation, the
+  owner's accept) and does nothing while a proposal is open (EM `PROPOSED` or
+  `REVISE`): a proposal alone re-issues nothing.
 - **Joining while a proposal is open.** The joiner signs the embargo in force
   (step 2a), but it was not on the roster when the CASE_MANAGER relayed any
   open proposal. The admission therefore ends by inviting it to each open

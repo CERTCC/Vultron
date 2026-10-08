@@ -180,17 +180,7 @@ KNOWN_UNREPLAYED: dict[str, str] = {
 }
 
 #: Replayed ahead of the commit that will produce them (event type → issue).
-# owner: #4304
-AWAITING_COMMIT: dict[str, str] = {
-    MS.INVALIDATE_REPORT.value: (
-        "#4304: TentativeReject(Offer) is canonical but its received tree"
-        " passes case_id=None"
-    ),
-    MS.CLOSE_REPORT.value: (
-        "#4304: Reject(Offer) is canonical but its received tree passes"
-        " case_id=None"
-    ),
-}
+AWAITING_COMMIT: dict[str, str] = {}
 
 
 def test_the_derivation_finds_both_commit_paths():

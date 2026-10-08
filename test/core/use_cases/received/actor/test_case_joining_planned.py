@@ -145,6 +145,7 @@ def route_received(
     receiving_actor_id: str,
     sync_port: Any = None,
     trigger_activity: Any = None,
+    actor_config: Any = None,
 ) -> HandlerResult:
     """Route *activity* as the inbox does: match semantics, run its use case.
 
@@ -160,6 +161,7 @@ def route_received(
         "sync_port": sync_port if sync_port is not None else MagicMock(),
         "trigger_activity": trigger_activity,
         "wire_render_port": As2WireRenderAdapter(),
+        "actor_config": actor_config,
     }
     accepted = inspect.signature(use_case_class).parameters
     result = use_case_class(
