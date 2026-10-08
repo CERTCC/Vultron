@@ -48,6 +48,11 @@ from vultron.primitives import NonEmptyString
 __all__ = [
     "ACK_ECHO",
     "CASE_PROPOSAL",
+    "CASE_STATUS",
+    "DEFER_RM_DECLARATION",
+    "EMBARGO_INVITE_ANSWER",
+    "ENGAGE_RM_DECLARATION",
+    "GENESIS_REJECT_ANNOUNCE",
     "OFFER_ROLE",
     "REPLICA_EMIT_EXEMPTIONS",
     "RSH_STATUS",
@@ -132,12 +137,88 @@ RSH_STATUS: Final = ReplicaEmitExemption(
     ),
 )
 
+CASE_STATUS: Final = ReplicaEmitExemption(
+    name="case-status",
+    reason=(
+        "Add(CaseStatus) emits only as the executing actor: the CSB-18"
+        " diagnostic Note is its own note to the sender, skipped on a replica"
+        " that awaits the CASE_MANAGER's teardown entry (CSB-18-002,"
+        " RSH-03-004), and the threat teardown's terminate request runs in"
+        " the participant-replica arm of terminate_embargo_bt and asks the"
+        " CASE_MANAGER (RSH-03-001, RSH-03-004, EP-09-008)."
+    ),
+    covers=frozenset(
+        {"PxaEmInvariantDiagnosticNode", "SendTerminateEmbargoActivityNode"}
+    ),
+)
+
+EMBARGO_INVITE_ANSWER: Final = ReplicaEmitExemption(
+    name="embargo-invite-answer",
+    reason=(
+        "Invite(EmbargoEvent) is answered by its addressee: the Accept or"
+        " Reject runs in the participant-replica arm, only when the executing"
+        " actor is the Invite's sole addressee, and is that actor's own"
+        " answer addressed to the CASE_MANAGER (EP-09-003, EP-09-010,"
+        " PCR-08)."
+    ),
+    covers=frozenset({"SendEmbargoInviteAnswerNode"}),
+)
+
+GENESIS_REJECT_ANNOUNCE: Final = ReplicaEmitExemption(
+    name="genesis-reject-announce",
+    reason=(
+        "The genesis pre-seed Announce(VulnerabilityCase) is the ledger"
+        " holder's answer to the rejecting peer, addressed to that peer, and"
+        " runs only behind the tree's in-place CheckIsCaseManagerNode,"
+        " ahead of the entry replay so the peer can anchor its chain"
+        " (SYNC-15-002, ADR-0073). The in-place check masks a failure at the"
+        " CASE_MANAGER as a skip (BTND-07-005); #4324 moves it onto a real"
+        " gate and deletes this exemption."
+    ),
+    covers=frozenset({"AnnounceCaseOnGenesisRejectNode"}),
+)
+
+
+def _rm_declaration_exemption(
+    name: str, activity: str
+) -> ReplicaEmitExemption:
+    """The RSH-06-004 gap-note decision for one activity-typed RM tree."""
+    return ReplicaEmitExemption(
+        name=name,
+        reason=(
+            f"{activity} declares an RM state for its sender; the RM gap note"
+            " is the executing actor's own clarification to that sender,"
+            " posted only when the declaration guard flagged an anomaly"
+            " (RSH-06-004, RSH-06-006), as in the RSH status tree."
+        ),
+        covers=frozenset({"EmitRMGapNoteNode"}),
+    )
+
+
+ENGAGE_RM_DECLARATION: Final = _rm_declaration_exemption(
+    "engage-rm-declaration", "Join(VulnerabilityCase)"
+)
+
+DEFER_RM_DECLARATION: Final = _rm_declaration_exemption(
+    "defer-rm-declaration", "Ignore(VulnerabilityCase)"
+)
+
 #: Every exemption ``create_receive_activity_tree`` accepts, by name.
 REPLICA_EMIT_EXEMPTIONS: Final[Mapping[str, ReplicaEmitExemption]] = (
     MappingProxyType(
         {
             exemption.name: exemption
-            for exemption in (ACK_ECHO, OFFER_ROLE, CASE_PROPOSAL, RSH_STATUS)
+            for exemption in (
+                ACK_ECHO,
+                OFFER_ROLE,
+                CASE_PROPOSAL,
+                RSH_STATUS,
+                CASE_STATUS,
+                EMBARGO_INVITE_ANSWER,
+                GENESIS_REJECT_ANNOUNCE,
+                ENGAGE_RM_DECLARATION,
+                DEFER_RM_DECLARATION,
+            )
         }
     )
 )

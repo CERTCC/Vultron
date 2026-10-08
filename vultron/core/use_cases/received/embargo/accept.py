@@ -10,9 +10,11 @@ if TYPE_CHECKING:
     from vultron.core.ports.wire_render import WireRenderPort
 
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.embargo.admission_backfill_tree import (
+    embargo_admission_backfill_tree,
+)
 from vultron.core.behaviors.embargo.announce_teardown_tree import (
     accept_invite_to_embargo_tree,
-    embargo_admission_backfill_tree,
 )
 from vultron.core.behaviors.embargo.expiry_tree import (
     IS_EXPIRED_KEY,

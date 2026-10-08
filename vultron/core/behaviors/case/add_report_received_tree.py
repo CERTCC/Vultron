@@ -28,7 +28,6 @@ from vultron.core.behaviors.case.nodes.reference_list import (
     CaseReferenceEditPendingNode,
 )
 from vultron.core.behaviors.case.nodes.role_gates import (
-    create_case_manager_gated_tree,
     create_role_scoped_sender_guard,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
@@ -80,15 +79,9 @@ def create_add_report_to_case_received_tree(
                 attach=True,
             )
         ],
-        effect_nodes=[
-            create_case_manager_gated_tree(
-                name="GuardedAttachReportBT",
-                case_id=case_id,
-                children=[
-                    AttachReportToCaseNode(
-                        report_id=report_id, case_id=case_id
-                    )
-                ],
-            )
+        manager_effects=[
+            AttachReportToCaseNode(report_id=report_id, case_id=case_id)
         ],
+        manager_case_id=case_id,
+        manager_gate_name="GuardedAttachReportBT",
     )

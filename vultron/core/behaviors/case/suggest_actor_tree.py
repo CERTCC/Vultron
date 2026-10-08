@@ -32,11 +32,12 @@ and use
 to enforce CLP-10-006 ordering (ledger commit before effect nodes).
 
 Every effect in this workflow is the CASE_MANAGER's, so each tree's effect
-section sits inside :func:`create_case_manager_gated_tree` (BT-17-001,
-BTND-07-005).  The same handler runs on every participant that holds a copy of
-the message; the gate is what keeps a participant that is *not* the case's
-CASE_MANAGER from forwarding, accepting, or inviting as itself (#3752).  The
-handler then reports the skip as a refusal (HP-01-005).
+section is passed as ``manager_effects``, which the factory wraps in the
+CASE_MANAGER gate (BT-17-001, BT-17-008, BTND-07-005).  The same handler
+runs on every participant that holds a copy of the message; the gate is
+what keeps a participant that is *not* the case's CASE_MANAGER from
+forwarding, accepting, or inviting as itself (#3752).  The handler then
+reports the skip as a refusal (HP-01-005).
 
 BT leaf nodes for this workflow are in the
 :mod:`vultron.core.behaviors.case.nodes.suggest_actor` subpackage.
@@ -55,9 +56,6 @@ from vultron.core.behaviors.case.nodes.actor import (
 )
 from vultron.core.behaviors.case.nodes.invite_inert_participant import (
     CreateInertInviteeParticipantNode,
-)
-from vultron.core.behaviors.case.nodes.role_gates import (
-    create_case_manager_gated_tree,
 )
 from vultron.core.behaviors.case.nodes.suggest_actor import (
     ActorAlreadyParticipantNode,
@@ -106,7 +104,6 @@ def create_receive_offer_case_participant_tree(
         case_id=case_id,
         sender_guard=SenderIsCaseManagerNode(case_id=case_id),
         precondition_guards=[],
-        effect_nodes=[],
     )
 
 
@@ -321,21 +318,17 @@ def create_recommend_actor_to_case_received_tree(
             name="RecommenderIsParticipant",
         ),
         precondition_guards=[],
-        effect_nodes=[
-            create_case_manager_gated_tree(
-                name="RecommendActorToCaseIfCaseManager",
+        manager_effects=[
+            RecordRecommendationRecommenderNode(
+                recommendation_id=recommendation_id,
+                recommender_id=recommender_id,
                 case_id=case_id,
-                children=[
-                    RecordRecommendationRecommenderNode(
-                        recommendation_id=recommendation_id,
-                        recommender_id=recommender_id,
-                        case_id=case_id,
-                    ),
-                    duplicate_or_fresh_selector,
-                ],
-                body_name="RecommendActorToCaseEffects",
             ),
+            duplicate_or_fresh_selector,
         ],
+        manager_case_id=case_id,
+        manager_gate_name="RecommendActorToCaseIfCaseManager",
+        manager_body_name="RecommendActorToCaseEffects",
     )
 
 
@@ -399,40 +392,34 @@ def create_accept_actor_recommendation_received_tree(
             sender_actor_id=sender_id, case_id=case_id
         ),
         precondition_guards=[],
-        effect_nodes=[
-            create_case_manager_gated_tree(
-                name="AcceptActorRecommendationIfCaseManager",
+        manager_effects=[
+            EmitAcceptActorRecommendationNode(
+                recommender_id=recommender_id,
+                recommendation_id=recommendation_id,
+                recommended_id=invitee_id,
                 case_id=case_id,
-                children=[
-                    EmitAcceptActorRecommendationNode(
-                        recommender_id=recommender_id,
-                        recommendation_id=recommendation_id,
-                        recommended_id=invitee_id,
-                        case_id=case_id,
-                    ),
-                    EmitInviteActorToCaseNode(
-                        invitee_id=invitee_id,
-                        case_id=case_id,
-                        roles=roles,
-                    ),
-                    # AC-1: record the inert participant at invite-send time
-                    # (ADR-0114, CM-11-006). Roles from the stored Offer are
-                    # passed in directly; the blackboard is empty in this BT
-                    # execution (create_accept_actor_recommendation_received_tree
-                    # docstring, ISSUE-1745).
-                    CreateInertInviteeParticipantNode(
-                        invitee_id=invitee_id,
-                        case_id=case_id,
-                        recommendation_id=recommendation_id,
-                        roles=roles,
-                    ),
-                    EmitAddCaseParticipantNode(
-                        case_id=case_id, invitee_id=invitee_id
-                    ),
-                ],
-                body_name="AcceptActorRecommendationEffects",
             ),
+            EmitInviteActorToCaseNode(
+                invitee_id=invitee_id,
+                case_id=case_id,
+                roles=roles,
+            ),
+            # AC-1: record the inert participant at invite-send time
+            # (ADR-0114, CM-11-006). Roles from the stored Offer are
+            # passed in directly; the blackboard is empty in this BT
+            # execution (create_accept_actor_recommendation_received_tree
+            # docstring, ISSUE-1745).
+            CreateInertInviteeParticipantNode(
+                invitee_id=invitee_id,
+                case_id=case_id,
+                recommendation_id=recommendation_id,
+                roles=roles,
+            ),
+            EmitAddCaseParticipantNode(case_id=case_id, invitee_id=invitee_id),
         ],
+        manager_case_id=case_id,
+        manager_gate_name="AcceptActorRecommendationIfCaseManager",
+        manager_body_name="AcceptActorRecommendationEffects",
     )
 
 
@@ -481,20 +468,16 @@ def create_reject_actor_recommendation_received_tree(
             sender_actor_id=sender_id, case_id=case_id
         ),
         precondition_guards=[],
-        effect_nodes=[
-            create_case_manager_gated_tree(
-                name="RejectActorRecommendationIfCaseManager",
+        manager_effects=[
+            EmitRejectActorRecommendationNode(
+                recommender_id=recommender_id,
+                recommendation_id=recommendation_id,
+                recommended_id=recommended_id,
                 case_id=case_id,
-                children=[
-                    EmitRejectActorRecommendationNode(
-                        recommender_id=recommender_id,
-                        recommendation_id=recommendation_id,
-                        recommended_id=recommended_id,
-                        case_id=case_id,
-                    ),
-                ],
             ),
         ],
+        manager_case_id=case_id,
+        manager_gate_name="RejectActorRecommendationIfCaseManager",
     )
 
 

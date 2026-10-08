@@ -675,6 +675,28 @@ def test_paused_replica_applies_the_managers_termination(
     case = replica.case()
     assert case.active_embargo_id is None
     assert case.current_status.em.state == EM.EXITED
+    # The teardown is the CASE_MANAGER's act: a replica re-announces
+    # nothing (BT-17-008, EMB-19-001).
+    assert replica.dl.outbox_list() == []
+
+
+@pytest.mark.spec("EMB-19-001")
+@pytest.mark.spec("BT-17-008")
+def test_active_replica_tearing_down_queues_no_announce() -> None:
+    """With a trigger port wired, as in production, the replica still sends nothing."""
+    replica = _Replica(ACTIVE, removed=False)
+
+    result = route_received(
+        replica.dl,
+        _termination_from(MANAGER, replica.dl, ACTIVE),
+        receiving_actor_id=ACTIVE,
+        sync_port=SyncActivityAdapter(replica.dl),
+        trigger_activity=TriggerActivityAdapter(replica.dl),
+    )
+
+    assert result.disposition is HandlerDisposition.APPLIED
+    assert replica.case().active_embargo_id is None
+    assert replica.dl.outbox_list() == []
 
 
 @pytest.mark.spec("CM-31-010")
