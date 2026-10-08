@@ -55,6 +55,7 @@ import ast
 import functools
 import importlib
 import inspect
+from collections.abc import Callable
 from pathlib import Path
 from typing import NamedTuple
 
@@ -526,30 +527,19 @@ class _ClassSummary(NamedTuple):
     bases: frozenset[str]
 
 
-def _class_summaries(path: Path, tree: ast.AST) -> list[_ClassSummary]:
-    module = _rel(path).removesuffix(".py").replace("/", ".")
-    summaries: list[_ClassSummary] = []
-    for scope in _top_level_scopes(tree):
-        if not isinstance(scope, ast.ClassDef):
-            continue
-        calls = list(_calls(scope))
-        summaries.append(
-            _ClassSummary(
-                site=(module, scope.name),
-                called=frozenset(name for _, name in calls),
-                calls_a_datalayer_write=any(
-                    name in _DATALAYER_WRITES
-                    and isinstance(call.func, ast.Attribute)
-                    for call, name in calls
-                ),
-                bases=frozenset(
-                    base.id
-                    for base in scope.bases
-                    if isinstance(base, ast.Name)
-                ),
-            )
-        )
-    return summaries
+def _summarize(site: tuple[str, str], scope: ast.ClassDef) -> _ClassSummary:
+    calls = list(_calls(scope))
+    return _ClassSummary(
+        site=site,
+        called=frozenset(name for _, name in calls),
+        calls_a_datalayer_write=any(
+            name in _DATALAYER_WRITES and isinstance(call.func, ast.Attribute)
+            for call, name in calls
+        ),
+        bases=frozenset(
+            base.id for base in scope.bases if isinstance(base, ast.Name)
+        ),
+    )
 
 
 def _hides_children(module: str, name: str) -> bool:
@@ -563,6 +553,63 @@ def _hides_children(module: str, name: str) -> bool:
     return not issubclass(cls, (Composite, Decorator))
 
 
+def _writer_fixed_point(
+    summaries: list[_ClassSummary],
+    seams: frozenset[str],
+    hides_children: Callable[[tuple[str, str]], bool],
+) -> set[tuple[str, str]]:
+    """The classes that reach a state write, over *summaries*.
+
+    A class reaches one by calling a DataLayer write method or a *seam*, or
+    — when *hides_children* says the walk cannot see what it builds — by
+    calling a writer class.  The writer classes are every class found, and
+    every subclass of one, unless pinned in :data:`WRITES_NO_CASE_STATE`.
+    """
+    found: set[tuple[str, str]] = set()
+    writers: set[str] = set()
+    while True:
+        before = len(writers)
+        for summary in summaries:
+            if (
+                summary.calls_a_datalayer_write
+                or summary.called & seams
+                or (summary.called & writers and hides_children(summary.site))
+            ):
+                found.add(summary.site)
+            elif not summary.bases & writers:
+                continue
+            if summary.site not in WRITES_NO_CASE_STATE:
+                writers.add(summary.site[1])
+        if len(writers) == before:
+            return found
+
+
+def _module_of(path: Path) -> str:
+    return _rel(path).removesuffix(".py").replace("/", ".")
+
+
+def _text_candidates(seams: frozenset[str]) -> set[tuple[str, str]]:
+    """A superset of the writer classes, from source text alone.
+
+    Every call the AST walk can see is a ``name(`` in the class's text, so
+    the text fixed point over-approximates the precise one; it parses
+    nothing, and only the files holding a candidate are parsed after it.
+    """
+    summaries = [
+        _ClassSummary(
+            site=(_module_of(path), name),
+            called=_corpus.called_names(span),
+            calls_a_datalayer_write=any(
+                f".{write}(" in span for write in _DATALAYER_WRITES
+            ),
+            bases=bases,
+        )
+        for path, source in _corpus.all_sources(under=_BEHAVIORS_ROOT)
+        for name, bases, span in _corpus.class_spans(source)
+    ]
+    return _writer_fixed_point(summaries, seams, lambda _: True)
+
+
 @functools.cache
 @_corpus.gc_paused()
 def _state_write_seam_classes() -> frozenset[tuple[str, str]]:
@@ -572,39 +619,26 @@ def _state_write_seam_classes() -> frozenset[tuple[str, str]]:
     method, a :data:`_STATE_WRITE_METHODS` seam, or a derived write helper
     (:func:`_state_write_helpers`) — or, unless it is a composite the walk
     descends, by building a writer class (``RMClosureWriter`` ticking a
-    ``CreateParticipantStatusNode``).  The writer classes are a fixed point:
-    every class found, and every subclass of one, unless pinned in
-    :data:`WRITES_NO_CASE_STATE`.  Each file is parsed and walked once, and
-    only when it mentions a seam or a writer found so far (TB-13-008).
+    ``CreateParticipantStatusNode``); see :func:`_writer_fixed_point`.  A
+    text pass names the candidates first (:func:`_text_candidates`), so only
+    their files are parsed and only they are walked (TB-13-008).
     """
     seams = _STATE_WRITE_METHODS | _state_write_helpers()
-    summaries: dict[Path, list[_ClassSummary]] = {}
-    found: set[tuple[str, str]] = set()
-    writers: set[str] = set()
-    fragments: set[str] = {f".{name}(" for name in _DATALAYER_WRITES} | seams
-    while True:
-        for path, tree in _corpus.files_mentioning(
-            *fragments, under=_BEHAVIORS_ROOT
-        ):
-            if path not in summaries:
-                summaries[path] = _class_summaries(path, tree)
-        before = len(writers)
-        for summary in (s for group in summaries.values() for s in group):
-            if (
-                summary.calls_a_datalayer_write
-                or summary.called & seams
-                or (
-                    summary.called & writers and _hides_children(*summary.site)
-                )
-            ):
-                found.add(summary.site)
-            elif not summary.bases & writers:
-                continue
-            if summary.site not in WRITES_NO_CASE_STATE:
-                writers.add(summary.site[1])
-        if len(writers) == before:
-            return frozenset(found)
-        fragments |= writers
+    candidates = _text_candidates(seams)
+    modules = {module for module, _ in candidates}
+    summaries = [
+        _summarize((module, scope.name), scope)
+        for path in _corpus.paths_under(_BEHAVIORS_ROOT)
+        if (module := _module_of(path)) in modules
+        for scope in _top_level_scopes(_corpus.tree_of(path))
+        if isinstance(scope, ast.ClassDef)
+        and (module, scope.name) in candidates
+    ]
+    return frozenset(
+        _writer_fixed_point(
+            summaries, seams, lambda site: _hides_children(*site)
+        )
+    )
 
 
 def _is_marked(module: str, name: str) -> bool:

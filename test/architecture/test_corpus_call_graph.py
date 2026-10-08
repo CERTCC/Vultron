@@ -87,3 +87,19 @@ def test_names_reaching_follows_helpers_across_modules() -> None:
     # A helper that saves the case itself, and one that calls such a helper.
     assert "record_embargo_proposal_index" in reached
     assert "_seed_participant_as_signatory" in reached
+
+
+def test_class_spans_name_each_class_with_its_bases() -> None:
+    source = (
+        "class A(Base, mixins.Marker):\n    def f(self):\n        g()\n\n\n"
+        "def h():\n    pass\n\n\nclass B:\n    x = 1\n"
+    )
+    spans = {
+        name: (bases, span)
+        for name, bases, span in _corpus.class_spans(source)
+    }
+    assert set(spans) == {"A", "B"}
+    assert spans["A"][0] == {"Base", "mixins", "Marker"}
+    assert "g(" in spans["A"][1]
+    assert "def h" not in spans["A"][1]
+    assert spans["B"][0] == frozenset()

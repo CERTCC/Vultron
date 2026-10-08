@@ -130,7 +130,12 @@ nothing, follows top-level import and assignment aliases, and with
 `classes=False` follows functions only (a class span holds every method, so
 one writing method would make every caller of the class match). The
 state-write ratchet uses it to find helper functions that reach a DataLayer
-write, so a seam list never has to name them.
+write, so a seam list never has to name them. It then runs its class-level
+fixed point twice: first over `_corpus.class_spans` text, which
+over-approximates every call the AST can see, then over the AST of only the
+candidate classes (`_corpus.paths_under`, `_corpus.tree_of`). Prefiltering
+files by *mentioning* a class name instead parses every module that imports
+one, which tripled that scan.
 
 ## Spec Requirements
 

@@ -111,6 +111,21 @@ def _get_tree(path: Path) -> ast.AST | None:
 # ---------------------------------------------------------------------------
 
 
+def paths_under(under: Path) -> Iterator[Path]:
+    """Cached ``.py`` paths at or below *under*, in sorted order, unparsed."""
+    return _paths_under(under)
+
+
+def tree_of(path: Path) -> ast.AST:
+    """The cached parse of corpus file *path*, for a ratchet that has already
+    chosen it by its text (``KeyError`` if absent, ``SyntaxError`` if it does
+    not parse)."""
+    tree = _get_tree(path)
+    if tree is None:
+        raise SyntaxError(f"{path} does not parse")
+    return tree
+
+
 def files_mentioning(
     *fragments: str, under: Path
 ) -> Iterator[tuple[Path, ast.AST]]:
@@ -318,13 +333,17 @@ def function_definition(
 _TOP_LEVEL_DEFINITION = re.compile(
     r"^(?:async\s+def|def|class)\s+(\w+)", re.MULTILINE
 )
-#: A top-level alias: ``from m import a as b`` (one name per line, as ruff
-#: formats a parenthesised import) or ``b = a``.
 _IDENTIFIER = r"[A-Za-z_]\w*"
-_TOP_LEVEL_ALIAS = re.compile(
-    rf"^(?:\s*(?:from\s+\S+\s+import\s+)?({_IDENTIFIER})\s+as\s+"
-    rf"({_IDENTIFIER}),?|({_IDENTIFIER})\s*=\s*({_IDENTIFIER}))\s*$",
-    re.MULTILINE,
+#: An import alias line: ``from m import a as b``, or ``a as b,`` inside a
+#: parenthesised import as ruff formats it.  Matched only on a line already
+#: found to contain ``" as "``: a multiline regex over every module costs
+#: more than the rest of the fixed point.
+_IMPORT_ALIAS = re.compile(
+    rf"[ \t]*(?:from [\w.]+ import )?({_IDENTIFIER}) as ({_IDENTIFIER}),?"
+)
+#: A top-level assignment alias: ``b = a``.
+_ASSIGNMENT_ALIAS = re.compile(
+    rf"^({_IDENTIFIER}) = ({_IDENTIFIER})$", re.MULTILINE
 )
 _DEFINING_PREFIXES = ("def ", "class ")
 
@@ -372,13 +391,43 @@ def definition_summaries(
     for match, end in zip(starts, ends[: len(starts)], strict=True):
         if classes or not match.group(0).startswith("class"):
             yield match.group(1), called_names(source[match.end() : end])
-    for match in _TOP_LEVEL_ALIAS.finditer(source):
-        original, alias = (
-            match.group(1) or match.group(4),
-            (match.group(2) or match.group(3)),
-        )
-        if original != alias:
-            yield alias, frozenset({original})
+    for alias, original in _aliases(source):
+        yield alias, frozenset({original})
+
+
+def class_spans(source: str) -> Iterator[tuple[str, frozenset[str], str]]:
+    """``(name, base names, span)`` for each top-level class in *source*.
+
+    Text, not AST, like :func:`definition_summaries`: the span runs to the
+    next top-level definition, and the bases are the identifiers in the
+    ``class Name(...)`` header.  For a ratchet that narrows the classes it
+    must parse before it walks them (TB-13-008).
+    """
+    starts = list(_TOP_LEVEL_DEFINITION.finditer(source))
+    ends = [match.start() for match in starts[1:]] + [len(source)]
+    for match, end in zip(starts, ends[: len(starts)], strict=True):
+        if not match.group(0).startswith("class"):
+            continue
+        span = source[match.end() : end]
+        header = span[: span.find(":")] if ":" in span else ""
+        bases = frozenset(re.findall(_IDENTIFIER, header))
+        yield match.group(1), bases, span
+
+
+def _aliases(source: str) -> Iterator[tuple[str, str]]:
+    """``(alias, original)`` for each top-level alias in *source*."""
+    for assignment in _ASSIGNMENT_ALIAS.finditer(source):
+        if assignment.group(1) != assignment.group(2):
+            yield assignment.group(1), assignment.group(2)
+    position = source.find(" as ")
+    while position != -1:
+        start = source.rfind("\n", 0, position) + 1
+        end = source.find("\n", position)
+        end = len(source) if end == -1 else end
+        imported = _IMPORT_ALIAS.fullmatch(source, start, end)
+        if imported is not None and imported.group(1) != imported.group(2):
+            yield imported.group(2), imported.group(1)
+        position = source.find(" as ", end)
 
 
 def names_reaching(
