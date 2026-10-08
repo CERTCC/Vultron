@@ -212,9 +212,10 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
   the one clearing write), `BackfillAdmittedParticipantsNode`,
   `EmitParticipantReinstatementNoticeNode` (port method
   `add_participant_to_case`, which now takes `attributed_to`) and
-  `InviteReinstatedParticipantToEmbargoNode`. The guard and notice frames
-  (`ParticipantMoveGuardNode`, `EmitParticipantMoveNoticeNode`) and the use
-  case frame are shared with removal. Replicas replay the entry through
+  `InviteReinstatedParticipantToEmbargoNode`. The guard, effect and notice
+  frames (`ParticipantMoveGuardNode`, `ParticipantMoveEffectNode`,
+  `EmitParticipantMoveNoticeNode`) and the use case frame are shared with
+  removal. Replicas replay the entry through
   `ApplyReinstateCaseParticipantFromLedgerNode`, which shares its record
   lookup with the removal apply node.
 - **Catch-up follows the active check (#4084).** The reinstatement entry's
@@ -229,10 +230,13 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
   `invite_to_embargo_on_case_reinvite`), and the embargo-acceptance tree's
   own backfill admits it when it consents.
 - **A removed participant is asked nothing (#4084).** `invitation_recipients`
-  leaves it out, so no embargo Invite or revision relay reaches it. It cannot
-  be sent a stub Invite (the recommend-actor tree treats a joined record as
-  already a participant), and a replayed `Accept(Invite)` from it is a silent
-  skip in `CheckInviteeNotAlreadyParticipantNode`: no case seed, backfill or
+  leaves it out, so no embargo Invite or revision relay reaches it; the
+  EMB-17-003 re-invite and the reinstatement Invite check their one recipient
+  against it too. Both suggest-actor trees refuse a recommendation of it, and
+  the Case Owner's acceptance of an earlier one, before the commit
+  (`case_manager_admits_suggested_actor_guard`), so no stub Invite reaches
+  it. A replayed `Accept(Invite)` from it is a silent skip in
+  `CheckInviteeNotAlreadyParticipantNode`: no case seed, backfill or
   full-case Invite.
 - **No `Add` after a stub-Invite acceptance (#4081).** Neither the
   accept-invite tree nor the recommend-actor trees emit `Add(CaseParticipant)`
