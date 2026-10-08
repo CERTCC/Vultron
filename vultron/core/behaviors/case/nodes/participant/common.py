@@ -94,9 +94,7 @@ def _create_and_attach_participant(
     if existing_participant_id is not None:
         existing_participant = dl.read(existing_participant_id)
         if isinstance(existing_participant, CaseParticipant):
-            rows_before = len(existing_participant.embargo_consents)
-            stored_case.add_participant(existing_participant)
-            if len(existing_participant.embargo_consents) != rows_before:
+            if stored_case.add_participant(existing_participant):
                 dl.save(existing_participant)
             _create_participant_if_missing(dl, participant, logger)
             logger.debug(

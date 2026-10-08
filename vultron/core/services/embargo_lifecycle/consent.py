@@ -24,8 +24,6 @@ EP-04-008).
 import logging
 from datetime import datetime
 
-from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.services.embargo_lifecycle.pec import (
     _consent_change,
     _PecEffectsMixin,
@@ -40,7 +38,6 @@ from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
     PEC_Trigger,
 )
-from vultron.errors import VultronNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -223,8 +220,8 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
 
         em_state = case.em_state
 
-        participant_id = case.actor_participant_index.get(actor_id)
-        if not participant_id:
+        resolved = self._find_participant(case, actor_id)
+        if resolved is None:
             logger.warning(
                 "record_participant_consent: actor '%s' has no participant"
                 " record in case '%s' — skipping",
@@ -232,10 +229,7 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
                 case_id,
             )
             return _unchanged(em_state)
-
-        participant = self._persistence.read(participant_id)
-        if not isinstance(participant, CaseParticipant):
-            return _unchanged(em_state)
+        participant_id, participant = resolved
 
         before = participant.consent_for(embargo_id)
         participant.apply_pec_transition(
@@ -263,48 +257,6 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
                     participant_id, embargo_id, before, participant
                 )
             ],
-        )
-
-    def _require_participant(
-        self, case: VulnerabilityCase, actor_id: str
-    ) -> tuple[str, CaseParticipant]:
-        """*actor_id*'s participant record on *case*, or raise.
-
-        Raises:
-            VultronNotFoundError: the actor has no participant record on it.
-        """
-        participant_id = case.actor_participant_index.get(actor_id)
-        participant = (
-            self._persistence.read(participant_id) if participant_id else None
-        )
-        if not isinstance(participant, CaseParticipant) or not participant_id:
-            raise VultronNotFoundError(
-                "CaseParticipant", f"{actor_id} on case {case.id_}"
-            )
-        return participant_id, participant
-
-    def _invitation_timed_out(
-        self,
-        case: VulnerabilityCase,
-        participant: CaseParticipant,
-        embargo_id: str,
-        now: datetime,
-    ) -> bool:
-        """True when the row for *embargo_id* is ``INVITED`` and its deadline has passed.
-
-        The deadline is the one on that row, so only that invitation is
-        judged (CM-28-001, CM-28-012); a row whose register entry is final is
-        frozen and never times out.
-        """
-        deadline = participant.rsvp_deadline_for(embargo_id)
-        return (
-            deadline is not None
-            and now >= deadline
-            and participant.accepts_pec_trigger(
-                embargo_id,
-                PEC_Trigger.TIME_OUT,
-                entry_status=case.embargo_register_status(embargo_id),
-            )
         )
 
     def assess_invite_expiry(
@@ -348,12 +300,10 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
             has not yet passed.
         """
         case = self._read_case(case_id)
-        participant_id = case.actor_participant_index.get(actor_id)
-        if not participant_id:
+        resolved = self._find_participant(case, actor_id)
+        if resolved is None:
             return False, False
-        participant = self._persistence.read(participant_id)
-        if not isinstance(participant, CaseParticipant):
-            return False, False
+        _, participant = resolved
         is_expired = not participant.is_signatory(case.active_embargo_id)
         entry = case.embargo_register_entry(embargo_id)
         if entry is not None and entry.status in FINAL_REGISTER_STATUSES:
@@ -365,10 +315,9 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
         deadline = participant.rsvp_deadline_for(embargo_id)
         if deadline is None or now < deadline:
             return False, False
-        needs_apply = self._invitation_timed_out(
-            case, participant, embargo_id, now
-        )
-        return is_expired, needs_apply
+        # Only an INVITED row carries a deadline (CM-28-013) and the entry is
+        # open, so the row times out.
+        return is_expired, True
 
     def record_invite_expiry(
         self,
@@ -404,8 +353,8 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
         """
         case = self._read_case(case_id)
         em_state = case.em_state
-        participant_id = case.actor_participant_index.get(actor_id)
-        if not participant_id:
+        resolved = self._find_participant(case, actor_id)
+        if resolved is None:
             logger.debug(
                 "record_invite_expiry: actor '%s' has no participant"
                 " record in case '%s' — skipping",
@@ -413,9 +362,7 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
                 case_id,
             )
             return _unchanged(em_state)
-        participant = self._persistence.read(participant_id)
-        if not isinstance(participant, CaseParticipant):
-            return _unchanged(em_state)
+        participant_id, participant = resolved
         participant_changes = self._apply_where_legal(
             case, participant_id, participant, embargo_id, PEC_Trigger.TIME_OUT
         )
@@ -542,8 +489,8 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
         case = self._read_case(case_id)
         em_state = case.em_state
 
-        participant_id = case.actor_participant_index.get(actor_id)
-        if not participant_id:
+        resolved = self._find_participant(case, actor_id)
+        if resolved is None:
             logger.debug(
                 "detect_and_apply_expiry: actor '%s' has no participant"
                 " record in case '%s' — skipping",
@@ -551,10 +498,7 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
                 case_id,
             )
             return _unchanged(em_state)
-
-        participant = self._persistence.read(participant_id)
-        if not isinstance(participant, CaseParticipant):
-            return _unchanged(em_state)
+        participant_id, participant = resolved
 
         deadline = participant.rsvp_deadline_for(embargo_id)
         if deadline is None or now < deadline:

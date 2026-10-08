@@ -372,7 +372,7 @@ class VulnerabilityCase(CoreObject):
         """
         self.vulnerability_reports.append(report_id)
 
-    def add_participant(self, participant: CaseParticipant) -> None:
+    def add_participant(self, participant: CaseParticipant) -> bool:
         """Add a participant and update the actor→participant index.
 
         The participant's ``attributed_to`` actor URI is recorded in
@@ -387,8 +387,12 @@ class VulnerabilityCase(CoreObject):
         Args:
             participant: A full :class:`CaseParticipant` object (full object
                 required to update the index).
+
+        Returns:
+            ``True`` when *participant* gained a consent row, so the caller
+            knows the record needs saving.
         """
-        participant.write_uninvited_rows(
+        wrote_rows = participant.write_uninvited_rows(
             entry.embargo_id for entry in self.embargo_register
         )
         participant_id = participant.id_
@@ -406,7 +410,7 @@ class VulnerabilityCase(CoreObject):
             else getattr(actor_ref, "id_", None)
         )
         if actor_id is None:
-            return
+            return wrote_rows
 
         existing_mapping = self.actor_participant_index.get(actor_id)
         if existing_mapping is not None and existing_mapping != participant_id:
@@ -416,6 +420,7 @@ class VulnerabilityCase(CoreObject):
                 f"but add_participant received '{participant_id}'."
             )
         self.actor_participant_index[actor_id] = participant_id
+        return wrote_rows
 
     def add_case_status(self, status: CaseStatus) -> None:
         """Append a CaseStatus to this case's history.

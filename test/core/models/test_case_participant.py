@@ -766,3 +766,12 @@ class TestSignEmbargo:
         p = _with_rows(**{_OTHER: S.DECLINED, _EMBARGO: S.UNINVITED})
         p.sign_embargo(_EMBARGO)
         assert p.consent_for(_OTHER) is S.DECLINED
+
+
+@pytest.mark.spec("CM-18-001")
+def test_has_lapsed_refuses_a_replaces_the_register_does_not_hold():
+    """A dangling ``replaces`` is a broken register, never "not lapsed"."""
+    register = [_entry(_D1, _ACTIVE, _D0)]
+    p = _with_rows(**{_D0: S.AGREED, _D1: S.UNINVITED})
+    with pytest.raises(VultronValidationError):
+        p.has_lapsed(register)

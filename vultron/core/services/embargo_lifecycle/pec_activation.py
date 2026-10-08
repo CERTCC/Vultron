@@ -28,7 +28,6 @@ import logging
 
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.services.embargo_lifecycle.pec import _PecEffectsMixin
 from vultron.core.services.embargo_lifecycle.results import (
     ParticipantConsentChange,
@@ -70,16 +69,11 @@ class _PecActivationMixin(_PecEffectsMixin):
                 owner's row for *embargo_id* is ``DECLINED``.
         """
         owner_id = _as_id(case.attributed_to)
-        participant_id = (
-            case.actor_participant_index.get(owner_id) if owner_id else None
-        )
-        participant = (
-            self._persistence.read(participant_id) if participant_id else None
-        )
+        resolved = self._find_participant(case, owner_id) if owner_id else None
         if (
-            not isinstance(participant, CaseParticipant)
+            resolved is None
             or case.embargo_register_entry(embargo_id) is None
-            or participant.consent_for(embargo_id)
+            or resolved[1].consent_for(embargo_id)
             != EmbargoConsentState.DECLINED
         ):
             return True

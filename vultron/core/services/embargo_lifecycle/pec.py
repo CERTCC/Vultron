@@ -40,7 +40,7 @@ from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
     PEC_Trigger,
 )
-from vultron.errors import VultronValidationError
+from vultron.errors import VultronNotFoundError, VultronValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -63,17 +63,32 @@ def _consent_change(
 class _PecEffectsMixin(_ActivationArmMixin):
     """PEC bookkeeping shared by the EM transition operations."""
 
+    def _find_participant(
+        self, case: VulnerabilityCase, actor_id: str
+    ) -> tuple[str, CaseParticipant] | None:
+        """*actor_id*'s ``(participant_id, record)`` on *case*, or ``None``.
+
+        The one participant lookup the lifecycle operations share; callers
+        decide whether an absent record is skipped, warned about or refused.
+        """
+        participant_id = case.actor_participant_index.get(actor_id)
+        participant = (
+            self._persistence.read(participant_id) if participant_id else None
+        )
+        if not participant_id or not isinstance(participant, CaseParticipant):
+            return None
+        return participant_id, participant
+
     def _participant_for_actor(
         self, case: VulnerabilityCase, actor_id: str, purpose: str
     ) -> tuple[str, CaseParticipant] | None:
-        """Resolve *actor_id*'s participant record on *case*.
+        """Resolve *actor_id*'s participant record on *case*, warning when absent.
 
         Returns ``None`` (after a WARNING naming *purpose*) when the actor has
-        no participant in the case, and silently when the record does not
-        rehydrate as a :class:`CaseParticipant`.
+        no participant record in the case.
         """
-        participant_id = case.actor_participant_index.get(actor_id)
-        if not participant_id:
+        resolved = self._find_participant(case, actor_id)
+        if resolved is None:
             logger.warning(
                 "Actor '%s' has no CaseParticipant in case '%s'"
                 " — cannot record embargo %s",
@@ -81,12 +96,22 @@ class _PecEffectsMixin(_ActivationArmMixin):
                 _as_id(case),
                 purpose,
             )
-            return None
+        return resolved
 
-        participant = self._persistence.read(participant_id)
-        if not isinstance(participant, CaseParticipant):
-            return None
-        return participant_id, participant
+    def _require_participant(
+        self, case: VulnerabilityCase, actor_id: str
+    ) -> tuple[str, CaseParticipant]:
+        """*actor_id*'s participant record on *case*, or raise.
+
+        Raises:
+            VultronNotFoundError: the actor has no participant record on it.
+        """
+        resolved = self._find_participant(case, actor_id)
+        if resolved is None:
+            raise VultronNotFoundError(
+                "CaseParticipant", f"{actor_id} on case {case.id_}"
+            )
+        return resolved
 
     def _apply_where_legal(
         self,

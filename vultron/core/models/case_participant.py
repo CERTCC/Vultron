@@ -379,6 +379,12 @@ class CaseParticipant(CoreObject):
         participant that withdrew from a later embargo (a ``DECLINED`` row
         on the chain) has not lapsed when a further revision replaces it.
         With no ``ACTIVE`` entry nobody has lapsed.
+
+        Raises:
+            VultronValidationError: an entry on the chain names a ``replaces``
+                the register does not hold.
+            VultronNotFoundError: the participant has no row for an entry on
+                the chain.
         """
         by_id = {entry.embargo_id: entry for entry in register}
         active = next(
@@ -389,7 +395,12 @@ class CaseParticipant(CoreObject):
         if active is None or self.consent_for(active.embargo_id) in answered:
             return False
         replaced_id = active.replaces
-        while replaced_id is not None and replaced_id in by_id:
+        while replaced_id is not None:
+            if replaced_id not in by_id:
+                raise VultronValidationError(
+                    f"Embargo register names '{replaced_id}' as replaced but"
+                    " holds no entry for it; lapsed cannot be read."
+                )
             state = self.consent_for(replaced_id)
             if state in answered:
                 return state == EmbargoConsentState.AGREED
