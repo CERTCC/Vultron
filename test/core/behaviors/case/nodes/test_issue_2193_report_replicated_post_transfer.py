@@ -9,8 +9,7 @@ no prior ``Announce(VulnerabilityCase)`` carrying an embedded report object.
 
 The detectable signal: when ``ApplyOfferReportFromLedgerNode`` processes the
 historical ``add_report_to_case`` ledger entry it MUST store the
-``VulnerabilityReport`` object so that ``SvcValidateReportUseCase`` can find it
-without a 404.
+``VulnerabilityReport`` object so that report lookups on the replica succeed.
 
 The #2180 fix inside ``ApplyOfferReportFromLedgerNode`` (``a5cb0e24``)
 performs exactly this reconstruction from the ledger snapshot.  These tests

@@ -1,18 +1,14 @@
 #!/usr/bin/env python
-"""Regression tests for ISSUE-2134: invite-path RM triage without spoofing.
+"""Regression tests for ISSUE-2134: the invite-path replica holds the report.
 
-These tests verify that an invited actor can perform report validation after
-receiving Announce(VulnerabilityCase) with embedded VulnerabilityReport objects
-and the Offer(VulnerabilityReport) ledger backfill — WITHOUT requiring the
-seed_offer_record_for_actor spoof endpoint.
-
-Three failing conditions are tested:
+An invited actor receives Announce(VulnerabilityCase) with embedded
+VulnerabilityReport objects and the add_report_to_case ledger backfill.  It is
+never sent the reporter's Offer, so it holds the report but no
+VultronOfferRecord and answers no Offer (CM-11-020).
 
 1. SeedAnnouncedCaseNode stores embedded VulnerabilityReport objects (CBT-01-007).
-2. ApplyOfferReportFromLedgerNode creates a VultronOfferRecord from an
-   Offer(VulnerabilityReport) ledger entry (via the canonical ledger backfill).
-3. (Integration) After both fixes, dl.read(VultronOfferRecord.build_id(offer_id))
-   is not None for the invited actor — prerequisite for validate-report.
+2. ApplyOfferReportFromLedgerNode stores the report and creates no
+   VultronOfferRecord.
 """
 
 import uuid

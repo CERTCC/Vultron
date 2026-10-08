@@ -89,8 +89,9 @@ class VultronOfferRecord(CoreRecord):
 
 
 #: The AS2 keys under which a canonical ``add_report_to_case`` payload snapshot
-#: carries the two Offer provenance facts an invited actor needs to rebuild a
-#: :class:`VultronOfferRecord` from a SYNC backfill (ISSUE-2134, SYNC-02-002).
+#: carries the two Offer provenance facts (CP-01-007).  They are provenance read
+#: from the ledger; no invited actor rebuilds a :class:`VultronOfferRecord` from
+#: them, because it was never sent the Offer (CM-11-020, ISSUE-2134).
 #:
 #: A payload snapshot is a *wire object*: CLP-07-011 makes it the AS2
 #: serialization of the inbound activity, so its keys are AS2-spelled by
