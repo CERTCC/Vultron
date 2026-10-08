@@ -82,7 +82,8 @@ EOF
 )" \
   --issue-type-id "${BUG_TYPE_ID}" \
   --parent "${EPIC_NUMBER}" \
-  --milestone "${MILESTONE_NUMBER}"
+  --milestone "${MILESTONE_NUMBER}" \
+  --opened-as separate-defect
 ```
 
 Reference newly filed issues in the PR description:

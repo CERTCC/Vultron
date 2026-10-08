@@ -181,6 +181,7 @@ PR #N — <title>
 Overall verdict: READY-TO-MERGE / GAPS-FOUND / CONFLICTS-FOUND / PENDING-CI / PENDING-MERGE-CHECK
 Merge state:     MERGEABLE (CLEAN) / CONFLICTING (DIRTY) / BEHIND / DRAFT / UNKNOWN — base <base_ref>
 CI status:       passing / failing / pending
+Issues:          closed N, opened M (reason counts); any opened:deferred is a process defect
 
 PR URL: https://github.com/CERTCC/Vultron/pull/N
 ```

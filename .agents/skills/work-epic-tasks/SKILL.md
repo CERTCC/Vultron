@@ -92,4 +92,8 @@ that does not depend on them; stop only when every path needs the user.
 ### 6. Report
 
 List completed (PR, merge), parked, excluded, plan changes, and new issues
-(type, producing task, blocking or not). Do not close the Epic.
+(type, producing task, blocking or not). Add the run's net issues per
+`completeness-doctrine.md` § "Net Issues: Close More Than You Open": closed,
+opened by reason (`excursion` excluded), dedup/`wontfix` closures on their own
+line. Report the numbers without a verdict; call out any `opened:deferred` as a
+process defect. Do not close the Epic.
