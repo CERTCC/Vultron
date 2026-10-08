@@ -29,14 +29,15 @@ from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.polling import (
     _poll_until,
     case_actor_participant_id_in,
+    find_full_case_invite_for_actor,
     find_ownership_transfer_offer_for_actor,
     resolve_case_actor_store_id,
     wait_for_case_participants,
-    wait_for_event_type_in_ledger,
     wait_for_initialized_case,
     wait_for_participant_rm_state,
     wait_for_report_submission_stored,
 )
+from vultron.demo.helpers.sync import wait_for_replica_ledger_coverage
 from vultron.demo.utils import (
     DataLayerClient,
     case_references_report,
@@ -299,6 +300,38 @@ def receiver_engages_case(
     return result
 
 
+def receiver_accepts_full_case_invite(
+    receiver_client: DataLayerClient,
+    receiver: as_Actor,
+    invite_id: str,
+) -> dict:
+    """A joined participant judges the case valid (RM → VALID, CM-11-011).
+
+    Sends ``Accept(Invite(Actor, VulnerabilityCase))`` for the CASE_MANAGER's
+    full-case Invite through the trigger endpoint.  The trigger fails closed
+    until the participant's own copy of the ledger has reached the Invite's
+    floor (SYNC-10-004), so the caller waits for ledger coverage first.
+
+    Args:
+        receiver_client: Client connected to the participant's container.
+        receiver: The joined participant's ``as_Actor``.
+        invite_id: ID of the full-case Invite, from
+            :func:`~vultron.demo.helpers.polling.find_full_case_invite_for_actor`.
+
+    Returns:
+        Response dict from the trigger endpoint.
+    """
+    result: dict = {}
+    with demo_step("Participant accepts the full-case Invite (judges valid)"):
+        result = (
+            ActorSession(client=receiver_client, actor=receiver)
+            .quiet()
+            .accept_full_case_invite(invite_id=invite_id)
+            .model_dump(exclude_none=True)
+        )
+    return result
+
+
 def run_invite_path_rm_triage(
     invited_client: DataLayerClient,
     invited_actor: as_Actor,
@@ -310,28 +343,27 @@ def run_invite_path_rm_triage(
     invited_obj: as_Actor,
     timeout_seconds: float = 20.0,
 ) -> None:
-    """Run the full RM triage cycle for an invite-path participant (CM-11-002).
+    """Run the RM triage cycle for an invite-path participant (CM-11-011).
 
-    Invited actors join via Accept(Invite) and receive the case via
-    Announce(VulnerabilityCase) with embedded reports + the canonical
-    Offer(VulnerabilityReport) ledger backfill.  The VultronOfferRecord is
-    created from the ledger entry by ApplyOfferReportFromLedgerNode.
+    An invited actor joins via ``Accept(Invite(Actor, VulnerabilityCaseStub))``
+    and receives the case, then the ledger replay, then the CASE_MANAGER's
+    full-case Invite.  It never answers the reporter's
+    ``Offer(VulnerabilityReport)``: it was not sent that Offer (CM-11-020,
+    ADR-0121).  It judges the case by replying to the full-case Invite.
 
     Steps:
-    1. Wait for add_report_to_case ledger entry in invited actor's ledger;
-       SYNC processing of this entry creates the VultronOfferRecord.
-    2. Trigger validate-report (RM → VALID).
-    3. Poll until CaseActor reflects RM.VALID or RM.ACCEPTED.
-    4. Trigger engage-case (RM → ACCEPTED).
-    5. Poll until CaseActor reflects RM.ACCEPTED.
+    1. Wait for the full-case Invite and the ledger up to its floor, then
+       trigger accept-full-case-invite (RM → VALID).
+    2. Poll until CaseActor reflects RM.VALID or RM.ACCEPTED.
+    3. Trigger engage-case (RM → ACCEPTED).
+    4. Poll until CaseActor reflects RM.ACCEPTED.
 
     Args:
         invited_client: Client for the invited actor's container.
         invited_actor: The invited actor's local replica (e.g. vendor2_in_vendor2).
-        offer: The original submit-report Offer activity.
-        report: The VulnerabilityReport in the case.
-        finder: The actor that originally submitted the Offer (unused; kept for
-            call-site compatibility).
+        offer: Unused; kept for call-site compatibility.
+        report: Unused; kept for call-site compatibility.
+        finder: Unused; kept for call-site compatibility.
         auth_client: Client for the container that hosts the CaseActor (e.g.
             the coordinating actor's or vendor1_client).  The CaseActor's own
             store is what gets read through it when the case has one — see
@@ -341,26 +373,25 @@ def run_invite_path_rm_triage(
         invited_obj: The invited actor's top-level object (used for actor_id lookup).
         timeout_seconds: Polling timeout per wait call (default 20s).
     """
-    offer_id = getattr(offer, "id_", str(offer))
-
-    # Wait for the add_report_to_case ledger entry to appear in the invited
-    # actor's ledger before triggering validate-report.  This entry's SYNC
-    # processing runs ApplyOfferReportFromLedgerNode, which creates the
-    # VultronOfferRecord — the prerequisite for validate-report to succeed.
-    with demo_check(
-        "add_report_to_case ledger entry backfilled before validate-report"
-    ):
-        wait_for_event_type_in_ledger(
-            client=invited_client,
-            case_id=case.id_,
-            event_type="add_report_to_case",
-            timeout_seconds=timeout_seconds,
-        )
-
-    receiver_validates_report(
+    invite_id = find_full_case_invite_for_actor(
+        client=invited_client,
+        case_id=case.id_,
+        invitee_id=invited_actor.id_,
+        timeout_seconds=timeout_seconds,
+    )
+    # The reply trigger fails closed until the invitee's ledger copy reaches
+    # the Invite's floor (SYNC-10-004), so gate on coverage first (ADR-0058).
+    wait_for_replica_ledger_coverage(
+        auth_client,
+        [(invited_client, f"{invited_obj.id_} (full-case Invite floor)")],
+        case.id_,
+        default_timeout=timeout_seconds,
+        phase_label="before accepting the full-case Invite",
+    )
+    receiver_accepts_full_case_invite(
         receiver_client=invited_client,
         receiver=invited_actor,
-        offer_id=offer_id,
+        invite_id=invite_id,
     )
 
     # Read the CaseActor's own store, not the store of the actor that hosts it:
@@ -382,7 +413,7 @@ def run_invite_path_rm_triage(
         )
 
     # Gate engage-case on the invited actor's OWN RM.VALID commit.
-    # validate-report returns HTTP 202 before its ParticipantStatus write
+    # The reply trigger returns HTTP 202 before its ParticipantStatus write
     # lands, so engaging without the gate races the async commit and yields
     # TransitionParticipantRMtoAccepted (HTTP 422).  Mirrors the direct-path
     # causal gate in run_direct_path_rm_triage (ADR-0058).

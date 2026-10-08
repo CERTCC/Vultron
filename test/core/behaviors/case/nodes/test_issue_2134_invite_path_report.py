@@ -234,15 +234,12 @@ class TestSeedAnnouncedCaseNodeStoresEmbeddedReports:
 
 
 class TestApplyOfferReportFromLedgerNode:
-    """ApplyOfferReportFromLedgerNode creates VultronOfferRecord from ledger entry.
+    """ApplyOfferReportFromLedgerNode restores the report, not the Offer.
 
-    When an invited actor receives the canonical Offer(VulnerabilityReport)
-    ledger entry (backfilled as part of invite/sync flow), a VultronOfferRecord
-    keyed by VultronOfferRecord.build_id(offer_id) MUST be created in the
-    DataLayer.
-
-    This test FAILS before the fix (no ApplyOfferReportFromLedgerNode exists)
-    and PASSES after.
+    When an invited actor receives the canonical ``add_report_to_case`` ledger
+    entry (backfilled as part of invite/sync flow), the report is stored and
+    attached to the case replica.  No VultronOfferRecord is created: the
+    invitee was never sent the Offer (CM-11-020, ADR-0121).
     """
 
     @pytest.fixture
@@ -268,13 +265,10 @@ class TestApplyOfferReportFromLedgerNode:
         datalayer.create(actor)
         return actor
 
-    def test_creates_offer_record_from_ledger_entry(
+    def test_creates_no_offer_record_from_ledger_entry(
         self, bridge, datalayer, case_actor
     ) -> None:
-        """VultronOfferRecord is created when Offer(VulnerabilityReport) entry arrives."""
-        offer_record_id = VultronOfferRecord.build_id(OFFER_ID)
-        assert datalayer.read(offer_record_id) is None
-
+        """No VultronOfferRecord is created: the invitee was not sent the Offer."""
         from vultron.core.behaviors.sync.nodes.offer_report_effect import (
             ApplyOfferReportFromLedgerNode,
         )
@@ -291,16 +285,10 @@ class TestApplyOfferReportFromLedgerNode:
         )
 
         assert result.status == Status.SUCCESS
-        offer_record = datalayer.read(offer_record_id)
-        assert offer_record is not None, (
-            "ApplyOfferReportFromLedgerNode must create VultronOfferRecord "
-            "when Offer(VulnerabilityReport) ledger entry is received "
-            "(ISSUE-2134)"
+        assert datalayer.read(VultronOfferRecord.build_id(OFFER_ID)) is None, (
+            "an invited actor was never sent the Offer(VulnerabilityReport) "
+            "and must hold no record of it (CM-11-020)"
         )
-        assert isinstance(offer_record, VultronOfferRecord)
-        assert offer_record.offer_id == OFFER_ID
-        assert offer_record.report_id == REPORT_ID
-        assert offer_record.offer_actor_id == REPORTER_ACTOR_ID
 
     def test_stores_report_object_from_ledger_snapshot_when_absent(
         self, bridge, datalayer, case_actor
@@ -343,34 +331,6 @@ class TestApplyOfferReportFromLedgerNode:
         )
         assert isinstance(stored_report, VulnerabilityReport)
         assert stored_report.id_ == REPORT_ID
-
-    def test_idempotent_when_offer_record_already_exists(
-        self, bridge, datalayer, case_actor
-    ) -> None:
-        """SUCCESS without overwrite when VultronOfferRecord already present."""
-        from vultron.core.behaviors.sync.nodes.offer_report_effect import (
-            ApplyOfferReportFromLedgerNode,
-        )
-
-        existing = VultronOfferRecord(
-            offer_id=OFFER_ID,
-            report_id=REPORT_ID,
-            offer_actor_id=REPORTER_ACTOR_ID,
-        )
-        datalayer.save(existing)
-
-        entry = _make_offer_report_ledger_entry()
-        event = _make_event(entry, actor_id=case_actor.id_)
-
-        result = bridge.execute_with_setup(
-            tree=ApplyOfferReportFromLedgerNode(
-                name="ApplyOfferReportFromLedger"
-            ),
-            actor_id=INVITED_ACTOR_ID,
-            activity=event,
-        )
-
-        assert result.status == Status.SUCCESS
 
     def test_skips_non_offer_report_entries(
         self, bridge, datalayer, case_actor
@@ -425,22 +385,19 @@ class TestApplyOfferReportFromLedgerNode:
 
 
 # ---------------------------------------------------------------------------
-# Test 3: Integration — offer record available for validate-report
+# Test 3: Integration — report available, no offer record
 # ---------------------------------------------------------------------------
 
 
 class TestInvitePathReportAvailableWithoutSpoof:
-    """Integration: after both fixes, invited actor can validate report.
+    """Integration: an invited actor holds the report but no Offer record.
 
     After receiving:
       - Announce(VulnerabilityCase) with embedded VulnerabilityReport
-      - Offer(VulnerabilityReport) ledger backfill entry
+      - add_report_to_case ledger backfill entry
 
-    The invited actor's DataLayer must contain:
-      - VulnerabilityReport object
-      - VultronOfferRecord keyed by VultronOfferRecord.build_id(offer_id)
-
-    These are the prerequisites for SvcValidateReportUseCase without spoofing.
+    The invited actor's DataLayer must contain the VulnerabilityReport object
+    and no VultronOfferRecord (CM-11-020).
     """
 
     @pytest.fixture
@@ -466,7 +423,7 @@ class TestInvitePathReportAvailableWithoutSpoof:
         datalayer.create(actor)
         return actor
 
-    def test_report_and_offer_record_available_after_announce_and_backfill(
+    def test_report_available_and_no_offer_record_after_announce_and_backfill(
         self, bridge, datalayer, case_actor
     ) -> None:
         """Both VulnerabilityReport and VultronOfferRecord available without spoofing."""
@@ -512,12 +469,8 @@ class TestInvitePathReportAvailableWithoutSpoof:
             "after Announce(VulnerabilityCase) with embedded report (ISSUE-2134)"
         )
 
-        offer_record_id = VultronOfferRecord.build_id(OFFER_ID)
-        offer_record = datalayer.read(offer_record_id)
-        assert offer_record is not None, (
-            "VultronOfferRecord must be in invited actor's DataLayer "
-            "after Offer(VulnerabilityReport) ledger backfill (ISSUE-2134)"
-        )
-        assert isinstance(offer_record, VultronOfferRecord)
-        assert offer_record.offer_id == OFFER_ID
-        assert offer_record.report_id == REPORT_ID
+        assert datalayer.read(VultronOfferRecord.build_id(OFFER_ID)) is None
+        case = datalayer.read(CASE_ID)
+        assert REPORT_ID in [
+            getattr(r, "id_", r) for r in case.vulnerability_reports
+        ]

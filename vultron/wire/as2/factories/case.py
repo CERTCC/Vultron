@@ -708,9 +708,10 @@ def rm_invite_to_case_activity(
     embargo_obj: Any = None,
     **kwargs,
 ) -> as_Invite:
-    """Build an Invite(Actor, target=VulnerabilityCaseStub) — the RS message.
+    """Build an Invite(Actor, target=VulnerabilityCaseStub) — the stub Invite.
 
-    Invites an actor to join a case that already exists.  See
+    Invites an actor to join a case that already exists.  It is not an RM
+    message: it records no RM transition (CM-11-001, ADR-0114).  See
     :func:`vultron.wire.as2.factories.report.rm_submit_report_activity`
     for the scenario where a case does not yet exist.
 
@@ -823,9 +824,11 @@ def rm_accept_invite_to_case_activity(
     invite: as_Invite,
     **kwargs,
 ) -> as_Accept:
-    """Build an Accept(_RmInviteToCaseActivity) — the RV message.
+    """Build an Accept(_RmInviteToCaseActivity) — join the case.
 
-    Accepts a case invitation.  The internal class automatically sets
+    Accepts the stub Invite.  This is joining, not an RM message: the
+    participant stays at ``RM.RECEIVED`` (CM-11-001).  The RV message is
+    :func:`rm_accept_full_case_invite_activity`.  The internal class automatically sets
     ``in_reply_to`` to the invite's ``id_`` if not provided.
     The ``invite`` is the value :func:`rm_invite_to_case_activity`
     returned, or a received Invite the caller has validated into
@@ -861,9 +864,12 @@ def rm_reject_invite_to_case_activity(
     invite: as_Invite,
     **kwargs,
 ) -> as_Reject:
-    """Build a Reject(_RmInviteToCaseActivity) — the RI message.
+    """Build a Reject(_RmInviteToCaseActivity) — a hard no to joining (RC).
 
-    Rejects a case invitation.  The internal class automatically sets
+    Rejects the stub Invite, which closes the participant's RM state
+    (``RM.RECEIVED`` to ``RM.CLOSED``, CM-11-007).  The RI message is
+    :func:`rm_tentative_reject_full_case_invite_activity`; a stub Invite has
+    no tentative reject.  The internal class automatically sets
     ``in_reply_to`` to the invite's ``id_`` if not provided.
     The ``invite`` is the value :func:`rm_invite_to_case_activity`
     returned, or a received Invite the caller has validated into
