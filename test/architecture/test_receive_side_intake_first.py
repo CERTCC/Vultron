@@ -316,7 +316,7 @@ def test_shared_factory_orders_intake_guards_commit_effects() -> None:
         name="OrderedBT",
         case_id="https://example.org/cases/order",
         precondition_guards=[guard],
-        effect_nodes=[effect],
+        replica_effects=[effect],
     )
     names = [child.name for child in tree.children]
     assert isinstance(tree.children[0], IntakeReceivedActivityNode)
@@ -331,7 +331,7 @@ def test_shared_factory_orders_intake_guards_commit_effects() -> None:
         name="NoCommitBT",
         case_id=None,
         precondition_guards=[Success(name="Guard")],
-        effect_nodes=[Success(name="Effect")],
+        replica_effects=[Success(name="Effect")],
     )
     assert isinstance(no_commit.children[0], IntakeReceivedActivityNode)
     assert [c.name for c in no_commit.children] == [

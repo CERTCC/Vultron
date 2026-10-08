@@ -463,12 +463,11 @@ separate `config.yaml` `actor:` section in those deployments.
 ## A Test That Needs `VULTRON_*` Config MUST Set It Itself
 
 The flip side of the teardown-ordering rule above: fixing a leak removes config
-that downstream tests may have been silently borrowing. `test_create_tree.py` and
-`nodes/test_communication.py` both run `ResolveCaseActorUrlsNode` (via
-`CreateCaseActorNode` / `CreateCaseBT`), which returns FAILURE when
-`case_actor_service_url` is None (CP-08-002/003) — yet neither module set it.
-They passed only because another module leaked the value into the process-global
-cache first, and failed in isolation or in a subset run (#1897).
+that downstream tests may have been silently borrowing. `nodes/test_communication.py`
+runs `ResolveCaseActorUrlsNode` (via `CreateCaseActorNode` / `CreateCaseBT`), which
+returns FAILURE when `case_actor_service_url` is None (CP-08-002/003) — yet the
+module did not set it. It passed only because another module leaked the value into
+the process-global cache first, and failed in isolation or in a subset run (#1897).
 
 Each module that depends on a `VULTRON_*` setting needs its own autouse fixture
 setting it, using the `monkeypatch.undo()`-then-`reload_config()` teardown order.
