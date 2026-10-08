@@ -220,6 +220,11 @@ _TRIGGER_ACTIVITY_PORT_SEMANTICS = frozenset(
         MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER,
         MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
         MessageSemantics.ACCEPT_OFFER_CASE_PARTICIPANT,
+        # ADD_EMBARGO_EVENT_TO_CASE and REMOVE_EMBARGO_EVENT_FROM_CASE send
+        # the CASE_MANAGER's embargo-ending notices to the bound signatories
+        # the ledger no longer reaches (CM-31-009); the teardown also sends
+        # its Announce(EmbargoEvent) to the active participants.
+        MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE,
         # CLOSE_CASE emits the as:Reject that declines an owner close during a
         # live embargo (CM-23-011).
         MessageSemantics.CLOSE_CASE,
@@ -239,7 +244,11 @@ _TRIGGER_ACTIVITY_PORT_SEMANTICS = frozenset(
         # AnnounceCaseOnGenesisRejectNode can send Announce(VulnerabilityCase)
         # to a peer that has no case yet before replaying entries (SYNC-15-002).
         MessageSemantics.REJECT_CASE_LEDGER_ENTRY,
+        # The owner's EJ after disclosure ends the embargo (EMB-04-002): its
+        # commit builds the ET, and the CM-31-009 notices follow it.
+        MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE,
         MessageSemantics.REJECT_OFFER_CASE_PARTICIPANT,
+        MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE,
         # REMOVE_CASE_PARTICIPANT_FROM_CASE sends the removed participant its
         # direct Remove(CaseParticipant) notice (CM-31-006).
         MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE,

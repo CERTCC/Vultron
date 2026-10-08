@@ -71,6 +71,7 @@ from vultron.core.behaviors.embargo.nodes import (
     ValidateEmbargoProposalStateNode,
     ValidateEmbargoRevisionStateNode,
     ask_case_manager_to_terminate_once,
+    embargo_ending_notice_nodes,
 )
 from vultron.core.behaviors.sender.nodes import (
     ConstructActivitiesNode,
@@ -153,12 +154,16 @@ def _answer_arms(
     """Manager: write, commit, declare; otherwise: ask the manager.
 
     The manager's Accept or Reject is addressed to nobody: every replica
-    learns it from the committed entry (EP-09-007).
+    learns it from the committed entry (EP-09-007).  An Accept that activates
+    a shorter revision is announced to the bound signatories the ledger no
+    longer reaches (CM-31-009).
     """
+    capture, notices = embargo_ending_notice_nodes(case_id)
     return _by_role(
         name,
         case_id,
         as_case_manager=[
+            capture,
             lifecycle_node,
             CommitEmbargoDecisionNode(
                 case_id=case_id,
@@ -166,6 +171,7 @@ def _answer_arms(
                 builder=activity_builder,
             ),
             _make_emit_node(case_id),
+            notices,
         ],
         otherwise=[
             sender_side_bt(
@@ -417,6 +423,7 @@ def terminate_embargo_bt(
     case_id: str,
     result_out: dict[str, object],
     activity_builder: EmbargoActivityBuilder | None = None,
+    requested_by: str | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Shared BT for terminating the active embargo (BT-19-001, EP-09-008).
 
@@ -429,7 +436,9 @@ def terminate_embargo_bt(
        commit the ``Remove(EmbargoEvent)`` as the canonical entry the
        ``EmbargoTeardown`` slot replays, addressed to every other participant
        and never to the manager (EMB-19-001, CLP-10-001, #4112), then the
-       ``Add(CaseStatus)`` declaration.
+       ``Add(CaseStatus)`` declaration, then a direct ``Remove(EmbargoEvent)``
+       to each bound signatory the ledger no longer reaches (CM-31-009),
+       crediting *requested_by* when another actor asked for the end.
     4. As any other participant: no EM write; the ``Remove`` is queued to the
        CASE_MANAGER as a request (PCR-08-001) and recorded as a pending
        assertion keyed by the ended embargo (EP-09-008, SYNC-11-002) — by
@@ -461,6 +470,9 @@ def terminate_embargo_bt(
     else:
         commit = CommitEmbargoTeardownNode(case_id=case_id)
         ask = ask_case_manager_to_terminate_once(case_id)
+    capture, notices = embargo_ending_notice_nodes(
+        case_id, requested_by=requested_by
+    )
 
     return py_trees.composites.Sequence(
         name="TerminateEmbargoBT",
@@ -473,11 +485,13 @@ def terminate_embargo_bt(
                 "TerminateEmbargo",
                 case_id,
                 as_case_manager=[
+                    capture,
                     TerminateEmbargoLifecycleNode(
                         case_id=case_id, result_out=result_out
                     ),
                     commit,
                     _make_emit_node(case_id),
+                    notices,
                 ],
                 otherwise=[ask],
             ),

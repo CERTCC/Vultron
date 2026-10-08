@@ -39,14 +39,26 @@ activity (protocol ET message).  Sequence:
        ├─ EmbargoAlreadyExited (Inverter) # EM state already EXITED
        │  └─ HasEmbargoActiveNode
        └─ ActiveTeardown (Sequence)       # its FAILURE is the tree's FAILURE
+          ├─ CaptureActiveEmbargoNode     # the embargo in force before the write
           ├─ ClearActiveEmbargoNode       # ACTIVE/REVISE→EXITED + clear active_embargo
-          ├─ SendAnnounceEmbargoEventNode # emit Announce(EmbargoEvent) to CaseActor
-          └─ EmbargoAdmissionBackfill     # CASE_MANAGER: backfill paused peers (CM-10-006)
+          └─ EmbargoAdmissionBackfill     # CASE_MANAGER only:
+             ├─ SendAnnounceEmbargoEventNode   # Announce(EmbargoEvent) to the others
+             ├─ SendEmbargoEndingNoticesNode   # ET to unreached signatories (CM-31-009)
+             └─ BackfillAdmittedParticipantsNode  # paused peers (CM-10-006)
+
+At a replica the teardown is the CASE_MANAGER's ``Remove(EmbargoEvent)``,
+admitted by the sender guard only from the CASE_MANAGER (ADR-0115).  For a
+replica whose ledger stream is paused (removed, withheld, or at RM
+``CLOSED``) that direct notice is the only channel, and it applies it through
+``EmbargoLifecycle`` (CM-31-010).  When the RSH-08-003 replica gate lands
+(#3814) it must keep admitting that case; ``LedgerStreamPausedNode`` is the
+check.
 
 Per specs/behavior-tree-integration.yaml BT-06-001.
 """
 
 import logging
+from collections.abc import Sequence
 
 import py_trees
 
@@ -84,6 +96,7 @@ from vultron.core.behaviors.embargo.nodes import (
     SetEmbargoActiveNode,
     ValidateCaseExistsNode,
     case_manager_admits_proposal_guard,
+    embargo_ending_notice_nodes,
 )
 from vultron.core.behaviors.embargo.nodes.manager_consent import (
     record_manager_embargo_consent_tree,
@@ -107,6 +120,7 @@ logger = logging.getLogger(__name__)
 
 def embargo_admission_backfill_tree(
     case_id: str,
+    leading: Sequence[py_trees.behaviour.Behaviour] = (),
 ) -> py_trees.behaviour.Behaviour:
     """Backfill the participants an embargo effect just admitted (CM-10-006).
 
@@ -114,11 +128,18 @@ def embargo_admission_backfill_tree(
     the fan-out withheld it; this sends it, and everything else withheld, once
     the gate admits the participant. CASE_MANAGER only (BT-17-001): the pause
     records and the canonical ledger live in its store.
+
+    *leading* runs first under the same gate: the CASE_MANAGER's other
+    follow-ups to the EM write, such as the embargo-ending notices to the
+    bound signatories the ledger no longer reaches (CM-31-009).
     """
     return create_case_manager_gated_tree(
         name="EmbargoAdmissionBackfill",
         case_id=case_id,
-        children=[BackfillAdmittedParticipantsNode(case_id=case_id)],
+        children=[
+            *leading,
+            BackfillAdmittedParticipantsNode(case_id=case_id),
+        ],
     )
 
 
@@ -158,6 +179,11 @@ def remove_embargo_from_case_tree(
     Returns:
         Root node of the ``RemoveEmbargoFromCaseBT`` Sequence.
     """
+    # The Case Owner asked for the teardown, so the notices credit it
+    # (CM-24-002); the CASE_MANAGER's own Remove credits nobody else.
+    capture, notices = embargo_ending_notice_nodes(
+        case_id, requested_by=sender_actor_id
+    )
     teardown_if_active = py_trees.composites.Selector(
         name="TeardownIfActive",
         memory=False,
@@ -176,11 +202,17 @@ def remove_embargo_from_case_tree(
                 name="ActiveTeardown",
                 memory=False,
                 children=[
+                    capture,
                     ClearActiveEmbargoNode(case_id=case_id),
-                    SendAnnounceEmbargoEventNode(
-                        case_id=case_id, embargo_id=embargo_id
+                    embargo_admission_backfill_tree(
+                        case_id,
+                        leading=[
+                            SendAnnounceEmbargoEventNode(
+                                case_id=case_id, embargo_id=embargo_id
+                            ),
+                            notices,
+                        ],
                     ),
-                    embargo_admission_backfill_tree(case_id),
                 ],
             ),
         ],
@@ -234,6 +266,9 @@ def add_embargo_to_case_tree(
     Returns:
         Root node of the ``AddEmbargoToCaseBT`` Sequence.
     """
+    capture, notices = embargo_ending_notice_nodes(
+        case_id, requested_by=sender_actor_id
+    )
     root = create_receive_activity_tree(
         name="AddEmbargoToCaseBT",
         case_id=case_id,
@@ -244,6 +279,7 @@ def add_embargo_to_case_tree(
         ),
         precondition_guards=[ValidateCaseExistsNode(case_id=case_id)],
         effect_nodes=[
+            capture,
             SetEmbargoActiveNode(
                 case_id=case_id,
                 embargo_id=embargo_id,
@@ -251,7 +287,9 @@ def add_embargo_to_case_tree(
             ),
             # Activating a revision can admit a participant that had already
             # accepted it, after the Add entry was fanned out (CM-10-006).
-            embargo_admission_backfill_tree(case_id),
+            # A shorter one is announced to the bound signatories the ledger
+            # no longer reaches (CM-31-009).
+            embargo_admission_backfill_tree(case_id, leading=[notices]),
         ],
     )
     logger.info(

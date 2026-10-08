@@ -45,6 +45,7 @@ from vultron.core.behaviors.embargo.nodes import (
     RecordParticipantAcceptanceNode,
     RecordParticipantRejectionNode,
     ValidateCaseExistsNode,
+    embargo_ending_notice_nodes,
 )
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
 from vultron.core.behaviors.sender_entitlement import SenderIsInviteeNode
@@ -79,6 +80,11 @@ def accept_invite_to_embargo_tree(
     Returns:
         Root node of the ``AcceptInviteToEmbargoBT`` Sequence.
     """
+    # The owner's acceptance of a shorter revision activates it; the bound
+    # signatories the ledger no longer reaches are told (CM-31-009).
+    capture, notices = embargo_ending_notice_nodes(
+        case_id, requested_by=accepting_actor_id
+    )
     root = create_receive_activity_tree(
         name="AcceptInviteToEmbargoBT",
         case_id=case_id,
@@ -91,11 +97,13 @@ def accept_invite_to_embargo_tree(
                 name="RecordEmbargoAcceptance",
                 case_id=case_id,
                 children=[
+                    capture,
                     RecordParticipantAcceptanceNode(
                         case_id=case_id,
                         embargo_id=embargo_id,
                         accepting_actor_id=accepting_actor_id,
                     ),
+                    notices,
                     # The acceptance can admit the participant (or, as the
                     # owner's, activate the revision) after its entry was
                     # fanned out; send what the gate withheld (CM-10-006).
@@ -149,7 +157,11 @@ def _decide_owner_rejection(
                         embargo_id=embargo_id,
                         rejecting_actor_id=rejecting_actor_id,
                     ),
-                    terminate_embargo_bt(case_id=case_id, result_out={}),
+                    terminate_embargo_bt(
+                        case_id=case_id,
+                        result_out={},
+                        requested_by=rejecting_actor_id,
+                    ),
                 ],
             ),
             py_trees.decorators.Inverter(

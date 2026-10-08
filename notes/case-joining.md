@@ -19,6 +19,7 @@ related_specs:
   - specs/embargo-policy.yaml
 related_notes:
   - notes/case-communication-model.md
+  - notes/embargo-lifecycle.md
   - notes/participant-embargo-consent.md
   - notes/participant-role-management.md
   - notes/sync-ledger-replication.md
@@ -199,6 +200,26 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
   actor through `actor_participant_index`. At a replica the received tree
   writes nothing: the manager's notice is `SKIPPED`, anyone else's `Remove` is
   `REFUSED`. Reinstatement (#4081) mirrors each piece.
+- **Where the embargo-ending notices live (#4083).** The recipients are
+  `embargo_ending_notice_recipients` (joined, `SIGNATORY` to the ending
+  embargo, removed or RM `CLOSED`). The decision is `embargo_ending_notice`:
+  a termination before the agreed end owes ET; a revision that ends no later
+  (the EP-05-001 carry-over arm, ties included) owes `Announce(EmbargoEvent)`;
+  a longer revision or an expiry owes nothing. Every path that ends or
+  replaces the embargo at the CASE_MANAGER brackets its EM write with the pair
+  from `embargo_ending_notice_nodes` (`CaptureActiveEmbargoNode` before,
+  `SendEmbargoEndingNoticesNode` after, under the manager gate): the received
+  `Remove`/`Add(EmbargoEvent)`, the owner's received `Accept` of a revision,
+  `terminate_embargo_bt` (trigger, P/X/A cascade, owner EJ after disclosure)
+  and the trigger answer arms. One activity per recipient, never ledgered,
+  `attributedTo` the requester when it is not the manager. At the replica,
+  the received `Remove(EmbargoEvent)` tree applies ET through
+  `EmbargoLifecycle`; a paused replica (`LedgerStreamPausedNode`,
+  `ledger_stream_paused`) applies an announced shorter revision through
+  `ApplyAnnouncedEmbargoRevisionNode` (`activate_embargo`, `OBSERVED`). The
+  sender guard admits only the CASE_MANAGER. Until #4212 lands, a closed
+  signatory still receives fan-out and so gets both the entry and the notice;
+  both apply idempotently.
 - **Catch-up follows the active check.** A participant reinstated into a case
   whose embargo it has not accepted stays inert; it is sent that embargo's
   Invite, and its backfill waits for its consent.

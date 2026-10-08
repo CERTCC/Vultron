@@ -36,6 +36,15 @@ from ._base import _seal, _to_wire
 logger = logging.getLogger(__name__)
 
 
+def _attribution(attributed_to: str | None) -> dict[str, str]:
+    """``attributed_to`` as a factory keyword, only when given (CM-24-002).
+
+    Absent, the factory keeps its default of no attribution, so an activity
+    the CASE_MANAGER decides on its own names nobody else.
+    """
+    return {} if attributed_to is None else {"attributed_to": attributed_to}
+
+
 def _reject_id(actor: str, proposal_id: str) -> str:
     """The id of *actor*'s ``Reject`` of the Invite *proposal_id*."""
     return derived_activity_id("embargo-reject", actor, proposal_id)
@@ -166,11 +175,16 @@ class _EmbargoMixin:
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        attributed_to: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Announce(as_EmbargoEvent)`` activity."""
         embargo = _to_wire(self._dl.read(embargo_id), as_EmbargoEvent)
         activity = announce_embargo_activity(
-            embargo=embargo, context=case_id, actor=actor, to=to
+            embargo=embargo,
+            context=case_id,
+            actor=actor,
+            to=to,
+            **_attribution(attributed_to),
         )
         try:
             self._dl.create(activity)
@@ -187,6 +201,7 @@ class _EmbargoMixin:
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        attributed_to: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist a ``Remove(as_EmbargoEvent, origin=case)`` ET activity.
 
@@ -201,6 +216,7 @@ class _EmbargoMixin:
             context=case_id,
             actor=actor,
             to=to,
+            **_attribution(attributed_to),
         )
         try:
             self._dl.create(activity)

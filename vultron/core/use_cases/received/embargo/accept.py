@@ -452,6 +452,9 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         )
         bridge = BTBridge(
             datalayer=self._dl,
+            # The owner's acceptance of a shorter revision is announced to
+            # the bound signatories the ledger no longer reaches (CM-31-009).
+            trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
         )
