@@ -64,6 +64,17 @@ from vultron.metadata.specs.coverage import SPEC_MARKER_RE
 # set. #4346's BTND-05-003 relabel masked the net count but not the regression;
 # restoring the marker on the test that actually verifies CP-04-001 removes it
 # from the uncovered population for real.
+# Held at 702 through #4353 (deleted ~17 orphaned case-construction nodes and
+# their dead-code unit tests). Those tests had carried the only markers for four
+# protocol specs — CM-02-004, CM-06-003, CM-12-003, CM-14-009 — but each
+# obligation still lives in a surviving tree and is verified by a live test, so
+# the markers were restored there rather than raising the ceiling (the exact
+# #4371 lesson): CM-02-004 on the round-trip's attributed_to==owner assertion,
+# CM-14-009 on TestADR0041OwnerParticipant (CASE_OWNER + RM.RECEIVED), CM-12-003
+# on the queued Create(Case) whose `to` carries the reporter, and CM-06-003 on
+# the case-update Announce whose actor is the CASE_MANAGER's URL. (CM-06-001 was
+# already covered by test_update*.py and never regressed.) A dead-code deletion
+# must not drop protocol coverage; the live count stays 702.
 # Lower this constant as more @pytest.mark.spec markers are added;
 # never raise it to hide regressions in your own PR. Keep it pinned to the
 # actual count — slack between the two is room for uncovered specs to grow
