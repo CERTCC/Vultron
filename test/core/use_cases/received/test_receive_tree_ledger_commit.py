@@ -15,11 +15,12 @@
 
 """Canonical-signature receive trees commit exactly when they should (CLP-10-013).
 
-``Add(CaseParticipant)``, ``Reject(Offer)`` and ``TentativeReject(Offer)`` are
-canonical payload signatures, so the CASE_MANAGER ledgers each one it receives
-and every other receiver skips the commit.  A receiver that refuses the
-activity commits nothing (CLP-10-009).  ``Announce(VulnerabilityCase)`` is the
-documented exemption: its tree has no commit stage.
+``Reject(Offer)`` and ``TentativeReject(Offer)`` are canonical payload
+signatures, so the CASE_MANAGER ledgers each one it accepts and every other
+receiver skips the commit.  A receiver that refuses the activity commits
+nothing (CLP-10-009).  ``Announce(VulnerabilityCase)`` and
+``Add(CaseParticipant)`` are the documented exemptions: their trees have no
+commit stage.
 """
 
 from typing import cast
@@ -32,6 +33,9 @@ from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.case.announce_case_received_tree import (
     create_announce_vulnerability_case_received_tree,
 )
+from vultron.core.behaviors.case.case_participant_received_tree import (
+    create_add_case_participant_received_tree,
+)
 from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
@@ -42,6 +46,7 @@ from vultron.core.models.events.actor import (
 from vultron.core.models.events.case_participant import (
     AddCaseParticipantToCaseReceivedEvent,
 )
+from vultron.core.models.events.report import CloseReportReceivedEvent
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.rm import RM
@@ -262,10 +267,12 @@ class TestCloseAndInvalidateReportCommit:
     def test_redelivered_activity_commits_once(self):
         """A repeat of the same activity is skipped and adds no entry."""
         dl = _store(MANAGER_ID)
-        event = extract_event(
-            rm_close_report_activity(_offer(), actor=FINDER_ID)
+        event = cast(
+            CloseReportReceivedEvent,
+            extract_event(
+                rm_close_report_activity(_offer(), actor=FINDER_ID)
+            ).model_copy(update={"receiving_actor_id": MANAGER_ID}),
         )
-        event = event.model_copy(update={"receiving_actor_id": MANAGER_ID})
 
         first = CloseReportReceivedUseCase(dl, event, **_ports(dl)).execute()
         second = CloseReportReceivedUseCase(dl, event, **_ports(dl)).execute()
@@ -276,34 +283,38 @@ class TestCloseAndInvalidateReportCommit:
 
 
 @pytest.mark.spec("CLP-10-013")
-class TestAddCaseParticipantCommit:
-    def _add_event(self, receiver: str):
+class TestAddCaseParticipantIsExempt:
+    """``Add(CaseParticipant)`` commits nothing until #4081 adds its replay."""
+
+    def test_tree_has_no_commit_stage(self):
+        tree = create_add_case_participant_received_tree(
+            participant_id=f"{CASE_ID}/participants/newcomer",
+            case_id=CASE_ID,
+        )
+
+        assert "GuardedCommitCaseLedgerEntryBT" not in [
+            node.name for node in tree.iterate()
+        ]
+
+    def test_case_manager_applies_the_add_and_commits_nothing(self):
+        dl = _store(MANAGER_ID)
         newcomer = as_CaseParticipant(
             id_=f"{CASE_ID}/participants/newcomer",
             attributed_to=NEWCOMER_ID,
             context=CASE_ID,
         )
-        activity = add_participant_to_case_activity(
-            newcomer, target=CASE_ID, actor=VENDOR_ID
-        )
-        event = extract_event(activity)
-        return newcomer, cast(
-            AddCaseParticipantToCaseReceivedEvent,
-            event.model_copy(update={"receiving_actor_id": receiver}),
-        )
-
-    @pytest.mark.parametrize(
-        ("receiver", "commits"),
-        [(MANAGER_ID, True), (VENDOR_ID, False)],
-        ids=["case_manager", "other_receiver"],
-    )
-    def test_commits_for_case_manager_only(self, receiver, commits):
-        dl = _store(receiver)
-        newcomer, event = self._add_event(receiver)
         dl.save(
             CaseParticipant(
                 id_=newcomer.id_, attributed_to=NEWCOMER_ID, context=CASE_ID
             )
+        )
+        event = cast(
+            AddCaseParticipantToCaseReceivedEvent,
+            extract_event(
+                add_participant_to_case_activity(
+                    newcomer, target=CASE_ID, actor=VENDOR_ID
+                )
+            ).model_copy(update={"receiving_actor_id": MANAGER_ID}),
         )
 
         result = AddCaseParticipantToCaseReceivedUseCase(
@@ -311,19 +322,6 @@ class TestAddCaseParticipantCommit:
         ).execute()
 
         assert result.disposition is HandlerDisposition.APPLIED
-        added = MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE.value
-        assert _committed(dl).count(added) == (1 if commits else 0)
-
-    def test_unknown_participant_commits_nothing(self):
-        """The guard refuses ahead of the commit (CLP-10-009)."""
-        dl = _store(MANAGER_ID)
-        _, event = self._add_event(MANAGER_ID)  # participant never stored
-
-        result = AddCaseParticipantToCaseReceivedUseCase(
-            dl, event, **_ports(dl)
-        ).execute()
-
-        assert result.disposition is HandlerDisposition.REFUSED
         assert _committed(dl) == []
 
 

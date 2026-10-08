@@ -449,11 +449,14 @@ publishes the update through its `Announce` broadcast (CM-06-001) as before.
 That is a decision, not a gap: an owner's update is deliberately not a ledgered
 assertion (ADR-0111, #3936).
 
-`Announce(VulnerabilityCase)` is the one canonical signature that also passes
-`case_id=None` (#4304): only the CASE_MANAGER sends it and only a participant
-replica receives it, so the commit gate could only skip. Any other tree whose
-activity is canonical passes `case_id`, with its refusing nodes in
-`precondition_guards`.
+Two canonical signatures also pass `case_id=None` (#4304).
+`Announce(VulnerabilityCase)`: only the CASE_MANAGER sends it and only a participant
+replica receives it, so the commit gate could only skip.
+`Add(CaseParticipant)`: its entry has no replica apply node yet, and committing it
+first would add a type the replicas store and ignore (RSH-08-004); #4081 adds the
+node and the commit together.
+Any other tree whose activity is canonical passes `case_id`, with its refusing nodes
+in `precondition_guards`, so a refused activity leaves no entry.
 
 ### Trigger/Received Parity
 
