@@ -629,13 +629,11 @@ is a *role* held in the case, not an address.
 # ✅ CORRECT — the tree runs as the receiving actor; the gate decides
 tree = create_receive_activity_tree(
     ...,
-    effect_nodes=[
-        create_case_manager_gated_tree(
-            name="AttachNoteIfCaseManager",
-            case_id=case_id,
-            children=[AttachNoteNode(...), ...],
-        ),
-    ],
+    # The factory wraps manager_effects in create_case_manager_gated_tree;
+    # a received tree never calls the gate itself (BT-17-008).
+    manager_effects=[AttachNoteNode(...), ...],
+    manager_case_id=case_id,
+    manager_gate_name="AttachNoteIfCaseManager",
 )
 result = BTBridge(datalayer=self._dl).execute_with_setup(
     tree,

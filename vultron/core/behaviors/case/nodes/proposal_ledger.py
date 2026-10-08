@@ -183,12 +183,11 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
         because the ``OfferRecord`` belongs to the sibling that did and there is
         no read across that line (ADR-0073, PCR-01-003).
 
-        The fallback is not a nicety. Every invited actor rebuilds its
-        ``VultronOfferRecord`` from this entry's ``offerId``
-        (``ApplyOfferReportFromLedgerNode``, ADR-0035 DL-06-002), and that node
-        is deliberately lenient — a snapshot without one is skipped
-        "(non-fatal)". So the omission surfaced nowhere near here: the invitee's
-        ``validate-report`` answered ``404 Offer not found`` (#2548).
+        The fallback is not a nicety. The ledger entry is the only place the
+        report's Offer provenance (``offerId``, ``offerActorId``) survives for
+        the case's participants, who were never sent the Offer and read it from
+        here (CP-01-007). Without it the omission surfaces nowhere near here
+        (#2548).
         """
         assert self.datalayer is not None
         offer_id, offer_actor_id = find_offer_for_report(

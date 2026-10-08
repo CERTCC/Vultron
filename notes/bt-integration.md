@@ -399,8 +399,20 @@ stages in a fixed order (CLP-10-006, CLP-10-010):
    #3742 persists it beside the archived row, through this node.
 2. **Guards** — read-only precondition checks that return FAILURE to refuse.
    They write nothing. A refusal goes to the process log and, where the
-   protocol calls for it, a `Reject` back to the sender — never to the ledger
-   (CLP-05-002).
+   protocol calls for an answer, back to the sender — never to the ledger
+   (CLP-05-002). A tree that owes that answer passes it as `refusal_effects`
+   (CLP-10-022): the factory wraps the guards in a `PreconditionGuardStage`
+   (`case/nodes/refusal_stage.py`) that runs the refusal effects only when a
+   precondition guard fails — not the sender guard, and never on an accepted
+   delivery — inside a CASE_MANAGER gate, and skips them on a redelivery intake
+   found already archived. The stage then fails with the guard's reason, so
+   nothing is committed and the handler still reads `REFUSED`. A refusal effect
+   must be `EmitCapable` and hold no `StateWriteCapable` node; the factory
+   refuses any other, because a refusal changes no state. The redelivery skip
+   keys on intake's archive, not on a record that the effects ran, so a
+   redelivery whose first delivery never reached them is not answered either. Do not hand-build a `Selector[guard, emit]` instead: an
+   emit beside a guard runs ahead of the commit on an accepted delivery. The
+   RSH-06-004 note for a refused backward RM declaration is the first user.
 3. **Commit** — the CASE_MANAGER ledgers the received activity as received, a
    postmark on the envelope (ADR-0107, CLP-07-011). It never rebuilds the
    assertion from processed state.
@@ -448,6 +460,15 @@ refuse its own commit. `Update(VulnerabilityCase)` is not one, so
 publishes the update through its `Announce` broadcast (CM-06-001) as before.
 That is a decision, not a gap: an owner's update is deliberately not a ledgered
 assertion (ADR-0111, #3936).
+
+One canonical signature also passes `case_id=None` (#4304):
+`Announce(VulnerabilityCase)`. Only the CASE_MANAGER sends it and only a
+participant replica receives it, so the commit gate could only skip.
+`Add(CaseParticipant)` was the other until #4081 made it the Case Owner's
+reinstatement request; it now commits, and replicas apply its entry through
+`ApplyReinstateCaseParticipantFromLedgerNode` (RSH-08-004).
+Any other tree whose activity is canonical passes `case_id`, with its refusing nodes
+in `precondition_guards`, so a refused activity leaves no entry.
 
 ### Trigger/Received Parity
 

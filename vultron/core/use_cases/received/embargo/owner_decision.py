@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, ClassVar
 import py_trees
 
 if TYPE_CHECKING:
+    from vultron.config.actor import ActorConfig
     from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
     from vultron.core.ports.wire_render import WireRenderPort
@@ -73,12 +74,14 @@ class _OwnerDecisionReceivedUseCase:
         sync_port: "SyncActivityPort | None" = None,
         trigger_activity: "TriggerActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
+        actor_config: "ActorConfig | None" = None,
     ) -> None:
         self._dl = dl
         self._request = request
         self._sync_port = sync_port
         self._trigger_activity = trigger_activity
         self._wire_render_port = wire_render_port
+        self._actor_config = actor_config
 
     def _build_tree(
         self, case_id: str, embargo_id: str, sender_actor_id: str
@@ -143,13 +146,20 @@ class ActivateEmbargoOnCaseReceivedUseCase(_OwnerDecisionReceivedUseCase):
         dl: CaseOutboxPersistence,
         request: ActivateEmbargoOnCaseReceivedEvent,
         sync_port: "SyncActivityPort | None" = None,
+        trigger_activity: "TriggerActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
+        actor_config: "ActorConfig | None" = None,
     ) -> None:
+        # The activation tree emits: stub-Invite re-issue (CM-11-016) and the
+        # embargo-ending notices (CM-31-009) both need the trigger port, and
+        # their RSVP windows come from the actor's config (CM-11-014).
         super().__init__(
             dl,
             request,
             sync_port=sync_port,
+            trigger_activity=trigger_activity,
             wire_render_port=wire_render_port,
+            actor_config=actor_config,
         )
 
     def _build_tree(
@@ -159,6 +169,7 @@ class ActivateEmbargoOnCaseReceivedUseCase(_OwnerDecisionReceivedUseCase):
             case_id=case_id,
             embargo_id=embargo_id,
             sender_actor_id=sender_actor_id,
+            actor_config=self._actor_config,
         )
 
 
@@ -182,6 +193,7 @@ class RejectEmbargoProposalOnCaseReceivedUseCase(
         sync_port: "SyncActivityPort | None" = None,
         trigger_activity: "TriggerActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
+        actor_config: "ActorConfig | None" = None,
     ) -> None:
         super().__init__(
             dl,
@@ -189,6 +201,7 @@ class RejectEmbargoProposalOnCaseReceivedUseCase(
             sync_port=sync_port,
             trigger_activity=trigger_activity,
             wire_render_port=wire_render_port,
+            actor_config=actor_config,
         )
 
     def _build_tree(
@@ -198,6 +211,7 @@ class RejectEmbargoProposalOnCaseReceivedUseCase(
             case_id=case_id,
             embargo_id=embargo_id,
             sender_actor_id=sender_actor_id,
+            actor_config=self._actor_config,
         )
 
 

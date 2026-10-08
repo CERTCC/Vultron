@@ -20,7 +20,8 @@ per-case identity — ``{base}/actors/case-actor-{slug}`` — that no container 
 hosted, so ``POST /actors/case-actor-<slug>/inbox/`` answered a permanent 404 and
 the CaseProposal round-trip never began. Its coverage went with it: 298 lines were
 deleted from ``test_case_setup.py`` and the replacement was left with a structural
-tree-shape assertion in ``test_create_tree.py``.
+tree-shape assertion in ``test_create_tree.py``, since deleted with
+``create_create_case_tree`` (#4330).
 
 What that assertion cannot see is the two things this node actually does — publish
 two blackboard keys, and refuse rather than guess. Both are the fix for #1872: a
@@ -75,7 +76,7 @@ class TestPublishesTheIdentity:
     ) -> None:
         """The whole job: two keys downstream nodes read.
 
-        ``test_create_tree.py`` asserts the node is *in* the tree; nothing asserted
+        ``test_create_tree.py`` asserted the node was *in* the tree; nothing asserted
         that it puts anything on the blackboard, so a node that succeeded while
         writing nothing would have looked correct.
         """

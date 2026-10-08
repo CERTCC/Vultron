@@ -30,6 +30,7 @@ from vultron.core.behaviors.case.nodes.participant.rm_closure import (
     RMClosureWriter,
 )
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import (
     participant_status_rm_state,
@@ -39,7 +40,9 @@ from vultron.core.states.rm import RM
 logger = logging.getLogger(__name__)
 
 
-class AdvanceParticipantToRMClosedNode(DataLayerActionWithPorts):
+class AdvanceParticipantToRMClosedNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
     """Advance the leaving actor's RM state to ``RM.CLOSED`` in the DataLayer.
 
     Reads the leaving actor's :class:`~vultron.core.models.case_participant
@@ -141,7 +144,9 @@ class AdvanceParticipantToRMClosedNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class AdvanceCaseActorToRMClosedNode(DataLayerActionWithPorts):
+class AdvanceCaseActorToRMClosedNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
     """Advance the Case Actor's own RM state to ``RM.CLOSED``.
 
     Reads the Case Actor's :class:`~vultron.core.models.case_participant

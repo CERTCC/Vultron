@@ -23,15 +23,14 @@ The chain this pins, end to end:
    because the CaseActor cannot read a sibling's store (ADR-0073, PCR-01-003);
 3. the CaseActor writes it into the canonical ``add_report_to_case`` ledger
    entry;
-4. every invited actor rebuilds its own ``VultronOfferRecord`` from that entry
-   (``ApplyOfferReportFromLedgerNode``, ADR-0035 DL-06-002).
+4. the entry keeps that provenance for the case's participants; an invited actor
+   rebuilds no ``VultronOfferRecord`` from it, as it was never sent the Offer
+   (CM-11-020).
 
 Step 2 was missing. Nothing complained at any link: the CaseActor's
 ``_find_offer_id_for_report`` scanned its own (correct, empty) store,
-``build_add_report_to_case_snapshot`` omits ``offerId`` when not given one, and
-``ApplyOfferReportFromLedgerNode`` skips a snapshot without one as "non-fatal".
-The symptom surfaced four steps and one container away, as the invitee's
-``validate-report`` answering ``404 Offer not found`` (#2548, fcvcv).
+``build_add_report_to_case_snapshot`` omits ``offerId`` when not given one, so
+the ledger lost the report's Offer provenance without a sound (#2548, fcvcv).
 """
 
 from datetime import UTC, datetime
@@ -260,8 +259,7 @@ def _add_report_snapshot(dl: SqliteDataLayer) -> dict[str, Any]:
 class TestCaseActorCommitsTheProvenance:
     """CaseActor side: what the proposal carried reaches the ledger entry.
 
-    This is the assertion the invited actor's ``validate-report`` depends on,
-    four steps downstream and in another container.
+    This is the assertion CP-01-007 provenance depends on, in another container.
     """
 
     def test_the_snapshot_names_the_offer_the_proposal_carried(self):
@@ -291,9 +289,8 @@ class TestCaseActorCommitsTheProvenance:
     def test_no_provenance_anywhere_leaves_the_key_absent(self):
         """The pre-fix state, kept explicit: absent, never invented.
 
-        ``ApplyOfferReportFromLedgerNode`` reads a missing ``offerId`` as "this
-        entry is not about an offer" and skips. A placeholder would instead have
-        it mint a ``VultronOfferRecord`` naming an offer nobody ever sent.
+        A missing ``offerId`` reads as "no known Offer". A placeholder would
+        instead name an offer nobody ever sent.
         """
         dl = _case_actor_store()
         _run_received_bt(dl, offer_id=None, offer_actor_id=None)

@@ -271,8 +271,9 @@ def test_invite_path_engage_gated_on_own_rm_valid(invite_actors):
         return {}
 
     with (
-        patch.object(workflow, "wait_for_event_type_in_ledger"),
-        patch.object(workflow, "receiver_validates_report"),
+        patch.object(workflow, "find_full_case_invite_for_actor"),
+        patch.object(workflow, "wait_for_replica_ledger_coverage"),
+        patch.object(workflow, "receiver_accepts_full_case_invite"),
         patch.object(
             workflow, "wait_for_participant_rm_state", side_effect=_wait_rm
         ),
@@ -327,8 +328,9 @@ def test_invite_path_caseactor_checks_read_the_case_actors_own_store(
             scopes.append(dl_actor_id)
 
     with (
-        patch.object(workflow, "wait_for_event_type_in_ledger"),
-        patch.object(workflow, "receiver_validates_report"),
+        patch.object(workflow, "find_full_case_invite_for_actor"),
+        patch.object(workflow, "wait_for_replica_ledger_coverage"),
+        patch.object(workflow, "receiver_accepts_full_case_invite"),
         patch.object(
             workflow, "resolve_case_actor_store_id", return_value=case_actor_id
         ),
@@ -376,8 +378,9 @@ def test_invite_path_engage_not_called_when_own_rm_valid_never_commits(
             raise AssertionError("timed out waiting for own RM.VALID")
 
     with (
-        patch.object(workflow, "wait_for_event_type_in_ledger"),
-        patch.object(workflow, "receiver_validates_report"),
+        patch.object(workflow, "find_full_case_invite_for_actor"),
+        patch.object(workflow, "wait_for_replica_ledger_coverage"),
+        patch.object(workflow, "receiver_accepts_full_case_invite"),
         patch.object(
             workflow, "wait_for_participant_rm_state", side_effect=_wait_rm
         ),
@@ -397,3 +400,106 @@ def test_invite_path_engage_not_called_when_own_rm_valid_never_commits(
         )
 
     engage_called.assert_not_called()
+
+
+@pytest.mark.spec("CM-11-020")
+def test_invite_path_never_validates_the_original_report(invite_actors):
+    """The invited participant judges the case by the full-case Invite, not validate-report."""
+    (
+        invited_client,
+        invited_actor,
+        offer,
+        report,
+        finder,
+        auth_client,
+        case,
+        invited_obj,
+    ) = invite_actors
+
+    with (
+        patch.object(workflow, "find_full_case_invite_for_actor"),
+        patch.object(workflow, "wait_for_replica_ledger_coverage"),
+        patch.object(workflow, "receiver_accepts_full_case_invite") as accept,
+        patch.object(workflow, "receiver_validates_report") as validate,
+        patch.object(workflow, "wait_for_participant_rm_state"),
+        patch.object(workflow, "receiver_engages_case"),
+    ):
+        workflow.run_invite_path_rm_triage(
+            invited_client=invited_client,
+            invited_actor=invited_actor,
+            offer=offer,
+            report=report,
+            finder=finder,
+            auth_client=auth_client,
+            case=case,
+            invited_obj=invited_obj,
+        )
+
+    accept.assert_called_once()
+    validate.assert_not_called()
+
+
+@pytest.mark.spec("SYNC-10-004")
+def test_full_case_invite_reply_waits_for_ledger_coverage(invite_actors):
+    """The reply trigger fails closed below the floor, so the demo gates on coverage."""
+    (
+        invited_client,
+        invited_actor,
+        offer,
+        report,
+        finder,
+        auth_client,
+        case,
+        invited_obj,
+    ) = invite_actors
+    order: list[str] = []
+
+    with (
+        patch.object(
+            workflow,
+            "find_full_case_invite_for_actor",
+            return_value="urn:uuid:full-invite",
+        ),
+        patch.object(
+            workflow,
+            "wait_for_replica_ledger_coverage",
+            side_effect=lambda *a, **k: order.append("coverage"),
+        ),
+        patch.object(
+            workflow,
+            "receiver_accepts_full_case_invite",
+            side_effect=lambda **k: order.append(k["invite_id"]),
+        ),
+        patch.object(workflow, "wait_for_participant_rm_state"),
+        patch.object(workflow, "receiver_engages_case"),
+    ):
+        workflow.run_invite_path_rm_triage(
+            invited_client=invited_client,
+            invited_actor=invited_actor,
+            offer=offer,
+            report=report,
+            finder=finder,
+            auth_client=auth_client,
+            case=case,
+            invited_obj=invited_obj,
+        )
+
+    assert order == ["coverage", "urn:uuid:full-invite"]
+
+
+def test_receiver_accepts_full_case_invite_posts_the_trigger():
+    session = MagicMock()
+    session.quiet.return_value = session
+    session.accept_full_case_invite.return_value = MagicMock(
+        model_dump=lambda **_: {"ok": True}
+    )
+
+    with patch.object(workflow, "ActorSession", return_value=session):
+        result = workflow.receiver_accepts_full_case_invite(
+            MagicMock(), MagicMock(), "urn:uuid:full-invite"
+        )
+
+    assert result == {"ok": True}
+    session.accept_full_case_invite.assert_called_once_with(
+        invite_id="urn:uuid:full-invite"
+    )

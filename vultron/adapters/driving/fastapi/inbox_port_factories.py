@@ -220,6 +220,10 @@ _TRIGGER_ACTIVITY_PORT_SEMANTICS = frozenset(
         MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER,
         MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
         MessageSemantics.ACCEPT_OFFER_CASE_PARTICIPANT,
+        # ADD_CASE_PARTICIPANT_TO_CASE sends the reinstated participant its
+        # direct Add(CaseParticipant) notice and, when it is not bound by
+        # the active embargo, that embargo's Invite (CM-31-011, CM-31-013).
+        MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE,
         # CLOSE_CASE emits the as:Reject that declines an owner close during a
         # live embargo (CM-23-011).
         MessageSemantics.CLOSE_CASE,
@@ -231,7 +235,6 @@ _TRIGGER_ACTIVITY_PORT_SEMANTICS = frozenset(
         # Announce(VulnerabilityCase) broadcast.
         MessageSemantics.DEFER_CASE,
         MessageSemantics.ENGAGE_CASE,
-        MessageSemantics.OFFER_ACTOR_TO_CASE,
         MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER,
         MessageSemantics.OFFER_CASE_PARTICIPANT,
         MessageSemantics.OFFER_CASE_PARTICIPANT_ROLE,
@@ -239,10 +242,6 @@ _TRIGGER_ACTIVITY_PORT_SEMANTICS = frozenset(
         # AnnounceCaseOnGenesisRejectNode can send Announce(VulnerabilityCase)
         # to a peer that has no case yet before replaying entries (SYNC-15-002).
         MessageSemantics.REJECT_CASE_LEDGER_ENTRY,
-        # REJECT_EMBARGO_PROPOSAL_ON_CASE: the owner's rejection of the last
-        # open revision after disclosure ends the embargo, and the
-        # CASE_MANAGER announces the ET (EMB-04-002).
-        MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE,
         MessageSemantics.REJECT_OFFER_CASE_PARTICIPANT,
         # REMOVE_CASE_PARTICIPANT_FROM_CASE sends the removed participant its
         # direct Remove(CaseParticipant) notice (CM-31-006).
@@ -277,6 +276,20 @@ _EMBARGO_INVITE_SEMANTICS = frozenset(
     {
         MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
         MessageSemantics.INVITE_TO_EMBARGO_ON_CASE,
+        # OFFER_ACTOR_TO_CASE: the CASE_MANAGER's stub Invite, first or
+        # re-invite, is stamped with the same RSVP window (CM-11-014).
+        MessageSemantics.OFFER_ACTOR_TO_CASE,
+        # The case owner's decision for the case (ADR-0122): activating a
+        # revision re-issues the CASE_MANAGER's outstanding stub Invites
+        # (CM-11-016), each stamped with the same RSVP window (CM-11-014), and
+        # sends the embargo-ending notices to the bound signatories the ledger
+        # no longer reaches (CM-31-009); the owner's reject after disclosure
+        # ends the embargo the same way and its CM-31-009 notices follow the ET
+        # (EMB-19-001).
+        MessageSemantics.ACTIVATE_EMBARGO_ON_CASE,
+        MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE,
+        # REMOVE_EMBARGO_EVENT: the teardown announces itself (EMB-19-001).
+        MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE,
     }
 )
 

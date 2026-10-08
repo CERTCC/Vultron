@@ -10,9 +10,11 @@ if TYPE_CHECKING:
     from vultron.core.ports.wire_render import WireRenderPort
 
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.embargo.admission_backfill_tree import (
+    embargo_admission_backfill_tree,
+)
 from vultron.core.behaviors.embargo.announce_teardown_tree import (
     accept_invite_to_embargo_tree,
-    embargo_admission_backfill_tree,
 )
 from vultron.core.behaviors.embargo.expiry_tree import (
     IS_EXPIRED_KEY,
@@ -144,9 +146,10 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
     def _backfill_admitted(
         self, *, case_id: str, receiving_actor_id: str
     ) -> None:
-        tree = embargo_admission_backfill_tree(case_id)
+        tree = embargo_admission_backfill_tree(case_id, self._actor_config)
         result = BTBridge(
             datalayer=self._dl,
+            trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
         ).execute_with_setup(
@@ -448,6 +451,9 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         )
         bridge = BTBridge(
             datalayer=self._dl,
+            # The owner's acceptance of a shorter revision is announced to
+            # the bound signatories the ledger no longer reaches (CM-31-009).
+            trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
         )

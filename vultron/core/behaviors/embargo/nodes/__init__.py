@@ -51,6 +51,13 @@ from vultron.core.behaviors.embargo.nodes.em_state import (
     ReadEmStateNode,
     read_case_em_state,
 )
+from vultron.core.behaviors.embargo.nodes.ending_notice import (
+    ApplyAnnouncedEmbargoRevisionNode,
+    AwaitsEmbargoEndingNoticeNode,
+    CaptureActiveEmbargoNode,
+    SendEmbargoEndingNoticesNode,
+    embargo_ending_notice_nodes,
+)
 from vultron.core.behaviors.embargo.nodes.expiry import (
     ApplyHonourLateAcceptFromLedgerNode,
     ApplyInviteExpiryFromLedgerNode,
@@ -165,6 +172,13 @@ __all__ = [
     "OwnerMayActivateEmbargoNode",
     "RejectEmbargoProposalLifecycleNode",
     "SendOwnerEmbargoDecisionNode",
+    # Embargo-ending notices to unreached signatories (CM-31-009, CM-31-010)
+    "ApplyAnnouncedEmbargoRevisionNode",
+    "CaptureActiveEmbargoNode",
+    "AwaitsEmbargoEndingNoticeNode",
+    "SendEmbargoEndingNoticesNode",
+    "embargo_ending_notice_nodes",
+    # The case owner's decision replayed from the ledger (RSH-08-004)
     "EMBARGO_ACTIVATION_EVENT_TYPE",
     "EMBARGO_PROPOSAL_REJECTION_EVENT_TYPE",
     "ApplyEmbargoActivationFromLedgerNode",

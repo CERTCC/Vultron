@@ -87,6 +87,7 @@ from vultron.core.behaviors.status.nodes.lifecycle import (
 )
 from vultron.core.behaviors.status.nodes.rm_anomaly import (
     EmitRMGapNoteNode,
+    rm_gap_note,
 )
 from vultron.core.behaviors.status.nodes.rm_validation import (
     ValidateRMTransitionNode,
@@ -111,6 +112,7 @@ __all__ = [
     "ThreatTerminationBranchNode",
     "EmitCloseCaseNode",
     "EmitRMGapNoteNode",
+    "rm_gap_note",
     # cs_invariant_diagnostic
     "PxaEmInvariantDiagnosticNode",
     # case_status

@@ -31,15 +31,16 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
-from vultron.core.behaviors.case.nodes.accept_invite import (
-    EmitAddCaseParticipantNode,
-)
 from vultron.core.behaviors.case.nodes.actor import (
     EmitInviteActorToCaseNode,
     EvaluateDefaultRolesNode,
 )
 from vultron.core.behaviors.case.nodes.invite_inert_participant import (
     CreateInertInviteeParticipantNode,
+)
+from vultron.core.behaviors.case.nodes.stub_invite_lifetime import (
+    ReinviteAwaitingNode,
+    ReinviteNotToClosedParticipantNode,
 )
 from vultron.core.behaviors.case.suggest_actor_tree import (
     ActorAlreadyParticipantNode,
@@ -851,12 +852,43 @@ class TestDuplicateDetectionTreeStructure:
             "DuplicateOrFreshSelector must exist in the tree"
         )
 
-    def test_selector_has_five_children(self):
-        assert len(self._duplicate_selector().children) == 5
+    def test_selector_has_six_children(self):
+        assert len(self._duplicate_selector().children) == 6
+
+    @pytest.mark.spec("CM-11-015")
+    def test_reinvite_arm_is_first_and_emits_without_creating_a_record(self):
+        """Re-invite arm: owner, unanswered record, roles, Invite — and no new record."""
+        reinvite = self._duplicate_selector().children[0]
+        assert isinstance(reinvite, py_trees.composites.Sequence)
+        assert reinvite.name == "OwnerReinvite"
+        assert [type(c) for c in reinvite.children] == [
+            SenderIsCaseOwnerNode,
+            ReinviteAwaitingNode,
+            EvaluateDefaultRolesNode,
+            EmitInviteActorToCaseNode,
+        ]
+
+    @pytest.mark.spec("CM-11-015")
+    def test_closed_participant_guard_runs_before_the_recommender_is_recorded(
+        self,
+    ):
+        guard = next(
+            n
+            for n in self.all_nodes
+            if n.name == "ReinviteIsNotToClosedParticipant"
+        )
+        assert any(
+            isinstance(c, ReinviteNotToClosedParticipantNode)
+            for c in guard.children
+        )
+        order = [n.name for n in self.all_nodes]
+        assert order.index("ReinviteIsNotToClosedParticipant") < order.index(
+            "RecordRecommendationRecommenderNode"
+        )
 
     def test_ac7b_sequence_structure(self):
         """AC-7b arm: Sequence(ActorAlreadyParticipantNode, EmitAcceptActorRecommendationNode)."""
-        ac7b = self._duplicate_selector().children[0]
+        ac7b = self._duplicate_selector().children[1]
         assert isinstance(ac7b, py_trees.composites.Sequence)
         child_types = [type(c) for c in ac7b.children]
         assert ActorAlreadyParticipantNode in child_types
@@ -864,7 +896,7 @@ class TestDuplicateDetectionTreeStructure:
 
     def test_ac7a_sequence_structure(self):
         """AC-7a arm: Sequence(InviteInFlightNode, EmitAcceptActorRecommendationNode)."""
-        ac7a = self._duplicate_selector().children[1]
+        ac7a = self._duplicate_selector().children[2]
         assert isinstance(ac7a, py_trees.composites.Sequence)
         child_types = [type(c) for c in ac7a.children]
         assert InviteInFlightNode in child_types
@@ -872,7 +904,7 @@ class TestDuplicateDetectionTreeStructure:
 
     def test_ac6_sequence_structure(self):
         """AC-6 arm: Sequence(PendingOfferCaseParticipantNode, EmitNoteDuplicateRecommendationToOwnerNode)."""
-        ac6 = self._duplicate_selector().children[2]
+        ac6 = self._duplicate_selector().children[3]
         assert isinstance(ac6, py_trees.composites.Sequence)
         child_types = [type(c) for c in ac6.children]
         assert PendingOfferCaseParticipantNode in child_types
@@ -880,8 +912,12 @@ class TestDuplicateDetectionTreeStructure:
 
     @pytest.mark.spec("CM-17-007")
     def test_owner_direct_invite_structure(self):
-        """CASE_OWNER arm: owner check, roles, Invite, inert participant, Add."""
-        owner = self._duplicate_selector().children[3]
+        """CASE_OWNER arm: owner check, roles, Invite, inert participant.
+
+        No ``Add(CaseParticipant)`` follows the inert record: that message
+        means reinstatement only (CM-31-011, CM-31-012).
+        """
+        owner = self._duplicate_selector().children[4]
         assert isinstance(owner, py_trees.composites.Sequence)
         assert owner.name == "OwnerDirectInvite"
         assert [type(c) for c in owner.children] == [
@@ -889,7 +925,6 @@ class TestDuplicateDetectionTreeStructure:
             EvaluateDefaultRolesNode,
             EmitInviteActorToCaseNode,
             CreateInertInviteeParticipantNode,
-            EmitAddCaseParticipantNode,
         ]
         check = owner.children[0]
         assert isinstance(check, SenderIsCaseOwnerNode)
@@ -901,7 +936,7 @@ class TestDuplicateDetectionTreeStructure:
 
     def test_fresh_path_structure(self):
         """Fresh path arm: not the owner, then roles, then the Offer to the owner."""
-        fresh = self._duplicate_selector().children[4]
+        fresh = self._duplicate_selector().children[5]
         assert isinstance(fresh, py_trees.composites.Sequence)
         child_types = [type(c) for c in fresh.children]
         guard = fresh.children[0]

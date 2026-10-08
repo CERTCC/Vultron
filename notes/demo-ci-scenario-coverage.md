@@ -91,14 +91,10 @@ generate-vs-check split".
   `fcv-reject` CI produces a VFd observation in practice. When copy-pasting
   Invariant 15 from another harness, do not pass `check_fix_ready=False` — that
   parameter no longer exists (DEMOCI-06-001, ISSUE-2121, PR #2152).
-- `add_case_participant` is emitted by `AcceptInviteNode`
-  (`vultron/core/behaviors/case/nodes/accept_invite.py:181`) on the CaseActor
-  received-side when processing Accept(Invite). (The target model moves
-  participant creation to the stub Invite, CM-11-006.) This event records the internal
-  participant-list bookkeeping rather than a protocol-visible coordination action.
-  It fires in every scenario with invite/accept flows but is intentionally
-  excluded from `_EXPECTED_EVENT_TYPES` lists: it is a `CaseActor`-internal
-  ledger entry, not a coordination event that invariant checks should mandate.
+- `add_case_participant` is no longer committed (#4081): the CASE_MANAGER
+  sends no `Add(CaseParticipant)` after a stub-Invite acceptance, and replicas
+  seat the new member from the `accept_invite_actor_to_case` entry (CM-31-012,
+  ADR-0116). It was never in any `_EXPECTED_EVENT_TYPES` list.
 - `fccv-extension` spec entry DEMOMA-16-010 was added as part of ISSUE-1996;
   the test constant was already correct.
 - `fvv`, `fvcv-extension`, and `fcv` were missing `accept_invite_actor_to_case`

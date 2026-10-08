@@ -9,6 +9,7 @@ description: >
 related_specs:
   - specs/behavior-tree-node-design.yaml
   - specs/received-status-handling.yaml
+  - specs/case-ledger-processing.yaml
   - specs/behavior-tree-integration.yaml
   - specs/cs-behavior.yaml
   - specs/embargo-policy.yaml
@@ -74,9 +75,12 @@ issue under epic #3472:
   rather than adjacency (BTND-10-003). Tests on both paths run one table,
   `test/support/rm_declaration.py`. A restated declaration is reported
   `SKIPPED` (`rm_declaration_verdict`) unless the handler has another effect
-  to run. Neither path posts the RSH-06-004 note
-  for a wholly refused regression, because the refusal ends the tree before its
-  effects (#4310).
+  to run. A wholly refused regression ends the tree before its effects, so
+  both paths pass the same note as `refusal_effects` too: the factory runs it
+  only when a guard refuses, at the CASE_MANAGER, once per received activity,
+  and the handler still reports `REFUSED` with nothing committed (#4310,
+  CLP-10-022). See [bt-integration.md](bt-integration.md) § "The Four
+  Received-Side Stages".
 - **Pipeline.** Every received tree gates its *commit* on `CheckIsCaseManagerNode`
   but runs its *effects* at every inbox, so `Add(EmbargoEvent)`,
   `Remove(EmbargoEvent)` and `Add(CaseStatus)` move a replica's state from any
@@ -93,7 +97,9 @@ issue under epic #3472:
   participant. Every committed event type is
   classified, from code, in
   `test/architecture/test_ledger_event_types_are_replayed.py`; the gating half
-  follows.
+  follows, and `test/architecture/test_received_tree_state_writes_are_gated.py`
+  holds every received tree that still writes state outside the CASE_MANAGER
+  gate to an owned ratchet until it does.
 
 What is **not** changed: the CS dimensions, the PEC side-effect model, the single
 `ParticipantStatus` writer, and this note's two-gate design for adoption.
@@ -158,6 +164,9 @@ AddParticipantStatusBT (Sequence)
 │       └─ ThreatTerminationBranchNode       ← teardown on P/X/A (RSH-03-001)
 └─ EmitRMGapNoteNode                    ← NEW: Add(Note,Case) on RM anomaly (RSH-06-004, ADR-0067)
 ```
+
+A wholly refused regression fails the guard stage, so the same note runs there
+as a refusal effect instead (`refusal_effects`, CLP-10-022).
 
 ### Per-dimension partial accept (RSH-05, ADR-0061)
 

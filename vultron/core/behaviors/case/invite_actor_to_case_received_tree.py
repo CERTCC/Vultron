@@ -30,7 +30,6 @@ from vultron.core.behaviors.case.nodes.invite_received import (
     RecordInviteTrustAnchorNode,
 )
 from vultron.core.behaviors.case.nodes.role_gates import (
-    create_case_manager_gated_tree,
     create_participant_replica_gated_tree,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
@@ -68,18 +67,12 @@ def create_reject_invite_actor_to_case_received_tree(
     Returns:
         Root ``RejectInviteActorToCaseReceivedBT`` Sequence node.
     """
-    effect_nodes: list[py_trees.behaviour.Behaviour] = []
+    manager_effects: list[py_trees.behaviour.Behaviour] = []
     if invitee_id:
-        effect_nodes.append(
-            create_case_manager_gated_tree(
-                name="RejectInviteApplyEffects",
+        manager_effects.append(
+            ApplyInviteRejectToParticipantNode(
                 case_id=case_id,
-                children=[
-                    ApplyInviteRejectToParticipantNode(
-                        case_id=case_id,
-                        invitee_id=invitee_id,
-                    ),
-                ],
+                invitee_id=invitee_id,
             )
         )
 
@@ -87,11 +80,15 @@ def create_reject_invite_actor_to_case_received_tree(
         name="RejectInviteActorToCaseReceivedBT",
         case_id=case_id if case_id else None,
         precondition_guards=[],
-        effect_nodes=effect_nodes,
         sender_guard=SenderIsInviteeNode(
             invite_id=invite_id,
             sender_actor_id=invitee_id or "",
             case_id=case_id or None,
+        ),
+        manager_effects=manager_effects,
+        manager_case_id=case_id if manager_effects else None,
+        manager_gate_name=(
+            "RejectInviteApplyEffects" if manager_effects else None
         ),
     )
 
@@ -132,7 +129,7 @@ def create_invite_actor_to_case_received_tree(
         name="InviteActorToCaseReceivedBT",
         case_id=case_id,
         precondition_guards=[],
-        effect_nodes=[
+        replica_effects=[
             create_participant_replica_gated_tree(
                 name="InviteeRecordsInvite",
                 case_id=case_id,

@@ -24,6 +24,7 @@ from vultron.core.behaviors.embargo.proposal_index import (
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
 )
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.services.embargo_lifecycle import (
@@ -161,7 +162,9 @@ class IndexReceivedEmbargoProposalNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class RecordParticipantAcceptanceNode(DataLayerActionWithPorts):
+class RecordParticipantAcceptanceNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
     """Record a participant's acceptance of an embargo Invite.
 
     Uses ``EmbargoLifecycle.accept_embargo_invite`` to record the sender's
@@ -226,7 +229,9 @@ class RecordParticipantAcceptanceNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class RecordParticipantRejectionNode(DataLayerActionWithPorts):
+class RecordParticipantRejectionNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
     """Record a participant's rejection of an embargo via EmbargoLifecycle.
 
     The received-side twin of :class:`RecordParticipantAcceptanceNode`: calls

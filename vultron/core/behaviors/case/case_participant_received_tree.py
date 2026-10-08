@@ -20,12 +20,13 @@ Each factory composes its leaf nodes through
 so intake archives the received activity first (CLP-10-017) and a refused
 delivery still leaves its record (CLP-10-018).
 
-The Add tree carries no ``case_id`` for the commit stage: it is not ledgered
-here.  The Remove tree is the Case Owner's request to the CASE_MANAGER
-(CM-31-004, ADR-0116): its received activity is the one ledger entry
-(CM-31-005), and every write is gated on the CASE_MANAGER role, so a replica
-that receives it stores the activity and writes nothing (RSH-08-003); the
-replica takes the removal from the ledger entry instead (CM-31-007).
+Both trees are Case Owner requests to the CASE_MANAGER (ADR-0116): ``Remove``
+takes a participant out of active participation (CM-31-004), and ``Add``
+reinstates a removed one (CM-31-011).  Each received activity is the move's
+one ledger entry (CM-31-005), and every write is gated on the CASE_MANAGER
+role, so a replica that receives either stores the activity and writes
+nothing (RSH-08-003); the replica takes the move from the ledger entry
+instead (CM-31-007).
 """
 
 import logging
@@ -33,10 +34,14 @@ import logging
 import py_trees
 
 from vultron.core.behaviors.case.nodes.case_participant_received import (
-    AddCaseParticipantToCaseReceivedNode,
     EmitParticipantRemovalNoticeNode,
     RemoveCaseParticipantFromCaseReceivedNode,
     case_manager_admits_removal_guard,
+)
+from vultron.core.behaviors.case.nodes.participant_reinstatement import (
+    EmitParticipantReinstatementNoticeNode,
+    ReinstateCaseParticipantReceivedNode,
+    case_manager_admits_reinstatement_guard,
 )
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_role_scoped_sender_guard,
@@ -44,7 +49,13 @@ from vultron.core.behaviors.case.nodes.role_gates import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.embargo.nodes.reinvite import (
+    InviteReinstatedParticipantToEmbargoNode,
+)
 from vultron.core.behaviors.sender_entitlement import SenderIsCaseOwnerNode
+from vultron.core.behaviors.sync.nodes.embargo_backfill import (
+    BackfillAdmittedParticipantsNode,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -52,25 +63,87 @@ logger = logging.getLogger(__name__)
 def create_add_case_participant_received_tree(
     participant_id: str,
     case_id: str,
-) -> py_trees.behaviour.Behaviour:
+    sender_id: str,
+    claimed_actor_id: str | None = None,
+) -> py_trees.composites.Sequence:
     """Create the BT for ``AddCaseParticipantToCaseReceivedUseCase``.
 
+    ``Add(CaseParticipant)`` is the Case Owner's request to reinstate a
+    removed participant (CM-31-011, ADR-0116), and mirrors the removal tree
+    stage for stage (the CLP-10-010 stages, ADR-0111)::
+
+        AddCaseParticipantReceivedBT (Sequence)
+        ├── IntakeReceivedActivityNode                       # intake
+        ├── AddParticipantSenderGuard (Selector)             # sender guard
+        ├── ReinstatementAdmissibleIfCaseManager (Selector)  # guards (manager only)
+        │   ├── MoveNamesCaseParticipantNode
+        │   ├── ParticipantHasJoinedNode
+        │   └── ParticipantIsRemovedNode
+        ├── GuardedCommitCaseLedgerEntryBT (Selector)        # commit
+        └── GuardedReinstateParticipantBT (Selector)         # effects (manager only)
+            ├── ReinstateCaseParticipantReceivedNode
+            ├── BackfillAdmittedParticipantsNode
+            ├── EmitParticipantReinstatementNoticeNode
+            └── InviteReinstatedParticipantToEmbargoNode
+
+    The sender guard admits the Case Owner at the CASE_MANAGER and only the
+    CASE_MANAGER at any other replica (ADR-0115, PCR-03-001), which is how
+    the reinstated participant's own replica accepts the direct notice.  The
+    commit runs before the effect, so the entry's fan-out withholds it from
+    the participant, still removed, and records it in that participant's
+    paused stream.  Once the fact is cleared, the admission backfill sends
+    the participant every entry from the first one withheld after its
+    removal entry, the reinstatement entry included, in log order
+    (CM-10-006); a participant that is not ``SIGNATORY`` to the active
+    embargo is not admitted yet, so it is sent that embargo's Invite instead
+    and its backfill waits for its consent (CM-31-013).  At a replica every
+    gated stage skips: intake is its only write (RSH-08-003).
+
     Args:
-        participant_id: URI of the participant to add.
-        case_id: URI of the case to add the participant to.
+        participant_id: URI of the ``CaseParticipant`` the ``Add`` names.
+        case_id: URI of the case.
+        sender_id: The activity's sender, who must be the Case Owner.
+        claimed_actor_id: The actor the inline participant is attributed to,
+            when it names one; it must match the stored record's actor
+            (CM-31-011), because a replica resolves the record by it.  The
+            notice and any embargo Invite go to the stored record's actor.
 
     Returns:
         The root ``Sequence``, ready for ``BTBridge.execute_with_setup()``.
     """
     root = create_receive_activity_tree(
         name="AddCaseParticipantReceivedBT",
-        case_id=None,
-        precondition_guards=[],
-        effect_nodes=[
-            AddCaseParticipantToCaseReceivedNode(
+        case_id=case_id,
+        sender_guard=create_role_scoped_sender_guard(
+            name="AddParticipantSenderGuard",
+            case_id=case_id,
+            at_case_manager=SenderIsCaseOwnerNode(
+                sender_actor_id=sender_id, case_id=case_id
+            ),
+        ),
+        precondition_guards=[
+            case_manager_admits_reinstatement_guard(
                 participant_id=participant_id,
                 case_id=case_id,
+                claimed_actor_id=claimed_actor_id,
             )
+        ],
+        manager_case_id=case_id,
+        manager_gate_name="GuardedReinstateParticipantBT",
+        manager_effects=[
+            ReinstateCaseParticipantReceivedNode(
+                participant_id=participant_id, case_id=case_id
+            ),
+            BackfillAdmittedParticipantsNode(case_id=case_id),
+            EmitParticipantReinstatementNoticeNode(
+                participant_id=participant_id,
+                case_id=case_id,
+                requesting_actor_id=sender_id,
+            ),
+            InviteReinstatedParticipantToEmbargoNode(
+                case_id=case_id,
+                participant_id=participant_id,
+            ),
         ],
     )
     logger.debug(
@@ -96,7 +169,7 @@ def create_remove_case_participant_received_tree(
         ├── IntakeReceivedActivityNode                  # intake
         ├── RemoveParticipantSenderGuard (Selector)     # sender guard
         ├── RemovalAdmissibleIfCaseManager (Selector)   # guards (manager only)
-        │   ├── RemovalNamesCaseParticipantNode
+        │   ├── MoveNamesCaseParticipantNode
         │   ├── RemovalTargetIsRemovableNode
         │   └── ParticipantNotYetRemovedNode            # idempotency
         ├── GuardedCommitCaseLedgerEntryBT (Selector)   # commit

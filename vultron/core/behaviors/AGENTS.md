@@ -106,9 +106,9 @@ copy after the guards; intake writing it would seed a replica ahead of trust
 (PCR-03-004). Never add a store node or helper for the received activity (CLP-10-019). Intake reads the `VultronEvent` from `/activity`: run any
 factory-built tree with `activity=<event>` or it fails with `ACTIVITY_UNAVAILABLE`.
 The commit runs only for a canonical `(type, object)` signature (CLP-10-013);
-`Update(VulnerabilityCase)` has none, so its tree passes `case_id=None`. Intake-only
-handlers report via `intake_verdict()`. Full write-up: `notes/bt-integration.md`
-§ "The Four Received-Side Stages".
+`Update(VulnerabilityCase)` has none, and `Announce(VulnerabilityCase)` is exempt
+(#4304), so both pass `case_id=None`. Intake-only handlers report via
+`intake_verdict()`. Full write-up: `notes/bt-integration.md` § "The Four Received-Side Stages".
 
 **The factory owns the CASE_MANAGER gate (BT-17-008).** Pass effects as
 `replica_effects` (every replica, ungated) and `manager_effects` (gated by the
@@ -119,8 +119,8 @@ raises `VultronWiringError` unless `replica_emit_exemption` names a registered
 `ReplicaEmitExemption` (`replica_emit_exemptions.py`) whose `covers` lists it.
 A new emit node class reaching the outbox mixes in `EmitCapable` (or inherits
 it from its base). `effect_nodes` is the unchecked legacy form, not mixable with
-the new two; it is ratcheted to empty in
-`test/architecture/test_received_tree_case_manager_gate.py`. Full write-up:
+the new two; only the close-case tree still passes it (#3825), pinned in
+`test/architecture/test_received_tree_case_manager_gate.py`. Never add a caller. Full write-up:
 `notes/bt-pitfalls.md` § "A Received Tree Gets Its CASE_MANAGER Gate From the
 Factory".
 

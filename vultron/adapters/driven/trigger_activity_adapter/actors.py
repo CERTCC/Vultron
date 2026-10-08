@@ -22,6 +22,7 @@ Case Actor / CASE_MANAGER delegation activities.
 import json
 import logging
 from collections.abc import Callable
+from datetime import datetime
 from typing import Any, cast
 
 from pydantic import BaseModel, ValidationError
@@ -158,6 +159,9 @@ class _ActorsMixin:
         attributed_to: str | None = None,
         roles: list[str] | None = None,
         target: VulnerabilityCase | None = None,
+        rsvp_deadline: datetime | None = None,
+        published: datetime | None = None,
+        in_reply_to: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Invite(Actor, CaseStub)`` activity.
 
@@ -177,6 +181,12 @@ class _ActorsMixin:
             extra["id_"] = id_
         if attributed_to is not None:
             extra["attributed_to"] = attributed_to
+        if rsvp_deadline is not None:
+            extra["end_time"] = rsvp_deadline
+        if published is not None:
+            extra["published"] = published
+        if in_reply_to is not None:
+            extra["in_reply_to"] = in_reply_to
 
         # Read case and embargo from DataLayer; factory handles projection.
         resolved: Any = target
@@ -622,17 +632,22 @@ class _ActorsMixin:
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        attributed_to: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Add(as_CaseParticipant, Case)`` activity.
 
-        Returns ``(activity_id, activity_blob)``; the blob is what the emitting
-        node records as the ledger ``payloadSnapshot`` (VM-08-003).
+        The participant goes inline as the store holds it, removal fact
+        cleared.  Returns ``(activity_id, activity_blob)`` (CM-31-011).
         """
         participant = _to_wire(
             self._dl.read(participant_id), as_CaseParticipant
         )
         activity = add_participant_to_case_activity(
-            participant=participant, target=case_id, actor=actor, to=to
+            participant=participant,
+            target=case_id,
+            actor=actor,
+            to=to,
+            attributed_to=attributed_to,
         )
         try:
             self._dl.create(activity)

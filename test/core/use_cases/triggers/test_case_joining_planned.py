@@ -16,15 +16,17 @@ Strict-``xfail`` tests for the case-joining requirements planned under #4006
 (each test names its implementing issue):
 
 - CM-11-006 — the stub Invite creates the invitee's inert participant.
-- CM-11-018 — a joined participant never answers the original report Offer.
+- CM-11-020 — a joined participant never answers the original report Offer
+  (passing since #4051).
 - PRM-06-006 — an on-behalf status assertion never creates a participant
   (passing since #4047).
 - CM-11-014 — a stub Invite carries a deadline; an unanswered invitee does
-  not hold up case closure, but a joined one still at RECEIVED does.
+  not hold up case closure, but a joined one still at RECEIVED does (passing
+  since #4049; expiry is in ``test_stub_invite_lifetime.py``).
 - CM-11-015 — a re-invite reuses the record; a re-invite to ``CLOSED`` is
-  refused.
+  refused (passing since #4049).
 - CM-11-016 — an embargo change re-issues an outstanding stub Invite; a
-  ``Reject`` of the superseded one is still honoured.
+  ``Reject`` of the superseded one is still honoured (passing since #4049).
 - CM-10-007 — the stub Invite reaches the inert invitee (passing marker).
 - PRM-06-001 — the CASE_MANAGER writes only the invitee's birth status.
 
@@ -33,7 +35,6 @@ implementation lands.  See ``notes/case-joining.md``.
 """
 
 import json
-from collections.abc import Iterator
 from typing import Any
 
 import pytest
@@ -51,7 +52,6 @@ from test.support.embargo_register import activate
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
-    reset_datalayer,
 )
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -104,34 +104,10 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Invite,
     as_Reject,
 )
-from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
-
-
-@pytest.fixture
-def actor_store() -> Iterator[Any]:
-    """Factory for ``(actor, store)`` pairs, each store closed on teardown."""
-    stores: list[SqliteDataLayer] = []
-
-    def _make(name: str) -> tuple[as_Service, SqliteDataLayer]:
-        actor = as_Service(name=name)
-        reset_datalayer(actor.id_)
-        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor.id_)
-        dl.clear_all()
-        dl.create(actor)
-        stores.append(dl)
-        return actor, dl
-
-    yield _make
-    for dl in stores:
-        actor_id = dl.actor_id
-        dl.clear_all()
-        dl.close()
-        if actor_id:
-            reset_datalayer(actor_id)
 
 
 def _participant_of(
@@ -247,10 +223,15 @@ def _case_with_invitee_record(
     This is where CM-11-006 leaves a case after an earlier stub Invite.
     """
     case = VulnerabilityCase(
-        attributed_to=manager_id, name="Re-invite", content="Content"
+        attributed_to=manager_id,
+        name="Re-invite",
+        content="Content",
+        stub_summary="Re-invite summary",
     )
     seed_store_owner_as_case_manager(dl, case)
     record = _vendor_participant(case.id_, invitee_id, rm_state)
+    # The record an earlier stub Invite created is inert until it accepts.
+    record.joined = False
     dl.create(record)
     case.case_participants.append(record.id_)
     case.actor_participant_index[invitee_id] = record.id_
@@ -264,8 +245,8 @@ def test_stub_invite_creates_inert_invitee_participant(actor_store) -> None:
 
     A VENDOR invitee to a case with an active embargo is a participant at RM
     ``RECEIVED``, VF ``v`` and consent ``INVITED`` straight after the stub
-    Invite is sent, and the creation is on the case ledger.  Today the
-    participant is created only when the invitee's ``Accept`` arrives.
+    Invite is sent, and the creation is on the case ledger as the stub
+    Invite's entry.
     """
     manager, dl = actor_store("CaseManager")
     invitee, _ = actor_store("Vendor")
@@ -296,25 +277,28 @@ def test_stub_invite_creates_inert_invitee_participant(actor_store) -> None:
     assert participant_status_vf_state(latest) == CS_vf.vf
     assert participant.consent_for(embargo.id_) == EmbargoConsentState.INVITED
 
+    # The stub Invite's own entry records the creation: the record is made
+    # in the same step, from the roles the Invite names (CM-11-006).  No
+    # Add(CaseParticipant) follows it; that message only reinstates
+    # (CM-31-011, CM-31-012).
     creation_entries = [
         e
         for e in dl.list_objects("CaseLedgerEntry")
         if isinstance(e, CaseLedgerEntry)
         and e.case_id == case.id_
-        and "participant" in e.event_type
+        and e.event_type == "invite_actor_to_case"
         and invitee.id_ in json.dumps(e.payload_snapshot, default=str)
     ]
     assert creation_entries, "the participant's creation must be committed"
+    assert not [
+        e
+        for e in dl.list_objects("CaseLedgerEntry")
+        if isinstance(e, CaseLedgerEntry)
+        and e.event_type == "add_case_participant"
+    ]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "CM-11-018: a participant that joined through an Invite never"
-        " answers the original Offer(VulnerabilityReport). Tracked by #4051."
-    ),
-)
-@pytest.mark.spec("CM-11-018")
+@pytest.mark.spec("CM-11-020")
 def test_joined_participant_never_answers_the_original_report_offer(
     actor_store,
 ) -> None:
@@ -447,13 +431,6 @@ def test_on_behalf_assertion_for_absent_target_is_refused(
     assert list(after.case_participants) == participants_before
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "CM-11-014: a stub Invite carries a reply deadline and an unanswered"
-        " invitee does not block all-participants-closed. Tracked by #4049."
-    ),
-)
 @pytest.mark.spec("CM-11-014")
 def test_stub_invite_has_deadline_and_unanswered_invitee_never_blocks_closure(
     actor_store,
@@ -501,13 +478,6 @@ def test_stub_invite_has_deadline_and_unanswered_invitee_never_blocks_closure(
     assert all_participants_rm_closed([closed_manager, unanswered])
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "CM-11-015: a re-invite is a fresh stub Invite with a new deadline"
-        " on the existing record. Tracked by #4049."
-    ),
-)
 @pytest.mark.spec("CM-11-015")
 def test_reinvite_reuses_the_invitee_record_with_a_new_deadline(
     actor_store,
@@ -536,13 +506,6 @@ def test_reinvite_reuses_the_invitee_record_with_a_new_deadline(
     assert len(after.case_participants) == len(case.case_participants)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "CM-11-015: a re-invite to a participant at RM CLOSED is refused"
-        " (ADR-0085). Tracked by #4049."
-    ),
-)
 @pytest.mark.spec("CM-11-015")
 def test_reinvite_to_closed_participant_is_refused(actor_store) -> None:
     """``CLOSED`` is terminal with no rejoin; the trigger refuses the Invite.
@@ -574,22 +537,13 @@ def _invites_to(dl: SqliteDataLayer, invitee_id: str) -> list[as_Invite]:
     ]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "CM-11-016: an embargo change re-issues the outstanding stub Invite,"
-        " naming the one it supersedes, and refuses an Accept of the old one."
-        " Tracked by #4049."
-    ),
-)
 @pytest.mark.spec("CM-11-016")
 def test_embargo_change_reissues_outstanding_stub_invite(actor_store) -> None:
     """Terminating the embargo re-issues the stub Invite with current terms.
 
     The replacement goes to the same invitee and names the Invite it
     supersedes; an ``Accept`` of the superseded Invite is then refused, and
-    the refusal names the replacement.  Today termination leaves the
-    original stub Invite outstanding and sends nothing new.
+    the refusal names the replacement.
     """
     owner, dl = actor_store("Vendor Owner")
     finder, _ = actor_store("Finder")
@@ -644,14 +598,6 @@ def _accept_stub_invite(
     assert result.disposition is HandlerDisposition.APPLIED, result.reason
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "CM-11-014: all-participants-closed counts a participant that joined"
-        " and is still at RM RECEIVED, and every directly seated participant;"
-        " only an unanswered invitee is skipped. Tracked by #4049."
-    ),
-)
 @pytest.mark.spec("CM-11-014")
 def test_closure_check_skips_only_participants_that_never_joined(
     actor_store,
@@ -671,7 +617,10 @@ def test_closure_check_skips_only_participants_that_never_joined(
     for invitee in (silent, joiner):
         dl.create(invitee)
     case = VulnerabilityCase(
-        attributed_to=manager.id_, name="Closure", content="Content"
+        attributed_to=manager.id_,
+        name="Closure",
+        content="Content",
+        stub_summary="Closure summary",
     )
     manager_record = seed_store_owner_as_case_manager(dl, case)
     dl.create(case)
@@ -708,13 +657,6 @@ def test_closure_check_skips_only_participants_that_never_joined(
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "CM-11-016: a Reject of a superseded stub Invite is honoured — the"
-        " record closes. Tracked by #4049."
-    ),
-)
 @pytest.mark.spec("CM-11-016")
 def test_reject_of_superseded_stub_invite_is_honoured(actor_store) -> None:
     """A hard no does not depend on which version of the ask it answers.

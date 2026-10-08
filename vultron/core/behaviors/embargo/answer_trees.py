@@ -20,12 +20,12 @@ and ``reject_invite_to_embargo_tree`` handles ``Reject(Invite(EmbargoEvent))``.
 Each is the sender's own consent, the case owner's included (ADR-0122); the
 owner's decision for the case has activities of its own
 (``owner_decision_tree``).  Every answer routes through the CASE_MANAGER
-(PCR-08, ADR-0113), so the
-effects of both trees write shared case state and sit behind
-``create_case_manager_gated_tree`` (BT-17-001, RSH-08-003): a participant
-replica learns the answer from the ``Announce(CaseLedgerEntry)`` broadcast
-(EP-09-007), never from the activity itself.  A receiver the gate turns away
-reports ``REFUSED`` (HP-01-005).
+(PCR-08, ADR-0113), so the effects of both trees write shared case state and
+are passed as ``manager_effects``, which the factory gates on the CASE_MANAGER
+(BT-17-001, BT-17-008, RSH-08-003): a participant replica learns the answer
+from the ``Announce(CaseLedgerEntry)`` broadcast (EP-09-007), never from the
+activity itself.  A receiver the gate turns away reports ``REFUSED``
+(HP-01-005).
 
 Split out of ``announce_teardown_tree`` to keep that module under the
 CS-18-001 size cap; it re-exports both factories.
@@ -35,9 +35,6 @@ import logging
 
 import py_trees
 
-from vultron.core.behaviors.case.nodes.role_gates import (
-    create_case_manager_gated_tree,
-)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -66,10 +63,12 @@ def accept_invite_to_embargo_tree(
     Handles receipt of an ``Accept(InviteToEmbargoOnCase)`` activity: the
     sender's own consent, the case owner's included (ADR-0122).  Records the
     acceptance via EmbargoLifecycle, moving no register entry, and commits a
-    canonical ledger entry.  Only the CASE_MANAGER records it (BT-17-001); any other
-    receiver's gate turns it away and the handler reports a refusal.  The
-    CASE_MANAGER then backfills any participant the acceptance admitted
-    (CM-10-006).
+    canonical ledger entry.  Only the CASE_MANAGER records it (BT-17-001); any
+    other receiver's gate turns it away and the handler reports a refusal.
+    The owner's activation of a proposal is a separate activity
+    (``activate_embargo_on_case_tree``), so no revision becomes active here;
+    the backfill still runs because a participant that accepts the embargo in
+    force becomes a signatory the fan-out of this entry withheld (CM-10-006).
 
     Args:
         case_id: ID of the VulnerabilityCase.
@@ -87,23 +86,19 @@ def accept_invite_to_embargo_tree(
             invite_id=invite_id, sender_actor_id=accepting_actor_id
         ),
         precondition_guards=[ValidateCaseExistsNode(case_id=case_id)],
-        effect_nodes=[
-            create_case_manager_gated_tree(
-                name="RecordEmbargoAcceptance",
+        manager_effects=[
+            RecordParticipantAcceptanceNode(
                 case_id=case_id,
-                children=[
-                    RecordParticipantAcceptanceNode(
-                        case_id=case_id,
-                        embargo_id=embargo_id,
-                        accepting_actor_id=accepting_actor_id,
-                    ),
-                    # Accepting the embargo in force can admit the
-                    # participant after its entry was fanned out; send what
-                    # the gate withheld (CM-10-006).
-                    BackfillAdmittedParticipantsNode(case_id=case_id),
-                ],
+                embargo_id=embargo_id,
+                accepting_actor_id=accepting_actor_id,
             ),
+            # Accepting the embargo in force can admit the participant after
+            # its entry was fanned out; send what the gate withheld
+            # (CM-10-006).
+            BackfillAdmittedParticipantsNode(case_id=case_id),
         ],
+        manager_case_id=case_id,
+        manager_gate_name="RecordEmbargoAcceptance",
     )
     logger.info(
         "Created AcceptInviteToEmbargoBT for case=%s embargo=%s"
@@ -142,7 +137,8 @@ def reject_invite_to_embargo_tree(
     Reject naming the *active* embargo is consent withdrawal, one naming a
     *proposed* embargo declines that embargo's row only.  It decides no
     proposal: the owner's rejection for the case is
-    ``Reject(EmbargoEvent, target=Case)``.
+    ``Reject(EmbargoEvent, target=Case)``
+    (``reject_embargo_proposal_on_case_tree``).
 
     Args:
         case_id: ID of the VulnerabilityCase.
@@ -163,21 +159,17 @@ def reject_invite_to_embargo_tree(
         precondition_guards=[
             IsRejectableEmbargoNode(case_id=case_id, embargo_id=embargo_id),
         ],
-        effect_nodes=[
-            create_case_manager_gated_tree(
-                name="AnswerRejectedEmbargo",
+        manager_effects=[
+            # The consent belongs to the actor who rejected, not to the BT
+            # execution actor (the CASE_MANAGER, PCR-08).
+            RecordParticipantRejectionNode(
                 case_id=case_id,
-                children=[
-                    # The consent belongs to the actor who rejected, not to
-                    # the BT execution actor (the CASE_MANAGER, PCR-08).
-                    RecordParticipantRejectionNode(
-                        case_id=case_id,
-                        embargo_id=embargo_id,
-                        rejecting_actor_id=rejecting_actor_id,
-                    ),
-                ],
+                embargo_id=embargo_id,
+                rejecting_actor_id=rejecting_actor_id,
             ),
         ],
+        manager_case_id=case_id,
+        manager_gate_name="AnswerRejectedEmbargo",
     )
     logger.info(
         "Created RejectInviteToEmbargoBT for case=%s rejecting_actor=%s"

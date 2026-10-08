@@ -36,6 +36,7 @@ from vultron.core.behaviors.case.nodes.participant.status import (
 )
 from vultron.core.behaviors.case.report_author import report_author_id
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
@@ -44,7 +45,7 @@ from vultron.errors import BtNodePreconditionError, VultronNotFoundError
 logger = logging.getLogger(__name__)
 
 
-class AddReporterParticipantNode(DataLayerActionWithPorts):
+class AddReporterParticipantNode(DataLayerActionWithPorts, StateWriteCapable):
     """Add the reporter as a participant at RM.ACCEPTED.
 
     Reads the reporter's actor URI from ``VulnerabilityReport.attributed_to``

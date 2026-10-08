@@ -138,7 +138,7 @@ def create_reject_case_proposal_received_tree(
             report_id=report_id, sender_actor_id=sender_actor_id
         ),
         precondition_guards=[],
-        effect_nodes=[
+        replica_effects=[
             RecordCaseProposalRejectionNode(
                 report_id=report_id,
                 rejection_reason=rejection_reason,

@@ -30,6 +30,10 @@ import logging
 
 import py_trees
 
+from vultron.config.actor import ActorConfig
+from vultron.core.behaviors.case.nodes.invite_actor_emit import (
+    ReissueStubInvitesNode,
+)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -39,6 +43,7 @@ from vultron.core.behaviors.embargo.nodes import (
     IsOpenEmbargoProposalNode,
     OwnerMayActivateEmbargoNode,
     OwnerRejectsRevisionAfterDisclosureNode,
+    embargo_ending_notice_nodes,
 )
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
 from vultron.core.behaviors.sender_entitlement import SenderIsCaseOwnerNode
@@ -54,6 +59,7 @@ def activate_embargo_on_case_tree(
     case_id: str,
     embargo_id: str,
     sender_actor_id: str,
+    actor_config: ActorConfig | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for the case owner's activation of a proposal (EA / EC).
 
@@ -66,8 +72,11 @@ def activate_embargo_on_case_tree(
         ├─ OwnerMayActivateEmbargoNode       # P/X/A clear, owner not DECLINED
         ├─ GuardedCommitCaseLedgerEntryBT
         └─ ActivateEmbargoOnCaseBTIfCaseManager (CASE_MANAGER gate)
+           ├─ CaptureActiveEmbargoNode       # snapshot signatories before
            ├─ ActivateEmbargoLifecycleNode   # ACTIVATE (+ SUPERSEDE), owner AGREE
-           └─ BackfillAdmittedParticipantsNode  # CM-10-006
+           ├─ SendEmbargoEndingNoticesNode   # tell dropped signatories (CM-31-009)
+           ├─ BackfillAdmittedParticipantsNode  # CM-10-006
+           └─ ReissueStubInvitesNode         # CM-11-016
 
     The guards refuse the activation before the commit when P/X/A is set
     (EMB-02-002) or the owner had declined the proposal (ADR-0122), so a
@@ -75,16 +84,26 @@ def activate_embargo_on_case_tree(
     ``STRICT``.
     Activating a revision can admit a participant that had already accepted
     it after the entry was fanned out, so the CASE_MANAGER then sends what
-    the gate withheld (CM-10-006).
+    the gate withheld (CM-10-006), tells any signatory a shorter revision
+    dropped and the ledger no longer reaches (CM-31-009), and re-issues each
+    outstanding stub Invite against the now-active embargo (CM-11-016).
 
     Args:
         case_id: ID of the VulnerabilityCase.
         embargo_id: ID of the proposed EmbargoEvent being activated.
         sender_actor_id: Sender of the ``Accept``; must be the case owner.
+        actor_config: The CASE_MANAGER's configuration; its RSVP windows set
+            the deadline of a stub Invite the activation re-issues.
 
     Returns:
         Root node of the ``ActivateEmbargoOnCaseBT`` Sequence.
     """
+    # The owner's activation of a shorter revision drops bound signatories the
+    # ledger no longer reaches; capture them before the write, tell them after
+    # (CM-31-009).
+    capture, notices = embargo_ending_notice_nodes(
+        case_id, requested_by=sender_actor_id
+    )
     root = create_receive_activity_tree(
         name="ActivateEmbargoOnCaseBT",
         case_id=case_id,
@@ -98,10 +117,15 @@ def activate_embargo_on_case_tree(
             ),
         ],
         manager_effects=[
+            capture,
             ActivateEmbargoLifecycleNode(
                 case_id=case_id, embargo_id=embargo_id, result_out={}
             ),
+            notices,
             BackfillAdmittedParticipantsNode(case_id=case_id),
+            # The owner's activation of a revision changes the active embargo
+            # under any stub Invite still outstanding (CM-11-016).
+            ReissueStubInvitesNode(case_id=case_id, actor_config=actor_config),
         ],
         manager_case_id=case_id,
     )
@@ -118,6 +142,7 @@ def _decide_owner_rejection(
     case_id: str,
     embargo_id: str,
     rejecting_actor_id: str,
+    actor_config: ActorConfig | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """The owner's Reject decides the proposal; with P/X/A set it ends the embargo.
 
@@ -151,7 +176,9 @@ def _decide_owner_rejection(
                     terminate_embargo_bt(
                         case_id=case_id,
                         result_out={},
+                        requested_by=rejecting_actor_id,
                         reason=TerminationReason.THREAT_SIGNAL,
+                        actor_config=actor_config,
                     ),
                 ],
             ),
@@ -172,6 +199,7 @@ def reject_embargo_proposal_on_case_tree(
     case_id: str,
     embargo_id: str,
     sender_actor_id: str,
+    actor_config: ActorConfig | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for the case owner's rejection of a proposal (ER / EJ).
 
@@ -211,7 +239,9 @@ def reject_embargo_proposal_on_case_tree(
             IsOpenEmbargoProposalNode(case_id=case_id, embargo_id=embargo_id),
         ],
         manager_effects=[
-            _decide_owner_rejection(case_id, embargo_id, sender_actor_id),
+            _decide_owner_rejection(
+                case_id, embargo_id, sender_actor_id, actor_config
+            ),
             # After an ET the proposal is already cancelled, so this is a
             # no-op.
             DecideRejectedEmbargoProposalNode(

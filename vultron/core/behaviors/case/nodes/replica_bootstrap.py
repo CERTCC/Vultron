@@ -47,6 +47,7 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.services.case_replica_seeding import (
@@ -234,7 +235,7 @@ class CheckSenderIsSnapshotManagerNode(DataLayerActionWithPorts):
         return Status.FAILURE
 
 
-class SeedCaseReplicaNode(DataLayerActionWithPorts):
+class SeedCaseReplicaNode(DataLayerActionWithPorts, StateWriteCapable):
     """Persist the received case as this actor's replica, unless one exists.
 
     Idempotent (CBT-01-006, ID-04-004): a replica already held, or persisted

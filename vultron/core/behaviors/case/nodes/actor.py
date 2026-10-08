@@ -42,6 +42,9 @@ from py_trees.common import Status
 from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
 from pydantic import ValidationError
 
+from vultron.core.behaviors.case.nodes.invite_actor_emit import (  # noqa: F401
+    EmitInviteActorToCaseNode,
+)
 from vultron.core.behaviors.case.nodes.invite_response import (  # noqa: F401
     EmitAcceptCaseInviteNode,
     EmitRejectCaseInviteNode,
@@ -50,162 +53,13 @@ from vultron.core.behaviors.case.nodes.participant.roles import (
     suggested_roles_key,
 )
 from vultron.core.behaviors.case.offer_provenance import find_offer_for_report
-from vultron.core.behaviors.delegated_authorship import delegated_authorship
 from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
-    _EmitSingleActivityBase,
 )
 from vultron.core.behaviors.node_logger import node_logger
-from vultron.core.behaviors.sync.commit_tree import (
-    commit_emitted_activity,
-)
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.enums.roles import CVDRole, serialize_roles
-
-
-class EmitInviteActorToCaseNode(_EmitSingleActivityBase):
-    """Create Invite(Actor, CaseStub), commit it, and queue it in this actor's outbox.
-
-    Runs only in a CASE_MANAGER-gated received tree, so ``self.actor_id`` is
-    the CASE_MANAGER and the store is its own (BT-05-006, CM-24-004).  The
-    Invite is addressed ``to=[invitee_id]`` and to no one else: the
-    CASE_MANAGER never addresses a copy to itself (CLP-10-001, ADR-0109).
-    Build → commit → outbox append is the order, so the in-tree commit is the
-    only ledger entry the Invite ever gets and a failed commit cannot orphan
-    an outbox item (CM-17-006).  An optional ``attributed_to`` carries the
-    participant who asked for the invitation (PCR-08-007).
-
-    Roles are resolved via ``_read_suggested_roles()``, which uses two paths:
-
-    1. **Injected roles** (``roles`` constructor parameter): used when the
-       node is instantiated from a stored ``Offer(CaseParticipant)`` in the
-       DataLayer (ISSUE-1745, CM-16-018).  The stored Offer is the trusted
-       source because the received ``Accept`` is untrusted.
-    2. **Evaluator output** (``recommendation_id`` constructor parameter):
-       the roles :class:`EvaluateDefaultRolesNode` wrote earlier in the same
-       tree under its namespaced key ``suggested_roles_{id_segment}``
-       (BTND-03-004, CM-16-003, CM-17-007).
-
-    Reads the ``VulnerabilityCase`` from the DataLayer and passes it as
-    ``target`` to ``TriggerActivityPort.invite_actor_to_case()``.  The adapter
-    and factory project it to an enriched ``as_VulnerabilityCaseStub`` — including
-    ``end_time`` when ``em_state == EM.ACTIVE`` — without violating the
-    core→wire import boundary (ARCH-01-001, CM-17-002).
-    """
-
-    def __init__(
-        self,
-        invitee_id: str,
-        case_id: str,
-        attributed_to: str | None = None,
-        captured: dict | None = None,
-        roles: list[str] | None = None,
-        recommendation_id: str | None = None,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(captured=captured, name=name)
-        self.invitee_id = invitee_id
-        self.case_id = case_id
-        self.attributed_to = attributed_to
-        self._injected_roles = roles
-        self._roles_key = (
-            f"/{suggested_roles_key(recommendation_id)}"
-            if recommendation_id is not None
-            else None
-        )
-        self._suggested_roles_bb = None
-
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **_EmitSingleActivityBase.INPUT_PORTS,
-        "suggested_roles": PortInformation(data_type=list, required=False),
-    }
-
-    def _instance_port_remappings(self) -> dict[str, str]:
-        if self._roles_key is None:
-            return {}
-        return {"suggested_roles": self._roles_key}
-
-    def initialise(self) -> None:
-        super().initialise()
-        self._suggested_roles_bb = None
-        if self._roles_key is None:
-            return
-        try:
-            self._suggested_roles_bb = self.get_input("suggested_roles")
-        except (NoDataAvailable, NotImplementedError):
-            pass
-
-    def _read_suggested_roles(self) -> list[str] | None:
-        # Use injected roles (from stored Offer via DataLayer) when available
-        # (ISSUE-1745: blackboard is empty in a separate BT execution).
-        if self._injected_roles is not None:
-            return self._injected_roles if self._injected_roles else None
-        roles = self._suggested_roles_bb
-        if isinstance(roles, list):
-            return serialize_roles(roles)
-        return None
-
-    def _call_factory(self) -> tuple[str, str]:
-        """Build Invite(Actor, CaseStub) activity and commit the ledger correlation marker."""
-        roles = self._read_suggested_roles()
-        if roles is not None and not roles:
-            raise ValueError(
-                f"suggested_roles for actor '{self.invitee_id}' is empty"
-                " — cannot emit Invite(Actor, CaseStub) without at least one role"
-            )
-        # CM-17-002: pass the full case object so the adapter+factory can
-        # project it to an enriched stub (with end_time) when em_state==ACTIVE.
-        assert self.datalayer is not None and self.actor_id is not None
-        assert self.trigger_activity_factory is not None
-        # Regime 3 (ADR-0087): the case is *optional enrichment* here, not
-        # coordination state — the Invite is fully specified by invitee/case_id/
-        # actor/roles, and the factory tolerates target=None (CM-17-002 only
-        # enriches the stub when the case is present and em_state==ACTIVE). A
-        # missing local case therefore emits a bare stub rather than failing;
-        # this read is deliberately unguarded (conformance allowlist).
-        case = self.datalayer.read_case(self.case_id)
-        # ``None`` is the manager's own invitation; otherwise the participant
-        # who asked for it is the attributed author (PCR-08-007, CM-24-005).
-        authorship = (
-            delegated_authorship(
-                doing_actor_id=self.actor_id,
-                requesting_actor_id=self.attributed_to,
-            )
-            if self.attributed_to is not None
-            else None
-        )
-        activity_id, activity_blob = (
-            self.trigger_activity_factory.invite_actor_to_case(
-                invitee_id=self.invitee_id,
-                case_id=self.case_id,
-                actor=authorship.actor if authorship else self.actor_id,
-                to=[self.invitee_id],
-                attributed_to=authorship.attributed_to if authorship else None,
-                roles=roles,
-                target=case,
-            )
-        )
-        # The recorded snapshot is the exact blob the port returned: the
-        # factory owns its completeness (``context``, inline objects), and
-        # this same text is what the outbox delivers (VM-08-003).
-        commit_emitted_activity(
-            datalayer=cast(CaseOutboxPersistence, self.datalayer),
-            actor_id=self.actor_id,
-            case_id=self.case_id,
-            activity_id=activity_id,
-            activity_blob=activity_blob,
-            event_type="invite_actor_to_case",
-        )
-        return activity_id, activity_blob
-
-    def _on_success(self, activity_id: str, activity_blob: str) -> None:
-        self.logger.info(
-            "Actor '%s' emitted Invite(Actor, CaseStub) to '%s' for case '%s'",
-            self.actor_id,
-            self.invitee_id,
-            self.case_id,
-        )
+from vultron.enums.roles import CVDRole
 
 
 class ProposeCaseToActorNode(DataLayerActionWithPorts, EmitCapable):

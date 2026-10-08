@@ -104,6 +104,39 @@ Known xdist hazards in this codebase:
 
 A compatibility audit (TB-13-005) is a prerequisite before enabling xdist.
 
+## Ratchets That Start From a Live Object
+
+Some ratchets start from a live object — a routed use case, a tree factory —
+rather than from a file scan. Two rules keep them inside TB-13:
+
+- **Get the definition from the shared parse.**
+  `_corpus.function_definition(fn, mentioning=...)` returns the cached AST node
+  that defines `fn`; `inspect.getsource` plus `parse_inline` re-reads the file
+  and parses each function a second time. With `mentioning`, a module that
+  contains none of the fragments is skipped unparsed (TB-13-008).
+  `_corpus.source_of(path)` gives a `(path, tree)` holder the cached text.
+- **Pause the collector around an AST-heavy derivation.**
+  Parsing and walking a few hundred modules allocates hundreds of thousands of
+  nodes, and each allocation threshold triggers a collection that walks the
+  whole pytest heap. Inside a suite run that doubled the commit-inventory scan
+  (0.35 s to 0.78 s). `@_corpus.gc_paused()` on the derivation, plus a
+  per-process `functools.cache`, keeps each test under the TB-13-004 budget.
+
+`_ledger_commit_inventory.py` shows both, and a third trick: it finds the
+names that *may* reach a commit with a text-only fixed point over
+`_corpus` sources, and parses only the modules that mention one of them.
+That fixed point is `_corpus.names_reaching(seeds, under=...)`: it parses
+nothing, follows top-level import and assignment aliases, and with
+`classes=False` follows functions only (a class span holds every method, so
+one writing method would make every caller of the class match). The
+state-write ratchet uses it to find helper functions that reach a DataLayer
+write, so a seam list never has to name them. It then runs its class-level
+fixed point twice: first over `_corpus.class_spans` text, which
+over-approximates every call the AST can see, then over the AST of only the
+candidate classes (`_corpus.paths_under`, `_corpus.tree_of`). Prefiltering
+files by *mentioning* a class name instead parses every module that imports
+one, which tripled that scan.
+
 ## Spec Requirements
 
 See `specs/testability.yaml` TB-13-001 through TB-13-005.

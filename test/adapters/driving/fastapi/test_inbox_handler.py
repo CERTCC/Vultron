@@ -862,6 +862,47 @@ def test_make_dispatcher_close_case_gets_wire_render_port(monkeypatch):
     assert isinstance(kwargs.get("wire_render_port"), As2WireRenderAdapter)
 
 
+@pytest.mark.spec("CM-31-009")
+@pytest.mark.parametrize(
+    "sem",
+    [
+        MessageSemantics.ACTIVATE_EMBARGO_ON_CASE,
+        MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE,
+        MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE,
+        MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
+    ],
+)
+def test_make_dispatcher_gives_embargo_ending_paths_the_trigger_port(
+    monkeypatch, sem
+):
+    """Every received path that ends or replaces an embargo can send notices.
+
+    The CASE_MANAGER's direct notices to the bound signatories the ledger no
+    longer reaches are built through the trigger port (CM-31-009); a missing
+    port would fail the tree after the EM write.
+    """
+    from vultron.adapters.driven.trigger_activity_adapter import (
+        TriggerActivityAdapter,
+    )
+
+    captured: dict = {}
+
+    def fake_get_dispatcher(use_case_map, port_factories=None):
+        captured["port_factories"] = port_factories
+        return Mock()
+
+    monkeypatch.setattr(ih, "get_dispatcher", fake_get_dispatcher)
+    ih.make_dispatcher()
+
+    real_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
+    kwargs = captured["port_factories"][sem](real_dl)
+
+    assert isinstance(kwargs.get("trigger_activity"), TriggerActivityAdapter)
+
+
 @pytest.mark.spec("ARCH-20-001")
 @pytest.mark.spec("ARCH-20-004")
 def test_make_dispatcher_gives_every_semantic_a_wire_render_port(monkeypatch):

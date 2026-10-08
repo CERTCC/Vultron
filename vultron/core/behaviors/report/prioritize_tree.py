@@ -55,6 +55,9 @@ The RM stages are shared with the report-verdict handlers through
 activity-typed RM handler applies the acceptance rule of
 ``Add(ParticipantStatus)``: a forward move is recorded, a non-adjacent one
 included, and a backward one is refused before the commit (RSH-06-006).
+Both trees pass the RSH-06-004 note as ``refusal_effects`` too, so the factory
+wraps their guards in a ``PreconditionGuardStage`` and a refused regression
+still gets its note, at the CASE_MANAGER, before the tree fails (CLP-10-022).
 
 EvaluateCasePriority is now injected via bundle.evaluate_priority_factory
 in create_prioritize_subtree (BT-18-004). The core class in
@@ -77,9 +80,6 @@ from vultron.core.behaviors.case.nodes.carried_snapshot import (
     HoldCarriedEmbargoNode,
     StoreEmbeddedParticipantsNode,
 )
-from vultron.core.behaviors.case.nodes.role_gates import (
-    create_case_manager_gated_tree,
-)
 from vultron.core.behaviors.case.nodes.update import (
     BroadcastCaseUpdateNode,
     CaptureCaseUpdateBroadcastExclusionsNode,
@@ -87,9 +87,14 @@ from vultron.core.behaviors.case.nodes.update import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.replica_emit_exemptions import (
+    DEFER_RM_DECLARATION,
+    ENGAGE_RM_DECLARATION,
+)
 from vultron.core.behaviors.report.rm_declaration_tree import (
     record_rm_declaration,
     rm_declaration_guard,
+    rm_gap_note,
 )
 from vultron.core.behaviors.sender_entitlement import (
     SenderIsActiveParticipantNode,
@@ -154,21 +159,19 @@ def create_engage_case_tree(
             ),
             rm_declaration_guard(actor_id, RM.ACCEPTED, case_id),
         ],
-        effect_nodes=[
-            *record_rm_declaration(
-                actor_id, RM.ACCEPTED, case_id, name="TransitionRMtoAccepted"
-            ),
-            # Only the CASE_MANAGER announces canonical case state: the
-            # broadcast is authored as the executing actor (CM-06-001).
-            create_case_manager_gated_tree(
-                name="GuardedBroadcastEngageCaseBT",
-                case_id=case_id,
-                children=[
-                    CaptureCaseUpdateBroadcastExclusionsNode(case_id=case_id),
-                    BroadcastCaseUpdateNode(case_id=case_id),
-                ],
-            ),
+        replica_effects=record_rm_declaration(
+            actor_id, RM.ACCEPTED, case_id, name="TransitionRMtoAccepted"
+        ),
+        replica_emit_exemption=ENGAGE_RM_DECLARATION,
+        # Only the CASE_MANAGER announces canonical case state: the
+        # broadcast is authored as the executing actor (CM-06-001).
+        manager_effects=[
+            CaptureCaseUpdateBroadcastExclusionsNode(case_id=case_id),
+            BroadcastCaseUpdateNode(case_id=case_id),
         ],
+        manager_case_id=case_id,
+        manager_gate_name="GuardedBroadcastEngageCaseBT",
+        refusal_effects=[rm_gap_note(actor_id, case_id)],
     )
 
     logger.info(
@@ -205,9 +208,11 @@ def create_defer_case_tree(
         precondition_guards=[
             rm_declaration_guard(actor_id, RM.DEFERRED, case_id),
         ],
-        effect_nodes=record_rm_declaration(
+        replica_effects=record_rm_declaration(
             actor_id, RM.DEFERRED, case_id, name="TransitionRMtoDeferred"
         ),
+        replica_emit_exemption=DEFER_RM_DECLARATION,
+        refusal_effects=[rm_gap_note(actor_id, case_id)],
     )
 
     logger.info("Created DeferCaseBT for case=%s, actor=%s", case_id, actor_id)
