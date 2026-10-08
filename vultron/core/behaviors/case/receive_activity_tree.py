@@ -151,9 +151,10 @@ def _check_effect_arguments(
         )
     if gate_arguments_without_effects:
         raise VultronWiringError(
-            f"{where}: manager_case_id, manager_gate_name and"
-            " manager_case_may_be_absent configure the gate around"
-            " manager_effects; pass them only with manager_effects"
+            f"{where}: manager_case_id, manager_gate_name,"
+            " manager_body_name and manager_case_may_be_absent configure"
+            " the gate around manager_effects; pass them only with"
+            " manager_effects"
             " (BT-17-008)"
         )
 
@@ -200,6 +201,7 @@ def _manager_stage(
     manager_effects: list[py_trees.behaviour.Behaviour],
     manager_case_id: str | None,
     manager_gate_name: str | None,
+    manager_body_name: str | None,
     manager_case_may_be_absent: bool,
 ) -> CaseManagerGate:
     """Wrap *manager_effects* in the CASE_MANAGER gate.
@@ -218,6 +220,7 @@ def _manager_stage(
         name=manager_gate_name or f"{name}IfCaseManager",
         case_id=manager_case_id,
         children=manager_effects,
+        body_name=manager_body_name,
         case_may_be_absent=manager_case_may_be_absent,
     )
 
@@ -235,6 +238,7 @@ def create_receive_activity_tree(
     manager_effects: list[py_trees.behaviour.Behaviour] | None = None,
     manager_case_id: str | None = None,
     manager_gate_name: str | None = None,
+    manager_body_name: str | None = None,
     manager_case_may_be_absent: bool = False,
 ) -> py_trees.composites.Sequence:
     """Compose a receive-side BT with the four CLP-10-010 stages in order.
@@ -278,9 +282,9 @@ def create_receive_activity_tree(
     A received-tree module does not call ``create_case_manager_gated_tree``
     itself.
 
-    ``effect_nodes`` is the pre-BT-17-008 form, kept while the received trees
-    migrate (#4300, #4301, #4302): it runs ungated where ``replica_effects``
-    would, unchecked.  It cannot be combined with the two new kinds.
+    ``effect_nodes`` is the pre-BT-17-008 form, kept until the last received
+    trees migrate (#4307): it runs ungated where ``replica_effects`` would,
+    unchecked.  It cannot be combined with the two new kinds.
 
     When ``case_id`` is ``None`` the commit step is omitted entirely,
     preserving behaviour for trees that receive no explicit case context;
@@ -310,6 +314,8 @@ def create_receive_activity_tree(
         manager_case_id: Case whose CASE_MANAGER gates ``manager_effects``.
         manager_gate_name: Name of the gate Selector; defaults to
             ``{name}IfCaseManager``.
+        manager_body_name: Name of the Sequence wrapping several
+            ``manager_effects``; defaults to ``{manager_gate_name}Body``.
         manager_case_may_be_absent: Passed to the gate; see
             :class:`CheckIsCaseManagerNode`.
 
@@ -332,6 +338,7 @@ def create_receive_activity_tree(
         and (
             manager_case_id is not None
             or manager_gate_name is not None
+            or manager_body_name is not None
             or manager_case_may_be_absent
         ),
     )
@@ -364,6 +371,7 @@ def create_receive_activity_tree(
                 manager,
                 manager_case_id,
                 manager_gate_name,
+                manager_body_name,
                 manager_case_may_be_absent,
             )
         )

@@ -54,7 +54,6 @@ consent resolved). BT-06-001, BT-15-001, BT-17-001.
 
 import py_trees
 
-from vultron.core.behaviors.case.nodes import create_case_manager_gated_tree
 from vultron.core.behaviors.case.nodes.full_case_invite import (
     EmitInviteActorToFullCaseNode,
 )
@@ -211,65 +210,61 @@ def create_accept_invite_actor_to_case_tree(
             ),
             CapturePreCommitBackfillTargetNode(case_id=case_id),
         ],
-        effect_nodes=[
-            create_case_manager_gated_tree(
-                name="AcceptInviteIfCaseManager",
+        manager_effects=[
+            CreateInviteeParticipantNode(
                 case_id=case_id,
-                children=[
-                    CreateInviteeParticipantNode(
-                        case_id=case_id,
-                        invitee_id=invitee_id,
-                        invite_id=invite_id,
-                    ),
-                    MaybeSignEmbargoConsentNode(
-                        case_id=case_id, invitee_id=invitee_id
-                    ),
-                    PersistInviteeParticipantNode(
-                        case_id=case_id, invitee_id=invitee_id
-                    ),
-                    AdvanceInviteeToReceivedNode(
-                        case_id=case_id, invitee_id=invitee_id
-                    ),
-                    AdvanceInviteeVFToVendorAwareNode(
-                        case_id=case_id, invitee_id=invitee_id
-                    ),
-                    # CM-17-004 step (3): seed the invitee's case,
-                    # then backfill the prior ledger in log-index order.
-                    EmitAnnounceCaseToInviteeNode(
-                        case_id=case_id, invitee_id=invitee_id
-                    ),
-                    BackfillCanonicalLedgerToInviteeNode(
-                        case_id=case_id, invitee_id=invitee_id
-                    ),
-                    # CM-17-004 step (4): the full-case Invite, queued after
-                    # the last replayed entry so its ledger tail is the floor
-                    # the invitee must reach before it answers (CM-11-010,
-                    # ADR-0121).  It is also the first node after the join
-                    # that commits an entry, and that commit fans out to the
-                    # invitee, active since PersistInviteeParticipantNode.
-                    # Placed before the announce it would hand the invitee a
-                    # ledger entry for a case it does not hold yet (SYNC-15
-                    # pre-genesis Reject, then a from-genesis replay
-                    # interleaved with the backfill — fcvcv V2/C2, #2898);
-                    # placed between announce and backfill it would arrive as
-                    # a forward gap ahead of the entries it extends.  Here it
-                    # reaches the invitee as the next entry in chain order.
-                    # No Add(CaseParticipant) precedes it (CM-31-012).
-                    EmitInviteActorToFullCaseNode(
-                        case_id=case_id, invitee_id=invitee_id
-                    ),
-                    # EP-09-011: the joiner was not on the roster when any
-                    # open proposal was relayed, so it is invited now, after
-                    # it holds the case and the ledger.  Its commits fan out
-                    # to the joiner too, so it stays after the backfill for
-                    # the same #2898 reason.
-                    RelayOpenProposalsToJoinerNode(
-                        case_id=case_id, invitee_id=invitee_id
-                    ),
-                ],
-                body_name="AcceptInviteEffects",
+                invitee_id=invitee_id,
+                invite_id=invite_id,
+            ),
+            MaybeSignEmbargoConsentNode(
+                case_id=case_id, invitee_id=invitee_id
+            ),
+            PersistInviteeParticipantNode(
+                case_id=case_id, invitee_id=invitee_id
+            ),
+            AdvanceInviteeToReceivedNode(
+                case_id=case_id, invitee_id=invitee_id
+            ),
+            AdvanceInviteeVFToVendorAwareNode(
+                case_id=case_id, invitee_id=invitee_id
+            ),
+            # CM-17-004 step (3): seed the invitee's case,
+            # then backfill the prior ledger in log-index order.
+            EmitAnnounceCaseToInviteeNode(
+                case_id=case_id, invitee_id=invitee_id
+            ),
+            BackfillCanonicalLedgerToInviteeNode(
+                case_id=case_id, invitee_id=invitee_id
+            ),
+            # CM-17-004 step (4): the full-case Invite, queued after
+            # the last replayed entry so its ledger tail is the floor
+            # the invitee must reach before it answers (CM-11-010,
+            # ADR-0121).  It is also the first node after the join that
+            # commits an entry, and that commit fans out to the invitee,
+            # active since PersistInviteeParticipantNode.  Placed before
+            # the announce it would hand the invitee a ledger entry for
+            # a case it does not hold yet (SYNC-15 pre-genesis Reject,
+            # then a from-genesis replay interleaved with the backfill —
+            # fcvcv V2/C2, #2898); placed between announce and backfill
+            # it would arrive as a forward gap ahead of the entries it
+            # extends.  Here it reaches the invitee as the next entry in
+            # chain order.  No Add(CaseParticipant) precedes it
+            # (CM-31-012).
+            EmitInviteActorToFullCaseNode(
+                case_id=case_id, invitee_id=invitee_id
+            ),
+            # EP-09-011: the joiner was not on the roster when any
+            # open proposal was relayed, so it is invited now, after
+            # it holds the case and the ledger.  Its commits fan out to
+            # the joiner too, so it stays after the backfill for the
+            # same #2898 reason.
+            RelayOpenProposalsToJoinerNode(
+                case_id=case_id, invitee_id=invitee_id
             ),
         ],
+        manager_case_id=case_id,
+        manager_gate_name="AcceptInviteIfCaseManager",
+        manager_body_name="AcceptInviteEffects",
     )
 
 

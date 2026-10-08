@@ -26,7 +26,6 @@ from vultron.core.behaviors.case.nodes.reference_list import (
     CaseReferenceEditPendingNode,
 )
 from vultron.core.behaviors.case.nodes.role_gates import (
-    create_case_manager_gated_tree,
     create_role_scoped_sender_guard,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
@@ -86,13 +85,9 @@ def create_remove_note_from_case_received_tree(
                 ref_id=note_id, case_id=case_id, field="notes", attach=False
             )
         ],
-        effect_nodes=[
-            create_case_manager_gated_tree(
-                name="GuardedDetachNoteBT",
-                case_id=case_id,
-                children=[
-                    DetachNoteFromCaseNode(note_id=note_id, case_id=case_id)
-                ],
-            )
+        manager_effects=[
+            DetachNoteFromCaseNode(note_id=note_id, case_id=case_id)
         ],
+        manager_case_id=case_id,
+        manager_gate_name="GuardedDetachNoteBT",
     )
