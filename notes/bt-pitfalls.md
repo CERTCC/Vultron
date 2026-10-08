@@ -1340,7 +1340,12 @@ The cause was structural: about fifteen trees each wrapped their effects in
   (the ledger replay and the bootstrap trees that mint or seed a case).
   A class reaching a state-write seam either carries the marker or is pinned in
   `WRITES_NO_CASE_STATE` with its reason, so storing a received object,
-  ledger records and local bookkeeping stay visible decisions.
+  ledger records and local bookkeeping stay visible decisions. A seam is
+  reached directly (`dl.save`, `EmbargoLifecycle`, `apply_pec_transition`),
+  through a helper function (derived by a text fixed point, never listed), or
+  by a leaf node that builds a writer node and ticks it itself
+  (`RMClosureWriter`): that inner write is invisible to the tree walk, so the
+  outer node carries the marker.
   Move a write into `manager_effects` only after its replay slot exists
   (RSH-08-004).
 

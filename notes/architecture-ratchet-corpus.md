@@ -125,6 +125,12 @@ rather than from a file scan. Two rules keep them inside TB-13:
 `_ledger_commit_inventory.py` shows both, and a third trick: it finds the
 names that *may* reach a commit with a text-only fixed point over
 `_corpus` sources, and parses only the modules that mention one of them.
+That fixed point is `_corpus.names_reaching(seeds, under=...)`: it parses
+nothing, follows top-level import and assignment aliases, and with
+`classes=False` follows functions only (a class span holds every method, so
+one writing method would make every caller of the class match). The
+state-write ratchet uses it to find helper functions that reach a DataLayer
+write, so a seam list never has to name them.
 
 ## Spec Requirements
 
