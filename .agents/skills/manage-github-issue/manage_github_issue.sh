@@ -18,9 +18,18 @@
 #   --blocks N              This issue blocks #N (repeatable, idempotent)
 #   --sub-issue N           Add #N as sub-issue of this issue (repeatable, idempotent)
 #   --clean-body            Strip legacy relationship markers from the issue body
+#   --opened-as REASON      Why an agent is opening this issue: excursion |
+#                           separate-defect | debt | deferred. Applies the
+#                           matching opened:<REASON> label.
+#   --where TEXT            File, directory, or spec the issue concerns
+#                           (required with --opened-as debt; appended to the body)
+#   --planned               The issue comes from planning or a user request, not
+#                           from a discovery during other work (alternative to
+#                           --opened-as)
 #
-# On CREATE (no --issue-number), the following three fields are REQUIRED:
-#   --issue-type-id, --parent, --milestone
+# On CREATE (no --issue-number), the following are REQUIRED:
+#   --issue-type-id, --parent, --milestone, and exactly one of
+#   --opened-as or --planned
 # Missing any one exits non-zero. See shared/issue-creation-requirements.md.
 #
 # Outputs:
@@ -32,7 +41,7 @@
 #     --title "Implement X" --body "..." \
 #     --issue-type-id "${TASK_TYPE_ID}" \
 #     --label "size:M" \
-#     --parent 42 --milestone 25 --blocked-by 50)
+#     --parent 42 --milestone 25 --planned --blocked-by 50)
 #
 #   # Wire relationships on an existing issue:
 #   .agents/skills/manage-github-issue/manage_github_issue.sh \
@@ -56,6 +65,9 @@ BLOCKED_BY=()
 BLOCKS=()
 SUB_ISSUES=()
 CLEAN_BODY=0
+OPENED_AS=""
+WHERE=""
+PLANNED=0
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -72,6 +84,9 @@ while [[ $# -gt 0 ]]; do
     --blocks)        BLOCKS+=($2);       shift 2 ;;
     --sub-issue)     SUB_ISSUES+=("$2"); shift 2 ;;
     --clean-body)    CLEAN_BODY=1;       shift ;;
+    --opened-as)     OPENED_AS="$2";     shift 2 ;;
+    --where)         WHERE="$2";         shift 2 ;;
+    --planned)       PLANNED=1;          shift ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
 done
@@ -82,10 +97,34 @@ if [[ -z "${ISSUE_NUMBER}" ]]; then
   [[ -z "${ISSUE_TYPE_ID}" ]] && MISSING+=("--issue-type-id")
   [[ -z "${PARENT_ISSUE}"  ]] && MISSING+=("--parent (epic parent required)")
   [[ -z "${MILESTONE}"     ]] && MISSING+=("--milestone")
+  if [[ -z "${OPENED_AS}" && "${PLANNED}" -eq 0 ]]; then
+    MISSING+=("--opened-as REASON (or --planned)")
+  fi
   if [[ ${#MISSING[@]} -gt 0 ]]; then
     echo "ERROR: missing required field(s) for new issue: ${MISSING[*]}" >&2
     echo "  See .agents/skills/shared/issue-creation-requirements.md" >&2
     exit 1
+  fi
+  if [[ -n "${OPENED_AS}" && "${PLANNED}" -eq 1 ]]; then
+    echo "ERROR: --opened-as and --planned are mutually exclusive" >&2
+    exit 1
+  fi
+  case "${OPENED_AS}" in
+    ""|excursion|separate-defect|debt|deferred) ;;
+    *) echo "ERROR: --opened-as must be excursion, separate-defect, debt, or deferred (got '${OPENED_AS}')" >&2
+       exit 1 ;;
+  esac
+  if [[ "${OPENED_AS}" == "debt" && -z "${WHERE}" ]]; then
+    echo "ERROR: --opened-as debt requires --where (file, directory, or spec)" >&2
+    exit 1
+  fi
+  if [[ -n "${OPENED_AS}" ]]; then
+    LABELS+=("opened:${OPENED_AS}")
+  fi
+  if [[ -n "${WHERE}" ]]; then
+    BODY="${BODY}
+
+Where: ${WHERE}"
   fi
 fi
 
