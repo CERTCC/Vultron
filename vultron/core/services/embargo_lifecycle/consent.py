@@ -98,7 +98,7 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
                 *invitee_id* has no participant record on it.
         """
         case = self._read_case(case_id)
-        em_state = case.current_status.em.state
+        em_state = case.em_state
         participant_id = case.actor_participant_index.get(invitee_id)
         participant = (
             self._persistence.read(participant_id) if participant_id else None
@@ -177,7 +177,7 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
                 embargo nor an open proposal of the case.
         """
         case = self._read_case(case_id)
-        em_state = case.current_status.em.state
+        em_state = case.em_state
         is_active = self._assert_rejectable(case, embargo_id)
         participant_changes = self._rejection_consent(
             case, actor_id, embargo_id, is_active=is_active
@@ -199,12 +199,11 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
         actor_id: str,
         embargo_id: str,
         pec_trigger: PEC_Trigger,
-        em_before: EM | None = None,
     ) -> EmbargoLifecycleResult:
         """Apply a PEC trigger to one participant's row without changing EM state.
 
         Useful for recording individual consent signals (invite, accept,
-        decline) that do not drive the shared EM machine.  The trigger is
+        decline) that change no embargo register entry.  The trigger is
         applied to the row for *embargo_id*, creating it on first contact; an
         illegal trigger raises (CM-18-009).
 
@@ -213,9 +212,6 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
             actor_id: ID of the actor whose participant record to update.
             embargo_id: ID of the ``EmbargoEvent`` whose row the trigger moves.
             pec_trigger: The PEC trigger to apply.
-            em_before: When provided by the caller (e.g. by a BT node that
-                already read the case), this value is used directly instead of
-                reading it from the case.
 
         Returns:
             :class:`EmbargoLifecycleResult` with ``em_before == em_after``
@@ -225,11 +221,7 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
         """
         case = self._read_case(case_id)
 
-        em_state = (
-            em_before
-            if em_before is not None
-            else case.current_status.em.state
-        )
+        em_state = case.em_state
 
         participant_id = case.actor_participant_index.get(actor_id)
         if not participant_id:
@@ -376,7 +368,7 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
             already ``EXPIRED`` (idempotent call).
         """
         case = self._read_case(case_id)
-        em_state = case.current_status.em.state
+        em_state = case.em_state
         participant_id = case.actor_participant_index.get(actor_id)
         if not participant_id:
             logger.debug(
@@ -444,7 +436,7 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
                 *actor_id* has no participant record on it.
         """
         case = self._read_case(case_id)
-        em_state = case.current_status.em.state
+        em_state = case.em_state
         participant_id = case.actor_participant_index.get(actor_id)
         participant = (
             self._persistence.read(participant_id) if participant_id else None
@@ -524,7 +516,7 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
         """
         case = self._read_case(case_id)
 
-        em_state = case.current_status.em.state
+        em_state = case.em_state
 
         participant_id = case.actor_participant_index.get(actor_id)
         if not participant_id:

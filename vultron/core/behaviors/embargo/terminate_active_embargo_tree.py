@@ -52,6 +52,7 @@ from vultron.core.behaviors.embargo.nodes import (
     HasActiveEmbargoNode,
 )
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
+from vultron.core.states.embargo_register import TerminationReason
 
 if TYPE_CHECKING:
     from vultron.core.behaviors.call_out.bundles.embargo import (
@@ -136,6 +137,7 @@ def create_terminate_active_embargo_tree(
             terminate_embargo_bt(
                 case_id=case_id,
                 result_out=result_out,
+                reason=TerminationReason.EARLY,
                 activity_builder=activity_builder,
             ),
         ],

@@ -29,6 +29,7 @@ from py_trees.common import Status
 
 from test.conftest import seed_case_owner_participant
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.embargo_register import activate
 from vultron.core.behaviors.case.embargo_tree import (
     InitializeDefaultEmbargoNode,
 )
@@ -313,7 +314,7 @@ class TestInitializeDefaultEmbargoNode:
 
         stored_case = cast(Any, bt_scenario.dl.read(case_obj.id_))
         assert stored_case.current_status.em.state == EM.REVISE
-        assert len(stored_case.proposed_embargoes) == 1
+        assert len(stored_case.proposed_embargo_ids) == 1
         assert stored_case.active_embargo_id == proposal.id_
         # The Reporter's event plus the one registered revision, nothing else.
         events = list(bt_scenario.dl.list_objects("EmbargoEvent"))
@@ -483,7 +484,7 @@ class TestInitializeCreationEmbargoNodeAC1:
             case_id=case_obj.id_,
         )
         stored = cast(VulnerabilityCase, bt_scenario.dl.read(case_obj.id_))
-        stored.set_embargo(attached.id_)
+        activate(stored, attached.id_)
         bt_scenario.dl.save(stored)
 
         result = bt_scenario.run(
@@ -496,7 +497,7 @@ class TestInitializeCreationEmbargoNodeAC1:
         assert result.status == Status.FAILURE
         assert "already attached" in result.feedback_message
         after = cast(Any, bt_scenario.dl.read(case_obj.id_))
-        assert after.current_status.em.state == EM.NONE
+        assert after.em_state == EM.ACTIVE
         assert _as_id(after.active_embargo) == attached.id_
 
 

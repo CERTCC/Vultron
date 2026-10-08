@@ -23,6 +23,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from test.support.embargo_register import register
 from test.support.received import archive_received
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case_status import CaseStatus
@@ -794,13 +795,15 @@ class TestFindEmbargoInviteForActor:
 
 
 def _case_client(em: EM, active_embargo_id: str | None) -> MagicMock:
+    """A client whose case is ACTIVE under *active_embargo_id* (ADR-0122)."""
+    assert em is EM.ACTIVE  # the only state these tests serve
     client = MagicMock()
     client.base_url = "http://vendor:7999"
     client.actor_id = ACTOR_B
     case = as_VulnerabilityCase(
         id_=CASE_ID,
-        active_embargo=active_embargo_id,
-        case_statuses=[CaseStatus(em_state=em, context=CASE_ID)],  # type: ignore[arg-type,call-arg]
+        embargo_register=register(active=active_embargo_id or "urn:embargo"),
+        case_statuses=[CaseStatus(context=CASE_ID)],  # type: ignore[call-arg]
     )
     client.get.return_value = case.model_dump(
         mode="json", by_alias=True, exclude_none=True

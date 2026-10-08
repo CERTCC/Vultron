@@ -45,6 +45,7 @@ from vultron.core.models.protocols import PersistableModel
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.states.cs import CS_pxa
+from vultron.core.states.embargo_register import TerminationReason
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +98,11 @@ def pxa_embargo_teardown_bt(
         name="TeardownSelector",
         memory=False,
         children=[
-            terminate_embargo_bt(case_id=case_id, result_out=result_out),
+            terminate_embargo_bt(
+                case_id=case_id,
+                result_out=result_out,
+                reason=TerminationReason.THREAT_SIGNAL,
+            ),
             reject_proposed_embargo_bt(case_id=case_id, result_out=result_out),
         ],
     )

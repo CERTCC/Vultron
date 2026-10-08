@@ -146,7 +146,7 @@ def test_get_vulnerability_case_includes_all_fields(client, datalayer):
         attributed_to="https://example.org/actor",
         case_participants=[],  # Empty but should be included
         vulnerability_reports=[],  # Empty but should be included
-        proposed_embargoes=[],  # Empty but should be included
+        embargo_register=[],  # Empty but should be included
         case_activity=[],  # Empty but should be included
     )
 
@@ -164,7 +164,7 @@ def test_get_vulnerability_case_includes_all_fields(client, datalayer):
         "caseParticipants",
         "vulnerabilityReports",
         "caseStatuses",
-        "proposedEmbargoes",
+        "embargoRegister",
         "caseActivity",
         "parentCases",
         "childCases",

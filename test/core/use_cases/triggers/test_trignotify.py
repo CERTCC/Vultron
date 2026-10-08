@@ -25,6 +25,7 @@ from typing import Any
 
 import pytest
 
+from test.support.embargo_register import activate, propose
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -47,7 +48,6 @@ from vultron.core.models.use_case_result import (
     OfferResult,
     TriggerResult,
 )
-from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.triggers.case import (
     SvcAddParticipantStatusUseCase,
@@ -431,8 +431,7 @@ class TestEmbargoTriggerToField:
             embargo, context=self.case.id_, actor=self.finder.id_
         )
         self.dl.create(proposal)
-        self.case.append_case_status(em_state=EM.PROPOSED)
-        self.case.proposed_embargoes.append(embargo.id_)
+        propose(self.case, embargo.id_)
         self.case.pending_embargo_proposal_index[embargo.id_] = proposal.id_
         self.dl.save(self.case)
 
@@ -466,8 +465,7 @@ class TestEmbargoTriggerToField:
             context=self.case.id_, end_time=days_from_now_utc(45)
         )
         self.dl.create(embargo)
-        self.case.set_embargo(embargo.id_)
-        self.case.append_case_status(em_state=EM.ACTIVE)
+        activate(self.case, embargo.id_)
         self.dl.save(self.case)
 
         request = TerminateEmbargoTriggerRequest(
@@ -503,8 +501,7 @@ class TestEmbargoTriggerToField:
             embargo, context=self.case.id_, actor=self.finder.id_
         )
         self.dl.create(proposal)
-        self.case.append_case_status(em_state=EM.PROPOSED)
-        self.case.proposed_embargoes.append(embargo.id_)
+        propose(self.case, embargo.id_)
         self.case.pending_embargo_proposal_index[embargo.id_] = proposal.id_
         self.dl.save(self.case)
 
@@ -537,8 +534,7 @@ class TestEmbargoTriggerToField:
             context=self.case.id_, end_time=days_from_now_utc(45)
         )
         self.dl.create(embargo)
-        self.case.set_embargo(embargo.id_)
-        self.case.append_case_status(em_state=EM.ACTIVE)
+        activate(self.case, embargo.id_)
         self.dl.save(self.case)
 
         request = ProposeEmbargoRevisionTriggerRequest(

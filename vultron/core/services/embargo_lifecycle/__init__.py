@@ -16,8 +16,8 @@
 This service is the single authoritative place for all Embargo Management (EM)
 and Participant Embargo Consent (PEC) state transitions.  Callers — trigger use
 cases, received use cases, and BT nodes — inject an ``EmbargoLifecycle`` instance
-and call named operations; they never instantiate ``EMAdapter`` or
-``create_em_machine()`` directly.
+and call named operations; they never apply an embargo register step to a case
+themselves.  EM is derived from the register (ADR-0122).
 
 Usage::
 

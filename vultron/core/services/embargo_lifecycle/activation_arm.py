@@ -13,7 +13,7 @@
 
 """The EP-05-001 activation arm: what an activation reads, and which arm it takes.
 
-Every writer of a case's ``active_embargo`` reads the record it names first
+Every activation of a register entry reads the record it names first
 (EMB-18-003), and a revision compares the embargo it activates (B) with the
 one it replaces (A) to decide whether existing signatories carry over or
 must re-consent (EP-05-001).  Both reads go through
@@ -22,11 +22,15 @@ unreadable record fails closed before the case is mutated.
 """
 
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.dimensions import EmDimension
+from vultron.core.models.embargo_register import (
+    activation_changes,
+    proposal_changes,
+)
 from vultron.core.services.embargo_lifecycle.base import _LifecycleBase
 from vultron.core.services.embargo_lifecycle.results import (
     EmbargoLifecycleResult,
     ParticipantConsentChange,
+    TransitionMode,
 )
 from vultron.core.services.embargo_ordering import (
     earliest_expiring_embargo_id,
@@ -93,20 +97,55 @@ class _ActivationArmMixin(_LifecycleBase):
             revised_embargo_id=activated_embargo_id,
         )
 
-    def _save_activation(
-        self, case: VulnerabilityCase, *, em_after: EM, embargo_id: str
-    ) -> None:
-        """Write an activation to the case: EM state, active embargo, one save.
+    def _activate_entry(
+        self,
+        case: VulnerabilityCase,
+        embargo_id: str,
+        *,
+        transition_mode: TransitionMode,
+        actor_id: str | None = None,
+    ) -> bool:
+        """Activate *embargo_id* in *case*'s register, in memory.
 
-        Activation decides the proposal that carried *embargo_id*, so the id
-        leaves ``proposed_embargoes`` in the same write (EP-08-003).  Call it
-        only after :meth:`_activation_arm` and every transition check have
-        passed, so nothing reaches the store until the activation is decided.
+        One step: ``ACTIVATE`` the entry, ``SUPERSEDE`` any ``ACTIVE`` one,
+        and record what it replaced (ADR-0122); the entry leaves the open
+        proposals with it (EP-08-003).  In ``OBSERVED`` mode a replica that
+        never recorded the proposal adds it first, so it can follow the
+        CASE_MANAGER's activation.  Call it only after
+        :meth:`_activation_arm` has passed, so nothing is decided until the
+        records it reads are known to be readable.
+
+        Returns:
+            ``True`` when the activation was applied; ``False`` only in
+            ``OBSERVED`` mode, for a step the register refused.
         """
-        case.current_status.em = EmDimension(state=em_after)
-        case.set_embargo(embargo_id)
-        case.discard_proposed_embargo(embargo_id)
-        self._persistence.save(case)
+        if (
+            transition_mode == TransitionMode.OBSERVED
+            and case.embargo_register_entry(embargo_id) is None
+            and not self._apply_register_step(
+                case,
+                proposal_changes(embargo_id),
+                transition_mode=transition_mode,
+                actor_id=actor_id,
+            )
+        ):
+            return False
+        return self._apply_register_step(
+            case,
+            activation_changes(case.embargo_register, embargo_id),
+            transition_mode=transition_mode,
+            actor_id=actor_id,
+        )
+
+    @staticmethod
+    def _unchanged_result(em_state: EM) -> EmbargoLifecycleResult:
+        """The result of an operation that changed nothing."""
+        return EmbargoLifecycleResult(
+            em_before=em_state,
+            em_after=em_state,
+            case_changed=False,
+            case_embargo_changed=False,
+        )
 
     @staticmethod
     def _activation_result(

@@ -123,13 +123,18 @@ def test_store_nested_inbox_object_stores_the_inline_embargo_a_case_names(
             "type": "VulnerabilityCase",
             "id": case_id,
             "name": "Embargoed Case",
-            "activeEmbargo": {
-                "type": "EmbargoEvent",
-                "id": embargo_id,
-                "context": case_id,
-                "startTime": _PUBLISHED,
-                "endTime": "2099-01-01T00:00:00+00:00",
-            },
+            "embargoRegister": [
+                {
+                    "embargo": {
+                        "type": "EmbargoEvent",
+                        "id": embargo_id,
+                        "context": case_id,
+                        "startTime": _PUBLISHED,
+                        "endTime": "2099-01-01T00:00:00+00:00",
+                    },
+                    "status": "ACTIVE",
+                }
+            ],
         }
     )
 
@@ -150,7 +155,12 @@ def test_store_nested_inbox_object_skips_a_case_naming_an_unheld_embargo(
             "type": "VulnerabilityCase",
             "id": case_id,
             "name": "Unheld Embargo Case",
-            "activeEmbargo": f"{case_id}/embargo_events/unheld",
+            "embargoRegister": [
+                {
+                    "embargo": f"{case_id}/embargo_events/unheld",
+                    "status": "ACTIVE",
+                }
+            ],
         }
     )
 

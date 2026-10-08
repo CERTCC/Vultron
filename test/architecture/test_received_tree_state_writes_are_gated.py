@@ -155,12 +155,6 @@ KNOWN_UNGATED_STATE_WRITES: frozenset[_Write] = frozenset(
         ),
         # owner: #3814
         (
-            f"{_E}/announce_teardown_tree.py",
-            "remove_embargo_from_case_tree",
-            "RemoveFromProposedEmbargoesNode",
-        ),
-        # owner: #3814
-        (
             f"{_N}/create_note_tree.py",
             "create_note_tree",
             "AttachNoteToCaseNode",

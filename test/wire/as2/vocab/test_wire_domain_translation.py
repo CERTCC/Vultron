@@ -18,6 +18,7 @@
 import pytest
 from pydantic import ValidationError
 
+from test.support.embargo_register import register
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -195,8 +196,10 @@ def test_vulnerability_case_round_trips_between_core_and_wire():
         vulnerability_reports=["https://example.org/reports/1"],
         case_statuses=[case_status],
         notes=["https://example.org/notes/1"],
-        active_embargo="https://example.org/embargoes/1",
-        proposed_embargoes=["https://example.org/embargoes/1"],
+        embargo_register=register(
+            active="https://example.org/embargoes/1",
+            proposed=["https://example.org/embargoes/2"],
+        ),
         case_activity=["https://example.org/activities/1"],
         parent_cases=["https://example.org/cases/parent"],
         child_cases=["https://example.org/cases/child"],
@@ -209,21 +212,21 @@ def test_vulnerability_case_round_trips_between_core_and_wire():
         "caseParticipants",
         "vulnerabilityReports",
         "caseStatuses",
-        "activeEmbargo",
-        "proposedEmbargoes",
+        "embargoRegister",
         "caseActivity",
         "parentCases",
         "childCases",
         "siblingCases",
     ):
         assert key in data, f"wire dump is missing AS2 key {key!r}"
-    assert "case_statuses" not in data and "active_embargo" not in data
+    assert "case_statuses" not in data and "embargo_register" not in data
     restored = as_VulnerabilityCase.model_validate(data)
     assert restored.id_ == core.id_
     assert restored.vulnerability_reports == core.vulnerability_reports
     assert restored.notes == core.notes
     assert restored.active_embargo == core.active_embargo
-    assert restored.proposed_embargoes == core.proposed_embargoes
+    assert restored.embargo_register == core.embargo_register
+    assert restored.proposed_embargo_ids == core.proposed_embargo_ids
     assert restored.case_activity == core.case_activity
     assert restored.parent_cases == core.parent_cases
     assert restored.child_cases == core.child_cases

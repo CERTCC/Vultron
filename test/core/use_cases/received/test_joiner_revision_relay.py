@@ -31,6 +31,7 @@ from test.core.use_cases.received.test_embargo_revision_relay import (
     _consent_of,
     _deliver,
 )
+from test.support.embargo_register import propose
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -279,7 +280,7 @@ def test_an_open_proposal_with_no_committed_entry_is_an_internal_error(
     )
     _join(dl, case_id, make_payload)
     case = cast(VulnerabilityCase, dl.read(case_id))
-    case.proposed_embargoes = [f"{case_id}/embargo_events/ghost"]
+    propose(case, f"{case_id}/embargo_events/ghost")
     dl.save(case)
 
     result = _run_relay_again(dl, case_id)

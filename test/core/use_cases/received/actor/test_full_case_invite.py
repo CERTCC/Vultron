@@ -328,13 +328,63 @@ def test_a_reply_with_unparseable_content_is_refused_at_the_edge(
         extract_event(reply)
 
 
-@pytest.mark.spec("CM-11-011")
-@pytest.mark.parametrize("second", ["accept", "reject"])
-def test_a_second_reply_is_refused_and_writes_no_ledger_entry(
+@pytest.mark.spec("RSH-06-006")
+@pytest.mark.spec("RSH-08-002")
+@pytest.mark.parametrize(
+    "second,expected_rm,expected_disposition,new_records",
+    [
+        # CONFIRMATION: idempotent, RM stays VALID, nothing new recorded.
+        ("accept", RM.VALID, HandlerDisposition.SKIPPED, 0),
+        # GAP: non-adjacent forward, RM advances.
+        ("reject", RM.CLOSED, HandlerDisposition.APPLIED, 1),
+    ],
+    ids=["confirmation", "gap"],
+)
+def test_confirmation_and_gap_replies_are_accepted(
     joining_case,  # noqa: F811
     second: str,
+    expected_rm: RM,
+    expected_disposition: HandlerDisposition,
+    new_records: int,
 ) -> None:
-    """A duplicate or contradictory reply is refused before any receipt."""
+    """Under the DECLARATION rule a repeat or a gap move is accepted (RSH-06-006).
+
+    A second Accept (VALID→VALID, a confirmation) is idempotent: the receipt is
+    committed, but no new status record is written, so it reads ``SKIPPED``
+    (RSH-08-002).
+    A Reject after Accept (VALID→CLOSED, a gap) is a forward move and is also
+    accepted, and a new status record *is* written.
+    """
+    tail = _ledger_tail(joining_case)[-1]
+    invite = _full_case_invite_at(
+        joining_case, log_index=tail.log_index, entry_hash=tail.entry_hash
+    )
+    first = joining_case.route(
+        _full_case_reply_at("accept", joining_case, invite, position=tail)
+    )
+    assert first.disposition is not HandlerDisposition.REFUSED
+    assert _rm_history(joining_case)[-1] == RM.VALID
+    tail = _ledger_tail(joining_case)[-1]
+    before = len(_ledger_tail(joining_case))
+    records_before = len(_rm_history(joining_case))
+
+    result = joining_case.route(
+        _full_case_reply_at(second, joining_case, invite, position=tail)
+    )
+
+    assert result.disposition is expected_disposition, result.reason
+    assert _rm_history(joining_case)[-1] == expected_rm
+    assert len(_rm_history(joining_case)) == records_before + new_records
+    assert len(_ledger_tail(joining_case)) == before + 1, (
+        "the receipt is committed even for a confirmation or gap"
+    )
+
+
+@pytest.mark.spec("RSH-06-006")
+def test_a_regression_reply_is_refused_before_receipt(
+    joining_case,  # noqa: F811
+) -> None:
+    """A backward move (VALID→INVALID) is refused before any receipt (RSH-06-006)."""
     tail = _ledger_tail(joining_case)[-1]
     invite = _full_case_invite_at(
         joining_case, log_index=tail.log_index, entry_hash=tail.entry_hash
@@ -348,11 +398,12 @@ def test_a_second_reply_is_refused_and_writes_no_ledger_entry(
     before = len(_ledger_tail(joining_case))
 
     result = joining_case.route(
-        _full_case_reply_at(second, joining_case, invite, position=tail)
+        _full_case_reply_at(
+            "tentative_reject", joining_case, invite, position=tail
+        )
     )
 
-    assert result.disposition is HandlerDisposition.REFUSED
-    assert "cannot move" in (result.reason or "")
+    assert result.disposition is HandlerDisposition.REFUSED, result.reason
     assert _rm_history(joining_case)[-1] == RM.VALID
     assert len(_ledger_tail(joining_case)) == before
 

@@ -57,6 +57,7 @@ from test.demo.conftest import (
     _TestClientRouter,
     create_isolated_actor_app,
 )
+from test.support.embargo_register import register
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.actor import CoreActor
@@ -265,7 +266,7 @@ def _seed_case(
                 em=EmDimension(state=EM.ACTIVE),
             )
         ],
-        active_embargo=str(embargo.id_),
+        embargo_register=register(active=str(embargo.id_)),
     )
     if published is not None:
         case_kwargs["published"] = published

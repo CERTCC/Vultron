@@ -453,9 +453,13 @@ groups:
     kind: protocol
     statement: A CVD case SHALL NOT have more than one active embargo at a time
     verification: >-
-      Inspection of `vultron/core/states/em.py` confirms the EM state machine
-      has at most one active-embargo state at any time, enforcing the
-      single-active-embargo invariant.
+      The embargo register refuses any step, and any constructed case, that
+      would leave more than one entry `ACTIVE` (ADR-0122 invariant 1,
+      `register_invariant_violations` in
+      `vultron/core/states/embargo_register.py`);
+      `test/core/models/test_embargo_register.py` asserts both refusals.
+    adr:
+    - ADR-0122
     stories:
     - story_2022_014
   - id: VP-04-003

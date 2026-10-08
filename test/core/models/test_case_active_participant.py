@@ -17,6 +17,7 @@ import re
 import pytest
 from pydantic import ValidationError
 
+from test.support.embargo_register import activate
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
@@ -38,7 +39,7 @@ S = EmbargoConsentState
 def _case(*, embargo: bool) -> VulnerabilityCase:
     case = VulnerabilityCase(id_=CASE_ID, attributed_to=ACTOR_ID)
     if embargo:
-        case.set_embargo(EMBARGO_ID)
+        activate(case, EMBARGO_ID)
     return case
 
 
@@ -142,7 +143,7 @@ def test_longer_revision_excludes_a_non_accepting_signatory() -> None:
     participant = _participant(consents={EMBARGO_ID: S.ACCEPTED})
     assert case.is_active_participant(participant)
 
-    case.set_embargo(REVISION_ID)
+    activate(case, REVISION_ID)
 
     assert participant.has_lapsed(case.active_embargo_id)
     assert not case.is_active_participant(participant)
