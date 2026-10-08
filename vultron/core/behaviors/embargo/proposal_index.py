@@ -57,7 +57,7 @@ def record_embargo_proposal_index(
     current = case.pending_embargo_proposal_index.get(embargo_id)
     if current == proposal_id or (current is not None and not overwrite):
         return False
-    # Validated assignment, like the pruner ``discard_proposed_embargo``.
+    # Validated assignment; the register step prunes it (EP-08-003).
     case.pending_embargo_proposal_index = {
         **case.pending_embargo_proposal_index,
         embargo_id: proposal_id,

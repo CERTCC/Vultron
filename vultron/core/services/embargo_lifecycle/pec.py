@@ -69,7 +69,7 @@ def _embargo_exited(case: VulnerabilityCase) -> bool:
     Nothing can be consented to after that, so an Accept or Reject that
     arrives late records nothing (ADR-0118, MSM-07-006).
     """
-    return case.current_status.em.state == EM.EXITED
+    return case.em_state == EM.EXITED
 
 
 class _PecEffectsMixin(_ActivationArmMixin):

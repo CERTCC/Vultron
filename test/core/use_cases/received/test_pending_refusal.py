@@ -37,7 +37,6 @@ from vultron.core.models.pending_assertion import (
     get_pending_assertion_store,
     record_pending_assertion,
 )
-from vultron.core.states.em import EM
 from vultron.core.use_cases.received.embargo import (
     RejectInviteToEmbargoOnCaseReceivedUseCase,
 )
@@ -87,7 +86,6 @@ def _proposer_with_pending_proposal() -> tuple[
         _PROPOSER: finders[0].id_,
         _OTHER: finders[1].id_,
     }
-    case.append_case_status(em_state=EM.NONE)
     dl.create(case)
     for participant in (manager, *finders):
         dl.create(participant)

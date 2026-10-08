@@ -30,6 +30,7 @@ import py_trees.behaviour
 import pytest
 from py_trees.common import Status
 
+from test.support.embargo_register import register
 from test.support.participant_status import advance_participant_rm
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.report.validate_tree import (
@@ -170,7 +171,9 @@ def _seed_mock_case(storage: dict) -> VulnerabilityCase:
         name="Perf test case",
         attributed_to=_PERF_ACTOR_ID,
         vulnerability_reports=["test-report-123"],
-        active_embargo="https://example.org/embargoes/perf-embargo",
+        embargo_register=register(
+            active="https://example.org/embargoes/perf-embargo"
+        ),
     )
     participant = CaseParticipant(
         id_=f"{case.id_}/participants/vendor",

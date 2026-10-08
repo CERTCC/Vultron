@@ -1233,11 +1233,12 @@ groups:
     kind: protocol
     statement: >-
       A Participant entering EM Exited SHOULD treat no participant as bound by an
-      embargo, clearing the case's active embargo and writing no consent row
-      (MSM-07-006, ADR-0118, ADR-0122).
+      embargo: the embargo register's `ACTIVE` entry is `TERMINATED`, and no
+      consent row is written (MSM-07-006, ADR-0118, ADR-0122).
     rationale: >-
-      Once the embargo exits, no consent row binds anyone: with no active embargo
-      nobody is a signatory, and EM Exited has no outgoing transition, so no later
+      Once the embargo exits, no consent row binds anyone: with no `ACTIVE`
+      register entry nobody is a signatory, and a register with a `TERMINATED`
+      entry accepts no further change (ADR-0122 invariant 4), so no later
       invitation to the terminated embargo can rebind anyone. The position is
       derived from the case, so it is not copied onto each participant record.
     testable: true
@@ -1249,7 +1250,7 @@ groups:
     - order: 1
       actor: participant
       action: >-
-        Clear the active embargo; write no Participant consent row
+        Terminate the register's `ACTIVE` entry; write no Participant consent row
       expected: No Participant is bound by an embargo; consent rows are as they were
     postconditions:
     - description: No active embargo and no signatory; EM state is terminal EXITED
@@ -1742,8 +1743,9 @@ groups:
       A Participant in EM Proposed (q^em ∈ P) that detects a CS transition into
       a public (q^cs ∈ ···P··), exploit-available (q^cs ∈ ····X·), or
       attacks-observed (q^cs ∈ ·····A) state MUST abandon the proposed embargo
-      by transitioning EM from Proposed to None (q^em P → N) and MUST emit ER
-      to notify other Participants.
+      by cancelling each open proposal in the case's embargo register, so EM
+      derives None (q^em P → N), and MUST emit ER to notify other
+      Participants.
     rationale: >-
       EMB-01-002 establishes that embargo negotiation is not viable once public
       disclosure, exploit availability, or attacks have occurred. EMB-01-002 is
@@ -1751,12 +1753,12 @@ groups:
       applies when a P/X/A state change arrives while a proposal is already in
       flight. Continuing to negotiate a proposed embargo in these conditions
       would be misleading to other Participants and counter to the purpose of
-      coordinated disclosure. The existing reject path (EM P → N + ER) is the
-      correct mechanism; no new transition is introduced.
+      coordinated disclosure. CANCEL records that nobody decided the proposal
+      (ADR-0122).
     note: >-
       Under ADR-0113 the abandonment is shared EM state, so the CASE_MANAGER
-      makes it for the case (EP-09-008): it moves EM to NONE and commits one
-      ER per open proposal, and that committed entry is the ER that notifies
+      makes it for the case (EP-09-008): it cancels each open proposal, so EM
+      derives NONE, and commits one ER per open proposal, and that committed entry is the ER that notifies
       every other Participant (EP-09-007, EP-09-009). A Participant that is
       not the CASE_MANAGER meets this requirement through its replica, which
       moves when the entry is replayed; it emits no ER of its own as the
@@ -1791,14 +1793,16 @@ groups:
     - order: 2
       actor: system
       action: >-
-        As the CASE_MANAGER, transition EM from Proposed to None via
+        As the CASE_MANAGER, cancel each open proposal via
         reject_proposed_embargo_bt (AbandonEmbargoProposalsLifecycleNode →
         CommitEmbargoAbandonmentNode)
       expected: >-
-        EM state transitions to NONE; one ER per open proposal is committed
-        and replayed by every replica
+        Each proposal's register entry is CANCELLED and EM derives NONE; one
+        ER per open proposal is committed and replayed by every replica
     postconditions:
     - description: EM state is NONE; ER emitted; proposed embargo abandoned
+    adr:
+    - ADR-0122
     relationships:
     - rel_type: extends
       spec_id: EMB-01-002
@@ -2219,19 +2223,21 @@ groups:
     kind: architecture
     verification_debt: '#2569'
     statement: >-
-      All EM state transitions MUST be executed through EmbargoLifecycle
-      (specifically _drive_em_transition() or its public wrappers such as
-      propose_embargo(), accept_embargo_invite(), reject_embargo_invite(), and
-      terminate_active_embargo()). BT nodes and helper functions MUST NOT
-      directly assign a new EmDimension to case.current_status.em and then
-      call dl.save(case) as a substitute for routing through EmbargoLifecycle.
+      Every change to a case's embargo register, and so to the EM state derived
+      from it (ADR-0122), MUST be made through EmbargoLifecycle (its public
+      operations such as propose_embargo(), accept_embargo_invite(),
+      reject_embargo_invite(), and terminate_active_embargo(), each of which
+      applies one register step). BT nodes and helper functions MUST NOT apply
+      a register step to the case themselves, or assign
+      case.current_status.em, and then call dl.save(case) as a substitute for
+      routing through EmbargoLifecycle.
     rationale: >-
-      EmbargoLifecycle is the sole service-layer authority for EM state writes.
-      It validates the transition (raising VultronInvalidStateTransitionError in
-      STRICT mode) and cascades any required PEC side-effects. Bypassing it via
-      direct EmDimension assignment — even when paired with a non-blocking
-      is_valid_em_transition() warning log — allows invalid EM transitions to be
-      persisted silently and skips PEC cascade logic. Source: CONCERN-2412 audit.
+      EmbargoLifecycle is the sole service-layer authority for embargo writes.
+      It applies the register step (refused with
+      VultronInvalidStateTransitionError in STRICT mode) and cascades any
+      required PEC side-effects. Bypassing it skips the fail-closed reads of
+      EMB-18-003 and the PEC cascade, and a status EM assigned directly is
+      overwritten by the register's derived value. Source: CONCERN-2412 audit.
     relationships:
     - rel_type: refines
       spec_id: SM-04-001
@@ -2240,11 +2246,10 @@ groups:
     kind: architecture
     verification_debt: '#2569'
     statement: >-
-      A BT node or helper MUST NOT use is_valid_em_transition() as a
-      non-blocking warning-only guard and then proceed to write EM state
-      regardless of the validation result. A failed EM transition check MUST
-      either raise or cause the node to return Status.FAILURE without writing
-      to the DataLayer.
+      A BT node or helper MUST NOT check an embargo register step as a
+      non-blocking warning-only guard and then proceed to write regardless of
+      the result. A refused register step MUST either raise or cause the node
+      to return Status.FAILURE without writing to the DataLayer.
     rationale: >-
       Warning-only guards create the illusion of validation while allowing
       invalid states to be persisted. The correct pattern is to route through
@@ -2257,14 +2262,13 @@ groups:
     priority: MUST
     kind: architecture
     statement: >-
-      A path that writes an embargo id into a case's `active_embargo` MUST
-      already hold that `EmbargoEvent`'s record in the same store. The
+      A path that activates an embargo register entry MUST already hold that
+      `EmbargoEvent`'s record in the same store. The
       `EmbargoLifecycle` activation writers (`accept_embargo_invite()`,
       `activate_embargo()`, `initialize_creation_embargo()`) MUST read the
       record of the embargo being activated, as well as the one it replaces
       (EP-05-001), and MUST fail
-      closed on an unreadable one before writing EM state or
-      `active_embargo`. An unreadable replaced embargo is a broken invariant,
+      closed on an unreadable one before changing the register. An unreadable replaced embargo is a broken invariant,
       reported as a refusal, not deferred.
     note: >-
       The refusal stands in for object dereference (AKM-05-003): it is conditional on an

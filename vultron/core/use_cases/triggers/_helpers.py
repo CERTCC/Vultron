@@ -80,7 +80,7 @@ def find_embargo_proposal_id(
     index = {
         embargo_id: proposal_id
         for embargo_id, proposal_id in case.pending_embargo_proposal_index.items()
-        if proposal_id
+        if proposal_id and case.proposal_is_undecided(embargo_id)
     }
     if not index:
         return None

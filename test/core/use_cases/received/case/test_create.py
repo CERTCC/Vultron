@@ -34,6 +34,7 @@ from collections.abc import Callable
 
 import pytest
 
+from test.support.embargo_register import activate
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.events import CreateCaseReceivedEvent, VultronEvent
 from vultron.core.models.report_case_link import VultronReportCaseLink
@@ -453,9 +454,8 @@ _UNHELD_EMBARGO_ID = f"{_CASE_ID}/embargo_events/unheld"
 
 def _case_naming_unheld_embargo() -> as_VulnerabilityCase:
     case, _ = _case_with_case_actor_participant()
-    unheld: as_VulnerabilityCase = case.model_copy(
-        update={"active_embargo": _UNHELD_EMBARGO_ID}
-    )
+    unheld: as_VulnerabilityCase = case.model_copy(deep=True)
+    activate(unheld, _UNHELD_EMBARGO_ID)
     return unheld
 
 

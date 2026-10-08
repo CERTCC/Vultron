@@ -16,7 +16,7 @@
 """Tests for third-party log-noise suppression (SL-04-007).
 
 The ``transitions`` library logs ``"<Machine> Finished processing state X
-enter/exit callbacks."`` at INFO on every RM/EM/CS state machine step.
+enter/exit callbacks."`` at INFO on every RM/CS state machine step.
 Those are FSM internals, so SL-04-007 requires they stay off the INFO channel.
 """
 
@@ -72,9 +72,13 @@ def test_warning_app_level_also_suppresses():
     assert logging.getLogger("transitions").level == logging.WARNING
 
 
-def test_em_machine_callbacks_produce_no_info_records(caplog):
-    """An EM state transition emits no `transitions` INFO record."""
-    from vultron.core.states.em import EM_Trigger, create_em_machine
+def test_rm_machine_callbacks_produce_no_info_records(caplog):
+    """An RM state transition emits no `transitions` INFO record.
+
+    EM is no longer a `transitions` machine (it is derived from the embargo
+    register, ADR-0122), so the RM machine stands in for the FSM steps.
+    """
+    from vultron.core.states.rm import RM_Trigger, create_rm_machine
 
     suppress_third_party_info_noise(logging.INFO)
 
@@ -82,11 +86,11 @@ def test_em_machine_callbacks_produce_no_info_records(caplog):
         pass
 
     model = _Model()
-    machine = create_em_machine()
+    machine = create_rm_machine()
     machine.add_model(model)
 
     with caplog.at_level(logging.INFO):
-        getattr(model, str(EM_Trigger.PROPOSE))()
+        getattr(model, str(RM_Trigger.RECEIVE))()
 
     fsm_records = [
         r

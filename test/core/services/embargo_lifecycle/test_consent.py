@@ -20,6 +20,7 @@ from typing import cast
 
 import pytest
 
+from test.support.embargo_register import activate, propose
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models._helpers import days_from_now_utc, now_utc
 from vultron.core.models.case import VulnerabilityCase
@@ -55,9 +56,11 @@ def test_record_participant_consent_accept_trigger(
 ) -> None:
     """ACCEPT moves the INVITED row for that embargo to ACCEPTED."""
     owner, dl = owner_and_dl
-    case, participants = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
+    case, participants = _make_case(dl, owner.id_)
     owner_participant_id = participants[0].id_
     embargo = _make_embargo(dl, case.id_)
+    propose(case, embargo.id_)
+    dl.save(case)
     _seed_consent(dl, owner_participant_id, embargo.id_, ECS.INVITED)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
@@ -82,9 +85,11 @@ def test_record_participant_consent_decline_trigger(
 ) -> None:
     """DECLINE moves an ACCEPTED row to DECLINED and touches no other row."""
     owner, dl = owner_and_dl
-    case, participants = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
+    case, participants = _make_case(dl, owner.id_)
     owner_participant_id = participants[0].id_
     embargo = _make_embargo(dl, case.id_)
+    propose(case, embargo.id_)
+    dl.save(case)
     other = _make_embargo(dl, case.id_, days=90)
     _seed_consent(dl, owner_participant_id, embargo.id_, ECS.ACCEPTED)
     _seed_consent(dl, owner_participant_id, other.id_, ECS.ACCEPTED)
@@ -109,8 +114,10 @@ def test_record_participant_consent_actor_not_in_case(
     """Actor without a CaseParticipant: result has no changes, no crash."""
     owner, dl = owner_and_dl
     outsider = _make_actor(dl, "Outsider Org")
-    case, _ = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
+    case, _ = _make_case(dl, owner.id_)
     embargo = _make_embargo(dl, case.id_)
+    propose(case, embargo.id_)
+    dl.save(case)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
     result = lifecycle.record_participant_consent(
@@ -135,9 +142,11 @@ def test_record_participant_consent_illegal_trigger_raises(
     the row as it was.
     """
     owner, dl = owner_and_dl
-    case, participants = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
+    case, participants = _make_case(dl, owner.id_)
     owner_participant_id = participants[0].id_
     embargo = _make_embargo(dl, case.id_)
+    propose(case, embargo.id_)
+    dl.save(case)
     _seed_consent(dl, owner_participant_id, embargo.id_, ECS.ACCEPTED)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
@@ -160,12 +169,12 @@ def _active_with_revision(dl: SqliteDataLayer, owner: as_Service):
     """Owner (ACCEPTED A) and a finder (ACCEPTED A and B); A active, B proposed."""
     finder = _make_actor(dl, "Finder Org")
     case, (owner_p, finder_p) = _make_case(
-        dl, owner.id_, extra_participant_ids=[finder.id_], em_state=EM.REVISE
+        dl, owner.id_, extra_participant_ids=[finder.id_]
     )
     active = _make_embargo(dl, case.id_)
     revision = _make_embargo(dl, case.id_, days=90)
-    case.active_embargo = active.id_
-    case.proposed_embargoes = [revision.id_]
+    activate(case, active.id_)
+    propose(case, revision.id_)
     dl.save(case)
     _seed_consent(dl, owner_p.id_, active.id_, ECS.ACCEPTED)
     _seed_consent(dl, finder_p.id_, active.id_, ECS.ACCEPTED)
@@ -226,7 +235,7 @@ def test_record_embargo_rejection_of_a_proposed_revision_keeps_a_signatory(
     }
     assert _is_signatory(dl, case.id_, finder_p)
     # Recording consent decides nothing: B stays an open proposal.
-    assert cast(VulnerabilityCase, dl.read(case.id_)).proposed_embargoes == [
+    assert cast(VulnerabilityCase, dl.read(case.id_)).proposed_embargo_ids == [
         rev
     ]
 
@@ -281,10 +290,11 @@ def test_record_embargo_invite_invites_an_unasked_participant(
 ) -> None:
     owner, dl = owner_and_dl
     invitee = _make_actor(dl, "Invitee")
-    case, participants = _make_case(
-        dl, owner.id_, [invitee.id_], em_state=EM.REVISE
-    )
+    case, participants = _make_case(dl, owner.id_, [invitee.id_])
+    activate(case, _make_embargo(dl, case.id_).id_)
     embargo = _make_embargo(dl, case.id_)
+    propose(case, embargo.id_)
+    dl.save(case)
     deadline = days_from_now_utc(7)
 
     result = EmbargoLifecycle(persistence=dl).record_embargo_invite(
@@ -315,13 +325,11 @@ def test_record_embargo_invite_on_a_signatory_keeps_the_active_row_and_adds_the_
     """
     owner, dl = owner_and_dl
     invitee = _make_actor(dl, "Signatory")
-    case, participants = _make_case(
-        dl, owner.id_, [invitee.id_], em_state=EM.REVISE
-    )
+    case, participants = _make_case(dl, owner.id_, [invitee.id_])
     active = _make_embargo(dl, case.id_)
     revision = _make_embargo(dl, case.id_, days=90)
-    case.active_embargo = active.id_
-    case.proposed_embargoes = [revision.id_]
+    activate(case, active.id_)
+    propose(case, revision.id_)
     dl.save(case)
     _seed_consent(dl, participants[1].id_, active.id_, ECS.ACCEPTED)
 
@@ -346,13 +354,11 @@ def test_a_fresh_invite_without_a_deadline_drops_a_stale_one(
     """A passed deadline must not expire the row a new Invite just created."""
     owner, dl = owner_and_dl
     invitee = _make_actor(dl, "Signatory")
-    case, participants = _make_case(
-        dl, owner.id_, [invitee.id_], em_state=EM.REVISE
-    )
+    case, participants = _make_case(dl, owner.id_, [invitee.id_])
     active = _make_embargo(dl, case.id_)
     revision = _make_embargo(dl, case.id_, days=90)
-    case.active_embargo = active.id_
-    case.proposed_embargoes = [revision.id_]
+    activate(case, active.id_)
+    propose(case, revision.id_)
     dl.save(case)
     _seed_consent(dl, participants[1].id_, active.id_, ECS.ACCEPTED)
     record = cast(CaseParticipant, dl.read(participants[1].id_))
@@ -413,13 +419,11 @@ def _invited_to_two(
 ):
     """A participant INVITED to A (active) and B (proposed), with a deadline."""
     invitee = _make_actor(dl, "Invitee")
-    case, participants = _make_case(
-        dl, owner.id_, [invitee.id_], em_state=EM.REVISE
-    )
+    case, participants = _make_case(dl, owner.id_, [invitee.id_])
     active = _make_embargo(dl, case.id_)
     revision = _make_embargo(dl, case.id_, days=90)
-    case.active_embargo = active.id_
-    case.proposed_embargoes = [revision.id_]
+    activate(case, active.id_)
+    propose(case, revision.id_)
     dl.save(case)
     invitee_p = participants[1]
     _seed_consent(dl, invitee_p.id_, active.id_, ECS.INVITED)
@@ -542,11 +546,9 @@ def test_honour_late_accept_accepts_the_active_embargo(
     """A late Accept is honoured from EXPIRED, and from DECLINED via INVITED."""
     owner, dl = owner_and_dl
     late = _make_actor(dl, "Late")
-    case, participants = _make_case(
-        dl, owner.id_, [late.id_], em_state=EM.ACTIVE
-    )
+    case, participants = _make_case(dl, owner.id_, [late.id_])
     active = _make_embargo(dl, case.id_)
-    case.active_embargo = active.id_
+    activate(case, active.id_)
     dl.save(case)
     pid = participants[1].id_
     _seed_consent(dl, pid, active.id_, seed)

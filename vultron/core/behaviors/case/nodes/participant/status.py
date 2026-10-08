@@ -60,21 +60,8 @@ from vultron.core.states.cs import (
     CS_vf,
     is_pxa_public_aware,
 )
-from vultron.core.states.em import EM
 from vultron.core.states.rm import RM, RMRule
 from vultron.errors import VultronAlreadyExistsError
-
-
-def _resolve_em_state(case: object) -> EM:
-    """Return the current em_state from a case, or EM.NONE if unavailable."""
-    try:
-        current_status = case.current_status  # type: ignore[attr-defined]
-    except (AttributeError, ValueError):
-        return EM.NONE
-    em_state = (
-        current_status.em.state if hasattr(current_status, "em") else None
-    )
-    return em_state if em_state is not None else EM.NONE
 
 
 class _EffectiveStates(NamedTuple):
@@ -287,7 +274,7 @@ class CreateParticipantStatusNode(
             case_status = CaseStatus(
                 context=case_id,
                 attributed_to=self._actor_id,
-                em=EmDimension(state=_resolve_em_state(case)),
+                em=EmDimension(state=case.em_state),
                 pxa=PxaDimension(state=effective.pxa),
             )
 

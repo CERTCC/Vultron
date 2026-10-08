@@ -57,7 +57,6 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
-from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.pending_creation_time_revision_relay import (
@@ -288,9 +287,7 @@ class RelayCreationTimeRevisionNode(RelayEmbargoInviteToEachNode):
                 "waits for the case's creation entries (CM-14-007, CM-14-011)"
             )
             state = _RelayState.NOT_YET
-        elif marker.embargo_id not in {
-            _as_id(e) for e in case.proposed_embargoes
-        }:
+        elif marker.embargo_id not in case.proposed_embargo_ids:
             reason, state = "is no longer an open proposal", _RelayState.CLOSED
         elif any(e.log_object_id == marker.proposal_id for e in entries):
             reason, state = "was already relayed", _RelayState.COMMITTED

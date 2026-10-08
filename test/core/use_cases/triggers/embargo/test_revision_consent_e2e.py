@@ -39,6 +39,7 @@ from typing import cast
 
 import pytest
 
+from test.support.embargo_register import activate
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -147,8 +148,7 @@ class _Revision:
             third_p.id_,
         ]
         self.case.actor_participant_index = dict(self.participants)
-        self.case.append_case_status(em_state=EM.ACTIVE)
-        self.case.set_embargo(self.active.id_)
+        activate(self.case, self.active.id_)
         self.dl.create(self.case)
         self.dl.create(self.active)
         for p in (owner_p, proposer_p, third_p):
@@ -326,7 +326,7 @@ def test_accepted_shorter_revision_carries_every_signatory_over(
     case = revision.read_case()
     assert case.current_status.em.state == EM.ACTIVE
     assert case.active_embargo_id == b
-    assert case.proposed_embargoes == []
+    assert case.proposed_embargo_ids == []
     assert case.pending_embargo_proposal_index == {}
     _assert_all_signatories_to(revision, b)
     for rows in revision.consent().values():
@@ -378,7 +378,7 @@ def test_rejected_revision_strands_nobody(revision: _Revision):
     case = revision.read_case()
     assert case.current_status.em.state == EM.ACTIVE
     assert case.active_embargo_id == a
-    assert case.proposed_embargoes == []
+    assert case.proposed_embargo_ids == []
     assert case.pending_embargo_proposal_index == {}
     # Every row for A is untouched; the owner's rejection of a proposal while
     # A is in force writes nothing (ADR-0122).

@@ -30,6 +30,7 @@ from py_trees.common import Status
 
 from test.conftest import seed_case_owner_participant
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.embargo_register import activate, propose, terminate
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.case.embargo_tree import (
     InitializeDefaultEmbargoNode,
@@ -50,13 +51,18 @@ from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_policy import EmbargoPolicy
+from vultron.core.models.embargo_register import RegisterChange
 from vultron.core.models.pending_creation_time_revision_relay import (
     PendingCreationTimeRevisionRelay,
 )
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.states.cs import CS_pxa
-from vultron.core.states.em import EM, EM_Trigger
+from vultron.core.states.em import EM
+from vultron.core.states.embargo_register import (
+    RegisterTrigger,
+    TerminationReason,
+)
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -515,7 +521,7 @@ def test_a_tie_between_sender_and_actor_default_registers_no_revision(
     assert _em_state(bt_scenario) == EM.ACTIVE
     case = bt_scenario.dl.read(CASE_ID)
     assert isinstance(case, VulnerabilityCase)
-    assert case.proposed_embargoes == []
+    assert case.proposed_embargo_ids == []
 
 
 def _owed(
@@ -575,7 +581,7 @@ def test_a_contest_records_the_relay_without_indexing_it(
     assert owed is not None
     case = bt_scenario.dl.read(CASE_ID)
     assert isinstance(case, VulnerabilityCase)
-    assert case.proposed_embargoes == [owed.embargo_id]
+    assert case.proposed_embargo_ids == [owed.embargo_id]
     assert owed.embargo_id not in case.pending_embargo_proposal_index
     assert owed.losing_source == losing_source
     assert owed.report_id == REPORT_ID
@@ -618,7 +624,7 @@ def test_the_relay_is_owed_in_the_commit_that_registers_the_revision(
     assert _em_state(bt_scenario) == EM.NONE
     case = bt_scenario.dl.read(CASE_ID)
     assert isinstance(case, VulnerabilityCase)
-    assert case.proposed_embargoes == []
+    assert case.proposed_embargo_ids == []
 
 
 @pytest.mark.spec("EP-04-011")
@@ -638,7 +644,7 @@ def test_a_contest_with_no_report_raises_before_registering(
     assert _owed(bt_scenario) is None
     case = bt_scenario.dl.read(CASE_ID)
     assert isinstance(case, VulnerabilityCase)
-    assert case.proposed_embargoes == []
+    assert case.proposed_embargo_ids == []
 
 
 def _sender_event(
@@ -721,7 +727,7 @@ def test_a_longer_sender_duration_without_its_event_fails_loudly(
     assert status == Status.FAILURE
     case = bt_scenario.dl.read(CASE_ID)
     assert isinstance(case, VulnerabilityCase)
-    assert case.proposed_embargoes == []
+    assert case.proposed_embargo_ids == []
 
 
 @pytest.mark.spec("EP-04-004")
@@ -764,7 +770,7 @@ def test_creation_time_revision_is_registered_but_not_yet_indexed(
     assert _em_state(bt_scenario) == EM.REVISE
     case = bt_scenario.dl.read(CASE_ID)
     assert isinstance(case, VulnerabilityCase)
-    (loser_id,) = case.proposed_embargoes
+    (loser_id,) = case.proposed_embargo_ids
     assert loser_id not in case.pending_embargo_proposal_index
 
 
@@ -785,7 +791,7 @@ def test_a_rerun_after_the_embargo_exited_initializes_nothing(
     assert _em_state(bt_scenario) == EM.ACTIVE
 
     EmbargoLifecycle(persistence=bt_scenario.dl).terminate_active_embargo(
-        case_id=CASE_ID, actor_id=ACTOR_ID
+        case_id=CASE_ID, actor_id=ACTOR_ID, reason=TerminationReason.EARLY
     )
     assert _em_state(bt_scenario) == EM.EXITED
     events_before = len(list(bt_scenario.dl.list_objects("EmbargoEvent")))
@@ -800,8 +806,19 @@ def test_a_rerun_after_the_embargo_exited_initializes_nothing(
 
 
 def _set_em(bt_scenario: BTTestScenario, em_state: EM) -> None:
-    case = cast(Any, bt_scenario.dl.read(CASE_ID))
-    case.append_case_status(em_state=em_state)
+    """Drive the stored case's embargo register to derive *em_state*."""
+    case = cast(VulnerabilityCase, bt_scenario.dl.read(CASE_ID))
+    terms = f"{CASE_ID}/embargo_events/terms"
+    revision = f"{CASE_ID}/embargo_events/revision"
+    if em_state == EM.PROPOSED:
+        propose(case, terms)
+    elif em_state in (EM.ACTIVE, EM.REVISE, EM.EXITED):
+        activate(case, terms)
+    if em_state == EM.REVISE:
+        propose(case, revision)
+    if em_state == EM.EXITED:
+        terminate(case)
+    assert case.em_state == em_state
     bt_scenario.dl.save(case)
 
 
@@ -837,9 +854,12 @@ class TestCaseEmbargoAlreadyInitializedNode:
         case_obj: VulnerabilityCase,
         em_state: EM,
     ) -> None:
-        """No active embargo is attached here: the state alone decides."""
+        """The derived EM state decides, not an attached embargo record.
+
+        None of the register's embargoes is stored as an ``EmbargoEvent``.
+        """
         _set_em(bt_scenario, em_state)
-        assert _active_embargo(bt_scenario) is None
+        assert _case_events(bt_scenario) == []
 
         assert self._guard(bt_scenario) == Status.SUCCESS
 
@@ -1090,7 +1110,7 @@ class TestCaseEmbargoAlreadyInitializedNode:
         again = cast(Any, bt_scenario.dl.read(CASE_ID))
         assert again.current_status.em.state == expected
         assert again.active_embargo_id == first.active_embargo_id
-        assert again.proposed_embargoes == first.proposed_embargoes
+        assert again.proposed_embargo_ids == first.proposed_embargo_ids
         assert _event_ids(bt_scenario) == events_before
 
     def test_skip_is_logged_with_the_case_and_state(
@@ -1185,26 +1205,32 @@ class TestCreationTimeEmbargoIsOneWrite:
     ) -> None:
         """Run the creation arm with activation refused after PROPOSE.
 
-        The ACCEPT step is refused once the PROPOSE step has been applied —
+        The ACTIVATE step is refused once the PROPOSE step has been applied —
         the point at which the two-write sequence had already saved the case
         at ``EM.PROPOSED``.
         """
-        drive = EmbargoLifecycle._drive_em_transition
-        applied: list[EM_Trigger] = []
+        apply_step = EmbargoLifecycle._apply_register_step
+        applied: list[RegisterTrigger] = []
 
-        def refuse_accept(self: EmbargoLifecycle, **kwargs: Any) -> EM:
-            if kwargs["trigger"] == EM_Trigger.ACCEPT:
+        def refuse_activate(
+            self: EmbargoLifecycle,
+            case: VulnerabilityCase,
+            changes: list[RegisterChange],
+            **kwargs: Any,
+        ) -> bool:
+            triggers = [change.trigger for change in changes]
+            if RegisterTrigger.ACTIVATE in triggers:
                 raise VultronInvalidStateTransitionError("forced failure")
-            applied.append(kwargs["trigger"])
-            return drive(self, **kwargs)
+            applied.extend(triggers)
+            return apply_step(self, case, changes, **kwargs)
 
         with monkeypatch.context() as patch:
             patch.setattr(
-                EmbargoLifecycle, "_drive_em_transition", refuse_accept
+                EmbargoLifecycle, "_apply_register_step", refuse_activate
             )
             status, _, _ = _run(bt_scenario)
         assert status == Status.FAILURE
-        assert applied == [EM_Trigger.PROPOSE]
+        assert applied == [RegisterTrigger.PROPOSE]
 
     def test_a_failure_before_activation_leaves_the_case_at_none(
         self,
@@ -1378,7 +1404,7 @@ class TestCreationTimeEmbargoCommitsItsEffectsWithIt:
         assert _em_state(bt_scenario) == EM.NONE
         assert _active_embargo(bt_scenario) is None
         case = cast(VulnerabilityCase, bt_scenario.dl.read(CASE_ID))
-        assert case.proposed_embargoes == []
+        assert case.proposed_embargo_ids == []
         assert _accepted_ids(_owner_participant(bt_scenario)) == []
 
     @pytest.mark.spec("EP-04-003")
@@ -1405,7 +1431,7 @@ class TestCreationTimeEmbargoCommitsItsEffectsWithIt:
         assert _em_state(bt_scenario) == EM.REVISE
         case = cast(VulnerabilityCase, bt_scenario.dl.read(CASE_ID))
         assert case.active_embargo_id == self.SENDER_EVENT_ID
-        (revision_id,) = case.proposed_embargoes
+        (revision_id,) = case.proposed_embargo_ids
         revision = bt_scenario.dl.read(revision_id)
         assert isinstance(revision, EmbargoEvent)
         assert revision.context == CASE_ID
@@ -1492,7 +1518,7 @@ class TestTheRevisionIsConsentedToByItsProposer:
 
         assert status == Status.SUCCESS
         case = cast(VulnerabilityCase, bt_scenario.dl.read(CASE_ID))
-        (revision_id,) = case.proposed_embargoes
+        (revision_id,) = case.proposed_embargo_ids
         reporter = bt_scenario.dl.read(reporter_participant_id)
         assert isinstance(reporter, CaseParticipant)
         assert _accepted_ids(reporter) == [revision_id]
@@ -1524,7 +1550,7 @@ class TestTheRevisionIsConsentedToByItsProposer:
         assert _accepted_ids(_owner_participant(bt_scenario)) == []
         case = bt_scenario.dl.read(CASE_ID)
         assert isinstance(case, VulnerabilityCase)
-        assert case.proposed_embargoes == []
+        assert case.proposed_embargo_ids == []
         assert case.active_embargo_id is None
         assert list(bt_scenario.dl.list_objects("EmbargoEvent")) == [], (
             "neither the winner nor the revision is stored before the commit"

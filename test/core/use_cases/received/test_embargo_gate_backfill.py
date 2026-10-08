@@ -24,6 +24,7 @@ from typing import cast
 import pytest
 from py_trees.common import Status
 
+from test.support.embargo_register import activate, propose
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -37,6 +38,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.em import EM
+from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
     PEC_Trigger,
@@ -87,9 +89,7 @@ class _GateScenario:
         for participant_id in stored.actor_participant_index.values():
             if participant_id not in stored.case_participants:
                 stored.case_participants.append(participant_id)
-        stored.current_status.em.state = EM.ACTIVE
-        stored.set_embargo(embargo.id_)
-        stored.proposed_embargoes.append(embargo.id_)
+        activate(stored, embargo.id_)
         self.dl.save(stored)
         self.embargo = embargo
 
@@ -149,8 +149,8 @@ class _GateScenario:
         )
         self.dl.create(revision)
         stored = cast(VulnerabilityCase, self.dl.read(CASE_ID))
-        stored.current_status.em.state = EM.REVISE
-        stored.proposed_embargoes.append(revision.id_)
+        propose(stored, revision.id_)
+        assert stored.em_state == EM.REVISE
         self.dl.save(stored)
         participant = self.dl.read(
             f"{CASE_ID}/participants/{actor_id.rsplit('/', 1)[-1]}"
@@ -195,7 +195,11 @@ class _GateScenario:
             sync_port=sync_port,
             wire_render_port=As2WireRenderAdapter(),
         ).execute_with_setup(
-            tree=terminate_embargo_bt(case_id=CASE_ID, result_out={}),
+            tree=terminate_embargo_bt(
+                case_id=CASE_ID,
+                reason=TerminationReason.EARLY,
+                result_out={},
+            ),
             actor_id=MANAGER_ID,
             sync_port=sync_port,
         )
