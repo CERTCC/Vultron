@@ -19,6 +19,7 @@ Verifies CM-07-001, CM-07-002, CM-07-003, AR-07-001, AR-07-002.
 
 import pytest
 
+from test.support.embargo_register import register
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import (
@@ -46,6 +47,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 ACTOR_ID = "https://example.org/actors/alice"
 CASE_ID = "https://example.org/cases/c1"
 PARTICIPANT_ID = "https://example.org/participants/p1"
+EMBARGO_ID = "https://example.org/cases/c1/embargoes/e1"
 
 
 @pytest.fixture
@@ -62,9 +64,11 @@ def dl():
         name="Test Case",
         case_participants=[PARTICIPANT_ID],
         actor_participant_index={ACTOR_ID: PARTICIPANT_ID},
+        # EM is derived from the embargo register (ADR-0122), never set on a
+        # status.
+        embargo_register=register(active=EMBARGO_ID),
         case_statuses=[  # type: ignore[arg-type]
             CaseStatus(
-                em_state=EM.ACTIVE,  # type: ignore[call-arg]
                 pxa_state=CS_pxa.Pxa,  # type: ignore[call-arg]
                 context=CASE_ID,
             )
@@ -239,7 +243,7 @@ class TestGetActionRulesUseCase:
             name="Default Participant Status Case",
             case_participants=[PARTICIPANT_ID],
             actor_participant_index={ACTOR_ID: PARTICIPANT_ID},
-            case_statuses=[CaseStatus(em_state=EM.NONE, context=CASE_ID)],  # type: ignore[arg-type,call-arg]
+            case_statuses=[CaseStatus(context=CASE_ID)],
         )
         layer.create(case)
         participant = as_CaseParticipant(
@@ -262,13 +266,15 @@ class TestGetActionRulesUseCase:
 
     def test_em_state_variations(self, dl):
         """Different EM states are correctly reflected."""
-        for em in [
-            EM.NONE,
-            EM.PROPOSED,
-            EM.ACTIVE,
-            EM.REVISE,
-            EM.EXITED,
-        ]:
+        revision_id = f"{EMBARGO_ID}-revision"
+        registers = {
+            EM.NONE: register(),
+            EM.PROPOSED: register(proposed=[EMBARGO_ID]),
+            EM.ACTIVE: register(active=EMBARGO_ID),
+            EM.REVISE: register(active=EMBARGO_ID, proposed=[revision_id]),
+            EM.EXITED: register(terminated=EMBARGO_ID),
+        }
+        for em, embargo_register in registers.items():
             layer = SqliteDataLayer(
                 "sqlite:///:memory:",
                 # Its own actor, therefore its own store: sharing ACTOR_ID with the
@@ -282,9 +288,9 @@ class TestGetActionRulesUseCase:
                 id_=CASE_ID,
                 case_participants=[PARTICIPANT_ID],
                 actor_participant_index={ACTOR_ID: PARTICIPANT_ID},
+                embargo_register=embargo_register,
                 case_statuses=[  # type: ignore[arg-type]
                     CaseStatus(
-                        em_state=em,  # type: ignore[call-arg]
                         pxa_state=CS_pxa.pxa,  # type: ignore[call-arg]
                         context=CASE_ID,
                     )

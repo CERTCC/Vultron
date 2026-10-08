@@ -14,22 +14,21 @@
 """Shared foundation for the :class:`EmbargoLifecycle` operation mixins.
 
 Holds the injected persistence port, the case lookup every operation starts
-with, the P/X/A eligibility guard (EMB-01-002, EMB-02-002) and the EM
-state-machine driver that turns a ``STRICT``/``OBSERVED`` transition request
-into a resulting state.  Operation mixins in the sibling modules build on
-this class; nothing here mutates the store.
+with, the P/X/A eligibility guard (EMB-01-002, EMB-02-002) and the embargo
+register driver that applies a ``STRICT``/``OBSERVED`` register step to a case
+in memory.  EM is derived from the register (ADR-0122), so the step is the
+whole EM write.  Operation mixins in the sibling modules build on this class;
+nothing here mutates the store.
 """
 
 import logging
 
-from transitions import MachineError
-
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.embargo_register import RegisterChange
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.embargo import pxa_is_embargo_eligible
 from vultron.core.services.embargo_lifecycle.results import TransitionMode
 from vultron.core.states.cs import CS_pxa
-from vultron.core.states.em import EM, EM_Trigger, EMAdapter, create_em_machine
 from vultron.errors import (
     VultronInvalidStateTransitionError,
     VultronNotFoundError,
@@ -77,49 +76,45 @@ class _LifecycleBase:
                 f" (pxa_state='{pxa_state.name}')."
             )
 
-    def _drive_em_transition(
+    def _apply_register_step(
         self,
+        case: VulnerabilityCase,
+        changes: list[RegisterChange],
         *,
-        case_id: str,
-        em_before: EM,
-        trigger: EM_Trigger,
         transition_mode: TransitionMode,
-        fallback_dest: EM,
         actor_id: str | None = None,
-    ) -> EM:
-        """Drive an EM state-machine transition.
+        threat_signal: bool = False,
+    ) -> bool:
+        """Apply one embargo register step to *case* in memory.
 
-        In ``STRICT`` mode raises
-        :exc:`~vultron.errors.VultronInvalidStateTransitionError` on failure.
-        In ``OBSERVED`` mode logs a warning and returns *fallback_dest*
-        instead of raising, enabling state-sync with a remote party.
+        In ``STRICT`` mode a refused step raises
+        :exc:`~vultron.errors.VultronInvalidStateTransitionError`.  In
+        ``OBSERVED`` mode — following a decision the CASE_MANAGER already
+        committed — a refused step is logged and skipped, leaving the case as
+        it was: the register is never forced into a state its rules refuse.
+
+        Returns:
+            ``True`` when the step was applied.
         """
-        adapter = EMAdapter(em_before)
-        em_machine = create_em_machine()
-        em_machine.add_model(adapter, initial=em_before)
         try:
-            getattr(adapter, trigger)()
-            return EM(adapter.state)
-        except MachineError:
+            case.apply_embargo_register_step(
+                changes, threat_signal=threat_signal
+            )
+        except VultronInvalidStateTransitionError as exc:
             if transition_mode == TransitionMode.STRICT:
                 logger.warning(
-                    "Invalid EM transition: actor '%s' cannot %s on case"
-                    " '%s' (EM state '%s').",
+                    "Refused embargo register step for actor '%s' on case"
+                    " '%s': %s",
                     actor_id,
-                    trigger,
-                    case_id,
-                    em_before,
+                    case.id_,
+                    exc,
                 )
-                raise VultronInvalidStateTransitionError(  # noqa: B904  # ruff-baseline #3353
-                    f"Cannot apply '{trigger}' to embargo: case '{case_id}'"
-                    f" EM state '{em_before}' does not allow this transition."
-                )
+                raise
             logger.warning(
-                "OBSERVED mode: EM transition '%s' (trigger '%s') failed"
-                " for case '%s' — forcing state-sync to '%s'",
-                em_before,
-                trigger,
-                case_id,
-                fallback_dest,
+                "OBSERVED mode: embargo register step on case '%s' refused,"
+                " case left unchanged: %s",
+                case.id_,
+                exc,
             )
-            return fallback_dest
+            return False
+        return True

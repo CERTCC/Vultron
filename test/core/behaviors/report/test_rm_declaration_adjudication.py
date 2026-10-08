@@ -38,6 +38,7 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.embargo_register import activate
 from test.support.rm_declaration import (
     ACTOR_ID,
     CASE_ID,
@@ -154,7 +155,7 @@ def _seed(dl: SqliteDataLayer, current: RM) -> None:
     seed_case(dl, current_status(current, CS_vf.Vf, CS_pxa.pxa), None)
     # DUR-07-004: the validate path needs an embargo on the case.
     case = cast(VulnerabilityCase, dl.read(CASE_ID))
-    case.active_embargo = f"{CASE_ID}/embargoes/shared-table"
+    activate(case, f"{CASE_ID}/embargoes/shared-table")
     dl.save(case)
 
 

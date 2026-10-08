@@ -35,6 +35,7 @@ from unittest.mock import patch
 import py_trees
 import pytest
 
+from test.support.embargo_register import register
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -62,6 +63,7 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.states.em import EM
+from vultron.core.states.embargo_register import TerminationReason
 from vultron.errors import VultronBTInternalError
 from vultron.semantic_registry import extract_event
 
@@ -365,7 +367,7 @@ class TestWriteCreateCaseMarkerNode:
             VulnerabilityCase(
                 id_=case_id,
                 attributed_to=_CASE_ACTOR_URI,
-                active_embargo=embargo.id_,
+                embargo_register=register(active=embargo.id_),
             )
         )
 
@@ -381,9 +383,11 @@ class TestWriteCreateCaseMarkerNode:
         marker = dl.read(PendingCreateCaseActivity.build_id(_PROPOSAL_URI))
         assert isinstance(marker, PendingCreateCaseActivity)
         case_obj = marker.create_activity_payload["object"]
-        carried = case_obj.get("activeEmbargo", case_obj.get("active_embargo"))
+        (entry,) = case_obj["embargoRegister"]
+        carried = entry["embargo"]
         assert isinstance(carried, dict), carried
         assert carried["id"] == embargo.id_
+        assert entry["status"] == "ACTIVE"
 
     @pytest.mark.spec("EMB-18-003")
     def test_unreadable_active_embargo_fails_without_a_marker(self, caplog):
@@ -394,7 +398,9 @@ class TestWriteCreateCaseMarkerNode:
             VulnerabilityCase(
                 id_=case_id,
                 attributed_to=_CASE_ACTOR_URI,
-                active_embargo=f"{case_id}/embargo_events/unheld",
+                embargo_register=register(
+                    active=f"{case_id}/embargo_events/unheld"
+                ),
             )
         )
 
@@ -524,7 +530,7 @@ class TestWriteCreateCaseMarkerNode:
         case = VulnerabilityCase(
             id_=case_id,
             attributed_to=_CASE_ACTOR_URI,
-            active_embargo=embargo.id_,
+            embargo_register=register(active=embargo.id_),
         )
         reporter = "https://example.org/actors/reporter"
         finder = "https://example.org/actors/finder"
@@ -1383,7 +1389,7 @@ class TestOwnerChecksOnACaseTheCaseActorCreated:
         )
 
         dl, case, revision_id = _proposed_case_with_open_revision(make_payload)
-        assert revision_id in case.proposed_embargoes
+        assert revision_id in case.proposed_embargo_ids
         scenario = BTTestScenario(actor_id=_CASE_ACTOR_URI, dl=dl)
 
         result = scenario.run(
@@ -1397,7 +1403,7 @@ class TestOwnerChecksOnACaseTheCaseActorCreated:
         assert result.status.name == "SUCCESS"
         stored = dl.read(case.id_)
         assert isinstance(stored, VulnerabilityCase)
-        assert (revision_id not in stored.proposed_embargoes) is pruned
+        assert (revision_id not in stored.proposed_embargo_ids) is pruned
 
 
 @pytest.mark.spec("CP-09-007")
@@ -3460,7 +3466,7 @@ class TestEP04SenderProposalAtCaseCreation:
         assert isinstance(embargo, EmbargoEvent)
         assert embargo.context == case.id_
         assert embargo.end_time == terms.end_time
-        assert case.proposed_embargoes == []
+        assert case.proposed_embargo_ids == []
 
     @pytest.mark.spec("EP-04-003")
     def test_shorter_sender_proposal_wins_and_the_actor_default_is_a_revision(
@@ -3476,7 +3482,7 @@ class TestEP04SenderProposalAtCaseCreation:
 
         assert case.active_embargo_id == terms.id_
         assert case.current_status.em.state == EM.REVISE
-        (revision_id,) = case.proposed_embargoes
+        (revision_id,) = case.proposed_embargo_ids
         revision = dl.read(revision_id)
         assert isinstance(revision, EmbargoEvent)
         assert revision.context == case.id_
@@ -3532,7 +3538,7 @@ class TestEP04SenderProposalAtCaseCreation:
         assert active.end_time < terms.end_time
         assert case.current_status.em.state == EM.REVISE
         # The Reporter's own event is the pending revision, now about the case.
-        assert case.proposed_embargoes == [terms.id_]
+        assert case.proposed_embargo_ids == [terms.id_]
         revision = dl.read(terms.id_)
         assert isinstance(revision, EmbargoEvent)
         assert revision.context == case.id_
@@ -3560,7 +3566,7 @@ class TestEP04SenderProposalAtCaseCreation:
         from vultron.core.models._helpers import _as_id
         from vultron.core.sync_helpers import recorded_entries_for_case
 
-        (revision_id,) = case.proposed_embargoes
+        (revision_id,) = case.proposed_embargo_ids
         proposal_id = case.pending_embargo_proposal_index[revision_id]
         (invite,) = self._invites(dl)
         assert invite.id_ == proposal_id
@@ -3668,7 +3674,7 @@ class TestEP04SenderProposalAtCaseCreation:
         case, _ = self._run(make_payload, dl, sender_days=30, terms=terms)
 
         assert case.current_status.em.state == EM.ACTIVE
-        assert case.proposed_embargoes == []
+        assert case.proposed_embargo_ids == []
         assert case.pending_embargo_proposal_index == {}
         assert self._invites(dl) == []
 
@@ -3728,7 +3734,7 @@ class TestEP04SenderProposalAtCaseCreation:
             make_payload, dl, sender_days=self._SENDER_END_DAYS
         )
 
-        (revision_id,) = case.proposed_embargoes
+        (revision_id,) = case.proposed_embargo_ids
         (invite,) = self._invites(dl)
         assert case.pending_embargo_proposal_index == {revision_id: invite.id_}
         assert [_as_id(r) for r in invite.to] == [_REPORTER_URI]
@@ -3816,7 +3822,7 @@ class TestEP04SenderProposalAtCaseCreation:
         )
         events_after_first = {e.id_ for e in dl.list_objects("EmbargoEvent")}
         assert case.current_status.em.state == EM.REVISE
-        assert len(case.proposed_embargoes) == 1
+        assert len(case.proposed_embargo_ids) == 1
 
         again, _ = self._run(
             make_payload,
@@ -3829,11 +3835,11 @@ class TestEP04SenderProposalAtCaseCreation:
         assert again.id_ == case.id_
         assert again.current_status.em.state == EM.REVISE
         assert again.active_embargo_id == terms.id_
-        assert again.proposed_embargoes == case.proposed_embargoes
+        assert again.proposed_embargo_ids == case.proposed_embargo_ids
         assert {
             e.id_ for e in dl.list_objects("EmbargoEvent")
         } == events_after_first
-        revision = dl.read(again.proposed_embargoes[0])
+        revision = dl.read(again.proposed_embargo_ids[0])
         assert isinstance(revision, EmbargoEvent)
 
     @pytest.mark.spec("EP-04-012")
@@ -3861,7 +3867,9 @@ class TestEP04SenderProposalAtCaseCreation:
         )
         assert case.current_status.em.state == EM.ACTIVE
         EmbargoLifecycle(persistence=dl).terminate_active_embargo(
-            case_id=case.id_, actor_id=_VENDOR_URI
+            reason=TerminationReason.EARLY,
+            case_id=case.id_,
+            actor_id=_VENDOR_URI,
         )
         while dl.outbox_pop() is not None:
             pass
@@ -3888,7 +3896,7 @@ class TestEP04SenderProposalAtCaseCreation:
         assert again.id_ == case.id_
         assert again.current_status.em.state == EM.EXITED
         assert again.active_embargo_id is None
-        assert again.proposed_embargoes == []
+        assert again.proposed_embargo_ids == []
         assert {
             e.id_ for e in dl.list_objects("EmbargoEvent")
         } == events_before
@@ -3901,7 +3909,7 @@ class TestEP04SenderProposalAtCaseCreation:
     ):
         """AC-2 of #4123 through the whole received tree.
 
-        The first delivery fails between PROPOSE and ACCEPT, which leaves
+        The first delivery fails between PROPOSE and ACTIVATE, which leaves
         the case at ``EM.NONE`` (EP-04-002).  Redelivering the same
         ``Create(CaseProposal)`` reuses the case (CP-05-006) and reaches the
         creation arm, because the guard reads only a state past ``NONE`` as
@@ -3909,19 +3917,19 @@ class TestEP04SenderProposalAtCaseCreation:
         embargo attached.
         """
         from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
-        from vultron.core.states.em import EM_Trigger
+        from vultron.core.states.embargo_register import RegisterTrigger
         from vultron.errors import VultronInvalidStateTransitionError
 
-        drive = EmbargoLifecycle._drive_em_transition
+        apply_step = EmbargoLifecycle._apply_register_step
 
-        def _refuse_accept(self, **kwargs):
-            if kwargs["trigger"] is EM_Trigger.ACCEPT:
+        def _refuse_activate(self, case, changes, **kwargs):
+            if any(c.trigger is RegisterTrigger.ACTIVATE for c in changes):
                 raise VultronInvalidStateTransitionError("forced failure")
-            return drive(self, **kwargs)
+            return apply_step(self, case, changes, **kwargs)
 
         dl = self._store()
         monkeypatch.setattr(
-            EmbargoLifecycle, "_drive_em_transition", _refuse_accept
+            EmbargoLifecycle, "_apply_register_step", _refuse_activate
         )
         first, terms = self._run(
             make_payload, dl, sender_days=self._SENDER_END_DAYS
@@ -3930,7 +3938,9 @@ class TestEP04SenderProposalAtCaseCreation:
         assert first.active_embargo_id is None
 
         # The same activity again: the redelivery carries the same terms.
-        monkeypatch.setattr(EmbargoLifecycle, "_drive_em_transition", drive)
+        monkeypatch.setattr(
+            EmbargoLifecycle, "_apply_register_step", apply_step
+        )
         again, _ = self._run(
             make_payload, dl, sender_days=self._SENDER_END_DAYS, terms=terms
         )
@@ -3948,7 +3958,7 @@ class TestEP04SenderProposalAtCaseCreation:
 
         assert case.current_status.em.state == EM.ACTIVE
         assert case.active_embargo_id != terms.id_
-        assert case.proposed_embargoes == []
+        assert case.proposed_embargo_ids == []
 
     @pytest.mark.spec("EP-04-003")
     @pytest.mark.spec("CM-14-005")
@@ -3998,7 +4008,7 @@ class TestEP04SenderProposalAtCaseCreation:
 
         assert case.current_status.em.state == EM.ACTIVE
         assert case.active_embargo_id != terms.id_
-        assert case.proposed_embargoes == []
+        assert case.proposed_embargo_ids == []
         assert any(
             "not the proposal's report" in r.getMessage()
             for r in caplog.records

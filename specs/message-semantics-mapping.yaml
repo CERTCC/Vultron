@@ -766,9 +766,10 @@ groups:
     statement: >-
       The wire activity ACCEPT_INVITE_TO_EMBARGO_ON_CASE (EA wire form:
       Accept(Invite(Event)[context=VulnerabilityCase])) has two-audience semantics:
-      (1) when the sending actor is the case owner it MUST advance the shared EM
-      state from PROPOSED to ACTIVE (or from REVISE to ACTIVE for EC, replacing
-      the active embargo and applying the MSM-07-005 consent rule);
+      (1) when the sending actor is the case owner it MUST activate the accepted
+      embargo's register entry, superseding any entry in force, so the derived EM
+      becomes ACTIVE (ADR-0122; for EC this replaces the active embargo and applies
+      the MSM-07-005 consent rule);
       (2) for any accepting participant it MUST apply the PEC ACCEPT trigger to the
       participant's row for the accepted embargo, advancing it from no row, INVITED or
       EXPIRED to ACCEPTED. The rule is the same whether the accepted embargo is the
@@ -780,10 +781,10 @@ groups:
       records nothing — ACCEPT is not legal from DECLINED (CM-18-003), so it is re-invited
       first.
     rationale: >-
-      The same wire activity simultaneously drives the case-level EM machine
+      The same wire activity simultaneously drives the case's embargo register
       (for the case owner) and the participant-level PEC rows (for the accepting
       actor). An implementer handling this activity MUST update both, not
-      just the EM state. The PEC ACCEPT trigger is valid directly from no row
+      just the register. The PEC ACCEPT trigger is valid directly from no row
       because consent can be self-determined without an invitation (ADR-0048,
       ADR-0091, CM-18-003). Consent is per embargo (CM-10-001, ADR-0093, ADR-0122): an Accept
       is always a statement about the embargo it names, so it always marks that embargo's row
@@ -809,10 +810,11 @@ groups:
     statement: >-
       The wire activity REJECT_INVITE_TO_EMBARGO_ON_CASE (ER wire form:
       Reject(Invite(Event)[context=VulnerabilityCase])) has two-audience semantics:
-      (1) when the sending actor is the case owner it MUST advance the shared EM
-      state from PROPOSED to NONE (for ER) or from REVISE back to ACTIVE with the
-      prior terms still in force (for EJ), and an EJ MUST NOT change any
-      participant's consent rows, the owner's included;
+      (1) when the sending actor is the case owner it MUST reject the proposal's
+      register entry, so the derived EM becomes NONE (for ER) or stays ACTIVE with
+      the prior terms still in force (for EJ) once no other proposal is open, and
+      stays PROPOSED or REVISE while another is (ADR-0122); an EJ MUST NOT change
+      any participant's consent rows, the owner's included;
       (2) for any rejecting participant it MUST apply the PEC DECLINE trigger to the
       participant's row for the rejected embargo (valid from no row, INVITED, ACCEPTED or
       EXPIRED). Rejecting the case's *active* embargo is consent withdrawal and MUST also
@@ -826,8 +828,8 @@ groups:
       proposal's row only: it withdraws from nothing, and other open proposals the
       participant accepted stay accepted.
     rationale: >-
-      Symmetric with MSM-07-003: the reject wire activity drives both the EM machine
-      (case-owner path) and the PEC rows (rejecting participant path). The PEC
+      Symmetric with MSM-07-003: the reject wire activity drives both the embargo
+      register (case-owner path) and the PEC rows (rejecting participant path). The PEC
       DECLINE trigger is valid directly from no row for symmetric reasons to
       ACCEPT (ADR-0048, ADR-0091, CM-18-003), and from ACCEPTED as first-class
       consent withdrawal (ADR-0093, VP-13-007, VP-13-008). Consent is per embargo,
@@ -855,7 +857,8 @@ groups:
     kind: project
     statement: >-
       When the case owner's Accept(Invite(Event)) (EC) replaces active embargo A
-      with revision B (shared EM REVISE → ACTIVE, `active_embargo` changes),
+      with revision B (the register activates B and supersedes A, so the derived EM
+      goes REVISE → ACTIVE),
       implementations MUST settle every participant's consent rows against B:
       if B ends no later than A, every participant whose row for A is ACCEPTED MUST be carried
       over by marking its row for B ACCEPTED (where ACCEPT is legal, CM-18-003); if B ends
@@ -871,7 +874,7 @@ groups:
       embargo in force, and the proposer's row for the proposed embargo MUST be marked
       ACCEPTED. The carry-over MUST run whether the transition is driven locally or observed
       from the wire. No separate outbound wire activity is emitted for these per-participant
-      consent writes; they are an internal side-effect of the EM state change.
+      consent writes; they are an internal side-effect of the activation.
     rationale: >-
       A participant has lapsed when the active embargo was replaced by longer terms it has not
       accepted. While a revision is merely proposed the prior embargo is still in force and
@@ -902,15 +905,16 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      When the shared EM state transitions to EXITED (driven by an ET /
-      REMOVE_EMBARGO_EVENT_FROM_CASE wire activity), implementations MUST clear the case's
-      active embargo and MUST NOT write any participant's consent rows: with no active embargo
+      When an ET / REMOVE_EMBARGO_EVENT_FROM_CASE wire activity terminates the embargo
+      register's ACTIVE entry (cancelling every open proposal in the same step, so the derived
+      EM becomes EXITED), implementations MUST leave the case with no active embargo and MUST
+      NOT write any participant's consent rows: with no active embargo
       no participant is a signatory and no row binds anyone, and an Accept or Reject that
       arrives afterwards records nothing (EMB-17-004). No separate outbound wire activity is
       emitted; the participant position is derived from the case.
     rationale: >-
-      EM EXITED has no outgoing transition, so a terminated embargo can never be invited to
-      again. That is a fact about the case, which every replica holds once it replays the
+      A register with a TERMINATED entry accepts no further change (ADR-0122 invariant 4), so a
+      terminated embargo can never be invited to again. That is a fact about the case, which every replica holds once it replays the
       teardown, so it does not need to be copied onto each participant record as the terminal
       state it was before ADR-0122 (ADR-0118). Leaving the rows as they were also keeps the
       history of who accepted what.

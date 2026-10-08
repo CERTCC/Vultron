@@ -94,14 +94,21 @@ def test_extract_activity_snapshot_inlines_nested_reference_fields(datalayer):
         context="https://example.org/cases/case-001",
         end_time=days_from_now_utc(45),
     )
+    revision = as_EmbargoEvent(
+        context="https://example.org/cases/case-001",
+        end_time=days_from_now_utc(90),
+    )
     report = as_VulnerabilityReport(
         name="TEST-REPORT-001",
         content="Demo content",
         context="https://example.org/cases/case-001",
     )
     datalayer.save(embargo)
+    datalayer.save(revision)
     datalayer.save(report)
 
+    # A case's embargoes are its register entries (ADR-0122); each entry's
+    # ``embargo`` is the reference the snapshot inlines.
     payload = {
         "id": "https://example.org/activities/engage-001",
         "type": "Join",
@@ -109,8 +116,10 @@ def test_extract_activity_snapshot_inlines_nested_reference_fields(datalayer):
         "object": {
             "id": "https://example.org/statuses/status-001",
             "type": "ParticipantStatus",
-            "activeEmbargo": embargo.id_,
-            "proposedEmbargoes": [embargo.id_],
+            "embargoRegister": [
+                {"embargo": embargo.id_, "status": "ACTIVE"},
+                {"embargo": revision.id_, "status": "PROPOSED"},
+            ],
             "vulnerabilityReports": [report.id_],
         },
     }
@@ -121,10 +130,11 @@ def test_extract_activity_snapshot_inlines_nested_reference_fields(datalayer):
     status_obj = snapshot["object"]
 
     assert snapshot["context"] == "https://example.org/cases/case-001"
-    assert isinstance(status_obj["activeEmbargo"], dict)
-    assert status_obj["activeEmbargo"]["id"] == embargo.id_
-    assert isinstance(status_obj["proposedEmbargoes"][0], dict)
-    assert status_obj["proposedEmbargoes"][0]["id"] == embargo.id_
+    active, proposed = status_obj["embargoRegister"]
+    assert isinstance(active["embargo"], dict)
+    assert active["embargo"]["id"] == embargo.id_
+    assert isinstance(proposed["embargo"], dict)
+    assert proposed["embargo"]["id"] == revision.id_
     assert isinstance(status_obj["vulnerabilityReports"][0], dict)
     assert status_obj["vulnerabilityReports"][0]["id"] == report.id_
 

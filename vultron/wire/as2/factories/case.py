@@ -142,15 +142,8 @@ def _project_case_to_stub(
             "emitting a stub Invite (CM-17-010, MV-10-001)"
         )
     case_id = case.id_
-    try:
-        current_status = case.current_status
-    except (ValueError, AttributeError):
-        return as_VulnerabilityCaseStub(case_id=case_id, summary=stub_summary)
-    # Support both core CaseStatus (.em.state) and wire as_CaseStatus (.em_state)
-    if hasattr(current_status, "em") and hasattr(current_status.em, "state"):
-        em_state = current_status.em.state
-    else:
-        em_state = getattr(current_status, "em_state", None)
+    # EM is derived from the case's embargo register (ADR-0122).
+    em_state = getattr(case, "em_state", None)
     active_embargo = getattr(case, "active_embargo", None)
     if em_state != EM.ACTIVE or active_embargo is None:
         return as_VulnerabilityCaseStub(case_id=case_id, summary=stub_summary)

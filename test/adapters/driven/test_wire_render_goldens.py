@@ -22,7 +22,8 @@ The ``VultronNote`` and ``VultronActivity``-family entries were added after:
 the port refused them until ADR-0099 detail 4 moved them onto ``CoreObject``.
 Later ``main`` changes were then regenerated in: ``CoreActorCollection`` was
 deleted (#3563), actors now derive an absent inbox/outbox from their id
-(#3616), and a participant carries its ``joined`` fact (#4046).
+(#3616), a participant carries its ``joined`` fact (#4046), and a case's
+embargoes live in its ``embargoRegister`` (ADR-0122, #4290).
 
 Two value classes are generated afresh on every construction by nested
 defaults and are normalised before comparison: minted ``urn:uuid:`` ids and

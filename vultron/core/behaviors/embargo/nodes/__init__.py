@@ -119,7 +119,6 @@ from vultron.core.behaviors.embargo.nodes.teardown import (
     ApplyEmbargoTeardownNode,
     ClearActiveEmbargoNode,
     HasEmbargoActiveNode,
-    RemoveFromProposedEmbargoesNode,
     SendAnnounceEmbargoEventNode,
 )
 from vultron.core.behaviors.embargo.nodes.terminate import (
@@ -149,7 +148,6 @@ __all__ = [
     "HasEmbargoActiveNode",
     "ClearActiveEmbargoNode",
     "ApplyEmbargoTeardownNode",
-    "RemoveFromProposedEmbargoesNode",
     "SendAnnounceEmbargoEventNode",
     # Activation ledger replay (RSH-08-004, #3814)
     "EMBARGO_ACTIVATION_EVENT_TYPE",

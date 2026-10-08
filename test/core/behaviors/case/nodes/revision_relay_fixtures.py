@@ -21,6 +21,7 @@ readers the node, tree and startup-runner tests assert through.
 from typing import cast
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.embargo_register import register, reject
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
@@ -42,7 +43,6 @@ from vultron.core.models.pending_creation_time_revision_relay import (
 )
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.services.embargo_duration import EmbargoDurationSource
-from vultron.core.states.em import EM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
@@ -54,6 +54,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (  # noqa: F401
 
 CASE_ID = "https://example.org/cases/creation-revision"
 EMBARGO_ID = f"{CASE_ID}/embargo_events/revision"
+ACCEPTED_EMBARGO_ID = f"{CASE_ID}/embargo_events/accepted"
 PROPOSAL_ID = "urn:uuid:creation-time-revision-invite"
 REPORT_ID = "https://example.org/reports/creation-revision"
 MANAGER = "https://example.org/actors/case-actor"
@@ -80,6 +81,8 @@ def seed(
 ) -> None:
     """A REVISE case owned by OWNER, managed by MANAGER, reported by REPORTER.
 
+    The revision is an open proposal beside the embargo in force; with
+    *open_proposal* false the owner has rejected it, leaving the case ACTIVE.
     *created* commits the case's genesis ledger entry, as the case tree's
     ledger commit does before the relay runs; without it the case's creation
     entries are still owed (CM-14-007, CM-14-011).
@@ -97,9 +100,12 @@ def seed(
         actor_participant_index={
             cast(str, p.attributed_to): p.id_ for p in records
         },
-        proposed_embargoes=[EMBARGO_ID] if open_proposal else [],
+        embargo_register=register(
+            active=ACCEPTED_EMBARGO_ID, proposed=[EMBARGO_ID]
+        ),
     )
-    case.append_case_status(em_state=EM.REVISE)
+    if not open_proposal:
+        reject(case, EMBARGO_ID)
     # A case only materializes status with an owner, so an ownerless case is
     # one whose record lost it after construction (assignment skips checks).
     case.attributed_to = owner

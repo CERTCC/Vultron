@@ -77,7 +77,6 @@ from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycleResult,
     TransitionMode,
 )
-from vultron.core.states.em import EM
 from vultron.errors import VultronError
 
 #: Blackboard key of the proposals to abandon, ``{embargo_id: invite_id}``.
@@ -204,14 +203,12 @@ class AbandonEmbargoProposalsLifecycleNode(_EmbargoLifecycleNode):
         self,
         lifecycle: EmbargoLifecycle,
         actor_id: str,
-        em_before: EM,
     ) -> EmbargoLifecycleResult:
         return lifecycle.abandon_embargo_proposals(
             case_id=self._case_id_value,
             embargo_ids=list(self._proposals),
             actor_id=actor_id,
             transition_mode=TransitionMode.STRICT,
-            em_before=em_before,
         )
 
 

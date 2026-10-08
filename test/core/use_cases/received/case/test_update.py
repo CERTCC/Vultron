@@ -22,6 +22,7 @@ from typing import cast
 
 import pytest
 
+from test.support.embargo_register import register
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -281,7 +282,7 @@ class TestCaseUseCases:
             id_="https://example.org/cases/uc4",
             name="Original",
             attributed_to=owner_id,
-            active_embargo=embargo.id_,
+            embargo_register=register(active=embargo.id_),
         )
         case.actor_participant_index[actor_id] = participant.id_
         dl.create(case)
@@ -339,7 +340,7 @@ class TestCaseUseCases:
             id_="https://example.org/cases/uc5",
             name="Original",
             attributed_to=owner_id,
-            active_embargo=embargo.id_,
+            embargo_register=register(active=embargo.id_),
         )
         case.actor_participant_index[actor_id] = participant.id_
         dl.create(case)
@@ -381,7 +382,6 @@ class TestCaseUseCases:
             id_="https://example.org/cases/uc6",
             name="Original",
             attributed_to=owner_id,
-            active_embargo=None,
         )
         case.actor_participant_index[actor_id] = participant.id_
         dl.create(case)
@@ -449,7 +449,7 @@ class TestCaseUseCases:
             id_=case_id,
             name="Original",
             attributed_to=owner_id,
-            active_embargo=embargo.id_,
+            embargo_register=register(active=embargo.id_),
         )
         if inert == "no-record":
             case.actor_participant_index[actor_id] = bogus_ref.id_

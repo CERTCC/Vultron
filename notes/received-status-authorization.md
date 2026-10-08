@@ -87,7 +87,7 @@ issue under epic #3472:
   entries are replayed, and the participant's Invite tree now stores and
   answers without writing state (EP-09-003). The replay half of the rest is
   #3814: `create_announce_log_entry_tree` now replays `add_case_status_to_case`
-  (under the RSH-05-018/019 rules), `add_embargo_event_to_case` (through
+  (under the RSH-05-023/019 rules), `add_embargo_event_to_case` (through
   `EmbargoLifecycle`), and the activity-typed RM moves — the report verdicts and
   engage/defer, and the full-case Invite replies — onto the *sender's*
   participant. Every committed event type is
@@ -412,7 +412,7 @@ AddCaseStatusToCaseBT (Sequence)
 ├─ CheckCaseStatusIdempotencyNode       ← precondition guard (CLP-10-009)
 ├─ CheckCsEphemeralStateNode            ← pX ephemeral guard (CSB-17-012, #2524)
 ├─ CheckCsHistoryPrefixNode             ← history prefix guard (CSB-17-005, #2524)
-├─ FilterCsEmDimensionNode              ← per-dim EM adjudication (RSH-05-018); FAILURE when case absent (CLP-10-009, #2957), SUCCESS otherwise
+├─ FilterCsEmDimensionNode              ← per-dim EM adjudication (RSH-05-023); FAILURE when case absent (CLP-10-009, #2957), SUCCESS otherwise
 ├─ FilterCsPxaDimensionNode             ← per-dim PXA adjudication (RSH-05-019); always SUCCESS
 ├─ FinalizeCsFilterNode                 ← FAILURE on whole-refusal; publishes filter
 ├─ GuardedCommitOrSkip                  ← canonical ledger commit (CLP-10-006)
@@ -428,9 +428,10 @@ removed; per-dimension filter nodes are its replacement.
 
 `FilterCsEmDimensionNode` runs first: it clears `BB_CASE_STATUS_DIM_FILTER` and
 the per-tick accumulator unconditionally (RSH-05-010, BT-17-003), returns FAILURE
-when the case is not found in the DataLayer (CLP-10-009, #2957 AC-1), evaluates
-the EM transition per the acceptance predicate in RSH-05-018
-(`is_valid_em_transition()`), and writes a per-tick accumulator dict to the
+when the case is not found in the DataLayer (CLP-10-009, #2957 AC-1), refuses any
+asserted EM that differs from the case's own `case.em_state` (RSH-05-023: EM
+is derived from the embargo register, so a status never moves it, ADR-0122),
+and writes a per-tick accumulator dict to the
 blackboard. `BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE` is **not** touched here; its
 sole owner is `FinalizeCsFilterNode` (CONCERN-2711, #2957 AC-2).
 

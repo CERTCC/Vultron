@@ -32,6 +32,7 @@ from typing import cast
 
 import pytest
 
+from test.support.embargo_register import activate, terminate
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -67,9 +68,16 @@ OTHER_B = "https://example.org/users/vendor-b"
 
 
 def _active_case_with_revision(
-    case_id: str, *, store_actor: str, participants: list[str]
+    case_id: str,
+    *,
+    store_actor: str,
+    participants: list[str],
+    active: bool = True,
 ) -> tuple[SqliteDataLayer, as_EmbargoEvent]:
     """Case at ``EM.ACTIVE`` under embargo A, plus a proposed revision B.
+
+    With ``active=False`` embargo A is stored but never enters the case's
+    register, so the case stays at ``EM.NONE``.
 
     The store belongs to *store_actor*; the CASE_MANAGER role holder is
     ``MANAGER`` in every store so the role gate reads the same everywhere.
@@ -94,9 +102,9 @@ def _active_case_with_revision(
                 replica.create(obj)
         dl = replica
     case_read = cast(VulnerabilityCase, dl.read(case_id))
-    case_read.current_status.em.state = EM.ACTIVE
-    case_read.active_embargo = embargo_a.id_
-    dl.save(case_read)
+    if active:
+        activate(case_read, embargo_a.id_)
+        dl.save(case_read)
     # Under an active embargo only a signatory is an active participant
     # (CM-10-004), and only an active participant's proposal is acted on
     # (ADR-0115), so the proposer is bound to embargo A.
@@ -282,13 +290,12 @@ def _unbound_case(
 ) -> tuple[SqliteDataLayer, as_EmbargoEvent]:
     """Case at ``EM.NONE`` with no embargo, plus a first proposal."""
     dl, _ = _active_case_with_revision(
-        case_id, store_actor=store_actor, participants=participants
+        case_id,
+        store_actor=store_actor,
+        participants=participants,
+        active=False,
     )
-    case = cast(VulnerabilityCase, dl.read(case_id))
-    case.current_status.em.state = EM.NONE
-    case.active_embargo = None
-    case.proposed_embargoes = []
-    dl.save(case)
+    assert cast(VulnerabilityCase, dl.read(case_id)).em_state == EM.NONE
     first = as_EmbargoEvent(
         id_=f"{case_id}/embargo_events/first",
         content="First terms",
@@ -610,7 +617,7 @@ def test_an_exited_case_refuses_a_proposal_before_committing(make_payload):
         case_id, store_actor=MANAGER, participants=[PROPOSER, OTHER_A]
     )
     case = cast(VulnerabilityCase, dl.read(case_id))
-    case.current_status.em.state = EM.EXITED
+    terminate(case)
     dl.save(case)
 
     verdict = _deliver(dl, _proposal(revision, case_id), make_payload, MANAGER)
@@ -644,7 +651,7 @@ def test_a_revision_of_a_public_case_is_refused_with_er(make_payload):
         case_id, store_actor=MANAGER, participants=[PROPOSER, OTHER_A]
     )
     case = cast(VulnerabilityCase, dl.read(case_id))
-    case.append_case_status(em_state=EM.ACTIVE, pxa_state=CS_pxa.Pxa)
+    case.append_case_status(pxa_state=CS_pxa.Pxa)
     dl.save(case)
 
     verdict = _deliver(dl, _proposal(revision, case_id), make_payload, MANAGER)

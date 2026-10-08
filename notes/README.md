@@ -640,12 +640,13 @@ debugging signatory / lapsed semantics.
 **`embargo-lifecycle.md`**
 Architecture of EM state management: the `EmbargoLifecycle` service
 (`vultron/core/services/embargo_lifecycle/`, a per-responsibility package
-since #3760) that owns every EM + PEC transition (#538), the inline-`EMAdapter`
-instantiation anti-pattern it replaced, the P/X/A embargo-eligibility guards,
-and the earliest-expiration resolution order for open proposals (EP-08).
-**Load when**: implementing any embargo state transition in trigger or received
-use cases or BT nodes, changing or extending `EmbargoLifecycle`, or auditing
-inline `create_em_machine()` instantiations.
+since #3760) that owns every embargo register step and PEC transition (#538),
+the embargo register from which EM is derived (ADR-0122), the P/X/A
+embargo-eligibility guards, and the earliest-expiration resolution order for
+open proposals (EP-08).
+**Load when**: implementing any embargo state change in trigger or received
+use cases or BT nodes, changing or extending `EmbargoLifecycle` or the
+embargo register, or reading EM state.
 
 ---
 

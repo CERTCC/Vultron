@@ -128,11 +128,14 @@ class _AnnounceEmbargoActivity(as_Announce):
     context: as_VulnerabilityCaseRef = None
 
 
-# remove as_EmbargoEvent from proposedEmbargoes of VulnerabilityCase
-# todo: should proposedEmbargoes be its own collection object that can then be used as the origin here?
 class _RemoveEmbargoFromCaseActivity(as_Remove):
-    """Remove an as_EmbargoEvent from the proposedEmbargoes of a VulnerabilityCase.
-    This should only be performed by the case owner.
+    """Remove the embargo in force from a VulnerabilityCase (ET).
+
+    The receiver terminates the case's ``ACTIVE`` embargo register entry and
+    cancels every open proposal in the same step, so EM derives ``EXITED``
+    (MSM-07-006, ADR-0122).  A Remove naming an embargo that is only
+    proposed changes nothing.  This should only be performed by the case
+    owner.
     object_: as_EmbargoEvent
     origin: VulnerabilityCase
     """

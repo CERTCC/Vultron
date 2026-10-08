@@ -5,6 +5,7 @@ from typing import cast
 
 import pytest
 
+from test.support.embargo_register import propose
 from test.support.ledger import committed_event_types
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -60,7 +61,8 @@ def test_propose_embargo_revision_transitions_em_to_revise(
     assert result.activity is not None
     updated_case = cast(VulnerabilityCase, dl.read(case.id_))
     assert updated_case.current_status.em.state == EM.REVISE
-    assert len(updated_case.proposed_embargoes) == 2
+    assert updated_case.active_embargo_id == case.active_embargo_id
+    assert len(updated_case.proposed_embargo_ids) == 1
 
 
 @pytest.mark.spec("EP-09-002")
@@ -160,7 +162,8 @@ def test_propose_embargo_revision_in_revise_state_succeeds(
     actor, dl = finder_actor_and_dl
 
     case = _build_active_embargo_case_with_case_manager(dl, actor.id_)
-    case.append_case_status(em_state=EM.REVISE)
+    # An earlier revision is already open, so EM is REVISE before the trigger.
+    propose(case, f"{case.id_}/embargo_events/earlier-revision")
     dl.save(case)
 
     participant_id = case.actor_participant_index[actor.id_]
@@ -184,12 +187,12 @@ def test_propose_embargo_revision_in_revise_state_succeeds(
     assert result.activity is not None
     updated_case = cast(VulnerabilityCase, dl.read(case.id_))
     assert updated_case.current_status.em.state == EM.REVISE
-    assert len(updated_case.proposed_embargoes) == 2
+    assert len(updated_case.proposed_embargo_ids) == 2
 
     participant_after = cast(as_CaseParticipant, dl.read(participant_id))
     # The proposer's row for the embargo in force is untouched; proposing adds
     # only an ACCEPTED row for the proposed revision (ADR-0122).
-    proposed_id = updated_case.proposed_embargoes[-1]
+    proposed_id = updated_case.proposed_embargo_ids[-1]
     assert [
         r
         for r in participant_after.embargo_consents

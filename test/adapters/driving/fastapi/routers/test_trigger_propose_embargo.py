@@ -25,6 +25,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi import status
 
+from test.support.embargo_register import activate, terminate
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.core.states.em import EM
 
@@ -271,7 +272,8 @@ def test_trigger_propose_embargo_exited_returns_409(
 ):
     """propose-embargo returns HTTP 409 when EM state is EXITED."""
     case_obj = dl.read(case_without_participant.id_)
-    case_obj.current_status.em.state = EM.EXITED
+    activate(case_obj, f"{case_obj.id_}/embargo_events/ended")
+    terminate(case_obj)
     dl.update(case_obj.id_, object_to_record(case_obj))
     make_case_manager(case_obj.id_, actor.id_, dl)  # EP-09-008
 

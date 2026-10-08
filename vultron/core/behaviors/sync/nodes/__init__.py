@@ -36,7 +36,7 @@ Submodules:
 - ``offer_report_effect``, ``ownership_effects``, ``ownership_offer_effect``,
   ``participant_removal_effect``: per-effect ledger-apply nodes
 - ``case_status_effect``: Ledger-apply of ``add_case_status_to_case``, under
-  the RSH-05-018/019 acceptance rules
+  the RSH-05-023/019 acceptance rules
 - ``rm_verdict_effect``: Ledger-apply of the activity-typed RM moves (report
   verdicts, engage/defer) to the sender's participant
 

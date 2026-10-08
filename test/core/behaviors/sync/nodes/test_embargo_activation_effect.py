@@ -14,8 +14,8 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Replay of ``add_embargo_event_to_case`` on a participant replica (#3814 AC-4).
 
-The activation counterpart of the teardown replay: EM → ACTIVE and
-``active_embargo`` set, through ``EmbargoLifecycle`` (EMB-18-001).
+The activation counterpart of the teardown replay: the register activates
+the embargo, so EM derives ACTIVE, through ``EmbargoLifecycle`` (EMB-18-001).
 """
 
 from datetime import timedelta
@@ -31,6 +31,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_event,
     _to_persistable_entry,
 )
+from test.support.embargo_register import activate, propose
 from vultron.core.behaviors.embargo.nodes import (
     ApplyEmbargoActivationFromLedgerNode,
 )
@@ -42,6 +43,7 @@ from vultron.core.states.em import EM
 
 MANAGER = "https://example.org/actors/case-manager"
 EMBARGO_ID = f"{CASE_ID}/embargo_events/e1"
+PRIOR_EMBARGO_ID = f"{CASE_ID}/embargo_events/e0"
 
 
 def _embargo_snapshot() -> dict[str, Any]:
@@ -54,8 +56,24 @@ def _embargo_snapshot() -> dict[str, Any]:
 
 
 def _seed(datalayer, em: EM) -> VulnerabilityCase:
+    """A replica whose register has the entry's embargo open as a proposal.
+
+    ``REVISE`` adds an earlier embargo in force, which the activation
+    supersedes.  EM is derived from the register (ADR-0122).
+    """
     case = VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
-    case.current_status.em.state = em
+    if em is EM.REVISE:
+        # The activation reads the embargo it replaces (EMB-18-003).
+        datalayer.save(
+            EmbargoEvent(
+                id_=PRIOR_EMBARGO_ID,
+                context=CASE_ID,
+                end_time=now_utc() + timedelta(days=90),
+            )
+        )
+        activate(case, PRIOR_EMBARGO_ID)
+    propose(case, EMBARGO_ID)
+    assert case.em_state == em
     datalayer.save(case)
     return case
 

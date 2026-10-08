@@ -445,10 +445,9 @@ Using participant-supplied timestamps would allow different copies of a
 case (held by different actors) to disagree on event ordering, undermining
 auditability and the single-source-of-truth guarantee provided by CM-02-002.
 
-**Implementation note**: `set_embargo()` and similar mutation helpers on
-`VulnerabilityCase` MUST operate on `current_status`, not on the raw list.
-Directly setting `.em_state` on the `case_status` list attribute is a bug
-(lists do not support arbitrary attribute assignment).
+**Implementation note**: EM is not set on a status at all. It is derived from
+the case's embargo register (ADR-0122), and the case stamps the derived value
+onto `current_status`; `append_case_status(em_state=...)` is refused.
 
 **Trusted timestamp implementation note**: When the spec says the CASE_MANAGER
 must timestamp state-changing events on receipt, this does NOT mean modifying

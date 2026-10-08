@@ -38,12 +38,14 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import VultronOutbox
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.embargo_register import EmbargoRegisterEntry
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.base import VultronEvent
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.pending_assertion import PendingAssertion
 from vultron.core.models.protocol_pair import ProtocolPair
 from vultron.core.models.replication_state import VultronReplicationState
+from vultron.core.states.embargo_register import EmbargoRegisterStatus
 
 ACTOR = "https://example.org/actors/vendor"
 CASE = "https://example.org/cases/1"
@@ -86,8 +88,29 @@ CASES: list[tuple[str, Callable[[Any], Any]]] = [
         ),
     ),
     (
-        "VulnerabilityCase.active_embargo",
-        lambda v: VulnerabilityCase(id_=CASE, active_embargo=v),
+        "VulnerabilityCase.embargo_register (embargo)",
+        lambda v: VulnerabilityCase(
+            id_=CASE,
+            embargo_register=[
+                EmbargoRegisterEntry(
+                    embargo=v, status=EmbargoRegisterStatus.ACTIVE
+                )
+            ],
+        ),
+    ),
+    (
+        "EmbargoRegisterEntry.embargo",
+        lambda v: EmbargoRegisterEntry(
+            embargo=v, status=EmbargoRegisterStatus.PROPOSED
+        ),
+    ),
+    (
+        "EmbargoRegisterEntry.replaces",
+        lambda v: EmbargoRegisterEntry(
+            embargo=f"{CASE}/embargoes/revision",
+            status=EmbargoRegisterStatus.ACTIVE,
+            replaces=v,
+        ),
     ),
     (
         "VulnerabilityCase.parent_cases",

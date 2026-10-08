@@ -340,7 +340,9 @@ def test_event_without_activity_is_a_wiring_fault_not_a_refusal(bridge):
 
 def test_activity_payload_inlines_nested_reference_fields(bridge, datalayer):
     embargo = as_EmbargoEvent(context=CASE_ID, end_time=days_from_now_utc(45))
+    revision = as_EmbargoEvent(context=CASE_ID, end_time=days_from_now_utc(60))
     datalayer.save(embargo)
+    datalayer.save(revision)
     activity = _FakeActivity(
         activity_id=ACTIVITY_ID,
         semantic_type=MessageSemantics.CREATE_CASE,
@@ -352,8 +354,12 @@ def test_activity_payload_inlines_nested_reference_fields(bridge, datalayer):
                 "object": {
                     "id": "https://example.org/statuses/status-001",
                     "type": "ParticipantStatus",
-                    "activeEmbargo": embargo.id_,
-                    "proposedEmbargoes": [embargo.id_],
+                    # Each register entry's embargo is a reference
+                    # (ADR-0122).
+                    "embargoRegister": [
+                        {"embargo": embargo.id_, "status": "ACTIVE"},
+                        {"embargo": revision.id_, "status": "PROPOSED"},
+                    ],
                 },
             }
         ),
@@ -374,10 +380,12 @@ def test_activity_payload_inlines_nested_reference_fields(bridge, datalayer):
     payload_snapshot = mock_factory.call_args.kwargs["payload_snapshot"]
     status_obj = payload_snapshot["object"]
     assert payload_snapshot["context"] == CASE_ID
-    assert isinstance(status_obj["activeEmbargo"], dict)
-    assert status_obj["activeEmbargo"]["id"] == embargo.id_
-    assert isinstance(status_obj["proposedEmbargoes"][0], dict)
-    assert status_obj["proposedEmbargoes"][0]["id"] == embargo.id_
+    active, proposed = status_obj["embargoRegister"]
+    assert isinstance(active["embargo"], dict)
+    assert active["embargo"]["id"] == embargo.id_
+    assert active["status"] == "ACTIVE"
+    assert isinstance(proposed["embargo"], dict)
+    assert proposed["embargo"]["id"] == revision.id_
 
 
 def test_no_activity_returns_failure(bridge):

@@ -82,7 +82,7 @@ def test_propose_embargo_updates_case_state_via_bt_path(
     assert result.activity is not None
     updated_case = cast(VulnerabilityCase, finder_dl.read(case.id_))
     assert updated_case.current_status.em.state == EM.PROPOSED
-    assert len(updated_case.proposed_embargoes) == 1
+    assert len(updated_case.proposed_embargo_ids) == 1
     # The CASE_MANAGER's own proposal is committed (#4085); it has no other
     # participant to relay it to, so nothing is addressed to itself.
     assert EMBARGO_INVITE_EVENT_TYPE in committed_event_types(

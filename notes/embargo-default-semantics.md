@@ -321,7 +321,7 @@ longer affects the consent record (it once did — the superseded lapse-on-propo
 cascade would have lapsed both seeds had the revision been registered after them).
 
 The registration alone was not enough, for two reasons #3863 surfaced (ADR-0113,
-EP-04-011): `propose_embargo` appends to `proposed_embargoes` but never to
+EP-04-011): `propose_embargo` added an open proposal but never wrote
 `pending_embargo_proposal_index`, so the owner's default earliest-expiring
 selection (EP-08-002) could not name the revision, and nobody but the CASE_MANAGER
 knew it existed. The creation-time revision is now a revision like any other and
@@ -428,7 +428,7 @@ it never names an Invite that was not emitted.
 
 The owner may then accept or reject as with any revision (EP-09-005). Each replica
 learns the revision from two sources. The `Create(VulnerabilityCase)` snapshot
-carries it in `proposed_embargoes`. The index entry comes from elsewhere: the
+carries it as a `PROPOSED` entry of its `embargoRegister` (ADR-0122). The index entry comes from elsewhere: the
 winner indexes the Invite when it receives and answers it, and the loser — the
 proposer, not invited — indexes it when `ApplyEmbargoInviteFromLedgerNode`
 replays the committed Invite attributed to it (#4099). That replay writes no index

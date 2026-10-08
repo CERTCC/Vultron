@@ -167,9 +167,11 @@ def test_the_scan_covers_the_fields_3877_named() -> None:
     assert {
         "case_participants",
         "actor_participant_index",
-        "active_embargo",
         "parent_cases",
     } <= set(string_fields(classes["VulnerabilityCase"]))
+    assert {"embargo", "replaces"} <= set(
+        string_fields(classes["EmbargoRegisterEntry"])
+    )
 
 
 def test_ratchet_flags_a_bare_str_reference_field() -> None:

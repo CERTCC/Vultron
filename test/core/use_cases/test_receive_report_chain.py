@@ -17,6 +17,7 @@ from typing import cast
 
 import pytest
 
+from test.support.embargo_register import activate
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -111,7 +112,7 @@ def _build_case(
         end_time=days_from_now_utc(45),
     )
     dl.create(embargo)
-    object.__setattr__(case, "active_embargo", embargo.id_)
+    activate(case, embargo.id_)
 
     vendor_p = as_CaseParticipant(
         attributed_to=vendor_id,
