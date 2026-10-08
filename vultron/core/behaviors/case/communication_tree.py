@@ -27,7 +27,8 @@ Subtrees defined here:
 - ``EmitCreateCaseActivity`` — emits the Create(Case) activity in two
   explicit leaf steps (collect addressees, then build/persist activity).
 
-Consumed by ``create_tree.py`` and related trees.
+No production tree composes it since ``create_create_case_tree`` was
+retired (#4330); #4353 tracks its removal.
 
 Per specs/behavior-tree-node-design.yaml BTND-07-003.
 """

@@ -62,6 +62,9 @@ from vultron.core.behaviors.case.nodes import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.replica_emit_exemptions import (
+    REPORT_CASE_PROPOSAL,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -142,11 +145,12 @@ def create_receive_report_case_tree(
         name="ReceiveReportCaseBT",
         case_id=None,
         precondition_guards=[],
-        effect_nodes=[
+        replica_effects=[
             *received_effects,
             CheckAutoCaseCreationEnabledNode(actor_config=actor_config),
             case_creation_selector,
         ],
+        replica_emit_exemption=REPORT_CASE_PROPOSAL,
     )
 
     logger.info(
@@ -170,5 +174,5 @@ def create_keep_offer_without_report_tree(
         name="KeepOfferWithoutReportBT",
         case_id=None,
         precondition_guards=[],
-        effect_nodes=list(received_effects),
+        replica_effects=list(received_effects),
     )

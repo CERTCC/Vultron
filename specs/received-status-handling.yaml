@@ -1035,7 +1035,7 @@ groups:
       pragmatic substitute. The note makes the anomaly visible at the protocol
       level, not just in local logs.
     note: >
-      Implemented by `EmitRMGapNoteNode`: in the effects of
+      Implemented by `EmitRMGapNoteNode`: in the `replica_effects` of
       `add_participant_status_tree` for an accepted declaration, and in its
       `refusal_effects` for a wholly refused one, which the shared factory runs
       only on that refusal, at the CASE_MANAGER, once per received activity

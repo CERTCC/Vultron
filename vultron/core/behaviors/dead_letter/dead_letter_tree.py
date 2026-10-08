@@ -53,7 +53,7 @@ def create_store_dead_letter_tree(
         name="StoreDeadLetterBT",
         case_id=None,
         precondition_guards=[],
-        effect_nodes=[StoreDeadLetterRecordNode(request=request)],
+        replica_effects=[StoreDeadLetterRecordNode(request=request)],
     )
     logger.debug(
         "Created StoreDeadLetterBT for activity '%s'", request.activity_id

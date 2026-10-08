@@ -29,7 +29,8 @@ Subtrees defined here:
 - ``CreateCaseActorNode`` — creates and registers the CaseActor service
   actor for a new case.
 
-Both are consumed by ``create_tree.py`` and ``receive_report_case_tree.py``.
+Neither has a production caller since ``create_create_case_tree`` was
+retired (#4330); #4353 tracks their removal.
 
 Per specs/case-management.yaml CM-02-001 and
 specs/behavior-tree-node-design.yaml BTND-07-003.

@@ -310,7 +310,7 @@ def test_shared_factory_runs_intake_first_even_when_a_guard_refuses(scenario):
         name="RefusedBT",
         case_id=None,
         precondition_guards=[Failure(name="RefuseIt")],
-        effect_nodes=[],
+        replica_effects=[],
     )
 
     result = scenario.run(tree, activity=event)
