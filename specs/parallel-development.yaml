@@ -6,7 +6,8 @@ description: >-
   size labeling, orphan recovery, bundle selection and execution, and revised workflows
   for the build, ingest-idea, review-priorities, and update-plan skills, and the
   two paths through GitHub Project #24: Schedule on Epics, and a Status path for
-  every other Issue and a ship stage for PRs, both mirrored from facts.
+  every other Issue and a ship stage for PRs, both mirrored from facts, and where
+  the build-to-merge pipeline places its local test gates.
 scope:
   - prototype
   - production
@@ -1126,3 +1127,131 @@ groups:
         relationships:
         - rel_type: refines
           spec_id: PAD-17-001
+
+  - id: PAD-18
+    title: Pipeline Test-Gate Placement
+    description: >-
+      Where the build-to-merge pipeline runs tests locally, and when it merges
+      the base branch into a PR. CI on `pull_request` runs the full suite
+      against the PR merged into its base as of the push, so after the first
+      push a local run is worth its cost only when it catches something
+      before CI would.
+    specs:
+      - id: PAD-18-001
+        priority: MUST
+        kind: process
+        statement: >-
+          Before a Pull Request's first push, `create-pr` MUST run the full
+          local unit and integration suites and push only when both pass.
+        rationale: >-
+          One full run keeps an obviously broken branch out of CI. It is the
+          only point where the local suite is not repeating a CI run that is
+          about to happen anyway.
+        verification: >-
+          Inspection: `create-pr` runs both suites before its push step and
+          stops on a non-zero `exit:` line.
+      - id: PAD-18-002
+        priority: MUST
+        kind: process
+        statement: >-
+          After a Pull Request's first push, a fix commit MUST be gated locally
+          by the linters plus the targeted test set for the branch diff: every
+          test file that imports a changed symbol, the mirror test file of
+          every changed module, and `test/architecture/`.
+        rationale: >-
+          A full local run after a one-line fix costs about seven minutes on a
+          2-CPU slot and then CI runs the full suite again in about five. The
+          targeted set catches a broken fix before the CI round trip that
+          counts against the `pr-execute` iteration cap, at a fraction of the
+          cost. Deriving the set from the import index makes it the same on
+          every run and auditable.
+        verification: >-
+          Inspection: `pr-execute` gates post-first-push fixes with the
+          targeted-test command, not the full suite.
+      - id: PAD-18-003
+        priority: MUST
+        kind: process
+        statement: >-
+          The local gate MUST escalate from the targeted set to the full suite
+          when the change touches shared test infrastructure (`conftest.py`,
+          test fixtures or factories, `pyproject.toml`, `uv.lock`), or when it
+          fixes a CI failure in a test the targeted set does not include.
+        rationale: >-
+          The import index cannot see tests that reach a change through
+          fixtures or configuration, and a CI failure outside the targeted set
+          is direct evidence the set missed something.
+        verification: >-
+          Inspection: the targeted-test command reports `full` for a diff that
+          touches any listed path.
+        relationships:
+        - rel_type: refines
+          spec_id: PAD-18-002
+      - id: PAD-18-004
+        priority: MUST
+        kind: process
+        statement: >-
+          After a Pull Request's first push, an agent MUST merge the base
+          branch into it only when GitHub reports the PR `CONFLICTING`, or when
+          files the base changed since the merge base overlap files the PR
+          changes. After such a merge it MUST run the targeted set (PAD-18-002)
+          for the overlapping and conflicted modules before pushing.
+        rationale: >-
+          CI already tests the merge of the PR into its base as of each push,
+          and no repository rule requires branches to be up to date. Merging
+          on every base movement restarted the test-push-wait loop several
+          times an hour during fan-out without adding coverage. The residual
+          risk, a semantic conflict between files neither side shares, is
+          caught by CI on `main` after the merge; closing it entirely is a
+          merge queue's job, not more local syncing.
+        verification: >-
+          Inspection: `pr-execute` and `work-epic-tasks` call the overlap check
+          before `sync-with-main.sh` and skip the merge when it reports none.
+      - id: PAD-18-005
+        priority: MUST_NOT
+        kind: process
+        statement: >-
+          `pr-verify` MUST NOT withhold `READY-TO-MERGE` because a branch does
+          not contain its base's latest commit, when the PR is conflict-free
+          and PAD-18-004 did not call for a merge. A `BEHIND` merge state
+          reported by GitHub still blocks, since GitHub reports it only when
+          the repository requires up-to-date branches.
+        rationale: >-
+          Requiring the base tip in the branch makes every merge to `main`
+          invalidate every other ready PR, which is the loop PAD-18-004 exists
+          to break.
+        verification: >-
+          Inspection: `pr-verify`'s `UNSYNCED-EXECUTE` check reads the
+          execute artifact's conflict-free result, not base-tip containment.
+        relationships:
+        - rel_type: depends_on
+          spec_id: PAD-18-004
+      - id: PAD-18-006
+        priority: MUST
+        kind: process
+        statement: >-
+          `pr-execute`'s summary comment MUST record the local suite runs it
+          made in a fixed line, `Suite runs: <N> full, <M> targeted`.
+        rationale: >-
+          Local suite runs are the one pipeline cost GitHub does not record.
+          The execute artifact is gitignored and deleted by `pr-verify`, so
+          the PR comment is the only place the count survives.
+        verification: >-
+          Inspection: an execute summary comment carries the line.
+      - id: PAD-18-007
+        priority: SHOULD
+        kind: process
+        statement: >-
+          Velocity reporting SHOULD report, per merged Pull Request and by
+          week: CI runs and failed CI runs, merges from the base branch, local
+          suite runs (PAD-18-006), and open-to-merge time, plus failed CI runs
+          on `main`.
+        rationale: >-
+          Without these, the cost of the pipeline is invisible, and a change
+          to gate placement cannot show that it saved time without moving
+          failures onto CI or `main`.
+        verification: >-
+          The output of `scripts/velocity.py` carries the per-PR and weekly
+          fields.
+        relationships:
+        - rel_type: depends_on
+          spec_id: PAD-18-006
