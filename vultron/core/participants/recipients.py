@@ -29,8 +29,11 @@ exist, and they differ on purpose (ADR-0114 § "Inert and active"):
   that* it can consent (the relayed embargo Invite, EP-09-002).  Every
   participant whose RM is not ``CLOSED`` and that is not removed, inert ones
   included (CM-10-007, CM-31-013).
+- :func:`embargo_ending_notice_recipients` — the bound signatories the
+  ledger fan-out no longer reaches, owed a direct notice when their embargo
+  ends or shortens (CM-31-009).  Not case content (CM-10-007).
 
-Both read the roster (``actor_participant_index``) and resolve each entry to
+Each reads the roster (``actor_participant_index``) and resolves each entry to
 its participant record.  A roster entry whose record cannot be read is not
 provably entitled, so it is left out and logged at WARNING: leaking case
 content to an actor the case cannot vouch for is the failure CM-10-004
@@ -244,6 +247,110 @@ def invitation_recipients(
             "invitation",
         )
     ]
+
+
+def _beyond_fan_out(record: CaseParticipant) -> bool:
+    """True when the ledger fan-out no longer reaches *record* (CM-31-009).
+
+    It was removed (CM-31-001), or it left the case and CM-23-004 skips it
+    at RM ``CLOSED``.
+    """
+    return record.removed or record.rm_closed
+
+
+def embargo_ending_notice_recipients(
+    case: VulnerabilityCase,
+    dl: CasePersistence,
+    embargo_id: str,
+    *,
+    excluding: Collection[str] = (),
+) -> list[str]:
+    """Return the actor IDs owed a direct notice that *embargo_id* ended.
+
+    A joined participant that is ``SIGNATORY`` to *embargo_id* — its row
+    for it is ``ACCEPTED`` — and that the ledger fan-out no longer reaches:
+    removed (CM-31-001), or at RM ``CLOSED`` (CM-23-004).  Such a
+    participant stays bound (CM-31-008) and cannot learn from the ledger
+    that the embargo was terminated or shortened, so the CASE_MANAGER tells
+    it directly (CM-31-009).  A participant that declined, or an invitee
+    that never joined, is not bound and is not sent anything.
+
+    *embargo_id* is the embargo that is ending: the one terminated, or the
+    one a shorter revision replaces.  Consent rows outlive both moves
+    (MSM-07-006, EP-05-001), so the selection is the same before and after
+    the EM write.  The notice is not case content (CM-10-007), so the active
+    check does not apply.  Roster order is kept, minus *excluding*.
+    """
+    return [
+        actor_id
+        for actor_id, _record in _select(
+            case,
+            dl,
+            excluding,
+            lambda p: _owed_ending_notice(p, embargo_id),
+            "embargo-ending notice",
+        )
+    ]
+
+
+def _owed_ending_notice(record: CaseParticipant, embargo_id: str) -> bool:
+    """True when *record* is owed a CM-31-009 notice that *embargo_id* ended.
+
+    Joined, ``SIGNATORY`` to *embargo_id*, and beyond the ledger fan-out.
+    The one rule both sides read: the CASE_MANAGER to pick the recipients,
+    the paused replica to decide whether a notice is one it can be owed.
+    """
+    return (
+        record.joined
+        and record.is_signatory(embargo_id)
+        and _beyond_fan_out(record)
+    )
+
+
+def awaits_embargo_ending_notice(
+    case: VulnerabilityCase, dl: CasePersistence, actor_id: str
+) -> bool:
+    """True when *actor_id* can be owed a CM-31-009 notice on *case*.
+
+    Read in the participant's own replica, about itself (CM-31-010): it is
+    a joined ``SIGNATORY`` of the embargo its replica has in force, and the
+    ledger fan-out no longer reaches it (removed, or at RM ``CLOSED``).
+    This is :func:`embargo_ending_notice_recipients` seen from the receiver,
+    so a replica applies only a notice the CASE_MANAGER would send it.  A
+    participant withheld under CM-10-005 is paused too
+    (:func:`ledger_stream_paused`) but is never a signatory of the embargo
+    in force, so no notice is owed to it: an ``Announce(EmbargoEvent)`` it
+    receives is the teardown announcement, not a shorter revision.  An
+    actor the case does not list, whose record does not resolve, or a case
+    with no embargo in force, awaits nothing.
+    """
+    embargo_id = case.active_embargo_id
+    participant_id = case.actor_participant_index.get(actor_id)
+    if embargo_id is None or participant_id is None:
+        return False
+    record = _resolve_record(case, dl, participant_id)
+    return record is not None and _owed_ending_notice(record, embargo_id)
+
+
+def ledger_stream_paused(
+    case: VulnerabilityCase, dl: CasePersistence, actor_id: str
+) -> bool:
+    """True when *actor_id*'s ledger stream on *case* is paused (CM-31-010).
+
+    A participant is paused when it is not active (CM-10-005, CM-31-001) or
+    when it is at RM ``CLOSED`` (CM-23-004): the ledger no longer brings it
+    the case's changes.  Read in the participant's own replica, about
+    itself, to decide whether a direct embargo-ending notice from the
+    CASE_MANAGER is its only channel.  An actor the case does not list, or
+    whose record does not resolve, is not a paused participant.
+    """
+    participant_id = case.actor_participant_index.get(actor_id)
+    if participant_id is None:
+        return False
+    record = _resolve_record(case, dl, participant_id)
+    if record is None:
+        return False
+    return record.rm_closed or not case.is_active_participant(record)
 
 
 def is_case_content_recipient(
