@@ -63,10 +63,14 @@ Two paths bring an actor into a case, and they differ in who initiates:
 
 - **Direct invitation.** The CASE_MANAGER sends `Invite(Actor, target=VulnerabilityCaseStub)` to the actor.
   At the same time, it records the invitee in the case as an *inert* participant at RM Received ([CM-11-006](../specs/protocol.md#cm-11-006)).
-  The inert record exists only in the CASE_MANAGER's store; it is not yet a case participant in the full sense — it does not receive case content and is not included in embargo fan-out until it accepts.
+  The CASE_MANAGER commits the record's creation to the case ledger, and a replica applying that entry creates the same inert record.
+  The record is not yet an active participant: it does not receive case content and is not included in embargo fan-out until the actor accepts ([CM-10-004](../specs/protocol.md#cm-10-004)).
   The actor answers `Accept(Invite)` or `Reject(Invite)`.
   `Accept(Invite)` activates the inert record, admitting the actor at RM Received and, where an embargo is in force, recording its consent to those terms.
   `Reject(Invite)` closes the inert record (RM Received → Closed) and keeps it as history, so the CASE_MANAGER can see that the invitation was extended and declined ([CM-11-007](../specs/protocol.md#cm-11-007)).
+  Every stub Invite carries a reply deadline.
+  When it passes unanswered, the Invite closes as expired and the record is left unchanged: still inert, at RM Received, with its embargo consent row still `INVITED` ([CM-11-014](../specs/protocol.md#cm-11-014)).
+  After joining, the participant judges the case by answering the full-case Invite, not the original report Offer ([CM-11-011](../specs/protocol.md#cm-11-011), [CM-11-020](../specs/protocol.md#cm-11-020)).
 - **Suggested actor.** An existing participant proposes a third party — "this vendor is also affected" — by sending `Offer(CaseParticipant)` to the CASE_MANAGER.
   The proposal is a recommendation, not an invitation: the Case Owner decides whether to act on it, and if it does, the CASE_MANAGER then sends the `Invite` above.
   An implementation MUST NOT treat `Offer(CaseParticipant)` as an invitation to the proposed actor.

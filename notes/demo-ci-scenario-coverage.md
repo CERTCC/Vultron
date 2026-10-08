@@ -78,9 +78,9 @@ generate-vs-check split".
   triggers `RejectInviteActorToCaseReceivedUseCase` on the CaseActor. Because
   the Vendor rejects rather than accepts, `accept_invite_actor_to_case` does
   NOT appear in this scenario. No other current scenario exercises this ledger
-  entry. Under the target model (ADR-0114) a stub Reject **is** an RM message:
+  entry. A stub Reject **is** an RM message (ADR-0114):
   it closes the Vendor's kept, inert participant record, `R → C` (CM-11-007,
-  RMB-14-004); today's code records it as an invitation-layer rejection only.
+  RMB-14-004).
   **Invariant 15 note**: because the Vendor never joins the case, no actor
   advances the VFD state machine past `V`, and the `VFd` CS state
   (vf_state=VF, d_state=d) is structurally unreachable.
@@ -272,7 +272,7 @@ do not appear in any scenario unless explicitly scripted.
 | D → A (resumed after deferral) | non-linear | `fcvcv` (Var B, planned) |
 | I → C (closed from invalid) | non-linear | not yet exercised by any scenario |
 | V → D (deferred without accepting) | non-linear | not yet exercised by any scenario |
-| R → C (stub Invite rejected) | non-linear | `fcv-reject` once CM-11-007 lands (#4048; the edge is in the table since #4044) |
+| R → C (stub Invite rejected) | non-linear | `fcv-reject` (CM-11-007, #4048; the edge is in the table since #4044) |
 
 **Notes:**
 

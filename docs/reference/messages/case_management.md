@@ -219,6 +219,7 @@ print(json2md(reject_case_ownership_transfer()))
   The `object` is the actor being invited, and the `target` is the case stub, of type `VulnerabilityCaseStub`.
   The stub carries the case identifier in its `caseId` and a required `summary` field: the owner-chosen description the invitee reads before deciding whether to accept ([CM-11-013](../specs/protocol.md#cm-11-013), [CM-17-010](../specs/protocol.md#cm-17-010), [MV-10-001](../specs/protocol.md#mv-10-001)).
   The factory raises `VultronActivityConstructionError` when `VulnerabilityCase.stub_summary` is not set, and the receiver refuses a stub with an absent or blank `summary`.
+  The Invite names at least one CVD role for the invitee, and the CASE_MANAGER refuses to send one with an empty role list ([CM-11-019](../specs/protocol.md#cm-11-019)).
   The Invite carries its reply deadline in `endTime`, which the CASE_MANAGER sets the way it sets an embargo Invite's deadline: the Invite's `published` time plus the configured RSVP window, capped at the end of the active embargo ([CM-11-014](../specs/protocol.md#cm-11-014), [CM-28-012](../specs/protocol.md#cm-28-012)).
   When the deadline passes, the Invite closes and the invitee's record does not change.
   A reply after the deadline is still processed: an `Accept` joins the invitee and a `Reject` closes the record.
@@ -259,6 +260,8 @@ print(json2md(accept_invite_to_case()))
 ## Reject Invite to Case
 
 - **Protocol role:** The invited actor declines.
+  The CASE_MANAGER moves the invitee's record to RM Closed and keeps it, and the participant stays inert ([CM-11-007](../specs/protocol.md#cm-11-007)).
+  A `Reject` from an invitee that has no participant record is refused with a reported reason, not ignored ([CM-11-018](../specs/protocol.md#cm-11-018)).
 - **Triggering transition:** none — roster action.
 - **Wire activity:** `Reject(Invite(Actor, target=VulnerabilityCaseStub))`.
 - **Example artifact:** [reject_invite_to_case.json](../examples/reject_invite_to_case.json).
@@ -292,6 +295,7 @@ print(json2md(reject_invite_to_case()))
 - **Wire activity:** `Accept(Invite(Actor, target=VulnerabilityCase))`.
   The reply carries the participant's own ledger position in `content`, in the same form as the Invite ([VAM-04-012](../specs/protocol.md#vam-04-012)).
   The CASE_MANAGER refuses a reply whose position is behind the Invite's, or names an entry its ledger does not hold, and writes nothing ([CM-11-012](../specs/protocol.md#cm-11-012)).
+  It also refuses, and writes nothing for, a reply from an inert participant that has not joined the case (CM-11-012).
 
 ---
 

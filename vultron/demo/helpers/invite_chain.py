@@ -48,6 +48,7 @@ from vultron.demo.helpers.polling import (
     assert_received_from,
     find_case_actor_participant_id,
     find_case_invite_for_actor,
+    find_full_case_invite_for_actor,
     wait_for_case_on_container,
 )
 from vultron.demo.helpers.seeding import get_actor_by_id
@@ -249,6 +250,9 @@ def _await_and_answer(
             _await_case_replica(
                 invitee_name, invitee_client, case, replica_timeout
             )
+            _await_full_case_invite(
+                invitee_name, invitee_client, invitee, case
+            )
         else:
             with demo_step(f"{invitee_name} rejects the case invitation"):
                 session.reject_case_invite(invite_id=invite_id)
@@ -279,3 +283,25 @@ def _await_case_replica(
                 timeout_seconds=replica_timeout,
             )
     logger.info("%s received case replica", invitee_name)
+
+
+def _await_full_case_invite(
+    invitee_name: str,
+    invitee_client: DataLayerClient,
+    invitee: as_Actor,
+    case: as_VulnerabilityCase,
+) -> None:
+    """Verify the join was followed by the full-case Invite (CM-11-010).
+
+    The CASE_MANAGER sends it after the ``Announce(VulnerabilityCase)`` and the
+    ledger replay, asking the joined participant to judge the case.  Seeing it
+    closes the join sequence: stub Invite, stub Accept, Announce and replay,
+    full-case Invite.  The reply is the scenario's to send (CM-11-002).
+    """
+    with demo_check(f"{invitee_name} received the full-case Invite"):
+        find_full_case_invite_for_actor(
+            client=invitee_client,
+            case_id=case.id_,
+            invitee_id=invitee.id_,
+        )
+    logger.info("%s received the full-case Invite", invitee_name)

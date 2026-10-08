@@ -543,7 +543,7 @@ incorrect, because both are judgements of a case the actor has not yet seen.
    `Accept` → **RM.VALID**, `TentativeReject` → **RM.INVALID**, `Reject` →
    **RM.CLOSED**; the reply carries its own ledger position (CM-11-011,
    CM-11-012). It never answers the original `Offer(VulnerabilityReport)`
-   (CM-11-018).
+   (CM-11-020).
 5. If valid, the participant decides to engage or defer with
    `Join(VulnerabilityCase)` (**RM.ACCEPTED**) or `Ignore(VulnerabilityCase)`
    (**RM.DEFERRED**) (CM-11-002, CM-11-004).
@@ -557,17 +557,17 @@ whose RM states are set as part of the case creation sequence.
 
 ### Implementation
 
-Current code (before the #4006 implementation issues land):
-
-- **`CreateInviteeParticipantNode`** constructs the invitee participant at
-  `RM.START` on the stub Accept; **`AdvanceInviteeToReceivedNode`** then
-  records `RM.RECEIVED` for the invitee through the sole writer
-  (`CreateParticipantStatusNode`) in the CASE_MANAGER's DataLayer, after the
-  participant is attached (ADR-0089 birth: construct → attach → advance). The
-  target model moves this birth to the stub Invite (CM-11-006).
+- **`CreateInertInviteeParticipantNode`** creates the invitee's participant
+  when the CASE_MANAGER sends the stub Invite (CM-11-006), at `RM.RECEIVED`
+  (ADR-0089 birth: construct → attach → advance, through the sole writer
+  `CreateParticipantStatusNode`). The stub `Accept` moves no RM state
+  (CM-11-001).
+- The accept-invite tree still holds `CreateInviteeParticipantNode`,
+  `PersistInviteeParticipantNode` and `AdvanceInviteeToReceivedNode`. With the
+  inert record in place they reuse it; they construct a record only when
+  none exists.
 - The participant's subsequent RM transitions are driven by messages from the
-  participant itself — under the target model, its full-case Invite reply and
-  then `Join`/`Ignore`.
+  participant itself — its full-case Invite reply and then `Join`/`Ignore`.
 
 **Normative requirements**: `specs/case-management.yaml` CM-11-001 through
 CM-11-016.

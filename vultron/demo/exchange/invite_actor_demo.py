@@ -50,7 +50,10 @@ from collections.abc import Callable, Sequence
 
 from vultron.core.states.rm import RM
 from vultron.demo.actor_session import ActorSession
-from vultron.demo.helpers.polling import find_case_invite_for_actor
+from vultron.demo.helpers.polling import (
+    find_case_invite_for_actor,
+    find_full_case_invite_for_actor,
+)
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.seeding import get_actor_by_id
 from vultron.demo.helpers.verification import _check_participant_rm_state_in
@@ -165,7 +168,8 @@ def demo_invite_actor_accept(
     2. Vendor fires the invite-actor-to-case trigger; the CASE_MANAGER invites
        the coordinator
     3. Coordinator fires the accept-case-invite trigger
-    4. Verify coordinator appears in case participant list
+    4. Verify the CASE_MANAGER follows the join with the full-case Invite
+    5. Verify coordinator appears in case participant list
 
     This follows the accept branch in
     docs/howto/activitypub/activities/invite_actor.md.
@@ -194,7 +198,19 @@ def demo_invite_actor_accept(
             client=client, actor=coordinator
         ).quiet().accept_case_invite(invite_id=invite_id)
 
-    with demo_step("Step 4: Verify coordinator added as case participant"):
+    with demo_step(
+        "Step 4: Verify the join was followed by the full-case Invite"
+    ):
+        with demo_check(
+            "Coordinator received the full-case Invite (CM-11-010)"
+        ):
+            find_full_case_invite_for_actor(
+                client=client.model_copy(update={"actor_id": coordinator.id_}),
+                case_id=case.id_,
+                invitee_id=str(coordinator.id_),
+            )
+
+    with demo_step("Step 5: Verify coordinator added as case participant"):
         with demo_check("Coordinator present in case participant list"):
             # The handler creates a participant with ID
             # {case_uuid}/participants/{coord_segment}. Check participant list grew.

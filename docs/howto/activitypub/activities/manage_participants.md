@@ -76,10 +76,11 @@ flowchart TB
 1. Trigger the invitation.
    The CASE_MANAGER sends `Invite(Actor)` with itself as the ActivityStreams `actor` and your Case Owner identity in `attributedTo` (PCR-08-007, PCR-08-008).
 2. Wait for the invitee's reply, addressed to the CASE_MANAGER.
-3. If the reply is `Accept(Invite(Actor))`, the CASE_MANAGER seats the actor — see [How to Seat a Participant on an Existing Case](initialize_participant.md).
+3. If the reply is `Accept(Invite(Actor))`, the CASE_MANAGER makes the actor an active participant — see [How to Seat a Participant on an Existing Case](initialize_participant.md).
    Every replica seats the new member from the `Accept(Invite(Actor))` ledger entry; nothing else is sent to seat it.
 4. If the reply is `Reject(Invite(Actor))`, stop.
-   The actor is not on the case, and nothing further is owed.
+   The actor never becomes active, and nothing further is owed.
+   The CASE_MANAGER keeps its inert participant record at RM `CLOSED`.
 
 For the full invitation sequence, including the routing rule and its rationale, see [How to Invite an Actor to a Case](invite_actor.md).
 
@@ -120,7 +121,7 @@ See [How to Post a Status Update or a Case Note](status_updates.md) for the fiel
 2. Send `Add(ParticipantStatus)`, targeting the participant record.
 
 If the status is known when you seat the participant, carry it inline on the `CaseParticipant` object instead of sending this pair.
-Status is self-declaratory: send your own, and expect each participant to send its own (ADR-0084).
+Status is self-declaratory: send your own, and expect each participant to send its own (PRM-06-001, ADR-0121).
 
 ---
 

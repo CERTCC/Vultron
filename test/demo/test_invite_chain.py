@@ -50,6 +50,11 @@ def chain_mocks():
         ) as find,
         patch.object(invite_chain, "assert_received_from") as received,
         patch.object(invite_chain, "wait_for_case_on_container") as replica,
+        patch.object(
+            invite_chain,
+            "find_full_case_invite_for_actor",
+            return_value="urn:t:full-invite",
+        ) as full_invite,
     ):
         yield SimpleNamespace(
             invite=invite,
@@ -58,6 +63,7 @@ def chain_mocks():
             find=find,
             received=received,
             replica=replica,
+            full_invite=full_invite,
         )
 
 
@@ -91,6 +97,11 @@ def test_accept_path_invites_finds_accepts_and_waits_for_replica(chain_mocks):
     chain_mocks.accept.assert_called_once_with(invite_id="urn:t:invite")
     chain_mocks.reject.assert_not_called()
     chain_mocks.replica.assert_called_once()
+    chain_mocks.full_invite.assert_called_once()
+    assert (
+        chain_mocks.full_invite.call_args.kwargs["invitee_id"]
+        == "urn:t:vendor"
+    )
     assert ran == [True]
     assert demo_utils._demo_failures == []
 
@@ -101,6 +112,7 @@ def test_reject_path_rejects_and_awaits_no_replica(chain_mocks):
     chain_mocks.reject.assert_called_once_with(invite_id="urn:t:invite")
     chain_mocks.accept.assert_not_called()
     chain_mocks.replica.assert_not_called()
+    chain_mocks.full_invite.assert_not_called()
     assert demo_utils._demo_failures == []
 
 
@@ -241,6 +253,7 @@ def test_step_and_gate_labels_are_pinned(chain_mocks):
         "Vendor invite was emitted as the CaseActor (PCR-08-008)",
         "Vendor accepts the case invitation",
         "Vendor's DataLayer received case replica",
+        "Vendor received the full-case Invite",
     ]
 
 

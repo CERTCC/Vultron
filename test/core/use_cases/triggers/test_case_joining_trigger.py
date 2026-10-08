@@ -10,10 +10,9 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Planned trigger-side behaviour for joining a case (ADR-0114, ADR-0070).
+"""Trigger-side behaviour for joining a case (ADR-0114, ADR-0121).
 
-Strict-``xfail`` tests for the case-joining requirements planned under #4006
-(each test names its implementing issue):
+Tests for the case-joining requirements of CONCERN-4006:
 
 - CM-11-006 — the stub Invite creates the invitee's inert participant.
 - CM-11-020 — a joined participant never answers the original report Offer
@@ -30,8 +29,7 @@ Strict-``xfail`` tests for the case-joining requirements planned under #4006
 - CM-10-007 — the stub Invite reaches the inert invitee (passing marker).
 - PRM-06-001 — the CASE_MANAGER writes only the invitee's birth status.
 
-Each test asserts observable behaviour and flips to passing once the
-implementation lands.  See ``notes/case-joining.md``.
+Each test asserts observable behaviour.  See ``notes/case-joining.md``.
 """
 
 import json
@@ -39,7 +37,7 @@ from typing import Any
 
 import pytest
 
-from test.core.use_cases.received.actor.test_case_joining_planned import (
+from test.core.use_cases.received.actor.test_case_joining_replies import (
     route_received,
 )
 from test.core.use_cases.received.conftest import (
@@ -309,7 +307,7 @@ def test_joined_participant_never_answers_the_original_report_offer(
     ``VultronOfferRecord`` that ``ApplyOfferReportFromLedgerNode`` builds
     from it.  Running ``validate-report`` as the joiner must not put an
     activity whose object is that Offer in its outbox — the Offer was never
-    sent to it (ADR-0070).  Today the trigger emits ``Accept(Offer)``.
+    sent to it (CM-11-020, ADR-0121).
     """
     joiner, dl = actor_store("Vendor Two")
     original_vendor, _ = actor_store("Vendor One")

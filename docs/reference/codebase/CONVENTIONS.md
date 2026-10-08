@@ -21,7 +21,7 @@ stakeholder_type: [project-contributor]
 | Constants / env vars | `UPPER_SNAKE_CASE` | `VULTRON_CONFIG`, `DEFAULT_MAX_RETRIES` | `vultron/config/app.py`, `vultron/adapters/driven/http_delivery.py` |
 | Domain abbreviation | `vul` (not `vuln`) for vulnerability | `vul_discovery`, `assign_vul_id` | `AGENTS.md`, `vultron/bt/vul_discovery/` |
 | CVD sub-protocol abbreviations | `em` (embargo), `rm` (report management), `cs` (case state), `pec` (participant embargo consent) | `vultron/bt/embargo_management/`, `vultron/core/states/em.py` | Directory listing |
-| Test files | `test_<module>.py`; `test_*_planned.py` holds strict-`xfail` tests for planned requirements | `test_config.py`, `test_states_em.py`, `test_case_joining_planned.py` | `test/` layout |
+| Test files | `test_<module>.py`; `test_*_planned.py` holds strict-`xfail` tests for planned requirements | `test_config.py`, `test_states_em.py`, `test_participant_removal_planned.py` | `test/` layout |
 | Spec IDs | `<TOPIC>-<NN>-<NNN>` | `ARCH-01-001`, `CFG-07-002` | `specs/*.yaml` |
 
 ### 2) Formatting and Linting

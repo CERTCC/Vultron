@@ -224,9 +224,9 @@ call:
 #    └── InviteToFullCaseNode              ← full-case Invite (CM-11-010)
 ```
 
-Node names are illustrative. Today's code still creates the participant in
-this tree; the #4006 implementation issues move the creation to the stub
-Invite. See [case-joining.md](case-joining.md) for the full flow.
+Node names are illustrative; the inert record is created by
+`CreateInertInviteeParticipantNode` when the stub Invite is sent, and the
+accept-invite tree reuses it. See [case-joining.md](case-joining.md) for the full flow.
 
 `AnnounceFullCaseToNewParticipantNode` reads the current full case from the
 DataLayer and enqueues `Announce(VulnerabilityCase)` to the new participant's
