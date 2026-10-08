@@ -34,23 +34,33 @@ Load the Epic's open children
 - Bug: look quickly. Easy and self-contained → plan it with `bugfix`. Depends
   on a large decision → ask the user how to proceed.
 - Claimed/assigned, `stale-claim`, `needs-info`, `ready-for-human`, blocked
-  outside the Epic, or already has a PR: **exclude and report**, with the
-  reason. Exclude anything downstream of an excluded issue too.
+  outside the Epic, already has a PR, date-gated, waiting on something outside
+  the run, or described as a human step: **exclude and report**, with the
+  reason and what would unblock it. Never wait for a date. Exclude anything
+  downstream of an excluded issue too. Ask only if the user could plausibly
+  want it included.
 
 ### 2. Plan (think hard)
 
-Read the issues and the code they touch. Do not trust `blockedBy` alone:
-look for shared files, one task needing another's helper, and shared specs.
-Build **waves** of truly independent tasks; serialize anything that overlaps.
-Use `bundle-fit` and `shared/bundling.md` for bundles (a bundle never mixes
-Tasks and Bugs). Pick each task's build model: **Opus** for multi-file,
+Read each issue's full body (the Epic query returns titles only) and the code
+it touches. Do not trust `blockedBy` alone: look for shared files, tests, or
+constants, one task needing another's helper, and shared specs. Build
+**waves** of truly independent tasks; serialize anything that overlaps.
+`bundle-fit` and `shared/bundling.md` score one bundle at a time; they do not
+plan waves. A bundle never mixes Tasks and Bugs. If a Task is oversized or its
+parts need different review, propose a **split** into several PRs (each says
+`Part of #N`; only the last says `Closes #N`; no new issues) and say why.
+If the order makes an acceptance criterion moot, put the reworded criterion in
+the plan. Pick each task's build model: **Opus** for multi-file,
 protocol/architecture, or judgment work; **Sonnet** for mechanical work.
 Every `pr-ship` agent is **Opus**.
 
 ### 3. Approve
 
-Show the plan (waves, bundles, models, exclusions, expected open worktrees).
-**Always wait for approval.** Start nothing before it.
+Show the plan (waves, bundles, splits, reworded criteria, models, exclusions,
+expected open worktrees). **Always wait for approval.** Start nothing before
+it. A reworded criterion goes in the builder's prompt and in a comment on the
+issue; never edit the issue text, and say in the PR body how it was met.
 
 ### 4. Execute
 
