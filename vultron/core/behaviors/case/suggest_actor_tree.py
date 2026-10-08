@@ -46,9 +46,6 @@ import logging
 
 import py_trees
 
-from vultron.core.behaviors.case.nodes.accept_invite import (
-    EmitAddCaseParticipantNode,
-)
 from vultron.core.behaviors.case.nodes.actor import (
     EmitInviteActorToCaseNode,
     EvaluateDefaultRolesNode,
@@ -264,9 +261,6 @@ def create_recommend_actor_to_case_received_tree(
                 case_id=case_id,
                 recommendation_id=recommendation_id,
             ),
-            EmitAddCaseParticipantNode(
-                case_id=case_id, invitee_id=recommended_id
-            ),
         ],
     )
 
@@ -425,9 +419,6 @@ def create_accept_actor_recommendation_received_tree(
                         case_id=case_id,
                         recommendation_id=recommendation_id,
                         roles=roles,
-                    ),
-                    EmitAddCaseParticipantNode(
-                        case_id=case_id, invitee_id=invitee_id
                     ),
                 ],
                 body_name="AcceptActorRecommendationEffects",

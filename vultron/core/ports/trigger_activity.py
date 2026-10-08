@@ -578,11 +578,17 @@ class TriggerActivityPort(Protocol):
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        attributed_to: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Add(CaseParticipant, Case)`` activity.
 
-        Returns ``(activity_id, activity_blob)``.  The emitting node records
-        the blob, unchanged, as the ledger ``payloadSnapshot`` (VM-08-003).
+        The CASE_MANAGER's direct notice to a reinstated participant
+        (CM-31-011): ``actor`` is the CASE_MANAGER and ``attributed_to`` the
+        Case Owner who asked for the reinstatement (CM-24-001, CM-24-002).
+        The notice is delivery, not a record, so the caller does not ledger
+        it.
+
+        Returns ``(activity_id, activity_blob)``.
         """
         ...
 

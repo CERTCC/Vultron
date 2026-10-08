@@ -42,10 +42,10 @@ def test_demo(demo_env, demo_fn, caplog):
     For the accept path, verifies:
     - Case initialized with vendor as sole participant
     - Invite sent to coordinator inbox
-    - Coordinator acceptance sent to vendor inbox
-    - Coordinator participant created and added to case
+    - Coordinator acceptance seats it through the stub Invite (no Add)
     - Coordinator participant status created and added
     - Coordinator participant removed from active participation, record kept
+    - Coordinator reinstated by the Case Owner's Add(CaseParticipant)
     - No errors logged
 
     For the reject path, verifies:

@@ -132,6 +132,7 @@ def add_finder_participant_to_case() -> as_Add:
 
 
 def add_coordinator_participant_to_case() -> as_Add:
+    """The Case Owner (the vendor) reinstates a removed coordinator (CM-31-011)."""
     _vendor = vendor()
     _case = case()
 
@@ -139,7 +140,7 @@ def add_coordinator_participant_to_case() -> as_Add:
         coordinator_participant(),
         actor=_vendor.id_,
         target=_case.id_,
-        content="We're adding the coordinator as a participant to this case.",
+        content="We're reinstating the coordinator in this case.",
     )
     return activity
 

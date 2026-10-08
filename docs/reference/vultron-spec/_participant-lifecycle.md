@@ -123,6 +123,19 @@ A replica MUST NOT apply a removal from a directly received `Remove(CaseParticip
 
 Removal does not change the participant's embargo consent ([CM-31-008](../specs/protocol.md#cm-31-008)).
 A removed signatory stays bound by the embargo it accepted.
+A removed participant receives no Invite of any kind: not a stub Invite, not a full-case Invite, and not an embargo Invite ([CM-31-013](../specs/protocol.md#cm-31-013)).
+
+Removal is reversible.
+The Case Owner reinstates a removed participant by sending `Add(CaseParticipant, target=VulnerabilityCase)` to the CASE_MANAGER ([CM-31-011](../specs/protocol.md#cm-31-011)).
+The request follows the removal pipeline: only the Case Owner may send it, the received `Add` is the one ledger entry, the CASE_MANAGER sends the participant a direct `Add(CaseParticipant)` notice naming it, and every replica applies the reinstatement from the ledger entry.
+Reinstatement clears the removal fact.
+The participant does not accept again, because it never withdrew.
+The CASE_MANAGER MUST refuse an `Add` that names a participant that is not removed or that never joined the case: `Add` does not seat a new member, and an actor joins only by accepting its stub Invite.
+For the same reason the CASE_MANAGER does not send `Add(CaseParticipant)` when an invitee accepts its stub Invite; every replica seats the new member from the `Accept(Invite)` ledger entry ([CM-31-012](../specs/protocol.md#cm-31-012)).
+
+When the reinstated participant is active again, the CASE_MANAGER sends it every ledger entry committed after its removal entry, in log order, so its copy of the ledger joins the chain with no gap ([CM-10-006](../specs/protocol.md#cm-10-006)).
+A participant reinstated into a case whose active embargo it has not accepted stays inert.
+The CASE_MANAGER sends it that embargo's Invite, and its catch-up waits until it accepts.
 
 !!! info "See also"
     - [Transferring a Case](../../topics/case_lifecycle/ownership_transfer.md)

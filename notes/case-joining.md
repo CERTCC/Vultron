@@ -34,7 +34,8 @@ relevant_packages:
   - vultron/core/behaviors/case/nodes/case_participant_received.py
   - vultron/core/behaviors/case/case_participant_received_tree.py
   - vultron/core/behaviors/sync/nodes/participant_removal_effect.py
-  - vultron/core/behaviors/case/nodes/accept_invite.py
+  - vultron/core/behaviors/case/nodes/participant_reinstatement.py
+  - vultron/core/behaviors/embargo/nodes/reinvite.py
   - vultron/core/models/case.py
   - vultron/core/states/rm.py
   - vultron/wire/as2/vocab/objects/vulnerability_case.py
@@ -198,10 +199,47 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
   `ApplyRemoveCaseParticipantFromLedgerNode`, which resolves the record by
   actor through `actor_participant_index`. At a replica the received tree
   writes nothing: the manager's notice is `SKIPPED`, anyone else's `Remove` is
-  `REFUSED`. Reinstatement (#4081) mirrors each piece.
-- **Catch-up follows the active check.** A participant reinstated into a case
-  whose embargo it has not accepted stays inert; it is sent that embargo's
-  Invite, and its backfill waits for its consent.
+  `REFUSED`.
+- **Where the reinstatement pipeline lives (#4081).** It mirrors removal
+  piece by piece. `create_add_case_participant_received_tree` runs the same
+  role-scoped sender guard, then `case_manager_admits_reinstatement_guard`
+  (names a participant, `ParticipantHasJoinedNode`, `ParticipantIsRemovedNode`;
+  every failure is `REFUSED`, none is an idempotent skip), the guarded commit,
+  and the CASE_MANAGER-gated effects in
+  `core/behaviors/case/nodes/participant_reinstatement.py`:
+  `ReinstateCaseParticipantReceivedNode` (via `CaseParticipant.clear_removal`,
+  the one clearing write), `BackfillAdmittedParticipantsNode`,
+  `EmitParticipantReinstatementNoticeNode` (port method
+  `add_participant_to_case`, which now takes `attributed_to`) and
+  `InviteReinstatedParticipantToEmbargoNode`. The guard and notice frames
+  (`ParticipantMoveGuardNode`, `EmitParticipantMoveNoticeNode`) and the use
+  case frame are shared with removal. Replicas replay the entry through
+  `ApplyReinstateCaseParticipantFromLedgerNode`, which shares its record
+  lookup with the removal apply node.
+- **Catch-up follows the active check (#4084).** The reinstatement entry's
+  fan-out is selected while the participant is still removed, so it is
+  withheld and recorded in that peer's pause (`embargo_paused_from_index`,
+  set by the first entry withheld after the removal entry). Once the fact is
+  cleared, `BackfillAdmittedParticipantsNode` sends every entry from that
+  index on, the reinstatement entry included, so the replica's chain joins
+  with no gap. A participant reinstated into a case whose embargo it has not
+  accepted stays inert: `InviteReinstatedParticipantToEmbargoNode` sends it
+  the active embargo's Invite (the EMB-17-003 re-invite frame, committed as
+  `invite_to_embargo_on_case_reinvite`), and the embargo-acceptance tree's
+  own backfill admits it when it consents.
+- **A removed participant is asked nothing (#4084).** `invitation_recipients`
+  leaves it out, so no embargo Invite or revision relay reaches it. It cannot
+  be sent a stub Invite (the recommend-actor tree treats a joined record as
+  already a participant), and a replayed `Accept(Invite)` from it is a silent
+  skip in `CheckInviteeNotAlreadyParticipantNode`: no case seed, backfill or
+  full-case Invite.
+- **No `Add` after a stub-Invite acceptance (#4081).** Neither the
+  accept-invite tree nor the recommend-actor trees emit `Add(CaseParticipant)`
+  or commit `add_case_participant`; `EmitAddCaseParticipantNode` is deleted.
+  The stub Invite's own `invite_actor_to_case` entry records the inert
+  record's creation (CM-11-006). In the accept-invite tree the full-case
+  Invite is now the first effect that commits after the join, so it carries
+  the #2898 ordering: after the case announce and the backfill.
 
 ## What the old model got wrong
 

@@ -47,30 +47,6 @@ def _outbound_blob(activity) -> str:
     )
 
 
-def _add_participant_result(case, case_actor_id: str, invitee_id: str):
-    """``(id, blob)`` as ``TriggerActivityPort.add_participant_to_case`` returns.
-
-    The node records the blob verbatim as the ledger snapshot (VM-08-003), so
-    it has to be a real, complete ``Add(CaseParticipant, Case)``.
-    """
-    from vultron.wire.as2.factories import add_participant_to_case_activity
-    from vultron.wire.as2.vocab.objects.case_participant import (
-        as_CaseParticipant,
-    )
-
-    activity = add_participant_to_case_activity(
-        participant=as_CaseParticipant(
-            id_=f"{invitee_id}#participant",
-            attributed_to=invitee_id,
-            context=case.id_,
-        ),
-        target=case.id_,
-        actor=case_actor_id,
-        id_=f"{case.id_}/activities/add-participant-1",
-    )
-    return activity.id_, _outbound_blob(activity)
-
-
 def _seed_ledger_entry(
     dl,
     case_id: str,
@@ -117,12 +93,13 @@ def _seed_late_joiner_case() -> dict[str, Any]:
     Shared by the late-joiner tests: the invitee is not yet a participant, so
     ``Accept(Invite)`` drives the full admission sequence (CM-17-004).  Returns
     the store and the objects the assertions need, plus a ``trigger_activity``
-    mock whose ``add_participant_to_case`` side effect stores a real
-    ``Add(CaseParticipant)`` so ``EmitAddCaseParticipantNode`` can snapshot it.
+    mock whose ``invite_actor_to_full_case`` side effect stores a real
+    full-case Invite so ``EmitInviteActorToFullCaseNode`` can commit it.
     """
     from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+    from vultron.core.models.ledger_position import LedgerPosition
     from vultron.enums.roles import CVDRole
-    from vultron.wire.as2.factories import add_participant_to_case_activity
+    from vultron.wire.as2.factories import rm_invite_to_full_case_activity
     from vultron.wire.as2.vocab.base.objects.actors import (
         as_Organization,
         as_Service,
@@ -188,30 +165,27 @@ def _seed_late_joiner_case() -> dict[str, Any]:
         payload_snapshot={"index": 1},
     )
 
-    add_activity_id = f"{case.id_}/activities/add-participant-1"
-
-    def _store_add_participant(**kwargs):
-        participant_id = kwargs.get("participant_id", invitee_id)
-        wire_p = as_CaseParticipant(
-            id_=participant_id,
-            attributed_to=invitee_id,
-            context=kwargs.get("case_id", case.id_),
-        )
-        activity = add_participant_to_case_activity(
-            participant=wire_p,
-            target=kwargs.get("case_id", case.id_),
-            actor=kwargs.get("actor", case_actor_id),
-            id_=add_activity_id,
+    def _store_full_case_invite(**kwargs):
+        activity = rm_invite_to_full_case_activity(
+            invitee=kwargs["invitee_id"],
+            case=kwargs["case_id"],
+            ledger_tail=LedgerPosition(
+                log_index=kwargs["ledger_log_index"],
+                entry_hash=kwargs["ledger_entry_hash"],
+            ),
+            actor=kwargs["actor"],
+            to=kwargs.get("to"),
+            id_=f"{case.id_}/invitations/full-case-1",
         )
         dl.create(activity)
-        return add_activity_id, _outbound_blob(activity)
+        return activity.id_, _outbound_blob(activity)
 
     trigger_activity = MagicMock()
     trigger_activity.announce_vulnerability_case.return_value = (
         f"{case.id_}/announce/1"
     )
-    trigger_activity.add_participant_to_case.side_effect = (
-        _store_add_participant
+    trigger_activity.invite_actor_to_full_case.side_effect = (
+        _store_full_case_invite
     )
     return {
         "dl": dl,
@@ -1230,15 +1204,20 @@ class TestInviteActorUseCases:
         ]
         # Entry 2 (accept_invite): committed before invitee is registered —
         #   fan-out does NOT include the invitee.
-        # Backfill: runs BEFORE the add-participant commit (CM-17-004 steps 5
-        #   and 6 precede any further fan-out to the invitee), so its target is
-        #   the receipt entry (2) and it sends entries 0, 1, 2 in log order.
-        # Entry 3 (add_case_participant): committed after the invitee is
-        #   persisted AND after the backfill — its fan-out INCLUDES the invitee,
-        #   who receives it as the next entry in chain order, not out of order
-        #   ahead of genesis (#2898).
+        # Backfill: runs BEFORE any further commit (CM-17-004 step 3 precedes
+        #   any further fan-out to the invitee), so its target is the receipt
+        #   entry (2) and it sends entries 0, 1, 2 in log order.
+        # Entry 3 (invite_actor_to_full_case): the first entry committed after
+        #   the invitee is persisted AND after the backfill — its fan-out
+        #   INCLUDES the invitee, who receives it as the next entry in chain
+        #   order, not out of order ahead of genesis (#2898).  No
+        #   add_case_participant entry is committed (CM-31-012).
         # So invitee receives: [0, 1, 2 (backfill), 3 (fan-out)].
         assert announced_log_indices == [0, 1, 2, 3]
+        assert announced_entries[3].event_type == "invite_actor_to_full_case"
+        assert "add_case_participant" not in {
+            e.event_type for e in dl.list_objects("CaseLedgerEntry")
+        }
         assert announced_entries[0].entry_hash == first.entry_hash
         assert announced_entries[1].entry_hash == second.entry_hash
 
@@ -1248,7 +1227,7 @@ class TestInviteActorUseCases:
         state = cast(Any, dl.read(state_id))
         assert state is not None
         # The backfill target is the ledger tail when the backfill ran: the
-        # accept_invite receipt (2).  add_case_participant (3) is committed
+        # accept_invite receipt (2).  The full-case Invite (3) is committed
         # afterwards and reaches the invitee by fan-out, not by backfill.
         assert state.join_backfill_target_index == 2
         assert state.join_backfill_last_sent_index == 2
@@ -1413,9 +1392,6 @@ class TestInviteActorUseCases:
         trigger_activity.announce_vulnerability_case.return_value = (
             f"{case.id_}/announce/1"
         )
-        trigger_activity.add_participant_to_case.return_value = (
-            _add_participant_result(case, case_actor_id, invitee_id)
-        )
         sync_port = MagicMock()
 
         accept = rm_accept_invite_to_case_activity(invite, actor=invitee_id)
@@ -1543,9 +1519,6 @@ class TestInviteActorUseCases:
         trigger_activity = MagicMock()
         trigger_activity.announce_vulnerability_case.return_value = (
             f"{case.id_}/announce/1"
-        )
-        trigger_activity.add_participant_to_case.return_value = (
-            _add_participant_result(case, case_actor_id, invitee_id)
         )
         sync_port = MagicMock()
 

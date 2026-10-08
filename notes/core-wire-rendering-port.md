@@ -200,7 +200,8 @@ CLP-07-010:
 - `core/behaviors/status/nodes/dimension_filter.py` `_build_patch` —
   `patch["caseStatus"] = {"emState": ..., "pxaState": ...}`
 - `core/behaviors/case/nodes/accept_invite.py` `_build_snapshot` — a
-  hand-built `{"type": "Add", ...}` fallback dict in the `else` branch
+  hand-built `{"type": "Add", ...}` fallback dict in the `else` branch (the
+  module is gone since #4081)
 
 The pattern replicates: each new snapshot-producing site reinvents a little
 wire spelling. That is the argument for the port, and it is why the fix has to

@@ -220,6 +220,10 @@ _TRIGGER_ACTIVITY_PORT_SEMANTICS = frozenset(
         MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER,
         MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
         MessageSemantics.ACCEPT_OFFER_CASE_PARTICIPANT,
+        # ADD_CASE_PARTICIPANT_TO_CASE sends the reinstated participant its
+        # direct Add(CaseParticipant) notice and, when it is not bound by
+        # the active embargo, that embargo's Invite (CM-31-011, CM-31-013).
+        MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE,
         # CLOSE_CASE emits the as:Reject that declines an owner close during a
         # live embargo (CM-23-011).
         MessageSemantics.CLOSE_CASE,

@@ -31,9 +31,6 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
-from vultron.core.behaviors.case.nodes.accept_invite import (
-    EmitAddCaseParticipantNode,
-)
 from vultron.core.behaviors.case.nodes.actor import (
     EmitInviteActorToCaseNode,
     EvaluateDefaultRolesNode,
@@ -880,7 +877,11 @@ class TestDuplicateDetectionTreeStructure:
 
     @pytest.mark.spec("CM-17-007")
     def test_owner_direct_invite_structure(self):
-        """CASE_OWNER arm: owner check, roles, Invite, inert participant, Add."""
+        """CASE_OWNER arm: owner check, roles, Invite, inert participant.
+
+        No ``Add(CaseParticipant)`` follows the inert record: that message
+        means reinstatement only (CM-31-011, CM-31-012).
+        """
         owner = self._duplicate_selector().children[3]
         assert isinstance(owner, py_trees.composites.Sequence)
         assert owner.name == "OwnerDirectInvite"
@@ -889,7 +890,6 @@ class TestDuplicateDetectionTreeStructure:
             EvaluateDefaultRolesNode,
             EmitInviteActorToCaseNode,
             CreateInertInviteeParticipantNode,
-            EmitAddCaseParticipantNode,
         ]
         check = owner.children[0]
         assert isinstance(check, SenderIsCaseOwnerNode)

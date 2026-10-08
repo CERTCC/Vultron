@@ -233,6 +233,7 @@ print(json2md(rm_invite_to_case()))
 
 - **Protocol role:** The invited actor accepts and joins the case at RM Received.
   The CASE_MANAGER records the acceptance in the ledger, seats the participant, and then sends `Announce(VulnerabilityCase)` to seed the new participant's replica ([CM-17-004](../specs/protocol.md#cm-17-004)).
+  Every other replica seats the new member from that ledger entry; the CASE_MANAGER sends no `Add(CaseParticipant)` for it ([CM-31-012](../specs/protocol.md#cm-31-012)).
 - **Wire activity:** `Accept(Invite(Actor, target=VulnerabilityCaseStub))`.
   It joins the case and consents to the active embargo; it does not judge the case.
   The participant judges the case by answering the full-case Invite that follows.
@@ -337,36 +338,31 @@ print(json2md(create_participant()))
 
 ## Add Case Participant to Case
 
-- **Protocol role:** Attaches a `CaseParticipant` record to the case.
-- **Triggering transition:** none — roster operation.
+- **Protocol role:** The Case Owner's request to the CASE_MANAGER to reinstate a removed participant.
+  Reinstatement clears the participant's removal fact, so it is entitled to case content again; it does not ask the participant to accept again.
+  `Add(CaseParticipant)` does not seat a new member: an actor joins a case by accepting its stub Invite (see [Accept Invite to Case](#accept-invite-to-case)).
+- **Triggering transition:** none — the participant's record loses its removal fact.
 - **Wire activity:** `Add(CaseParticipant)` with `target` = case URI.
-- **How-to:** [How to Seat a Participant on an Existing Case](../../howto/activitypub/activities/initialize_participant.md).
-- **Example artifact:** [add_vendor_participant_to_case.json](../examples/add_vendor_participant_to_case.json).
+- **Who may send:**
+  The CASE_MANAGER accepts it only from the Case Owner.
+  It refuses an `Add` that names a participant that is not removed, a participant that never joined the case, or no participant of the case.
+  It also refuses an `Add` whose participant gives an `attributedTo` other than the actor of the record it names, because each replica finds its own copy of the record by that actor.
+  A participant replica accepts it only from the CASE_MANAGER, as the direct notice below, and writes nothing from it.
+- **Ledger:** the Case Owner's received `Add` is the one ledger entry for the reinstatement.
+  Every replica applies the reinstatement from that entry, the reinstated participant's own included.
+- **Catch-up:** once the participant is active again, the CASE_MANAGER sends it every ledger entry committed after its removal entry, in log order, so its copy of the ledger has no gap.
+  A participant that is not a signatory to the active embargo stays inert: the CASE_MANAGER sends it that embargo's Invite instead, and the catch-up waits until it accepts.
+- **Notice:** the CASE_MANAGER also sends the reinstated participant a direct `Add(CaseParticipant)` naming it, with `actor` set to the CASE_MANAGER and `attributedTo` set to the Case Owner.
+  The notice is not ledgered.
+- **Spec:** [Participant Removal](../vultron-spec/interactions.md#114-participant-removal-n).
 
-The wire shape is the same whatever roles the participant holds; only
-`caseRoles` on the attached object differs. A Vendor seating itself:
-
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import add_vendor_participant_to_case, json2md
-
-print(json2md(add_vendor_participant_to_case()))
-```
-
-A Vendor seating a Coordinator:
+The wire shape is the same whatever roles the participant holds; only `caseRoles` on the attached object differs.
+A Vendor that holds the Case Owner role, reinstating a Coordinator:
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import add_coordinator_participant_to_case, json2md
 
 print(json2md(add_coordinator_participant_to_case()))
-```
-
-A Vendor seating the Finder, who is also the Reporter here. A single
-`CaseParticipant` carries as many roles as the actor holds on the case:
-
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import add_finder_participant_to_case, json2md
-
-print(json2md(add_finder_participant_to_case()))
 ```
 
 ---

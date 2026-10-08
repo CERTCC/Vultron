@@ -22,9 +22,9 @@ the stub-Invite workflow:
   the invitee at RM ``RECEIVED``, VF ``vf`` (VENDOR), and PEC ``INVITED``
   (when an embargo is in force).  Sets ``joined=False`` so the participant is
   inert and does not receive case content until it accepts (CM-11-006).
-  Writes ``new_invite_participant`` and ``invitee_already_participant=False``
-  to the blackboard so :class:`~vultron.core.behaviors.case.nodes.accept_invite.EmitAddCaseParticipantNode`
-  can fan the creation out to existing participants.
+  Nothing is sent to the other participants: the record is the
+  CASE_MANAGER's, and replicas learn of the member from the ``Accept(Invite)``
+  entry once it joins (CM-31-012).
 
 - :class:`AdvanceInviteeVFToVendorAwareNode` — after ``Accept`` or ``Reject``
   of the stub Invite, records vendor awareness (VF ``Vf``) on a VENDOR
@@ -77,12 +77,6 @@ class CreateInertInviteeParticipantNode(DataLayerActionWithPorts):
     CASE_MANAGER's acceptance of the future stub-Invite reply will start from
     (CM-11-009, CM-11-007).
 
-    Writes:
-    - ``new_invite_participant`` — the newly created :class:`CaseParticipant`
-      object, for :class:`~vultron.core.behaviors.case.nodes.accept_invite.EmitAddCaseParticipantNode`.
-    - ``invitee_already_participant = False`` — clears any stale blackboard
-      value so the same node's ``_is_already_done()`` runs the emit.
-
     PRM-06-001: only a single status is written (the birth status at
     RM ``RECEIVED``).
     """
@@ -111,26 +105,10 @@ class CreateInertInviteeParticipantNode(DataLayerActionWithPorts):
         "suggested_roles": PortInformation(data_type=list, required=False),
     }
 
-    OUTPUT_PORTS: dict[str, PortInformation] = {
-        "new_invite_participant": PortInformation(
-            data_type=object, required=True
-        ),
-        "invitee_already_participant": PortInformation(
-            data_type=object, required=True
-        ),
-    }
-
     def _instance_port_remappings(self) -> dict[str, str]:
         if self._roles_key is None:
             return {}
         return {"suggested_roles": self._roles_key}
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {
-            "new_invite_participant": "/new_invite_participant",
-            "invitee_already_participant": "/invitee_already_participant",
-        }
 
     def initialise(self) -> None:
         super().initialise()
@@ -196,8 +174,6 @@ class CreateInertInviteeParticipantNode(DataLayerActionWithPorts):
                     self.invitee_id,
                     self.case_id,
                 )
-                self._set_output("new_invite_participant", existing)
-                self._set_output("invitee_already_participant", True)
                 return Status.SUCCESS
 
         roles = self._resolve_roles()
@@ -247,8 +223,6 @@ class CreateInertInviteeParticipantNode(DataLayerActionWithPorts):
         case.add_participant(participant)
         self.datalayer.save(case)
 
-        self._set_output("new_invite_participant", participant)
-        self._set_output("invitee_already_participant", False)
         self.logger.info(
             "%s: created inert participant '%s' for invitee '%s' in case '%s'"
             " (RM.RECEIVED, joined=False, CM-11-006)",

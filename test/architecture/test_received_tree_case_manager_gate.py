@@ -302,11 +302,6 @@ KNOWN_LEGACY_EFFECT_NODES: frozenset[_Site] = frozenset(
             "create_announce_vulnerability_case_received_tree",
         ),
         # owner: #4307
-        (
-            f"{_C}/case_participant_received_tree.py",
-            "create_add_case_participant_received_tree",
-        ),
-        # owner: #4307
         (f"{_N}/create_note_tree.py", "create_note_tree"),
         # owner: #4307
         (
@@ -365,11 +360,11 @@ KNOWN_LEGACY_EFFECT_NODES: frozenset[_Site] = frozenset(
 # ---------------------------------------------------------------------------
 # 3. Modules that call the gate but build no received tree.  BT-17-008 binds
 #    received trees only: a trigger, expiry or retry tree runs on the actor's
-#    own initiative.  The two ``case_manager_admits_*_guard`` composites are
-#    gate-wrapped read-only conditions passed as a received tree's
+#    own initiative.  The three ``case_manager_admits_*_guard`` composites
+#    are gate-wrapped read-only conditions passed as a received tree's
 #    ``precondition_guards`` (the embargo Invite tree, the participant
-#    removal tree): they hold no effect and no emit, which is all BT-17-008
-#    governs (#4301 keeps their direct gate).
+#    removal and reinstatement trees): they hold no effect and no emit,
+#    which is all BT-17-008 governs (#4301 keeps their direct gate).
 # ---------------------------------------------------------------------------
 # permanent: BT-17-008 (binds received-side trees only; #4301 keeps these)
 GATE_CALLERS_OUTSIDE_RECEIVED_TREES: frozenset[_Site] = frozenset(
@@ -386,6 +381,10 @@ GATE_CALLERS_OUTSIDE_RECEIVED_TREES: frozenset[_Site] = frozenset(
         (
             f"{_C}/nodes/case_participant_received.py",
             "case_manager_admits_removal_guard",
+        ),
+        (
+            f"{_C}/nodes/participant_reinstatement.py",
+            "case_manager_admits_reinstatement_guard",
         ),
         (f"{_E}/trigger_tree.py", "_by_role"),
     }
