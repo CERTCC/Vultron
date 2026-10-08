@@ -141,6 +141,8 @@ A second removal of the same participant changes nothing.
 The CASE_MANAGER records your `Remove` as one ledger entry and sends that entry to every active participant, the removed one included.
 It then sends the removed participant a direct `Remove(CaseParticipant)` naming it, with `attributedTo` set to you.
 The removed participant receives no later ledger entries.
+A removed signatory stays bound by the embargo it accepted.
+When that embargo is terminated, or replaced by a revision that ends no later, the CASE_MANAGER sends the removed participant the change directly, outside the ledger (see [ET — Embargo Termination](../../../reference/messages/em.md#et-embargo-termination)).
 See [Participant Removal](../../../reference/vultron-spec/interactions.md#114-participant-removal-n).
 
 Removal is not a closure — a participant that has finished its own work closes with `Leave(VulnerabilityCase)` instead.

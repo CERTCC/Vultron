@@ -71,8 +71,8 @@ print(json2md(activate_embargo()))
 carries notice of a change significant enough to warrant attention beyond the
 corresponding `CaseStatus` message, such as an embargo being removed from a case.
 
-When the Case Manager activates a revision that ends no later than the embargo it replaces, it sends `Announce(Event)` with the new terms directly to each bound signatory that no longer receives ledger entries (removed, or at RM `CLOSED`).
-That participant applies the new terms only when the Case Manager sent them.
+When the CASE_MANAGER activates a revision that ends no later than the embargo it replaces, it sends `Announce(Event)` with the new terms directly to each bound signatory that no longer receives ledger entries (removed, or at RM `CLOSED`).
+That participant applies the new terms only when the CASE_MANAGER sent them.
 A revision that ends later sends no such notice, because those participants never agreed to it.
 
 ```python exec="true" idprefix=""
@@ -172,9 +172,9 @@ print(json2md(accept_embargo()))
 - **Triggering transition:** Active or Revise → eXited ({A,R} → X).
 - **Wire activity:** `Remove(Event)`.
 - **Bound participants that are no longer active:** A signatory that was removed from the case, or that left it and is at RM `CLOSED`, stays bound by the embargo but no longer receives ledger entries.
-  The Case Manager sends each such participant `ET` directly, one activity per participant, outside the ledger stream.
+  The CASE_MANAGER sends each such participant `ET` directly, one activity per participant, outside the ledger stream.
   The notice carries the embargo and nothing else, and it is not a ledger entry.
-  The participant applies it only when the Case Manager sent it.
+  The participant applies it only when the CASE_MANAGER sent it.
   A termination on or after the embargo's agreed end date is expiry, and sends no notice.
 - **How-to:** [How to Revise or Terminate an Embargo](../../howto/activitypub/activities/manage_embargo.md).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#em-message-types),
