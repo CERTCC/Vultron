@@ -73,9 +73,11 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.participants.recipients import (
+    awaits_embargo_ending_notice,
     embargo_ending_notice_recipients,
     ledger_stream_paused,
 )
+from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
@@ -94,6 +96,7 @@ from vultron.wire.as2.factories import (
     announce_log_entry_activity,
     em_accept_embargo_activity,
     em_propose_embargo_activity,
+    em_reject_embargo_activity,
     remove_embargo_from_case_activity,
     remove_participant_from_case_activity,
 )
@@ -301,6 +304,77 @@ def test_termination_notifies_nobody_who_is_not_bound_or_is_reached() -> None:
     assert INVITEE not in notices
     assert ACTIVE not in notices
     assert OWNER not in notices
+
+
+@pytest.mark.spec("EMB-19-001")
+@pytest.mark.spec("CM-23-004")
+def test_teardown_announce_reaches_active_participants_but_not_closed_ones() -> (
+    None
+):
+    """The teardown's Announce goes to the active others, never to RM CLOSED.
+
+    The closed signatory learns of the end from its CM-31-009 ET instead;
+    a removed one is not active and gets neither the announcement.
+    """
+    manager = _Manager()
+
+    manager.terminate_as_owner()
+
+    announced = manager.notices("Announce", EMBARGO_ID)
+    assert set(announced) == {OWNER, ACTIVE, DECLINER}
+    assert DEPARTED not in announced
+    assert REMOVED not in announced
+    assert MANAGER not in announced
+    assert set(manager.notices("Remove", EMBARGO_ID)) == (
+        _unreached_signatories()
+    )
+
+
+@pytest.mark.spec("CM-31-009")
+@pytest.mark.spec("CM-24-002")
+@pytest.mark.spec("EMB-04-002")
+def test_owner_ej_after_disclosure_sends_et_crediting_the_owner() -> None:
+    """The owner's EJ of a revision after P/X/A ends the embargo (EMB-04-002).
+
+    That path runs the shared terminate tree from a received ``Reject``;
+    the unreached signatories get the ET, credited to the owner.
+    """
+    manager = _Manager()
+    revision = manager.stage_revision(end_in_days=30)
+    case = manager.dl.read(CASE_ID)
+    assert isinstance(case, as_VulnerabilityCase)
+    case.append_case_status(em_state=EM.REVISE, pxa_state=CS_pxa.Pxa)
+    manager.dl.save(case)
+    invite = em_propose_embargo_activity(
+        revision,
+        context=CASE_ID,
+        actor=MANAGER,
+        to=[OWNER],
+        id_=f"{CASE_ID}/embargo_invites/owner-revision-ej",
+    )
+    manager.dl.create(invite)
+
+    result = manager.route(
+        em_reject_embargo_activity(
+            invite, context=CASE_ID, actor=OWNER, to=[MANAGER]
+        )
+    )
+
+    assert result.disposition is HandlerDisposition.APPLIED
+    ended = manager.dl.read(CASE_ID)
+    assert isinstance(ended, as_VulnerabilityCase)
+    assert ended.active_embargo_id is None
+    notices = {
+        recipient: [a for a in sent if len(a.to) == 1]
+        for recipient, sent in manager.notices("Remove", EMBARGO_ID).items()
+    }
+    for recipient in _unreached_signatories():
+        assert len(notices[recipient]) == 1
+        notice = notices[recipient][0]
+        assert _as_id(notice.attributed_to) == OWNER
+        assert notice.id_ not in manager.ledger_object_ids()
+    for recipient in (DECLINER, INVITEE, ACTIVE):
+        assert not notices.get(recipient)
 
 
 def _cascade_terminate(manager: _Manager) -> None:
@@ -753,13 +827,56 @@ def test_paused_replica_refuses_an_announced_embargo_of_another_case() -> None:
     assert replica.embargo_state() == before
 
 
+@pytest.mark.spec("CM-31-010")
+@pytest.mark.spec("CM-10-005")
+def test_withheld_replica_does_not_apply_an_announced_revision() -> None:
+    """A withheld replica is owed no notice, so it applies no Announce.
+
+    It is paused, but it is bound by no embargo in force; an
+    ``Announce(EmbargoEvent)`` reaching it from the CASE_MANAGER is the
+    teardown announcement, which must not activate the embargo it names.
+    """
+    replica = _Replica(DECLINER, removed=False)
+    assert ledger_stream_paused(replica.case(), replica.dl, DECLINER)
+    assert not awaits_embargo_ending_notice(
+        replica.case(), replica.dl, DECLINER
+    )
+    before = replica.embargo_state()
+
+    result = _shorter_revision_announced_by(MANAGER, replica)
+
+    assert result.disposition is HandlerDisposition.SKIPPED
+    assert replica.embargo_state() == before
+
+
+@pytest.mark.spec("CM-31-010")
+def test_paused_replica_refuses_a_stored_embargo_of_another_case() -> None:
+    """The case check covers an id the replica already holds, not only inline."""
+    replica = _Replica(REMOVED)
+    replica.dl.create(
+        as_EmbargoEvent(
+            id_=REVISION_ID,
+            context="https://example.org/cases/another-case",
+            end_time=days_from_now_utc(30),
+        )
+    )
+    before = replica.embargo_state()
+
+    result = _shorter_revision_announced_by(MANAGER, replica)
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert replica.embargo_state() == before
+
+
 @pytest.mark.spec("CM-31-009")
 @pytest.mark.spec("BT-14-001")
 def test_owed_notice_without_a_trigger_factory_is_an_internal_fault() -> None:
     """A notice owed but unbuildable is a wiring fault, not a silent skip."""
     manager = _Manager()
 
-    with pytest.raises(VultronBTInternalError):
+    with pytest.raises(
+        VultronBTInternalError, match="trigger_activity_factory"
+    ):
         route_received(
             manager.dl,
             remove_embargo_from_case_activity(

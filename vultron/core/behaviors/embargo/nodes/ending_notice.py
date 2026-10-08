@@ -44,8 +44,9 @@ pair.  The notice is delivery, not a record: it is queued on the outbox and
 never committed, and each recipient gets its own activity, so no notice
 names another participant.
 
-**The paused replica side** (CM-31-010): :class:`LedgerStreamPausedNode`
-tells a replica whether the notice is its only channel, and
+**The paused replica side** (CM-31-010): :class:`AwaitsEmbargoEndingNoticeNode`
+tells a replica whether it is one the CASE_MANAGER owes a notice — the
+recipient rule above, read about itself — and
 :class:`ApplyAnnouncedEmbargoRevisionNode` applies a shorter revision from
 the CASE_MANAGER's ``Announce(EmbargoEvent)`` through ``EmbargoLifecycle``
 (EMB-18-001).  A termination notice is a ``Remove(EmbargoEvent)``, which the
@@ -69,8 +70,8 @@ from vultron.core.behaviors.narrative_log import log_em_transition
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.participants.recipients import (
+    awaits_embargo_ending_notice,
     embargo_ending_notice_recipients,
-    ledger_stream_paused,
 )
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.embargo_lifecycle import (
@@ -324,16 +325,19 @@ def embargo_ending_notice_nodes(
     )
 
 
-class LedgerStreamPausedNode(DataLayerConditionWithPorts):
-    """Condition: the executing actor's ledger stream on the case is paused.
+class AwaitsEmbargoEndingNoticeNode(DataLayerConditionWithPorts):
+    """Condition: the executing actor can be owed a CM-31-009 notice.
 
-    ``SUCCESS`` when the actor's own record in this replica says it is not
-    active or is at RM ``CLOSED``
-    (:func:`~vultron.core.participants.recipients.ledger_stream_paused`), so
-    a direct embargo-ending notice from the CASE_MANAGER is its only channel
+    ``SUCCESS`` when the actor's own record in this replica is a joined
+    ``SIGNATORY`` of the embargo in force that the ledger fan-out no longer
+    reaches — removed, or at RM ``CLOSED``
+    (:func:`~vultron.core.participants.recipients.awaits_embargo_ending_notice`)
+    — so a direct notice from the CASE_MANAGER is its only channel
     (CM-31-010).  ``FAILURE`` otherwise, a case this store does not hold
     included: an active replica takes embargo changes from the ledger
-    (RSH-08-003).
+    (RSH-08-003), and a withheld one (CM-10-005) is bound by no embargo in
+    force, so an ``Announce(EmbargoEvent)`` reaching it is the teardown
+    announcement, never a shorter revision to apply.
     """
 
     def __init__(self, case_id: str, name: str | None = None) -> None:
@@ -350,14 +354,16 @@ class LedgerStreamPausedNode(DataLayerConditionWithPorts):
         if case is None:
             self.feedback_message = f"No replica of case '{self.case_id}'"
             return Status.FAILURE
-        if ledger_stream_paused(case, datalayer, cast(str, self.actor_id)):
+        if awaits_embargo_ending_notice(
+            case, datalayer, cast(str, self.actor_id)
+        ):
             self.feedback_message = (
-                f"'{self.actor_id}' ledger stream on case '{self.case_id}'"
-                " is paused"
+                f"'{self.actor_id}' is a signatory on case '{self.case_id}'"
+                " that the ledger no longer reaches"
             )
             return Status.SUCCESS
         self.feedback_message = (
-            f"'{self.actor_id}' is reached by the ledger of case"
+            f"'{self.actor_id}' is owed no embargo-ending notice on case"
             f" '{self.case_id}'"
         )
         return Status.FAILURE
@@ -395,16 +401,25 @@ class ApplyAnnouncedEmbargoRevisionNode(DataLayerActionWithPorts):
         self.applied = False
 
     def _hold_announced_embargo(self, datalayer: CasePersistence) -> None:
-        """Store the inline embargo if absent; refuse one from another case."""
-        if self._embargo is None:
-            return
-        if self._embargo.context != self.case_id:
+        """Store the inline embargo if absent; refuse one from another case.
+
+        The case check covers the stored record as well as the inline copy:
+        an id the replica already holds for another case's embargo is
+        refused too.
+        """
+        if self._embargo is not None:
+            self._require_this_case(self._embargo.context)
+            if datalayer.read(self.embargo_id) is None:
+                datalayer.save(self._embargo)
+        stored = read_embargo_event(datalayer, self.embargo_id)
+        self._require_this_case(stored.context)
+
+    def _require_this_case(self, context: object) -> None:
+        if context != self.case_id:
             raise VultronError(
                 f"Announced embargo '{self.embargo_id}' belongs to"
-                f" '{self._embargo.context}', not case '{self.case_id}'"
+                f" '{context}', not case '{self.case_id}'"
             )
-        if datalayer.read(self.embargo_id) is None:
-            datalayer.save(self._embargo)
 
     def update(self) -> Status:
         self.applied = False
@@ -469,7 +484,7 @@ __all__ = [
     "CaptureActiveEmbargoNode",
     "EmbargoEndingKind",
     "EmbargoEndingNotice",
-    "LedgerStreamPausedNode",
+    "AwaitsEmbargoEndingNoticeNode",
     "SendEmbargoEndingNoticesNode",
     "embargo_ending_notice",
     "embargo_ending_notice_nodes",

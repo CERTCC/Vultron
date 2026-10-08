@@ -214,10 +214,14 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
   and the trigger answer arms. One activity per recipient, never ledgered,
   `attributedTo` the requester when it is not the manager. At the replica,
   the received `Remove(EmbargoEvent)` tree applies ET through
-  `EmbargoLifecycle`; a paused replica (`LedgerStreamPausedNode`,
-  `ledger_stream_paused`) applies an announced shorter revision through
-  `ApplyAnnouncedEmbargoRevisionNode` (`activate_embargo`, `OBSERVED`). The
-  sender guard admits only the CASE_MANAGER. Until #4212 lands, a closed
+  `EmbargoLifecycle`; a replica owed a notice (`AwaitsEmbargoEndingNoticeNode`,
+  `awaits_embargo_ending_notice`: the same recipient rule, read about itself)
+  applies an announced shorter revision through
+  `ApplyAnnouncedEmbargoRevisionNode` (`activate_embargo`, `OBSERVED`). A
+  withheld replica is paused but bound by no embargo in force, so the
+  teardown `Announce` that reaches it is archived, never applied. The
+  sender guard admits only the CASE_MANAGER. The teardown `Announce` itself
+  skips RM `CLOSED` participants (CM-23-004). Until #4212 lands, a closed
   signatory still receives fan-out and so gets both the entry and the notice;
   both apply idempotently.
 - **Catch-up follows the active check.** A participant reinstated into a case

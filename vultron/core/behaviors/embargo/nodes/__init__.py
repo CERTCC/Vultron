@@ -50,8 +50,8 @@ from vultron.core.behaviors.embargo.nodes.em_state import (
 )
 from vultron.core.behaviors.embargo.nodes.ending_notice import (
     ApplyAnnouncedEmbargoRevisionNode,
+    AwaitsEmbargoEndingNoticeNode,
     CaptureActiveEmbargoNode,
-    LedgerStreamPausedNode,
     SendEmbargoEndingNoticesNode,
     embargo_ending_notice_nodes,
 )
@@ -161,7 +161,7 @@ __all__ = [
     # Embargo-ending notices to unreached signatories (CM-31-009, CM-31-010)
     "ApplyAnnouncedEmbargoRevisionNode",
     "CaptureActiveEmbargoNode",
-    "LedgerStreamPausedNode",
+    "AwaitsEmbargoEndingNoticeNode",
     "SendEmbargoEndingNoticesNode",
     "embargo_ending_notice_nodes",
     # Activation ledger replay (RSH-08-004, #3814)

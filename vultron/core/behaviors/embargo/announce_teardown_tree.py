@@ -51,8 +51,8 @@ admitted by the sender guard only from the CASE_MANAGER (ADR-0115).  For a
 replica whose ledger stream is paused (removed, withheld, or at RM
 ``CLOSED``) that direct notice is the only channel, and it applies it through
 ``EmbargoLifecycle`` (CM-31-010).  When the RSH-08-003 replica gate lands
-(#3814) it must keep admitting that case; ``LedgerStreamPausedNode`` is the
-check.
+(#3814) it must keep admitting that case; ``AwaitsEmbargoEndingNoticeNode``
+is the check.
 
 Per specs/behavior-tree-integration.yaml BT-06-001.
 """

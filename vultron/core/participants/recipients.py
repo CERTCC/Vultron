@@ -279,12 +279,49 @@ def embargo_ending_notice_recipients(
             case,
             dl,
             excluding,
-            lambda p: (
-                p.joined and p.is_signatory(embargo_id) and _beyond_fan_out(p)
-            ),
+            lambda p: _owed_ending_notice(p, embargo_id),
             "embargo-ending notice",
         )
     ]
+
+
+def _owed_ending_notice(record: CaseParticipant, embargo_id: str) -> bool:
+    """True when *record* is owed a CM-31-009 notice that *embargo_id* ended.
+
+    Joined, ``SIGNATORY`` to *embargo_id*, and beyond the ledger fan-out.
+    The one rule both sides read: the CASE_MANAGER to pick the recipients,
+    the paused replica to decide whether a notice is one it can be owed.
+    """
+    return (
+        record.joined
+        and record.is_signatory(embargo_id)
+        and _beyond_fan_out(record)
+    )
+
+
+def awaits_embargo_ending_notice(
+    case: VulnerabilityCase, dl: CasePersistence, actor_id: str
+) -> bool:
+    """True when *actor_id* can be owed a CM-31-009 notice on *case*.
+
+    Read in the participant's own replica, about itself (CM-31-010): it is
+    a joined ``SIGNATORY`` of the embargo its replica has in force, and the
+    ledger fan-out no longer reaches it (removed, or at RM ``CLOSED``).
+    This is :func:`embargo_ending_notice_recipients` seen from the receiver,
+    so a replica applies only a notice the CASE_MANAGER would send it.  A
+    participant withheld under CM-10-005 is paused too
+    (:func:`ledger_stream_paused`) but is never a signatory of the embargo
+    in force, so no notice is owed to it: an ``Announce(EmbargoEvent)`` it
+    receives is the teardown announcement, not a shorter revision.  An
+    actor the case does not list, whose record does not resolve, or a case
+    with no embargo in force, awaits nothing.
+    """
+    embargo_id = case.active_embargo_id
+    participant_id = case.actor_participant_index.get(actor_id)
+    if embargo_id is None or participant_id is None:
+        return False
+    record = _resolve_record(case, dl, participant_id)
+    return record is not None and _owed_ending_notice(record, embargo_id)
 
 
 def ledger_stream_paused(

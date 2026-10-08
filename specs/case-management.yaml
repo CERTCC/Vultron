@@ -4893,7 +4893,9 @@ groups:
       never learns that the obligation ended early or shortened. A longer revision does not bind a
       participant that never agreed to it, and expiry on the agreed date is already known to it. A
       past-dated `Announce(EmbargoEvent)` is not used: its meaning would depend on the receiver's
-      clock, and an early end is an event, not a date that passed.
+      clock, and an early end is an event, not a date that passed. "Shorter" and "longer" follow the
+      EP-05-001 split: a revision that ends at the same time as the embargo it replaces is on the
+      carry-over arm, so the bound participant is bound by it and is sent it like a shorter one.
     verification: >-
       Tests terminate the embargo and activate a shorter revision on a case with a removed signatory
       and a departed signatory, and assert each is sent the matching notice and no ledger entry;

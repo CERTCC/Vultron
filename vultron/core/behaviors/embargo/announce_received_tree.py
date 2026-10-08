@@ -19,15 +19,18 @@ An ``Announce(EmbargoEvent)`` is canonical case state only the CASE_MANAGER
 asserts; the use case refuses any other sender before this tree runs
 (ADR-0115, PCR-03-001).  An active replica takes every embargo change from
 the ledger (RSH-08-003), so for it the tree only archives the activity.  A
-replica whose ledger stream is paused — removed, withheld, or at RM
-``CLOSED`` — cannot, and the announcement is the CM-31-009 notice of a
-shorter revision: it applies it through ``EmbargoLifecycle`` (CM-31-010)::
+signatory of the embargo in force whose ledger stream is paused — removed,
+or at RM ``CLOSED`` — cannot, and the announcement is the CM-31-009 notice
+of a shorter revision: it applies it through ``EmbargoLifecycle``
+(CM-31-010).  A withheld replica (CM-10-005) is bound by no embargo in
+force, so no notice is owed to it; what reaches it is the teardown
+announcement, and it only archives that too::
 
     AnnounceEmbargoEventToCaseReceivedBT (Sequence)
     ├─ IntakeReceivedActivityNode
-    └─ ApplyIfLedgerStreamPaused (Selector)
-       ├─ SkipUnlessStreamPaused (Inverter)
-       │  └─ LedgerStreamPausedNode
+    └─ ApplyIfEndingNoticeAwaited (Selector)
+       ├─ SkipUnlessEndingNoticeAwaited (Inverter)
+       │  └─ AwaitsEmbargoEndingNoticeNode
        └─ ApplyAnnouncedEmbargoRevisionNode
 
 No ledger entry is committed: the announcement is a notice, not a record.
@@ -40,7 +43,7 @@ from vultron.core.behaviors.case.receive_activity_tree import (
 )
 from vultron.core.behaviors.embargo.nodes import (
     ApplyAnnouncedEmbargoRevisionNode,
-    LedgerStreamPausedNode,
+    AwaitsEmbargoEndingNoticeNode,
 )
 from vultron.core.models.embargo_event import EmbargoEvent
 
@@ -64,12 +67,12 @@ def announce_embargo_received_tree(
         precondition_guards=[],
         replica_effects=[
             py_trees.composites.Selector(
-                name="ApplyIfLedgerStreamPaused",
+                name="ApplyIfEndingNoticeAwaited",
                 memory=False,
                 children=[
                     py_trees.decorators.Inverter(
-                        name="SkipUnlessStreamPaused",
-                        child=LedgerStreamPausedNode(case_id=case_id),
+                        name="SkipUnlessEndingNoticeAwaited",
+                        child=AwaitsEmbargoEndingNoticeNode(case_id=case_id),
                     ),
                     ApplyAnnouncedEmbargoRevisionNode(
                         case_id=case_id,
