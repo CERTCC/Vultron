@@ -1024,7 +1024,10 @@ groups:
       On the production `add_participant_status_tree` path (where a case context
       is available), the receiver SHOULD emit `Add(Note, VulnerabilityCase)`
       when an RM anomaly is detected, requesting the sender to clarify the
-      path it took between the two observed states.
+      path it took between the two observed states. This holds for a backward
+      regression that leaves nothing else of the declaration acceptable, so
+      the whole declaration is refused, as well as for an anomaly inside a
+      declaration that is accepted in whole or in part.
     rationale: >
       The original BT protocol design included an `RE` (Report Management Error)
       message type for exactly this scenario. Until `RE` is formalised in
@@ -1032,8 +1035,11 @@ groups:
       pragmatic substitute. The note makes the anomaly visible at the protocol
       level, not just in local logs.
     note: >
-      Implemented by `EmitRMGapNoteNode` in `effect_nodes` of
-      `add_participant_status_tree`. The standalone `append_participant_status_tree`
+      Implemented by `EmitRMGapNoteNode`: in the `replica_effects` of
+      `add_participant_status_tree` for an accepted declaration, and in its
+      `refusal_effects` for a wholly refused one, which the shared factory runs
+      only on that refusal, at the CASE_MANAGER, once per received activity
+      (CLP-10-022). The standalone `append_participant_status_tree`
       path (test-only, no production callers) has no case context; it MUST log
       (RSH-06-003) but MUST NOT attempt to emit a note.
   - id: RSH-06-005

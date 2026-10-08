@@ -144,7 +144,7 @@ def create_create_case_received_tree(
         name="CreateCaseReceivedBT",
         case_id=None,
         precondition_guards=[],
-        effect_nodes=[
+        replica_effects=[
             ClassifyBootstrapRouteNode(route, sender_id, case_id),
             choose,
         ],

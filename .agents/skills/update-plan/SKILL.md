@@ -115,6 +115,7 @@ Spec: \`specs/<topic>.yaml\`" \
   --issue-type-id "$(bash .agents/skills/shared/board-id.sh issue-type Task)" \
   --parent "<epic-number>" \
   --milestone "<milestone-number>" \
+  --planned \
   --label "size:<S|M|L>")
   # Add --blocked-by N for known blockers
 echo "Created gap issue #${ISSUE_NUMBER}"

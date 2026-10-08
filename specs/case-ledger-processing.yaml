@@ -928,19 +928,25 @@ groups:
       precondition-guard node is one that only reads state and returns
       FAILURE on mismatch, making no writes. A protocol-effect node is any other node
       that writes to the DataLayer, mutates actor or participant state, or enqueues an
-      outbox item; the intake node is not a protocol-effect node.
+      outbox item; the intake node is not a protocol-effect node. A refusal effect
+      (CLP-10-022) is a protocol-effect node that runs only when a precondition
+      guard has refused, so the tree fails before the commit; it never runs on a
+      delivery the guards accept, and so never precedes a commit.
     rationale: Receipt is a fact whether or not the assertion is later accepted, so the
       record of what arrived is written before anything judges it. Classing that write
       as a protocol effect forced it after the commit, and handlers that needed the
       record regardless of the verdict stored it procedurally in `execute()` instead
-      (ISSUE-3339, ADR-0111).
+      (ISSUE-3339, ADR-0111). A refusal effect answers a refusal; the ordering rule
+      exists so an accepted assertion's effects follow the ledger record of their
+      cause, and a refused assertion has no ledger record and no other effect.
     verification: '`test/architecture/test_receive_side_intake_first.py` asserts
       that every receive-side tree factory under `vultron/core/behaviors/` returns
       the result of `create_receive_activity_tree` (including the factories that
       composed `create_case_manager_gated_tree` directly before #3870), so the tree
       has the intake node as its first child; `test_receive_side_bt_commit_ordering.py`
       asserts the guarded commit comes after every guard and no protocol-effect node
-      ahead of the commit.'
+      ahead of the commit, counting `refusal_effects` as effects; `test/core/behaviors/case/nodes/test_refusal_stage.py`
+      asserts no refusal effect runs on an accepted delivery.'
     adr:
     - ADR-0111
     - ADR-0022
@@ -949,7 +955,9 @@ groups:
     kind: project
     statement: 'In any receive-side BT tree that includes a `GuardedCommitCaseLedgerEntryBT`
       subtree, the ordering MUST be: (1) intake, (2) precondition guards, (3) commit,
-      (4) all protocol effects.'
+      (4) all protocol effects. Refusal effects (CLP-10-022) belong to stage (2):
+      they run only after a precondition guard refuses, and the tree then ends
+      without reaching (3) or (4).'
     rationale: Intake records what arrived. The canonical case ledger records the cause
       (the received activity the CASE_MANAGER accepted) and replicates it to all
       participants. Recording cause before applying effects ensures the audit log is
@@ -989,7 +997,9 @@ groups:
       node that can return FAILURE to refuse an inbound assertion (a rejection validator)
       MUST appear in `precondition_guards`; a rejection validator placed in `effect_nodes`
       aborts the Sequence after GuardedCommit has already written a canonical ledger
-      entry, producing canonical/replica divergence (ISSUE-2254).
+      entry, producing canonical/replica divergence (ISSUE-2254). Feedback a refusal
+      owes the sender is passed as `refusal_effects` (CLP-10-022), never as an
+      emit placed beside the refusing guard.
   - id: CLP-10-012
     priority: MUST_NOT
     kind: project
@@ -1295,6 +1305,53 @@ groups:
       spec_id: HP-09-001
     tags:
     - protocol
+  - id: CLP-10-022
+    priority: MUST
+    kind: project
+    statement: >-
+      A receive-side tree that owes the sender feedback when a precondition
+      guard refuses its assertion MUST pass that feedback to
+      `create_receive_activity_tree` as `refusal_effects`. The factory MUST run
+      the refusal effects only when a precondition guard refuses, never when
+      the sender guard refuses or the guards pass; MUST run them only at the
+      case's CASE_MANAGER; MUST NOT run them again for a redelivery that intake
+      found already archived; and MUST leave the tree failing with the guard's
+      refusal, so nothing is committed and the handler reports `REFUSED` for
+      the guard's reason. Every refusal effect MUST be emit-capable and MUST
+      contain no state-write node: a refusal commits nothing, so it changes no
+      state.
+    rationale: >-
+      A receiver should not silently drop an assertion it can answer in the
+      moment, such as a refused backward RM declaration (RSH-06-004). An emit
+      beside the guard would precede the commit on an accepted delivery
+      (CLP-10-006), and per-tree scaffolding would repeat the structure
+      (CS-22-001). The CASE_MANAGER adjudicates, so only it answers
+      (BT-17-008); an unentitled sender is owed no answer (HP-01-006); a
+      redelivery changes nothing, so a second answer is noise.
+    note: >-
+      The redelivery skip keys on intake finding the activity already
+      archived, not on a record that the refusal effects ran: a refusal
+      effect writes no state, so no such record exists. A redelivery whose
+      first delivery never reached the refusal effects (the sender guard
+      refused it, the receiver was not yet the CASE_MANAGER, or the effect
+      failed) is therefore not answered either.
+    verification: >-
+      `test/core/behaviors/case/test_receive_activity_tree.py` asserts the
+      factory wraps the guards in the refusal stage ahead of the commit, gates
+      the refusal effects on the CASE_MANAGER, and refuses a refusal effect
+      that is not emit-capable; `test/core/behaviors/case/nodes/test_refusal_stage.py`
+      asserts the effects never run on an accepted delivery, run once on a
+      refusal, are skipped on a redelivery, and leave the guard's failure
+      reason; `TestRefusedRegressionIsNoted` in
+      `test/core/behaviors/report/test_rm_declaration_adjudication.py`
+      asserts the end-to-end behaviour for the RSH-06-004 note.
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-10-006
+    - rel_type: refines
+      spec_id: CLP-10-010
+    adr:
+    - ADR-0111
 - id: CLP-11
   title: Protocol Request/Reply State Detection
   description: Requirements for querying whether a protocol-level request/reply pair

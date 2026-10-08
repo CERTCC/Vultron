@@ -76,7 +76,8 @@ If this fails, stop and investigate before proceeding.
      --body "${BUG_BODY}" \
      --issue-type-id "${BUG_TYPE_ID}" \
      --parent "${EPIC_NUMBER}" \
-     --milestone "${MILESTONE_NUMBER}")
+     --milestone "${MILESTONE_NUMBER}" \
+     --planned)
    ```
 
 3. Invoke `orient-agent` to load baseline context.
@@ -301,6 +302,10 @@ Once the plan is confirmed:
      BODY    = issue number, symptoms, root cause, fix summary, PR link
      ```
 
+   - Apply the nearby-debt rule (`completeness-doctrine.md` § "Net Issues: Close
+     More Than You Open"): fix open `opened:debt` issues whose `Where:` names a
+     file in the diff, close them in the PR, and put the `Issues:` line in the PR
+     body. Any issue you file takes `--opened-as`.
    - Run the **upward-reflection checklist** per
      `.agents/skills/shared/upward-reflection.md` and **route** each triggered
      item to the destination that file specifies (BW-07-004). Most route to a

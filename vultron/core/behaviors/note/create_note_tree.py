@@ -72,7 +72,7 @@ def create_note_tree(
         name="CreateNoteBT",
         case_id=None,
         precondition_guards=[],
-        effect_nodes=[
+        replica_effects=[
             SaveNoteNode(note_obj=note_obj),
             AttachNoteToCaseNode(note_id=note_obj.id_, case_id=case_id),
         ],

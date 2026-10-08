@@ -25,7 +25,9 @@ covers.  These checks keep that the only way in:
    reached by #4300, #4301 and #4302; kept so a new caller fails.
 2. **Ratchet** ``KNOWN_LEGACY_EFFECT_NODES``: no received tree passes the
    unchecked legacy ``effect_nodes``.  Terminal value: empty, then the
-   parameter goes (#4307).
+   parameter goes.  #4307 moved every other tree off it; the close-case
+   tree's entry is #3825's, and the parameter stays until that entry
+   leaves.
 3. **Pinned exemption set** ``GATE_CALLERS_OUTSIDE_RECEIVED_TREES``: the
    modules that call the gate and build no received tree (trigger, expiry,
    relay-guard, admission-backfill and retry trees), so a new caller must
@@ -111,79 +113,18 @@ KNOWN_DIRECT_GATE_CALLERS: frozenset[_Site] = frozenset()
 
 # ---------------------------------------------------------------------------
 # 2. Received trees still passing the unchecked legacy ``effect_nodes``.
-#    The factory refuses to mix it with manager_effects, so a tree in set 1
-#    leaves this set when it leaves that one.
+#    #4307 moved every other received tree onto replica_effects and
+#    manager_effects.  When the last entry leaves, delete ``effect_nodes``
+#    from create_receive_activity_tree and turn this into a plain "no caller
+#    passes effect_nodes" check.
 # ---------------------------------------------------------------------------
-# owner: #3825 #4307 (one per entry)
+# owner: #3825
 KNOWN_LEGACY_EFFECT_NODES: frozenset[_Site] = frozenset(
     {
         # owner: #3825 — the close-case decline arm emits ungated
         (
             f"{_C}/receive_close_case_tree.py",
             "create_close_case_received_tree",
-        ),
-        # owner: #4307
-        (
-            f"{_C}/accept_case_proposal_received_tree.py",
-            "create_accept_case_proposal_received_tree",
-        ),
-        # owner: #4307
-        (
-            f"{_C}/announce_case_received_tree.py",
-            "create_announce_vulnerability_case_received_tree",
-        ),
-        # owner: #4307
-        (f"{_N}/create_note_tree.py", "create_note_tree"),
-        # owner: #4307
-        (
-            f"{_R}/received_report_trees.py",
-            "create_close_report_received_tree",
-        ),
-        # owner: #4307
-        (
-            f"{_R}/received_report_trees.py",
-            "create_invalidate_report_received_tree",
-        ),
-        # owner: #4307
-        (f"{_R}/received_report_trees.py", "create_report_received_tree"),
-        # owner: #4307
-        (
-            f"{_C}/create_case_received_tree.py",
-            "create_create_case_received_tree",
-        ),
-        # owner: #4307
-        (f"{_C}/create_tree.py", "create_create_case_tree"),
-        # owner: #4307
-        (
-            f"{_C}/receive_report_case_tree.py",
-            "create_keep_offer_without_report_tree",
-        ),
-        # owner: #4307
-        (
-            f"{_C}/receive_report_case_tree.py",
-            "create_receive_report_case_tree",
-        ),
-        # owner: #4307
-        (
-            f"{_C}/reject_case_proposal_received_tree.py",
-            "create_reject_case_proposal_received_tree",
-        ),
-        # owner: #4307
-        (
-            f"{_C}/store_only_received_tree.py",
-            "create_store_only_received_tree",
-        ),
-        # owner: #4307
-        (
-            "vultron/core/behaviors/dead_letter/dead_letter_tree.py",
-            "create_store_dead_letter_tree",
-        ),
-        # owner: #4307
-        (f"{_E}/refusal_tree.py", "embargo_invite_refusal_tree"),
-        # owner: #4307
-        (
-            f"{_R}/received_report_trees.py",
-            "create_validate_report_received_tree",
         ),
     }
 )
@@ -305,6 +246,11 @@ REPLICA_EMIT_EXEMPTION_USES: frozenset[tuple[str, str, str]] = frozenset(
             "add_case_status_tree",
         ),
         (
+            "CLOSE_REPORT_RM_DECLARATION",
+            f"{_R}/received_report_trees.py",
+            "create_close_report_received_tree",
+        ),
+        (
             "DEFER_RM_DECLARATION",
             f"{_R}/prioritize_tree.py",
             "create_defer_case_tree",
@@ -320,14 +266,34 @@ REPLICA_EMIT_EXEMPTION_USES: frozenset[tuple[str, str, str]] = frozenset(
             "invite_to_embargo_on_case_tree",
         ),
         (
+            "EMBARGO_INVITE_REFUSAL",
+            f"{_E}/refusal_tree.py",
+            "embargo_invite_refusal_tree",
+        ),
+        (
+            "INVALIDATE_REPORT_RM_DECLARATION",
+            f"{_R}/received_report_trees.py",
+            "create_invalidate_report_received_tree",
+        ),
+        (
             "OFFER_ROLE",
             f"{_C}/offer_case_participant_role_received_tree.py",
             "create_offer_case_participant_role_received_tree",
         ),
         (
+            "REPORT_CASE_PROPOSAL",
+            f"{_C}/receive_report_case_tree.py",
+            "create_receive_report_case_tree",
+        ),
+        (
             "RSH_STATUS",
             f"{_S}/add_participant_status_tree.py",
             "add_participant_status_tree",
+        ),
+        (
+            "VALIDATE_REPORT_RM_DECLARATION",
+            f"{_R}/received_report_trees.py",
+            "create_validate_report_received_tree",
         ),
     }
 )

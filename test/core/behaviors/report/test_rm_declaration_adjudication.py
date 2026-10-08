@@ -51,6 +51,7 @@ from test.support.rm_declaration import (
     assert_anomaly_flagged_and_noted,
     cases_declaring,
     current_status,
+    note_content,
     queued_notes,
     recorded_rm,
     seed_case,
@@ -72,6 +73,7 @@ from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.cs import CS_pxa, CS_vf
 from vultron.core.states.rm import RM, RMDeclaration
+from vultron.core.sync_helpers import ledger_tail_position
 from vultron.core.use_cases.received.case.engage_defer import (
     DeferCaseReceivedUseCase,
     EngageCaseReceivedUseCase,
@@ -370,3 +372,173 @@ class TestAnomalyFlagDoesNotLeakAcrossRuns:
 
         assert result.disposition is HandlerDisposition.SKIPPED, result.reason
         assert len(queued_notes(dl)) == 1, "the confirmation posts no note"
+
+
+def _status_declaration(rm: RM) -> Any:
+    """``Add(ParticipantStatus)`` declaring *rm* for the sender."""
+    status = as_ParticipantStatus(
+        id_=f"{PARTICIPANT_ID}/statuses/declared-{rm.name.lower()}",
+        context=CASE_ID,
+        attributed_to=ACTOR_ID,
+        rm=RmDimension(state=rm),
+    )
+    return status, add_status_to_participant_activity(
+        status=status,
+        target=as_CaseParticipant(
+            id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
+        ),
+        actor=ACTOR_ID,
+        context=_case_ref(),
+    )
+
+
+@pytest.mark.executes_as(CASE_MANAGER_ID)
+class TestRefusedRegressionIsNoted:
+    """A wholly refused backward declaration still gets its note (#4310).
+
+    The refusal ends the tree before the commit, so the RSH-06-004 note
+    comes from the factory's refusal-effects stage (CLP-10-022): once per
+    received activity, at the CASE_MANAGER, with nothing committed.
+    """
+
+    @pytest.mark.spec("RSH-06-004")
+    @pytest.mark.spec("CLP-10-022")
+    def test_status_path_refuses_commits_nothing_and_notes(
+        self, store_for, make_payload
+    ):
+        from vultron.core.use_cases.received.status import (
+            AddParticipantStatusToParticipantReceivedUseCase,
+        )
+
+        dl = store_for(CASE_MANAGER_ID)
+        _seed(dl, RM.ACCEPTED)
+        status, activity = _status_declaration(RM.VALID)
+        dl.create(status)
+        tail = ledger_tail_position(CASE_ID, dl)
+
+        result = AddParticipantStatusToParticipantReceivedUseCase(
+            dl,
+            make_payload(activity),
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert recorded_rm(dl) == RM.ACCEPTED
+        assert ledger_tail_position(CASE_ID, dl) == tail, "nothing committed"
+        notes = queued_notes(dl)
+        assert len(notes) == 1
+        assert "backward" in note_content(dl, notes[0])
+
+    @pytest.mark.spec("RSH-06-004")
+    @pytest.mark.spec("CLP-10-022")
+    def test_activity_typed_refusal_commits_nothing_and_notes(
+        self, store_for, make_payload
+    ):
+        dl = store_for(CASE_MANAGER_ID)
+        _seed(dl, RM.CLOSED)
+        tail = ledger_tail_position(CASE_ID, dl)
+
+        result = _deliver(dl, RM.DEFERRED, make_payload)
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert recorded_rm(dl) == RM.CLOSED
+        assert ledger_tail_position(CASE_ID, dl) == tail, "nothing committed"
+        assert len(queued_notes(dl)) == 1
+
+    @pytest.mark.spec("CLP-10-022")
+    @pytest.mark.parametrize("declared", [RM.DEFERRED, RM.INVALID])
+    def test_a_redelivered_refusal_posts_no_second_note(
+        self, declared: RM, store_for, make_payload
+    ):
+        dl = store_for(CASE_MANAGER_ID)
+        _seed(dl, RM.CLOSED)
+        event = make_payload(_HANDLERS[declared].build(ACTOR_ID))
+
+        def deliver() -> Any:
+            return (
+                _HANDLERS[declared]
+                .use_case(
+                    dl,
+                    event,
+                    trigger_activity=TriggerActivityAdapter(dl),
+                    sync_port=SyncActivityAdapter(dl),
+                    wire_render_port=As2WireRenderAdapter(),
+                )
+                .execute()
+            )
+
+        first = deliver()
+        assert first.disposition is HandlerDisposition.REFUSED
+        assert len(queued_notes(dl)) == 1, "the first delivery is noted"
+
+        second = deliver()
+
+        assert second.disposition is HandlerDisposition.REFUSED
+        assert len(queued_notes(dl)) == 1, "the redelivery is not"
+
+    @pytest.mark.spec("CLP-10-022")
+    def test_a_second_refused_activity_gets_its_own_note(
+        self, store_for, make_payload
+    ):
+        """The redelivery skip is per activity, not per sender or case."""
+        dl = store_for(CASE_MANAGER_ID)
+        _seed(dl, RM.CLOSED)
+
+        first = _deliver(dl, RM.DEFERRED, make_payload)
+        second = _deliver(dl, RM.INVALID, make_payload)
+
+        assert first.disposition is HandlerDisposition.REFUSED
+        assert second.disposition is HandlerDisposition.REFUSED
+        assert len(queued_notes(dl)) == 2
+
+    @pytest.mark.spec("BT-17-008")
+    @pytest.mark.spec("CLP-10-022")
+    def test_only_the_case_manager_answers_a_refusal(
+        self, store_for, make_payload
+    ):
+        # The vendor's own replica: a participant, not the CASE_MANAGER.
+        dl = store_for(ACTOR_ID)
+        _seed(dl, RM.ACCEPTED)
+        status, activity = _status_declaration(RM.VALID)
+        dl.create(status)
+        event = make_payload(activity)
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        )
+
+        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID, activity=event
+        )
+
+        assert result.status.name == "FAILURE"
+        # The refusal is the adjudication's, so the refusal stage ran and
+        # only the CASE_MANAGER gate kept the note back.
+        reason = BTBridge.get_failure_reason(tree)
+        assert "refused in full" in reason, reason
+        assert queued_notes(dl) == []
+
+    @pytest.mark.spec("CLP-10-022")
+    def test_a_refusal_ahead_of_the_adjudication_posts_no_stale_note(
+        self, store_for, make_payload
+    ):
+        """An earlier run's anomaly does not leak into a later refusal.
+
+        A stranger's declaration is refused by the participant guard, ahead
+        of the adjudication; the regression flagged by the run before it must
+        not be noted again.
+        """
+        dl = store_for(CASE_MANAGER_ID)
+        _seed(dl, RM.CLOSED)
+        _deliver(dl, RM.DEFERRED, make_payload)
+        assert len(queued_notes(dl)) == 1, "precondition: one regression note"
+
+        result = _deliver(dl, RM.INVALID, make_payload, sender=STRANGER_ID)
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert len(queued_notes(dl)) == 1

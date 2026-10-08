@@ -28,6 +28,9 @@ them and the ``Add(ParticipantStatus)`` path alike:
 - :func:`record_rm_declaration` — the effects: record the declared state for
   the sender unless it is already recorded (RSH-08-002), then post the
   RSH-06-004 clarification note when the guard flagged an anomaly.
+- :func:`rm_gap_note` — the refusal effect: a tree passes it as
+  ``refusal_effects`` so a refused regression still posts the RSH-06-004 note
+  (CLP-10-022).
 
 The write is :class:`~vultron.core.behaviors.case.nodes.participant.status\
 .CreateParticipantStatusNode` with ``rm_rule=RMRule.DECLARATION``: it keeps its
@@ -40,8 +43,11 @@ Placement in the tree::
     <HandlerBT> (create_receive_activity_tree)
     ├─ Intake
     ├─ SenderIsActiveParticipantNode         # sender guard (HP-01-006)
-    ├─ … handler guards …
-    ├─ AdjudicateRMDeclarationNode           # rm_declaration_guard
+    ├─ PreconditionGuardStage                # refusal_effects (CLP-10-022)
+    │   ├─ PreconditionGuards (Sequence)
+    │   │   ├─ … handler guards …
+    │   │   └─ AdjudicateRMDeclarationNode   # rm_declaration_guard
+    │   └─ RefusalEffects → EmitRMGapNoteNode  # only on a refusal
     ├─ [GuardedCommit]
     ├─ Idempotent<name> (Selector)           # record_rm_declaration
     │   ├─ CheckParticipantRMState           # already recorded → skip
@@ -57,11 +63,13 @@ from vultron.core.behaviors.case.nodes.participant.status import (
 from vultron.core.behaviors.report.nodes.conditions import (
     CheckParticipantRMState,
 )
-from vultron.core.behaviors.status.nodes.rm_anomaly import EmitRMGapNoteNode
+from vultron.core.behaviors.status.nodes.rm_anomaly import rm_gap_note
 from vultron.core.behaviors.status.nodes.rm_declaration import (
     AdjudicateRMDeclarationNode,
 )
 from vultron.core.states.rm import RM, RMRule
+
+__all__ = ["record_rm_declaration", "rm_declaration_guard", "rm_gap_note"]
 
 
 def rm_declaration_guard(
@@ -72,17 +80,6 @@ def rm_declaration_guard(
         sender_actor_id=sender_actor_id,
         declared_rm=declared_rm,
         case_id=case_id,
-    )
-
-
-def rm_gap_note(
-    sender_actor_id: str, case_id: str | None
-) -> EmitRMGapNoteNode:
-    """Return the RSH-06-004 note emitter for the sender's RM declaration."""
-    return EmitRMGapNoteNode(
-        sender_actor_id=sender_actor_id,
-        case_id=case_id,
-        name="EmitRMGapNote",
     )
 
 

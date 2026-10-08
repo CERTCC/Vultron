@@ -33,9 +33,12 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any, cast
 
+import py_trees
 import pytest
+from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.behaviors.status.nodes.dimension_filter import BB_RM_ANOMALY
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import (
@@ -146,6 +149,28 @@ def seed_case(
         dl.create(asserted)
 
 
+class RMAnomalyProbe(py_trees.decorators.Decorator):
+    """Probe: snapshot ``BB_RM_ANOMALY`` when the wrapped tree finishes.
+
+    The anomaly is an execution-scoped hand-off that ``execute_with_setup``
+    resets at teardown, so a test cannot read it after the run returns.
+    Wrap the tree in this probe to observe what the run published; the
+    probe returns the tree's own status, so a refusal still reads as one.
+    """
+
+    def __init__(
+        self, child: py_trees.behaviour.Behaviour, sink: dict[str, Any]
+    ) -> None:
+        super().__init__(name="RMAnomalyProbe", child=child)
+        self._sink = sink
+
+    def update(self) -> Status:
+        self._sink["anomaly"] = py_trees.blackboard.Blackboard.storage.get(
+            f"/{BB_RM_ANOMALY}"
+        )
+        return self.decorated.status
+
+
 def recorded_rm(dl: SqliteDataLayer) -> RM:
     """Return the sender's latest recorded RM state."""
     participant = cast(CaseParticipant, dl.read(PARTICIPANT_ID))
@@ -248,9 +273,10 @@ def assert_anomaly_flagged_and_noted(
 ) -> None:
     """Assert the run logged *case*'s anomaly and posted the note it owes.
 
-    An anomaly is logged at WARNING naming both states (RSH-06-003); an
-    accepted gap posts the RSH-06-004 clarification note to the sender, and a
-    refused regression ends the tree before its effects, so it posts none.
+    An anomaly is logged at WARNING naming both states (RSH-06-003), and
+    either anomaly posts one RSH-06-004 clarification note to the sender
+    carrying the RSH-06-005 fields: an accepted gap from the effect stage, a
+    refused regression from the factory's refusal-effects stage (CLP-10-022).
     """
     anomaly_logs = [
         r.getMessage()
@@ -264,10 +290,33 @@ def assert_anomaly_flagged_and_noted(
         assert anomaly_logs, "RSH-06-003: the anomaly must not be silent"
         assert case.current in anomaly_logs[0]
         assert case.declared in anomaly_logs[0]
+    assert_note_owed(case, dl)
+
+
+def note_content(dl: SqliteDataLayer, activity: Any) -> str:
+    """Return the content of the note an ``Add(Note)`` activity carries."""
+    note = getattr(activity, "object_", None)
+    note = dl.read(note) if isinstance(note, str) else note
+    return str(getattr(note, "content", "") or "")
+
+
+def assert_note_owed(case: RMDeclarationCase, dl: SqliteDataLayer) -> None:
+    """Assert *dl* queued exactly the RSH-06-004 note *case* owes, if any.
+
+    The note goes to the sender and names it, both RM states, and whether
+    the anomaly was a forward gap or a refused regression (RSH-06-005).
+    """
     notes = queued_notes(dl)
-    assert len(notes) == (1 if case.anomaly == "gap" else 0)
-    if notes:
-        assert ACTOR_ID in (getattr(notes[0], "to", None) or [])
+    assert len(notes) == (0 if case.anomaly is None else 1)
+    if not notes:
+        return
+    assert ACTOR_ID in (getattr(notes[0], "to", None) or [])
+    content = note_content(dl, notes[0])
+    assert ACTOR_ID in content
+    assert f"{case.current}" in content
+    assert f"{case.declared}" in content
+    kind = "non-adjacent forward" if case.anomaly == "gap" else "backward"
+    assert kind in content
 
 
 def cases_declaring(*declared: RM) -> list[Any]:

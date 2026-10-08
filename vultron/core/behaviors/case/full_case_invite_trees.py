@@ -31,6 +31,7 @@ from vultron.core.behaviors.case.receive_activity_tree import (
 from vultron.core.behaviors.report.rm_declaration_tree import (
     record_rm_declaration,
     rm_declaration_guard,
+    rm_gap_note,
 )
 from vultron.core.behaviors.sender_entitlement import (
     SenderIsCaseManagerNode,
@@ -117,6 +118,10 @@ def create_full_case_invite_reply_received_tree(
         └── FullCaseReplyEffects             # CASE_MANAGER only
             ├── Idempotent<name> (Selector)  # already recorded → skip
             └── EmitRMGapNote               # gap note when anomalous
+
+    The guards sit in the factory's ``PreconditionGuardStage``: when the
+    adjudication refuses a regression, its refusal-effects stage posts the
+    same note at the CASE_MANAGER before the tree fails (CLP-10-022).
     """
     return create_receive_activity_tree(
         name=name,
@@ -141,4 +146,5 @@ def create_full_case_invite_reply_received_tree(
         ),
         manager_case_id=case_id,
         manager_gate_name="FullCaseReplyEffects",
+        refusal_effects=[rm_gap_note(replier_id, case_id)],
     )

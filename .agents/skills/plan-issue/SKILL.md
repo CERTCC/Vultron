@@ -78,7 +78,8 @@ ISSUE_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
   --body "${BODY}" \
   --issue-type-id "${IDEA_TYPE_ID}" \
   --parent "${EPIC_NUMBER}" \
-  --milestone "${MILESTONE_NUMBER}")
+  --milestone "${MILESTONE_NUMBER}" \
+  --planned)
 ```
 
 ### Phase 0b — Sync
@@ -326,6 +327,7 @@ $([ -n "${NOTES_FILE}" ] && echo "Notes: \`notes/${NOTES_FILE}\`")" \
   --label "size:<S|M|L>" \
   --parent "${EPIC_NUMBER}" \
   --milestone "${MILESTONE_NUMBER}" \
+  --planned \
   --blocked-by "${ISSUE_NUMBER}")
 ```
 
