@@ -407,8 +407,10 @@ stages in a fixed order (CLP-10-006, CLP-10-010):
    delivery — inside a CASE_MANAGER gate, and skips them on a redelivery intake
    found already archived. The stage then fails with the guard's reason, so
    nothing is committed and the handler still reads `REFUSED`. A refusal effect
-   must be `EmitCapable`; the factory refuses any other node, because a refusal
-   changes no state. Do not hand-build a `Selector[guard, emit]` instead: an
+   must be `EmitCapable` and hold no `StateWriteCapable` node; the factory
+   refuses any other, because a refusal changes no state. The redelivery skip
+   keys on intake's archive, not on a record that the effects ran, so a
+   redelivery whose first delivery never reached them is not answered either. Do not hand-build a `Selector[guard, emit]` instead: an
    emit beside a guard runs ahead of the commit on an accepted delivery. The
    RSH-06-004 note for a refused backward RM declaration is the first user.
 3. **Commit** — the CASE_MANAGER ledgers the received activity as received, a

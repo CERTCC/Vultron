@@ -469,11 +469,29 @@ class TestRefusedRegressionIsNoted:
                 .execute()
             )
 
-        first, second = deliver(), deliver()
+        first = deliver()
+        assert first.disposition is HandlerDisposition.REFUSED
+        assert len(queued_notes(dl)) == 1, "the first delivery is noted"
+
+        second = deliver()
+
+        assert second.disposition is HandlerDisposition.REFUSED
+        assert len(queued_notes(dl)) == 1, "the redelivery is not"
+
+    @pytest.mark.spec("CLP-10-022")
+    def test_a_second_refused_activity_gets_its_own_note(
+        self, store_for, make_payload
+    ):
+        """The redelivery skip is per activity, not per sender or case."""
+        dl = store_for(CASE_MANAGER_ID)
+        _seed(dl, RM.CLOSED)
+
+        first = _deliver(dl, RM.DEFERRED, make_payload)
+        second = _deliver(dl, RM.INVALID, make_payload)
 
         assert first.disposition is HandlerDisposition.REFUSED
         assert second.disposition is HandlerDisposition.REFUSED
-        assert len(queued_notes(dl)) == 1
+        assert len(queued_notes(dl)) == 2
 
     @pytest.mark.spec("BT-17-008")
     @pytest.mark.spec("CLP-10-022")
@@ -493,13 +511,16 @@ class TestRefusedRegressionIsNoted:
             sync_port=SyncActivityAdapter(dl),
         )
 
+        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
         result = bridge.execute_with_setup(
-            tree=add_participant_status_tree(request=event, case_id=CASE_ID),
-            actor_id=ACTOR_ID,
-            activity=event,
+            tree=tree, actor_id=ACTOR_ID, activity=event
         )
 
         assert result.status.name == "FAILURE"
+        # The refusal is the adjudication's, so the refusal stage ran and
+        # only the CASE_MANAGER gate kept the note back.
+        reason = BTBridge.get_failure_reason(tree)
+        assert "refused in full" in reason, reason
         assert queued_notes(dl) == []
 
     @pytest.mark.spec("CLP-10-022")

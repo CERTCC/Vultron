@@ -74,6 +74,10 @@ class _EmittingWriter(StateWriteCapable, _Emitter):
     """A stand-in emit node that also writes case state."""
 
 
+class _EmittingSequence(EmitCapable, py_trees.composites.Sequence):
+    """A stand-in emit-capable composite, to hide a writer inside."""
+
+
 def _effect(name: str = "Effect") -> py_trees.behaviour.Behaviour:
     return py_trees.behaviours.Success(name=name)
 
@@ -463,6 +467,40 @@ class TestRefusalEffects:
                 case_id=CASE_ID,
                 precondition_guards=[_effect("Guard")],
                 refusal_effects=[_EmittingWriter()],
+            )
+
+    @pytest.mark.spec("CLP-10-022")
+    def test_a_state_writer_nested_in_a_refusal_effect_is_refused(
+        self,
+    ) -> None:
+        nested = _EmittingSequence(
+            name="EmitThenWrite",
+            memory=False,
+            children=[_Emitter(), _Writer("NestedWriter")],
+        )
+        with pytest.raises(
+            VultronWiringError, match=r"state writers: \['_Writer'\]"
+        ):
+            create_receive_activity_tree(
+                name="SampleBT",
+                case_id=CASE_ID,
+                precondition_guards=[_effect("Guard")],
+                refusal_effects=[nested],
+            )
+
+    @pytest.mark.spec("CLP-10-022")
+    def test_a_plain_composite_holding_an_emitter_is_refused(self) -> None:
+        wrapper = py_trees.composites.Sequence(
+            name="Wrapper", memory=False, children=[_Emitter()]
+        )
+        with pytest.raises(
+            VultronWiringError, match=r"not emit-capable: \['Sequence'\]"
+        ):
+            create_receive_activity_tree(
+                name="SampleBT",
+                case_id=CASE_ID,
+                precondition_guards=[_effect("Guard")],
+                refusal_effects=[wrapper],
             )
 
     def test_refusal_effects_combine_with_legacy_effect_nodes(self) -> None:

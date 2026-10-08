@@ -83,8 +83,13 @@ class PreconditionGuardStage(py_trees.composites.Composite):
 
         FAILURE when a guard refuses, after running the refusal effects once.
         On a redelivery — intake found the activity already archived — the
-        refusal effects are skipped: the first delivery already ran them,
-        and a second note for the same refused activity is noise.
+        refusal effects are skipped, so a refused activity is answered at
+        most once.  The skip keys on the archive, not on a record that the
+        effects ran: a refusal effect writes no state (CLP-10-022), so no
+        such record exists.  A redelivery whose first delivery never reached
+        the refusal effects (its sender guard refused, this actor was not
+        the CASE_MANAGER yet, or the effect failed) is therefore not
+        answered either.
 
         RUNNING while the guards or the refusal effects are running.
     """
@@ -111,22 +116,31 @@ class PreconditionGuardStage(py_trees.composites.Composite):
         return self.children[1]
 
     def tick(self) -> Iterator[py_trees.behaviour.Behaviour]:
-        """Tick the guards, then the refusal effects if the guards failed."""
+        """Tick the guards, then the refusal effects if the guards failed.
+
+        A stage resumed while its refusal effects are ``RUNNING`` resumes
+        them directly: the guards already refused, and re-ticking them would
+        re-judge the delivery and re-publish what they publish.
+        """
         if self.status != Status.RUNNING:
             for child in self.children:
                 if child.status != Status.INVALID:
                     child.stop(Status.INVALID)
             self.skipped_as_redelivery = False
             self.initialise()
+        elif self.refusal.status == Status.RUNNING:
+            yield from self._tick_refusal()
+            return
 
         self.current_child = self.guards
-        for node in self.guards.tick():
-            yield node
+        yield from self.guards.tick()
         if self.guards.status == Status.RUNNING:
             self.status = Status.RUNNING
             yield self
             return
         if self.guards.status == Status.SUCCESS:
+            if self.refusal.status != Status.INVALID:
+                self.refusal.stop(Status.INVALID)
             self.stop(Status.SUCCESS)
             yield self
             return
@@ -134,19 +148,27 @@ class PreconditionGuardStage(py_trees.composites.Composite):
         if self._intake.found_ids:
             self.skipped_as_redelivery = True
             logger.debug(
-                "%s: redelivery of '%s' — refusal effects ran on the first"
-                " delivery",
+                "%s: redelivery of '%s' — refusal effects skipped",
                 self.name,
                 self._intake.found_ids[0],
             )
-        else:
-            self.current_child = self.refusal
-            for node in self.refusal.tick():
-                yield node
-            if self.refusal.status == Status.RUNNING:
-                self.status = Status.RUNNING
-                yield self
-                return
+            self._fail()
+            yield self
+            return
+        yield from self._tick_refusal()
+
+    def _tick_refusal(self) -> Iterator[py_trees.behaviour.Behaviour]:
+        """Tick the refusal effects; fail with the guards' refusal when done."""
+        self.current_child = self.refusal
+        yield from self.refusal.tick()
+        if self.refusal.status == Status.RUNNING:
+            self.status = Status.RUNNING
+            yield self
+            return
+        self._fail()
+        yield self
+
+    def _fail(self) -> None:
+        """End FAILURE, pointing at the guards so their reason is reported."""
         self.current_child = self.guards
         self.stop(Status.FAILURE)
-        yield self

@@ -1330,6 +1330,13 @@ groups:
       (CS-22-001). The CASE_MANAGER adjudicates, so only it answers
       (BT-17-008); an unentitled sender is owed no answer (HP-01-006); a
       redelivery changes nothing, so a second answer is noise.
+    note: >-
+      The redelivery skip keys on intake finding the activity already
+      archived, not on a record that the refusal effects ran: a refusal
+      effect writes no state, so no such record exists. A redelivery whose
+      first delivery never reached the refusal effects (the sender guard
+      refused it, the receiver was not yet the CASE_MANAGER, or the effect
+      failed) is therefore not answered either.
     verification: >-
       `test/core/behaviors/case/test_receive_activity_tree.py` asserts the
       factory wraps the guards in the refusal stage ahead of the commit, gates

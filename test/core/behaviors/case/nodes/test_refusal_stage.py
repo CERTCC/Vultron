@@ -117,6 +117,40 @@ def test_a_redelivery_skips_the_refusal_effects() -> None:
     assert stage.status == Status.FAILURE
     assert stage.skipped_as_redelivery
     assert effect.ticks == 0
+    assert effect.status == Status.INVALID
+    assert BTBridge.get_failure_reason(stage) == "Guard said FAILURE"
+
+
+class _RunningThenSuccess(_Counting):
+    """Returns RUNNING on its first tick, then SUCCESS."""
+
+    def update(self) -> Status:
+        self.ticks += 1
+        return Status.RUNNING if self.ticks == 1 else Status.SUCCESS
+
+
+@pytest.mark.spec("CLP-10-022")
+def test_a_running_refusal_effect_resumes_without_rejudging() -> None:
+    guard = _Counting("Guard", Status.FAILURE)
+    effect = _RunningThenSuccess("Effect")
+    stage = PreconditionGuardStage(
+        name="Stage",
+        guards=py_trees.composites.Sequence(
+            name="PreconditionGuards", memory=False, children=[guard]
+        ),
+        refusal=RefusalEffectsBestEffort(name="RefusalEffects", child=effect),
+        intake=IntakeReceivedActivityNode(),
+    )
+
+    stage.tick_once()
+    assert stage.status == Status.RUNNING
+
+    stage.tick_once()
+
+    assert guard.ticks == 1
+    assert effect.ticks == 2
+    assert stage.status == Status.FAILURE
+    assert BTBridge.get_failure_reason(stage) == "Guard said FAILURE"
 
 
 def test_a_second_run_resets_the_stage() -> None:
