@@ -58,6 +58,9 @@ from vultron.core.behaviors.sync.announce_tree import (
     create_announce_log_entry_tree,
 )
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
+from vultron.core.behaviors.sync.nodes.participant_removal_effect import (
+    REINSTATE_CASE_PARTICIPANT_EVENT_TYPE,
+)
 from vultron.core.models._helpers import _as_id, days_from_now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case_ledger import HashChainLedgerRecord
@@ -94,6 +97,7 @@ from vultron.errors import VultronBTInternalError
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
     add_embargo_to_case_activity,
+    add_participant_to_case_activity,
     announce_embargo_activity,
     announce_log_entry_activity,
     em_accept_embargo_activity,
@@ -611,14 +615,6 @@ class _Replica:
         record.removal_activity = removal_activity
         self.dl.save(record)
 
-    def reinstate(self) -> None:
-        """Clear the removal fact, as a reinstatement replay will (CM-31-011).
-
-        Stands in for the ``Add(CaseParticipant)`` replay until #4081 lands;
-        switch this to routing that entry when it does.
-        """
-        self._set_removal(None)
-
     def record(self) -> CaseParticipant:
         record = self.dl.read(_participant_id(self.actor_id))
         assert isinstance(record, CaseParticipant)
@@ -782,34 +778,45 @@ def test_paused_replica_ignores_an_announced_longer_revision() -> None:
     assert replica.embargo_state() == before
 
 
-def _teardown_entry_event(replica: _Replica) -> AnnounceLogEntryReceivedEvent:
-    """The CASE_MANAGER's announcement of the termination's ledger entry.
+def _entry_event(
+    activity: Any, *, event_type: str, log_index: int, prev_log_hash: str
+) -> tuple[AnnounceLogEntryReceivedEvent, CaseLedgerEntry]:
+    """The CASE_MANAGER's announcement of the ledger entry for *activity*.
 
-    The replica holds no earlier entry, so the entry is chained to its
-    genesis hash, as the backfill would deliver it after the gap closed.
+    Returns the event and the entry, so the next entry can chain to it, as
+    the backfill delivers them once the gap closed.
     """
-    termination = _termination_from(MANAGER, replica.dl, REMOVED)
     entry = _to_persistable_entry(
         HashChainLedgerRecord(
             case_id=CASE_ID,
-            log_index=0,
-            object_id=termination.id_,
-            event_type="remove_embargo_event_from_case",
-            payload_snapshot=termination.model_dump(
+            log_index=log_index,
+            object_id=activity.id_,
+            event_type=event_type,
+            payload_snapshot=activity.model_dump(
                 by_alias=True, mode="json", exclude_none=True
             ),
-            prev_log_hash=replica.case().genesis_hash,
+            prev_log_hash=prev_log_hash,
         )
     )
     wire_entry = as_CaseLedgerEntry.model_validate(
         entry.model_dump(mode="json")
     )
-    activity = announce_log_entry_activity(entry=wire_entry, actor=MANAGER)
-    event = cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
+    announce = announce_log_entry_activity(entry=wire_entry, actor=MANAGER)
+    event = cast(AnnounceLogEntryReceivedEvent, extract_event(announce))
     event.activity = VultronActivity(
         id_=event.activity_id, type_="Announce", actor=MANAGER, object_=entry
     )
-    return event
+    return event, entry
+
+
+def _replay(replica: _Replica, event: AnnounceLogEntryReceivedEvent) -> None:
+    result = BTBridge(datalayer=replica.dl).execute_with_setup(
+        tree=create_announce_log_entry_tree(),
+        actor_id=replica.actor_id,
+        activity=event,
+        sync_port=SyncActivityAdapter(replica.dl),
+    )
+    assert result.status == Status.SUCCESS, result.feedback_message
 
 
 @pytest.mark.spec("CM-31-010")
@@ -817,22 +824,45 @@ def _teardown_entry_event(replica: _Replica) -> AnnounceLogEntryReceivedEvent:
 def test_replaying_the_termination_after_reinstatement_changes_nothing() -> (
     None
 ):
-    """AC-5: the notice and its ledger entry are idempotent across channels."""
+    """AC-5: the notice and its ledger entry are idempotent across channels.
+
+    The removed signatory applies the termination notice.  The Case Owner
+    then reinstates it: the replica replays the ``Add(CaseParticipant)``
+    entry (``ApplyReinstateCaseParticipantFromLedgerNode``, CM-31-011), which
+    makes it active again, and then the termination's own entry.  That
+    replay changes nothing further.
+    """
     replica = _Replica(REMOVED)
     notice = replica.receive(_termination_from(MANAGER, replica.dl, REMOVED))
     assert notice.disposition is HandlerDisposition.APPLIED
-    replica.reinstate()
+    reinstatement, reinstatement_entry = _entry_event(
+        add_participant_to_case_activity(
+            replica.record(), target=CASE_ID, actor=OWNER, context=CASE_ID
+        ),
+        event_type=REINSTATE_CASE_PARTICIPANT_EVENT_TYPE,
+        log_index=0,
+        prev_log_hash=replica.case().genesis_hash,
+    )
+    _replay(replica, reinstatement)
+    assert not replica.record().removed
     assert not ledger_stream_paused(replica.case(), replica.dl, REMOVED)
     after_notice = replica.embargo_state()
 
-    result = BTBridge(datalayer=replica.dl).execute_with_setup(
-        tree=create_announce_log_entry_tree(),
-        actor_id=REMOVED,
-        activity=_teardown_entry_event(replica),
-        sync_port=SyncActivityAdapter(replica.dl),
+    termination, _ = _entry_event(
+        _termination_from(MANAGER, replica.dl, REMOVED),
+        event_type="remove_embargo_event_from_case",
+        log_index=1,
+        prev_log_hash=reinstatement_entry.entry_hash,
     )
+    _replay(replica, termination)
 
-    assert result.status == Status.SUCCESS, result.feedback_message
+    # Both entries were accepted onto the replica's chain, so the
+    # termination really was replayed, not dropped.
+    assert {
+        entry.log_index
+        for entry in replica.dl.list_objects("CaseLedgerEntry")
+        if isinstance(entry, CaseLedgerEntry) and entry.case_id == CASE_ID
+    } == {0, 1}
     assert replica.embargo_state() == after_notice
     assert after_notice[:2] == (EM.EXITED, None)
 

@@ -27,7 +27,8 @@ exist, and they differ on purpose (ADR-0114 § "Inert and active"):
   removed (CM-31-001).
 - :func:`invitation_recipients` — an Invite addressed to a participant *so
   that* it can consent (the relayed embargo Invite, EP-09-002).  Every
-  participant whose RM is not ``CLOSED``, inert ones included (CM-10-007).
+  participant whose RM is not ``CLOSED`` and that is not removed, inert ones
+  included (CM-10-007, CM-31-013).
 - :func:`embargo_ending_notice_recipients` — the bound signatories the
   ledger fan-out no longer reaches, owed a direct notice when their embargo
   ends or shortens (CM-31-009).  Not case content (CM-10-007).
@@ -231,12 +232,19 @@ def invitation_recipients(
     *excluding* (EP-09-002, CM-10-007).  An Invite asks the participant to
     consent; an inert participant is exactly the one that needs asking, so
     the active check does not apply.  A participant that never joined is
-    included: it is not ``CLOSED``.
+    included: it is not ``CLOSED``.  A removed participant is not: the Case
+    Owner took it out, and asking it to vote on embargo terms would undo that
+    decision (CM-31-013, ADR-0116).  The embargo-ending notices it is still
+    owed (CM-31-009) are not Invites and do not come here.
     """
     return [
         actor_id
         for actor_id, _record in _select(
-            case, dl, excluding, lambda p: not p.rm_closed, "invitation"
+            case,
+            dl,
+            excluding,
+            lambda p: not p.rm_closed and not p.removed,
+            "invitation",
         )
     ]
 

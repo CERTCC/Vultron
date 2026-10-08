@@ -44,7 +44,6 @@ from unittest.mock import MagicMock
 import pytest
 
 from test.core.use_cases.received.actor.test_invite import (
-    _add_participant_result,
     _seed_ledger_entry,
 )
 from test.core.use_cases.received.conftest import (
@@ -245,9 +244,6 @@ def joining_case() -> Any:
     )
     joining.trigger_activity.announce_vulnerability_case.return_value = (
         f"{case.id_}/announce/1"
-    )
-    joining.trigger_activity.add_participant_to_case.return_value = (
-        _add_participant_result(case, case_actor_id, invitee_id)
     )
     joining.trigger_activity.invite_actor_to_full_case.side_effect = (
         TriggerActivityAdapter(dl).invite_actor_to_full_case

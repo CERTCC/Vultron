@@ -632,17 +632,22 @@ class _ActorsMixin:
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        attributed_to: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Add(as_CaseParticipant, Case)`` activity.
 
-        Returns ``(activity_id, activity_blob)``; the blob is what the emitting
-        node records as the ledger ``payloadSnapshot`` (VM-08-003).
+        The participant goes inline as the store holds it, removal fact
+        cleared.  Returns ``(activity_id, activity_blob)`` (CM-31-011).
         """
         participant = _to_wire(
             self._dl.read(participant_id), as_CaseParticipant
         )
         activity = add_participant_to_case_activity(
-            participant=participant, target=case_id, actor=actor, to=to
+            participant=participant,
+            target=case_id,
+            actor=actor,
+            to=to,
+            attributed_to=attributed_to,
         )
         try:
             self._dl.create(activity)

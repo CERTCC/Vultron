@@ -28,7 +28,6 @@ cycle (CS-05-003).
 
 from vultron.core.behaviors.case.nodes.participant.common import (
     _create_and_attach_participant,
-    _queue_participant_add_notification,
     resolve_participant_state_from_dl,
 )
 from vultron.core.behaviors.case.nodes.participant.owner import (
@@ -45,7 +44,6 @@ from vultron.core.behaviors.case.nodes.participant.participant_add import (
     CaseHasNoActiveEmbargoNode,
     CreateParticipantInitialStatusNode,
     CreateParticipantNode,
-    QueueAddParticipantNotificationNode,
     RecordParticipantAddedEventNode,
     SeedParticipantAsSignatoryNode,
 )
@@ -59,7 +57,6 @@ from vultron.core.behaviors.case.nodes.participant.trigger_validation import (
 __all__ = [
     "_create_and_attach_participant",
     "_effective_case_roles",
-    "_queue_participant_add_notification",
     "resolve_participant_state_from_dl",
     "CreateOwnerInitialStatusNode",
     "CreateOwnerParticipantNode",
@@ -73,7 +70,6 @@ __all__ = [
     "CaseHasActiveEmbargoNode",
     "CaseHasNoActiveEmbargoNode",
     "SeedParticipantAsSignatoryNode",
-    "QueueAddParticipantNotificationNode",
     "CreateParticipantStatusNode",
     "ValidateTriggerTransitionsNode",
 ]

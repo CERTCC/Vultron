@@ -193,14 +193,12 @@ the re-enumeration warning below.
 | 4 | `vultron/demo/utils.py` | Same pattern, demo-only. |
 | 5 | `core/behaviors/status/nodes/dimension_filter.py` (`_to_core_status`) | **Depended on the shim, not the alias generator.** Dumped a wire status `by_alias=True` and revalidated it through core `ParticipantStatus`, relying on `_migrate_flat_fields` to accept flat `rmState` (ARCH-20-007). Resolved: under ADR-0099 detail 3 the wire status *is* `ParticipantStatus`, so the function is now a bare `isinstance` check — no dump, no `to_core()` (ARCH-20-008, #3840). Added by ADR-0061, so it post-dated CONCERN-2260. |
 
-Two further sites hand-write camelCase into snapshot dicts, the same
+One further site hand-writes camelCase into a snapshot dict, the same
 anti-pattern as the `consent` → `emConsentState` patch and equally covered by
 CLP-07-010:
 
 - `core/behaviors/status/nodes/dimension_filter.py` `_build_patch` —
   `patch["caseStatus"] = {"emState": ..., "pxaState": ...}`
-- `core/behaviors/case/nodes/accept_invite.py` `_build_snapshot` — a
-  hand-built `{"type": "Add", ...}` fallback dict in the `else` branch
 
 The pattern replicates: each new snapshot-producing site reinvents a little
 wire spelling. That is the argument for the port, and it is why the fix has to
