@@ -59,8 +59,10 @@ Epochs are measured from `updated`.
 | 3 | day 10 onward | `accepted` | Supersede; see the edit tiers. |
 
 A merged implementation that depends on the ADR may harden it to epoch 3 early.
-`status` is lint-checked against the epoch computed from `updated` (MS-14-007); a human may override the computed value, and the override is visible in the frontmatter.
-The lint is #4196.
+`status` is checked against the epoch computed from `updated` (MS-14-007); a human may override the computed value, and the override is visible in the frontmatter.
+The clock alone never fails a merge-blocking check, because an ADR crossing a boundary changes no commit.
+A pull request that materially edits an ADR (its `updated` date changes, or the ADR is new) must leave the status on the epoch for that date, and a diff-based check against the merge base enforces it (#4196).
+A scheduled workflow reports every other ADR whose status has drifted through one self-closing tracking issue and never fails the build; a human flips the status.
 
 ### Agents and `proposed` ADRs
 

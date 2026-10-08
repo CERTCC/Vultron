@@ -38,6 +38,7 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.embargo_register import activate
 from test.support.rm_declaration import (
     ACTOR_ID,
     CASE_ID,
@@ -93,7 +94,7 @@ def _seed_with_invite(dl: SqliteDataLayer, current: RM) -> tuple[Any, Any]:
     seed_case(dl, current_status(current, CS_vf.Vf, CS_pxa.pxa), None)
     # The valid path requires an active embargo.
     case = cast(VulnerabilityCase, dl.read(CASE_ID))
-    case.active_embargo = f"{CASE_ID}/embargoes/shared-table"
+    activate(case, f"{CASE_ID}/embargoes/shared-table")
     dl.save(case)
     # Ensure joined=True (seed_case creates participants that default to
     # joined=True, but set it explicitly to be safe).

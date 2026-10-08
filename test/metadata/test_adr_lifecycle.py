@@ -13,6 +13,7 @@ from vultron.metadata.adr.lifecycle import (
     AdrEpoch,
     check_paths,
     edit_faults,
+    epoch_drift,
     epoch_for,
     hardened_adrs,
     main,
@@ -161,8 +162,8 @@ def test_editorial_edit_elsewhere_is_allowed() -> None:
 def test_bumping_updated_outside_epoch_one_needs_override() -> None:
     new = _adr("accepted", "2026-10-20")
     faults = edit_faults("x", OLD, new, TODAY)
-    assert len(faults) == 1
-    assert "status_override" in faults[0]
+    assert len(faults) == 2  # the epoch rule and this rule both fire
+    assert all("status_override" in f for f in faults)
 
 
 def test_bumping_updated_with_override_is_allowed() -> None:
@@ -255,6 +256,79 @@ def test_amendment_text_itself_is_not_a_protected_change() -> None:
         outcome="A.\n\n### Amendment 2026-10-01\n\nQ2.",
     )
     assert edit_faults("x", first, second, TODAY) == []
+
+
+def test_material_edit_must_leave_status_matching_the_epoch() -> None:
+    """A PR that moves `updated` owns the status on that date (MS-14-007)."""
+    old = _adr("proposed", "2026-10-19")
+    new = _adr("accepted-provisional", "2026-10-20")
+    faults = edit_faults("x", old, new, TODAY)
+    assert any("MS-14-007" in f and "epoch 1" in f for f in faults)
+
+
+def test_material_edit_with_matching_status_is_clean() -> None:
+    old = _adr("proposed", "2026-10-19")
+    new = _adr("proposed", "2026-10-20")
+    assert edit_faults("x", old, new, TODAY) == []
+
+
+def test_new_adr_with_a_status_off_its_epoch_is_refused() -> None:
+    assert edit_faults("x", None, _adr("accepted", "2026-10-20"), TODAY)
+    assert edit_faults("x", None, _adr("proposed", "2026-10-20"), TODAY) == []
+
+
+def test_material_edit_status_override_lets_disagreement_stand() -> None:
+    old = _adr("accepted", "2026-01-01")
+    new = _adr(
+        "accepted", "2026-10-20", extra_fm="status_override: human call\n"
+    )
+    assert edit_faults("x", old, new, TODAY) == []
+
+
+def test_untouched_updated_never_trips_the_epoch_rule() -> None:
+    """Drift on an ADR whose `updated` did not move is the report's, not the
+    merge gate's: a typo fix on a stale ADR must pass (#4340)."""
+    old = _adr("proposed", "2026-10-01")
+    new = _adr("proposed", "2026-10-01", tail="\nTypo fixed.\n")
+    assert edit_faults("x", old, new, TODAY) == []
+
+
+def test_epoch_drift_lists_every_stale_status_without_overrides(
+    tmp_path: Path,
+) -> None:
+    adr_dir = tmp_path / "docs" / "adr"
+    adr_dir.mkdir(parents=True)
+    (adr_dir / "0001-stale.md").write_text(
+        _adr("proposed", "2026-10-01"), encoding="utf-8"
+    )
+    (adr_dir / "0002-fine.md").write_text(
+        _adr("proposed", "2026-10-20"), encoding="utf-8"
+    )
+    (adr_dir / "0003-held.md").write_text(
+        _adr("proposed", "2026-10-01", extra_fm="status_override: held\n"),
+        encoding="utf-8",
+    )
+    drift = epoch_drift(tmp_path, TODAY)
+    assert len(drift) == 1
+    assert drift[0].startswith("0001-stale.md")
+
+
+def test_main_report_drift_exit_codes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    adr_dir = _repo(tmp_path, monkeypatch)
+    with pytest.raises(SystemExit) as settled:
+        main(["--report-drift"])
+    assert settled.value.code == 0
+    (adr_dir / "0001-x.md").write_text(
+        _adr("proposed", "2026-01-01"), encoding="utf-8"
+    )
+    with pytest.raises(SystemExit) as drifted:
+        main(["--report-drift"])
+    assert drifted.value.code == 1
+    assert "0001-x.md" in capsys.readouterr().err
 
 
 def _run(*args: str) -> None:

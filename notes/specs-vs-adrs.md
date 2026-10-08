@@ -206,6 +206,13 @@ A merged dependent implementation may harden an ADR to epoch 3 early, and a
 human may override the computed status. Agents implement against `proposed`
 ADRs; the mandatory human touch is the epoch-2 ask.
 
+**The clock never fails a merge-blocking check.** An ADR crossing a boundary
+changes no commit, so a check reading today's date turns `main` red with no one to
+blame (ADR-0110, 2026-10-08). A PR that materially edits an ADR (or adds one) owns
+its status on that date, enforced against the merge base. Every other drifted
+status is reported by the hourly `adr-status-drift` workflow through one
+self-closing issue, and a human flips it (MS-14-007).
+
 **Edit tiers.** Editorial fixes and append-only annotations are allowed in any
 epoch and change neither `updated` nor `revision`. A clarification after epoch 1
 is appended as a dated note. A material change (*would something built on the old
