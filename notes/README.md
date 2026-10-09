@@ -1042,7 +1042,8 @@ wrong object. Also carries the authoring rules for the wire examples those pages
 render: why a well-formed example is not necessarily a *dispatchable* one, which
 discriminator fields to set, and that `ActivityPattern` has no `origin_` field.
 Normative requirements: `specs/message-semantics-mapping.yaml` MSM-04 through
-MSM-06; `specs/semantic-extraction.yaml` SE-08. ADR: ADR-0083.
+MSM-06 and MSM-08 (occasions); `specs/semantic-extraction.yaml` SE-08. ADRs:
+ADR-0083, ADR-0128.
 **Load when**: writing or reviewing anything that claims a protocol shorthand
 maps to an AS2 wire form, working on `docs/reference/messages/`, adding a
 `SEMANTIC_REGISTRY` entry, authoring or fixing a `vocab_examples` wire example,

@@ -186,8 +186,9 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
   MSM-05 specifies the mechanisms that serve them, partitioning faults by failure
   mode and acknowledging ledger-replicated state cumulatively via hash-chain
   continuity. MSM-06 requires the reference pages under `docs/reference/messages/`
-  to render their mapping tables from the registries rather than by hand.
-  (MSM-01 through MSM-06; see ADR-0083 and `notes/message-type-reference.md`)
+  to render their mapping tables from the registries rather than by hand. MSM-08
+  specifies occasions, the unit of the message lookup table (ADR-0128).
+  (MSM-01 through MSM-08; see ADR-0083 and `notes/message-type-reference.md`)
 
 - **`vultron-as2-mapping.yaml`** - Authoritative mapping from each `MessageSemantics`
   enum value to its ActivityStreams 2.0 wire representation: activity type,

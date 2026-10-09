@@ -62,7 +62,10 @@ class DecideRejectedEmbargoProposalNode(
 
     Returns SUCCESS and changes nothing when the embargo is no longer an
     open proposal (already decided, or ended by the EMB-04-002 termination
-    that ran first), so a repeated Reject is idempotent.  Returns FAILURE when
+    that ran first), so a repeated Reject is idempotent.  On replay it also
+    changes nothing for the last revision with P/X/A set: the termination
+    entry that follows cancels it, as on the CASE_MANAGER (ADR-0124).
+    Returns FAILURE when
     the case cannot be read or the lifecycle refuses the transition (for
     example ``STRICT`` EJ with P/X/A set, EMB-04-002).
     """
@@ -109,6 +112,14 @@ class DecideRejectedEmbargoProposalNode(
             self.feedback_message = str(exc)
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
+
+        if not result.case_changed:
+            self.feedback_message = (
+                f"Owner's rejection of embargo '{self.embargo_id}' on case"
+                f" '{self.case_id}' changes nothing here; the termination"
+                " that follows ends it (EMB-04-002)"
+            )
+            return Status.SUCCESS
 
         log_em_transition(
             self.logger,

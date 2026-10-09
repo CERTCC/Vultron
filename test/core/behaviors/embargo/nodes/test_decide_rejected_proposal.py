@@ -195,6 +195,31 @@ def test_strict_ej_with_pxa_set_fails_and_writes_nothing(
     assert kept.proposed_embargo_ids == [revision_id]
 
 
+@pytest.mark.spec("EMB-04-002")
+@pytest.mark.spec("CM-23-016")
+def test_observed_ej_with_pxa_set_succeeds_and_writes_nothing(
+    dl: SqliteDataLayer,
+) -> None:
+    """On replay the termination entry that follows ends it (ADR-0124)."""
+    case, active_id, revision_id = _revising_case(dl, "pxa-replay")
+    case.append_case_status(pxa_state=CS_pxa.Pxa)
+    dl.save(case)
+    setup_blackboard(dl, actor_id=OWNER)
+
+    node = DecideRejectedEmbargoProposalNode(
+        case_id=case.id_,
+        embargo_id=revision_id,
+        transition_mode=TransitionMode.OBSERVED,
+    )
+
+    assert _tick(node) is Status.SUCCESS
+    assert "changes nothing" in node.feedback_message
+    kept = _case(dl, case.id_)
+    assert kept.current_status.em.state == EM.REVISE
+    assert kept.active_embargo_id == active_id
+    assert kept.proposed_embargo_ids == [revision_id]
+
+
 def test_an_unknown_case_fails(dl: SqliteDataLayer) -> None:
     setup_blackboard(dl, actor_id=OWNER)
     node = DecideRejectedEmbargoProposalNode(

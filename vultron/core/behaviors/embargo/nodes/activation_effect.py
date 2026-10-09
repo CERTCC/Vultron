@@ -124,7 +124,10 @@ class ApplyEmbargoProposalRejectionFromLedgerNode(_EmbargoRelayEffectNode):
     Runs :class:`DecideRejectedEmbargoProposalNode` in ``OBSERVED`` mode:
     the register rejects the proposal and EM derives from what is left
     (EP-08-001).  No consent changes.  A proposal this replica no longer
-    holds as open is a no-op, so a re-delivered entry changes nothing.
+    holds as open is a no-op, so a re-delivered entry changes nothing.  So
+    is the last revision with P/X/A set: the CASE_MANAGER answered that
+    Reject with ET (EMB-04-002), and the termination entry that follows
+    cancels the revision here as it did there (EP-08-004, ADR-0124).
 
     SUCCESS with nothing written when the replica holds no copy of the case
     (Regime 2, ADR-0087).  FAILURE, so the entry is not persisted

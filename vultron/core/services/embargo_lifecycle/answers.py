@@ -29,6 +29,7 @@ the active embargo is re-evaluated only when the owner activates a revision
 import logging
 
 from vultron.core.models.embargo_register import rejection_changes
+from vultron.core.predicates.embargo import pxa_is_embargo_eligible
 from vultron.core.services.embargo_lifecycle.pec_activation import (
     _PecActivationMixin,
 )
@@ -112,8 +113,11 @@ class _AnswerOperationsMixin(_PecActivationMixin):
         ``Reject(Invite(EmbargoEvent))``.
 
         Per EMB-04-002, a rejection that would return the case to the prior
-        terms is refused in ``STRICT`` mode when P/X/A is set — callers end
-        the embargo with :meth:`terminate_active_embargo` (ET) instead.
+        terms when P/X/A is set never does: ``STRICT`` refuses it — callers
+        end the embargo with :meth:`terminate_active_embargo` (ET) instead —
+        and ``OBSERVED`` changes nothing, because the termination entry the
+        CASE_MANAGER committed after it cancels the revision (EP-08-004).
+        Both nodes so end with the revision ``CANCELLED`` (ADR-0124).
 
         Args:
             case_id: ID of the ``VulnerabilityCase`` to update.
@@ -122,7 +126,8 @@ class _AnswerOperationsMixin(_PecActivationMixin):
             transition_mode: ``STRICT`` (default) or ``OBSERVED``.  In
                 ``OBSERVED`` mode an embargo that is no longer an open
                 proposal here is a no-op: the replica has already applied
-                what followed.
+                what followed.  So is the rejection of the last revision
+                with P/X/A set (EMB-04-002).
 
         Returns:
             :class:`EmbargoLifecycleResult` describing what changed.
@@ -146,16 +151,29 @@ class _AnswerOperationsMixin(_PecActivationMixin):
             )
 
         # EP-08-001: another open proposal keeps the negotiation open.
-        closes_negotiation = case.proposed_embargo_ids == [embargo_id]
+        pxa_state = case.current_status.pxa.state
         if (
-            closes_negotiation
-            and transition_mode == TransitionMode.STRICT
+            case.proposed_embargo_ids == [embargo_id]
             and case.active_embargo_id is not None
+            and not pxa_is_embargo_eligible(pxa_state)
         ):
             # EMB-04-002: with P/X/A set the case must be terminated (ET),
             # not returned to the prior terms.
+            if transition_mode == TransitionMode.OBSERVED:
+                # The CASE_MANAGER answered this Reject with ET; the
+                # termination entry that follows cancels the revision
+                # (EP-08-004), so replay reaches its register (ADR-0124).
+                logger.info(
+                    "OBSERVED mode: rejection of last revision '%s' on case"
+                    " '%s' with P/X/A set (%s) changes nothing; the"
+                    " termination that follows cancels it (EMB-04-002)",
+                    embargo_id,
+                    case_id,
+                    pxa_state,
+                )
+                return self._unchanged_result(em_before)
             self._assert_pxa_embargo_eligible(
-                case.current_status.pxa.state,
+                pxa_state,
                 case_id,
                 "reject embargo revision (use terminate_active_embargo when"
                 " P/X/A is set)",
