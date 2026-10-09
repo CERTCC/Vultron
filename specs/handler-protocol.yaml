@@ -192,10 +192,10 @@ groups:
     priority: MUST
     kind: architecture
     statement: >-
-      Every received use case MUST declare its sender entitlement exactly once, as either an
-      entitlement kind or an exemption carrying a reason, and the receive-tree factory MUST
-      compose the matching guard from the single sender-entitlement module into the tree's
-      guard stage. A handler MUST NOT implement its own sender predicate, and the module
+      Every received use case MUST declare its sender entitlement exactly once, as either a
+      sender rule (HP-01-008) or an exemption carrying a reason, and the receive-tree
+      factory MUST compose the matching guard from the single sender-entitlement module into
+      the tree's guard stage. A handler MUST NOT implement its own sender predicate, and the module
       MUST NOT have a twin.
     rationale: >-
       Sender checks already existed in seven near-duplicate forms across `behaviors/` and
@@ -220,8 +220,7 @@ groups:
       be composed of entitlement kinds, MAY require any one of several kinds, and MUST state
       the standing required for each addressee the activity is sent to: the CASE_MANAGER, a
       participant, or, for an activity sent before a case exists, an actor outside any
-      case. The
-      receive-tree factory MUST compose the guard from the declaration alone, and a tree
+      case. The receive-tree factory MUST compose the guard from the declaration alone, and a tree
       MUST NOT add a sender check narrower than its declaration.
     rationale: >-
       When this was written, `Remove(Note)` declared "an active participant" while CM-30-001
@@ -234,7 +233,8 @@ groups:
       A unit test composes a guard from an any-of declaration and from a two-sided
       declaration and asserts each side admits exactly its kinds. The HP-01-007 ratchet also
       fails on a sender-entitlement condition node composed inside a tree rather than by the
-      factory from the declaration.
+      factory from the declaration, and on a non-exempt declaration that states no side for
+      an addressee one of its use case's occasions names (MSM-08-009).
     lint_suppress:
     - phantom_path_ref
     relationships:
@@ -251,18 +251,21 @@ groups:
       roles a participant holds and positions held within one exchange (such as the invitee,
       the addressee of a request and the author of an object). A position MUST NOT be added
       to `CVDRole`, and a position a new rule needs MUST be added as an entitlement kind.
-      The addressee of a request MUST be one kind whatever the request.
+      The addressee of a request MUST be one kind whatever the request, except that the
+      invitee of a recorded Invite is its own kind.
     rationale: >-
       A `CVDRole` value is a durable fact stored on a participant record, while a position
       is held relative to one exchange; the same coordinator receives one report and sends
       the next, and a report precedes any case. Keeping positions as kinds means a position
       named in the docs is always one a receiver enforces. One addressee kind keeps one
       guard per check mechanism; the request it names is supplied when it is worded
-      (MSM-08-010). See ADR-0129.
+      (MSM-08-010). The invitee is checked against the recorded Invite itself rather than
+      against an addressee the receiver recorded, and is the protocol's established term
+      (EP-09-010), so it stays a kind of its own. See ADR-0129.
     verification: >-
-      Review of the entitlement kind enumeration against the sender clauses of the received
-      use cases, confirming every position a clause names is a kind and none is a `CVDRole`
-      member.
+      A unit test asserts that no entitlement kind's name is a `CVDRole` member, and that
+      every sender-entitlement condition node in the sender-entitlement module is the guard
+      of exactly one declared kind, so a position checked by a node no kind names fails.
     lint_suppress:
     - phantom_path_ref
     relationships:

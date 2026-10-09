@@ -1098,9 +1098,9 @@ groups:
       context. A field value MUST be a member of that field's enum, and a state context
       MUST name a state machine and states that are members of that machine's state
       enum.
-    rationale: '"Distinguished by" is the only thing that tells two occasions of one
-      wire activity apart, such as vendor awareness and fix ready on
-      `Add(ParticipantStatus)`. A free-text distinguisher can name a value no
+    rationale: '"Distinguished by" is what tells two occasions of one wire activity
+      apart when they share an addressee (MSM-08-009), such as vendor awareness and fix
+      ready on `Add(ParticipantStatus)`. A free-text distinguisher can name a value no
       implementation sends. Typing it against the enums makes a renamed or retired
       state fail at construction.'
     verification: >-
@@ -1259,8 +1259,8 @@ groups:
     statement: Each occasion MUST declare its addressee as one of the sides a sender
       entitlement can have (the CASE_MANAGER, a participant, or an actor outside any case
       for an activity sent before a case exists), and the lookup table MUST
-      render it as the row's "Send to" value. An occasion whose addressee is not a side of
-      its use case's declared rule MUST fail.
+      render it as the row's "Send to" value. An occasion of a non-exempt use case whose
+      addressee is not a side of that use case's declared rule MUST fail.
     rationale: 'An emitter looks up its own situation. One wire activity can carry two
       occasions with different senders: a participant proposing an embargo sends
       `Invite(Event)` to the CASE_MANAGER, and the CASE_MANAGER asking a participant about
@@ -1287,9 +1287,10 @@ groups:
       being answered.
     rationale: A wording table kept apart from the kinds is a second copy that drifts when
       a kind is added. Declaring the wording on the kind makes a new kind incomplete until
-      it can be rendered and defined. The addressee kind serves every request type, so its
-      wording takes the request from the pattern to stay identified ("the addressee of the
-      case proposal") without a kind per request. See ADR-0129.
+      it can be rendered and defined. The addressee kind serves every request type but an
+      Invite, so its wording takes the request from the answered activity's object type
+      to stay identified ("the addressee of the case proposal") without a kind per
+      request. See ADR-0129.
     verification: >-
       A test asserts that every entitlement kind has non-empty wording and a glossary term
       present in `docs/reference/glossary.md`, and that the addressee wording for the case

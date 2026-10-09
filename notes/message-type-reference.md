@@ -334,8 +334,9 @@ with a wire activity, sometimes narrowed by a distinguishing field value or stat
 context (glossary, Messaging and Protocol). One semantic type has one or more
 occasions —
 `Add(CaseStatus)` has three — so the table has one row per (occasion, wire activity)
-pair: When… | Send | Sent by | Distinguished by | Details. The formal shorthand is
-only the Details link text; the formal protocol is linked, not leading.
+pair: When… | Send | Send to | Sent by | Distinguished by | Details. The formal
+shorthand is only the Details link text; the formal protocol is linked, not
+leading.
 
 Where each fact will live, so nothing derivable is typed by hand:
 
@@ -343,7 +344,8 @@ Where each fact will live, so nothing derivable is typed by hand:
 |---|---|
 | when, distinguishing value, anchor ID, description, example, how-to link, shorthand, notes | `SemanticEntry.occasions` |
 | wire summary | the entry's `ActivityPattern`, rendered as today |
-| sent by | the received use case's `sender_entitlement` (ADR-0115) |
+| send to (addressee) | `SemanticEntry.occasions` (ADR-0129) |
+| sent by | the side of the received use case's `sender_entitlement` matching the occasion's addressee (ADR-0115, ADR-0129) |
 | page | a new `SemanticEntry.page` field, moved from `RowSpec.page` |
 | `MappingStatus`, discriminator | derived from the occasions (`evolved` declared on its occasion), no longer entered in `_mapping.py` |
 | "Seen in" | the include directives on workflow pages |
@@ -393,14 +395,22 @@ hold it. `CVDRole` values are durable facts persisted on
 exchange-position enum was rejected: no occasion was found whose rule is broad
 but whose usual sender is a position, because once a case exists the report
 receiver holds `CASE_OWNER`. So the "usually" note stays `CVDRole`-only, and a
-position a new rule needs (the ownership-transfer transferee, the author of a
-note) becomes a kind.
+position a new rule needs (the author of a note) becomes a kind. A position
+that is the addressee of a request, such as the ownership-transfer transferee,
+is the addressee kind below, not a new kind.
 
 **One addressee kind, worded from the exchange.** The actor a request was
-addressed to is one kind whatever the request, so one guard serves the case
-proposal answers and any later addressee rule. Its wording takes the request
-from the answered activity's object type, so the cell is identified without a
-kind per request type (MSM-08-010).
+addressed to is one kind whatever the request, other than an Invite, so one
+guard serves the case proposal answers, the ownership-transfer answers and any
+later addressee rule. Its wording takes the request from the answered
+activity's object type, so the cell is identified without a kind per request
+type (MSM-08-010). The invitee stays its own kind: it is checked against the
+`to` of the Invite the receiver recorded, not against an addressee the receiver
+wrote on its own record, and "invitee" is already the protocol's term
+(EP-09-010, CM-11-017). The addressee kind is today's `NAMED_ACTOR` as the
+case-proposal answers use it; the sync check that a ledger `Reject` comes from
+the local CaseActor, which also declares `NAMED_ACTOR`, is the CASE_MANAGER
+standing and moves to that kind.
 
 **A declaration is the full rule, per addressee side.** Today some declarations
 are a floor and the rest lives in the tree: `Remove(Note)` declares "an active
@@ -420,8 +430,8 @@ participant. Both match one registry entry and one use case. The occasion's
 addressee picks the side of the rule that gives its sender, and renders as the
 row's "Send to" (MSM-08-009). The replica side of a rule is not a separate
 concern for this table: the table serves emitters, and the CASE_MANAGER appears
-as a sender only on its own occasions (ledger announcements and the Invites it
-sends).
+as a sender only on its own occasions (such as ledger announcements, the Invites
+it sends, and `Offer(CaseParticipant)`).
 
 **One grammar for "When…".** Every occasion's "when" is the sender's situation,
 from the sender's side — for mechanics and a `Create` that precedes an `Add` too:

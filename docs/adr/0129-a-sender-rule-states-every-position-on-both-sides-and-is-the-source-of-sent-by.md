@@ -43,7 +43,7 @@ Where do positions live, and what shape must a declared sender rule have so that
 ## Decision Drivers
 
 - "Sent by" is derived, never typed: a hand-written cell drifts from the rule the receiver applies.
-- The declaration is the whole rule (HP-01-007): a guard narrower than the declaration is a second sender predicate in disguise.
+- The declaration is the whole rule: a guard narrower than the declaration is a second sender predicate in disguise.
 - A position named in the docs is one the receiver enforces.
 - `CVDRole` stays a set of durable participant facts.
 - An emitter looks up its own situation, so each occasion needs its own sender and its own addressee.
@@ -64,7 +64,9 @@ Chosen option: "Positions are entitlement kinds; a sender rule composes kinds, p
    No separate position vocabulary exists, and no position becomes a `CVDRole`.
    A position a new rule needs is added as a kind.
 2. **One addressee kind, worded from the exchange.**
-   The actor a request was addressed to is one kind, whatever the request.
+   The actor a request was addressed to is one kind, whatever the request, other than an Invite.
+   The invitee stays a kind of its own, because it is checked against the Invite the receiver recorded rather than against an addressee the receiver wrote on its own record, and "invitee" is already the protocol's term.
+   A position that is the addressee of a request, such as the transferee of a case ownership offer, is this kind and not a new one.
    Its rendered wording names the request from the answered activity's object type ("the addressee of the case proposal"), so it is identified without a kind per request type.
 3. **A declared sender rule is the full rule.**
    It is composed of kinds and may require any one of several ("the note's author or the Case Owner").
@@ -97,13 +99,13 @@ Chosen option: "Positions are entitlement kinds; a sender rule composes kinds, p
 
 ## Pros and Cons of the Options
 
-### Positions are entitlement kinds; a sender rule composes kinds, per addressee side (chosen)
+### Positions are entitlement kinds; a sender rule composes kinds, per addressee side, and is the source of "Sent by" (chosen)
 
 - Good, because one vocabulary is both enforced and rendered.
 - Good, because the rule's sides are exactly what tells two occasions of one wire activity apart.
 - Bad, because it changes the declaration shape ADR-0115 set up, so every declaration is touched.
 
-### A separate exchange-position vocabulary beside the entitlement kinds
+### A separate exchange-position vocabulary beside the entitlement kinds, used by the docs
 
 - Good, because the "usually" note could name positions without touching sender rules.
 - Bad, because two lists name the same positions and must be kept in step.
@@ -113,7 +115,7 @@ Chosen option: "Positions are entitlement kinds; a sender rule composes kinds, p
 
 - Bad, because a position is relative to one exchange and a report precedes any case, so there is no participant record to store it on.
 
-### Positions as glossary terms only
+### Positions as glossary terms only, used in occasion prose
 
 - Good, because it needs no code.
 - Bad, because nothing checks that a position named in prose is one any receiver enforces, and the cells stay hand-written.
