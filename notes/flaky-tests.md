@@ -133,6 +133,8 @@ No open entries.
 
 | Job name | Issue | Last blocked |
 |---|---|---|
+| `rcvv-embargo Demo Integration` — `Vendor2 received the full-case Invite` gate times out while Vendor2's replica replays the backfill | #4424 | 2026-10-09 |
+| `rcvv-embargo Invariant Harness` | #4424 | 2026-10-09 |
 | `fcvcv Demo Integration` | #2898 | 2026-09-28 |
 | `fcvcv Invariant Harness` | #2898 | 2026-09-28 |
 | `fvcv-extension` | #2898 | 2026-08-26 |
