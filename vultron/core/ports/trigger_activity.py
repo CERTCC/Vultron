@@ -756,6 +756,36 @@ class TriggerActivityPort(Protocol):
         """
         ...
 
+    def activate_embargo(
+        self,
+        embargo_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist the case owner's ``Accept(EmbargoEvent, target=case)``.
+
+        The owner's activation of a proposed embargo (ADR-0122), distinct
+        from :meth:`accept_embargo`, the sender's own consent to an Invite.
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def reject_embargo_proposal(
+        self,
+        embargo_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist the case owner's ``Reject(EmbargoEvent, target=case)``.
+
+        The owner's rejection of a proposed embargo (ADR-0122), distinct
+        from :meth:`reject_embargo`, the sender's own refusal of an Invite.
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
     def requeue_embargo_refusal(self, actor: str, proposal_id: str) -> bool:
         """Whether *actor* already rejected the Invite *proposal_id*.
 

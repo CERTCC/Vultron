@@ -16,7 +16,7 @@
 """Trigger-side embargo BT compositions.
 
 A trigger writes shared EM state only as the CASE_MANAGER (EP-09-008,
-ADR-0113).  Each of the five trigger trees therefore splits, after its
+ADR-0113).  Each trigger tree therefore splits, after its
 read-only routing guards, into two mutually exclusive arms
 (``create_case_manager_gated_tree`` beside
 ``create_participant_replica_gated_tree``, BT-17-001):
@@ -51,10 +51,13 @@ from vultron.core.behaviors.case_status_snapshot import (
     EmitCaseStatusUpdateNode,
 )
 from vultron.core.behaviors.embargo.nodes import (
+    EMBARGO_ACTIVATION_EVENT_TYPE,
     EMBARGO_INVITE_EVENT_TYPE,
+    EMBARGO_PROPOSAL_REJECTION_EVENT_TYPE,
     EMBARGO_TEARDOWN_EVENT_TYPE,
     AbandonEmbargoProposalsLifecycleNode,
     AcceptEmbargoLifecycleNode,
+    ActivateEmbargoLifecycleNode,
     CollectEmbargoInviteRecipientsNode,
     CommitEmbargoAbandonmentNode,
     CommitEmbargoDecisionNode,
@@ -70,6 +73,7 @@ from vultron.core.behaviors.embargo.nodes import (
     ReadEmStateNode,
     ReadOpenEmbargoProposalsNode,
     RejectEmbargoLifecycleNode,
+    RejectEmbargoProposalLifecycleNode,
     RelayEmbargoInviteToEachNode,
     TerminateEmbargoLifecycleNode,
     ValidateEmbargoProposalStateNode,
@@ -159,10 +163,11 @@ def _answer_arms(
 ) -> list[py_trees.behaviour.Behaviour]:
     """Manager: write, commit, declare; otherwise: ask the manager.
 
-    The manager's Accept or Reject is addressed to nobody: every replica
-    learns it from the committed entry (EP-09-007).  An Accept that activates
-    a shorter revision is announced to the bound signatories the ledger no
-    longer reaches (CM-31-009).
+    The manager's Accept or Reject — of an Invite (the sender's consent), or
+    as the case owner of the embargo itself (ADR-0122) — is addressed to
+    nobody: every replica learns it from the committed entry (EP-09-007).  An
+    Accept that activates a shorter revision is announced to the bound
+    signatories the ledger no longer reaches (CM-31-009).
     """
     capture, notices = embargo_ending_notice_nodes(case_id)
     return _by_role(
@@ -330,7 +335,11 @@ def accept_embargo_trigger_bt(
     result_out: dict[str, object],
     activity_builder: EmbargoActivityBuilder,
 ) -> py_trees.behaviour.Behaviour:
-    """Build trigger-side BT for accepting an embargo invite (EP-09-008)."""
+    """Build trigger-side BT for accepting an embargo invite (EP-09-008).
+
+    ``Accept(Invite(EmbargoEvent))``: the actor's own consent; it moves no
+    register entry (ADR-0122).
+    """
     return py_trees.composites.Sequence(
         name="AcceptEmbargoTriggerBT",
         memory=False,
@@ -356,7 +365,11 @@ def reject_embargo_trigger_bt(
     result_out: dict[str, object],
     activity_builder: EmbargoActivityBuilder,
 ) -> py_trees.behaviour.Behaviour:
-    """Build trigger-side BT for rejecting an embargo invite (EP-09-008)."""
+    """Build trigger-side BT for rejecting an embargo invite (EP-09-008).
+
+    ``Reject(Invite(EmbargoEvent))``: the actor's own consent; it moves no
+    register entry (ADR-0122).
+    """
     return py_trees.composites.Sequence(
         name="RejectEmbargoTriggerBT",
         memory=False,
@@ -369,6 +382,68 @@ def reject_embargo_trigger_bt(
                 result_out=result_out,
             ),
             _REJECT_EVENT_TYPE,
+            result_out,
+            activity_builder,
+        ),
+    )
+
+
+def activate_embargo_trigger_bt(
+    *,
+    case_id: str,
+    embargo_id: str,
+    result_out: dict[str, object],
+    activity_builder: EmbargoActivityBuilder,
+) -> py_trees.behaviour.Behaviour:
+    """Build trigger-side BT for the case owner's activation (EP-09-008).
+
+    ``Accept(EmbargoEvent, target=Case)`` (ADR-0122): as the CASE_MANAGER the
+    owner activates the proposal ``STRICT`` and commits its decision; any
+    other owner asks the CASE_MANAGER.
+    """
+    return py_trees.composites.Sequence(
+        name="ActivateEmbargoTriggerBT",
+        memory=False,
+        children=_answer_arms(
+            "ActivateEmbargo",
+            case_id,
+            ActivateEmbargoLifecycleNode(
+                case_id=case_id,
+                embargo_id=embargo_id,
+                result_out=result_out,
+            ),
+            EMBARGO_ACTIVATION_EVENT_TYPE,
+            result_out,
+            activity_builder,
+        ),
+    )
+
+
+def reject_embargo_proposal_trigger_bt(
+    *,
+    case_id: str,
+    embargo_id: str,
+    result_out: dict[str, object],
+    activity_builder: EmbargoActivityBuilder,
+) -> py_trees.behaviour.Behaviour:
+    """Build trigger-side BT for the case owner's rejection (EP-09-008).
+
+    ``Reject(EmbargoEvent, target=Case)`` (ADR-0122): as the CASE_MANAGER the
+    owner rejects the proposal ``STRICT`` and commits its decision; any other
+    owner asks the CASE_MANAGER.
+    """
+    return py_trees.composites.Sequence(
+        name="RejectEmbargoProposalTriggerBT",
+        memory=False,
+        children=_answer_arms(
+            "RejectEmbargoProposal",
+            case_id,
+            RejectEmbargoProposalLifecycleNode(
+                case_id=case_id,
+                embargo_id=embargo_id,
+                result_out=result_out,
+            ),
+            EMBARGO_PROPOSAL_REJECTION_EVENT_TYPE,
             result_out,
             activity_builder,
         ),

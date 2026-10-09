@@ -131,11 +131,11 @@ differs from the one it agreed to.**
 | Event | Effect on the rows |
 |---|---|
 | Revision B proposed (`ACTIVE → REVISE`, or a counter `REVISE → REVISE`) | the proposer's row for B becomes `ACCEPTED`; nothing else |
-| Non-owner accepts B while REVISE | its row for B becomes `ACCEPTED` (`INVITED`/none/`EXPIRED` → `ACCEPTED`); its row for A is untouched |
-| Non-owner rejects B while REVISE | its row for B becomes `DECLINED`; its row for A is untouched — refusing B is not withdrawing from A |
-| Any participant rejects the *active* embargo | withdrawal: its row for A becomes `DECLINED`, and so does every open proposal's row it had accepted |
-| Owner rejects B (EJ, `REVISE → ACTIVE` under A) | nothing — the owner is choosing to keep A, not declining it |
-| Owner activates B, and B ends **no later than** A | the owner's row for B becomes `ACCEPTED`, and so does B's row for every participant whose row for A is `ACCEPTED` (containment carry-over, where `ACCEPT` is legal) |
+| A participant — the owner included — accepts the Invite to B while REVISE | its row for B becomes `ACCEPTED` (`INVITED`/none/`EXPIRED` → `ACCEPTED`); its row for A is untouched |
+| A participant — the owner included — rejects the Invite to B while REVISE | its row for B becomes `DECLINED`; its row for A is untouched — refusing B is not withdrawing from A |
+| A non-owner sends `Leave(EmbargoEvent)` for the *active* embargo (MSM-07-010; planned, #4388) | withdrawal: its row for A becomes `DECLINED`, and so does every open proposal's row it had accepted. Today a Reject of the active embargo does this |
+| Owner rejects B for the case (`Reject(EmbargoEvent)`, EJ, `REVISE → ACTIVE` under A) | nothing — the owner is choosing to keep A, not declining it |
+| Owner activates B (`Accept(EmbargoEvent)`), and B ends **no later than** A | the owner's row for B becomes `ACCEPTED`, and so does B's row for every participant whose row for A is `ACCEPTED` (containment carry-over, where `ACCEPT` is legal) |
 | Owner activates B, and B ends **later than** A | the owner's row for B becomes `ACCEPTED`; nothing else is written — a signatory without an `ACCEPTED` row for B has lapsed by derivation |
 | Owner activates B (either arm); a participant already holds `ACCEPTED` for B | nothing — it is B's signatory by lookup (its proposer, an early acceptor) |
 | Termination (`→ EXITED`) | nothing — the active embargo is cleared, so nobody is a signatory |
@@ -144,8 +144,10 @@ The asymmetry is the same containment argument that makes shortest-wins safe
 (EP-04-003): agreeing to N days is agreeing to every shorter period, so a shorter
 revision asks nothing new of an existing signatory and their acceptance is carried
 over, while a longer one asks for more than they promised. Only the case owner's
-accept or reject changes the embargo on the case (MSM-07-003/004); the other
-participants' answers arrive first and inform that decision.
+decision changes the embargo on the case, and it has activities of its own —
+`Accept`/`Reject(EmbargoEvent, target=Case)` (MSM-07-008/009, ADR-0122). Every
+`Accept`/`Reject` of an Invite, the owner's included, is the sender's consent
+(MSM-07-003/004); those answers arrive first and inform the decision.
 
 The containment carry-over is the one activation write left
 (`_carry_signatories_over`). Lapse, advance and exit are reads, not writes
@@ -319,7 +321,8 @@ Rules that keep the rows and the content gate in agreement:
   writes no row: there is no embargo left to consent to and none can be re-invited
   (ADR-0118).
 - **Withdrawal leaves the revisions too.** A `DECLINE` that names the active
-  embargo also declines every open proposal's row the actor had accepted (every
+  embargo (today a Reject of it; `Leave(EmbargoEvent)` once MSM-07-010 lands)
+  also declines every open proposal's row the actor had accepted (every
   open proposal is a revision of the one active embargo, ADR-0113). When *no*
   embargo is in force a Reject of a proposal declines that proposal's row only —
   it withdraws from nothing.
@@ -637,37 +640,70 @@ the pause cannot deadlock the participant out of accepting.
 
 ---
 
+## Answering the Embargo in Force (EP-09-012)
+
+**Status**: Planned — tracked by #4373 and #4388. Today the triggers resolve
+open proposals only, and withdrawal is a Reject of the active embargo.
+
+Activation takes a proposal out of `pending_embargo_proposal_index` (EP-08-003),
+so the accept and reject triggers cannot reach the embargo in force through it.
+A participant whose row for that embargo is still `INVITED` or `EXPIRED` can
+still answer it: the receive side marks the row of whatever embargo the
+`Accept(Invite(EmbargoEvent))` names, active or not (MSM-07-003, EMB-17-002).
+
+- The answer goes through the relayed `Invite(EmbargoEvent)`, never the
+  full-case Invite. Replies to the full-case Invite move only the RM state
+  (CM-11-011) and carry no embargo consent.
+- A joiner that accepts the stub Invite is already `ACCEPTED` for the active
+  embargo (CM-11-001). A joiner's `INVITED` row from the stub Invite
+  (CM-11-006) has no `Invite(EmbargoEvent)` behind it, so only a participant
+  that never answered a relayed `Invite(EmbargoEvent)` (EP-09-011) needs this.
+- The caller names the Invite. With no name the trigger picks among open
+  proposals only (EP-08-002) and never falls back to the embargo in force,
+  because answering an embargo is an intentional act and a fallback could
+  consent to terms the caller did not mean.
+- Do not re-add the active embargo to the open-proposal index to make the
+  trigger find it; that breaks EP-08-003 and EP-08-002's selection.
+- Withdrawing is not answering. A signatory leaves the embargo in force by
+  sending `Leave(EmbargoEvent)` through its own trigger (EP-09-013, #4388,
+  MSM-07-010), which needs no Invite, so the reporter and a joiner can use it.
+  The reject trigger never withdraws, and a Reject of the active embargo from
+  an `ACCEPTED` row is refused (MSM-07-004). ADR-0122 records why `Leave` was
+  chosen over `Reject(Invite)`, `Undo(Accept)` and `Reject(EmbargoEvent)`.
+
+*Spec: EP-09-012, EP-09-013, EP-08-003, MSM-07-003, MSM-07-010. Decision: ADR-0122.*
+
 ## Implications for DR-06 (Accept Embargo Handler)
 
-The `AcceptEmbargoReceivedUseCase` MUST:
+The owner's decision and each participant's consent are different messages
+(ADR-0122), so no handler branches on the sender to know what a message means:
 
-1. Determine if the sending actor is the case owner
-   (`VulnerabilityCase.attributed_to == actor_id`)
-2. If case owner: transition shared `CaseStatus.em_state → ACTIVE`
-3. For all accepting actors (owner or non-owner): mark their consent row for the
-   accepted embargo `ACCEPTED`
-4. Idempotent: if the row is already `ACCEPTED`, succeed silently (HTTP 2xx)
-5. When the owner's accept replaces the active embargo with a revision that ends
-   no later: carry every signatory over by marking the revision's row `ACCEPTED`
-   for each. A *longer* replacement writes nothing — signatories without the
-   revision's row have lapsed by derivation. A proposal changes nobody's consent
-   to the embargo in force.
+1. `AcceptInviteToEmbargoOnCaseReceivedUseCase` (`Accept(Invite(EmbargoEvent))`)
+   marks the sender's consent row for the accepted embargo `ACCEPTED`, whoever the
+   sender is, and moves no register entry.
+2. `ActivateEmbargoOnCaseReceivedUseCase` (`Accept(EmbargoEvent, target=Case)`,
+   the case owner only) activates the proposal — EM derives `ACTIVE` — and marks
+   the owner's row `ACCEPTED` unless it already is.
+3. Idempotent: if the row is already `ACCEPTED`, succeed silently (HTTP 2xx).
+4. When the owner's activation replaces the active embargo with a revision that
+   ends no later: carry every signatory over by marking the revision's row
+   `ACCEPTED` for each. A *longer* replacement writes nothing — signatories
+   without the revision's row have lapsed by derivation. A proposal changes
+   nobody's consent to the embargo in force.
 
 ### Trigger-Side Ownership Gate (BUG-26042101, 2026-04-22)
 
 The same owner-vs-participant split applies to **trigger-side** embargo
-responses, not just receive-side handlers:
+responses, where it picks the activity, not its meaning:
 
-- **Case owner** (`case.attributed_to == actor_id`): drives shared EM
-  transitions (`EM.ACTIVE`, `EM.EXITED`, etc.)
-- **Non-owner participant**: mutates only their own consent state in
-  `CaseParticipant`; does NOT advance shared EM
+- **Case owner**: `accept-embargo` and `reject-embargo` send its decision for
+  the case, `Accept`/`Reject(EmbargoEvent, target=Case)`, which drive shared EM
+  (`EM.ACTIVE`, or back to the prior terms).
+- **Non-owner participant**: they send `Accept`/`Reject(Invite(EmbargoEvent))`,
+  which mutate only their own consent row; they do NOT advance shared EM.
 
-**Fallback for legacy cases**: When `case.attributed_to is None` (older
-single-actor fixtures, seed data created before the attribution field was
-introduced), treat the triggering actor as the case owner. Without this
-fallback, existing single-actor embargo triggers silently stop advancing
-the shared EM state.
+A case that names no owner (`attributed_to is None`) has no owner decision to
+send: `is_case_owner()` answers `False`, so every trigger sends consent.
 
 **Idempotent PEC transitions**: Participant-only accept/reject updates SHOULD
 NOT re-run the PEC machine when the row is already in the target state

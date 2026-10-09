@@ -11,13 +11,13 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""``DecideRejectedEmbargoProposalNode``: the owner's Reject decides (EP-08-003).
+"""``DecideRejectedEmbargoProposalNode``: the owner's rejection (EP-08-003).
 
-Only the case owner's Reject decides an open proposal; it returns EM to the
-prior terms (``REVISE → ACTIVE``, EJ) or to no embargo (``PROPOSED → NONE``,
-ER) and forgets the proposal in one lifecycle call.  Before #3915 the
-received path only pruned the proposal, leaving the case in REVISE with
-nothing proposed.
+The effect of the case owner's ``Reject(EmbargoEvent, target=Case)``
+(ADR-0122): it returns EM to the prior terms (``REVISE → ACTIVE``, EJ) or to
+no embargo (``PROPOSED → NONE``, ER) and rejects the proposal in one
+lifecycle call.  Only the owner sends the activity; the received tree's
+sender guard establishes that, so the node itself checks no sender.
 """
 
 from typing import cast
@@ -102,7 +102,6 @@ def test_the_owners_reject_of_a_revision_returns_to_the_prior_terms(
         DecideRejectedEmbargoProposalNode(
             case_id=case.id_,
             embargo_id=revision_id,
-            rejecting_actor_id=OWNER,
             transition_mode=mode,
         )
     )
@@ -124,7 +123,7 @@ def test_the_owners_reject_of_an_initial_proposal_leaves_no_embargo(
 
     status = _tick(
         DecideRejectedEmbargoProposalNode(
-            case_id=case.id_, embargo_id=proposal_id, rejecting_actor_id=OWNER
+            case_id=case.id_, embargo_id=proposal_id
         )
     )
 
@@ -135,24 +134,26 @@ def test_the_owners_reject_of_an_initial_proposal_leaves_no_embargo(
 
 
 @pytest.mark.spec("EP-08-003")
-def test_a_participants_reject_is_consent_and_decides_nothing(
+def test_the_node_checks_no_sender_and_writes_no_consent(
     dl: SqliteDataLayer,
 ) -> None:
-    case, _, revision_id = _revising_case(dl, "consent")
-    setup_blackboard(dl, actor_id=OWNER)
+    """Executed by any actor, the node rejects: the sender guard is upstream.
+
+    It writes no consent row either (ADR-0122): the owner's rejection for the
+    case is not its refusal as a participant.
+    """
+    case, active_id, revision_id = _revising_case(dl, "any-actor")
+    setup_blackboard(dl, actor_id=PARTICIPANT)
 
     node = DecideRejectedEmbargoProposalNode(
-        case_id=case.id_,
-        embargo_id=revision_id,
-        rejecting_actor_id=PARTICIPANT,
+        case_id=case.id_, embargo_id=revision_id
     )
 
     assert _tick(node) is Status.SUCCESS
-    assert "consent" in (node.feedback_message or "")
-    kept = _case(dl, case.id_)
-    assert kept.current_status.em.state == EM.REVISE
-    assert kept.proposed_embargo_ids == [revision_id]
-    assert revision_id in kept.pending_embargo_proposal_index
+    decided = _case(dl, case.id_)
+    assert decided.current_status.em.state == EM.ACTIVE
+    assert decided.active_embargo_id == active_id
+    assert decided.proposed_embargo_ids == []
 
 
 @pytest.mark.spec("EP-08-003")
@@ -164,7 +165,7 @@ def test_a_reject_of_what_is_no_longer_proposed_changes_nothing(
     setup_blackboard(dl, actor_id=OWNER)
 
     node = DecideRejectedEmbargoProposalNode(
-        case_id=case.id_, embargo_id=active_id, rejecting_actor_id=OWNER
+        case_id=case.id_, embargo_id=active_id
     )
 
     assert _tick(node) is Status.SUCCESS
@@ -184,7 +185,7 @@ def test_strict_ej_with_pxa_set_fails_and_writes_nothing(
 
     status = _tick(
         DecideRejectedEmbargoProposalNode(
-            case_id=case.id_, embargo_id=revision_id, rejecting_actor_id=OWNER
+            case_id=case.id_, embargo_id=revision_id
         )
     )
 
@@ -199,6 +200,5 @@ def test_an_unknown_case_fails(dl: SqliteDataLayer) -> None:
     node = DecideRejectedEmbargoProposalNode(
         case_id="https://example.org/cases/missing",
         embargo_id="https://example.org/cases/missing/embargo_events/x",
-        rejecting_actor_id=OWNER,
     )
     assert _tick(node) is Status.FAILURE

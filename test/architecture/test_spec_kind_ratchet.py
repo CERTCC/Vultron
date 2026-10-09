@@ -61,7 +61,7 @@ _SPEC_DIR = _corpus.REPO_ROOT / "specs"
 # firing on a new entry is a corrected ``kind:``, not a suppression
 # (``specs/AGENTS.md``).
 # ---------------------------------------------------------------------------
-MAX_MISSING_STORY_SUPPRESSIONS = 108
+MAX_MISSING_STORY_SUPPRESSIONS = 107
 
 # ---------------------------------------------------------------------------
 # Specs carrying ``lint_suppress: [protocol_kind_with_code_reference]`` —

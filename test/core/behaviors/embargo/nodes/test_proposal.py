@@ -43,7 +43,6 @@ from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
-from vultron.core.models.note import VultronNote
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
@@ -165,8 +164,8 @@ class TestRecordParticipantRejectionNode:
         assert _tick(node) == py_trees.common.Status.FAILURE
 
 
-class TestRecordParticipantAcceptanceNodeFailsClosed:
-    """The EP-05-001 comparison needs both embargo records; a gap is a FAILURE."""
+class TestRecordParticipantAcceptanceNode:
+    """An Accept(Invite) is the sender's consent, the owner's included (ADR-0122)."""
 
     def _revise_case(
         self, dl: SqliteDataLayer, *, active_replicated: bool
@@ -199,12 +198,16 @@ class TestRecordParticipantAcceptanceNodeFailsClosed:
             dl.create(active)
         return case, active.id_, revision.id_, owner_p.id_
 
-    @pytest.mark.spec("EMB-18-003")
-    @pytest.mark.spec("EP-05-001")
-    def test_unreadable_replaced_embargo_fails_as_an_invariant_violation(
+    @pytest.mark.spec("MSM-07-003")
+    def test_owners_accept_of_a_revision_is_consent_and_reads_no_embargo(
         self, dl: SqliteDataLayer, caplog: pytest.LogCaptureFixture
     ):
-        """A is missing here: FAILURE, an ERROR naming case and A, no write."""
+        """The owner's Accept(Invite) of B marks row(B) and activates nothing.
+
+        Activation is the owner's separate ``Accept(EmbargoEvent)``, so the
+        node needs neither A nor B readable: even with A unreplicated here
+        it succeeds, logs no ERROR, and leaves the register as it was.
+        """
         case, active_id, revision_id, owner_p_id = self._revise_case(
             dl, active_replicated=False
         )
@@ -213,72 +216,8 @@ class TestRecordParticipantAcceptanceNodeFailsClosed:
             case_id=case.id_, embargo_id=revision_id, accepting_actor_id=OWNER
         )
 
-        with caplog.at_level(logging.ERROR):
-            assert _tick(node) == py_trees.common.Status.FAILURE
-        errors = [r for r in caplog.records if r.levelno == logging.ERROR]
-        assert len(errors) == 1
-        message = errors[0].getMessage()
-        assert "Invariant violation" in message
-        assert case.id_ in message
-        assert active_id in message
-        untouched = cast(VulnerabilityCase, dl.read(case.id_))
-        assert untouched.current_status.em.state == EM.REVISE
-        assert untouched.active_embargo_id == active_id
-        assert untouched.proposed_embargo_ids == [revision_id]
-        owner_p = cast(CaseParticipant, dl.read(owner_p_id))
-        assert owner_p.is_signatory(active_id)
-        assert owner_p.consent_for(revision_id) is None
-
-    @pytest.mark.spec("EMB-18-003")
-    @pytest.mark.spec("EP-05-001")
-    def test_replaced_embargo_of_another_type_fails_as_an_invariant_violation(
-        self, dl: SqliteDataLayer, caplog: pytest.LogCaptureFixture
-    ):
-        """A resolves to a non-embargo record: the same ERROR, no write."""
-        case, active_id, revision_id, owner_p_id = self._revise_case(
-            dl, active_replicated=False
-        )
-        dl.create(VultronNote(id_=active_id, content="not an embargo"))
-        setup_blackboard(dl)
-        node = RecordParticipantAcceptanceNode(
-            case_id=case.id_, embargo_id=revision_id, accepting_actor_id=OWNER
-        )
-
         with caplog.at_level(logging.WARNING):
-            assert _tick(node) == py_trees.common.Status.FAILURE
-        errors = [r for r in caplog.records if r.levelno >= logging.WARNING]
-        assert [r.levelno for r in errors] == [logging.ERROR]
-        message = errors[0].getMessage()
-        assert "Invariant violation" in message
-        assert case.id_ in message
-        assert active_id in message
-        untouched = cast(VulnerabilityCase, dl.read(case.id_))
-        assert untouched.current_status.em.state == EM.REVISE
-        assert untouched.active_embargo_id == active_id
-        assert untouched.proposed_embargo_ids == [revision_id]
-        owner_p = cast(CaseParticipant, dl.read(owner_p_id))
-        assert owner_p.is_signatory(active_id)
-        assert owner_p.consent_for(revision_id) is None
-
-    @pytest.mark.spec("EMB-18-003")
-    def test_unknown_accepted_embargo_fails_without_an_invariant_error(
-        self, dl: SqliteDataLayer, caplog: pytest.LogCaptureFixture
-    ):
-        """The *accepted* embargo is the one missing: a plain refusal."""
-        case, active_id, revision_id, owner_p_id = self._revise_case(
-            dl, active_replicated=True
-        )
-        setup_blackboard(dl)
-        stranger = f"{case.id_}/embargo_events/stranger"
-        node = RecordParticipantAcceptanceNode(
-            case_id=case.id_,
-            embargo_id=stranger,
-            accepting_actor_id=OWNER,
-        )
-
-        with caplog.at_level(logging.WARNING):
-            assert _tick(node) == py_trees.common.Status.FAILURE
-        assert stranger in node.feedback_message
+            assert _tick(node) == py_trees.common.Status.SUCCESS
         assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
         untouched = cast(VulnerabilityCase, dl.read(case.id_))
         assert untouched.current_status.em.state == EM.REVISE
@@ -286,4 +225,14 @@ class TestRecordParticipantAcceptanceNodeFailsClosed:
         assert untouched.proposed_embargo_ids == [revision_id]
         owner_p = cast(CaseParticipant, dl.read(owner_p_id))
         assert owner_p.is_signatory(active_id)
-        assert owner_p.consent_for(revision_id) is None
+        assert owner_p.consent_for(revision_id) is EmbargoConsentState.ACCEPTED
+
+    def test_missing_case_fails(self, dl: SqliteDataLayer):
+        setup_blackboard(dl)
+        node = RecordParticipantAcceptanceNode(
+            case_id="https://example.org/cases/missing",
+            embargo_id="https://example.org/cases/missing/embargo_events/e",
+            accepting_actor_id=OWNER,
+        )
+
+        assert _tick(node) == py_trees.common.Status.FAILURE

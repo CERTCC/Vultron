@@ -27,12 +27,17 @@ causal_edges:
     consequent: accept_invite_to_embargo_on_case
     note: >
       An embargo proposal is answered only after it was made and relayed.
-      The case owner's acceptance, which activates the revision, is among the
-      acceptances recorded.
-  - antecedent: accept_invite_to_embargo_on_case
+      Each acceptance records only its sender's consent.
+  - antecedent: invite_to_embargo_on_case
+    consequent: activate_embargo_on_case
+    consequent_actor: coordinator
+    note: >
+      The Coordinator, as case owner, activates a revision only after it was
+      proposed and relayed; the activation is its own decision for the case.
+  - antecedent: activate_embargo_on_case
     consequent: remove_embargo_event_from_case
     note: >
-      The Coordinator ends the embargo that the owner's acceptance activated.
+      The Coordinator ends the embargo that the owner's activation put in force.
   - antecedent: validate_report
     consequent: close_case
     consequent_actor: coordinator
@@ -79,7 +84,7 @@ The default embargo is active from case creation, so the case is at Embargo Mana
 The Reporter proposes new embargo terms.
 The proposal goes to the CASE_MANAGER only, which moves the case to EM `REVISE`, records the proposal and relays it to the Coordinator and the Vendor.
 The Vendor accepts, which records its consent and changes no EM state.
-The Coordinator, as case owner, accepts, which activates the revision and returns the case to EM `ACTIVE`.
+The Coordinator, as case owner, answers with its decision for the case: it activates the revision, which returns the case to EM `ACTIVE`.
 Each participant waits for the relayed invitation on its own replica; none waits for another participant's message.
 
 *Antecedent:* the case is engaged and EM is `ACTIVE`.

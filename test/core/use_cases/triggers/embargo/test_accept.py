@@ -37,6 +37,7 @@ from .conftest import (
     _build_active_embargo_case,
     _build_proposed_embargo_case_no_owner_attribution,
     _build_unbound_case_with_case_manager,
+    _case_owned_by_non_manager,
     _case_with_open_proposal,
     _open_revision,
     _persist_actor,
@@ -97,6 +98,38 @@ def test_non_manager_accept_embargo_asks_the_case_manager(
         activity_type="Accept",
         event_type=MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value,
     )
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=VultronNotFoundError,
+    reason=(
+        "EP-09-012: the trigger resolves only open proposals, so the "
+        "embargo in force cannot be answered by Invite id. Tracked by #4373."
+    ),
+)
+@pytest.mark.spec("EP-09-012")
+def test_accept_embargo_answers_the_embargo_in_force_by_invite_id(
+    finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """An ``INVITED`` row on the active embargo is answerable by Invite id."""
+    finder, finder_dl = finder_actor_and_dl
+    owner = _persist_actor(finder_dl, "Vendor Co")
+    case, invite, _ = _build_active_embargo_case(
+        finder_dl, owner.id_, finder.id_
+    )
+
+    result = SvcAcceptEmbargoUseCase(
+        finder_dl,
+        AcceptEmbargoTriggerRequest(
+            actor_id=finder.id_, case_id=case.id_, proposal_id=invite.id_
+        ),
+        trigger_activity=TriggerActivityAdapter(finder_dl),
+        sync_port=SyncActivityAdapter(finder_dl),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute()
+
+    assert result.activity is not None
 
 
 def test_is_case_owner_fail_closed_when_attributed_to_is_none() -> None:
@@ -180,12 +213,19 @@ def _owner_accept(dl: SqliteDataLayer, request: AcceptEmbargoTriggerRequest):
 
 
 @pytest.mark.spec("EP-08-002")
+@pytest.mark.spec("EP-09-008")
 def test_accept_embargo_activates_the_proposed_embargo(
     owner_actor_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """PROPOSED → ACTIVE, and the case now names the embargo as active."""
+    """The owner-manager's accept is Accept(EmbargoEvent, target=Case).
+
+    PROPOSED → ACTIVE, the owner's row becomes ACCEPTED, and the decision is
+    committed as the owner's activation (ADR-0122), never as a consent
+    answer to the Invite.
+    """
     owner, dl = owner_actor_and_dl
     case, proposal_id = _case_with_open_proposal(dl, owner.id_)
+    embargo_id = case.proposed_embargo_ids[0]
 
     result = _owner_accept(
         dl,
@@ -194,17 +234,74 @@ def test_accept_embargo_activates_the_proposed_embargo(
         ),
     )
 
-    assert result.activity is not None
+    activity = activity_of(result)
+    assert activity["type"] == "Accept"
+    assert activity["object"]["id"] == embargo_id
+    assert activity["target"] == case.id_
     updated = cast(VulnerabilityCase, dl.read(case.id_))
     assert updated.current_status.em.state == EM.ACTIVE
-    assert updated.active_embargo is not None
+    assert updated.active_embargo_id == embargo_id
+    owner_participant = cast(
+        as_CaseParticipant,
+        dl.read(updated.actor_participant_index[owner.id_]),
+    )
+    assert (
+        owner_participant.consent_for(embargo_id)
+        == EmbargoConsentState.ACCEPTED
+    )
     # As the CASE_MANAGER the decision is a canonical entry every replica
     # replays (#4085), so the Accept itself is addressed to nobody.
+    committed = committed_event_types(dl, case.id_)
+    assert MessageSemantics.ACTIVATE_EMBARGO_ON_CASE.value in committed
     assert (
         MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value
-        in committed_event_types(dl, case.id_)
+        not in committed
     )
-    assert not activity_of(result).get("to")
+    assert not activity.get("to")
+
+
+@pytest.mark.spec("EP-09-008")
+def test_non_manager_owner_accept_asks_the_manager_to_activate(
+    owner_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """An owner that is not the CASE_MANAGER sends its activation to it.
+
+    The queued activity is Accept(EmbargoEvent, target=Case), recorded as a
+    pending ``activate_embargo_on_case`` assertion; the owner's replica
+    writes no EM state and no consent until the manager's commit arrives.
+    """
+    owner, dl = owner_actor_and_dl
+    manager = _persist_actor(dl, "Case Manager")
+    case, proposal_id, embargo_id, owner_pid = _case_owned_by_non_manager(
+        dl, owner.id_, manager.id_
+    )
+
+    result = _owner_accept(
+        dl,
+        AcceptEmbargoTriggerRequest(
+            actor_id=owner.id_, case_id=case.id_, proposal_id=proposal_id
+        ),
+    )
+
+    activity = activity_of(result)
+    assert activity["object"]["id"] == embargo_id
+    assert activity["target"] == case.id_
+    updated = cast(VulnerabilityCase, dl.read(case.id_))
+    assert updated.current_status.em.state == EM.PROPOSED
+    assert updated.proposed_embargo_ids == [embargo_id]
+    owner_participant = cast(as_CaseParticipant, dl.read(owner_pid))
+    assert (
+        owner_participant.consent_for(embargo_id)
+        == EmbargoConsentState.INVITED
+    )
+    _assert_asked_case_manager(
+        dl,
+        actor_id=owner.id_,
+        case_id=case.id_,
+        manager_id=manager.id_,
+        activity_type="Accept",
+        event_type=MessageSemantics.ACTIVATE_EMBARGO_ON_CASE.value,
+    )
 
 
 @pytest.mark.spec("EP-08-002")
@@ -252,3 +349,44 @@ def test_accept_embargo_with_unknown_proposal_id_raises_not_found(
                 proposal_id="urn:uuid:no-such-proposal",
             ),
         )
+
+
+@pytest.mark.spec("MSM-07-003")
+def test_non_owner_manager_accept_is_consent_and_moves_no_register_entry(
+    owner_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """A CASE_MANAGER that is not the owner accepts the Invite, nothing more.
+
+    Its accept is Accept(Invite(EmbargoEvent)), committed as its consent;
+    the proposal stays open and EM stays PROPOSED (ADR-0122).
+    """
+    manager, dl = owner_actor_and_dl
+    owner = _persist_actor(dl, "Vendor Co")
+    case, proposal_id, embargo_id, _ = _case_owned_by_non_manager(
+        dl, owner.id_, manager.id_
+    )
+
+    result = _owner_accept(
+        dl,
+        AcceptEmbargoTriggerRequest(
+            actor_id=manager.id_, case_id=case.id_, proposal_id=proposal_id
+        ),
+    )
+
+    activity = activity_of(result)
+    assert activity["type"] == "Accept"
+    assert activity["object"]["id"] == proposal_id
+    updated = cast(VulnerabilityCase, dl.read(case.id_))
+    assert updated.current_status.em.state == EM.PROPOSED
+    assert updated.proposed_embargo_ids == [embargo_id]
+    manager_participant = cast(
+        as_CaseParticipant,
+        dl.read(updated.actor_participant_index[manager.id_]),
+    )
+    assert (
+        manager_participant.consent_for(embargo_id)
+        == EmbargoConsentState.ACCEPTED
+    )
+    committed = committed_event_types(dl, case.id_)
+    assert MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value in committed
+    assert MessageSemantics.ACTIVATE_EMBARGO_ON_CASE.value not in committed

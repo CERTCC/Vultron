@@ -278,6 +278,15 @@ class SvcEmbargoTriggerBase(SvcActivityTriggerBase):
 
     _case: VulnerabilityCase
 
+    def _asserted_event_type(self) -> str:
+        """The ledger ``event_type`` this run asserts.
+
+        :attr:`_assertion_event_type` by default; a trigger whose activity
+        depends on who runs it overrides this (the case owner's answer is its
+        decision for the case, ADR-0122).
+        """
+        return self._assertion_event_type
+
     @abstractmethod
     def _assertion_subject(self) -> str | None:
         """What a repeat of this trigger would be about, or ``None``.
@@ -292,7 +301,10 @@ class SvcEmbargoTriggerBase(SvcActivityTriggerBase):
         if subject is None:
             return None
         reason = suppressed_repeat_reason(
-            self._actor_id, self._case.id_, self._assertion_event_type, subject
+            self._actor_id,
+            self._case.id_,
+            self._asserted_event_type(),
+            subject,
         )
         if reason is None:
             return None
@@ -305,7 +317,7 @@ class SvcEmbargoTriggerBase(SvcActivityTriggerBase):
             record_pending_assertion(
                 self._actor_id,
                 self._case.id_,
-                self._assertion_event_type,
+                self._asserted_event_type(),
                 asserted_id,
                 subject_id=self._assertion_subject(),
             )

@@ -160,8 +160,8 @@ __all__ = [
 | `em_propose_embargo_activity` | `as_Invite` | `_EmProposeEmbargoActivity` |
 | `em_accept_embargo_activity` | `as_Accept` | `_EmAcceptEmbargoActivity` |
 | `em_reject_embargo_activity` | `as_Reject` | `_EmRejectEmbargoActivity` |
-| `activate_embargo_activity` | `as_Add` | `_ActivateEmbargoActivity` |
-| `add_embargo_to_case_activity` | `as_Add` | `_AddEmbargoToCaseActivity` |
+| `activate_embargo_activity` | `as_Accept` | `_ActivateEmbargoActivity` |
+| `reject_embargo_proposal_activity` | `as_Reject` | `_RejectEmbargoProposalActivity` |
 | `announce_embargo_activity` | `as_Announce` | `_AnnounceEmbargoActivity` |
 | `remove_embargo_from_case_activity` | `as_Remove` | `_RemoveEmbargoFromCaseActivity` |
 

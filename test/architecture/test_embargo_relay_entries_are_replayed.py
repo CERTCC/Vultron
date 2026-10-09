@@ -123,9 +123,13 @@ REPLAYED: dict[str, tuple[str, dict[str, Any]]] = {
         MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE.value,
         {"type": "Remove", "actor": MANAGER, "object": EMBARGO},
     ),
-    "activation": (
-        MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE.value,
-        {"type": "Add", "actor": PROPOSER, "object": EMBARGO},
+    "the owner's activation": (
+        MessageSemantics.ACTIVATE_EMBARGO_ON_CASE.value,
+        {"type": "Accept", "actor": PROPOSER, "object": EMBARGO},
+    ),
+    "the owner's rejection of a proposal": (
+        MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE.value,
+        {"type": "Reject", "actor": PROPOSER, "object": EMBARGO},
     ),
     "invite expiry": (
         INVITE_EXPIRED_EVENT_TYPE,

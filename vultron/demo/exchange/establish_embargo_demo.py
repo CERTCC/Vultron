@@ -45,10 +45,14 @@ inboxes.
 import logging
 from collections.abc import Callable, Sequence
 
-from vultron.core.states.em import is_em_embargo_active
+from vultron.core.states.em import EM, is_em_embargo_active
 from vultron.demo.helpers.embargo import make_embargo_event
 from vultron.demo.helpers.runner import run_exchange_demos
-from vultron.demo.helpers.workflow import setup_two_participant_case
+from vultron.demo.helpers.workflow import (
+    owner_activates_embargo,
+    owner_rejects_embargo_proposal,
+    setup_two_participant_case,
+)
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
     DataLayerClient,
@@ -60,11 +64,8 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     setup_demo_logging,
 )
 from vultron.wire.as2.factories import (
-    activate_embargo_activity,
     announce_embargo_activity,
-    em_accept_embargo_activity,
     em_propose_embargo_activity,
-    em_reject_embargo_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -84,8 +85,8 @@ def demo_propose_embargo_accept(
     Steps:
     1. Setup: initialize case with two participants (vendor + coordinator)
     2. Coordinator proposes embargo (EmProposeEmbargoActivity → vendor inbox)
-    3. Vendor accepts embargo (EmAcceptEmbargoActivity → coordinator inbox, then
-       vendor activates via ActivateEmbargoActivity → vendor's own processing)
+    3. Vendor, the case owner and CASE_MANAGER, activates the embargo:
+       Accept(EmbargoEvent, target=Case) → vendor inbox (ADR-0122)
     4. Vendor announces embargo to all participants
     5. Verify case has ACTIVE embargo
 
@@ -119,26 +120,10 @@ def demo_propose_embargo_accept(
         logger.info("Sending embargo proposal: %s", logfmt(proposal))
         post_to_inbox_and_wait(client, vendor.id_, proposal)
 
-    with demo_step("Step 3: Vendor accepts embargo and activates it"):
-        accept = em_accept_embargo_activity(
-            proposal,
-            actor=vendor.id_,
-            context=case.id_,
-            to=[coordinator.id_],
-            summary=f"Accepting embargo proposal for {case.name}.",
-        )
-        logger.info("Sending embargo acceptance: %s", logfmt(accept))
-        post_to_inbox_and_wait(client, coordinator.id_, accept)
-
-        activate = activate_embargo_activity(
-            embargo,
-            actor=vendor.id_,
-            target=case.id_,
-            in_reply_to=proposal.id_,
-            to=f"{case.id_}/participants",
-        )
-        logger.info("Activating embargo: %s", logfmt(activate))
-        post_to_inbox_and_wait(client, vendor.id_, activate)
+    with demo_step("Step 3: Vendor, as case owner, activates the embargo"):
+        # The owner's decision for the case goes to the CASE_MANAGER — here
+        # the vendor itself (ADR-0122).
+        owner_activates_embargo(client, vendor, vendor.id_, case, embargo)
 
     with demo_step("Step 4: Vendor announces embargo to participants"):
         announce = announce_embargo_activity(
@@ -184,8 +169,9 @@ def demo_propose_embargo_reject(
     Steps:
     1. Setup: initialize case with two participants (vendor + coordinator)
     2. Coordinator proposes embargo (EmProposeEmbargoActivity → vendor inbox)
-    3. Vendor rejects embargo (EmRejectEmbargoActivity → coordinator inbox)
-    4. Verify case has no active embargo
+    3. Vendor, the case owner and CASE_MANAGER, rejects the proposal:
+       Reject(EmbargoEvent, target=Case) → vendor inbox (ADR-0122)
+    4. Verify case has no active embargo and no open proposal
 
     This follows the reject branch in
     docs/howto/activitypub/activities/establish_embargo.md.
@@ -217,16 +203,12 @@ def demo_propose_embargo_reject(
         logger.info("Sending embargo proposal: %s", logfmt(proposal))
         post_to_inbox_and_wait(client, vendor.id_, proposal)
 
-    with demo_step("Step 3: Vendor rejects embargo proposal"):
-        reject = em_reject_embargo_activity(
-            proposal,
-            actor=vendor.id_,
-            context=case.id_,
-            to=[coordinator.id_],
-            summary=f"Rejecting embargo proposal for {case.name}.",
+    with demo_step("Step 3: Vendor, as case owner, rejects the proposal"):
+        # The owner's decision for the case goes to the CASE_MANAGER — here
+        # the vendor itself (ADR-0122).
+        owner_rejects_embargo_proposal(
+            client, vendor, vendor.id_, case, embargo
         )
-        logger.info("Sending embargo rejection: %s", logfmt(reject))
-        post_to_inbox_and_wait(client, coordinator.id_, reject)
 
     with demo_step("Step 4: Verify case has no active embargo"):
         with demo_check("Case active_embargo is None after rejection"):
@@ -241,6 +223,12 @@ def demo_propose_embargo_reject(
                 raise ValueError(
                     f"Expected case '{case.id_}' to have no active embargo after "
                     f"rejection, but active_embargo = {final_case.active_embargo}"
+                )
+            if final_case.current_status.em_state != EM.NONE:
+                raise ValueError(
+                    f"Expected the owner's rejection to close the proposal on"
+                    f" case '{case.id_}' (EM NONE), but EM is"
+                    f" {final_case.current_status.em_state}"
                 )
 
     logger.info("✅ DEMO COMPLETE (reject path): Embargo rejected gracefully.")

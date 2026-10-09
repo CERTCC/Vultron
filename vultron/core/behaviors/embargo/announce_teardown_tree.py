@@ -105,7 +105,7 @@ from vultron.core.behaviors.embargo.nodes import (
     RelayEmbargoInviteToEachNode,
     SendAnnounceEmbargoEventNode,
     SendEmbargoInviteAnswerNode,
-    SetEmbargoActiveNode,
+    SendOwnerEmbargoDecisionNode,
     ValidateCaseExistsNode,
     case_manager_admits_proposal_guard,
     embargo_ending_notice_nodes,
@@ -125,7 +125,6 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderMayAssertEmbargoNode,
 )
 from vultron.core.models.embargo_event import EmbargoEvent
-from vultron.core.services.embargo_lifecycle import TransitionMode
 
 logger = logging.getLogger(__name__)
 
@@ -296,76 +295,6 @@ def remove_embargo_from_case_tree(
     return root
 
 
-def add_embargo_to_case_tree(
-    case_id: str,
-    embargo_id: str,
-    sender_actor_id: str,
-    actor_config: ActorConfig | None = None,
-) -> py_trees.behaviour.Behaviour:
-    """Create the BT for receiver-side embargo activation (protocol EA).
-
-    Handles receipt of an ``Add(EmbargoEvent)`` activity.  Sets the embargo
-    as active on the case, transitions EM → ACTIVE, and commits a canonical
-    ledger entry. As the CASE_MANAGER it then backfills any participant the
-    newly active embargo admits (CM-10-006).
-
-    BT returns SUCCESS when the embargo is activated.
-    Always commits the ledger entry regardless of BT result.
-
-    Args:
-        case_id: ID of the VulnerabilityCase to update.
-        embargo_id: ID of the EmbargoEvent being activated.
-        sender_actor_id: Sender of the ``Add``; the Case Owner (or the
-            CASE_MANAGER) at the CASE_MANAGER, the CASE_MANAGER elsewhere
-            (ADR-0115, EP-09-005, PCR-03-001).
-        actor_config: The CASE_MANAGER's configuration; its RSVP windows set
-            the deadline of a re-issued stub Invite.  ``None`` applies the
-            ``ActorConfig`` defaults.
-
-    Returns:
-        Root node of the ``AddEmbargoToCaseBT`` Sequence.
-    """
-    capture, notices = embargo_ending_notice_nodes(
-        case_id, requested_by=sender_actor_id
-    )
-    root = create_receive_activity_tree(
-        name="AddEmbargoToCaseBT",
-        case_id=case_id,
-        sender_guard=SenderMayAssertEmbargoNode(
-            case_id=case_id,
-            sender_actor_id=sender_actor_id,
-            manager_arm=SenderEntitlementKind.CASE_OWNER,
-        ),
-        precondition_guards=[ValidateCaseExistsNode(case_id=case_id)],
-        # RSH-08-003: EM → ACTIVE is canonical case state only the CASE_MANAGER
-        # writes; ``add_embargo_event_to_case`` is committed and replayed
-        # (EmbargoActivation slot), so a replica learns the activation from the
-        # ledger fan-out, not from the direct Add (#3814).  The capture of the
-        # embargo in force runs ahead of the write for the CM-31-009 revision
-        # notice, and admitting a participant the newly active embargo lets in
-        # (CM-10-006) and re-issuing a stub Invite whose terms changed
-        # (CM-11-016) are the CASE_MANAGER's follow-ons.
-        manager_effects=[
-            capture,
-            SetEmbargoActiveNode(
-                case_id=case_id,
-                embargo_id=embargo_id,
-                transition_mode=TransitionMode.OBSERVED,
-            ),
-            notices,
-            *embargo_admission_backfill_nodes(case_id, actor_config),
-        ],
-        manager_case_id=case_id,
-        manager_gate_name="ActivateEmbargoAndBackfillIfCaseManager",
-    )
-    logger.info(
-        "Created AddEmbargoToCaseBT for case=%s embargo=%s",
-        case_id,
-        embargo_id,
-    )
-    return root
-
-
 def _index_received_proposal(
     case_id: str, embargo_id: str, invite_id: str
 ) -> IndexReceivedEmbargoProposalNode:
@@ -434,6 +363,10 @@ def invite_to_embargo_on_case_tree(
     the executing actor is its addressee, the EMB-15 response decision
     (``create_embargo_response_decision_tree``) queues an ``Accept`` or
     ``Reject`` of it to the CASE_MANAGER (``SendEmbargoInviteAnswerNode``).
+    When the addressee is the case owner its answer is its decision for the
+    case, so it is queued as ``Accept`` or ``Reject`` of the embargo itself
+    (``SendOwnerEmbargoDecisionNode``, ADR-0122) — and only inside the
+    prototype's auto-accept bound; otherwise the owner holds its answer.
     No EM state and no consent state moves here: the replica learns the
     proposal, the relayed Invite and every answer from the CASE_MANAGER's
     committed entries, which ``create_announce_log_entry_tree`` replays
@@ -540,6 +473,36 @@ def invite_to_embargo_on_case_tree(
                                         child=OwnerMayAutoAcceptEmbargoNode(
                                             case_id=case_id,
                                             embargo_id=embargo_id,
+                                        ),
+                                    ),
+                                ],
+                            ),
+                            # The owner's answer is its decision for the
+                            # case, sent as Accept/Reject of the embargo
+                            # itself (ADR-0122).
+                            py_trees.composites.Sequence(
+                                name="OwnerDecides",
+                                memory=False,
+                                children=[
+                                    SenderIsCaseOwnerNode(
+                                        sender_actor_id=invitee_id,
+                                        case_id=case_id,
+                                        name="InviteeIsOwner",
+                                    ),
+                                    create_embargo_response_decision_tree(
+                                        case_id=case_id,
+                                        deciding_actor_id=invitee_id,
+                                        accept_bt=SendOwnerEmbargoDecisionNode(
+                                            case_id=case_id,
+                                            embargo_id=embargo_id,
+                                            accept=True,
+                                            name="SendActivateEmbargo",
+                                        ),
+                                        reject_bt=SendOwnerEmbargoDecisionNode(
+                                            case_id=case_id,
+                                            embargo_id=embargo_id,
+                                            accept=False,
+                                            name="SendRejectEmbargoProposal",
                                         ),
                                     ),
                                 ],

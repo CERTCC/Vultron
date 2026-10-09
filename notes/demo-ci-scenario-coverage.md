@@ -34,19 +34,19 @@ event type to a harness constant, therefore fails this check until the table
 follows — see [demo-scenario-registry.md](demo-scenario-registry.md) § "The
 generate-vs-check split".
 
-| Scenario | validate_report | add_participant_status_to_participant | close_case | add_note_to_case | engage_case | invite_actor_to_case | offer_case_participant | accept_invite_actor_to_case | accept_actor_recommendation | accept_case_ownership_transfer | reject_invite_actor_to_case | invite_to_embargo_on_case | accept_invite_to_embargo_on_case | remove_embargo_event_from_case |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| fccv-extension    | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   |   |
-| fccv-handoff      | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   | ✓ |   |   |   |   |
-| fcv               | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |   |   |   |   |
-| fcv-reject        | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   | ✓ |   |   |   |
-| fcvcv             | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   |   |
-| fv                | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   |   |   |   |   |   |
-| fvcv-extension    | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   |   |
-| fvcv-handoff      | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   | ✓ |   |   |   |   |
-| fvv               | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |   |   |   |   |
-| rcv-embargo       | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |   | ✓ | ✓ | ✓ |
-| rcvv-embargo      | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |   | ✓ | ✓ | ✓ |
+| Scenario | validate_report | add_participant_status_to_participant | close_case | add_note_to_case | engage_case | invite_actor_to_case | offer_case_participant | accept_invite_actor_to_case | accept_actor_recommendation | accept_case_ownership_transfer | reject_invite_actor_to_case | invite_to_embargo_on_case | accept_invite_to_embargo_on_case | activate_embargo_on_case | remove_embargo_event_from_case |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| fccv-extension    | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   |   |   |
+| fccv-handoff      | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   | ✓ |   |   |   |   |   |
+| fcv               | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |   |   |   |   |   |
+| fcv-reject        | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   | ✓ |   |   |   |   |
+| fcvcv             | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   |   |   |
+| fv                | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   |   |   |   |   |   |   |
+| fvcv-extension    | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   |   |   |
+| fvcv-handoff      | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   | ✓ |   |   |   |   |   |
+| fvv               | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |   |   |   |   |   |
+| rcv-embargo       | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |   | ✓ | ✓ | ✓ | ✓ |
+| rcvv-embargo      | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |   | ✓ | ✓ | ✓ | ✓ |
 
 **Notes:**
 
@@ -180,7 +180,7 @@ canonical order, everywhere".
 | fvcv-extension | covered by fcvcv | Same offer+invite+accept coverage; no additional phases |
 | fvcv-handoff | ✓ (member) | Adds `invite_actor_to_case` + `accept_invite_actor_to_case` + ownership-transfer protocol path |
 | fvv | covered by fvcv-handoff | Same invite+accept coverage; no additional phases |
-| rcv-embargo | ✓ (member) | Adds `invite_to_embargo_on_case` + `accept_invite_to_embargo_on_case` + `remove_embargo_event_from_case` — the only scenario that proposes, activates and terminates an embargo |
+| rcv-embargo | ✓ (member) | Adds `invite_to_embargo_on_case` + `accept_invite_to_embargo_on_case` + `activate_embargo_on_case` + `remove_embargo_event_from_case` — the only scenario that proposes, activates and terminates an embargo |
 | rcvv-embargo | ✓ (member) | Same embargo event types as `rcv-embargo`, reached by other paths: a second revision cycle, a late vendor that signs the revised embargo, and a teardown that CS.P causes instead of a deliberate termination |
 
 ### Coverage proof
@@ -202,6 +202,7 @@ The minimum set covers every distinct event type:
 | reject_invite_actor_to_case | fcv-reject |
 | invite_to_embargo_on_case | rcv-embargo |
 | accept_invite_to_embargo_on_case | rcv-embargo |
+| activate_embargo_on_case | rcv-embargo |
 | remove_embargo_event_from_case | rcv-embargo |
 
 Every non-member row above — the scenarios whose `Covered by minimum set` cell

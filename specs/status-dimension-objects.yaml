@@ -234,6 +234,28 @@ groups:
     - ADR-0063
     - ADR-0082
     - ADR-0099
+  - id: SDO-03-006
+    priority: MUST
+    kind: project
+    statement: A `CaseStatus`'s EM copy MUST be immutable once the status is constructed. `EmDimension` MUST be a frozen
+      model and `CaseStatus.em` a frozen field, so assigning `status.em`, `status.em.state`, or any flat EM spelling raises.
+      A status with a different EM is built by construction or `model_copy(update=...)`, never by mutation; the owning
+      `VulnerabilityCase` stamps its current status that way from its embargo register.
+    rationale: EM is derived from the case's embargo register (ADR-0122); the status holds only a stamped copy. An in-place
+      write makes the copy disagree with the register, and EMB-18-001 forbade it with no enforcement. Freezing fails every
+      write path at runtime, including dynamic ones a source ratchet would miss, while the case's copy-based stamp still
+      works. EmDimension has no transitions, so freezing removes no behavior (#4321).
+    verification: Unit tests show that `status.em = EmDimension(...)` and `status.em.state = EM.X` each raise pydantic
+      `ValidationError`, that `CaseStatus` defines no `em_state` setter so `status.em_state = EM.X` raises `AttributeError`,
+      and that a case whose register changes still stamps the derived EM onto its current status.
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-18-001
+      note: EMB-18-001 forbids assigning `case.current_status.em`; this requirement makes the assignment impossible.
+    - rel_type: depends_on
+      spec_id: SDO-03-001
+    adr:
+    - ADR-0122
 - id: SDO-04
   title: Wire Projection and Migration Scope
   specs:

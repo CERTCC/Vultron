@@ -388,14 +388,15 @@ def test_activate_embargo_replacing_a_shorter_one_lapses_non_acceptors(
 
 @pytest.mark.spec("EP-05-001")
 @pytest.mark.spec("CM-18-016")
-def test_activate_embargo_first_activation_writes_no_consent(
+def test_activate_embargo_first_activation_writes_only_the_owners_agreement(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """PROPOSED -> ACTIVE replaces nothing, so no row is written.
+    """PROPOSED -> ACTIVE writes only the owner's agreement.
 
-    Holders of ACCEPTED(B) (the proposer, an early acceptor) are signatories
-    by lookup with no advance step; a merely INVITED participant is not, and
-    has not lapsed either.
+    The activation is the case owner's decision, so its row for B becomes
+    ACCEPTED (ADR-0122).  Holders of ACCEPTED(B) (the proposer, an early
+    acceptor) are signatories by lookup with no advance step; a merely
+    INVITED participant is not, and has not lapsed either.
     """
     owner, dl = owner_and_dl
     proposer = _make_actor(dl, "Proposer")
@@ -416,8 +417,12 @@ def test_activate_embargo_first_activation_writes_no_consent(
     )
 
     assert result.em_after == EM.ACTIVE
-    assert result.participant_changes == []
-    assert _consents_of(dl, owner_p.id_) == {}
+    assert [
+        (c.participant_id, c.consent_before, c.consent_after)
+        for c in result.participant_changes
+    ] == [(owner_p.id_, None, "ACCEPTED")]
+    assert _consents_of(dl, owner_p.id_) == {embargo.id_: "ACCEPTED"}
+    assert _is_signatory(dl, case.id_, owner_p.id_)
     assert _consents_of(dl, proposer_p.id_) == {embargo.id_: "ACCEPTED"}
     assert _consents_of(dl, invitee_p.id_) == {embargo.id_: "INVITED"}
     assert _is_signatory(dl, case.id_, proposer_p.id_)
