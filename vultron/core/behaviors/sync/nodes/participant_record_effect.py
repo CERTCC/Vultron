@@ -22,7 +22,8 @@ derived here.
   stores the record the entry carries and puts it on the roster.
 - :class:`ApplyUpdateCaseParticipantFromLedgerNode` -- ``update_case_participant``:
   copies the entry's ``joined`` mark, consent rows and ``updated`` time onto the
-  held record.  A record the replica does not hold is a broken invariant (the
+  held record, never moving it backwards (a stale entry replayed over a seed
+  that is already ahead changes nothing).  A record the replica does not hold is a broken invariant (the
   chain is complete and in order, SYNC-14, SYNC-15), so the node FAILS and
   writes nothing.
 
@@ -31,12 +32,17 @@ Per CM-11-006, CM-31-012, SYNC-02-002, SYNC-12-001, RSH-08-004.
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from py_trees.common import Status
 
 from vultron.core.behaviors.sync.nodes._helpers import _LedgerEffectNode
 from vultron.core.models._helpers import project_wire_snapshot_to_core
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.states.participant_embargo_consent import (
+    consent_move_is_legal,
+)
 
 
 def _carried_participant(
@@ -121,6 +127,12 @@ class ApplyCreateCaseParticipantFromLedgerNode(_LedgerEffectNode):
         return Status.SUCCESS
 
 
+def _later(a: datetime | None, b: datetime | None) -> datetime | None:
+    if a is None or b is None:
+        return a or b
+    return max(a, b)
+
+
 class ApplyUpdateCaseParticipantFromLedgerNode(_LedgerEffectNode):
     """Copy an ``update_case_participant`` entry's changes onto the held record.
 
@@ -134,6 +146,30 @@ class ApplyUpdateCaseParticipantFromLedgerNode(_LedgerEffectNode):
     CASE_MANAGER, so a missing record means a broken chain.  Lenient only on a
     replica that holds no copy of the case (Regime 2, ADR-0087).
     """
+
+    @staticmethod
+    def _copy_forward(held: CaseParticipant, carried: CaseParticipant) -> None:
+        """Copy what the entry carries onto *held*, never moving it backwards.
+
+        A replica seeded with the case replays the ledger from genesis over a
+        seed that may already be ahead (ADR-0124, SYNC-15), so an old entry
+        must leave newer state alone: ``joined`` is only ever set, a consent
+        row is added when the replica holds none for that embargo, and an
+        existing row is replaced only when the entry's state is a legal move
+        from the held one (CM-18-003).  In order, on a replica that is not
+        ahead, this is exactly the carried record.
+        """
+        held.joined = held.joined or carried.joined
+        rows = {row.embargo_id: row for row in held.embargo_consents}
+        for row in carried.embargo_consents:
+            current = rows.get(row.embargo_id)
+            if current is None or (
+                row.state != current.state
+                and consent_move_is_legal(current.state, row.state)
+            ):
+                rows[row.embargo_id] = row
+        held.embargo_consents = list(rows.values())
+        held.updated = _later(held.updated, carried.updated)
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -162,9 +198,7 @@ class ApplyUpdateCaseParticipantFromLedgerNode(_LedgerEffectNode):
             self.logger.error("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
-        held.joined = record.joined
-        held.embargo_consents = list(record.embargo_consents)
-        held.updated = record.updated
+        self._copy_forward(held, record)
         self.datalayer.save(held)
         self.logger.info(
             "%s: updated participant '%s' as the entry carries it"

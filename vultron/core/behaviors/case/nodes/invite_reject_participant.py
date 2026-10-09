@@ -37,6 +37,7 @@ from vultron.core.behaviors.case.participant_ledger import (
 )
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.states.cs import CS_vf
@@ -195,6 +196,7 @@ class ApplyInviteRejectToParticipantNode(
                 entry_status=case.embargo_register_status(active_embargo_id),
             )
         ):
+            participant.updated = now_utc()
             self.datalayer.save(participant)
             self.logger.info(
                 "%s: applied PEC DECLINED for invitee '%s' (active embargo,"

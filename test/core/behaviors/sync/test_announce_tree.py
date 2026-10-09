@@ -1096,6 +1096,73 @@ class TestAnnounceLogEntryAppliesParticipantRecord:
 
         assert self._held(datalayer).model_dump(mode="json") == before
 
+    @pytest.mark.spec("SYNC-15-002")
+    @pytest.mark.spec("CM-31-012")
+    def test_a_stale_update_replayed_over_a_seed_that_is_ahead_changes_nothing(
+        self, bridge, datalayer, case_actor, case_obj
+    ):
+        """A late joiner is seeded, then replays the ledger from genesis.
+
+        The seed already holds the record at a later state than an old
+        ``update_case_participant`` entry describes, so applying the old entry
+        must not move it backwards: ``joined`` stays set and a row the entry
+        does not mention stays.
+        """
+        ahead = _invitee_record(joined=True)
+        later = f"{CASE_ID}/embargo_events/later"
+        ahead.embargo_consents = [
+            *ahead.embargo_consents,
+            EmbargoConsent(embargo_id=later, state=EmbargoConsentState.AGREED),
+        ]
+        datalayer.create(ahead)
+        case_obj.add_participant(ahead)
+        datalayer.save(case_obj)
+        before = ahead.model_dump(mode="json")
+        stale = _invitee_record()  # joined=False, one INVITED row
+        entry = _participant_entry(
+            UPDATE_CASE_PARTICIPANT_EVENT_TYPE, stale, 0, case_obj.genesis_hash
+        )
+
+        assert (
+            self._announce(bridge, case_actor, entry).status == Status.SUCCESS
+        )
+
+        assert self._held(datalayer).model_dump(mode="json") == before
+
+    @pytest.mark.spec("CM-18-003")
+    def test_an_update_applies_a_legal_consent_move_and_a_new_row(
+        self, bridge, datalayer, case_actor, case_obj
+    ):
+        held = _invitee_record()
+        later = f"{CASE_ID}/embargo_events/later"
+        datalayer.create(held)
+        case_obj.add_participant(held)
+        datalayer.save(case_obj)
+        carried = _invitee_record(joined=True)  # INVITED -> AGREED on the one
+        carried.embargo_consents = [
+            *carried.embargo_consents,
+            EmbargoConsent(
+                embargo_id=later, state=EmbargoConsentState.INVITED
+            ),
+        ]
+        entry = _participant_entry(
+            UPDATE_CASE_PARTICIPANT_EVENT_TYPE,
+            carried,
+            0,
+            case_obj.genesis_hash,
+        )
+
+        assert (
+            self._announce(bridge, case_actor, entry).status == Status.SUCCESS
+        )
+
+        after = self._held(datalayer)
+        assert after.joined is True
+        assert after.consent_for(ACTIVE_EMBARGO_ID) == (
+            EmbargoConsentState.AGREED
+        )
+        assert after.consent_for(later) == EmbargoConsentState.INVITED
+
     def test_participant_slots_do_not_apply_to_other_event_types(
         self, bridge, datalayer, case_actor, case_obj
     ):
