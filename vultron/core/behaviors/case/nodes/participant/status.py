@@ -117,10 +117,9 @@ class CreateParticipantStatusNode(
                 ``force_rm_state``.
             force_rm_state: Skip the RM adjacency rule for this write.
 
-                **Do not add new users.**  Set only by the bootstrap writes
-                that record a participant's *first* status at a rung other
-                than ``RECEIVED``: ``proposal_reporter.py`` and
-                ``participant/participant_add.py``.
+                **Do not add new users.**  Set only by the bootstrap write
+                that records a participant's *first* status at a rung other
+                than ``RECEIVED``: ``proposal_reporter.py``.
                 A first record has no predecessor, so the RM adjacency rule
                 (BTND-10-001) has nothing to check it against; every *other*
                 rule (VF/D/PXA, role gates, entailments) still applies.
