@@ -5060,7 +5060,9 @@ groups:
       VENDOR role only, `add_participant_status_to_participant` for VF `Vf` (CM-11-009). The
       CASE_MANAGER commits them after it has announced the case to the invitee and backfilled the
       prior ledger (#2898). A replica stores what each entry carries, as received, and derives
-      nothing from the `Accept(Invite)` entry (ADR-0114, ADR-0124).
+      nothing from the `Accept(Invite)` entry (ADR-0114, ADR-0124). A replica seeded with the
+      case MUST NOT move a record it holds backwards when it replays an older entry over the
+      seed: `joined` is only set, and a consent row is replaced only by a legal move (CM-18-003).
     rationale: >-
       CM-17-004 does not call for it, the accept's changes are already their own entries, and a
       replica usually refuses the direct message for want of the participant record it names. It also
