@@ -1487,9 +1487,10 @@ groups:
       `RM.CLOSED` being terminal is what gives the closure act finality. A
       participant that anticipates returning to the case SHOULD instead move to
       `RM.DEFERRED` (resumable via DEFERRED → ACCEPTED) rather than close; once
-      closed, the only supported path back in is a new Invite, which the current
-      design does not support (ADR-0085). Rejoin mechanics are deferred to
-      a future design; the interim workaround is defer-not-close.
+      closed, the participant has no path back in, because a re-invite to a
+      participant at `RM.CLOSED` is refused (CM-11-015, ADR-0085). Rejoin
+      mechanics are deferred to a future design; the interim workaround is
+      defer-not-close (RMB-14-007).
     verification: >-
       A test asserts `is_valid_rm_transition(RM.CLOSED, X)` is `False` for every
       RM state X, including RM.CLOSED itself, confirming no transition edge leaves
@@ -1516,6 +1517,8 @@ groups:
     - testable_without_steps
     adr:
     - ADR-0085
+    stories:
+    - story_2022_006
 - id: RMB-15
   title: RM Write-Boundary Transition Validation
   description: >-
