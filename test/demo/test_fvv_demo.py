@@ -36,6 +36,7 @@ from test.demo._helpers import (
     make_client,
     make_testclient_call,
     patch_chain_shared,
+    stub_closure_gate,
 )
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.cli import main
@@ -408,8 +409,19 @@ class TestCoverageWaitInsideDemoCheck:
         # (actor_closes_case, wait_for_all_participants_rm_closed, verify_case_closed,
         # _get_log_entries_for_case) without triggering real HTTP.
         client = MagicMock()
-        actor = MagicMock()
-        actor.id_ = "https://example.org/actors/test-actor"
+
+        def _named_actor(name: str) -> MagicMock:
+            a = MagicMock()
+            a.id_ = f"https://example.org/actors/{name}"
+            return a
+
+        # Distinct actors: the closure phase refuses an owner that is also
+        # listed among the participants that leave before it (CM-23-015).
+        vendor, vendor2, finder = (
+            _named_actor("vendor"),
+            _named_actor("vendor2"),
+            _named_actor("finder"),
+        )
 
         case = MagicMock()
         case.id_ = case_id
@@ -432,6 +444,7 @@ class TestCoverageWaitInsideDemoCheck:
             patch(
                 "vultron.demo.scenario.fvv_demo.wait_for_all_participants_rm_closed"
             ),
+            stub_closure_gate(),
             patch("vultron.demo.scenario.fvv_demo.verify_case_closed"),
             patch(
                 "vultron.demo.scenario.fvv_demo.wait_for_event_type_in_ledger"
@@ -448,12 +461,12 @@ class TestCoverageWaitInsideDemoCheck:
                     finder_client=client,
                     vendor_client=client,
                     vendor2_client=client,
-                    vendor=actor,
-                    vendor_in_vendor=actor,
-                    vendor2=actor,
-                    vendor2_in_vendor2=actor,
-                    finder=actor,
-                    finder_in_finder=actor,
+                    vendor=vendor,
+                    vendor_in_vendor=vendor,
+                    vendor2=vendor2,
+                    vendor2_in_vendor2=vendor2,
+                    finder=finder,
+                    finder_in_finder=finder,
                     case=case,
                 )
             except AssertionError as exc:
@@ -851,6 +864,7 @@ class TestFvvMilestoneAssertions:
         with (
             patch.object(ActorSession, "close_case"),
             patch.object(demo, "wait_for_all_participants_rm_closed"),
+            stub_closure_gate(),
             patch.object(demo, "verify_case_closed") as mock_m7,
             patch.object(demo, "wait_for_event_type_in_ledger"),
             patch.object(demo, "wait_for_replica_ledger_coverage"),

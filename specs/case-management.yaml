@@ -3817,12 +3817,16 @@ groups:
       not left by then keeps its last RM state on every replica that receives it,
       which is harmless but leaves the ledger without a record of its departure.
       Leaving last is the owner's normal course, not a hard ordering: a
-      participant that never leaves cannot hold a case open. #4163 owns
-      reordering the demo scenarios, which today close the owner first.
+      participant that never leaves cannot hold a case open. Every demo
+      scenario closes through `close_case_owner_last`
+      (`vultron/demo/helpers/closure.py`), which sends the owner's Leave only
+      once the CASE_MANAGER has recorded each other departure.
     verification: >-
       `test/demo/test_fv_demo.py::TestFvMilestoneAssertions::test_phase_case_closure_closes_the_case_owner_last`
       asserts the FV closure phase closes the Finder before the Vendor, the Case Owner;
-      it is a strict `xfail` naming #4163 until the demos are reordered.
+      `test/demo/test_case_closure.py` asserts the shared closure phase gates the
+      owner's Leave on every other departure and that the closure milestone reports
+      a departure recorded after `case_fully_closed`.
     relationships:
     - rel_type: refines
       spec_id: CM-23-002

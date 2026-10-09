@@ -53,6 +53,7 @@ from vultron.core.models.use_case_result import (
 )
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
+from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -211,6 +212,10 @@ def test_the_owner_rejecting_a_revision_after_disclosure_ends_the_embargo():
         assert case.current_status.em.state == EM.EXITED, actor_id
         assert case.active_embargo_id is None, actor_id
         assert case.proposed_embargo_ids == [], actor_id
+        # Cancelled by the termination, not rejected (EP-08-004, ADR-0124).
+        assert case.embargo_register_status(revision) is (
+            EmbargoRegisterStatus.CANCELLED
+        ), actor_id
     assert EMBARGO_TEARDOWN_EVENT_TYPE in _event_types(net, BYSTANDER)
 
 

@@ -35,6 +35,7 @@ import sys
 from vultron.core.states.rm import RM
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.actor_roles import ActorRole, role_map
+from vultron.demo.helpers.closure import CaseLeaver, close_case_owner_last
 from vultron.demo.helpers.harness import scenario_harness
 from vultron.demo.helpers.invite_chain import (
     CaseInviter,
@@ -166,7 +167,8 @@ Workflow:
   6. Verify participant count stable at 3 (Vendor not added).
   7. Two-way notes exchange between Finder and Coordinator.
   8. Coordinator and Finder publish; embargo terminates (EM.EXITED).
-  9. Coordinator and Finder close the case (RM.CLOSED on all replicas).
+  9. The Finder closes the case, then the Coordinator, the Case Owner,
+     closes it last (RM.CLOSED on all replicas).
 """
 
 # Deterministic actor IDs from docker-compose-multi-actor.yml (D5-1-G3).
@@ -544,19 +546,24 @@ def _phase_case_closure(
     finder_in_finder: as_Actor,
     case: as_VulnerabilityCase,
 ) -> None:
-    """Close the case from Finder and Coordinator; verify terminal state."""
+    """Close the case from Finder and Coordinator; verify terminal state.
+
+    The Finder leaves first; the Coordinator, the Case Owner, leaves last,
+    once the Finder's departure is recorded (CM-23-015).
+    """
     logger.info("─" * 80)
     logger.info("Phase 5: Case closure — Finder and Coordinator RM.CLOSED")
     logger.info("─" * 80)
 
-    with demo_step(f"Actor {ref_id(coordinator_in_coordinator)} closes case"):
-        ActorSession(
+    close_case_owner_last(
+        case=case,
+        milestone="M4",
+        authority_client=coordinator_client,
+        others=[CaseLeaver(client=finder_client, actor=finder_in_finder)],
+        owner=CaseLeaver(
             client=coordinator_client, actor=coordinator_in_coordinator
-        ).with_case(case).quiet().close_case()
-    with demo_step(f"Actor {ref_id(finder_in_finder)} closes case"):
-        ActorSession(client=finder_client, actor=finder_in_finder).with_case(
-            case
-        ).quiet().close_case()
+        ),
+    )
 
     with demo_check("M4: all participants RM.CLOSED on all replicas"):
         wait_for_all_participants_rm_closed(

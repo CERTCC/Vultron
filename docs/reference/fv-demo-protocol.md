@@ -95,8 +95,8 @@ sequenceDiagram
     note over F,CA: ✅ M6 — CS.VFdPxa · EM.EXITED on both replicas
 
     note over F,CA: Phase 6 — Case closure
-    V->>CA: Leave(VulnerabilityCase) — owner closes
     F->>CA: Leave(VulnerabilityCase) — participant closes
+    V->>CA: Leave(VulnerabilityCase) — owner closes last
     CA-->>V: Announce(CaseLedgerEntry) ×n
     CA-->>F: Announce(CaseLedgerEntry) ×n
     note over F,CA: ✅ M7 — all participants RM.CLOSED
@@ -330,25 +330,31 @@ POST /api/v2/actors/{finder_id}/demo/notify-published
 ### Triggers
 
 ```text
-POST /api/v2/actors/{vendor_id}/demo/close-case
 POST /api/v2/actors/{finder_id}/demo/close-case
+POST /api/v2/actors/{vendor_id}/demo/close-case
 ```
 
 ### Activities
 
 | Activity | Formal message | `MessageSemantics` | Direction | Documented on |
 |:---------|:---------------|:-------------------|:----------|:--------------|
-| `Leave(VulnerabilityCase)` | Close Case | `CLOSE_CASE` | Vendor → Case Actor; Finder → Case Actor | [Case Management Messages](messages/case_management.md) |
+| `Leave(VulnerabilityCase)` | Close Case | `CLOSE_CASE` | Finder → Case Actor; Vendor → Case Actor | [Case Management Messages](messages/case_management.md) |
 
 ### What happens
 
 Closure flows through `Leave(VulnerabilityCase)`, not through a participant asserting its own `RM.CLOSED` ([ADR-0050](../adr/0050-leave-vul-case-canonical-rm-closure.md), CM-23-001).
 
-1. The Vendor sends `Leave(VulnerabilityCase)`.
-   The Vendor is the `CASE_OWNER`, so this is an owner closure: the Case Actor commits `close_case` for the Vendor, advances its own participant record to `RM.CLOSED` and records that transition as an `add_participant_status_to_participant` entry (CM-23-005), then commits `case_fully_closed` (CM-23-002).
-2. The Finder sends `Leave(VulnerabilityCase)`.
+The Case Owner leaves last (CM-23-015).
+The owner's departure closes the case, and the Case Actor records nothing a participant sends after that (CM-23-013).
+
+1. The Finder sends `Leave(VulnerabilityCase)`.
    As a non-owner, this advances only the Finder (CM-23-003); no other participant's RM state changes (CM-23-012).
-3. Each entry is fanned out as `Announce(CaseLedgerEntry)`, and every replica applies it, which is how a participant learns that a peer has departed.
+   The Case Actor commits `close_case` for the Finder.
+2. The demo waits until the Case Actor's own store shows the Finder at `RM.CLOSED`.
+   A trigger returns before its effect commits, so the demo does not let the Vendor's `Leave` overtake the Finder's.
+3. The Vendor sends `Leave(VulnerabilityCase)`.
+   The Vendor is the `CASE_OWNER`, so this is an owner closure: the Case Actor commits `close_case` for the Vendor, advances its own participant record to `RM.CLOSED` and records that transition as an `add_participant_status_to_participant` entry (CM-23-005), then commits `case_fully_closed` (CM-23-002).
+4. Each entry is fanned out as `Announce(CaseLedgerEntry)`, and every replica applies it, which is how a participant learns that a peer has departed.
 
 ### Example: Leave(VulnerabilityCase)
 
@@ -370,6 +376,7 @@ Closure flows through `Leave(VulnerabilityCase)`, not through a participant asse
 
 | Check | Where |
 |:------|:------|
+| Every departure recorded before `case_fully_closed`, and no participant act after it | Case Actor's ledger |
 | Every participant `RM.CLOSED`, including the `CASE_MANAGER` | both replicas |
 | `close_case` entry present | Vendor replica |
 | Ledger coverage contiguous to the Vendor's tail | Finder replica |
@@ -392,12 +399,16 @@ The exact count of `add_participant_status_to_participant` and `add_case_status_
 | 9 | `engage_case` | Vendor | 1 |
 | 10 | `add_note_to_case` | Finder | 3 |
 | 11 | `add_note_to_case` | Vendor | 3 |
-| 12–16 | `add_participant_status_to_participant`, `add_case_status_to_case` | Vendor's `Vf` and `VF` statuses and the case status that follows each | 4 |
-| 17–20 | `add_participant_status_to_participant`, `add_case_status_to_case` | Vendor's and Finder's `Pxa` statuses; the case status carrying `EM.EXITED` | 5 |
-| 21 | `close_case` | Vendor | 6 |
-| 22 | `add_participant_status_to_participant` | Case Actor (its own `RM.CLOSED`) | 6 |
-| 23 | `case_fully_closed` | Vendor (owner closure) | 6 |
-| 24 | `close_case` | Finder | 6 |
+| 12–15 | `add_participant_status_to_participant`, `add_case_status_to_case` | Vendor's `Vf` and `VF` statuses and the case status that follows each | 4 |
+| 16–17 | `add_participant_status_to_participant`, `add_case_status_to_case` | Vendor's `Pxa` status and the case status that follows it | 5 |
+| 18–19 | `remove_embargo_event_from_case`, `add_case_status_to_case` | Case Actor (embargo teardown; the case status carrying `EM.EXITED`) | 5 |
+| 20–21 | `add_participant_status_to_participant`, `add_case_status_to_case` | Finder's `Pxa` status and the case status that follows it | 5 |
+| 22 | `close_case` | Finder | 6 |
+| 23 | `close_case` | Vendor | 6 |
+| 24 | `add_participant_status_to_participant` | Case Actor (its own `RM.CLOSED`) | 6 |
+| 25 | `case_fully_closed` | Vendor (owner closure) | 6 |
+
+The ledger ends at `case_fully_closed`: the Finder left first, so no participant act follows the owner closure.
 
 The Finder's replica and the Vendor's replica hold the same sequence, entry for entry, once fan-out completes.
 The demo runner exports all three ledgers as JSONL under `devlogs/fv/` at the end of a run, and the invariant harness in `test/ci/invariants/` checks them against the causal edges the [FV scenario narrative](../topics/scenarios/fv.md) declares.

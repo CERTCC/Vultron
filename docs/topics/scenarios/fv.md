@@ -20,6 +20,14 @@ causal_edges:
     note: >
       The case must have been validated before it can be closed; a case that
       was never validated is not a real coordinated-disclosure lifecycle.
+  - antecedent: close_case
+    consequent: close_case
+    consequent_actor: vendor
+    note: >
+      The Vendor, the Case Owner, leaves last (CM-23-015): another
+      participant's close_case precedes the owner's.  The owner's departure
+      closes the case, and a departure sent after it is not recorded
+      (CM-23-013).
   - antecedent: engage_case
     consequent: add_note_to_case
     consequent_actor: finder
@@ -120,13 +128,14 @@ No participant deploys a fix in this scenario: deployment is a Deployer's step, 
 
 ### 8. All participants close the case
 
-Both the Finder and the Vendor indicate that their participation in the case
-is complete.  Each closure is recorded as a `close_case` entry in the ledger.
-The Vendor is the case owner, so its departure also closes the case: the
-Case Actor records its own closure as a participant status entry, then records
-`case_fully_closed`.
+Both the Finder and the Vendor indicate that their participation in the case is complete.
+Each closure is recorded as a `close_case` entry in the ledger.
+The Finder leaves first.
+The Vendor is the Case Owner, so it leaves last: its departure also closes the case, and a departure sent after that is not recorded.
+The Case Actor records its own closure as a participant status entry, then records `case_fully_closed`, the last entry for a participant's act.
 
 *Antecedent:* `validate_report` and `engage_case` are both present in the ledger.
+The Vendor's `close_case` follows the Finder's.
 
 ## Unobservable edges
 

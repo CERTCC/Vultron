@@ -6,13 +6,14 @@ description: >
   puppeteer actors through trigger endpoints rather than spoofing via inbox
   injection, never carry one actor's mail to another's inbox, extract helpers
   before the second use, keep console-script entry points callable with no
-  arguments, and treat docker service names as routing labels rather than actor
-  identities.
+  arguments, treat docker service names as routing labels rather than actor
+  identities, and close every case with the Case Owner leaving last.
 related_specs:
   - specs/demo-ci.yaml
   - specs/multi-actor-demo.yaml
   - specs/event-driven-control-flow.yaml
   - specs/code-style.yaml
+  - specs/case-management.yaml
 related_notes:
   - notes/event-driven-control-flow.md
   - notes/demo-ci-diagnostics.md
@@ -433,3 +434,37 @@ section above still applies to any helper that extracts a result from a
 `post_to_trigger` call wrapped in `demo_step`.
 
 Source: #3356, DEMOMA-26
+
+---
+
+## Close a Case Through `close_case_owner_last`, Owner Last
+
+The Case Owner's `Leave(VulnerabilityCase)` closes the case for everyone
+(CM-23-002). The CASE_MANAGER records nothing a participant sends after
+`case_fully_closed` (CM-23-013). So the owner leaves last (CM-23-015).
+
+Every closure phase calls `close_case_owner_last` in
+`vultron/demo/helpers/closure.py`. The other participants leave first, in the
+order given. The owner's `Leave` waits until the CASE_MANAGER's store shows each
+of them at `RM.CLOSED`. A trigger returns 202 before its effect commits, so
+script order alone does not put the owner's `Leave` after the others on the
+ledger (EDF-06-002).
+
+After the owner leaves, the helper runs `verify_case_closure_recorded` from
+`vultron/demo/helpers/milestones.py` in its own `demo_check`. That check reads
+the CASE_MANAGER's ledger. It asserts that each departure is recorded at
+`RM.CLOSED` before `case_fully_closed`, and that no later entry records a
+participant's act. Pass the scenario's milestone label (`milestone="M7"`); the
+scenario adds only its replica checks.
+
+Rules:
+
+- Do not write the `close_case()` steps inline in a scenario.
+- Name the participant that holds `CASE_OWNER` at closure. After a handoff, this
+  is not the participant that created the case.
+- Each narrative under `docs/topics/scenarios/` declares a
+  `close_case → close_case` causal edge whose `consequent_actor` is the owner.
+  `test/ci/invariants/test_narrative_edges.py` checks that the edge rejects an
+  owner-first closure.
+
+Source: #4163, CM-23-015

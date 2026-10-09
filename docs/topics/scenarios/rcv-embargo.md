@@ -43,6 +43,14 @@ causal_edges:
     consequent_actor: coordinator
     note: >
       Closure requires a validated, engaged case.
+  - antecedent: close_case
+    consequent: close_case
+    consequent_actor: coordinator
+    note: >
+      The Coordinator, the Case Owner, leaves last (CM-23-015): another
+      participant's close_case precedes the owner's.  The owner's departure
+      closes the case, and a departure sent after it is not recorded
+      (CM-23-013).
   - antecedent: report_submitted
     consequent: validate_report
     consequent_actor: coordinator
@@ -113,6 +121,8 @@ The embargo has already ended, so publication tears nothing down and EM stays `E
 ### 6. Case closure
 
 Every participant closes the case.
+The Vendor and the Reporter leave first; the Coordinator, the Case Owner, leaves last.
+A departure sent after the owner's is not recorded, so every other participant's departure is recorded first.
 
 *Antecedent:* the vulnerability has been published.
 
