@@ -380,8 +380,9 @@ The owner's `Reject(EmbargoEvent, target=Case)` is decided by
 `OBSERVED` on replay (the `EmbargoProposalRejection` slot):
 `reject_embargo_proposal` returns EM `REVISE → ACTIVE` (or `PROPOSED → NONE`)
 and rejects the proposal, except for the last revision with P/X/A set, which
-it leaves to the ET that follows (EMB-04-002); the owner's `Accept(EmbargoEvent, target=Case)` is
-replayed by the `EmbargoActivation` slot (ADR-0122). EMB-01-002 and
+it leaves to the ET that follows (EMB-04-002); the owner's
+`Accept(EmbargoEvent, target=Case)` is replayed by the `EmbargoActivation`
+slot (ADR-0122). EMB-01-002 and
 EMB-02-002 are enforced as explicit pre-flight guards in
 `InviteToEmbargoOnCaseReceivedUseCase.execute()` and
 `AcceptInviteToEmbargoOnCaseReceivedUseCase.execute()` respectively (implemented

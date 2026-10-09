@@ -113,6 +113,14 @@ class DecideRejectedEmbargoProposalNode(
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
+        if not result.case_changed:
+            self.feedback_message = (
+                f"Owner's rejection of embargo '{self.embargo_id}' on case"
+                f" '{self.case_id}' changes nothing here; the termination"
+                " that follows ends it (EMB-04-002)"
+            )
+            return Status.SUCCESS
+
         log_em_transition(
             self.logger,
             self.actor_id or "<unknown>",

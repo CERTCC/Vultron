@@ -237,14 +237,27 @@ def test_a_replica_follows_the_owners_rejection_of_a_proposal():
     assert _ledger(net, BYSTANDER) == _ledger(net, MANAGER)
 
 
-def _set_pxa_everywhere(net: LedgerNetwork, pxa: CS_pxa) -> None:
-    """Record CS at *pxa* in every store, as the ledger already had it."""
-    for dl in net.stores.values():
-        case = cast(VulnerabilityCase, dl.read(net.case_id))
-        case.current_status.pxa = case.current_status.pxa.model_copy(
-            update={"state": pxa}
-        )
-        dl.save(case)
+def _report_pxa(net: LedgerNetwork, pxa: CS_pxa) -> None:
+    """The bystander reports CS at *pxa*; the CASE_MANAGER commits it.
+
+    The default EmbargoTeardownAuthorizationGate waits for the case owner
+    (ADR-0076), so the embargo stays in force and the revision open.  Each
+    replica learns *pxa* from the committed entry, as it would in production.
+    """
+    em = net.case(MANAGER).em_state
+    status = CaseStatus(
+        context=net.case_id,
+        attributed_to=BYSTANDER,
+        em=EmDimension(state=em),
+        pxa=PxaDimension(state=pxa),
+    )
+    _send(
+        net,
+        add_status_to_case_activity(
+            status, target=net.case_id, actor=BYSTANDER, to=[MANAGER]
+        ),
+    )
+    assert net.case(MANAGER).em_state == em
 
 
 def _propose_revision_everywhere(
@@ -309,7 +322,7 @@ def test_a_replica_follows_the_owners_rejection_of_a_revision_after_disclosure()
         LedgerNetwork("https://example.org/cases/replay-reject-disclosed")
     )
     revision = _propose_revision_everywhere(net, days=120)
-    _set_pxa_everywhere(net, CS_pxa.Pxa)
+    _report_pxa(net, CS_pxa.Pxa)
 
     _send(
         net,
@@ -318,8 +331,10 @@ def test_a_replica_follows_the_owners_rejection_of_a_revision_after_disclosure()
         ),
     )
 
-    # The reject entry first, then the termination it forced (EMB-04-002).
-    assert _replay(net, BYSTANDER)[:2] == [
+    # P first, then the reject entry, then the termination it forced
+    # (EMB-04-002).
+    assert _replay(net, BYSTANDER)[:3] == [
+        "add_case_status_to_case",
         "reject_embargo_proposal_on_case",
         "remove_embargo_event_from_case",
     ]
