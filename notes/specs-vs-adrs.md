@@ -30,6 +30,49 @@ MS-11-001 through MS-11-006.
 
 ---
 
+## An ADR Is a Historical Record; Specs and Notes Are the Current State
+
+An ADR answers what we decided and why, given what we knew at the time — an
+answer that cannot go stale, because the past does not change. It is not a
+description of the current codebase. Specs and notes are, and they carry a
+currency obligation that an ADR does not.
+
+Three consequences for everyday work:
+
+- **A refactor is never responsible for updating an ADR.** Renaming a symbol or
+  splitting a module does not oblige you to touch any ADR that mentions it. When
+  an ADR names a function or module path that was later renamed or deleted, the
+  decision still stands and the record is still accurate about the decision;
+  only its description of the code has aged. Nothing in the tooling fails on a
+  stale symbol in an ADR body, and that is deliberate.
+- **A constraint future code must obey does not live in an ADR body.** Put it in
+  a spec requirement when it is testable, or a `notes/` file when it is design
+  insight, and cite the ADR as provenance (MS-11-004, and the Cross-Referencing
+  Pattern below).
+- **A spec or note must not resolve its own meaning by pointing into an ADR
+  body.** Cite the ADR for *why*; state the rule where the reader already is. The
+  corpus does not satisfy this yet — the "ADR-0099 detail N" citations across
+  `specs/` and `notes/` are the known exception, and converting them is tracked
+  in #4389, which is also where extending the MS-16 drift rule to ADR bodies
+  sits.
+
+What stays in the body: the reasoning, the rejected options, and how the code
+looked when the decision was made — the last written so it reads as of its time,
+with removed symbols annotated in the ADR-0063 style rather than deleted. What
+does not: project tracking (a completed migration step, a struck-through progress
+list) and drift-prone detail (counts, metrics, `file.py:line` citations). The
+human-facing version of this is `docs/adr/index.md` § "Revising vs. amending an
+ADR"; the editing mechanics are the Edit Tiers section below.
+
+Source: concern #4389. This replaces the ISSUE-1777 guidance (2026-07-31) that
+asked authors to revise accepted ADR bodies in place so a reader met only
+currently-accurate statements. That pursued the same goal — keeping stale detail
+out of a reader's way — through the only mechanism available while every ADR body
+was read as routine agent context. Records revised in place under it are left as
+they are.
+
+---
+
 ## Decision-Tree Heuristic
 
 Use this self-check before committing a change:
